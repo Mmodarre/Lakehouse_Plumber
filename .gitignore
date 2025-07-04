@@ -1,0 +1,12 @@
+old_code/
+.DS_Store
+.env
+.venv/
+.vscode/
+.idea/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ruff_cache/
+
+*.md
