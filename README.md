@@ -4,6 +4,20 @@
   <img src="lakehouse-plumber-logo.png" alt="LakehousePlumber Logo">
 </div>
 
+<div align="center">
+
+[![PyPI version](https://badge.fury.io/py/lakehouse-plumber.svg)](https://badge.fury.io/py/lakehouse-plumber)
+[![Python Support](https://img.shields.io/pypi/pyversions/lakehouse-plumber.svg)](https://pypi.org/project/lakehouse-plumber/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+
+[![Coverage](https://codecov.io/gh/yourusername/lakehouse-plumber/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/lakehouse-plumber)
+[![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://lakehouse-plumber.readthedocs.io/)
+[![Databricks](https://img.shields.io/badge/Databricks-DLT-orange.svg)](https://databricks.com/product/delta-live-tables)
+
+</div>
+
 **Action-based Delta Live Tables (DLT) pipeline generator for Databricks**
 
 LakehousePlumber is a powerful CLI tool that generates Delta Live Tables pipelines from YAML configurations, enabling data engineers to build robust, scalable data pipelines using a declarative approach.
