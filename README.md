@@ -1,7 +1,7 @@
 # LakehousePlumber 🔧
 
 <div align="center">
-  <img src="lakehouse-plumber-logo.png" alt="LakehousePlumber Logo" width="300">
+  <img src="lakehouse-plumber-logo.png" alt="LakehousePlumber Logo">
 </div>
 
 **Action-based Delta Live Tables (DLT) pipeline generator for Databricks**
