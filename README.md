@@ -1,7 +1,7 @@
 # Lakehouse Plumber
 **Plumbing the future of data engineering, one pipeline at a time** 🚀
 
-*Because every data lake needs a good plumber to keep the flows running smoothly!* 🔧
+*Because every data lake needs a good plumber to keep the flows running smoothly!* 🚰
 
 
 <div align="center">
