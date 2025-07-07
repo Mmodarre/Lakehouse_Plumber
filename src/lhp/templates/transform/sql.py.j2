@@ -1,0 +1,4 @@
+@dlt.view({% if description %}comment="{{ description }}"{% endif %})
+def {{ target_view }}():
+    """{{ description }}"""
+    return spark.sql("""{{ sql_query }}""") 

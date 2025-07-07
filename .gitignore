@@ -9,4 +9,7 @@ old_code/
 .mypy_cache/
 .ruff_cache/
 
-*.md
+docs/
+src/lakehouse_plumber.egg-info/
+__pycache__/
+tpch_lakehouse/

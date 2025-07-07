@@ -1,0 +1,29 @@
+@dlt.view()
+def {{ target_view }}():
+    """{{ description }}"""
+    {% if readMode == "stream" %}
+    df = spark.readStream.table("{{ source_view }}")
+    {% else %}
+    df = spark.read.table("{{ source_view }}")
+    {% endif %}
+    
+    {% if column_mapping %}
+    # Apply column renaming
+    {% for old_name, new_name in column_mapping.items() %}
+    df = df.withColumnRenamed("{{ old_name }}", "{{ new_name }}")
+    {% endfor %}
+    {% endif %}
+    
+    {% if type_casting %}
+    # Apply type casting
+    {% for column, new_type in type_casting.items() %}
+    df = df.withColumn("{{ column }}", F.col("{{ column }}").cast("{{ new_type }}"))
+    {% endfor %}
+    {% endif %}
+    
+    {% if schema_enforcement == 'strict' %}
+    # Strict schema enforcement - additional columns will be dropped
+    # This would be handled by DLT's schema evolution settings
+    {% endif %}
+    
+    return df 

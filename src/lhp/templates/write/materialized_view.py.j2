@@ -1,0 +1,45 @@
+@dlt.table(
+    name="{{ full_table_name }}",
+    comment="{{ comment }}",
+    table_properties={{ properties | tojson }}
+    {%- if partitions %},
+    partition_cols={{ partitions | tojson }}
+    {%- endif %}
+    {%- if cluster_by %},
+    cluster_by={{ cluster_by | tojson }}
+    {%- endif %}
+    {%- if table_path %},
+    path="{{ table_path }}"
+    {%- endif %}
+    {%- if refresh_schedule %},
+    refresh_schedule="{{ refresh_schedule }}"
+    {%- endif %}
+)
+{% if expect_all %}
+@dlt.expect_all({{ expect_all | tojson }})
+{% endif %}
+{% if expect_all_or_drop %}
+@dlt.expect_all_or_drop({{ expect_all_or_drop | tojson }})
+{% endif %}
+{% if expect_all_or_fail %}
+@dlt.expect_all_or_fail({{ expect_all_or_fail | tojson }})
+{% endif %}
+def {{ table_name }}():
+    """{{ description }}"""
+    # Materialized views use batch processing
+    {% if sql_query %}
+    df = spark.sql("""{{ sql_query }}""")
+    {% else %}
+    df = spark.read.table("{{ source_view }}")
+    {% endif %}
+    {% if add_operational_metadata %}
+    
+    # Add operational metadata columns
+    df = df.withColumn('_ingestion_timestamp', F.current_timestamp())
+    df = df.withColumn('_source_file', F.input_file_name())
+    df = df.withColumn('_pipeline_run_id', F.lit(spark.conf.get("pipelines.id", "unknown")))
+    df = df.withColumn('_pipeline_name', F.lit("{{ flowgroup.pipeline if flowgroup else 'unknown' }}"))
+    df = df.withColumn('_flowgroup_name', F.lit("{{ flowgroup.flowgroup if flowgroup else 'unknown' }}"))
+    {% endif %}
+    
+    return df 

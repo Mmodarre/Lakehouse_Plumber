@@ -1,0 +1,22 @@
+@dlt.view()
+def {{ target }}():
+    """{{ description }}"""
+    {% if readMode == "stream" %}
+    df = spark.readStream{% if cdf_enabled %} \
+        .option("readChangeFeed", "true"){% endif %} \
+        .table("{{ table_ref }}")
+    {% else %}
+    df = spark.read.table("{{ table_ref }}")
+    {% endif %}
+    {% if where_clauses %}
+    {% for clause in where_clauses %}
+    df = df.where("{{ clause }}")
+    {% endfor %}
+    {% endif %}
+    {% if select_columns %}
+    
+    # Apply column selection
+    df = df.select({{ select_columns | tojson }})
+    {% endif %}
+    
+    return df 

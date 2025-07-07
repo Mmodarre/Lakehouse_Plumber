@@ -1,0 +1,48 @@
+{% if schema_variable %}
+# Define schema
+{% for line in schema_code_lines %}
+{{ line }}
+{% endfor %}
+
+{% endif %}
+{% if schema_hints_variable %}
+{% for line in schema_hints_lines %}
+{{ line }}
+{% endfor %}
+
+{% endif %}
+@dlt.view()
+def {{ target_view }}():
+    """{{ description }}"""
+    {% if readMode == "stream" %}
+    df = spark.readStream \
+        .format("cloudFiles")
+    {%- for key, value in reader_options.items() %}
+    {%- if value is boolean %} \
+        .option("{{ key }}", {{ value|string|title }})
+    {%- elif value is number %} \
+        .option("{{ key }}", {{ value }})
+    {%- else %} \
+        .option("{{ key }}", "{{ value }}")
+    {%- endif %}
+    {%- endfor %}
+    {%- if schema_hints_variable %} \
+        .option("cloudFiles.schemaHints", {{ schema_hints_variable }})
+    {%- endif %} \
+        .load("{{ path }}")
+    {% else %}
+    # CloudFiles (Auto Loader) in batch mode
+    df = spark.read \
+        .format("{{ format }}")
+    {%- for key, value in reader_options.items() %} \
+        .option("{{ key }}", "{{ value }}")
+    {%- endfor %} \
+        .load("{{ path }}")
+    {% endif %}
+    
+    {% if schema_variable %}
+    # Apply explicit schema
+    df = df.schema({{ schema_variable }})
+    {% endif %}
+    
+    return df 

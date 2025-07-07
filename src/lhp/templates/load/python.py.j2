@@ -1,0 +1,6 @@
+@dlt.view()
+def {{ target_view }}():
+    """{{ description }}"""
+    # Call the external Python function with spark and parameters
+    parameters = {{ parameters | tojson }}
+    return {{ function_name }}(spark, parameters) 

@@ -1,0 +1,12 @@
+@dlt.view()
+def {{ target_view }}():
+    """{{ description }}"""
+    return spark.read \
+        .format("jdbc") \
+        .option("url", "{{ jdbc_url }}") \
+        .option("user", "{{ jdbc_user }}") \
+        .option("password", "{{ jdbc_password }}") \
+        .option("driver", "{{ jdbc_driver }}") \
+{% if jdbc_query %}        .option("query", """{{ jdbc_query }}""") \
+{% elif jdbc_table %}        .option("dbtable", "{{ jdbc_table }}") \
+{% endif %}        .load() 
