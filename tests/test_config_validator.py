@@ -373,6 +373,320 @@ class TestConfigValidator:
         )
         errors = validator.validate_action(action, 0)
         assert len(errors) == 0  # Should only log warning, not error
+    
+    def test_dlt_table_options_validation(self):
+        """Test validation of DLT table options."""
+        validator = ConfigValidator()
+        
+        # Valid options
+        action = Action(
+            name="write_with_options",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "my_table",
+                "spark_conf": {
+                    "spark.sql.adaptive.enabled": "true",
+                    "spark.sql.adaptive.coalescePartitions.enabled": "true"
+                },
+                "table_properties": {
+                    "delta.autoOptimize.optimizeWrite": "true",
+                    "delta.enableChangeDataFeed": "true"
+                },
+                "schema": "id BIGINT, name STRING, amount DECIMAL(18,2)",
+                "row_filter": "ROW FILTER catalog.schema.filter_fn ON (region)",
+                "temporary": True,
+                "partition_columns": ["region", "status"],
+                "cluster_columns": ["id"]
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert len(errors) == 0
+        
+        # Invalid spark_conf (not a dict)
+        action = Action(
+            name="write_invalid_spark_conf",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "my_table",
+                "spark_conf": "invalid"
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("spark_conf" in error and "dictionary" in error for error in errors)
+        
+        # Invalid table_properties (not a dict)
+        action = Action(
+            name="write_invalid_table_props",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "my_table",
+                "table_properties": "invalid"
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("table_properties" in error and "dictionary" in error for error in errors)
+        
+        # Invalid schema (not a string)
+        action = Action(
+            name="write_invalid_schema",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "my_table",
+                "schema": {"invalid": "object"}
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("schema" in error and "string" in error for error in errors)
+        
+        # Invalid row_filter (not a string)
+        action = Action(
+            name="write_invalid_row_filter",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "my_table",
+                "row_filter": 123
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("row_filter" in error and "string" in error for error in errors)
+        
+        # Invalid temporary (not a boolean)
+        action = Action(
+            name="write_invalid_temporary",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "my_table",
+                "temporary": "yes"
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("temporary" in error and "boolean" in error for error in errors)
+        
+        # Invalid partition_columns (not a list)
+        action = Action(
+            name="write_invalid_partitions",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "my_table",
+                "partition_columns": "region"
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("partition_columns" in error and "list" in error for error in errors)
+        
+        # Invalid cluster_columns (not a list)
+        action = Action(
+            name="write_invalid_clusters",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "my_table",
+                "cluster_columns": "id"
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("cluster_columns" in error and "list" in error for error in errors)
+
+    def test_snapshot_cdc_validation(self):
+        """Test validation of snapshot CDC configuration."""
+        validator = ConfigValidator()
+        
+        # Valid snapshot CDC with simple source
+        action = Action(
+            name="valid_snapshot_cdc",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "database": "silver",
+                "table": "customers",
+                "snapshot_cdc_config": {
+                    "source": "raw.customer_snapshots",
+                    "keys": ["customer_id"],
+                    "stored_as_scd_type": 1
+                }
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        snapshot_errors = [e for e in errors if 'snapshot_cdc' in e]
+        assert len(snapshot_errors) == 0
+        
+        # Valid snapshot CDC with function source
+        action = Action(
+            name="valid_snapshot_cdc_func",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "database": "silver",
+                "table": "customers",
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": "snapshot_functions.py",
+                        "function": "next_snapshot"
+                    },
+                    "keys": ["customer_id", "region"],
+                    "stored_as_scd_type": 2,
+                    "track_history_column_list": ["name", "email"]
+                }
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        snapshot_errors = [e for e in errors if 'snapshot_cdc' in e]
+        assert len(snapshot_errors) == 0
+        
+        # Missing snapshot_cdc_config
+        action = Action(
+            name="missing_config",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "database": "silver",
+                "table": "customers"
+                # Missing snapshot_cdc_config
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("snapshot_cdc mode requires 'snapshot_cdc_config'" in error for error in errors)
+        
+        # Missing both source and source_function
+        action = Action(
+            name="missing_source",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "database": "silver",
+                "table": "customers",
+                "snapshot_cdc_config": {
+                    "keys": ["customer_id"]
+                    # Missing source
+                }
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("must have either 'source' or 'source_function'" in error for error in errors)
+        
+        # Both source and source_function provided
+        action = Action(
+            name="both_sources",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "database": "silver",
+                "table": "customers",
+                "snapshot_cdc_config": {
+                    "source": "raw.table",
+                    "source_function": {"file": "test.py", "function": "test"},
+                    "keys": ["customer_id"]
+                }
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("cannot have both 'source' and 'source_function'" in error for error in errors)
+        
+        # Missing keys
+        action = Action(
+            name="missing_keys",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "database": "silver",
+                "table": "customers",
+                "snapshot_cdc_config": {
+                    "source": "raw.table"
+                    # Missing keys
+                }
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("must have 'keys'" in error for error in errors)
+        
+        # Invalid SCD type
+        action = Action(
+            name="invalid_scd_type",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "database": "silver",
+                "table": "customers",
+                "snapshot_cdc_config": {
+                    "source": "raw.table",
+                    "keys": ["id"],
+                    "stored_as_scd_type": 3  # Invalid
+                }
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("'stored_as_scd_type' must be 1 or 2" in error for error in errors)
+        
+        # Both track history options
+        action = Action(
+            name="both_track_history",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "database": "silver",
+                "table": "customers",
+                "snapshot_cdc_config": {
+                    "source": "raw.table",
+                    "keys": ["id"],
+                    "track_history_column_list": ["name"],
+                    "track_history_except_column_list": ["id"]
+                }
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("cannot have both 'track_history_column_list' and 'track_history_except_column_list'" in error for error in errors)
+        
+        # Invalid source_function structure
+        action = Action(
+            name="invalid_source_function",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "database": "silver",
+                "table": "customers",
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": "test.py"
+                        # Missing function
+                    },
+                    "keys": ["id"]
+                }
+            }
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("source_function must have 'function'" in error for error in errors)
 
 
 if __name__ == "__main__":

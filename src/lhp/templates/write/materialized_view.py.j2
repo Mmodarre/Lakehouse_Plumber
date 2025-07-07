@@ -2,6 +2,9 @@
     name="{{ full_table_name }}",
     comment="{{ comment }}",
     table_properties={{ properties | tojson }}
+    {%- if spark_conf %},
+    spark_conf={{ spark_conf | tojson }}
+    {%- endif %}
     {%- if partitions %},
     partition_cols={{ partitions | tojson }}
     {%- endif %}
@@ -10,6 +13,15 @@
     {%- endif %}
     {%- if table_path %},
     path="{{ table_path }}"
+    {%- endif %}
+    {%- if schema %},
+    schema="{{ schema }}"
+    {%- endif %}
+    {%- if row_filter %},
+    row_filter="{{ row_filter }}"
+    {%- endif %}
+    {%- if temporary %},
+    temporary={{ temporary | string | title }}
     {%- endif %}
     {%- if refresh_schedule %},
     refresh_schedule="{{ refresh_schedule }}"

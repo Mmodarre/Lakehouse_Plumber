@@ -1,10 +1,12 @@
 """Streaming table write generator - adapted from BurrowBuilder."""
 
-from typing import Dict, Any, List, Optional
+import ast
+from typing import Dict, Any, List, Optional, Tuple
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
 from ...utils.operational_metadata import OperationalMetadata
+from ...utils.error_formatter import LHPError, ErrorCategory
 
 
 class StreamingTableWriteGenerator(BaseActionGenerator):
@@ -25,7 +27,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         source_views = self._extract_source_views(action.source)
         
         # Extract configuration
-        mode = target_config.get("mode", "standard")  # Only "cdc" is a special mode
+        mode = target_config.get("mode", "standard")  # "cdc" and "snapshot_cdc" are special modes
         database = target_config.get("database")
         table = target_config.get("table") or target_config.get("name")
         
@@ -40,8 +42,31 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         if target_config.get("table_properties"):
             properties.update(target_config["table_properties"])
         
+        # Spark configuration
+        spark_conf = target_config.get("spark_conf", {})
+        
+        # Schema definition (SQL DDL string or StructType)
+        schema = target_config.get("schema")
+        
+        # Row filter clause
+        row_filter = target_config.get("row_filter")
+        
+        # Temporary table flag
+        temporary = target_config.get("temporary", False)
+        
         # Handle CDC configuration for auto_cdc mode
         cdc_config = target_config.get("cdc_config", {}) if mode == "cdc" else {}
+        
+        # Handle snapshot CDC configuration for snapshot_cdc mode
+        snapshot_cdc_config = target_config.get("snapshot_cdc_config", {}) if mode == "snapshot_cdc" else {}
+        
+        # Process source function code for snapshot_cdc mode
+        source_function_code = None
+        source_function_name = None
+        if mode == "snapshot_cdc" and snapshot_cdc_config.get("source_function"):
+            source_function_code, source_function_name = self._process_source_function(
+                snapshot_cdc_config["source_function"]
+            )
         
         # Process data quality expectations
         expectations = context.get("expectations", [])
@@ -85,11 +110,18 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "flow_name": flow_name,
             "mode": mode,
             "properties": properties,
+            "spark_conf": spark_conf,
+            "schema": schema,
+            "row_filter": row_filter,
+            "temporary": temporary,
             "partitions": target_config.get("partition_columns"),
             "cluster_by": target_config.get("cluster_columns"),
             "comment": target_config.get("comment", f"Streaming table: {table}"),
             "table_path": target_config.get("path"),
             "cdc_config": cdc_config,
+            "snapshot_cdc_config": snapshot_cdc_config,
+            "source_function_code": source_function_code,
+            "source_function_name": source_function_name,
             "expect_all": expect_all,
             "expect_all_or_drop": expect_all_or_drop,
             "expect_all_or_fail": expect_all_or_fail,
@@ -118,4 +150,244 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             view = source.get("view", source.get("name", ""))
             return [view] if view else []
         else:
-            return [] 
+            return []
+    
+    def _process_source_function(self, source_function_config: Dict[str, str]) -> Tuple[str, str]:
+        """Process source_function configuration and return function code and function name.
+        
+        Args:
+            source_function_config: Dict with 'file' and 'function' keys
+            
+        Returns:
+            Tuple of (function_code, function_name)
+        """
+        import os
+        from pathlib import Path
+        
+        file_name = source_function_config.get("file")
+        function_name = source_function_config.get("function")
+        
+        if not file_name or not function_name:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="002",
+                title="Incomplete source_function configuration",
+                details="The source_function configuration is missing required fields.",
+                suggestions=[
+                    "Specify both 'file' and 'function' in your source_function config",
+                    "Check your YAML syntax and indentation"
+                ],
+                example="""Correct configuration:
+snapshot_cdc_config:
+  source_function:
+    file: "functions/my_snapshots.py"    # ← Required
+    function: "my_snapshot_function"     # ← Required
+  keys: ["id"]
+  stored_as_scd_type: 2""",
+                context={
+                    "Provided file": file_name,
+                    "Provided function": function_name
+                }
+            )
+        
+        # Find the function file - try multiple locations
+        possible_paths = [
+            # Relative to current pipeline directory  
+            Path("pipelines") / "bronze_dimensions" / file_name,
+            # Relative to project root
+            Path(file_name),
+            # In current working directory
+            Path.cwd() / file_name,
+            # In tpch_lakehouse directory (if we're in subdirectory)
+            Path.cwd() / "tpch_lakehouse" / file_name,
+        ]
+        
+        function_file_path = None
+        for path in possible_paths:
+            if path.exists():
+                function_file_path = path
+                break
+                
+        if not function_file_path:
+            # Convert paths to relative project paths for better readability
+            project_root = Path.cwd()
+            relative_paths = []
+            for path in possible_paths:
+                try:
+                    rel_path = path.relative_to(project_root)
+                    relative_paths.append(str(rel_path))
+                except ValueError:
+                    # If path is outside project, show as absolute
+                    relative_paths.append(str(path))
+            
+            raise LHPError(
+                category=ErrorCategory.IO,
+                code_number="002",
+                title="Snapshot function file not found",
+                details=f"Cannot locate the Python file containing your snapshot function: '{file_name}'",
+                suggestions=[
+                    "Create the function file in one of these locations:",
+                    f"   • pipelines/bronze_dimensions/{file_name}",
+                    f"   • {file_name} (project root)",
+                    "",
+                    "Ensure the file contains your snapshot function definition",
+                    "Check the file path in your YAML configuration for typos"
+                ],
+                example=f"""1. Create the file: pipelines/bronze_dimensions/{file_name}
+
+2. Add your function:
+   from typing import Optional, Tuple
+   from pyspark.sql import DataFrame
+   
+   def your_function_name(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
+       # Your snapshot logic here
+       if latest_version is None:
+           df = spark.read.table("your_snapshot_table")
+           return (df, 1)
+       # More logic...
+       return None
+
+3. Reference it in YAML:
+   snapshot_cdc_config:
+     source_function:
+       file: "{file_name}"
+       function: "your_function_name" """,
+                context={
+                    "File": file_name,
+                    "Searched Locations": relative_paths
+                }
+            )
+        
+        # Read and parse the Python file
+        with open(function_file_path, 'r') as f:
+            source_code = f.read()
+        
+        try:
+            tree = ast.parse(source_code)
+        except SyntaxError as e:
+            raise LHPError(
+                category=ErrorCategory.IO,
+                code_number="003", 
+                title="Python syntax error in function file",
+                details=f"The function file '{file_name}' contains invalid Python syntax: {e}",
+                suggestions=[
+                    "Check the Python syntax in your function file",
+                    "Ensure proper indentation (use spaces, not tabs)",
+                    "Verify all parentheses, brackets, and quotes are properly closed",
+                    "Test the file independently: python -m py_compile your_file.py"
+                ],
+                example="""Valid function file example:
+from typing import Optional, Tuple
+from pyspark.sql import DataFrame
+
+def my_snapshot_function(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
+    if latest_version is None:
+        df = spark.read.table("my_table")
+        return (df, 1)
+    return None""",
+                context={
+                    "File": file_name,
+                    "Syntax Error": str(e)
+                }
+            )
+        
+        # Extract the specific function
+        function_code = self._extract_function_code(source_code, tree, function_name)
+        
+        if not function_code:
+            raise LHPError(
+                category=ErrorCategory.IO,
+                code_number="004",
+                title=f"Function '{function_name}' not found in file",
+                details=f"The function '{function_name}' is not defined in the file '{file_name}'",
+                suggestions=[
+                    f"Define a function named '{function_name}' in your file",
+                    "Check for typos in the function name",
+                    "Ensure the function is defined at the top level (not nested inside another function)",
+                    "Verify the function name matches exactly (case-sensitive)"
+                ],
+                example=f"""Add this function to {file_name}:
+
+def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
+    \"\"\"
+    Your snapshot processing logic here.
+    
+    Args:
+        latest_version: Most recent version processed, or None for first run
+        
+    Returns:
+        Tuple of (DataFrame, version_number) or None if no more data
+    \"\"\"
+    if latest_version is None:
+        # First run logic
+        df = spark.read.table("your_snapshot_table")
+        return (df, 1)
+    
+    # Subsequent runs logic
+    return None  # No more snapshots""",
+                context={
+                    "File": file_name,
+                    "Expected Function": function_name
+                }
+            )
+        
+        return function_code, function_name
+    
+    def _extract_function_code(self, source_code: str, tree: ast.Module, function_name: str) -> str:
+        """Extract function code and its dependencies from the AST.
+        
+        Args:
+            source_code: Original source code
+            tree: Parsed AST
+            function_name: Name of function to extract
+            
+        Returns:
+            Complete function code with imports and dependencies
+        """
+        source_lines = source_code.split('\n')
+        function_lines = []
+        imports = []
+        
+        # Extract only top-level imports (not nested within functions)
+        for node in tree.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                import_line = source_lines[node.lineno - 1].strip()
+                imports.append(import_line)
+        
+        # Find the function definition
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == function_name:
+                # Extract the function lines
+                start_line = node.lineno - 1
+                end_line = node.end_lineno if hasattr(node, 'end_lineno') else len(source_lines)
+                
+                function_lines = source_lines[start_line:end_line]
+                break
+        
+        if not function_lines:
+            return ""
+        
+        # Combine imports and function
+        result = []
+        
+        # Add necessary imports (filter out duplicates and common ones)
+        unique_imports = []
+        for imp in imports:
+            # Skip imports that are usually already available in DLT context
+            if not any(skip in imp for skip in ['pyspark', 'spark']):
+                if imp not in unique_imports:
+                    unique_imports.append(imp)
+        
+        # Add DataFrame import if it's referenced in type hints
+        function_text = '\n'.join(function_lines)
+        if 'DataFrame' in function_text and not any('DataFrame' in imp for imp in unique_imports):
+            unique_imports.insert(0, "from pyspark.sql import DataFrame")
+        
+        if unique_imports:
+            result.extend(unique_imports)
+            result.append("")  # Empty line after imports
+        
+        # Add function code
+        result.extend(function_lines)
+        
+        return '\n'.join(result) 

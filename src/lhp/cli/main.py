@@ -19,13 +19,52 @@ from ..core.validator import ConfigValidator
 logger = logging.getLogger(__name__)
 
 
-def configure_logging(verbose: bool):
-    """Configure logging for the CLI."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+def configure_logging(verbose: bool, project_root: Optional[Path] = None):
+    """Configure logging with clean console output and detailed file logging."""
+    
+    # Create logs directory in project if project_root is provided
+    if project_root:
+        logs_dir = project_root / ".lhp" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / "lhp.log"
+    else:
+        # Fallback to temp directory if no project root
+        import tempfile
+        log_file = Path(tempfile.gettempdir()) / "lhp.log"
+    
+    # Remove any existing handlers
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Set root logger level to capture everything
+    root_logger.setLevel(logging.DEBUG)
+    
+    # File handler - logs everything with detailed format
+    file_handler = logging.FileHandler(log_file, mode='w', encoding='utf-8')
+    file_handler.setLevel(logging.DEBUG)
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
+    file_handler.setFormatter(file_formatter)
+    root_logger.addHandler(file_handler)
+    
+    # Console handler - only warnings and errors by default
+    console_handler = logging.StreamHandler()
+    if verbose:
+        console_handler.setLevel(logging.INFO)
+        console_formatter = logging.Formatter('🔧 %(levelname)s: %(message)s')
+    else:
+        console_handler.setLevel(logging.WARNING)
+        console_formatter = logging.Formatter('%(levelname)s: %(message)s')
+    
+    console_handler.setFormatter(console_formatter)
+    root_logger.addHandler(console_handler)
+    
+    # Log the setup
+    logger.info(f"Logging initialized - File: {log_file}, Console level: {'INFO' if verbose else 'WARNING'}")
+    
+    return log_file
 
 
 @click.group()
@@ -33,7 +72,15 @@ def configure_logging(verbose: bool):
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
 def cli(verbose):
     """LakehousePlumber - Generate Delta Live Tables pipelines from YAML configs."""
-    configure_logging(verbose)
+    # Try to find project root for better logging setup
+    project_root = _find_project_root()
+    log_file = configure_logging(verbose, project_root)
+    
+    # Store logging info in context for subcommands
+    ctx = click.get_current_context()
+    ctx.ensure_object(dict)
+    ctx.obj['verbose'] = verbose
+    ctx.obj['log_file'] = log_file
 
 
 @cli.command()
@@ -245,7 +292,13 @@ def validate(env, pipeline, verbose):
     """Validate pipeline configurations"""
     project_root = _ensure_project_root()
     
+    # Get context info
+    ctx = click.get_current_context()
+    log_file = ctx.obj.get('log_file') if ctx.obj else None
+    
     click.echo(f"🔍 Validating pipeline configurations for environment: {env}")
+    if verbose and log_file:
+        click.echo(f"📝 Detailed logs: {log_file}")
     
     # Check if substitution file exists
     substitution_file = project_root / "substitutions" / f"{env}.yaml"
@@ -315,6 +368,8 @@ def validate(env, pipeline, verbose):
         except Exception as e:
             logger.exception(f"Validation failed for {pipeline_name}")
             click.echo(f"❌ Validation failed for {pipeline_name}: {e}")
+            if log_file:
+                click.echo(f"📝 Check detailed logs: {log_file}")
             total_errors += 1
     
     # Summary
@@ -344,7 +399,14 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
     """Generate DLT pipeline code"""
     project_root = _ensure_project_root()
     
+    # Get context info
+    ctx = click.get_current_context()
+    verbose = ctx.obj.get('verbose', False) if ctx.obj else False
+    log_file = ctx.obj.get('log_file') if ctx.obj else None
+    
     click.echo(f"🚀 Generating pipeline code for environment: {env}")
+    if verbose and log_file:
+        click.echo(f"📝 Detailed logs: {log_file}")
     
     # Check if substitution file exists
     substitution_file = project_root / "substitutions" / f"{env}.yaml"
@@ -353,6 +415,8 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
         sys.exit(1)
     
     # Initialize orchestrator and state manager
+    if verbose:
+        click.echo("🔧 Initializing orchestrator and state manager...")
     orchestrator = ActionOrchestrator(project_root)
     state_manager = StateManager(project_root) if cleanup else None
     
@@ -529,6 +593,8 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
         except Exception as e:
             logger.exception(f"Generation failed for {pipeline_name}")
             click.echo(f"❌ Generation failed for {pipeline_name}: {e}")
+            if log_file:
+                click.echo(f"📝 Check detailed logs: {log_file}")
             sys.exit(1)
     
     # Save state if cleanup is enabled
@@ -1105,12 +1171,19 @@ def stats(pipeline):
 @click.option('--pipeline', '-p', help='Specific pipeline to show state for')
 @click.option('--orphaned', is_flag=True, help='Show only orphaned files')
 @click.option('--stale', is_flag=True, help='Show only stale files (YAML changed)')
+@click.option('--new', is_flag=True, help='Show only new/untracked YAML files')
 @click.option('--dry-run', is_flag=True, help='Preview cleanup without actually deleting files')
 @click.option('--cleanup', is_flag=True, help='Clean up orphaned files')
 @click.option('--regen', is_flag=True, help='Regenerate stale files')
-def state(env, pipeline, orphaned, stale, dry_run, cleanup, regen):
+def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
     """Show or manage the current state of generated files."""
     project_root = _ensure_project_root()
+    
+    # Get context info for verbose logging
+    ctx = click.get_current_context()
+    verbose = ctx.obj.get('verbose', False) if ctx.obj else False
+    log_file = ctx.obj.get('log_file') if ctx.obj else None
+    
     state_manager = StateManager(project_root)
     
     if not env:
@@ -1256,6 +1329,56 @@ def state(env, pipeline, orphaned, stale, dry_run, cleanup, regen):
         
         return
     
+    # Show new files if requested
+    if new:
+        new_files = state_manager.find_new_yaml_files(env)
+        
+        if pipeline:
+            # Filter new files by pipeline
+            filtered_new_files = []
+            for yaml_file in new_files:
+                try:
+                    relative_path = yaml_file.relative_to(project_root)
+                    if len(relative_path.parts) > 1 and relative_path.parts[1] == pipeline:
+                        filtered_new_files.append(yaml_file)
+                except ValueError:
+                    continue
+            new_files = filtered_new_files
+        
+        if not new_files:
+            click.echo("✅ No new YAML files found")
+            return
+        
+        click.echo(f"🆕 New YAML Files ({len(new_files)} found)")
+        click.echo("─" * 60)
+        
+        # Group new files by pipeline
+        new_by_pipeline = defaultdict(list)
+        for yaml_file in new_files:
+            # Extract pipeline from path (pipelines/pipeline_name/...)
+            try:
+                relative_path = yaml_file.relative_to(project_root)
+                pipeline_name = relative_path.parts[1]  # pipelines/pipeline_name/...
+                new_by_pipeline[pipeline_name].append(yaml_file)
+            except (ValueError, IndexError):
+                new_by_pipeline['unknown'].append(yaml_file)
+        
+        for pipeline_name, files in sorted(new_by_pipeline.items()):
+            click.echo(f"\n🔧 Pipeline: {pipeline_name} ({len(files)} new files)")
+            for yaml_file in sorted(files):
+                try:
+                    relative_path = yaml_file.relative_to(project_root)
+                    click.echo(f"  • {relative_path}")
+                except ValueError:
+                    click.echo(f"  • {yaml_file}")
+        
+        click.echo(f"\n💡 Use 'lhp generate --env {env} --cleanup' to generate code for these files")
+        return
+    
+    # Find new (untracked) YAML files
+    new_files = state_manager.find_new_yaml_files(env, pipeline)
+    new_count = len(new_files)
+    
     # Show all tracked files
     click.echo(f"📁 Tracked Files ({len(tracked_files)} total)")
     click.echo("─" * 60)
@@ -1296,6 +1419,33 @@ def state(env, pipeline, orphaned, stale, dry_run, cleanup, regen):
             click.echo(f"    FlowGroup: {file_state.flowgroup}")
             click.echo(f"    Generated: {file_state.timestamp}")
     
+    # Show new (untracked) YAML files
+    if new_count > 0:
+        click.echo(f"\n📄 New YAML Files ({new_count} found)")
+        click.echo("─" * 60)
+        
+        # Group new files by pipeline
+        new_by_pipeline = defaultdict(list)
+        for yaml_file in new_files:
+            # Extract pipeline from path (pipelines/pipeline_name/...)
+            try:
+                relative_path = yaml_file.relative_to(project_root)
+                pipeline_name = relative_path.parts[1]  # pipelines/pipeline_name/...
+                new_by_pipeline[pipeline_name].append(yaml_file)
+            except (ValueError, IndexError):
+                new_by_pipeline['unknown'].append(yaml_file)
+        
+        for pipeline_name, files in sorted(new_by_pipeline.items()):
+            click.echo(f"\n🔧 Pipeline: {pipeline_name} ({len(files)} new files)")
+            for yaml_file in sorted(files):
+                try:
+                    relative_path = yaml_file.relative_to(project_root)
+                    click.echo(f"  • {relative_path} 🆕")
+                except ValueError:
+                    click.echo(f"  • {yaml_file} 🆕")
+        
+        click.echo(f"\n💡 Use 'lhp generate --env {env} --cleanup' to generate code for these files")
+    
     # Show comprehensive summary
     orphaned_files = state_manager.find_orphaned_files(env)
     stale_files = state_manager.find_stale_files(env)
@@ -1313,6 +1463,10 @@ def state(env, pipeline, orphaned, stale, dry_run, cleanup, regen):
     click.echo(f"\n📊 Summary:")
     click.echo(f"   🟢 {up_to_date_count} files up-to-date")
     
+    if new_count > 0:
+        click.echo(f"   🆕 {new_count} new YAML files (not generated yet)")
+        click.echo(f"      Use 'lhp generate --env {env} --cleanup' to generate them")
+    
     if stale_count > 0:
         click.echo(f"   🟡 {stale_count} files stale (YAML changed)")
         click.echo("      Use --stale flag to see details")
@@ -1323,7 +1477,7 @@ def state(env, pipeline, orphaned, stale, dry_run, cleanup, regen):
         click.echo("      Use --orphaned flag to see details")
         click.echo("      Use --orphaned --cleanup to remove them")
     
-    if orphaned_count == 0 and stale_count == 0:
+    if orphaned_count == 0 and stale_count == 0 and new_count == 0:
         click.echo("   ✨ Everything is in perfect sync!")
     
     click.echo(f"\n💡 Smart generation tips:")

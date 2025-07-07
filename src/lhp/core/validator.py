@@ -260,11 +260,14 @@ class ConfigValidator:
                 
                 # Must have source (view to read from)
                 if write_type == WriteTargetType.STREAMING_TABLE:
-                    if not action.source:
-                        errors.append(f"{prefix}: Streaming table must have 'source' to read from")
-                    # Validate source is string or list
-                    elif not isinstance(action.source, (str, list)):
-                        errors.append(f"{prefix}: Streaming table source must be a string or list of view names")
+                    # Check if this is snapshot_cdc mode, which defines source differently
+                    mode = action.write_target.get("mode", "standard")
+                    if mode != "snapshot_cdc":
+                        if not action.source:
+                            errors.append(f"{prefix}: Streaming table must have 'source' to read from")
+                        # Validate source is string or list
+                        elif not isinstance(action.source, (str, list)):
+                            errors.append(f"{prefix}: Streaming table source must be a string or list of view names")
                 elif write_type == WriteTargetType.MATERIALIZED_VIEW:
                     # Materialized view can have either source view or SQL
                     if not action.source and not action.write_target.get("sql"):
@@ -272,11 +275,165 @@ class ConfigValidator:
                     # If source is provided, it should be string or list
                     elif action.source and not isinstance(action.source, (str, list)):
                         errors.append(f"{prefix}: Materialized view source must be a string or list of view names")
+                
+                # Validate new @dlt.table options
+                self._validate_dlt_table_options(action, prefix, errors)
+                
+                # Validate mode-specific configurations
+                if write_type == WriteTargetType.STREAMING_TABLE:
+                    mode = action.write_target.get("mode", "standard")
+                    if mode == "snapshot_cdc":
+                        self._validate_snapshot_cdc_config(action, prefix, errors)
             
         except ValueError:
             pass  # Already handled above
         
         return errors
+    
+    def _validate_dlt_table_options(self, action: Action, prefix: str, errors: List[str]):
+        """Validate DLT table options (spark_conf, table_properties, schema, etc.)."""
+        if not action.write_target:
+            return
+        
+        # Validate spark_conf
+        spark_conf = action.write_target.get("spark_conf")
+        if spark_conf is not None:
+            if not isinstance(spark_conf, dict):
+                errors.append(f"{prefix}: 'spark_conf' must be a dictionary")
+            else:
+                # Validate spark_conf keys (should be strings)
+                for key, value in spark_conf.items():
+                    if not isinstance(key, str):
+                        errors.append(f"{prefix}: spark_conf key '{key}' must be a string")
+        
+        # Validate table_properties
+        table_properties = action.write_target.get("table_properties")
+        if table_properties is not None:
+            if not isinstance(table_properties, dict):
+                errors.append(f"{prefix}: 'table_properties' must be a dictionary")
+            else:
+                # Validate table_properties keys (should be strings)
+                for key, value in table_properties.items():
+                    if not isinstance(key, str):
+                        errors.append(f"{prefix}: table_properties key '{key}' must be a string")
+        
+        # Validate schema
+        schema = action.write_target.get("schema")
+        if schema is not None:
+            if not isinstance(schema, str):
+                errors.append(f"{prefix}: 'schema' must be a string (SQL DDL or StructType)")
+        
+        # Validate row_filter
+        row_filter = action.write_target.get("row_filter")
+        if row_filter is not None:
+            if not isinstance(row_filter, str):
+                errors.append(f"{prefix}: 'row_filter' must be a string")
+        
+        # Validate temporary
+        temporary = action.write_target.get("temporary")
+        if temporary is not None:
+            if not isinstance(temporary, bool):
+                errors.append(f"{prefix}: 'temporary' must be a boolean")
+        
+        # Validate partition_columns
+        partition_columns = action.write_target.get("partition_columns")
+        if partition_columns is not None:
+            if not isinstance(partition_columns, list):
+                errors.append(f"{prefix}: 'partition_columns' must be a list")
+            else:
+                for i, col in enumerate(partition_columns):
+                    if not isinstance(col, str):
+                        errors.append(f"{prefix}: partition_columns[{i}] must be a string")
+        
+        # Validate cluster_columns
+        cluster_columns = action.write_target.get("cluster_columns")
+        if cluster_columns is not None:
+            if not isinstance(cluster_columns, list):
+                errors.append(f"{prefix}: 'cluster_columns' must be a list")
+            else:
+                for i, col in enumerate(cluster_columns):
+                    if not isinstance(col, str):
+                        errors.append(f"{prefix}: cluster_columns[{i}] must be a string")
+    
+    def _validate_snapshot_cdc_config(self, action: Action, prefix: str, errors: List[str]):
+        """Validate snapshot CDC configuration."""
+        if not action.write_target:
+            return
+        
+        snapshot_cdc_config = action.write_target.get("snapshot_cdc_config")
+        if not snapshot_cdc_config:
+            errors.append(f"{prefix}: snapshot_cdc mode requires 'snapshot_cdc_config'")
+            return
+        
+        if not isinstance(snapshot_cdc_config, dict):
+            errors.append(f"{prefix}: 'snapshot_cdc_config' must be a dictionary")
+            return
+        
+        # Validate source configuration (mutually exclusive)
+        has_source = snapshot_cdc_config.get("source") is not None
+        has_source_function = snapshot_cdc_config.get("source_function") is not None
+        
+        if not has_source and not has_source_function:
+            errors.append(f"{prefix}: snapshot_cdc_config must have either 'source' or 'source_function'")
+        elif has_source and has_source_function:
+            errors.append(f"{prefix}: snapshot_cdc_config cannot have both 'source' and 'source_function'")
+        
+        # Validate source_function if provided
+        if has_source_function:
+            source_function = snapshot_cdc_config["source_function"]
+            if not isinstance(source_function, dict):
+                errors.append(f"{prefix}: 'source_function' must be a dictionary")
+            else:
+                if not source_function.get("file"):
+                    errors.append(f"{prefix}: source_function must have 'file'")
+                if not source_function.get("function"):
+                    errors.append(f"{prefix}: source_function must have 'function'")
+        
+        # Validate required keys parameter
+        keys = snapshot_cdc_config.get("keys")
+        if not keys:
+            errors.append(f"{prefix}: snapshot_cdc_config must have 'keys'")
+        elif not isinstance(keys, list):
+            errors.append(f"{prefix}: 'keys' must be a list")
+        elif not keys:  # Empty list
+            errors.append(f"{prefix}: 'keys' cannot be empty")
+        else:
+            for i, key in enumerate(keys):
+                if not isinstance(key, str):
+                    errors.append(f"{prefix}: keys[{i}] must be a string")
+        
+        # Validate stored_as_scd_type
+        scd_type = snapshot_cdc_config.get("stored_as_scd_type")
+        if scd_type is not None:
+            if not isinstance(scd_type, int) or scd_type not in [1, 2]:
+                errors.append(f"{prefix}: 'stored_as_scd_type' must be 1 or 2")
+        
+        # Validate track history options (mutually exclusive)
+        has_track_list = snapshot_cdc_config.get("track_history_column_list") is not None
+        has_track_except = snapshot_cdc_config.get("track_history_except_column_list") is not None
+        
+        if has_track_list and has_track_except:
+            errors.append(f"{prefix}: cannot have both 'track_history_column_list' and 'track_history_except_column_list'")
+        
+        # Validate track_history_column_list
+        if has_track_list:
+            track_list = snapshot_cdc_config["track_history_column_list"]
+            if not isinstance(track_list, list):
+                errors.append(f"{prefix}: 'track_history_column_list' must be a list")
+            else:
+                for i, col in enumerate(track_list):
+                    if not isinstance(col, str):
+                        errors.append(f"{prefix}: track_history_column_list[{i}] must be a string")
+        
+        # Validate track_history_except_column_list
+        if has_track_except:
+            except_list = snapshot_cdc_config["track_history_except_column_list"]
+            if not isinstance(except_list, list):
+                errors.append(f"{prefix}: 'track_history_except_column_list' must be a list")
+            else:
+                for i, col in enumerate(except_list):
+                    if not isinstance(col, str):
+                        errors.append(f"{prefix}: track_history_except_column_list[{i}] must be a string")
     
     def validate_action_references(self, actions: List[Action]) -> List[str]:
         """Validate that all action references are valid."""

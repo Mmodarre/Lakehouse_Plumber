@@ -32,6 +32,18 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         # Table properties with defaults
         properties = target_config.get("table_properties", {})
         
+        # Spark configuration
+        spark_conf = target_config.get("spark_conf", {})
+        
+        # Schema definition (SQL DDL string or StructType)
+        schema = target_config.get("schema")
+        
+        # Row filter clause
+        row_filter = target_config.get("row_filter")
+        
+        # Temporary table flag
+        temporary = target_config.get("temporary", False)
+        
         # Refresh schedule
         refresh_schedule = target_config.get("refresh_schedule")
         
@@ -67,6 +79,13 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             "source_view": source_view,
             "sql_query": sql_query,
             "properties": properties,
+            "spark_conf": spark_conf,
+            "schema": schema,
+            "row_filter": row_filter,
+            "temporary": temporary,
+            "partitions": target_config.get("partition_columns"),
+            "cluster_by": target_config.get("cluster_columns"),
+            "table_path": target_config.get("path"),
             "comment": target_config.get("comment", f"Materialized view: {table}"),
             "refresh_schedule": refresh_schedule,
             "description": action.description or f"Write to materialized view: {full_table_name}",
