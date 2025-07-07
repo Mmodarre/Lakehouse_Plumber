@@ -9,7 +9,7 @@
 [![PyPI version](https://badge.fury.io/py/lakehouse-plumber.svg)](https://badge.fury.io/py/lakehouse-plumber)
 [![Python Support](https://img.shields.io/pypi/pyversions/lakehouse-plumber.svg)](https://pypi.org/project/lakehouse-plumber/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Lines of Code](https://tokei.rs/b1/github/Mmodarre/Lakehouse_Plumber)](https://github.com/Mmodarre/Lakehouse_Plumber)
+[![Lines of Code](https://img.shields.io/badge/lines%20of%20code-~8k-blue)](https://github.com/Mmodarre/Lakehouse_Plumber)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
@@ -19,9 +19,9 @@
 
 </div>
 
-**Action-based Delta Live Tables (DLT) pipeline generator for Databricks**
+**Action-based Lakeflow Declaritive Pipelines (DLT) pipeline generator for Databricks**
 
-LakehousePlumber is a powerful CLI tool that generates Delta Live Tables pipelines from YAML configurations, enabling data engineers to build robust, scalable data pipelines using a declarative approach.
+LakehousePlumber is a powerful CLI tool that generates Lakeflow Declaritive Pipelines pipelines from YAML configurations, enabling data engineers to build robust, scalable data pipelines using a declarative approach.
 
 ## 🎯 Key Features
 
@@ -50,7 +50,7 @@ LakehousePlumber supports three main action types:
 #### ⚡ Transform Actions
 - **SQL**: Standard SQL transformations
 - **Python**: Custom Python transformations
-- **Data Quality**: Apply DLT expectations
+- **Data Quality**: Apply expectations
 - **Schema**: Column mapping and type casting
 - **Temp Table**: Create temporary views
 
@@ -84,7 +84,7 @@ my_lakehouse_project/
 │   └── prod.yaml
 ├── schemas/                   # Table schemas
 ├── expectations/              # Data quality rules
-└── generated/                 # Generated DLT code
+└── generated/                 # Generated code
 ```
 
 ## 🚀 Quick Start
@@ -161,7 +161,7 @@ secrets:
 # Validate configuration
 lhp validate --env dev
 
-# Generate DLT pipeline code
+# Generate pipeline code
 lhp generate --env dev
 
 # View generated code
@@ -173,7 +173,7 @@ ls generated/
 ### Project Management
 - `lhp init <project_name>` - Initialize new project
 - `lhp validate --env <env>` - Validate pipeline configurations
-- `lhp generate --env <env>` - Generate DLT pipeline code
+- `lhp generate --env <env>` - Generate pipeline code
 - `lhp info` - Show project information and statistics
 
 ### Discovery and Inspection
@@ -254,7 +254,7 @@ actions:
 
 ### Data Quality
 
-Integrate DLT expectations:
+Integrate expectations:
 
 ```yaml
 # expectations/customer_quality.yaml
@@ -299,7 +299,7 @@ Implement Slowly Changing Dimensions:
 ### Prerequisites
 
 - Python 3.8+
-- Databricks workspace with DLT enabled
+- Databricks workspace with enabled
 - Access to cloud storage (S3, ADLS, GCS)
 
 ### Local Development
@@ -480,4 +480,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for the data engineering community** 
+**Made with ❤️ for Databricks and Lakeflow Declarative Data Pipelines** 
