@@ -19,9 +19,9 @@
 
 </div>
 
-**Action-based Lakeflow Declaritive Pipelines (formerly DLT) pipeline generator for Databricks**
+**Action-based Lakeflow Declaritive Pipelines (formerly DLT) code generator for Databricks**
 
-LakehousePlumber is a powerful CLI tool that generates Lakeflow Declaritive Pipelines pipelines from YAML configurations, enabling data engineers to build robust, scalable data pipelines using a declarative approach.
+LakehousePlumber is a powerful CLI tool that generates Lakeflow Declaritive Pipelines from YAML configurations, enabling data engineers to build robust, scalable data pipelines using a declarative approach.
 
 ## 🎯 Key Features
 
