@@ -1,182 +1,468 @@
-# TPC-H Lakehouse Sample Project
+# LakehousePlumber 🔧
 
-This is a sample LakehousePlumber project demonstrating a complete data lakehouse implementation using TPC-H benchmark data.
+<div align="center">
+  <img src="docs/lakehouse-plumber-logo.png" alt="LakehousePlumber Logo" width="300">
+</div>
 
-## Project Overview
+**Action-based Delta Live Tables (DLT) pipeline generator for Databricks**
 
-This project implements a medallion architecture (Bronze → Silver → Gold) for TPC-H data with:
-- **Bronze Layer**: Raw CSV ingestion with schema enforcement and operational metadata
-- **Silver Layer**: Cleansed data with SCD Type 2 for dimensions
-- **Gold Layer**: Business-ready aggregations and metrics
+LakehousePlumber is a powerful CLI tool that generates Delta Live Tables pipelines from YAML configurations, enabling data engineers to build robust, scalable data pipelines using a declarative approach.
 
-## Architecture
+## 🎯 Key Features
 
-### Data Flow
+- **Action-Based Architecture**: Define pipelines using composable load, transform, and write actions
+- **Template System**: Reusable pipeline templates with parameterization
+- **Environment Management**: Multi-environment support with token substitution
+- **Data Quality Integration**: Built-in expectations and validation
+- **Smart Generation**: Only regenerate changed files with state management
+- **Code Formatting**: Automatic Python code formatting with Black
+- **Secret Management**: Secure handling of credentials and API keys
+- **Operational Metadata**: Automatic lineage tracking and data provenance
+
+## 🏗️ Architecture
+
+### Action Types
+
+LakehousePlumber supports three main action types:
+
+#### 🔄 Load Actions
+- **CloudFiles**: Structured streaming from cloud storage (JSON, Parquet, CSV)
+- **Delta**: Read from existing Delta tables
+- **SQL**: Execute SQL queries as data sources
+- **JDBC**: Connect to external databases
+- **Python**: Custom Python-based data loading
+
+#### ⚡ Transform Actions
+- **SQL**: Standard SQL transformations
+- **Python**: Custom Python transformations
+- **Data Quality**: Apply DLT expectations
+- **Schema**: Column mapping and type casting
+- **Temp Table**: Create temporary views
+
+#### 💾 Write Actions
+- **Streaming Table**: Live tables with change data capture
+- **Materialized View**: Batch-computed views for analytics
+
+### Project Structure
+
 ```
-CSV Files → Bronze (Raw) → Silver (Cleansed/Conformed) → Gold (Analytics)
-```
-
-### Key Features
-1. **Schema-driven ingestion** - All tables use predefined schemas from `schemas/` directory
-2. **Data quality checks** - Customer data validated with expectations
-3. **SCD Type 2** - Customer dimension tracks historical changes
-4. **Operational metadata** - All bronze tables include ingestion timestamps and source tracking
-5. **Partitioned fact tables** - Orders partitioned by year/month for performance
-
-## Project Structure
-
-```
-tpch_lakehouse/
-├── presets/                    # Layer-specific configurations
-│   ├── bronze_layer.yaml      # Bronze ingestion settings
-│   ├── silver_layer.yaml      # Silver transformation settings
-│   └── gold_layer.yaml        # Gold aggregation settings
-├── templates/                  # Reusable pipeline templates
-│   └── csv_ingestion.yaml     # Template for CSV file ingestion
-├── schemas/                    # Table schema definitions
-│   ├── customer_schema.yaml   # Customer dimension schema
-│   ├── orders_schema.yaml     # Orders fact schema
-│   └── tables.json           # All TPC-H table schemas
-├── expectations/              # Data quality rules
-│   └── customer_quality.json  # Customer data validation rules
+my_lakehouse_project/
+├── lhp.yaml                   # Project configuration
+├── presets/                   # Reusable configurations
+│   ├── bronze_layer.yaml      # Bronze layer defaults
+│   ├── silver_layer.yaml      # Silver layer defaults
+│   └── gold_layer.yaml        # Gold layer defaults
+├── templates/                 # Pipeline templates
+│   ├── standard_ingestion.yaml
+│   └── scd_type2.yaml
+├── pipelines/                 # Pipeline definitions
+│   ├── bronze_ingestion/
+│   │   ├── customers.yaml
+│   │   └── orders.yaml
+│   ├── silver_transforms/
+│   │   └── customer_dimension.yaml
+│   └── gold_analytics/
+│       └── customer_metrics.yaml
 ├── substitutions/             # Environment-specific values
-│   ├── dev.yaml              # Development settings
-│   └── prod.yaml             # Production settings
-└── pipelines/                 # Pipeline definitions
-    ├── bronze_dimensions/     # Bronze dimension ingestion
-    │   └── customer_ingestion.yaml
-    ├── bronze_facts/          # Bronze fact ingestion
-    │   └── orders_ingestion.yaml
-    ├── silver_dimensions/     # Silver dimension processing
-    │   └── customer_dimension.yaml
-    ├── silver_facts/          # Silver fact processing
-    │   └── orders_fact.yaml
-    └── gold_analytics/        # Gold analytics
-        └── customer_revenue.yaml
+│   ├── dev.yaml
+│   ├── staging.yaml
+│   └── prod.yaml
+├── schemas/                   # Table schemas
+├── expectations/              # Data quality rules
+└── generated/                 # Generated DLT code
 ```
 
-## Pipelines
+## 🚀 Quick Start
 
-### Bronze Layer
-- **customer_ingestion**: Ingests customer CSV files with data quality validation
-- **orders_ingestion**: Ingests orders CSV files
+### Installation
 
-### Silver Layer
-- **customer_dimension**: Implements SCD Type 2 for customer with data cleansing
-- **orders_fact**: Enriches orders with derived columns and partitioning
+```bash
+pip install lakehouse-plumber
+```
 
-### Gold Layer
-- **customer_revenue**: Customer lifetime value and revenue analytics
+### Initialize a Project
 
-## Getting Started
+```bash
+lhp init my_lakehouse_project
+cd my_lakehouse_project
+```
+
+### Create Your First Pipeline
+
+Create a simple ingestion pipeline:
+
+```yaml
+# pipelines/bronze_ingestion/customers.yaml
+pipeline: bronze_ingestion
+flowgroup: customers
+presets:
+  - bronze_layer
+
+actions:
+  - name: load_customers_raw
+    type: load
+    source:
+      type: cloudfiles
+      path: "{{ landing_path }}/customers"
+      format: json
+      schema_evolution_mode: addNewColumns
+    target: v_customers_raw
+    description: "Load raw customer data from landing zone"
+
+  - name: write_customers_bronze
+    type: write
+    source: v_customers_raw
+    write_target:
+      type: streaming_table
+      database: "{{ catalog }}.{{ bronze_schema }}"
+      table: "customers"
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        quality: "bronze"
+    description: "Write customers to bronze layer"
+```
+
+### Configure Environment
+
+```yaml
+# substitutions/dev.yaml
+catalog: dev_catalog
+bronze_schema: bronze
+silver_schema: silver
+gold_schema: gold
+landing_path: /mnt/dev/landing
+checkpoint_path: /mnt/dev/checkpoints
+
+secrets:
+  default_scope: dev-secrets
+  scopes:
+    database: dev-db-secrets
+    storage: dev-storage-secrets
+```
+
+### Validate and Generate
+
+```bash
+# Validate configuration
+lhp validate --env dev
+
+# Generate DLT pipeline code
+lhp generate --env dev
+
+# View generated code
+ls generated/
+```
+
+## 📋 CLI Commands
+
+### Project Management
+- `lhp init <project_name>` - Initialize new project
+- `lhp validate --env <env>` - Validate pipeline configurations
+- `lhp generate --env <env>` - Generate DLT pipeline code
+- `lhp info` - Show project information and statistics
+
+### Discovery and Inspection
+- `lhp list-presets` - List available presets
+- `lhp list-templates` - List available templates
+- `lhp show <flowgroup> --env <env>` - Show resolved configuration
+- `lhp stats` - Show project statistics
+
+### State Management
+- `lhp generate --cleanup` - Clean up orphaned generated files
+- `lhp state --env <env>` - Show generation state
+- `lhp state --cleanup --env <env>` - Clean up orphaned files
+
+## 🎨 Advanced Features
+
+### Presets
+
+Create reusable configurations:
+
+```yaml
+# presets/bronze_layer.yaml
+name: bronze_layer
+version: "1.0"
+description: "Standard bronze layer configuration"
+
+defaults:
+  operational_metadata: true
+  load_actions:
+    cloudfiles:
+      schema_evolution_mode: addNewColumns
+      rescue_data_column: "_rescued_data"
+  write_actions:
+    streaming_table:
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        delta.autoOptimize.optimizeWrite: "true"
+        quality: "bronze"
+```
+
+### Templates
+
+Create parameterized pipeline templates:
+
+```yaml
+# templates/standard_ingestion.yaml
+name: standard_ingestion
+version: "1.0"
+description: "Standard data ingestion template"
+
+parameters:
+  - name: source_path
+    type: string
+    required: true
+  - name: table_name
+    type: string
+    required: true
+  - name: file_format
+    type: string
+    default: "json"
+
+actions:
+  - name: "load_{{ table_name }}_raw"
+    type: load
+    source:
+      type: cloudfiles
+      path: "{{ source_path }}"
+      format: "{{ file_format }}"
+    target: "v_{{ table_name }}_raw"
+    
+  - name: "write_{{ table_name }}_bronze"
+    type: write
+    source: "v_{{ table_name }}_raw"
+    write_target:
+      type: streaming_table
+      database: "{{ catalog }}.{{ bronze_schema }}"
+      table: "{{ table_name }}"
+```
+
+### Data Quality
+
+Integrate DLT expectations:
+
+```yaml
+# expectations/customer_quality.yaml
+expectations:
+  - name: valid_customer_key
+    constraint: "customer_key IS NOT NULL"
+    on_violation: "fail"
+  - name: valid_email
+    constraint: "email RLIKE '^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'"
+    on_violation: "drop"
+```
+
+```yaml
+# Pipeline with data quality
+- name: validate_customers
+  type: transform
+  transform_type: data_quality
+  source: v_customers_raw
+  target: v_customers_validated
+  expectations_file: "expectations/customer_quality.yaml"
+```
+
+### SCD Type 2
+
+Implement Slowly Changing Dimensions:
+
+```yaml
+- name: customer_dimension_scd2
+  type: transform
+  transform_type: python
+  source: v_customers_validated
+  target: v_customers_scd2
+  python_source: |
+    def scd2_merge(df):
+        return df.withColumn("__start_date", current_date()) \
+                 .withColumn("__end_date", lit(None)) \
+                 .withColumn("__is_current", lit(True))
+```
+
+## 🔧 Development
 
 ### Prerequisites
+
+- Python 3.8+
 - Databricks workspace with DLT enabled
-- CSV files in landing zone matching the TPC-H schema
-- LakehousePlumber CLI installed
+- Access to cloud storage (S3, ADLS, GCS)
 
-### Setup
-1. Update environment settings in `substitutions/dev.yaml`:
-   - Set your catalog name
-   - Configure landing zone path
-   - Update checkpoint locations
+### Local Development
 
-2. Validate the project:
-   ```bash
-   lhp validate --env dev
-   ```
-
-3. Generate pipelines:
-   ```bash
-   # Generate bronze pipelines
-   lhp generate bronze_dimensions --env dev
-   lhp generate bronze_facts --env dev
-   
-   # Generate silver pipelines
-   lhp generate silver_dimensions --env dev
-   lhp generate silver_facts --env dev
-   
-   # Generate gold pipelines
-   lhp generate gold_analytics --env dev
-   ```
-
-4. Deploy to Databricks:
-   - Upload generated Python files from `generated/` to Databricks
-   - Create DLT pipelines for each layer
-   - Configure pipeline dependencies (Bronze → Silver → Gold)
-
-## Data Quality
-
-Customer data is validated with the following rules:
-- **Fail on**: Invalid customer key, empty customer name, invalid nation key
-- **Drop on**: Invalid phone format
-- **Warn on**: Unusual account balance, invalid market segment
-
-## SCD Type 2 Implementation
-
-The customer dimension tracks changes to:
-- Customer name
-- Address
-- Phone number
-- Account balance
-- Market segment
-
-Historical records are preserved with:
-- `__start_date` and `__end_date` for record validity
-- `__is_current` flag for easy filtering
-- `__version` for tracking change count
-
-## Performance Optimizations
-
-1. **Partitioning**: Orders fact table partitioned by year/month
-2. **Z-Ordering**: Customer dimension z-ordered by customer key
-3. **Auto-optimization**: Enabled for all streaming tables
-4. **Data skipping**: Extended to 32 columns for gold layer analytics
-
-## Extending the Project
-
-### Adding New Tables
-1. Add schema definition to `schemas/`
-2. Create ingestion pipeline in `pipelines/bronze_*/`
-3. Add cleansing logic in `pipelines/silver_*/`
-4. Update analytics in `pipelines/gold_*/`
-
-### Adding Data Quality Rules
-1. Create expectations file in `expectations/`
-2. Reference in pipeline using `expectations_file` parameter
-
-### Creating New Aggregations
-1. Add new flowgroup to `pipelines/gold_analytics/`
-2. Use materialized views for large aggregations
-3. Consider partitioning for time-based metrics
-
-## Best Practices
-
-1. **Always use schemas** - Define schemas for all tables
-2. **Apply data quality early** - Validate in bronze layer
-3. **Track lineage** - Use operational metadata
-4. **Version control** - Commit all YAML configurations
-5. **Test in dev** - Validate before production deployment
-
-## Troubleshooting
-
-### Common Issues
-1. **Schema mismatch**: Ensure CSV headers match schema definitions
-2. **Missing files**: Check landing zone paths in substitutions
-3. **SCD conflicts**: Verify primary keys are unique
-4. **Performance**: Monitor partition pruning in fact tables
-
-### Debug Commands
 ```bash
-# Show resolved configuration
-lhp show <flowgroup> --env dev
+# Clone the repository
+git clone https://github.com/yourusername/lakehouse-plumber.git
+cd lakehouse-plumber
 
-# List all pipelines
-lhp info
+# Install in development mode
+pip install -e .
 
-# View pipeline statistics
-lhp stats
+# Run tests
+pytest tests/
+
+# Run CLI
+lhp --help
 ```
 
-## License
-This is a sample project for demonstration purposes.
+### Testing
+
+LakehousePlumber includes comprehensive test coverage:
+
+```bash
+# Run all tests
+pytest
+
+# Run specific test categories
+pytest tests/test_integration.py      # Integration tests
+pytest tests/test_cli.py             # CLI tests
+pytest tests/test_advanced_features.py  # Advanced features
+pytest tests/test_performance.py     # Performance tests
+```
+
+## 📚 Examples
+
+### Bronze Layer Ingestion
+
+```yaml
+pipeline: bronze_ingestion
+flowgroup: orders
+presets:
+  - bronze_layer
+
+actions:
+  - name: load_orders_cloudfiles
+    type: load
+    source:
+      type: cloudfiles
+      path: "{{ landing_path }}/orders"
+      format: parquet
+      schema_evolution_mode: addNewColumns
+    target: v_orders_raw
+    operational_metadata: true
+    
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_raw
+    write_target:
+      type: streaming_table
+      database: "{{ catalog }}.{{ bronze_schema }}"
+      table: "orders"
+      partition_columns: ["order_date"]
+```
+
+### Silver Layer Transformation
+
+```yaml
+pipeline: silver_transforms
+flowgroup: customer_dimension
+
+actions:
+  - name: cleanse_customers
+    type: transform
+    transform_type: sql
+    source: "{{ catalog }}.{{ bronze_schema }}.customers"
+    target: v_customers_cleansed
+    sql: |
+      SELECT 
+        customer_key,
+        TRIM(UPPER(customer_name)) as customer_name,
+        REGEXP_REPLACE(phone, '[^0-9]', '') as phone_clean,
+        address,
+        nation_key,
+        market_segment,
+        account_balance
+      FROM STREAM(LIVE.customers)
+      WHERE customer_key IS NOT NULL
+      
+  - name: apply_scd2
+    type: transform
+    transform_type: python
+    source: v_customers_cleansed
+    target: v_customers_scd2
+    python_source: |
+      @dlt.view
+      def scd2_logic():
+          return spark.readStream.table("LIVE.v_customers_cleansed")
+          
+  - name: write_customer_dimension
+    type: write
+    source: v_customers_scd2
+    write_target:
+      type: streaming_table
+      database: "{{ catalog }}.{{ silver_schema }}"
+      table: "dim_customers"
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        quality: "silver"
+```
+
+### Gold Layer Analytics
+
+```yaml
+pipeline: gold_analytics
+flowgroup: customer_metrics
+
+actions:
+  - name: customer_lifetime_value
+    type: transform
+    transform_type: sql
+    source: 
+      - "{{ catalog }}.{{ silver_schema }}.dim_customers"
+      - "{{ catalog }}.{{ silver_schema }}.fact_orders"
+    target: v_customer_ltv
+    sql: |
+      SELECT 
+        c.customer_key,
+        c.customer_name,
+        c.market_segment,
+        COUNT(o.order_key) as total_orders,
+        SUM(o.total_price) as lifetime_value,
+        AVG(o.total_price) as avg_order_value,
+        MAX(o.order_date) as last_order_date
+      FROM LIVE.dim_customers c
+      LEFT JOIN LIVE.fact_orders o ON c.customer_key = o.customer_key
+      WHERE c.__is_current = true
+      GROUP BY c.customer_key, c.customer_name, c.market_segment
+      
+  - name: write_customer_metrics
+    type: write
+    source: v_customer_ltv
+    write_target:
+      type: materialized_view
+      database: "{{ catalog }}.{{ gold_schema }}"
+      table: "customer_metrics"
+      refresh_schedule: "0 2 * * *"  # Daily at 2 AM
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Development Setup
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: [Wiki](https://github.com/yourusername/lakehouse-plumber/wiki)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/lakehouse-plumber/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/yourusername/lakehouse-plumber/discussions)
+
+## 🙏 Acknowledgments
+
+- Built for the Databricks ecosystem
+- Inspired by modern data engineering practices
+- Designed for the medallion architecture pattern
+
+---
+
+**Made with ❤️ for the data engineering community** 
