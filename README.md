@@ -9,11 +9,11 @@
 [![PyPI version](https://badge.fury.io/py/lakehouse-plumber.svg)](https://badge.fury.io/py/lakehouse-plumber)
 [![Python Support](https://img.shields.io/pypi/pyversions/lakehouse-plumber.svg)](https://pypi.org/project/lakehouse-plumber/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Lines of Code](https://tokei.rs/b1/github/Mmodarre/lakehouse-plumber)](https://github.com/Mmodarre/lakehouse-plumber)
+[![Lines of Code](https://tokei.rs/b1/github/Mmodarre/Lakehouse_Plumber)](https://github.com/Mmodarre/Lakehouse_Plumber)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-[![Coverage](https://codecov.io/gh/Mmodarre/lakehouse-plumber/branch/main/graph/badge.svg)](https://codecov.io/gh/Mmodarre/lakehouse-plumber)
+[![Coverage](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber/branch/main/graph/badge.svg)](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber)
 [![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://lakehouse-plumber.readthedocs.io/)
 [![Databricks](https://img.shields.io/badge/Databricks-DLT-orange.svg)](https://databricks.com/product/delta-live-tables)
 
