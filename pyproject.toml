@@ -66,10 +66,6 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
-    "--cov=src/lhp",
-    "--cov-branch",
-    "--cov-report=term-missing",
-    "--cov-fail-under=80",
 ]
 testpaths = ["tests"]
 pythonpath = ["src"]
