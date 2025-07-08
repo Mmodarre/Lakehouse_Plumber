@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
-from typing import Dict, Any, Set, List
+from typing import Dict, Any, Set, List, TYPE_CHECKING
 import yaml
 import json
+
+if TYPE_CHECKING:
+    from ..models.config import Action
 
 class BaseActionGenerator(ABC):
     """Base class for all action generators."""

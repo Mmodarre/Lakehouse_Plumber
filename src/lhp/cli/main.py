@@ -13,6 +13,7 @@ from ..core.state_manager import StateManager
 from ..utils.substitution import EnhancedSubstitutionManager
 from ..parsers.yaml_parser import YAMLParser
 from ..core.validator import ConfigValidator
+from ..models.config import ActionType
 
 
 # Configure logging
@@ -950,7 +951,7 @@ def show(flowgroup, env):
         click.echo(f"\n🔐 Secret References ({len(secret_refs)} found)")
         click.echo("─" * 60)
         for ref in sorted(secret_refs, key=lambda r: f"{r.scope}/{r.key}"):
-            click.echo(f"   ${{{ref.scope}/{r.key}}}")
+            click.echo(f"   ${{{ref.scope}/{ref.key}}}")
     
     # Show substitution summary
     if substitution_mgr.mappings:

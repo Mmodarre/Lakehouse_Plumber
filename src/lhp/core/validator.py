@@ -1,13 +1,16 @@
 """Configuration validator for LakehousePlumber."""
 
 import logging
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, TYPE_CHECKING
 from pathlib import Path
 from collections import defaultdict
 
 from ..models.config import FlowGroup, Action, ActionType, LoadSourceType, TransformType, WriteTargetType
 from .action_registry import ActionRegistry
 from .dependency_resolver import DependencyResolver
+
+if TYPE_CHECKING:
+    from ..models.config import WriteTarget
 
 
 class ConfigValidator:
