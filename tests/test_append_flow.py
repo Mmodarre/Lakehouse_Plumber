@@ -2,8 +2,8 @@
 
 import pytest
 from pathlib import Path
-from src.lhp.generators.write.streaming_table import StreamingTableWriteGenerator
-from src.lhp.models.config import Action, FlowGroup
+from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
+from lhp.models.config import Action, FlowGroup
 
 
 def test_streaming_table_with_multiple_sources():
@@ -141,7 +141,7 @@ def test_streaming_table_single_source():
 
 def test_source_list_validation():
     """Test that source can be a list in write actions."""
-    from src.lhp.core.validator import ConfigValidator
+    from lhp.core.validator import ConfigValidator
     
     validator = ConfigValidator()
     

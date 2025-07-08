@@ -6,9 +6,10 @@ import yaml
 from pathlib import Path
 from unittest.mock import patch, Mock
 
-from src.lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
-from src.lhp.models.config import Action
-from src.lhp.utils.schema_parser import SchemaParser
+from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
+from lhp.models.config import Action
+from lhp.utils.schema_parser import SchemaParser
+from lhp.utils.error_formatter import LHPError
 
 
 class TestCloudFilesOptions:
@@ -139,7 +140,7 @@ class TestCloudFilesOptions:
             readMode="stream"
         )
         
-        with pytest.raises(ValueError, match="appears to be a cloudFiles option"):
+        with pytest.raises(LHPError, match="Configuration conflict"):
             self.generator.generate(action, {})
     
     def test_conflict_detection(self):
@@ -162,7 +163,7 @@ class TestCloudFilesOptions:
             readMode="stream"
         )
         
-        with pytest.raises(ValueError, match="Configuration conflicts detected"):
+        with pytest.raises(LHPError, match="Configuration conflict"):
             self.generator.generate(action, {})
     
     def test_multiple_schema_sources_error(self):
@@ -185,7 +186,7 @@ class TestCloudFilesOptions:
             readMode="stream"
         )
         
-        with pytest.raises(ValueError, match="Multiple schema sources specified"):
+        with pytest.raises(LHPError, match="Configuration conflict"):
             self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
     
     def test_value_type_preservation(self):
