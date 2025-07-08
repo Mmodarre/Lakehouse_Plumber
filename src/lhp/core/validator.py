@@ -1,8 +1,9 @@
 """Configuration validator for LakehousePlumber."""
 
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
+from collections import defaultdict
 
 from ..models.config import FlowGroup, Action, ActionType, LoadSourceType, TransformType, WriteTargetType
 from .action_registry import ActionRegistry
@@ -610,4 +611,96 @@ class ConfigValidator:
                 elif isinstance(value, list):
                     sources.extend(value)
         
-        return sources 
+        return sources
+    
+    def validate_table_creation_rules(self, flowgroups: List[FlowGroup]) -> List[str]:
+        """Validate table creation rules across the entire pipeline.
+        
+        Rules:
+        1. Each streaming table must have exactly one creator (create_table: true)
+        2. All other actions writing to the same table must have create_table: false
+        
+        Args:
+            flowgroups: List of all flowgroups in the pipeline
+            
+        Returns:
+            List of validation error messages
+        """
+        errors = []
+        
+        # Track table creators and users
+        table_creators = defaultdict(list)  # table_name -> List[creator_action_info]
+        table_users = defaultdict(list)     # table_name -> List[user_action_info]
+        
+        # Collect all write actions across flowgroups
+        for flowgroup in flowgroups:
+            for action in flowgroup.actions:
+                if action.type == ActionType.WRITE and action.write_target:
+                    # Get full table name
+                    table_name = self._get_full_table_name(action.write_target)
+                    if not table_name:
+                        continue  # Skip if we can't determine table name
+                    
+                    # Check if this action creates the table
+                    creates_table = self._action_creates_table(action)
+                    
+                    action_info = {
+                        'flowgroup': flowgroup.flowgroup,
+                        'action': action.name,
+                        'table': table_name
+                    }
+                    
+                    if creates_table:
+                        table_creators[table_name].append(action_info)
+                    else:
+                        table_users[table_name].append(action_info)
+        
+        # Validate rules
+        all_tables = set(table_creators.keys()) | set(table_users.keys())
+        
+        for table_name in all_tables:
+            creators = table_creators.get(table_name, [])
+            users = table_users.get(table_name, [])
+            
+            # Rule 1: Each table must have exactly one creator
+            if len(creators) == 0:
+                errors.append(
+                    f"Table '{table_name}' has no creator. "
+                    f"One action must have 'create_table: true'. "
+                    f"Used by: {', '.join(f'{u['flowgroup']}.{u['action']}' for u in users)}"
+                )
+            elif len(creators) > 1:
+                creator_names = [f"{c['flowgroup']}.{c['action']}" for c in creators]
+                errors.append(
+                    f"Table '{table_name}' has multiple creators: {', '.join(creator_names)}. "
+                    f"Only one action can have 'create_table: true'."
+                )
+            
+            # Rule 2: All other actions must be users (create_table: false)
+            # This is implicitly validated by the separation above
+        
+        return errors
+    
+    def _get_full_table_name(self, write_target: Union[Dict[str, Any], 'WriteTarget']) -> Optional[str]:
+        """Extract the full table name from write target configuration."""
+        if isinstance(write_target, dict):
+            database = write_target.get("database")
+            table = write_target.get("table") or write_target.get("name")
+        else:
+            database = write_target.database
+            table = write_target.table
+        
+        if not database or not table:
+            return None
+        
+        return f"{database}.{table}"
+    
+    def _action_creates_table(self, action: Action) -> bool:
+        """Check if an action creates the table (create_table: true)."""
+        if not action.write_target:
+            return False
+        
+        if isinstance(action.write_target, dict):
+            return action.write_target.get("create_table", False)
+        else:
+            return action.write_target.create_table 

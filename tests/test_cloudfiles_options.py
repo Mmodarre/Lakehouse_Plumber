@@ -274,7 +274,7 @@ class TestCloudFilesOptions:
     
     def test_schema_hints_formatting(self):
         """Test schema hints formatting for both short and long strings."""
-        # Test short schema hints (should stay on one line)
+        # Test short schema hints (now generates a variable)
         action_short = Action(
             name="short_test",
             type="load",
@@ -293,32 +293,11 @@ class TestCloudFilesOptions:
         
         result_short = self.generator.generate(action_short, {})
         
-        # Check short hints stay on one line
-        assert '.option("cloudFiles.schemaHints", "id INT, name STRING")' in result_short
-        assert 'option(\n' not in result_short  # No line breaks in option
-        
-        # Test long schema hints (should format with line breaks)
-        action_long = Action(
-            name="long_test",
-            type="load",
-            source={
-                "type": "cloudfiles",
-                "path": "/data/test/*.csv",
-                "format": "csv",
-                "options": {
-                    "cloudFiles.format": "csv",
-                    "cloudFiles.schemaHints": "very_long_column_name_1 STRING, very_long_column_name_2 BIGINT, very_long_column_name_3 DECIMAL(18,2)"  # Long string
-                }
-            },
-            target="long_table",
-            readMode="stream"
-        )
-        
-        result_long = self.generator.generate(action_long, {})
-        
-        # Check long hints use multi-line formatting
-        assert '.option(\n            "cloudFiles.schemaHints",' in result_long
-        assert '"very_long_column_name_1 STRING, very_long_column_name_2 BIGINT, very_long_column_name_3 DECIMAL(18,2)"\n        )' in result_long
+        # Check that schema hints are generated as a variable
+        assert 'short_table_schema_hints = """' in result_short
+        assert 'id INT' in result_short
+        assert 'name STRING' in result_short
+        assert '.option("cloudFiles.schemaHints", short_table_schema_hints)' in result_short
     
     def test_comprehensive_example(self):
         """Test a comprehensive example with all features."""

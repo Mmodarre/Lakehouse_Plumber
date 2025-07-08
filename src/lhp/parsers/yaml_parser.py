@@ -2,6 +2,7 @@ import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from ..models.config import FlowGroup, Template, Preset
+from ..utils.error_formatter import LHPError
 
 class YAMLParser:
     """Parse and validate YAML configuration files."""
@@ -17,6 +18,9 @@ class YAMLParser:
             return content or {}
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML in {file_path}: {e}")
+        except LHPError:
+            # Re-raise LHPError as-is (it's already well-formatted)
+            raise
         except Exception as e:
             raise ValueError(f"Error reading {file_path}: {e}")
     

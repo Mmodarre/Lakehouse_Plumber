@@ -25,6 +25,25 @@ class WriteTargetType(str, Enum):
     STREAMING_TABLE = "streaming_table"
     MATERIALIZED_VIEW = "materialized_view"
 
+class WriteTarget(BaseModel):
+    """Write target configuration for streaming tables and materialized views."""
+    type: WriteTargetType
+    database: str
+    table: str
+    create_table: bool = False  # Default to False - explicit table creation required
+    comment: Optional[str] = None
+    table_properties: Optional[Dict[str, Any]] = None
+    partition_columns: Optional[List[str]] = None
+    cluster_columns: Optional[List[str]] = None
+    spark_conf: Optional[Dict[str, Any]] = None
+    schema: Optional[str] = None
+    row_filter: Optional[str] = None
+    temporary: bool = False
+    path: Optional[str] = None
+    # Materialized view specific
+    refresh_schedule: Optional[str] = None
+    sql: Optional[str] = None
+
 class Action(BaseModel):
     name: str
     type: ActionType
@@ -33,7 +52,7 @@ class Action(BaseModel):
     description: Optional[str] = None
     readMode: Optional[str] = Field(None, description="Read mode: 'batch' or 'stream'. Controls spark.read vs spark.readStream")
     # Write-specific target configuration
-    write_target: Optional[Dict[str, Any]] = None
+    write_target: Optional[Union[WriteTarget, Dict[str, Any]]] = None
     # Action-specific configurations
     transform_type: Optional[TransformType] = None
     sql: Optional[str] = None

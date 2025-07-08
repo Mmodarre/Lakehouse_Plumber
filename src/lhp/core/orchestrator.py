@@ -365,34 +365,70 @@ class ActionOrchestrator:
 # {"=" * 76}"""
                 generated_sections.append(section_header)
                 
-                # Generate code for each action in this group
-                for action in action_groups[action_type]:
-                    try:
-                        # Determine action sub-type
-                        sub_type = self._determine_action_subtype(action)
-                        
-                        # Get generator
-                        generator = self.action_registry.get_generator(action.type, sub_type)
-                        
-                        # Generate code
-                        context = {
-                            "flowgroup": flowgroup,
-                            "substitution_manager": substitution_mgr,
-                            "spec_dir": self.project_root,
-                            "preset_config": preset_config  # Add preset config to context
-                        }
-                        
-                        action_code = generator.generate(action, context)
-                        generated_sections.append(action_code)
-                        
-                        # Collect imports
-                        all_imports.update(generator.imports)
-                        
-                    except LHPError:
-                        # Re-raise LHPError as-is (it's already well-formatted)
-                        raise
-                    except Exception as e:
-                        raise ValueError(f"Error generating code for action '{action.name}': {e}")
+                # Special handling for write actions - group by target table
+                if action_type == ActionType.WRITE:
+                    write_actions = action_groups[action_type]
+                    grouped_actions = self._group_write_actions_by_target(write_actions)
+                    
+                    for target_table, actions in grouped_actions.items():
+                        try:
+                            # Use the first action to determine sub-type and get generator
+                            first_action = actions[0]
+                            sub_type = self._determine_action_subtype(first_action)
+                            generator = self.action_registry.get_generator(first_action.type, sub_type)
+                            
+                            # Create a combined action with multiple source views
+                            combined_action = self._create_combined_write_action(actions, target_table)
+                            
+                            # Generate code
+                            context = {
+                                "flowgroup": flowgroup,
+                                "substitution_manager": substitution_mgr,
+                                "spec_dir": self.project_root,
+                                "preset_config": preset_config
+                            }
+                            
+                            action_code = generator.generate(combined_action, context)
+                            generated_sections.append(action_code)
+                            
+                            # Collect imports
+                            all_imports.update(generator.imports)
+                            
+                        except LHPError:
+                            # Re-raise LHPError as-is (it's already well-formatted)
+                            raise
+                        except Exception as e:
+                            action_names = [a.name for a in actions]
+                            raise ValueError(f"Error generating code for write actions {action_names}: {e}")
+                else:
+                    # Generate code for each action in this group (non-write actions)
+                    for action in action_groups[action_type]:
+                        try:
+                            # Determine action sub-type
+                            sub_type = self._determine_action_subtype(action)
+                            
+                            # Get generator
+                            generator = self.action_registry.get_generator(action.type, sub_type)
+                            
+                            # Generate code
+                            context = {
+                                "flowgroup": flowgroup,
+                                "substitution_manager": substitution_mgr,
+                                "spec_dir": self.project_root,
+                                "preset_config": preset_config  # Add preset config to context
+                            }
+                            
+                            action_code = generator.generate(action, context)
+                            generated_sections.append(action_code)
+                            
+                            # Collect imports
+                            all_imports.update(generator.imports)
+                            
+                        except LHPError:
+                            # Re-raise LHPError as-is (it's already well-formatted)
+                            raise
+                        except Exception as e:
+                            raise ValueError(f"Error generating code for action '{action.name}': {e}")
         
         # 5. Apply secret substitutions to generated code
         complete_code = "\n\n".join(generated_sections)
@@ -444,6 +480,88 @@ PIPELINE_GROUP = "{flowgroup.pipeline}"
         
         else:
             raise ValueError(f"Unknown action type: {action.type}")
+    
+    def _group_write_actions_by_target(self, write_actions: List[Action]) -> Dict[str, List[Action]]:
+        """Group write actions by their target table.
+        
+        Args:
+            write_actions: List of write actions
+            
+        Returns:
+            Dictionary mapping target table names to lists of actions
+        """
+        grouped = defaultdict(list)
+        
+        for action in write_actions:
+            target_config = action.write_target
+            if not target_config:
+                # Handle legacy structure
+                target_config = action.source if isinstance(action.source, dict) else {}
+            
+            # Build full table name
+            database = target_config.get("database", "")
+            table = target_config.get("table") or target_config.get("name", "")
+            
+            if database and table:
+                full_table_name = f"{database}.{table}"
+            elif table:
+                full_table_name = table
+            else:
+                # Use action name as fallback
+                full_table_name = action.name
+            
+            grouped[full_table_name].append(action)
+        
+        return dict(grouped)
+    
+    def _create_combined_write_action(self, actions: List[Action], target_table: str) -> Action:
+        """Create a combined write action with multiple source views.
+        
+        Args:
+            actions: List of write actions targeting the same table
+            target_table: Full target table name
+            
+        Returns:
+            Combined action with multiple source views
+        """
+        # Use the first action as the base
+        base_action = actions[0]
+        
+        # Extract all source views from the actions
+        source_views = []
+        flow_names = []
+        
+        for action in actions:
+            # Extract source view name
+            if isinstance(action.source, str):
+                source_views.append(action.source)
+            elif isinstance(action.source, dict):
+                source_view = action.source.get("view", action.source.get("name", ""))
+                if source_view:
+                    source_views.append(source_view)
+            
+            # Extract flow name from action name
+            flow_name = action.name.replace("-", "_").replace(" ", "_")
+            if flow_name.startswith("write_"):
+                flow_name = flow_name[6:]  # Remove "write_" prefix
+            flow_name = f"f_{flow_name}" if not flow_name.startswith("f_") else flow_name
+            flow_names.append(flow_name)
+        
+        # Create a new action with combined properties
+        combined_action = Action(
+            name=f"write_{target_table.replace('.', '_')}",
+            type=base_action.type,
+            source=source_views,  # Pass as list for multiple append flows
+            write_target=base_action.write_target,
+            target=base_action.target,
+            description=f"Write to {target_table} from multiple sources",
+            once=base_action.once
+        )
+        
+        # Store flow names for template use
+        combined_action._flow_names = flow_names
+        
+        return combined_action
     
     def validate_pipeline(self, pipeline_name: str, env: str) -> tuple[List[str], List[str]]:
         """Validate pipeline configuration without generating code.

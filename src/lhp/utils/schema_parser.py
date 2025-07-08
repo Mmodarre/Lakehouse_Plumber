@@ -5,6 +5,7 @@ import yaml
 from pathlib import Path
 from typing import Dict, List, Any, Tuple, Optional
 from ..parsers.yaml_parser import YAMLParser
+from .error_formatter import LHPError
 
 
 class SchemaParser:
@@ -55,6 +56,9 @@ class SchemaParser:
             schema_data = self.yaml_parser.parse_file(schema_file_path)
             self.logger.debug(f"Parsed schema file: {schema_file_path}")
             return schema_data
+        except LHPError:
+            # Re-raise LHPError as-is (it's already well-formatted)
+            raise
         except Exception as e:
             raise ValueError(f"Error parsing schema file {schema_file_path}: {e}")
     

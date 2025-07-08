@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.schema_parser import SchemaParser
-from ...utils.error_formatter import ErrorFormatter
+from ...utils.error_formatter import ErrorFormatter, LHPError
 
 class CloudFilesLoadGenerator(BaseActionGenerator):
     """Generate CloudFiles (Auto Loader) load actions."""
@@ -166,8 +166,23 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     # Check if it's a file path (contains .yaml, .json, .yml, or path separators)
                     if ('.yaml' in value.lower() or '.yml' in value.lower() or '.json' in value.lower() or '/' in value or '\\' in value):
                         # User provided schema file path
-                        schema_data = self.schema_parser.parse_schema_file(Path(value), spec_dir)
-                        processed_options[key] = self.schema_parser.to_schema_hints(schema_data)
+                        try:
+                            schema_data = self.schema_parser.parse_schema_file(Path(value), spec_dir)
+                            processed_options[key] = self.schema_parser.to_schema_hints(schema_data)
+                        except FileNotFoundError:
+                            # Build search locations
+                            search_locations = []
+                            if value.startswith('/'):
+                                search_locations.append(f"Absolute path: {value}")
+                            else:
+                                search_locations.append(f"Relative to YAML: {spec_dir / value}")
+                                search_locations.append(f"Project root: {Path.cwd() / value}")
+                            
+                            raise ErrorFormatter.file_not_found(
+                                file_path=str(value),
+                                search_locations=search_locations,
+                                file_type="schema file"
+                            )
                     else:
                         # User provided direct hints string
                         processed_options[key] = str(value)
@@ -225,6 +240,9 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                 search_locations=search_locations,
                 file_type="schema file"
             )
+        except LHPError:
+            # Re-raise LHPError as-is (it's already well-formatted)
+            raise
         except Exception as e:
             raise ValueError(f"Error processing schema file '{schema_file_path}': {e}")
     

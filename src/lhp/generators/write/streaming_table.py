@@ -99,11 +99,17 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                     flowgroup.flowgroup
                 )
         
-        # Generate flow name from action name
-        flow_name = action.name.replace("-", "_").replace(" ", "_")
-        if flow_name.startswith("write_"):
-            flow_name = flow_name[6:]  # Remove "write_" prefix
-        flow_name = f"f_{flow_name}" if not flow_name.startswith("f_") else flow_name
+        # Generate flow name(s) from action name(s)
+        if hasattr(action, '_flow_names') and action._flow_names:
+            # Use individual flow names for combined actions
+            flow_names = action._flow_names
+        else:
+            # Generate flow name from single action name
+            flow_name = action.name.replace("-", "_").replace(" ", "_")
+            if flow_name.startswith("write_"):
+                flow_name = flow_name[6:]  # Remove "write_" prefix
+            flow_name = f"f_{flow_name}" if not flow_name.startswith("f_") else flow_name
+            flow_names = [flow_name]
         
         template_context = {
             "action_name": action.name,

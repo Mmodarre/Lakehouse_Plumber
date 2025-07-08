@@ -5,6 +5,7 @@ import re
 import yaml
 from pathlib import Path
 from typing import Dict, Any, Union, Optional, Set
+from .error_formatter import LHPError
 
 class SecretReference:
     """Represents a secret reference with scope and key."""
@@ -68,6 +69,9 @@ class EnhancedSubstitutionManager:
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
+        except LHPError:
+            # Re-raise LHPError as-is (it's already well-formatted)
+            raise
         except Exception as e:
             raise ValueError(f"Error loading substitution file {file_path}: {e}")
         
