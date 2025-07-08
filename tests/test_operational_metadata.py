@@ -105,11 +105,12 @@ class TestOperationalMetadata:
             name="write_bronze",
             type=ActionType.WRITE,
             operational_metadata=True,
-            source={
+            source="v_raw_data",  # ← Correct format: source is view name
+            write_target={  # ← Correct format: write_target contains config
                 "type": "streaming_table",
                 "database": "bronze",
                 "table": "test_table",
-                "view": "v_raw_data"
+                "create_table": True
             }
         )
         
@@ -141,11 +142,11 @@ class TestOperationalMetadata:
         action = Action(
             name="write_silver",
             type=ActionType.WRITE,
-            source={
+            source="v_bronze_data",  # ← Correct format: source is view name
+            write_target={  # ← Correct format: write_target contains config
                 "type": "materialized_view",
                 "database": "silver",
-                "table": "aggregated_data",
-                "view": "v_bronze_data"
+                "table": "aggregated_data"
             }
         )
         
@@ -176,11 +177,12 @@ class TestOperationalMetadata:
         action = Action(
             name="write_bronze",
             type=ActionType.WRITE,
-            source={
+            source="v_raw_data",  # ← Correct format: source is view name
+            write_target={  # ← Correct format: write_target contains config
                 "type": "streaming_table",
                 "database": "bronze",
                 "table": "test_table",
-                "view": "v_raw_data"
+                "create_table": True
             }
         )
         
@@ -209,11 +211,12 @@ class TestOperationalMetadata:
         action = Action(
             name="write_bronze",
             type=ActionType.WRITE,
-            source={
+            source="v_raw_data",  # ← Correct format: source is view name
+            write_target={  # ← Correct format: write_target contains config
                 "type": "streaming_table",
                 "database": "bronze",
                 "table": "test_table",
-                "view": "v_raw_data"
+                "create_table": True
             }
         )
         
