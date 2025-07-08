@@ -51,8 +51,9 @@ def {{ table_name }}():
 
 {% elif mode == "cdc" %}
 {# 
-   CDC mode: Create the streaming table first, then configure CDC flow
+   CDC mode: Create the streaming table first (if needed), then configure CDC flow
 #}
+{% if create_table %}
 # Create the streaming table first
 dlt.create_streaming_table(
     name="{{ full_table_name }}",
@@ -80,6 +81,8 @@ dlt.create_streaming_table(
     temporary={{ temporary | string | title }}
     {%- endif %}
 )
+
+{% endif %}
 
 # CDC mode using auto_cdc
 dlt.create_auto_cdc_flow(
@@ -110,13 +113,14 @@ dlt.create_auto_cdc_flow(
 
 {% elif mode == "snapshot_cdc" %}
 {# 
-   Snapshot CDC mode: Create the streaming table first, then configure snapshot CDC flow
+   Snapshot CDC mode: Create the streaming table first (if needed), then configure snapshot CDC flow
 #}
 {% if source_function_code %}
 # Snapshot function embedded directly in generated code
 {{ source_function_code }}
 
 {% endif %}
+{% if create_table %}
 # Create the streaming table first
 dlt.create_streaming_table(
     name="{{ full_table_name }}",
@@ -145,6 +149,8 @@ dlt.create_streaming_table(
     {%- endif %}
 )
 
+{% endif %}
+
 # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
 dlt.create_auto_cdc_from_snapshot_flow(
     target="{{ full_table_name }}",
@@ -162,8 +168,9 @@ dlt.create_auto_cdc_from_snapshot_flow(
 
 {% else %}
 {# 
-   Standard streaming table: Create table first, then append flow(s)
+   Standard streaming table: Create table first (if needed), then append flow(s)
 #}
+{% if create_table %}
 # Create the streaming table
 dlt.create_streaming_table(
     name="{{ full_table_name }}",
@@ -191,6 +198,8 @@ dlt.create_streaming_table(
     temporary={{ temporary | string | title }}
     {%- endif %}
 )
+
+{% endif %}
 
 # Define append flow(s)
 {% if source_views %}

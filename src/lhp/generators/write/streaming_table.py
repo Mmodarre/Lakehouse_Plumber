@@ -30,6 +30,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         mode = target_config.get("mode", "standard")  # "cdc" and "snapshot_cdc" are special modes
         database = target_config.get("database")
         table = target_config.get("table") or target_config.get("name")
+        create_table = target_config.get("create_table", False)  # Default to False
         
         # Build full table name
         full_table_name = f"{database}.{table}" if database else table
@@ -103,6 +104,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         if hasattr(action, '_flow_names') and action._flow_names:
             # Use individual flow names for combined actions
             flow_names = action._flow_names
+            flow_name = flow_names[0]  # Use first flow name for template compatibility
         else:
             # Generate flow name from single action name
             flow_name = action.name.replace("-", "_").replace(" ", "_")
@@ -119,6 +121,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "source_view": source_views[0] if source_views and mode == "cdc" else None,  # CDC only supports single source
             "flow_name": flow_name,
             "mode": mode,
+            "create_table": create_table,  # Pass create_table flag to template
             "properties": properties,
             "spark_conf": spark_conf,
             "schema": schema,
