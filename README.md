@@ -29,10 +29,12 @@ LakehousePlumber is a powerful CLI tool that generates Lakeflow Declaritive Pipe
 ## 🎯 Key Features
 
 - **Action-Based Architecture**: Define pipelines using composable load, transform, and write actions
+- **Append Flow API**: Efficient multi-stream ingestion with automatic table creation management
 - **Template System**: Reusable pipeline templates with parameterization
 - **Environment Management**: Multi-environment support with token substitution
 - **Data Quality Integration**: Built-in expectations and validation
-- **Smart Generation**: Only regenerate changed files with state management
+- **Smart Generation**: Only regenerate changed files with state management and content-based file writing
+- **Pipeline Validation**: Comprehensive validation rules prevent configuration conflicts
 - **Code Formatting**: Automatic Python code formatting with Black
 - **Secret Management**: Secure handling of credentials and API keys
 - **Operational Metadata**: Automatic lineage tracking and data provenance
@@ -296,6 +298,277 @@ Implement Slowly Changing Dimensions:
                  .withColumn("__end_date", lit(None)) \
                  .withColumn("__is_current", lit(True))
 ```
+
+## 🏗️ Table Creation and Append Flow API
+
+LakehousePlumber uses the Databricks Append Flow API to efficiently handle multiple data streams writing to the same streaming table. This approach prevents table recreation conflicts and enables high-performance, concurrent data ingestion.
+
+### Core Concepts
+
+#### Table Creation Control
+
+Every write action must specify whether it creates the table or appends to an existing one:
+
+```yaml
+- name: write_orders_primary
+  type: write
+  source: v_orders_cleaned_primary
+  write_target:
+    type: streaming_table
+    database: "{catalog}.{bronze_schema}"
+    table: orders
+    create_table: true  # ← This action creates the table
+    table_properties:
+      delta.enableChangeDataFeed: "true"
+      quality: "bronze"
+
+- name: write_orders_secondary  
+  type: write
+  source: v_orders_cleaned_secondary
+  write_target:
+    type: streaming_table
+    database: "{catalog}.{bronze_schema}"
+    table: orders
+    create_table: false  # ← This action appends to existing table
+```
+
+#### Generated DLT Code
+
+The above configuration generates optimized DLT code:
+
+```python
+# Table is created once
+dlt.create_streaming_table(
+    name="catalog.bronze.orders",
+    comment="Streaming table: orders",
+    table_properties={
+        "delta.enableChangeDataFeed": "true",
+        "quality": "bronze"
+    }
+)
+
+# Multiple append flows target the same table
+@dlt.append_flow(
+    target="catalog.bronze.orders",
+    name="f_orders_primary",
+    comment="Append flow to catalog.bronze.orders from v_orders_cleaned_primary"
+)
+def f_orders_primary():
+    return spark.readStream.table("v_orders_cleaned_primary")
+
+@dlt.append_flow(
+    target="catalog.bronze.orders", 
+    name="f_orders_secondary",
+    comment="Append flow to catalog.bronze.orders from v_orders_cleaned_secondary"
+)
+def f_orders_secondary():
+    return spark.readStream.table("v_orders_cleaned_secondary")
+```
+
+### Validation Rules
+
+LakehousePlumber enforces strict validation rules to prevent conflicts:
+
+#### Rule 1: Exactly One Creator Per Table
+Each streaming table must have exactly one action with `create_table: true` across the entire pipeline.
+
+```yaml
+# ✅ VALID: One creator, multiple appenders
+- name: write_lineitem_au
+  write_target:
+    table: lineitem
+    create_table: true   # ← Creates table
+
+- name: write_lineitem_nz  
+  write_target:
+    table: lineitem
+    create_table: false  # ← Appends to table
+
+- name: write_lineitem_us
+  write_target:
+    table: lineitem  
+    create_table: false  # ← Appends to table
+```
+
+```yaml
+# ❌ INVALID: Multiple creators
+- name: action1
+  write_target:
+    table: lineitem
+    create_table: true   # ← Error: Multiple creators
+
+- name: action2
+  write_target:
+    table: lineitem
+    create_table: true   # ← Error: Multiple creators
+```
+
+```yaml  
+# ❌ INVALID: No creator
+- name: action1
+  write_target:
+    table: lineitem
+    create_table: false  # ← Error: No creator for table
+
+- name: action2
+  write_target:
+    table: lineitem
+    create_table: false  # ← Error: No creator for table
+```
+
+#### Rule 2: Explicit Configuration Required
+The `create_table` field defaults to `false`, requiring explicit specification:
+
+```yaml
+# ❌ Implicit (defaults to false - may cause validation errors)
+write_target:
+  table: my_table
+  # create_table not specified (defaults to false)
+
+# ✅ Explicit (recommended)  
+write_target:
+  table: my_table
+  create_table: true  # or false
+```
+
+### Error Handling
+
+LakehousePlumber provides clear, actionable error messages:
+
+```bash
+# No table creator
+Table creation validation failed:
+  - Table 'catalog.bronze.orders' has no creator. 
+    One action must have 'create_table: true'. 
+    Used by: orders_ingestion.write_orders_bronze
+
+# Multiple table creators  
+Table creation validation failed:
+  - Table 'catalog.bronze.orders' has multiple creators: 
+    orders_ingestion.write_orders_primary, orders_ingestion.write_orders_secondary. 
+    Only one action can have 'create_table: true'.
+```
+
+### Advanced Use Cases
+
+#### Multi-Region Data Ingestion
+
+```yaml
+# Pipeline ingesting from multiple regions
+actions:
+  - name: write_events_us_east
+    type: write
+    source: v_events_us_east_cleaned
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: events
+      create_table: true  # Primary region creates table
+      partition_columns: ["event_date", "region"]
+      
+  - name: write_events_us_west
+    type: write  
+    source: v_events_us_west_cleaned
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: events
+      create_table: false  # Secondary regions append
+      
+  - name: write_events_eu
+    type: write
+    source: v_events_eu_cleaned  
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: events
+      create_table: false  # Secondary regions append
+```
+
+#### Cross-Flowgroup Table Sharing
+
+Tables can be shared across multiple flowgroups within the same pipeline:
+
+```yaml
+# flowgroup1.yaml
+pipeline: bronze_facts
+flowgroup: orders_processing
+actions:
+  - name: write_orders_online
+    write_target:
+      table: all_orders
+      create_table: true  # This flowgroup creates the table
+
+# flowgroup2.yaml  
+pipeline: bronze_facts
+flowgroup: legacy_orders
+actions:
+  - name: write_orders_legacy
+    write_target:
+      table: all_orders
+      create_table: false  # This flowgroup appends to existing table
+```
+
+### Smart File Generation
+
+LakehousePlumber includes intelligent file writing that reduces unnecessary file churn:
+
+#### Content-Based File Writing
+- Only writes files when content actually changes
+- Normalizes whitespace and formatting for accurate comparison
+- Reduces Git noise and CI/CD overhead
+
+```bash
+# Generation output shows statistics
+✅ Generation complete: 2 files written, 8 files skipped (no changes)
+```
+
+#### Benefits
+- **Faster CI/CD**: Fewer file changes mean faster builds
+- **Cleaner Git History**: No unnecessary commits for unchanged files  
+- **Reduced Resource Usage**: Less file I/O and processing
+- **Better Developer Experience**: Clear indication of actual changes
+
+### Migration Guide
+
+#### From Legacy DLT Code
+
+If you have existing DLT code with multiple `dlt.create_streaming_table()` calls:
+
+```python
+# ❌ Legacy: Multiple table creations
+dlt.create_streaming_table(name="catalog.bronze.orders", ...)
+dlt.create_streaming_table(name="catalog.bronze.orders", ...)  # Conflict!
+
+@dlt.table(name="catalog.bronze.orders")
+def orders_flow1():
+    return spark.readStream.table("source1")
+    
+@dlt.table(name="catalog.bronze.orders")  
+def orders_flow2():
+    return spark.readStream.table("source2")
+```
+
+Update your YAML configuration:
+
+```yaml
+# ✅ New: Explicit table creation control
+- name: write_orders_primary
+  source: source1
+  write_target:
+    table: orders
+    create_table: true   # Only this action creates
+
+- name: write_orders_secondary
+  source: source2  
+  write_target:
+    table: orders
+    create_table: false  # This action appends
+```
+
+#### Backward Compatibility
+
+Existing configurations without `create_table` flags will work but may trigger validation warnings. Update configurations gradually by adding explicit `create_table` flags.
 
 ## 🔧 Development
 

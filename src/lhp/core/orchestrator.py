@@ -17,6 +17,7 @@ from ..core.dependency_resolver import DependencyResolver
 from ..utils.formatter import format_code
 from ..models.config import FlowGroup, Action, ActionType, LoadSourceType, TransformType, WriteTargetType
 from ..utils.error_formatter import LHPError
+from ..utils.smart_file_writer import SmartFileWriter
 
 
 class ActionOrchestrator:
@@ -108,15 +109,35 @@ class ActionOrchestrator:
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
         substitution_mgr = EnhancedSubstitutionManager(substitution_file, env)
         
-        generated_files = {}
+        # 3. Initialize smart file writer
+        smart_writer = SmartFileWriter()
         
+        # 4. Process all flowgroups first
+        processed_flowgroups = []
         for flowgroup in flowgroups:
             self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
             
             try:
                 # Step 4.5.3: Process flowgroup
                 processed_flowgroup = self._process_flowgroup(flowgroup, substitution_mgr)
+                processed_flowgroups.append(processed_flowgroup)
                 
+            except Exception as e:
+                self.logger.error(f"Error processing flowgroup {flowgroup.flowgroup}: {e}")
+                raise
+        
+        # 5. Validate table creation rules across entire pipeline
+        table_creation_errors = self.config_validator.validate_table_creation_rules(processed_flowgroups)
+        if table_creation_errors:
+            raise ValueError(f"Table creation validation failed:\n" + "\n".join(f"  - {error}" for error in table_creation_errors))
+        
+        # 6. Generate code for each processed flowgroup
+        generated_files = {}
+        
+        for processed_flowgroup in processed_flowgroups:
+            self.logger.info(f"Generating code for flowgroup: {processed_flowgroup.flowgroup}")
+            
+            try:
                 # Step 4.5.6: Generate code
                 code = self._generate_flowgroup_code(processed_flowgroup, substitution_mgr)
                 
@@ -124,36 +145,39 @@ class ActionOrchestrator:
                 formatted_code = format_code(code)
                 
                 # Store result
-                filename = f"{flowgroup.flowgroup}.py"
+                filename = f"{processed_flowgroup.flowgroup}.py"
                 generated_files[filename] = formatted_code
                 
                 # Step 4.5.7: Write to output directory if specified
                 if output_dir:
                     output_file = output_dir / filename
-                    output_file.parent.mkdir(parents=True, exist_ok=True)
-                    output_file.write_text(formatted_code)
-                    self.logger.info(f"Generated: {output_file}")
+                    file_was_written = smart_writer.write_if_changed(output_file, formatted_code)
                     
-                    # Track the generated file in state manager
+                    # Track the generated file in state manager (regardless of whether it was written)
                     if state_manager:
                         # Find the source YAML file for this flowgroup
-                        source_yaml = self._find_source_yaml(pipeline_dir, flowgroup.flowgroup)
+                        source_yaml = self._find_source_yaml(pipeline_dir, processed_flowgroup.flowgroup)
                         if source_yaml:
                             state_manager.track_generated_file(
                                 generated_path=output_file,
                                 source_yaml=source_yaml,
                                 environment=env,
                                 pipeline=pipeline_name,
-                                flowgroup=flowgroup.flowgroup
+                                flowgroup=processed_flowgroup.flowgroup
                             )
                 
             except Exception as e:
-                self.logger.error(f"Error processing flowgroup {flowgroup.flowgroup}: {e}")
+                self.logger.error(f"Error generating code for flowgroup {processed_flowgroup.flowgroup}: {e}")
                 raise
         
         # Save state after all files are generated
         if state_manager:
             state_manager.save()
+        
+        # Log smart file writer statistics
+        if output_dir:
+            files_written, files_skipped = smart_writer.get_stats()
+            self.logger.info(f"Generation complete: {files_written} files written, {files_skipped} files skipped (no changes)")
         
         return generated_files
     
@@ -227,7 +251,7 @@ class ActionOrchestrator:
         substituted_dict = substitution_mgr.substitute_yaml(flowgroup_dict)
         processed_flowgroup = FlowGroup(**substituted_dict)
         
-        # Validate
+        # Validate individual flowgroup
         errors = self.config_validator.validate_flowgroup(processed_flowgroup)
         if errors:
             raise ValueError(f"Flowgroup validation failed: {errors}")
