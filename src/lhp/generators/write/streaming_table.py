@@ -57,6 +57,10 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         # Handle CDC configuration for auto_cdc mode
         cdc_config = target_config.get("cdc_config", {}) if mode == "cdc" else {}
         
+        # Check if we need struct import for sequence_by
+        if mode == "cdc" and cdc_config.get("sequence_by") and isinstance(cdc_config["sequence_by"], list):
+            self.add_import("from pyspark.sql.functions import struct")
+        
         # Handle snapshot CDC configuration for snapshot_cdc mode
         snapshot_cdc_config = target_config.get("snapshot_cdc_config", {}) if mode == "snapshot_cdc" else {}
         

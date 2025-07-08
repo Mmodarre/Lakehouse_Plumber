@@ -132,7 +132,7 @@ actions:
         assert "spark.readStream" in code
         assert "cloudFiles" in code
         assert "/mnt/dev/landing/customer/*.json" in code
-        assert "@dlt.table(" in code
+        assert "dlt.create_streaming_table(" in code  # Using append flow API
         assert "dev_catalog.bronze.customer_raw" in code
         
         # Check for operational metadata (enabled in preset)
@@ -187,11 +187,11 @@ actions:
     
   - name: save_customers_bronze
     type: write
-    source:
+    source: v_customers_raw
+    write_target:
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: customers_raw
-      view: v_customers_raw
 """)
         
         # Generate pipeline
@@ -279,12 +279,12 @@ actions:
       
   - name: save_customer_dimension
     type: write
-    source:
+    source: v_customer_cleansed
+    write_target:
       type: streaming_table
       mode: cdc
       database: "{env}_{silver_schema}_sales"
       table: dim_customer
-      view: v_customer_cleansed
       cdc_config:
         keys: [customer_id]
         sequence_by: _commit_timestamp
@@ -359,12 +359,12 @@ actions:
 
   - name: save_{{ table_name }}_bronze
     type: write
-    source:
+    source: v_{{ table_name }}_with_metadata
+    write_target:
       type: streaming_table
       mode: append_flow
       database: "{env}_bronze_{{ schema }}"
       table: "{{ table_name }}_raw"
-      view: v_{{ table_name }}_with_metadata
 """)
         
         # Create substitutions
@@ -456,11 +456,11 @@ actions:
     
   - name: save_validated_customers
     type: write
-    source:
+    source: v_customers_validated
+    write_target:
       type: streaming_table
       database: "bronze"
       table: customers_validated
-      view: v_customers_validated
 """)
         
         # Generate pipeline

@@ -16,7 +16,6 @@
 [![Lines of Code](https://img.shields.io/badge/lines%20of%20code-~8k-blue)](https://github.com/Mmodarre/Lakehouse_Plumber)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-
 [![Coverage](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber/branch/main/graph/badge.svg)](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber)
 [![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://lakehouse-plumber.readthedocs.io/)
 [![Databricks](https://img.shields.io/badge/Databricks-DLT-orange.svg)](https://databricks.com/product/delta-live-tables)

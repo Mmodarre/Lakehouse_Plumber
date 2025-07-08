@@ -481,7 +481,7 @@ class TestWriteGenerators:
         assert "stored_as_scd_type=2" in code
         assert 'track_history_column_list=["name", "email", "address"]' in code
     
-    def test_streaming_table_snapshot_cdc_except_columns(self):
+    def test_streaming_table_snapshot_cdc_track_history_except(self):
         """Test snapshot CDC with track_history_except_column_list."""
         generator = StreamingTableWriteGenerator()
         action = Action(

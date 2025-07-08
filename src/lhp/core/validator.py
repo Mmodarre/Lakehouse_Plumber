@@ -284,6 +284,11 @@ class ConfigValidator:
                     mode = action.write_target.get("mode", "standard")
                     if mode == "snapshot_cdc":
                         self._validate_snapshot_cdc_config(action, prefix, errors)
+                    elif mode == "cdc":
+                        self._validate_cdc_config(action, prefix, errors)
+                        # Validate CDC schema if provided
+                        if action.write_target.get("schema"):
+                            self._validate_cdc_schema(action, prefix, errors)
             
         except ValueError:
             pass  # Already handled above
@@ -434,6 +439,134 @@ class ConfigValidator:
                 for i, col in enumerate(except_list):
                     if not isinstance(col, str):
                         errors.append(f"{prefix}: track_history_except_column_list[{i}] must be a string")
+    
+    def _validate_cdc_config(self, action: Action, prefix: str, errors: List[str]):
+        """Validate CDC configuration parameters."""
+        if not action.write_target:
+            return
+        
+        cdc_config = action.write_target.get("cdc_config")
+        if not cdc_config:
+            errors.append(f"{prefix}: cdc mode requires 'cdc_config'")
+            return
+        
+        if not isinstance(cdc_config, dict):
+            errors.append(f"{prefix}: 'cdc_config' must be a dictionary")
+            return
+        
+        # Validate required keys parameter
+        keys = cdc_config.get("keys")
+        if not keys:
+            errors.append(f"{prefix}: cdc_config must have 'keys'")
+        elif not isinstance(keys, list):
+            errors.append(f"{prefix}: 'keys' must be a list")
+        elif not keys:  # Empty list
+            errors.append(f"{prefix}: 'keys' cannot be empty")
+        else:
+            for i, key in enumerate(keys):
+                if not isinstance(key, str):
+                    errors.append(f"{prefix}: keys[{i}] must be a string")
+        
+        # Validate sequence_by (optional but recommended)
+        sequence_by = cdc_config.get("sequence_by")
+        if sequence_by is not None:
+            if isinstance(sequence_by, str):
+                # String format is valid
+                pass
+            elif isinstance(sequence_by, list):
+                # List format for struct() is valid
+                if not sequence_by:  # Empty list
+                    errors.append(f"{prefix}: 'sequence_by' list cannot be empty")
+                else:
+                    for i, col in enumerate(sequence_by):
+                        if not isinstance(col, str):
+                            errors.append(f"{prefix}: sequence_by[{i}] must be a string")
+            else:
+                errors.append(f"{prefix}: 'sequence_by' must be a string or list of strings")
+        
+        # Validate stored_as_scd_type
+        scd_type = cdc_config.get("scd_type")
+        if scd_type is not None:
+            if not isinstance(scd_type, int) or scd_type not in [1, 2]:
+                errors.append(f"{prefix}: 'scd_type' must be 1 or 2")
+        
+        # Validate ignore_null_updates
+        ignore_null_updates = cdc_config.get("ignore_null_updates")
+        if ignore_null_updates is not None:
+            if not isinstance(ignore_null_updates, bool):
+                errors.append(f"{prefix}: 'ignore_null_updates' must be a boolean")
+        
+        # Validate apply_as_deletes
+        apply_as_deletes = cdc_config.get("apply_as_deletes")
+        if apply_as_deletes is not None:
+            if not isinstance(apply_as_deletes, str):
+                errors.append(f"{prefix}: 'apply_as_deletes' must be a string expression")
+        
+        # Validate apply_as_truncates
+        apply_as_truncates = cdc_config.get("apply_as_truncates")
+        if apply_as_truncates is not None:
+            if not isinstance(apply_as_truncates, str):
+                errors.append(f"{prefix}: 'apply_as_truncates' must be a string expression")
+            # Validate that it's only used with SCD Type 1
+            if cdc_config.get("scd_type") == 2:
+                errors.append(f"{prefix}: 'apply_as_truncates' is not supported with SCD Type 2")
+        
+        # Validate column_list and except_column_list (mutually exclusive)
+        has_column_list = cdc_config.get("column_list") is not None
+        has_except_column_list = cdc_config.get("except_column_list") is not None
+        
+        if has_column_list and has_except_column_list:
+            errors.append(f"{prefix}: cannot have both 'column_list' and 'except_column_list'")
+        
+        # Validate column_list
+        if has_column_list:
+            column_list = cdc_config["column_list"]
+            if not isinstance(column_list, list):
+                errors.append(f"{prefix}: 'column_list' must be a list")
+            else:
+                for i, col in enumerate(column_list):
+                    if not isinstance(col, str):
+                        errors.append(f"{prefix}: column_list[{i}] must be a string")
+        
+        # Validate except_column_list
+        if has_except_column_list:
+            except_column_list = cdc_config["except_column_list"]
+            if not isinstance(except_column_list, list):
+                errors.append(f"{prefix}: 'except_column_list' must be a list")
+            else:
+                for i, col in enumerate(except_column_list):
+                    if not isinstance(col, str):
+                        errors.append(f"{prefix}: except_column_list[{i}] must be a string")
+        
+        # Validate track_history_columns for SCD Type 2
+        track_history_columns = cdc_config.get("track_history_columns")
+        if track_history_columns is not None:
+            if not isinstance(track_history_columns, list):
+                errors.append(f"{prefix}: 'track_history_columns' must be a list")
+            else:
+                for i, col in enumerate(track_history_columns):
+                    if not isinstance(col, str):
+                        errors.append(f"{prefix}: track_history_columns[{i}] must be a string")
+    
+    def _validate_cdc_schema(self, action: Action, prefix: str, errors: List[str]):
+        """Validate CDC schema includes required __START_AT and __END_AT columns."""
+        if not action.write_target:
+            return
+        
+        schema = action.write_target.get("schema")
+        if not schema:
+            return
+        
+        # Check for required CDC columns
+        if "__START_AT" not in schema:
+            errors.append(f"{prefix}: CDC schema must include '__START_AT' column with same type as sequence_by")
+        
+        if "__END_AT" not in schema:
+            errors.append(f"{prefix}: CDC schema must include '__END_AT' column with same type as sequence_by")
+        
+        # If we have sequence_by, we could validate type compatibility
+        # but that would require parsing the schema DDL which is complex
+        # For now, just check presence of columns
     
     def validate_action_references(self, actions: List[Action]) -> List[str]:
         """Validate that all action references are valid."""
