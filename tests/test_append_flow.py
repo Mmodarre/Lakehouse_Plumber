@@ -19,6 +19,7 @@ def test_streaming_table_with_multiple_sources():
             "type": "streaming_table",
             "database": "silver",
             "table": "all_events",
+            "create_table": True,  # ← Add explicit table creation flag
             "partition_columns": ["event_date"],
             "comment": "Unified events table"
         }
@@ -57,7 +58,8 @@ def test_streaming_table_with_backfill():
         write_target={
             "type": "streaming_table",
             "database": "silver",
-            "table": "events"
+            "table": "events",
+            "create_table": True  # ← Add explicit table creation flag
         }
     )
     
@@ -88,6 +90,7 @@ def test_streaming_table_cdc_mode():
             "mode": "cdc",
             "database": "silver",
             "table": "dim_customer",
+            "create_table": True,  # ← Add explicit table creation flag
             "cdc_config": {
                 "keys": ["customer_id"],
                 "sequence_by": "_commit_timestamp",
@@ -125,7 +128,8 @@ def test_streaming_table_single_source():
         write_target={
             "type": "streaming_table",
             "database": "silver",
-            "table": "events"
+            "table": "events",
+            "create_table": True  # ← Add explicit table creation flag
         }
     )
     
@@ -153,7 +157,8 @@ def test_source_list_validation():
         write_target={
             "type": "streaming_table",
             "database": "silver",
-            "table": "multi_source"
+            "table": "multi_source",
+            "create_table": True  # ← Add explicit table creation flag
         }
     )
     
