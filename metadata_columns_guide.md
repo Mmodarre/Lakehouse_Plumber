@@ -37,6 +37,307 @@ Metadata can be enabled at three levels (in order of precedence):
 2. **FlowGroup Level** 
 3. **Preset Level** (lowest priority)
 
+### 4. Current Limitation: All-or-Nothing Selection
+
+Currently, the operational metadata system is **all-or-nothing** - when you enable `operational_metadata: true`, you get all 5 predefined columns. There's no built-in mechanism to selectively include specific metadata columns.
+
+```yaml
+# This gives you ALL metadata columns:
+operational_metadata: true
+
+# This gives you NO metadata columns:
+operational_metadata: false
+```
+
+## How to Implement Selective Metadata Column Inclusion
+
+### Current Behavior vs. Desired Behavior
+
+**Current:** You must take all 5 metadata columns or none.
+
+**Desired:** You can choose exactly which metadata columns you want.
+
+### Implementation Options
+
+#### Option 1: Include/Exclude Lists
+
+```yaml
+# Include only specific columns
+operational_metadata:
+  enabled: true
+  include_columns:
+    - "_ingestion_timestamp"
+    - "_pipeline_name"
+    - "_flowgroup_name"
+
+# OR exclude specific columns  
+operational_metadata:
+  enabled: true
+  exclude_columns:
+    - "_source_file"
+    - "_pipeline_run_id"
+```
+
+#### Option 2: Granular Boolean Flags
+
+```yaml
+operational_metadata:
+  _ingestion_timestamp: true
+  _source_file: false
+  _pipeline_run_id: true
+  _pipeline_name: true
+  _flowgroup_name: false
+```
+
+#### Option 3: Preset-based Selection
+
+```yaml
+# presets/minimal_metadata.yaml
+name: minimal_metadata
+version: "1.0"
+defaults:
+  operational_metadata:
+    enabled: true
+    include_columns:
+      - "_ingestion_timestamp"
+      - "_pipeline_name"
+```
+
+### Implementation Steps for Selective Metadata
+
+#### Step A: Update Configuration Models
+
+```python
+# src/lhp/models/config.py
+
+from typing import Union, List
+from pydantic import BaseModel
+
+class OperationalMetadataConfig(BaseModel):
+    enabled: bool = True
+    include_columns: Optional[List[str]] = None
+    exclude_columns: Optional[List[str]] = None
+
+class Action(BaseModel):
+    # ... existing fields ...
+    operational_metadata: Optional[Union[bool, OperationalMetadataConfig]] = None
+
+class FlowGroup(BaseModel):
+    # ... existing fields ... 
+    operational_metadata: Optional[Union[bool, OperationalMetadataConfig]] = None
+```
+
+#### Step B: Update OperationalMetadata Class
+
+```python
+# src/lhp/utils/operational_metadata.py
+
+class OperationalMetadata:
+    def __init__(self):
+        self.available_columns = {
+            '_ingestion_timestamp': 'F.current_timestamp()',
+            '_source_file': 'F.input_file_name()',
+            '_pipeline_run_id': 'F.lit(spark.conf.get("pipelines.id", "unknown"))',
+            '_pipeline_name': None,  # Set dynamically
+            '_flowgroup_name': None  # Set dynamically
+        }
+    
+    def get_enabled_columns(self, config: Union[bool, dict], target_type: str) -> Dict[str, str]:
+        """Get enabled metadata columns based on configuration."""
+        
+        # Handle legacy boolean config
+        if isinstance(config, bool):
+            if config:
+                return self._get_all_columns(target_type)
+            else:
+                return {}
+        
+        # Handle new dict config
+        if not config.get('enabled', True):
+            return {}
+        
+        all_columns = self._get_all_columns(target_type)
+        
+        # Include specific columns
+        if 'include_columns' in config:
+            return {k: v for k, v in all_columns.items() 
+                   if k in config['include_columns']}
+        
+        # Exclude specific columns  
+        if 'exclude_columns' in config:
+            return {k: v for k, v in all_columns.items() 
+                   if k not in config['exclude_columns']}
+        
+        # Default: return all
+        return all_columns
+    
+    def _get_all_columns(self, target_type: str) -> Dict[str, str]:
+        """Get all available columns for target type."""
+        columns = {
+            '_ingestion_timestamp': 'F.current_timestamp()',
+            '_pipeline_run_id': 'F.lit(spark.conf.get("pipelines.id", "unknown"))',
+            '_pipeline_name': f'F.lit("{self.pipeline_name}")' if hasattr(self, 'pipeline_name') else 'F.lit("unknown")',
+            '_flowgroup_name': f'F.lit("{self.flowgroup_name}")' if hasattr(self, 'flowgroup_name') else 'F.lit("unknown")'
+        }
+        
+        # Add source file only for streaming tables
+        if target_type == 'streaming_table':
+            columns['_source_file'] = 'F.input_file_name()'
+        
+        return columns
+```
+
+#### Step C: Update Generators
+
+```python
+# src/lhp/generators/write/streaming_table.py
+
+def generate(self, action: Action, context: dict) -> str:
+    # ... existing code ...
+    
+    # Determine metadata configuration
+    metadata_config = self._resolve_metadata_config(flowgroup, action, preset_config)
+    
+    if metadata_config:
+        # Get enabled columns
+        enabled_columns = self.operational_metadata.get_enabled_columns(
+            metadata_config, 
+            "streaming_table"
+        )
+        
+        if enabled_columns:
+            # Add required imports
+            for import_stmt in self.operational_metadata.get_required_imports():
+                self.add_import(import_stmt)
+            
+            # Update context
+            self.operational_metadata.update_context(
+                flowgroup.pipeline, flowgroup.flowgroup
+            )
+    
+    template_context = {
+        # ... existing context ...
+        "enabled_metadata_columns": enabled_columns if metadata_config else {},
+        "add_operational_metadata": bool(enabled_columns) if metadata_config else False,
+    }
+
+def _resolve_metadata_config(self, flowgroup, action, preset_config):
+    """Resolve metadata configuration from action > flowgroup > preset."""
+    
+    # Action level (highest priority)
+    if hasattr(action, 'operational_metadata') and action.operational_metadata is not None:
+        return action.operational_metadata
+    
+    # FlowGroup level
+    if hasattr(flowgroup, 'operational_metadata') and flowgroup.operational_metadata is not None:
+        return flowgroup.operational_metadata
+    
+    # Preset level
+    if 'operational_metadata' in preset_config:
+        return preset_config['operational_metadata']
+    
+    return None
+```
+
+#### Step D: Update Templates
+
+```jinja2
+{# src/lhp/templates/write/streaming_table.py.j2 #}
+
+{% if add_operational_metadata and enabled_metadata_columns %}
+
+# Add operational metadata columns
+{% for col_name, expression in enabled_metadata_columns.items() %}
+df = df.withColumn('{{ col_name }}', {{ expression }})
+{% endfor %}
+
+{% endif %}
+```
+
+### Usage Examples for Selective Metadata
+
+#### Minimal Metadata (Only Timestamp and Pipeline)
+```yaml
+pipeline: my_pipeline
+flowgroup: my_flowgroup
+operational_metadata:
+  enabled: true
+  include_columns:
+    - "_ingestion_timestamp"
+    - "_pipeline_name"
+
+actions:
+  # Only gets timestamp and pipeline name
+```
+
+#### Exclude Source File Tracking
+```yaml
+operational_metadata:
+  enabled: true
+  exclude_columns:
+    - "_source_file"  # Skip file tracking for privacy/performance
+```
+
+#### Action-Level Overrides
+```yaml
+pipeline: my_pipeline
+flowgroup: my_flowgroup
+operational_metadata:
+  enabled: true
+  include_columns: ["_ingestion_timestamp"]
+
+actions:
+  - name: write_important_table
+    type: write
+    operational_metadata:
+      enabled: true  # This action gets ALL columns (overrides flowgroup)
+    write_target:
+      type: streaming_table
+      database: "gold"
+      table: "important_data"
+    
+  - name: write_temp_table  
+    type: write
+    operational_metadata:
+      enabled: false  # This action gets NO columns
+    write_target:
+      type: streaming_table
+      database: "temp"
+      table: "temp_data"
+```
+
+#### Custom Preset for Different Use Cases
+```yaml
+# presets/audit_metadata.yaml - For compliance/audit tables
+name: audit_metadata
+version: "1.0"
+defaults:
+  operational_metadata:
+    enabled: true
+    include_columns:
+      - "_ingestion_timestamp"
+      - "_pipeline_run_id"
+      - "_source_file"
+
+# presets/performance_metadata.yaml - For high-volume tables  
+name: performance_metadata
+version: "1.0"
+defaults:
+  operational_metadata:
+    enabled: true
+    include_columns:
+      - "_ingestion_timestamp"  # Only essential timestamp
+```
+
+#### Backward Compatibility
+```yaml
+# This still works (gives all 5 columns)
+operational_metadata: true
+
+# This still works (gives no columns)
+operational_metadata: false
+```
+
 ## Step-by-Step Guide to Implement Custom Metadata Columns
 
 ### Step 1: Understand Current Architecture
