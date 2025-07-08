@@ -281,6 +281,7 @@ class TestWriteGenerators:
                 "type": "streaming_table",
                 "database": "silver",
                 "table": "customers",
+                "create_table": True,  # ← Add explicit table creation flag
                 "partition_columns": ["year", "month"],
                 "cluster_columns": ["customer_id"],
                 "table_properties": {
@@ -374,6 +375,7 @@ class TestWriteGenerators:
                 "type": "streaming_table",
                 "database": "silver",
                 "table": "advanced_streaming",
+                "create_table": True,  # ← Add explicit table creation flag
                 "spark_conf": {
                     "spark.sql.streaming.checkpointLocation": "/checkpoints/advanced",
                     "spark.sql.streaming.stateStore.providerClass": "RocksDBStateStoreProvider"
@@ -417,6 +419,7 @@ class TestWriteGenerators:
                 "mode": "snapshot_cdc",
                 "database": "silver",
                 "table": "customers",
+                "create_table": True,  # ← Add explicit table creation flag
                 "snapshot_cdc_config": {
                     "source": "raw.customer_snapshots",
                     "keys": ["customer_id"],
@@ -442,6 +445,22 @@ class TestWriteGenerators:
     
     def test_streaming_table_snapshot_cdc_function_source(self):
         """Test streaming table with snapshot CDC using function source."""
+        import tempfile
+        
+        # Create a temporary function file for the test
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write("""
+from typing import Optional, Tuple
+from pyspark.sql import DataFrame
+
+def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
+    if latest_version is None:
+        df = spark.read.table("raw.customer_snapshots")
+        return (df, 1)
+    return None
+""")
+            function_file = f.name
+        
         generator = StreamingTableWriteGenerator()
         action = Action(
             name="write_customer_snapshot_cdc_func",
@@ -451,9 +470,10 @@ class TestWriteGenerators:
                 "mode": "snapshot_cdc",
                 "database": "silver",
                 "table": "customers",
+                "create_table": True,  # ← Add explicit table creation flag
                 "snapshot_cdc_config": {
                     "source_function": {
-                        "file": "customer_snapshots.py",
+                        "file": function_file,  # Use actual temp file path
                         "function": "next_customer_snapshot"
                     },
                     "keys": ["customer_id", "region"],
@@ -463,7 +483,11 @@ class TestWriteGenerators:
             }
         )
         
-        code = generator.generate(action, {})
+        try:
+            code = generator.generate(action, {})
+        finally:
+            # Clean up temp file
+            Path(function_file).unlink()
         
         # Verify function import structure
         assert "# Import snapshot function" in code
@@ -492,6 +516,7 @@ class TestWriteGenerators:
                 "mode": "snapshot_cdc",
                 "database": "silver",
                 "table": "products",
+                "create_table": True,  # ← Add explicit table creation flag
                 "snapshot_cdc_config": {
                     "source": "raw.product_snapshots",
                     "keys": ["product_id"],
