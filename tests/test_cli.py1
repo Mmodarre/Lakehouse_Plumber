@@ -116,11 +116,12 @@ class TestCLI:
                     {
                         'name': 'write_data',
                         'type': 'write',
-                        'source': {
+                        'source': 'v_raw_data',
+                        'write_target': {
                             'type': 'streaming_table',
                             'database': 'bronze',
                             'table': 'test_table',
-                            'view': 'v_raw_data'
+                            'create_table': True
                         }
                     }
                 ]
@@ -133,7 +134,7 @@ class TestCLI:
             result = runner.invoke(cli, ['validate', '--env', 'dev'])
             
             assert result.exit_code == 0
-            assert "✅ All validations passed" in result.output
+            assert "✅ All configurations are valid" in result.output
     
     def test_list_presets(self, runner, temp_project):
         """Test list-presets command."""
@@ -191,11 +192,12 @@ class TestCLI:
                     {
                         'name': 'write_bronze',
                         'type': 'write',
-                        'source': {
+                        'source': 'v_raw_data',
+                        'write_target': {
                             'type': 'streaming_table',
                             'database': 'bronze',
                             'table': 'test_table',
-                            'view': 'v_raw_data'
+                            'create_table': True
                         }
                     }
                 ]
@@ -239,11 +241,12 @@ class TestCLI:
                     {
                         'name': 'write_bronze',
                         'type': 'write',
-                        'source': {
+                        'source': 'v_raw_data',
+                        'write_target': {
                             'type': 'streaming_table',
                             'database': '{bronze_schema}',
                             'table': 'processed_data',
-                            'view': 'v_raw_data'
+                            'create_table': True
                         }
                     }
                 ]
@@ -292,11 +295,12 @@ class TestCLI:
                     {
                         'name': 'write_customers',
                         'type': 'write',
-                        'source': {
+                        'source': 'v_jdbc_data',
+                        'write_target': {
                             'type': 'streaming_table',
                             'database': 'bronze',
                             'table': 'customers_raw',
-                            'view': 'v_jdbc_data'
+                            'create_table': True
                         }
                     }
                 ]

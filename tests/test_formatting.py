@@ -40,11 +40,12 @@ def test_burrowbuilder_style_formatting(tmp_path):
             {
                 "name": "write_data",
                 "type": "write",
-                "source": {
+                "source": "v_transformed",
+                "write_target": {
                     "type": "streaming_table",
                     "database": "silver",
                     "table": "output",
-                    "view": "v_transformed"
+                    "create_table": True
                 }
             }
         ]
@@ -122,11 +123,12 @@ def test_formatting_with_minimal_pipeline(tmp_path):
             {
                 "name": "write_customers",
                 "type": "write",
-                "source": {
+                "source": "v_customers",
+                "write_target": {
                     "type": "streaming_table",
                     "database": "silver",
                     "table": "customers",
-                    "view": "v_customers"
+                    "create_table": True
                 }
             }
         ]

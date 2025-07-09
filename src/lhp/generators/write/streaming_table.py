@@ -30,7 +30,12 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         mode = target_config.get("mode", "standard")  # "cdc" and "snapshot_cdc" are special modes
         database = target_config.get("database")
         table = target_config.get("table") or target_config.get("name")
-        create_table = target_config.get("create_table", False)  # Default to False
+        
+        # For CDC modes, always create the table since CDC flows need dedicated tables
+        if mode in ["cdc", "snapshot_cdc"]:
+            create_table = True
+        else:
+            create_table = target_config.get("create_table", False)  # Default to False for standard mode
         
         # Build full table name
         full_table_name = f"{database}.{table}" if database else table

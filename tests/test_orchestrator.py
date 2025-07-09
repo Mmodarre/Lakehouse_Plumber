@@ -82,11 +82,12 @@ class TestActionOrchestrator:
                 {
                     "name": "write_customers",
                     "type": "write",
-                    "source": {
+                    "source": "v_customers_clean",
+                    "write_target": {
                         "type": "streaming_table",
                         "database": "{bronze_schema}",
                         "table": "customers",
-                        "view": "v_customers_clean"
+                        "create_table": True
                     }
                 }
             ]
@@ -188,11 +189,12 @@ class TestActionOrchestrator:
                     {
                         "name": "write_data",
                         "type": "write",
-                        "source": {
+                        "source": "v_db_data",
+                        "write_target": {
                             "type": "streaming_table",
                             "database": "silver",
                             "table": "customers",
-                            "view": "v_db_data"
+                            "create_table": True
                         }
                     }
                 ]
@@ -236,11 +238,12 @@ class TestActionOrchestrator:
                     {
                         "name": "write_{{ source_table }}",
                         "type": "write",
-                        "source": {
+                        "source": "v_{{ source_table }}_raw",
+                        "write_target": {
                             "type": "streaming_table",
                             "database": "{{ target_database }}",
                             "table": "{{ source_table }}",
-                            "view": "v_{{ source_table }}_raw"
+                            "create_table": True
                         }
                     }
                 ]
@@ -329,11 +332,12 @@ class TestActionOrchestrator:
                     {
                         "name": "write_result",
                         "type": "write",
-                        "source": {
+                        "source": "v_ab",
+                        "write_target": {
                             "type": "streaming_table",
                             "database": "gold",
                             "table": "result",
-                            "view": "v_ab"
+                            "create_table": True
                         }
                     }
                 ]

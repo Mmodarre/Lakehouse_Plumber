@@ -96,7 +96,7 @@ class TestCLI:
         result = self.runner.invoke(cli, ['--help'])
         assert result.exit_code == 0
         assert "LakehousePlumber" in result.output
-        assert "Action-based DLT Pipeline Generator" in result.output
+        assert "Generate Delta Live Tables pipelines from YAML configs" in result.output
     
     def test_cli_version(self):
         """Test CLI version command."""
@@ -140,34 +140,98 @@ class TestCLI:
                 
                 result = self.runner.invoke(cli, ['init', project_name])
                 
-                assert result.exit_code == 0
+                assert result.exit_code == 1  # Should fail for existing directory
                 assert f"Directory {project_name} already exists" in result.output
             finally:
                 os.chdir(original_cwd)
     
     def test_validate_command(self):
         """Test validate command (placeholder)."""
-        result = self.runner.invoke(cli, ['validate', '--env', 'dev'])
-        assert result.exit_code == 0
-        assert "Validating configurations for environment: dev" in result.output
+        with tempfile.TemporaryDirectory() as temp_dir:
+            import os
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                # Initialize a project first
+                project_name = "test_project"
+                init_result = self.runner.invoke(cli, ['init', project_name])
+                assert init_result.exit_code == 0
+                
+                # Change to project directory
+                os.chdir(project_name)
+                
+                # Now test validate (will fail because no pipelines, but should reach that stage)
+                result = self.runner.invoke(cli, ['validate', '--env', 'dev'])
+                assert result.exit_code == 1  # Expected to fail with no pipelines
+                assert "No pipelines found" in result.output
+            finally:
+                os.chdir(original_cwd)
     
     def test_generate_command(self):
         """Test generate command (placeholder)."""
-        result = self.runner.invoke(cli, ['generate', '--env', 'dev'])
-        assert result.exit_code == 0
-        assert "Generating code for environment: dev" in result.output
+        with tempfile.TemporaryDirectory() as temp_dir:
+            import os
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                # Initialize a project first
+                project_name = "test_project"
+                init_result = self.runner.invoke(cli, ['init', project_name])
+                assert init_result.exit_code == 0
+                
+                # Change to project directory
+                os.chdir(project_name)
+                
+                # Now test generate (will fail because no pipelines, but should reach that stage)
+                result = self.runner.invoke(cli, ['generate', '--env', 'dev'])
+                assert result.exit_code == 1  # Expected to fail with no pipelines
+                assert "No pipelines found" in result.output
+            finally:
+                os.chdir(original_cwd)
     
     def test_list_presets_command(self):
         """Test list-presets command (placeholder)."""
-        result = self.runner.invoke(cli, ['list-presets'])
-        assert result.exit_code == 0
-        assert "Available presets:" in result.output
+        with tempfile.TemporaryDirectory() as temp_dir:
+            import os
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                # Initialize a project first
+                project_name = "test_project"
+                init_result = self.runner.invoke(cli, ['init', project_name])
+                assert init_result.exit_code == 0
+                
+                # Change to project directory
+                os.chdir(project_name)
+                
+                # Now test list-presets
+                result = self.runner.invoke(cli, ['list-presets'])
+                assert result.exit_code == 0
+                assert "Available presets:" in result.output
+            finally:
+                os.chdir(original_cwd)
     
     def test_list_templates_command(self):
         """Test list-templates command (placeholder)."""
-        result = self.runner.invoke(cli, ['list-templates'])
-        assert result.exit_code == 0
-        assert "Available templates:" in result.output
+        with tempfile.TemporaryDirectory() as temp_dir:
+            import os
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(temp_dir)
+                # Initialize a project first
+                project_name = "test_project"
+                init_result = self.runner.invoke(cli, ['init', project_name])
+                assert init_result.exit_code == 0
+                
+                # Change to project directory
+                os.chdir(project_name)
+                
+                # Now test list-templates
+                result = self.runner.invoke(cli, ['list-templates'])
+                assert result.exit_code == 0
+                assert "Available templates:" in result.output
+            finally:
+                os.chdir(original_cwd)
 
 
 if __name__ == "__main__":

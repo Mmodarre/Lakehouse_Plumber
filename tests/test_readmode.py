@@ -296,6 +296,7 @@ actions:
       type: streaming_table
       database: silver
       table: customers_typed
+      create_table: true
 """
             
             (pipeline_dir / "test_flow.yaml").write_text(flowgroup_content)

@@ -401,7 +401,7 @@ class TestWriteGenerators:
         assert 'name="silver.advanced_streaming"' in code
         assert 'spark_conf={"spark.sql.streaming.checkpointLocation": "/checkpoints/advanced"' in code
         assert 'table_properties=' in code and '"delta.enableChangeDataFeed": "true"' in code
-        assert 'schema="customer_id BIGINT, name STRING, status STRING"' in code
+        assert 'schema="""customer_id BIGINT, name STRING, status STRING"""' in code
         assert 'row_filter="ROW FILTER catalog.schema.customer_filter ON (region)"' in code
         assert 'temporary=False' not in code  # False values are not included in output
         assert 'partition_cols=["status"]' in code
@@ -489,12 +489,11 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
             # Clean up temp file
             Path(function_file).unlink()
         
-        # Verify function import structure
-        assert "# Import snapshot function" in code
-        assert "import sys" in code
-        assert "import os" in code
-        assert "sys.path.append(os.path.dirname(__file__))" in code
-        assert "from customer_snapshots import next_customer_snapshot" in code
+        # Verify function embedding structure
+        assert "# Snapshot function embedded directly in generated code" in code
+        assert "def next_customer_snapshot(latest_version: Optional[int])" in code
+        assert "from pyspark.sql import DataFrame" in code
+        assert "from typing import Optional, Tuple" in code
         
         # Verify snapshot CDC structure
         assert "dlt.create_streaming_table(" in code
