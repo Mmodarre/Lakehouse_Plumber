@@ -424,7 +424,8 @@ actions:
         
         orchestrator = ActionOrchestrator(project_root)
         
-        with pytest.raises(ValueError, match="at least one Load action"):
+        # The orphaned transform error is more specific and helpful than "missing load action"
+        with pytest.raises(ValueError, match="Unused transform action"):
             orchestrator.generate_pipeline("invalid_no_load", "dev")
         
         # Test 2: Circular dependency - Create separate pipeline

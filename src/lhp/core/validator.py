@@ -65,8 +65,11 @@ class ConfigValidator:
         
         # Validate dependencies
         if flowgroup.actions:
-            dependency_errors = self.dependency_resolver.validate_relationships(flowgroup.actions)
-            errors.extend(dependency_errors)
+            try:
+                dependency_errors = self.dependency_resolver.validate_relationships(flowgroup.actions)
+                errors.extend(dependency_errors)
+            except Exception as e:
+                errors.append(str(e))
         
         # Validate template usage
         if flowgroup.use_template and not flowgroup.template_parameters:
