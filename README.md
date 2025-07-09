@@ -11,12 +11,12 @@
 <div align="center">
 
 [![PyPI version](https://badge.fury.io/py/lakehouse-plumber.svg)](https://badge.fury.io/py/lakehouse-plumber)
-[![Python Support](https://img.shields.io/pypi/pyversions/lakehouse-plumber.svg)](https://pypi.org/project/lakehouse-plumber/)
+<!-- [![Python Support](https://img.shields.io/pypi/pyversions/lakehouse-plumber.svg)](https://pypi.org/project/lakehouse-plumber/) -->
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Lines of Code](https://img.shields.io/badge/lines%20of%20code-~8k-blue)](https://github.com/Mmodarre/Lakehouse_Plumber)
+[![Lines of Code](https://img.shields.io/badge/lines%20of%20code-~14k-blue)](https://github.com/Mmodarre/Lakehouse_Plumber)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-[![Coverage](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber/branch/main/graph/badge.svg)](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber)
+[![codecov](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber/branch/main/graph/badge.svg?token=80IBHIFAQY)](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber)
 [![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://lakehouse-plumber.readthedocs.io/)
 [![Databricks](https://img.shields.io/badge/Databricks-DLT-orange.svg)](https://databricks.com/product/delta-live-tables)
 

@@ -25,6 +25,42 @@ class WriteTargetType(str, Enum):
     STREAMING_TABLE = "streaming_table"
     MATERIALIZED_VIEW = "materialized_view"
 
+class MetadataColumnConfig(BaseModel):
+    """Configuration for a single metadata column."""
+    expression: str
+    description: Optional[str] = None
+    applies_to: List[str] = ["streaming_table", "materialized_view"]
+    additional_imports: Optional[List[str]] = None
+    enabled: bool = True
+
+class MetadataPresetConfig(BaseModel):
+    """Configuration for a metadata column preset."""
+    columns: List[str]
+    description: Optional[str] = None
+
+class OperationalMetadataSelection(BaseModel):
+    """Operational metadata selection configuration (used in flowgroups/actions/presets)."""
+    enabled: bool = True
+    preset: Optional[str] = None  # Reference to project-defined preset
+    columns: Optional[List[str]] = None  # Explicit column selection
+    include_columns: Optional[List[str]] = None  # Alternative syntax
+    exclude_columns: Optional[List[str]] = None  # Alternative syntax
+
+class ProjectOperationalMetadataConfig(BaseModel):
+    """Project-level operational metadata configuration (definitions only)."""
+    columns: Dict[str, MetadataColumnConfig]
+    presets: Optional[Dict[str, MetadataPresetConfig]] = None
+    defaults: Optional[Dict[str, Any]] = None
+
+class ProjectConfig(BaseModel):
+    """Project-level configuration loaded from lhp.yaml."""
+    name: str
+    version: str = "1.0"
+    description: Optional[str] = None
+    author: Optional[str] = None
+    created_date: Optional[str] = None
+    operational_metadata: Optional[ProjectOperationalMetadataConfig] = None
+
 class WriteTarget(BaseModel):
     """Write target configuration for streaming tables and materialized views."""
     type: WriteTargetType
@@ -68,7 +104,7 @@ class Action(BaseModel):
     transform_type: Optional[TransformType] = None
     sql: Optional[str] = None
     sql_path: Optional[str] = None
-    operational_metadata: Optional[bool] = None
+    operational_metadata: Optional[Union[bool, List[str]]] = None  # Simplified: bool or list of column names
     expectations_file: Optional[str] = None  # For data quality transforms
     # Write action specific
     once: Optional[bool] = None  # For one-time flows/backfills
@@ -80,7 +116,7 @@ class FlowGroup(BaseModel):
     use_template: Optional[str] = None
     template_parameters: Optional[Dict[str, Any]] = None
     actions: List[Action] = []
-    operational_metadata: Optional[bool] = None
+    operational_metadata: Optional[Union[bool, List[str]]] = None  # Simplified: bool or list of column names
 
 class Template(BaseModel):
     name: str
@@ -95,3 +131,4 @@ class Preset(BaseModel):
     extends: Optional[str] = None
     description: Optional[str] = None
     defaults: Optional[Dict[str, Any]] = None 
+

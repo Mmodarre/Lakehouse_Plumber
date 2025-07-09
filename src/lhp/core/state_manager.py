@@ -405,10 +405,9 @@ class StateManager:
         # Filter by pipeline if specified
         if pipeline:
             tracked_sources = {
-                src for src in tracked_sources 
-                if file_state.pipeline == pipeline
+                file_state.source_yaml
                 for file_state in self._state.environments.get(environment, {}).values()
-                if file_state.source_yaml == src
+                if file_state.pipeline == pipeline
             }
         
         return {

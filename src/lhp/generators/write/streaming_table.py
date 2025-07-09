@@ -15,7 +15,6 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
     def __init__(self):
         super().__init__()
         self.add_import("import dlt")
-        self.operational_metadata = OperationalMetadata()
     
     def generate(self, action: Action, context: dict) -> str:
         """Generate streaming table code."""
@@ -88,24 +87,30 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             dqe_parser = DQEParser()
             expect_all, expect_all_or_drop, expect_all_or_fail = dqe_parser.parse_expectations(expectations)
         
-        # Add operational metadata imports if needed
+        # NEW: Handle operational metadata with simplified system
         flowgroup = context.get('flowgroup')
         preset_config = context.get('preset_config', {})
-        add_operational_metadata = self.operational_metadata.should_add_metadata(flowgroup, action, preset_config)
+        project_config = context.get('project_config')
         
-        if add_operational_metadata:
-            # Add required imports
-            for import_stmt in self.operational_metadata.get_required_imports():
-                self.add_import(import_stmt)
-            
-            # Update metadata context
-            if flowgroup:
-                self.operational_metadata.update_context(
-                    flowgroup.pipeline, 
-                    flowgroup.flowgroup
-                )
+        # Initialize operational metadata handler
+        operational_metadata = OperationalMetadata(
+            project_config=project_config.operational_metadata if project_config else None
+        )
         
-                # Check if this is a combined action with individual metadata
+        # Update context for substitutions
+        if flowgroup:
+            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
+        
+        # Resolve metadata selection
+        selection = operational_metadata.resolve_metadata_selection(flowgroup, action, preset_config)
+        metadata_columns = operational_metadata.get_selected_columns(selection or {}, 'streaming_table')
+        
+        # Get required imports for metadata
+        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
+        for import_stmt in metadata_imports:
+            self.add_import(import_stmt)
+        
+        # Check if this is a combined action with individual metadata
         if hasattr(action, '_action_metadata') and action._action_metadata:
             # Use new action metadata structure for individual append flows
             action_metadata = action._action_metadata
@@ -186,8 +191,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "expect_all": expect_all,
             "expect_all_or_drop": expect_all_or_drop,
             "expect_all_or_fail": expect_all_or_fail,
-            "add_operational_metadata": add_operational_metadata,
-            "metadata_code": self.operational_metadata.generate_metadata_code(action) if add_operational_metadata else "",
+            "add_operational_metadata": bool(metadata_columns),
+            "metadata_columns": metadata_columns,
             "flowgroup": flowgroup,
             "description": action.description or f"Append flow to {full_table_name}",
             "once": action.once or False,  # Keep for backward compatibility
