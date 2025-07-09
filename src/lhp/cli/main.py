@@ -307,8 +307,8 @@ def validate(env, pipeline, verbose):
         click.echo(f"❌ Substitution file not found: {substitution_file}")
         sys.exit(1)
     
-    # Initialize validator
-    validator = ConfigValidator(project_root)
+    # Initialize orchestrator instead of validator
+    orchestrator = ActionOrchestrator(project_root)
     
     # Determine which pipelines to validate
     pipelines_to_validate = []
@@ -338,12 +338,12 @@ def validate(env, pipeline, verbose):
         click.echo(f"\n🔧 Validating pipeline: {pipeline_name}")
         
         try:
-            # Validate pipeline
-            result = validator.validate_pipeline(pipeline_name, env)
+            # Validate pipeline using orchestrator
+            errors, warnings = orchestrator.validate_pipeline(pipeline_name, env)
             
             validated_pipelines += 1
-            pipeline_errors = len(result.errors)
-            pipeline_warnings = len(result.warnings)
+            pipeline_errors = len(errors)
+            pipeline_warnings = len(warnings)
             total_errors += pipeline_errors
             total_warnings += pipeline_warnings
             
@@ -354,13 +354,13 @@ def validate(env, pipeline, verbose):
                 if pipeline_errors > 0:
                     click.echo(f"❌ Pipeline '{pipeline_name}' has {pipeline_errors} error(s)")
                     if verbose:
-                        for error in result.errors:
+                        for error in errors:
                             click.echo(f"   Error: {error}")
                 
                 if pipeline_warnings > 0:
                     click.echo(f"⚠️  Pipeline '{pipeline_name}' has {pipeline_warnings} warning(s)")
                     if verbose:
-                        for warning in result.warnings:
+                        for warning in warnings:
                             click.echo(f"   Warning: {warning}")
                             
                 if not verbose:

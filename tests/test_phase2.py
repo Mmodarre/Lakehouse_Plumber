@@ -335,11 +335,11 @@ class TestDQEParser:
         
         expect_all, expect_drop, expect_fail = parser.parse_expectations(expectations)
         
-        assert 'id IS NOT NULL' in expect_all
-        assert expect_all['id IS NOT NULL'] == 'ID required'
+        assert 'ID required' in expect_all
+        assert expect_all['ID required'] == 'id IS NOT NULL'
         
-        assert 'age > 0' in expect_drop
-        assert 'COUNT(*) > 0' in expect_fail
+        assert 'Invalid age' in expect_drop
+        assert 'No data' in expect_fail
     
     def test_load_expectations_from_file(self):
         """Test loading expectations from YAML file."""

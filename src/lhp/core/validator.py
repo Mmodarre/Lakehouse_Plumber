@@ -703,7 +703,15 @@ class ConfigValidator:
         if not action.write_target:
             return False
         
+        # CDC modes always create their own tables
         if isinstance(action.write_target, dict):
+            mode = action.write_target.get("mode", "standard")
+            if mode in ["cdc", "snapshot_cdc"]:
+                return True
             return action.write_target.get("create_table", False)
         else:
+            # For WriteTarget objects, check mode first
+            mode = getattr(action.write_target, 'mode', 'standard')
+            if mode in ["cdc", "snapshot_cdc"]:
+                return True
             return action.write_target.create_table 

@@ -110,7 +110,7 @@ actions:
                 "source_path": "/mnt/landing/customers",
                 "target_table": "customers",
                 "file_format": "parquet",
-                "readMode": "batch"
+                "mode": "batch"  # Changed from readMode to mode to match template
             }
             
             actions = engine.render_template("bronze_ingestion", parameters)
@@ -125,7 +125,7 @@ actions:
             assert load_action.target == "v_customers_raw"
             assert load_action.source["path"] == "/mnt/landing/customers"
             assert load_action.source["format"] == "parquet"
-            assert load_action.source["readMode"] == "batch"
+            assert load_action.source["mode"] == "batch"  # Changed from readMode to mode
             assert "Load customers from parquet files" in load_action.description
             
             # Check second action (write)
@@ -154,7 +154,7 @@ actions:
             # Verify defaults were applied
             load_action = actions[0]
             assert load_action.source["format"] == "json"  # default
-            assert load_action.source["readMode"] == "stream"  # default
+            assert load_action.source["mode"] == "stream"  # default
     
     def test_render_template_missing_required(self):
         """Test rendering template with missing required parameters."""

@@ -73,6 +73,7 @@ actions:
       type: streaming_table
       database: "{catalog}.silver"
       table: customers_enriched
+      create_table: true
 """)
         
         # Generate pipeline
@@ -143,6 +144,7 @@ actions:
       type: streaming_table
       database: "silver"
       table: enriched_data
+      create_table: true
 """)
         
         orchestrator = ActionOrchestrator(project_root)
@@ -202,6 +204,7 @@ actions:
       database: "silver"
       table: structured_customers
       refresh_schedule: "CRON '0 0 * * *'"
+      create_table: true
 """)
         
         orchestrator = ActionOrchestrator(project_root)
@@ -284,6 +287,7 @@ actions:
       type: streaming_table
       database: "gold"
       table: "fact_orders"
+      create_table: true
       
   - name: write_to_customer_metrics
     type: write
@@ -292,6 +296,7 @@ actions:
       type: materialized_view
       database: "gold"
       table: "dim_customer_metrics"
+      create_table: true
 """)
         
         orchestrator = ActionOrchestrator(project_root)
@@ -352,6 +357,7 @@ actions:
       type: streaming_table
       database: "bronze"
       table: "with_metadata"
+      create_table: true
 """)
         
         # Flowgroup 2: Operational metadata override
@@ -375,6 +381,7 @@ actions:
       type: streaming_table
       database: "bronze"
       table: "override_metadata"
+      create_table: true
 """)
         
         orchestrator = ActionOrchestrator(project_root)
@@ -457,6 +464,7 @@ actions:
       type: streaming_table
       database: "test"
       table: "result"
+      create_table: true
 """)
         
         # Create fresh orchestrator instance
@@ -530,4 +538,5 @@ actions:
       type: streaming_table
       database: "bronze"
       table: "customers"
+      create_table: true
 """) 

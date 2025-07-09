@@ -116,6 +116,7 @@ actions:
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: customer_raw
+      create_table: true
     description: "Write to bronze customer table"
 """)
         
@@ -192,6 +193,7 @@ actions:
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: customers_raw
+      create_table: true
 """)
         
         # Generate pipeline
@@ -285,6 +287,7 @@ actions:
       mode: cdc
       database: "{env}_{silver_schema}_sales"
       table: dim_customer
+      create_table: true
       cdc_config:
         keys: [customer_id]
         sequence_by: _commit_timestamp
@@ -365,6 +368,7 @@ actions:
       mode: append_flow
       database: "{env}_bronze_{{ schema }}"
       table: "{{ table_name }}_raw"
+      create_table: true
 """)
         
         # Create substitutions
@@ -461,6 +465,7 @@ actions:
       type: streaming_table
       database: "bronze"
       table: customers_validated
+      create_table: true
 """)
         
         # Generate pipeline

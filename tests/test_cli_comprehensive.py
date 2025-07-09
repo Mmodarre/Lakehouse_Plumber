@@ -68,11 +68,12 @@ actions:
     
   - name: save_{{ table_name }}
     type: write
-    source:
+    source: v_{{ table_name }}
+    write_target:
       type: streaming_table
       database: "bronze"
       table: "{{ table_name }}"
-      view: v_{{ table_name }}
+      create_table: true
 """)
             
             # Create substitutions
@@ -120,11 +121,12 @@ actions:
     
   - name: save_test_data
     type: write
-    source:
+    source: v_test_data
+    write_target:
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: test_table
-      view: v_test_data
+      create_table: true
 """)
             
             yield project_root
@@ -170,9 +172,8 @@ actions:
             result = runner.invoke(cli, ['validate', '--env', 'dev'])
             
             assert result.exit_code == 0
-            assert "Validating configurations" in result.output
-            assert "test_pipeline" in result.output
-            assert "All validations passed" in result.output
+            assert "🔍 Validating pipeline configurations" in result.output
+            assert "✅ All configurations are valid" in result.output
     
     def test_validate_specific_pipeline(self, runner, temp_project):
         """Test validating a specific pipeline."""
@@ -307,9 +308,13 @@ actions: []
             result = runner.invoke(cli, ['show', 'test_flowgroup', '--env', 'dev'])
             
             assert result.exit_code == 0
-            assert "test_flowgroup" in result.output
-            # Note: show command is marked as not implemented in the code
-            assert "not yet implemented" in result.output
+            assert "🔍 Showing resolved configuration for 'test_flowgroup'" in result.output
+            assert "📋 FlowGroup Configuration" in result.output
+            assert "Pipeline:    test_pipeline" in result.output
+            assert "FlowGroup:   test_flowgroup" in result.output
+            assert "📊 Actions" in result.output
+            assert "load_test_data" in result.output
+            assert "save_test_data" in result.output
     
     def test_info_command(self, runner, temp_project):
         """Test info command for project information."""
@@ -362,11 +367,12 @@ actions:
     
   - name: save_customers
     type: write
-    source:
+    source: v_customers
+    write_target:
       type: streaming_table
       database: "bronze"
       table: "customers"
-      view: v_customers
+      create_table: true
 """)
         
         with runner.isolated_filesystem():
@@ -385,8 +391,10 @@ actions:
             # Try to validate without being in a project
             result = runner.invoke(cli, ['validate'])
             
-            # Should still work but find no pipelines
-            assert "No pipelines directory found" in result.output or "Validating" in result.output
+            # Should show helpful error message
+            assert result.exit_code == 1
+            assert "❌ Not in a LakehousePlumber project directory" in result.output
+            assert "💡 Run 'lhp init <project_name>' to create a new project" in result.output
     
     def test_verbose_flag(self, runner, temp_project):
         """Test verbose flag for detailed output."""

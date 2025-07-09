@@ -7,6 +7,7 @@ from lhp.core.base_generator import BaseActionGenerator
 from lhp.generators.load import CloudFilesLoadGenerator, DeltaLoadGenerator
 from lhp.generators.transform import SQLTransformGenerator
 from lhp.generators.write import StreamingTableWriteGenerator
+from lhp.utils.error_formatter import LHPError
 
 
 class TestActionRegistry:
@@ -73,24 +74,24 @@ class TestActionRegistry:
         with pytest.raises(ValueError, match="Load actions require a sub_type"):
             registry.get_generator(ActionType.LOAD)
         
-        # Test unknown load generator type
-        with pytest.raises(ValueError, match="Unknown load generator type"):
+        # Test unknown load generator type (now raises LHPError)
+        with pytest.raises(LHPError, match="Unknown load sub_type"):
             registry.get_generator(ActionType.LOAD, "unknown")
         
         # Test missing sub_type for transform
         with pytest.raises(ValueError, match="Transform actions require a sub_type"):
             registry.get_generator(ActionType.TRANSFORM)
         
-        # Test unknown transform generator type
-        with pytest.raises(ValueError, match="Unknown transform generator type"):
+        # Test unknown transform generator type (now raises LHPError)
+        with pytest.raises(LHPError, match="Unknown transform sub_type"):
             registry.get_generator(ActionType.TRANSFORM, "unknown")
         
         # Test missing sub_type for write
         with pytest.raises(ValueError, match="Write actions require a sub_type"):
             registry.get_generator(ActionType.WRITE)
         
-        # Test unknown write generator type
-        with pytest.raises(ValueError, match="Unknown write generator type"):
+        # Test unknown write generator type (now raises LHPError)
+        with pytest.raises(LHPError, match="Unknown write sub_type"):
             registry.get_generator(ActionType.WRITE, "unknown")
     
     def test_list_generators(self):
