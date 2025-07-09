@@ -127,9 +127,13 @@ class ActionOrchestrator:
                 raise
         
         # 5. Validate table creation rules across entire pipeline
-        table_creation_errors = self.config_validator.validate_table_creation_rules(processed_flowgroups)
-        if table_creation_errors:
-            raise ValueError(f"Table creation validation failed:\n" + "\n".join(f"  - {error}" for error in table_creation_errors))
+        try:
+            table_creation_errors = self.config_validator.validate_table_creation_rules(processed_flowgroups)
+            if table_creation_errors:
+                raise ValueError(f"Table creation validation failed:\n" + "\n".join(f"  - {error}" for error in table_creation_errors))
+        except Exception as e:
+            # Handle LHPError by converting to string (like the validator does)
+            raise ValueError(f"Table creation validation failed:\n  - {str(e)}")
         
         # 6. Generate code for each processed flowgroup
         generated_files = {}

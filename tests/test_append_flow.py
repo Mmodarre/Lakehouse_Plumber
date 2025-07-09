@@ -303,13 +303,16 @@ def test_table_creation_validation_multiple_creators():
         actions=[action1, action2]
     )
     
-    # Validate table creation rules
-    errors = validator.validate_table_creation_rules([flowgroup])
-    
-    # Should detect multiple creators
-    assert len(errors) == 1
-    assert "multiple creators" in errors[0].lower()
-    assert "catalog.schema.events" in errors[0]
+    # Validate table creation rules - should raise LHPError for multiple creators
+    try:
+        errors = validator.validate_table_creation_rules([flowgroup])
+        # If we get here, validation unexpectedly passed - this is an error
+        assert False, "Expected LHPError to be raised for multiple table creators"
+    except Exception as e:
+        # Handle LHPError by converting to string (like the orchestrator does)
+        error_str = str(e)
+        assert "multiple creators" in error_str.lower() or "Multiple table creators" in error_str
+        assert "catalog.schema.events" in error_str
 
 
 def test_table_creation_validation_no_creators():
@@ -350,10 +353,10 @@ def test_table_creation_validation_no_creators():
         actions=[action1, action2]
     )
     
-    # Validate table creation rules
+    # Validate table creation rules - should return errors for no creators
     errors = validator.validate_table_creation_rules([flowgroup])
     
-    # Should detect no creators
+    # Should detect no creators (this case returns errors instead of raising exception)
     assert len(errors) == 1
     assert "no creator" in errors[0].lower()
     assert "catalog.schema.events" in errors[0]

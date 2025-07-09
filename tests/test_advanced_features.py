@@ -473,6 +473,57 @@ actions:
         
         with pytest.raises(ValueError, match="Circular dependency"):
             orchestrator2.generate_pipeline("invalid_circular", "dev")
+        
+        # Test 3: Multiple table creators (rich error formatting)
+        pipeline_dir3 = project_root / "pipelines" / "invalid_multiple_creators"
+        pipeline_dir3.mkdir(parents=True)
+        
+        (pipeline_dir3 / "multiple_creators.yaml").write_text("""
+pipeline: invalid_multiple_creators
+flowgroup: multiple_creators
+
+actions:
+  - name: load_data
+    type: load
+    source:
+      type: cloudfiles
+      path: "/mnt/data"
+      format: json
+    target: v_data
+    
+  - name: write_lineitem_countries
+    type: write
+    source: v_data
+    write_target:
+      type: streaming_table
+      database: "catalog.schema"
+      table: "lineitem"
+      create_table: true
+      
+  - name: write_lineitem_history
+    type: write
+    source: v_data
+    write_target:
+      type: streaming_table
+      database: "catalog.schema"
+      table: "lineitem"
+      create_table: true
+""")
+        
+        # Create fresh orchestrator instance
+        orchestrator3 = ActionOrchestrator(project_root)
+        
+        # Should raise a ValueError containing the rich LHPError formatting
+        with pytest.raises(ValueError) as exc_info:
+            orchestrator3.generate_pipeline("invalid_multiple_creators", "dev")
+        
+        error_str = str(exc_info.value)
+        # Verify it contains rich error formatting
+        assert "❌ Error [LHP-CFG-004]" in error_str
+        assert "Multiple table creators detected" in error_str
+        assert "Context:" in error_str
+        assert "How to fix:" in error_str
+        assert "Example:" in error_str
     
     def test_preset_inheritance_chain(self, project_root):
         """Test complex preset inheritance chains."""
