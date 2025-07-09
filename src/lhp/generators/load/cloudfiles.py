@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.schema_parser import SchemaParser
+from ...utils.operational_metadata import OperationalMetadata
 from ...utils.error_formatter import ErrorFormatter, LHPError
 
 class CloudFilesLoadGenerator(BaseActionGenerator):
@@ -31,7 +32,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         # Mandatory cloudFiles options that must be present
         self.mandatory_options = {'format'}
     
-    def generate(self, action: Action, flowgroup_config: Dict[str, Any]) -> str:
+    def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate CloudFiles load code."""
         source_config = action.source if isinstance(action.source, dict) else {}
         
@@ -58,19 +59,19 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             if isinstance(explicit_schema, str):
                 # Schema file path
                 schema_variable, schema_code_lines = self._process_schema_file(
-                    explicit_schema, flowgroup_config.get('spec_dir')
+                    explicit_schema, context.get('spec_dir')
                 )
             elif isinstance(explicit_schema, dict) and "file" in explicit_schema:
                 # Schema object with file
                 schema_variable, schema_code_lines = self._process_schema_file(
-                    explicit_schema["file"], flowgroup_config.get('spec_dir')
+                    explicit_schema["file"], context.get('spec_dir')
                 )
         
         # Process options (new approach)
         reader_options = {}
         if source_config.get("options"):
             reader_options.update(self._process_options(
-                source_config["options"], action.name, flowgroup_config.get('spec_dir')
+                source_config["options"], action.name, context.get('spec_dir')
             ))
             
             # Extract schema hints if present in options
@@ -90,7 +91,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         if source_config.get("schema_file") and not explicit_schema and not schema_hints_value:
             # Default to explicit schema for backward compatibility
             schema_variable, schema_file_lines = self._process_schema_file(
-                source_config["schema_file"], flowgroup_config.get('spec_dir')
+                source_config["schema_file"], context.get('spec_dir')
             )
             schema_code_lines.extend(schema_file_lines)
         
@@ -122,6 +123,29 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             # Remove from reader_options since we'll use the variable instead
             del reader_options["cloudFiles.schemaHints"]
         
+        # Handle operational metadata
+        flowgroup = context.get('flowgroup')
+        preset_config = context.get('preset_config', {})
+        project_config = context.get('project_config')
+        
+        # Initialize operational metadata handler
+        operational_metadata = OperationalMetadata(
+            project_config=project_config.operational_metadata if project_config else None
+        )
+        
+        # Update context for substitutions
+        if flowgroup:
+            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
+        
+        # Resolve metadata selection
+        selection = operational_metadata.resolve_metadata_selection(flowgroup, action, preset_config)
+        metadata_columns = operational_metadata.get_selected_columns(selection or {}, 'view')
+        
+        # Get required imports for metadata
+        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
+        for import_stmt in metadata_imports:
+            self.add_import(import_stmt)
+        
         template_context = {
             "action_name": action.name,
             "target_view": action.target,
@@ -134,6 +158,9 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             "schema_hints_variable": schema_hints_variable,
             "schema_hints_lines": schema_hints_lines,
             "description": action.description or f"Load data from {format} files at {path}",
+            "add_operational_metadata": bool(metadata_columns),
+            "metadata_columns": metadata_columns,
+            "flowgroup": flowgroup
         }
         
         return self.render_template("load/cloudfiles.py.j2", template_context)

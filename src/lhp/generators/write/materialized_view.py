@@ -4,7 +4,6 @@ from typing import Dict, Any, Optional
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
-from ...utils.operational_metadata import OperationalMetadata
 
 
 class MaterializedViewWriteGenerator(BaseActionGenerator):
@@ -54,28 +53,10 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         if not sql_query:
             source_view = self._extract_source_view(action.source)
         
-        # NEW: Handle operational metadata with simplified system
+        # NOTE: Operational metadata support removed from write actions
+        # Metadata should be added at load level and flow through naturally
+        metadata_columns = {}
         flowgroup = context.get('flowgroup')
-        preset_config = context.get('preset_config', {})
-        project_config = context.get('project_config')
-        
-        # Initialize operational metadata handler
-        operational_metadata = OperationalMetadata(
-            project_config=project_config.operational_metadata if project_config else None
-        )
-        
-        # Update context for substitutions
-        if flowgroup:
-            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
-        
-        # Resolve metadata selection
-        selection = operational_metadata.resolve_metadata_selection(flowgroup, action, preset_config)
-        metadata_columns = operational_metadata.get_selected_columns(selection or {}, 'materialized_view')
-        
-        # Get required imports for metadata
-        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
-        for import_stmt in metadata_imports:
-            self.add_import(import_stmt)
         
         template_context = {
             "action_name": action.name,

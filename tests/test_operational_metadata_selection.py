@@ -1264,9 +1264,9 @@ class TestOperationalMetadataSelection:
         columns = metadata_handler_no_config.get_selected_columns(selection or {}, 'streaming_table')
         
         # Should get hardcoded defaults (fallback when no project config)
+        # Note: _source_file now only applies to 'view' target type, not 'streaming_table'
         expected_columns = {
             '_ingestion_timestamp': 'F.current_timestamp()',
-            '_source_file': 'F.input_file_name()',
             '_pipeline_run_id': 'F.lit(spark.conf.get("pipelines.id", "unknown"))',
             '_pipeline_name': 'F.lit("test_pipeline")',
             '_flowgroup_name': 'F.lit("test_flowgroup")'

@@ -152,27 +152,27 @@ class OperationalMetadata:
             '_ingestion_timestamp': MetadataColumnConfig(
                 expression='F.current_timestamp()',
                 description='When the record was ingested',
-                applies_to=['streaming_table', 'materialized_view']
+                applies_to=['streaming_table', 'materialized_view', 'view']
             ),
             '_source_file': MetadataColumnConfig(
                 expression='F.input_file_name()',
                 description='Source file path',
-                applies_to=['streaming_table']  # Only streaming tables
+                applies_to=['view']  # Only views (load actions)
             ),
             '_pipeline_run_id': MetadataColumnConfig(
                 expression='F.lit(spark.conf.get("pipelines.id", "unknown"))',
                 description='Pipeline run identifier',
-                applies_to=['streaming_table', 'materialized_view']
+                applies_to=['streaming_table', 'materialized_view', 'view']
             ),
             '_pipeline_name': MetadataColumnConfig(
                 expression='F.lit("${pipeline_name}")',
                 description='Pipeline name',
-                applies_to=['streaming_table', 'materialized_view']
+                applies_to=['streaming_table', 'materialized_view', 'view']
             ),
             '_flowgroup_name': MetadataColumnConfig(
                 expression='F.lit("${flowgroup_name}")',
                 description='FlowGroup name',
-                applies_to=['streaming_table', 'materialized_view']
+                applies_to=['streaming_table', 'materialized_view', 'view']
             ),
         }
         
@@ -287,7 +287,7 @@ operational_metadata:
         Args:
             target_type: Target type to validate
         """
-        valid_types = ['streaming_table', 'materialized_view']
+        valid_types = ['streaming_table', 'materialized_view', 'view']
         if target_type not in valid_types:
             raise LHPError(
                 category=ErrorCategory.CONFIG,
@@ -296,7 +296,7 @@ operational_metadata:
                 details=f"Target type '{target_type}' is not supported for operational metadata",
                 suggestions=[
                     f"Use one of the supported target types: {', '.join(valid_types)}",
-                    "Check your write_target configuration"
+                    "Check your target configuration"
                 ],
                 context={
                     "Provided target type": target_type,
@@ -365,12 +365,14 @@ operational_metadata:
                     }
                 )
         
-        # Filter by target type and build result
+        # Filter by target type and enabled status, then build result
         result = {}
         for column_name in selected_column_names:
             if column_name in available_columns:
                 column_config = available_columns[column_name]
-                if target_type in column_config.applies_to:
+                # Check if column is enabled and applies to target type
+                if (column_config.enabled and 
+                    target_type in column_config.applies_to):
                     # Apply context substitutions
                     try:
                         expression = self._apply_substitutions(column_config.expression)

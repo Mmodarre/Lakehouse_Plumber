@@ -3,6 +3,7 @@
 from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.operational_metadata import OperationalMetadata
 from ...utils.error_formatter import ErrorFormatter
 
 class SQLLoadGenerator(BaseActionGenerator):
@@ -24,11 +25,37 @@ class SQLLoadGenerator(BaseActionGenerator):
         else:
             raise ValueError("SQL source must be a string or configuration object")
         
+        # Handle operational metadata
+        flowgroup = context.get('flowgroup')
+        preset_config = context.get('preset_config', {})
+        project_config = context.get('project_config')
+        
+        # Initialize operational metadata handler
+        operational_metadata = OperationalMetadata(
+            project_config=project_config.operational_metadata if project_config else None
+        )
+        
+        # Update context for substitutions
+        if flowgroup:
+            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
+        
+        # Resolve metadata selection
+        selection = operational_metadata.resolve_metadata_selection(flowgroup, action, preset_config)
+        metadata_columns = operational_metadata.get_selected_columns(selection or {}, 'view')
+        
+        # Get required imports for metadata
+        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
+        for import_stmt in metadata_imports:
+            self.add_import(import_stmt)
+        
         template_context = {
             "action_name": action.name,
             "target_view": action.target,
             "sql_query": sql_query,
-            "description": action.description or f"SQL source: {action.name}"
+            "description": action.description or f"SQL source: {action.name}",
+            "add_operational_metadata": bool(metadata_columns),
+            "metadata_columns": metadata_columns,
+            "flowgroup": flowgroup
         }
         
         return self.render_template("load/sql.py.j2", template_context)
