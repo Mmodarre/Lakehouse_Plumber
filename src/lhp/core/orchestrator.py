@@ -123,7 +123,7 @@ class ActionOrchestrator:
                 processed_flowgroups.append(processed_flowgroup)
                 
             except Exception as e:
-                self.logger.error(f"Error processing flowgroup {flowgroup.flowgroup}: {e}")
+                self.logger.debug(f"Error processing flowgroup {flowgroup.flowgroup}: {e}")
                 raise
         
         # 5. Validate table creation rules across entire pipeline
@@ -167,7 +167,7 @@ class ActionOrchestrator:
                             )
                 
             except Exception as e:
-                self.logger.error(f"Error generating code for flowgroup {processed_flowgroup.flowgroup}: {e}")
+                self.logger.debug(f"Error generating code for flowgroup {processed_flowgroup.flowgroup}: {e}")
                 raise
         
         # Save state after all files are generated
@@ -539,53 +539,149 @@ PIPELINE_GROUP = "{flowgroup.pipeline}"
         return dict(grouped)
     
     def _create_combined_write_action(self, actions: List[Action], target_table: str) -> Action:
-        """Create a combined write action with multiple source views.
+        """Create a combined write action with individual action metadata preserved.
         
         Args:
             actions: List of write actions targeting the same table
             target_table: Full target table name
             
         Returns:
-            Combined action with multiple source views
+            Combined action with individual action metadata
         """
-        # Use the first action as the base
-        base_action = actions[0]
-        
-        # Extract all source views from the actions
-        source_views = []
-        flow_names = []
-        
+        # Determine which action should create the table based on existing validation logic
+        table_creator = None
         for action in actions:
-            # Extract source view name
-            if isinstance(action.source, str):
-                source_views.append(action.source)
-            elif isinstance(action.source, dict):
-                source_view = action.source.get("view", action.source.get("name", ""))
-                if source_view:
-                    source_views.append(source_view)
-            
-            # Extract flow name from action name
-            flow_name = action.name.replace("-", "_").replace(" ", "_")
-            if flow_name.startswith("write_"):
-                flow_name = flow_name[6:]  # Remove "write_" prefix
-            flow_name = f"f_{flow_name}" if not flow_name.startswith("f_") else flow_name
-            flow_names.append(flow_name)
+            if self.config_validator._action_creates_table(action):
+                table_creator = action
+                break
         
-        # Create a new action with combined properties
+        # If no explicit creator found, use the first action (default behavior)
+        if not table_creator:
+            table_creator = actions[0]
+        
+        # Build individual action metadata for each append flow
+        action_metadata = []
+        for action in actions:
+            # Extract source views (can be multiple per action)
+            source_views_for_action = self._extract_source_views_from_action(action.source)
+            
+            # Generate base flow name from action name
+            base_flow_name = action.name.replace("-", "_").replace(" ", "_")
+            if base_flow_name.startswith("write_"):
+                base_flow_name = base_flow_name[6:]  # Remove "write_" prefix
+            base_flow_name = f"f_{base_flow_name}" if not base_flow_name.startswith("f_") else base_flow_name
+            
+            if len(source_views_for_action) > 1:
+                # Multiple sources in this action: create separate append flow for each
+                for i, source_view in enumerate(source_views_for_action):
+                    flow_name = f"{base_flow_name}_{i+1}"
+                    action_metadata.append({
+                        "action_name": f"{action.name}_{i+1}",
+                        "source_view": source_view,
+                        "once": action.once or False,
+                        "flow_name": flow_name,
+                        "description": action.description or f"Append flow to {target_table} from {source_view}"
+                    })
+            else:
+                # Single source in this action: create one append flow
+                source_view = source_views_for_action[0] if source_views_for_action else ""
+                action_metadata.append({
+                    "action_name": action.name,
+                    "source_view": source_view,
+                    "once": action.once or False,
+                    "flow_name": base_flow_name,
+                    "description": action.description or f"Append flow to {target_table}"
+                })
+        
+        # Extract all source views for backward compatibility
+        source_views = [meta["source_view"] for meta in action_metadata if meta["source_view"]]
+        
+        # Create a new action with the table creator's configuration
         combined_action = Action(
             name=f"write_{target_table.replace('.', '_')}",
-            type=base_action.type,
-            source=source_views,  # Pass as list for multiple append flows
-            write_target=base_action.write_target,
-            target=base_action.target,
+            type=table_creator.type,
+            source=source_views,  # Keep for backward compatibility
+            write_target=table_creator.write_target,
+            target=table_creator.target,
             description=f"Write to {target_table} from multiple sources",
-            once=base_action.once
+            once=None  # Don't use a single once flag
         )
         
-        # Store flow names for template use
-        combined_action._flow_names = flow_names
+        # Store individual action metadata for template use
+        combined_action._action_metadata = action_metadata
+        combined_action._table_creator = table_creator
+        
+        # Store legacy flow names for backward compatibility
+        combined_action._flow_names = [meta["flow_name"] for meta in action_metadata]
         
         return combined_action
+    
+    def _extract_single_source_view(self, source) -> str:
+        """Extract a single source view from various source formats.
+        
+        Args:
+            source: Source configuration (string, list, or dict)
+            
+        Returns:
+            Source view name as string
+        """
+        if isinstance(source, str):
+            return source
+        elif isinstance(source, list) and source:
+            # Take first item from list
+            first_item = source[0]
+            if isinstance(first_item, str):
+                return first_item
+            elif isinstance(first_item, dict):
+                database = first_item.get("database")
+                table = first_item.get("table") or first_item.get("view") or first_item.get("name", "")
+                return f"{database}.{table}" if database and table else table
+            else:
+                return str(first_item)
+        elif isinstance(source, dict):
+            database = source.get("database")
+            table = source.get("table") or source.get("view") or source.get("name", "")
+            return f"{database}.{table}" if database and table else table
+        else:
+            return ""
+    
+    def _extract_source_views_from_action(self, source) -> List[str]:
+        """Extract all source views from an action source configuration.
+        
+        Args:
+            source: Source configuration (string, list, or dict)
+            
+        Returns:
+            List of source view names
+        """
+        if isinstance(source, str):
+            return [source]
+        elif isinstance(source, list):
+            result = []
+            for item in source:
+                if isinstance(item, str):
+                    result.append(item)
+                elif isinstance(item, dict):
+                    database = item.get("database")
+                    table = item.get("table") or item.get("view") or item.get("name", "")
+                    if database and table:
+                        result.append(f"{database}.{table}")
+                    elif table:
+                        result.append(table)
+                else:
+                    result.append(str(item))
+            return result
+        elif isinstance(source, dict):
+            database = source.get("database")
+            table = source.get("table") or source.get("view") or source.get("name", "")
+            if database and table:
+                return [f"{database}.{table}"]
+            elif table:
+                return [table]
+            else:
+                return []
+        else:
+            return []
     
     def validate_pipeline(self, pipeline_name: str, env: str) -> tuple[List[str], List[str]]:
         """Validate pipeline configuration without generating code.

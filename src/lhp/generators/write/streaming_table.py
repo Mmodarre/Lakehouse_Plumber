@@ -35,7 +35,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         if mode in ["cdc", "snapshot_cdc"]:
             create_table = True
         else:
-            create_table = target_config.get("create_table", False)  # Default to False for standard mode
+            create_table = target_config.get("create_table", True)  # Default to True for standard mode
         
         # Build full table name
         full_table_name = f"{database}.{table}" if database else table
@@ -52,7 +52,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         spark_conf = target_config.get("spark_conf", {})
         
         # Schema definition (SQL DDL string or StructType)
-        schema = target_config.get("schema")
+        schema = target_config.get("table_schema") or target_config.get("schema")
         
         # Row filter clause
         row_filter = target_config.get("row_filter")
@@ -105,26 +105,69 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                     flowgroup.flowgroup
                 )
         
-        # Generate flow name(s) from action name(s)
-        if hasattr(action, '_flow_names') and action._flow_names:
-            # Use individual flow names for combined actions
+                # Check if this is a combined action with individual metadata
+        if hasattr(action, '_action_metadata') and action._action_metadata:
+            # Use new action metadata structure for individual append flows
+            action_metadata = action._action_metadata
+            flow_name = action_metadata[0]["flow_name"]  # Use first flow name for template compatibility
+            flow_names = [meta["flow_name"] for meta in action_metadata]
+        elif hasattr(action, '_flow_names') and action._flow_names:
+            # Legacy combined actions - convert to new structure
             flow_names = action._flow_names
-            flow_name = flow_names[0]  # Use first flow name for template compatibility
+            flow_name = flow_names[0]
+            action_metadata = []
+            for i, (source_view, flow_name_item) in enumerate(zip(source_views, flow_names)):
+                action_metadata.append({
+                    "action_name": f"{action.name}_{i+1}",
+                    "source_view": source_view,
+                    "once": action.once or False,  # Legacy: same once flag for all
+                    "flow_name": flow_name_item,
+                    "description": action.description or f"Append flow to {full_table_name}"
+                })
         else:
-            # Generate flow name from single action name
-            flow_name = action.name.replace("-", "_").replace(" ", "_")
-            if flow_name.startswith("write_"):
-                flow_name = flow_name[6:]  # Remove "write_" prefix
-            flow_name = f"f_{flow_name}" if not flow_name.startswith("f_") else flow_name
-            flow_names = [flow_name]
-        
+            # Single action - create metadata structure for each source view
+            base_flow_name = action.name.replace("-", "_").replace(" ", "_")
+            if base_flow_name.startswith("write_"):
+                base_flow_name = base_flow_name[6:]  # Remove "write_" prefix
+            base_flow_name = f"f_{base_flow_name}" if not base_flow_name.startswith("f_") else base_flow_name
+            
+            action_metadata = []
+            flow_names = []
+            
+            if len(source_views) > 1:
+                # Multiple sources: create separate append flow for each
+                for i, source_view in enumerate(source_views):
+                    flow_name = f"{base_flow_name}_{i+1}"
+                    action_metadata.append({
+                        "action_name": f"{action.name}_{i+1}",
+                        "source_view": source_view,
+                        "once": action.once or False,
+                        "flow_name": flow_name,
+                        "description": action.description or f"Append flow to {full_table_name} from {source_view}"
+                    })
+                    flow_names.append(flow_name)
+            else:
+                # Single source: create one append flow
+                flow_name = base_flow_name
+                action_metadata.append({
+                    "action_name": action.name,
+                    "source_view": source_views[0] if source_views else "",
+                    "once": action.once or False,
+                    "flow_name": flow_name,
+                    "description": action.description or f"Append flow to {full_table_name}"
+                })
+                flow_names.append(flow_name)
+            
+            # Set flow_name for backward compatibility (use first flow name)
+            flow_name = flow_names[0] if flow_names else base_flow_name
+
         template_context = {
             "action_name": action.name,
             "table_name": table.replace(".", "_"),  # Function name safe
             "full_table_name": full_table_name,
-            "source_views": source_views,
+            "source_views": source_views,  # Keep for backward compatibility
             "source_view": source_views[0] if source_views and mode == "cdc" else None,  # CDC only supports single source
-            "flow_name": flow_name,
+            "flow_name": flow_name,  # Keep for backward compatibility
             "mode": mode,
             "create_table": create_table,  # Pass create_table flag to template
             "properties": properties,
@@ -147,7 +190,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "metadata_code": self.operational_metadata.generate_metadata_code(action) if add_operational_metadata else "",
             "flowgroup": flowgroup,
             "description": action.description or f"Append flow to {full_table_name}",
-            "once": action.once or False
+            "once": action.once or False,  # Keep for backward compatibility
+            "action_metadata": action_metadata  # New: individual action metadata
         }
         
         # Enable stream readMode for CDC
@@ -162,11 +206,32 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         if isinstance(source, str):
             return [source]
         elif isinstance(source, list):
-            return source
+            # Handle list of sources - each can be string or dict
+            result = []
+            for item in source:
+                if isinstance(item, str):
+                    result.append(item)
+                elif isinstance(item, dict):
+                    # Handle database field in source configuration
+                    database = item.get("database")
+                    table = item.get("table") or item.get("view") or item.get("name", "")
+                    
+                    if database and table:
+                        result.append(f"{database}.{table}")
+                    elif table:
+                        result.append(table)
+            return result
         elif isinstance(source, dict):
-            # For dict sources, extract the view field
-            view = source.get("view", source.get("name", ""))
-            return [view] if view else []
+            # Handle database field in source configuration
+            database = source.get("database")
+            table = source.get("table") or source.get("view") or source.get("name", "")
+            
+            if database and table:
+                return [f"{database}.{table}"]
+            elif table:
+                return [table]
+            else:
+                return []
         else:
             return []
     

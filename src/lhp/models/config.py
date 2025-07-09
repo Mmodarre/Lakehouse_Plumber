@@ -30,24 +30,35 @@ class WriteTarget(BaseModel):
     type: WriteTargetType
     database: str
     table: str
-    create_table: bool = False  # Default to False - explicit table creation required
+    create_table: bool = True  # Default to True - optional, only set to False when needed
     comment: Optional[str] = None
     table_properties: Optional[Dict[str, Any]] = None
     partition_columns: Optional[List[str]] = None
     cluster_columns: Optional[List[str]] = None
     spark_conf: Optional[Dict[str, Any]] = None
-    schema: Optional[str] = None
+    table_schema: Optional[str] = None
     row_filter: Optional[str] = None
     temporary: bool = False
     path: Optional[str] = None
     # Materialized view specific
     refresh_schedule: Optional[str] = None
     sql: Optional[str] = None
+    
+    # Backward compatibility property for 'schema' field
+    @property
+    def schema(self) -> Optional[str]:
+        """Legacy property for backward compatibility. Use table_schema instead."""
+        return self.table_schema
+    
+    @schema.setter 
+    def schema(self, value: Optional[str]) -> None:
+        """Legacy setter for backward compatibility. Use table_schema instead."""
+        self.table_schema = value
 
 class Action(BaseModel):
     name: str
     type: ActionType
-    source: Optional[Union[str, List[str], Dict[str, Any]]] = None
+    source: Optional[Union[str, List[Union[str, Dict[str, Any]]], Dict[str, Any]]] = None
     target: Optional[str] = None
     description: Optional[str] = None
     readMode: Optional[str] = Field(None, description="Read mode: 'batch' or 'stream'. Controls spark.read vs spark.readStream")

@@ -198,7 +198,46 @@ dlt.create_streaming_table(
 {% endif %}
 
 # Define append flow(s)
-{% if source_views %}
+{% if action_metadata %}
+{% for action_meta in action_metadata %}
+@dlt.append_flow(
+    target="{{ full_table_name }}",
+    name="{{ action_meta.flow_name }}",
+    {% if action_meta.once %}once=True,{% endif %}
+    comment="{{ action_meta.description }}"
+)
+{% if expect_all %}
+@dlt.expect_all({{ expect_all | tojson }})
+{% endif %}
+{% if expect_all_or_drop %}
+@dlt.expect_all_or_drop({{ expect_all_or_drop | tojson }})
+{% endif %}
+{% if expect_all_or_fail %}
+@dlt.expect_all_or_fail({{ expect_all_or_fail | tojson }})
+{% endif %}
+def {{ action_meta.flow_name }}():
+    """{{ action_meta.description }}"""
+    {% if action_meta.once %}
+    # One-time flow (backfill)
+    df = spark.read.table("{{ action_meta.source_view }}")
+    {% else %}
+    # Streaming flow
+    df = spark.readStream.table("{{ action_meta.source_view }}")
+    {% endif %}
+    {% if add_operational_metadata %}
+    
+    # Add operational metadata columns
+    df = df.withColumn('_ingestion_timestamp', F.current_timestamp())
+    df = df.withColumn('_source_file', F.input_file_name())
+    df = df.withColumn('_pipeline_run_id', F.lit(spark.conf.get("pipelines.id", "unknown")))
+    df = df.withColumn('_pipeline_name', F.lit("{{ flowgroup.pipeline if flowgroup else 'unknown' }}"))
+    df = df.withColumn('_flowgroup_name', F.lit("{{ flowgroup.flowgroup if flowgroup else 'unknown' }}"))
+    {% endif %}
+    
+    return df
+{% endfor %}
+{% elif source_views %}
+{# Backward compatibility: use legacy source_views structure #}
 {% for source_view in source_views %}
 @dlt.append_flow(
     target="{{ full_table_name }}",
