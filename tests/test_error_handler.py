@@ -7,8 +7,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from src.lhp.utils.error_handler import ErrorHandler, ErrorContext, handle_cli_error
-from src.lhp.utils.error_formatter import LHPError, ErrorCategory
+from lhp.utils.error_handler import ErrorHandler, ErrorContext, handle_cli_error
+from lhp.utils.error_formatter import LHPError, ErrorCategory
 
 
 class TestErrorContext:
