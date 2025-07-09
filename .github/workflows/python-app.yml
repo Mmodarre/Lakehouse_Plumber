@@ -54,7 +54,7 @@ jobs:
       run: |
         # Run tests with coverage if tests directory exists
         if [ -d "tests" ]; then
-          pytest tests/ -v --cov=src/lhp --cov-report=xml --cov-report=term-missing --cov-fail-under=40
+          pytest --cov --cov-branch --cov-report=xml --cov-fail-under=40
         else
           echo "No tests directory found, skipping tests"
         fi
