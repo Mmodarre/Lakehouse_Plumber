@@ -25,6 +25,7 @@ pyyaml>=6.0.0
 
 # For Jinja2 template testing
 jinja2>=3.1.0
+pydantic>=2.0.0
 
 # For CLI testing (part of click package itself)
 # Use: from click.testing import CliRunner 
