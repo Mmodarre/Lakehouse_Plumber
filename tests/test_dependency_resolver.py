@@ -166,21 +166,13 @@ class TestDependencyResolver:
         errors = resolver.validate_relationships(no_load_actions)
         assert any("must have at least one Load action" in error for error in errors)
         
-        # Missing write action
+        # Missing write action (without orphaned transforms)
         no_write_actions = [
             Action(
                 name="load_data",
                 type=ActionType.LOAD,
                 target="v_raw_data",
                 source={"type": "cloudfiles", "path": "/mnt/data"}
-            ),
-            Action(
-                name="transform_data",
-                type=ActionType.TRANSFORM,
-                transform_type=TransformType.SQL,
-                source="v_raw_data",
-                target="v_transformed",
-                sql="SELECT * FROM v_raw_data"
             )
         ]
         
@@ -236,8 +228,13 @@ class TestDependencyResolver:
             )
         ]
         
-        errors = resolver.validate_relationships(actions)
-        assert any("orphaned_transform" in error and "not used by any other action" in error for error in errors)
+        try:
+            errors = resolver.validate_relationships(actions)
+            assert any("orphaned_transform" in error and "no other action references it" in error for error in errors)
+        except Exception as e:
+            # Handle LHPError by converting to string (like the validator does)
+            error_str = str(e)
+            assert "orphaned_transform" in error_str and "no other action references it" in error_str
     
     def test_complex_dependency_graph(self):
         """Test resolving complex dependency graph."""

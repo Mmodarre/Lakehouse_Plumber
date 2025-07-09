@@ -77,7 +77,8 @@ defaults:
     cloudfiles:
       schema_evolution_mode: "addNewColumns"
       rescue_data_column: "_rescued_data"
-      schema_hints: "true"
+      options:
+        cloudFiles.schemaHints: "true"
 """)
         
         # Create substitutions for dev environment
