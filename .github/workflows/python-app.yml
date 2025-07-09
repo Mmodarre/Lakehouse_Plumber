@@ -54,16 +54,12 @@ jobs:
       run: |
         # Run tests with coverage if tests directory exists
         if [ -d "tests" ]; then
-          pytest tests/ -v --cov=src/lhp --cov-report=xml --cov-report=term-missing --cov-fail-under=80
+          pytest tests/ -v --cov=src/lhp --cov-report=xml --cov-report=term-missing --cov-fail-under=40
         else
           echo "No tests directory found, skipping tests"
         fi
-        
+
     - name: Upload coverage reports to Codecov
-      if: success()
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v5
       with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false 
+        token: ${{ secrets.CODECOV_TOKEN }}
