@@ -8,6 +8,7 @@ from collections import defaultdict
 from ..models.config import FlowGroup, Action, ActionType, LoadSourceType, TransformType, WriteTargetType
 from .action_registry import ActionRegistry
 from .dependency_resolver import DependencyResolver
+from .config_field_validator import ConfigFieldValidator
 
 if TYPE_CHECKING:
     from ..models.config import WriteTarget
@@ -20,6 +21,7 @@ class ConfigValidator:
         self.logger = logging.getLogger(__name__)
         self.action_registry = ActionRegistry()
         self.dependency_resolver = DependencyResolver()
+        self.field_validator = ConfigFieldValidator()
     
     def validate_flowgroup(self, flowgroup: FlowGroup) -> List[str]:
         """Step 4.4.2: Validate flowgroups and actions.
@@ -94,6 +96,14 @@ class ConfigValidator:
             errors.append(f"{prefix}: Missing 'type' field")
             return errors  # Can't continue without type
         
+        # Strict field validation - validate action-level fields
+        try:
+            action_dict = action.model_dump()
+            self.field_validator.validate_action_fields(action_dict, action.name)
+        except Exception as e:
+            errors.append(str(e))
+            return errors  # Stop validation if field validation fails
+        
         # Type-specific validation
         if action.type == ActionType.LOAD:
             errors.extend(self._validate_load_action(action, prefix))
@@ -136,6 +146,13 @@ class ConfigValidator:
         # Validate source type is supported
         if not self.action_registry.is_generator_available(ActionType.LOAD, source_type):
             errors.append(f"{prefix}: Unknown load source type '{source_type}'")
+            return errors
+        
+        # Strict field validation for source configuration
+        try:
+            self.field_validator.validate_load_source(action.source, action.name)
+        except Exception as e:
+            errors.append(str(e))
             return errors
         
         # Type-specific validation
@@ -251,6 +268,13 @@ class ConfigValidator:
             errors.append(f"{prefix}: Unknown write target type '{target_type}'")
             return errors
         
+        # Strict field validation for write target configuration
+        try:
+            self.field_validator.validate_write_target(action.write_target, action.name)
+        except Exception as e:
+            errors.append(str(e))
+            return errors
+        
         # Type-specific validation
         try:
             write_type = WriteTargetType(target_type)
@@ -291,7 +315,7 @@ class ConfigValidator:
                     elif mode == "cdc":
                         self._validate_cdc_config(action, prefix, errors)
                         # Validate CDC schema if provided
-                        if action.write_target.get("schema"):
+                        if action.write_target.get("table_schema") or action.write_target.get("schema"):
                             self._validate_cdc_schema(action, prefix, errors)
             
         except ValueError:
@@ -327,10 +351,10 @@ class ConfigValidator:
                         errors.append(f"{prefix}: table_properties key '{key}' must be a string")
         
         # Validate schema
-        schema = action.write_target.get("schema")
+        schema = action.write_target.get("table_schema") or action.write_target.get("schema")
         if schema is not None:
             if not isinstance(schema, str):
-                errors.append(f"{prefix}: 'schema' must be a string (SQL DDL or StructType)")
+                errors.append(f"{prefix}: 'table_schema' (or 'schema') must be a string (SQL DDL or StructType)")
         
         # Validate row_filter
         row_filter = action.write_target.get("row_filter")
@@ -557,7 +581,7 @@ class ConfigValidator:
         if not action.write_target:
             return
         
-        schema = action.write_target.get("schema")
+        schema = action.write_target.get("table_schema") or action.write_target.get("schema")
         if not schema:
             return
         
@@ -703,14 +727,23 @@ class ConfigValidator:
         if not action.write_target:
             return False
         
-        # CDC modes always create their own tables
+        # MaterializedView uses @dlt.table() decorator, so it always creates its own table
         if isinstance(action.write_target, dict):
+            write_type = action.write_target.get("type")
+            if write_type == "materialized_view":
+                return True
+            
+            # CDC modes always create their own tables
             mode = action.write_target.get("mode", "standard")
             if mode in ["cdc", "snapshot_cdc"]:
                 return True
-            return action.write_target.get("create_table", False)
+            return action.write_target.get("create_table", True)
         else:
-            # For WriteTarget objects, check mode first
+            # For WriteTarget objects, check type first
+            if action.write_target.type == WriteTargetType.MATERIALIZED_VIEW:
+                return True
+            
+            # CDC modes always create their own tables
             mode = getattr(action.write_target, 'mode', 'standard')
             if mode in ["cdc", "snapshot_cdc"]:
                 return True

@@ -4,6 +4,7 @@ import logging
 from typing import List, Dict, Set, Tuple, Optional
 from collections import defaultdict, deque
 from ..models.config import Action, ActionType
+from ..utils.error_formatter import LHPError, ErrorCategory
 
 
 class DependencyResolver:
@@ -75,7 +76,55 @@ class DependencyResolver:
         orphaned = self._find_orphaned_actions(actions, graph, targets)
         for action in orphaned:
             if action.type == ActionType.TRANSFORM:
-                errors.append(f"Transform action '{action.name}' is not used by any other action")
+                # Create a proper LHPError for orphaned transform actions
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="003",
+                    title=f"Unused transform action: '{action.name}'",
+                    details=f"Transform action '{action.name}' produces view '{action.target}' but no other action references it.",
+                    suggestions=[
+                        "Add a write action that uses this transform's output",
+                        "Reference this view in another transform action's source",
+                        "Remove this transform action if it's not needed",
+                        "Check for typos in view names that reference this transform"
+                    ],
+                    example=f"""Fix this by adding a write action that uses the transform output:
+
+actions:
+  - name: {action.name}
+    type: transform
+    transform_type: sql
+    source: v_source_data
+    target: {action.target}   # ← This view is produced
+    sql: |
+      SELECT * FROM v_source_data WHERE active = true
+
+  - name: write_result
+    type: write
+    source: {action.target}   # ← Reference the transform output here
+    write_target:
+      type: streaming_table
+      database: "catalog.schema"
+      table: result_table
+      create_table: true
+
+Or reference it in another transform:
+
+  - name: further_transform
+    type: transform
+    transform_type: sql
+    source: {action.target}   # ← Use as source for another transform
+    target: v_final_result
+    sql: |
+      SELECT processed_field FROM {action.target}""",
+                    context={
+                        "Transform Action": action.name,
+                        "Produced View": action.target,
+                        "Transform Type": getattr(action, 'transform_type', 'unknown'),
+                        "Available Actions": [a.name for a in actions],
+                        "Actions that have sources": [a.name for a in actions if self._get_action_sources(a)]
+                    }
+                )
         
         return errors
     

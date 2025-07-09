@@ -14,3 +14,5 @@ src/lakehouse_plumber.egg-info/
 __pycache__/
 tpch_lakehouse/
 TEST_DOCUMENTATION.md
+ERROR_REFERENCE.md
+UNTESTED_LOGIC_ANALYSIS.md

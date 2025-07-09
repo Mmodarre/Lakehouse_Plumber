@@ -14,6 +14,7 @@ from ..utils.substitution import EnhancedSubstitutionManager
 from ..parsers.yaml_parser import YAMLParser
 from ..core.validator import ConfigValidator
 from ..models.config import ActionType
+from ..utils.error_handler import ErrorHandler
 
 
 # Configure logging
@@ -367,8 +368,10 @@ def validate(env, pipeline, verbose):
                     click.echo("   Use --verbose flag to see detailed messages")
         
         except Exception as e:
-            logger.exception(f"Validation failed for {pipeline_name}")
-            click.echo(f"❌ Validation failed for {pipeline_name}: {e}")
+            error_handler = ErrorHandler(verbose)
+            error_handler.with_pipeline_context(pipeline_name, env).handle_cli_error(
+                e, f"Validation for pipeline '{pipeline_name}'"
+            )
             if log_file:
                 click.echo(f"📝 Check detailed logs: {log_file}")
             total_errors += 1
@@ -509,6 +512,7 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
     # Generate each pipeline
     for pipeline_name in pipelines_to_generate:
         click.echo(f"\n🔧 Processing pipeline: {pipeline_name}")
+        click.echo("   FlowGroups:")
         
         try:
             # Generate pipeline
@@ -587,13 +591,24 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
                 
                 # Track empty result
                 all_generated_files[pipeline_name] = {}
+            elif "validation failed" in str(e) and "❌ Error [LHP-" in str(e):
+                # This is a validation error that should be handled by the error handler
+                error_handler = ErrorHandler(verbose)
+                error_handler.with_pipeline_context(pipeline_name, env).handle_cli_error(
+                    e, f"Generation for pipeline '{pipeline_name}'"
+                )
+                if log_file:
+                    click.echo(f"📝 Check detailed logs: {log_file}")
+                sys.exit(1)
             else:
                 # Other ValueError, re-raise
                 raise
         
         except Exception as e:
-            logger.exception(f"Generation failed for {pipeline_name}")
-            click.echo(f"❌ Generation failed for {pipeline_name}: {e}")
+            error_handler = ErrorHandler(verbose)
+            error_handler.with_pipeline_context(pipeline_name, env).handle_cli_error(
+                e, f"Generation for pipeline '{pipeline_name}'"
+            )
             if log_file:
                 click.echo(f"📝 Check detailed logs: {log_file}")
             sys.exit(1)

@@ -36,7 +36,7 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         spark_conf = target_config.get("spark_conf", {})
         
         # Schema definition (SQL DDL string or StructType)
-        schema = target_config.get("schema")
+        schema = target_config.get("table_schema") or target_config.get("schema")
         
         # Row filter clause
         row_filter = target_config.get("row_filter")
@@ -101,8 +101,29 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         if isinstance(source, str):
             return source
         elif isinstance(source, dict):
-            return source.get("view", source.get("name", ""))
+            # Handle database field in source configuration
+            database = source.get("database")
+            table = source.get("table") or source.get("view") or source.get("name", "")
+            
+            if database and table:
+                return f"{database}.{table}"
+            else:
+                return table
         elif isinstance(source, list) and source:
-            return source[0]  # Take first source for write
+            # Handle first item in list - can be string or dict
+            first_item = source[0]
+            if isinstance(first_item, str):
+                return first_item
+            elif isinstance(first_item, dict):
+                # Handle database field in source configuration
+                database = first_item.get("database")
+                table = first_item.get("table") or first_item.get("view") or first_item.get("name", "")
+                
+                if database and table:
+                    return f"{database}.{table}"
+                else:
+                    return table
+            else:
+                return str(first_item)
         else:
             raise ValueError("Invalid source configuration for materialized view write") 
