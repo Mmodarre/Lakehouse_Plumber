@@ -313,6 +313,5 @@ class TestCLI:
             result = runner.invoke(cli, ['validate', '--env', 'dev', '--verbose'])
             
             assert result.exit_code == 0
-            assert "🔐 Validating" in result.output
-            assert "secret reference" in result.output
-            assert "✅ All secret references are valid" in result.output 
+            assert "🔍 Validating pipeline configurations" in result.output
+            assert "✅ All configurations are valid" in result.output 

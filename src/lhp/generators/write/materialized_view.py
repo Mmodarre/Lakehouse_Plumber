@@ -14,7 +14,6 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         super().__init__()
         self.add_import("import dlt")
         self.add_import("from pyspark.sql import DataFrame")
-        self.operational_metadata = OperationalMetadata()
     
     def generate(self, action: Action, context: dict) -> str:
         """Generate materialized view code."""
@@ -55,22 +54,28 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         if not sql_query:
             source_view = self._extract_source_view(action.source)
         
-        # Check if operational metadata is enabled
+        # NEW: Handle operational metadata with simplified system
         flowgroup = context.get('flowgroup')
         preset_config = context.get('preset_config', {})
-        add_metadata = self.operational_metadata.should_add_metadata(flowgroup, action, preset_config)
+        project_config = context.get('project_config')
         
-        if add_metadata:
-            # Add required imports
-            for import_stmt in self.operational_metadata.get_required_imports():
-                self.add_import(import_stmt)
-            
-            # Update metadata context
-            if flowgroup:
-                self.operational_metadata.update_context(
-                    flowgroup.pipeline, 
-                    flowgroup.flowgroup
-                )
+        # Initialize operational metadata handler
+        operational_metadata = OperationalMetadata(
+            project_config=project_config.operational_metadata if project_config else None
+        )
+        
+        # Update context for substitutions
+        if flowgroup:
+            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
+        
+        # Resolve metadata selection
+        selection = operational_metadata.resolve_metadata_selection(flowgroup, action, preset_config)
+        metadata_columns = operational_metadata.get_selected_columns(selection or {}, 'materialized_view')
+        
+        # Get required imports for metadata
+        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
+        for import_stmt in metadata_imports:
+            self.add_import(import_stmt)
         
         template_context = {
             "action_name": action.name,
@@ -89,8 +94,8 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             "comment": target_config.get("comment", f"Materialized view: {table}"),
             "refresh_schedule": refresh_schedule,
             "description": action.description or f"Write to materialized view: {full_table_name}",
-            "add_operational_metadata": add_metadata,
-            "metadata_code": self.operational_metadata.generate_metadata_code(action) if add_metadata else "",
+            "add_operational_metadata": bool(metadata_columns),
+            "metadata_columns": metadata_columns,
             "flowgroup": flowgroup  # Add flowgroup to context for template
         }
         

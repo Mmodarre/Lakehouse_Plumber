@@ -9,6 +9,7 @@ from datetime import datetime
 from ..parsers.yaml_parser import YAMLParser
 from ..presets.preset_manager import PresetManager
 from ..core.template_engine import TemplateEngine
+from ..core.project_config_loader import ProjectConfigLoader
 from ..utils.substitution import EnhancedSubstitutionManager
 from ..core.action_registry import ActionRegistry
 from ..core.validator import ConfigValidator
@@ -36,12 +37,20 @@ class ActionOrchestrator:
         self.yaml_parser = YAMLParser()
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
+        self.project_config_loader = ProjectConfigLoader(project_root)
         self.action_registry = ActionRegistry()
         self.config_validator = ConfigValidator()
         self.secret_validator = SecretValidator()
         self.dependency_resolver = DependencyResolver()
         
+        # Load project configuration
+        self.project_config = self.project_config_loader.load_project_config()
+        
         self.logger.info(f"Initialized ActionOrchestrator with project root: {project_root}")
+        if self.project_config:
+            self.logger.info(f"Loaded project configuration: {self.project_config.name} v{self.project_config.version}")
+        else:
+            self.logger.info("No project configuration found, using defaults")
     
     def generate_pipeline(self, pipeline_name: str, env: str, output_dir: Path = None, state_manager=None, 
                          force_all: bool = False, specific_flowgroups: List[str] = None) -> Dict[str, str]:
@@ -413,7 +422,8 @@ class ActionOrchestrator:
                                 "flowgroup": flowgroup,
                                 "substitution_manager": substitution_mgr,
                                 "spec_dir": self.project_root,
-                                "preset_config": preset_config
+                                "preset_config": preset_config,
+                                "project_config": self.project_config # Pass project config
                             }
                             
                             action_code = generator.generate(combined_action, context)
@@ -443,7 +453,8 @@ class ActionOrchestrator:
                                 "flowgroup": flowgroup,
                                 "substitution_manager": substitution_mgr,
                                 "spec_dir": self.project_root,
-                                "preset_config": preset_config  # Add preset config to context
+                                "preset_config": preset_config,  # Add preset config to context
+                                "project_config": self.project_config # Pass project config
                             }
                             
                             action_code = generator.generate(action, context)

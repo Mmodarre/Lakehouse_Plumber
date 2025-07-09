@@ -47,11 +47,9 @@ def {{ table_name }}():
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
-    df = df.withColumn('_ingestion_timestamp', F.current_timestamp())
-    df = df.withColumn('_source_file', F.input_file_name())
-    df = df.withColumn('_pipeline_run_id', F.lit(spark.conf.get("pipelines.id", "unknown")))
-    df = df.withColumn('_pipeline_name', F.lit("{{ flowgroup.pipeline if flowgroup else 'unknown' }}"))
-    df = df.withColumn('_flowgroup_name', F.lit("{{ flowgroup.flowgroup if flowgroup else 'unknown' }}"))
+    {% for col_name, expression in metadata_columns.items() %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
     {% endif %}
     
     return df 
