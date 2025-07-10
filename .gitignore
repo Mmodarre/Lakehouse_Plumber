@@ -9,10 +9,12 @@ old_code/
 .mypy_cache/
 .ruff_cache/
 
-docs/
+docs_old/
 src/lakehouse_plumber.egg-info/
 __pycache__/
 Sample_Projects/
 TEST_DOCUMENTATION.md
 ERROR_REFERENCE.md
 UNTESTED_LOGIC_ANALYSIS.md
+docs/
+.readthedocs.yaml
