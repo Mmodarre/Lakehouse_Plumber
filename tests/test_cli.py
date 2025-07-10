@@ -7,7 +7,7 @@ import tempfile
 import yaml
 import shutil
 
-from lhp.cli.main import cli
+from lhp.cli.main import cli, get_version
 
 
 class TestCLI:
@@ -28,7 +28,8 @@ class TestCLI:
         """Test version command."""
         result = runner.invoke(cli, ['--version'])
         assert result.exit_code == 0
-        assert '0.1.0' in result.output
+        expected_version = get_version()
+        assert expected_version in result.output
     
     def test_init_command(self, runner, temp_project):
         """Test project initialization."""
