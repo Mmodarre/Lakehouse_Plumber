@@ -66,8 +66,7 @@ class JDBCLoadGenerator(BaseActionGenerator):
         
         code = self.render_template("load/jdbc.py.j2", template_context)
         
-        # Process secret substitutions
-        if 'substitution_manager' in context:
-            code = context['substitution_manager'].replace_secret_placeholders(code)
+        # Secret processing is now handled centrally by ActionOrchestrator using SecretCodeGenerator
+        # No need to process secrets here - just return the code with placeholders
         
         return code 

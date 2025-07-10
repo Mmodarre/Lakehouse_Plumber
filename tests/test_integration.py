@@ -209,16 +209,24 @@ actions:
         assert "spark.read" in code
         assert ".format(\"jdbc\")" in code
         
-        # Check for secret substitution - should be replaced with dbutils calls
+        # Check for valid secret substitution - should be f-strings or direct dbutils calls
         assert "dbutils.secrets.get" in code
         assert 'scope="prod_db_secrets"' in code
-        assert 'key="host"' in code
-        assert 'key="username"' in code
-        assert 'key="password"' in code
+        assert 'key="host"' in code or "key='host'" in code  # Either quote style is valid
+        assert 'key="username"' in code or "key='username'" in code  # Either quote style is valid
+        assert 'key="password"' in code or "key='password'" in code  # Either quote style is valid
         
         # Verify SQL query is included
         assert "SELECT" in code
         assert "customer_id" in code
+        
+        # Most importantly, verify the generated code is syntactically valid Python
+        try:
+            compile(code, '<string>', 'exec')
+            # If compilation succeeds, the code is valid
+            assert True
+        except SyntaxError as e:
+            pytest.fail(f"Generated integration code with secrets is not valid Python syntax: {e}")
     
     def test_cdc_silver_layer(self, temp_project):
         """Test CDC pattern for silver layer as per requirements."""

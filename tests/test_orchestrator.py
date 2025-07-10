@@ -164,7 +164,7 @@ class TestActionOrchestrator:
             assert (output_dir / "test_flowgroup.py").exists()
     
     def test_flowgroup_with_secret_substitution(self):
-        """Test flowgroup with secret references."""
+        """Test flowgroup with secret references generates valid Python code."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = self.create_test_project(tmpdir)
             
@@ -205,11 +205,27 @@ class TestActionOrchestrator:
             orchestrator = ActionOrchestrator(project_root)
             generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
             
-            # Verify secret substitution
+            # Verify valid f-string generation for secrets
             code = generated_files["secret_flowgroup.py"]
-            assert 'dbutils.secrets.get(scope="dev_db_secrets", key="host")' in code
-            assert 'dbutils.secrets.get(scope="dev_db_secrets", key="username")' in code
-            assert 'dbutils.secrets.get(scope="dev_db_secrets", key="password")' in code
+            
+            # Check for valid f-string syntax with secrets (not broken inline secrets)
+            # URL should be an f-string with host secret
+            assert 'f"jdbc:postgresql://{dbutils.secrets.get(scope=' in code
+            assert "'dev_db_secrets'" in code and "'host'" in code
+            
+            # User and password should be direct dbutils calls (entire string is secret)
+            assert 'dbutils.secrets.get(scope=' in code
+            # Check for either single or double quotes around the key names
+            assert ('key="username"' in code or "key='username'" in code)
+            assert ('key="password"' in code or "key='password'" in code)
+            
+            # Verify the generated code is syntactically valid Python
+            try:
+                compile(code, '<string>', 'exec')
+                # If compilation succeeds, the code is valid
+                assert True
+            except SyntaxError:
+                pytest.fail("Generated code with secrets is not valid Python syntax")
     
     def test_template_expansion(self):
         """Test template expansion in flowgroup."""
