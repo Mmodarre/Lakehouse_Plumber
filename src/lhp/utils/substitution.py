@@ -177,25 +177,4 @@ class EnhancedSubstitutionManager:
     
     def get_secret_references(self) -> Set[SecretReference]:
         """Get all secret references found during substitution."""
-        return self.secret_references
-    
-    def replace_secret_placeholders(self, code: str) -> str:
-        """Replace secret placeholders with dbutils calls in generated code."""
-        for secret_ref in self.secret_references:
-            placeholder = f"__SECRET_{secret_ref.scope}_{secret_ref.key}__"
-            dbutils_call = secret_ref.to_dbutils_call()
-            
-            # Handle different contexts
-            if f'"{placeholder}"' in code:
-                # Replace quoted placeholders with direct dbutils call
-                code = code.replace(f'"{placeholder}"', dbutils_call)
-            elif f"'{placeholder}'" in code:
-                code = code.replace(f"'{placeholder}'", dbutils_call)
-            elif f'password={placeholder}' in code:
-                # Special case for password in connection strings
-                code = code.replace(placeholder, f'{{{dbutils_call}}}')
-            else:
-                # Direct replacement
-                code = code.replace(placeholder, dbutils_call)
-        
-        return code 
+        return self.secret_references 

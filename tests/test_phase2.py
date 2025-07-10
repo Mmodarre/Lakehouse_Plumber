@@ -186,14 +186,21 @@ secrets:
         assert "__SECRET_" in result["config"]["secret"]
     
     def test_secret_placeholder_replacement(self):
-        """Test replacing secret placeholders with dbutils calls."""
+        """Test replacing secret placeholders with valid f-string Python code."""
         mgr = EnhancedSubstitutionManager()
         mgr.secret_references.add(SecretReference("prod_secrets", "db_password"))
         
-        code = 'connection_string = "user=admin;password=__SECRET_prod_secrets_db_password__"'
-        result = mgr.replace_secret_placeholders(code)
+        # Test case: secret embedded in a connection string (should become f-string)
+        code = 'connection_string = "user=admin;password=__SECRET_prod_secrets_db_password__;timeout=30"'
         
-        assert 'dbutils.secrets.get(scope="prod_secrets", key="db_password")' in result
+        # Use SecretCodeGenerator to convert to valid Python
+        from lhp.utils.secret_code_generator import SecretCodeGenerator
+        generator = SecretCodeGenerator()
+        result = generator.generate_python_code(code, mgr.get_secret_references())
+        
+        # Expected: f-string with dbutils call
+        expected = 'connection_string = f"user=admin;password={dbutils.secrets.get(scope=\'prod_secrets\', key=\'db_password\')};timeout=30"'
+        assert result == expected
 
 
 class TestPresetManager:

@@ -471,7 +471,11 @@ class ActionOrchestrator:
         
         # 5. Apply secret substitutions to generated code
         complete_code = "\n\n".join(generated_sections)
-        complete_code = substitution_mgr.replace_secret_placeholders(complete_code)
+        
+        # Use SecretCodeGenerator to convert secret placeholders to valid f-strings
+        from lhp.utils.secret_code_generator import SecretCodeGenerator
+        secret_generator = SecretCodeGenerator()
+        complete_code = secret_generator.generate_python_code(complete_code, substitution_mgr.get_secret_references())
         
         # 6. Build final file
         imports_section = "\n".join(sorted(all_imports))
