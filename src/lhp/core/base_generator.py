@@ -8,9 +8,10 @@ import json
 if TYPE_CHECKING:
     from ..models.config import Action
 
+
 class BaseActionGenerator(ABC):
     """Base class for all action generators."""
-    
+
     def __init__(self):
         self._imports: Set[str] = set()
         # Template setup
@@ -22,24 +23,24 @@ class BaseActionGenerator(ABC):
             lstrip_blocks=True,
         )
         # Add filters
-        self.env.filters['tojson'] = json.dumps
-        self.env.filters['toyaml'] = yaml.dump
-    
+        self.env.filters["tojson"] = json.dumps
+        self.env.filters["toyaml"] = yaml.dump
+
     @abstractmethod
-    def generate(self, action: 'Action', context: Dict[str, Any]) -> str:
+    def generate(self, action: "Action", context: Dict[str, Any]) -> str:
         """Generate code for the action."""
         pass
-    
+
     def add_import(self, import_stmt: str):
         """Add import statement."""
         self._imports.add(import_stmt)
-    
+
     @property
     def imports(self) -> List[str]:
         """Get sorted imports."""
         return sorted(self._imports)
-    
+
     def render_template(self, template_name: str, context: Dict[str, Any]) -> str:
         """Render Jinja2 template."""
         template = self.env.get_template(template_name)
-        return template.render(**context) 
+        return template.render(**context)

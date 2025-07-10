@@ -2,4 +2,4 @@
 
 from .burrow_migrator import BurrowMigrator
 
-__all__ = ["BurrowMigrator"] 
+__all__ = ["BurrowMigrator"]

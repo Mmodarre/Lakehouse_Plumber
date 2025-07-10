@@ -11,5 +11,5 @@ __all__ = [
     "DataQualityTransformGenerator",
     "SchemaTransformGenerator",
     "PythonTransformGenerator",
-    "TempTableTransformGenerator"
+    "TempTableTransformGenerator",
 ]

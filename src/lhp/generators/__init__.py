@@ -19,5 +19,5 @@ __all__ = [
     "TempTableTransformGenerator",
     # Write generators
     "StreamingTableWriteGenerator",
-    "MaterializedViewWriteGenerator"
+    "MaterializedViewWriteGenerator",
 ]

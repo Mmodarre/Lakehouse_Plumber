@@ -12,45 +12,51 @@ from ..models.config import (
     ProjectConfig,
     ProjectOperationalMetadataConfig,
     MetadataColumnConfig,
-    MetadataPresetConfig
+    MetadataPresetConfig,
 )
 from ..utils.error_formatter import LHPError, ErrorCategory
 
 
 class ProjectConfigLoader:
     """Loads project configuration from lhp.yaml."""
-    
+
     def __init__(self, project_root: Path):
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
         self.config_file = project_root / "lhp.yaml"
-    
+
     def load_project_config(self) -> Optional[ProjectConfig]:
         """Load project configuration from lhp.yaml.
-        
+
         Returns:
             ProjectConfig if file exists and is valid, None otherwise
         """
         if not self.config_file.exists():
-            self.logger.info(f"No project configuration file found at {self.config_file}")
+            self.logger.info(
+                f"No project configuration file found at {self.config_file}"
+            )
             return None
-        
+
         try:
-            with open(self.config_file, 'r', encoding='utf-8') as f:
+            with open(self.config_file, "r", encoding="utf-8") as f:
                 config_data = yaml.safe_load(f)
-            
+
             if not config_data:
-                self.logger.warning(f"Empty project configuration file: {self.config_file}")
+                self.logger.warning(
+                    f"Empty project configuration file: {self.config_file}"
+                )
                 return None
-            
+
             # Parse the configuration
             project_config = self._parse_project_config(config_data)
-            
+
             self.logger.info(f"Loaded project configuration from {self.config_file}")
             return project_config
-            
+
         except yaml.YAMLError as e:
-            error_msg = f"Invalid YAML in project configuration file {self.config_file}: {e}"
+            error_msg = (
+                f"Invalid YAML in project configuration file {self.config_file}: {e}"
+            )
             self.logger.error(error_msg)
             raise LHPError(
                 category=ErrorCategory.CONFIG,
@@ -60,12 +66,14 @@ class ProjectConfigLoader:
                 suggestions=[
                     "Check YAML syntax in lhp.yaml",
                     "Ensure proper indentation and structure",
-                    "Validate YAML online or with a linter"
-                ]
+                    "Validate YAML online or with a linter",
+                ],
             )
-        
+
         except Exception as e:
-            error_msg = f"Error loading project configuration from {self.config_file}: {e}"
+            error_msg = (
+                f"Error loading project configuration from {self.config_file}: {e}"
+            )
             self.logger.error(error_msg)
             raise LHPError(
                 category=ErrorCategory.CONFIG,
@@ -75,71 +83,74 @@ class ProjectConfigLoader:
                 suggestions=[
                     "Check file permissions and accessibility",
                     "Verify file is not corrupted",
-                    "Check project configuration structure"
-                ]
+                    "Check project configuration structure",
+                ],
             )
-    
+
     def _parse_project_config(self, config_data: Dict[str, Any]) -> ProjectConfig:
         """Parse raw configuration data into ProjectConfig model.
-        
+
         Args:
             config_data: Raw configuration data from YAML
-            
+
         Returns:
             Parsed ProjectConfig
         """
         # Extract operational metadata configuration
         operational_metadata_config = None
-        if 'operational_metadata' in config_data:
+        if "operational_metadata" in config_data:
             operational_metadata_config = self._parse_operational_metadata_config(
-                config_data['operational_metadata']
+                config_data["operational_metadata"]
             )
-        
+
         # Create project config
         project_config = ProjectConfig(
-            name=config_data.get('name', 'unnamed_project'),
-            version=config_data.get('version', '1.0'),
-            description=config_data.get('description'),
-            author=config_data.get('author'),
-            created_date=config_data.get('created_date'),
-            operational_metadata=operational_metadata_config
+            name=config_data.get("name", "unnamed_project"),
+            version=config_data.get("version", "1.0"),
+            description=config_data.get("description"),
+            author=config_data.get("author"),
+            created_date=config_data.get("created_date"),
+            operational_metadata=operational_metadata_config,
         )
-        
+
         return project_config
-    
+
     def _parse_operational_metadata_config(
-        self, 
-        metadata_config: Dict[str, Any]
+        self, metadata_config: Dict[str, Any]
     ) -> ProjectOperationalMetadataConfig:
         """Parse operational metadata configuration.
-        
+
         Args:
             metadata_config: Raw operational metadata configuration
-            
+
         Returns:
             Parsed ProjectOperationalMetadataConfig
         """
         # Parse column definitions
         columns = {}
-        if 'columns' in metadata_config:
-            for col_name, col_config in metadata_config['columns'].items():
+        if "columns" in metadata_config:
+            for col_name, col_config in metadata_config["columns"].items():
                 try:
                     # Ensure col_config is a dict
                     if isinstance(col_config, str):
                         # Simple string expression - convert to full config
-                        col_config = {'expression': col_config}
+                        col_config = {"expression": col_config}
                     elif not isinstance(col_config, dict):
-                        raise ValueError(f"Column configuration must be dict or string, got {type(col_config)}")
-                    
+                        raise ValueError(
+                            f"Column configuration must be dict or string, got {type(col_config)}"
+                        )
+
                     # Parse column configuration
                     columns[col_name] = MetadataColumnConfig(
-                        expression=col_config.get('expression', ''),
-                        description=col_config.get('description'),
-                        applies_to=col_config.get('applies_to', ['streaming_table', 'materialized_view']),
-                        additional_imports=col_config.get('additional_imports'),
-                        enabled=col_config.get('enabled', True)
+                        expression=col_config.get("expression", ""),
+                        description=col_config.get("description"),
+                        applies_to=col_config.get(
+                            "applies_to", ["streaming_table", "materialized_view"]
+                        ),
+                        additional_imports=col_config.get("additional_imports"),
+                        enabled=col_config.get("enabled", True),
                     )
-                    
+
                 except Exception as e:
                     error_msg = f"Error parsing column '{col_name}' in operational metadata: {e}"
                     self.logger.error(error_msg)
@@ -151,26 +162,28 @@ class ProjectConfigLoader:
                         suggestions=[
                             "Check column configuration structure",
                             "Ensure 'expression' field is provided",
-                            "Verify applies_to is a list of valid target types"
-                        ]
+                            "Verify applies_to is a list of valid target types",
+                        ],
                     )
-        
+
         # Parse preset definitions
         presets = {}
-        if 'presets' in metadata_config:
-            for preset_name, preset_config in metadata_config['presets'].items():
+        if "presets" in metadata_config:
+            for preset_name, preset_config in metadata_config["presets"].items():
                 try:
                     if isinstance(preset_config, list):
                         # Simple list of column names
-                        preset_config = {'columns': preset_config}
+                        preset_config = {"columns": preset_config}
                     elif not isinstance(preset_config, dict):
-                        raise ValueError(f"Preset configuration must be dict or list, got {type(preset_config)}")
-                    
+                        raise ValueError(
+                            f"Preset configuration must be dict or list, got {type(preset_config)}"
+                        )
+
                     presets[preset_name] = MetadataPresetConfig(
-                        columns=preset_config.get('columns', []),
-                        description=preset_config.get('description')
+                        columns=preset_config.get("columns", []),
+                        description=preset_config.get("description"),
                     )
-                    
+
                 except Exception as e:
                     error_msg = f"Error parsing preset '{preset_name}' in operational metadata: {e}"
                     self.logger.error(error_msg)
@@ -182,36 +195,36 @@ class ProjectConfigLoader:
                         suggestions=[
                             "Check preset configuration structure",
                             "Ensure 'columns' field is a list of column names",
-                            "Verify all referenced columns are defined"
-                        ]
+                            "Verify all referenced columns are defined",
+                        ],
                     )
-        
+
         # Parse defaults
-        defaults = metadata_config.get('defaults', {})
-        
+        defaults = metadata_config.get("defaults", {})
+
         # Create operational metadata config
         operational_metadata_config = ProjectOperationalMetadataConfig(
             columns=columns,
             presets=presets if presets else None,
-            defaults=defaults if defaults else None
+            defaults=defaults if defaults else None,
         )
-        
+
         # Validate preset references
         self._validate_preset_references(operational_metadata_config)
-        
+
         return operational_metadata_config
-    
+
     def _validate_preset_references(self, config: ProjectOperationalMetadataConfig):
         """Validate that preset references point to defined columns.
-        
+
         Args:
             config: Operational metadata configuration to validate
         """
         if not config.presets:
             return
-        
+
         defined_columns = set(config.columns.keys())
-        
+
         for preset_name, preset_config in config.presets.items():
             for column_name in preset_config.columns:
                 if column_name not in defined_columns:
@@ -225,17 +238,19 @@ class ProjectConfigLoader:
                         suggestions=[
                             f"Define column '{column_name}' in operational_metadata.columns",
                             f"Remove '{column_name}' from preset '{preset_name}'",
-                            "Check for typos in column names"
-                        ]
+                            "Check for typos in column names",
+                        ],
                     )
-    
-    def get_operational_metadata_config(self) -> Optional[ProjectOperationalMetadataConfig]:
+
+    def get_operational_metadata_config(
+        self,
+    ) -> Optional[ProjectOperationalMetadataConfig]:
         """Get operational metadata configuration from project config.
-        
+
         Returns:
             ProjectOperationalMetadataConfig if available, None otherwise
         """
         project_config = self.load_project_config()
         if project_config and project_config.operational_metadata:
             return project_config.operational_metadata
-        return None 
+        return None

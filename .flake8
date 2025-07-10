@@ -7,7 +7,21 @@ extend-ignore =
     # W503: line break before binary operator (conflicts with black)
     W503,
     # E501: line too long (handled by black)
-    E501
+    E501,
+    # W291: trailing whitespace (handled by black)
+    W291,
+    # W293: trailing whitespace (handled by black)
+    W293,
+    # W292: trailing whitespace (handled by black)
+    W292,
+    # W294: trailing whitespace (handled by black)
+    W294,
+    # W295: trailing whitespace (handled by black)
+    W295,
+    # W296: trailing whitespace (handled by black)
+    W296,
+    # W297: trailing whitespace (handled by black)
+    W297,
 exclude = 
     .git,
     __pycache__,
