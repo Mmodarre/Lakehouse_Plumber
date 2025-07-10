@@ -100,6 +100,7 @@ class TestConfigValidatorActions:
             assert any("Unknown transform type" in error for error in errors)
             mock_available.assert_called_with(ActionType.TRANSFORM, TransformType.SQL)
 
+    @pytest.mark.filterwarnings("ignore:Pydantic serializer warnings:UserWarning")
     def test_write_action_early_returns_and_warnings(self):
         """Test write action early returns and target warnings.
         
