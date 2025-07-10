@@ -33,22 +33,24 @@ def get_version():
             # Fallback: try reading from pyproject.toml (for development)
             import re
             from pathlib import Path
-            
+
             # Find pyproject.toml - look up the directory tree
             current_dir = Path(__file__).parent
             for _ in range(5):  # Look up to 5 levels
                 pyproject_path = current_dir / "pyproject.toml"
                 if pyproject_path.exists():
-                    with open(pyproject_path, 'r') as f:
+                    with open(pyproject_path, "r") as f:
                         content = f.read()
                     # Use regex to find version = "x.y.z"
-                    version_match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
+                    version_match = re.search(
+                        r'version\s*=\s*["\']([^"\']+)["\']', content
+                    )
                     if version_match:
                         return version_match.group(1)
                 current_dir = current_dir.parent
         except Exception:
             pass
-        
+
         # Final fallback
         return "0.2.6"
 
