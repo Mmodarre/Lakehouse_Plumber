@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, List, Tuple
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.schema_parser import SchemaParser
@@ -43,7 +43,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         
         # Extract configuration
         path = source_config.get("path")
-        format = source_config.get("format", "json")
+        file_format = source_config.get("format", "json")
         
         # Check for conflicts between old and new approaches
         self._check_conflicts(source_config, action.name)
@@ -83,8 +83,8 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             reader_options.update(source_config["reader_options"])
         if source_config.get("format_options"):
             for key, value in source_config["format_options"].items():
-                if not key.startswith(f"{format}."):
-                    key = f"{format}.{key}"
+                if not key.startswith(f"{file_format}."):
+                    key = f"{file_format}.{key}"
                 reader_options[key] = value
         
         # Handle legacy schema_file
@@ -111,7 +111,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     reader_options[cloudfiles_option] = str(value).lower() if isinstance(value, bool) else value
         
         # Validate mandatory options
-        self._validate_mandatory_options(reader_options, format)
+        self._validate_mandatory_options(reader_options, file_format)
         
         # Process schema hints for better formatting
         schema_hints_variable = None
@@ -150,7 +150,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             "action_name": action.name,
             "target_view": action.target,
             "path": path,
-            "format": format,
+            "format": file_format,
             "readMode": readMode,
             "reader_options": reader_options,
             "schema_code_lines": schema_code_lines,
@@ -196,7 +196,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                         try:
                             schema_data = self.schema_parser.parse_schema_file(Path(value), spec_dir)
                             processed_options[key] = self.schema_parser.to_schema_hints(schema_data)
-                        except FileNotFoundError:
+                        except FileNotFoundError as exc:
                             # Build search locations
                             search_locations = []
                             if value.startswith('/'):
@@ -209,7 +209,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                                 file_path=str(value),
                                 search_locations=search_locations,
                                 file_type="schema file"
-                            )
+                            ) from exc
                     else:
                         # User provided direct hints string
                         processed_options[key] = str(value)
@@ -253,7 +253,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             
             return variable_name, schema_def_lines
             
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
             # Build search locations
             search_locations = []
             if schema_file_path.startswith('/'):
@@ -266,7 +266,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                 file_path=str(schema_file_path),
                 search_locations=search_locations,
                 file_type="schema file"
-            )
+            ) from exc
         except LHPError:
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
@@ -383,15 +383,15 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         
         return variable_name, code_lines
     
-    def _validate_mandatory_options(self, reader_options: Dict[str, Any], format: str):
+    def _validate_mandatory_options(self, reader_options: Dict[str, Any], file_format: str):
         """Validate that mandatory cloudFiles options are present.
         
         Args:
             reader_options: Combined reader options
-            format: File format
+            file_format: File format
         """
         # Check for mandatory cloudFiles.format
         if "cloudFiles.format" not in reader_options:
-            reader_options["cloudFiles.format"] = format
+            reader_options["cloudFiles.format"] = file_format
         
         # Additional validation can be added here for other mandatory options 
