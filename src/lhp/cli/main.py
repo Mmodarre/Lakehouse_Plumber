@@ -15,6 +15,43 @@ from ..parsers.yaml_parser import YAMLParser
 from ..models.config import ActionType
 from ..utils.error_handler import ErrorHandler
 
+# Import for dynamic version detection
+try:
+    from importlib.metadata import version
+except ImportError:
+    # Fallback for Python < 3.8
+    from importlib_metadata import version
+
+
+def get_version():
+    """Get the package version dynamically from package metadata."""
+    try:
+        # Try to get version from installed package metadata
+        return version("lakehouse-plumber")
+    except Exception:
+        try:
+            # Fallback: try reading from pyproject.toml (for development)
+            import re
+            from pathlib import Path
+            
+            # Find pyproject.toml - look up the directory tree
+            current_dir = Path(__file__).parent
+            for _ in range(5):  # Look up to 5 levels
+                pyproject_path = current_dir / "pyproject.toml"
+                if pyproject_path.exists():
+                    with open(pyproject_path, 'r') as f:
+                        content = f.read()
+                    # Use regex to find version = "x.y.z"
+                    version_match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
+                    if version_match:
+                        return version_match.group(1)
+                current_dir = current_dir.parent
+        except Exception:
+            pass
+        
+        # Final fallback
+        return "0.2.6"
+
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -72,7 +109,7 @@ def configure_logging(verbose: bool, project_root: Optional[Path] = None):
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="lhp")
+@click.version_option(version=get_version(), prog_name="lhp")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 def cli(verbose):
     """LakehousePlumber - Generate Delta Live Tables pipelines from YAML configs."""
