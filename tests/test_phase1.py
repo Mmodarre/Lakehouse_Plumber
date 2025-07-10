@@ -6,7 +6,7 @@ import tempfile
 
 from lhp.models.config import ActionType, LoadSourceType, TransformType, WriteTargetType, Action, FlowGroup, Template, Preset
 from lhp.core.base_generator import BaseActionGenerator
-from lhp.cli.main import cli
+from lhp.cli.main import cli, get_version
 from click.testing import CliRunner
 
 
@@ -102,7 +102,8 @@ class TestCLI:
         """Test CLI version command."""
         result = self.runner.invoke(cli, ['--version'])
         assert result.exit_code == 0
-        assert "0.1.0" in result.output
+        expected_version = get_version()
+        assert expected_version in result.output
     
     def test_init_command(self):
         """Test project initialization command."""
