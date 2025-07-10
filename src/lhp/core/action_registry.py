@@ -11,32 +11,33 @@ from ..generators.load import (
     DeltaLoadGenerator,
     SQLLoadGenerator,
     JDBCLoadGenerator,
-    PythonLoadGenerator
+    PythonLoadGenerator,
 )
 from ..generators.transform import (
     SQLTransformGenerator,
     DataQualityTransformGenerator,
     SchemaTransformGenerator,
     PythonTransformGenerator,
-    TempTableTransformGenerator
+    TempTableTransformGenerator,
 )
 from ..generators.write import (
     StreamingTableWriteGenerator,
-    MaterializedViewWriteGenerator
+    MaterializedViewWriteGenerator,
 )
+
 
 class ActionRegistry:
     """Registry for action generators."""
-    
+
     def __init__(self):
         # Step 4.1.1: Create the registry structure
         self._load_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._transform_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._write_generators: Dict[str, Type[BaseActionGenerator]] = {}
-        
+
         # Step 4.1.2: Map action types to generators
         self._initialize_generators()
-    
+
     def _initialize_generators(self):
         """Initialize generator mappings."""
         # Load generators
@@ -45,34 +46,38 @@ class ActionRegistry:
             LoadSourceType.DELTA: DeltaLoadGenerator,
             LoadSourceType.SQL: SQLLoadGenerator,
             LoadSourceType.JDBC: JDBCLoadGenerator,
-            LoadSourceType.PYTHON: PythonLoadGenerator
+            LoadSourceType.PYTHON: PythonLoadGenerator,
         }
-        
+
         # Transform generators
         self._transform_generators = {
             TransformType.SQL: SQLTransformGenerator,
             TransformType.DATA_QUALITY: DataQualityTransformGenerator,
             TransformType.SCHEMA: SchemaTransformGenerator,
             TransformType.PYTHON: PythonTransformGenerator,
-            TransformType.TEMP_TABLE: TempTableTransformGenerator
+            TransformType.TEMP_TABLE: TempTableTransformGenerator,
         }
-        
+
         # Write generators
         self._write_generators = {
             WriteTargetType.STREAMING_TABLE: StreamingTableWriteGenerator,
-            WriteTargetType.MATERIALIZED_VIEW: MaterializedViewWriteGenerator
+            WriteTargetType.MATERIALIZED_VIEW: MaterializedViewWriteGenerator,
         }
-    
-    def get_generator(self, action_type: ActionType, sub_type: str = None) -> BaseActionGenerator:
+
+    def get_generator(
+        self, action_type: ActionType, sub_type: str = None
+    ) -> BaseActionGenerator:
         """Step 4.1.3: Implement generator factory method."""
         # Step 4.1.4: Add error handling and validation
         if not isinstance(action_type, ActionType):
-            raise ValueError(f"Invalid action type: {action_type}. Must be an ActionType enum.")
-        
+            raise ValueError(
+                f"Invalid action type: {action_type}. Must be an ActionType enum."
+            )
+
         if action_type == ActionType.LOAD:
             if not sub_type:
                 raise ValueError("Load actions require a sub_type")
-            
+
             # Convert string to enum if needed
             if isinstance(sub_type, str):
                 try:
@@ -91,18 +96,18 @@ class ActionRegistry:
     source:
       type: cloudfiles
       path: /path/to/files/*.csv
-      format: csv"""
+      format: csv""",
                     )
-            
+
             if sub_type not in self._load_generators:
                 raise ValueError(f"No generator registered for load type: {sub_type}")
-            
+
             return self._load_generators[sub_type]()
-        
+
         elif action_type == ActionType.TRANSFORM:
             if not sub_type:
                 raise ValueError("Transform actions require a sub_type")
-            
+
             # Convert string to enum if needed
             if isinstance(sub_type, str):
                 try:
@@ -120,18 +125,20 @@ class ActionRegistry:
     source: v_raw_data
     target: v_transformed_data
     sql: |
-      SELECT * FROM $source WHERE active = true"""
+      SELECT * FROM $source WHERE active = true""",
                     )
-            
+
             if sub_type not in self._transform_generators:
-                raise ValueError(f"No generator registered for transform type: {sub_type}")
-            
+                raise ValueError(
+                    f"No generator registered for transform type: {sub_type}"
+                )
+
             return self._transform_generators[sub_type]()
-        
+
         elif action_type == ActionType.WRITE:
             if not sub_type:
                 raise ValueError("Write actions require a sub_type")
-            
+
             # Convert string to enum if needed
             if isinstance(sub_type, str):
                 try:
@@ -151,25 +158,25 @@ class ActionRegistry:
       type: streaming_table
       catalog: my_catalog
       database: my_db
-      table: my_table"""
+      table: my_table""",
                     )
-            
+
             if sub_type not in self._write_generators:
                 raise ValueError(f"No generator registered for write type: {sub_type}")
-            
+
             return self._write_generators[sub_type]()
-        
+
         else:
             raise ValueError(f"Unknown action type: {action_type}")
-    
+
     def list_generators(self) -> Dict[str, list]:
         """List all available generators."""
         return {
             "load": [gen.value for gen in self._load_generators.keys()],
             "transform": [gen.value for gen in self._transform_generators.keys()],
-            "write": [gen.value for gen in self._write_generators.keys()]
+            "write": [gen.value for gen in self._write_generators.keys()],
         }
-    
+
     def is_generator_available(self, action_type: ActionType, sub_type: str) -> bool:
         """Check if a generator is available for the given action and sub type."""
         try:
@@ -185,4 +192,4 @@ class ActionRegistry:
             else:
                 return False
         except ValueError:
-            return False 
+            return False

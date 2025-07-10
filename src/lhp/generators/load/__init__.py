@@ -8,8 +8,8 @@ from .python import PythonLoadGenerator
 
 __all__ = [
     "CloudFilesLoadGenerator",
-    "DeltaLoadGenerator", 
+    "DeltaLoadGenerator",
     "SQLLoadGenerator",
     "JDBCLoadGenerator",
-    "PythonLoadGenerator"
+    "PythonLoadGenerator",
 ]

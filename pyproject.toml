@@ -1,20 +1,20 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-dynamic = ["version"]
+version = "0.2.5"
 description = "A tool for building and managing data lakehouse pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "Mehdi Modarressi", email = "mehdi.modarressi@gmail.com"},
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -27,8 +27,11 @@ requires-python = ">=3.8"
 dependencies = [
     "click>=8.0.0",
     "pyyaml>=6.0.0",
-    "jinja2>=3.1.0",
+    "jinja2>=3.0.0",
     "rich>=12.0.0",
+    "pydantic>=2.0.0",
+    "black>=23.0.0",
+    "jsonschema>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -41,12 +44,16 @@ dev = [
     "isort>=5.12.0",
     "mypy>=1.0.0",
 ]
+notebook = [
+    "ipython>=7.0.0",
+    "jupyter>=1.0.0",
+]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/lakehouse-plumber"
+Homepage = "https://github.com/Mmodarre/Lakehouse_Plumber"
 Documentation = "https://lakehouse-plumber.readthedocs.io/"
-Repository = "https://github.com/yourusername/lakehouse-plumber.git"
-"Bug Tracker" = "https://github.com/yourusername/lakehouse-plumber/issues"
+Repository = "https://github.com/Mmodarre/Lakehouse_Plumber.git"
+"Bug Tracker" = "https://github.com/Mmodarre/Lakehouse_Plumber/issues"
 
 [project.scripts]
 lhp = "lhp.cli.main:cli"
@@ -57,8 +64,7 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.setuptools_scm]
-write_to = "src/lhp/_version.py"
+
 
 [tool.pytest.ini_options]
 minversion = "6.0"
