@@ -12,7 +12,7 @@ old_code/
 docs/
 src/lakehouse_plumber.egg-info/
 __pycache__/
-tpch_lakehouse/
+Sample_Projects/
 TEST_DOCUMENTATION.md
 ERROR_REFERENCE.md
 UNTESTED_LOGIC_ANALYSIS.md

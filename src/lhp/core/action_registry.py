@@ -1,6 +1,6 @@
 """Action generator registry for LakehousePlumber."""
 
-from typing import Dict, Type, Any
+from typing import Dict, Type
 from ..core.base_generator import BaseActionGenerator
 from ..models.config import ActionType, LoadSourceType, TransformType, WriteTargetType
 from ..utils.error_formatter import ErrorFormatter

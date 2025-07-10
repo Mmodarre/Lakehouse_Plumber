@@ -1,7 +1,7 @@
 """Dependency resolution for LakehousePlumber actions."""
 
 import logging
-from typing import List, Dict, Set, Tuple, Optional
+from typing import List, Dict, Tuple, Optional
 from collections import defaultdict, deque
 from ..models.config import Action, ActionType
 from ..utils.error_formatter import LHPError, ErrorCategory
