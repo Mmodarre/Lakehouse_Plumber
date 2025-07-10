@@ -102,6 +102,7 @@ class TestConfigValidatorExceptions:
             assert "Dependency validation failed" in errors
             mock_validate.assert_called_once_with(flowgroup.actions)
 
+    @pytest.mark.filterwarnings("ignore:Pydantic serializer warnings:UserWarning")
     def test_unknown_action_type_validation(self):
         """Test unknown action type handling (defensive programming).
         
