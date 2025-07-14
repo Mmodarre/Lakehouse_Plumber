@@ -192,6 +192,129 @@ ls generated/
 - `lhp state --env <env>` - Show generation state
 - `lhp state --cleanup --env <env>` - Clean up orphaned files
 
+### IntelliSense Setup
+- `lhp setup-intellisense` - Set up VS Code IntelliSense support
+- `lhp setup-intellisense --check` - Check prerequisites
+- `lhp setup-intellisense --status` - Show current setup status
+- `lhp setup-intellisense --verify` - Verify setup is working
+- `lhp setup-intellisense --conflicts` - Show extension conflict analysis
+- `lhp setup-intellisense --cleanup` - Remove IntelliSense setup
+
+## 🧠 VS Code IntelliSense Support
+
+LakehousePlumber provides comprehensive VS Code IntelliSense support with auto-completion, validation, and documentation for all YAML configuration files.
+
+### ✨ Features
+
+- **Smart Auto-completion**: Context-aware suggestions for all configuration options
+- **Real-time Validation**: Immediate feedback on configuration errors
+- **Inline Documentation**: Hover hints and descriptions for all fields
+- **Schema Validation**: Ensures your YAML files follow the correct structure
+- **Error Detection**: Highlights syntax and semantic errors as you type
+
+### 🔧 Setup
+
+#### Prerequisites
+- VS Code installed and accessible via command line
+- LakehousePlumber installed (`pip install lakehouse-plumber`)
+
+#### Quick Setup
+```bash
+# Check if your system is ready
+lhp setup-intellisense --check
+
+# Set up IntelliSense (one-time setup)
+lhp setup-intellisense
+
+# Restart VS Code to activate schema associations
+```
+
+#### Verify Setup
+```bash
+# Check if setup is working
+lhp setup-intellisense --verify
+
+# View current status
+lhp setup-intellisense --status
+```
+
+### 🎯 What Gets IntelliSense Support
+
+- **Pipeline Configurations** (`pipelines/**/*.yaml`) - Full pipeline schema with actions, sources, and targets
+- **Templates** (`templates/**/*.yaml`) - Template definitions with parameter validation
+- **Presets** (`presets/**/*.yaml`) - Preset configuration schema
+- **Substitutions** (`substitutions/**/*.yaml`) - Environment-specific value validation
+- **Project Configuration** (`lhp.yaml`) - Main project settings
+
+### 📝 Usage
+
+Once set up, open any Lakehouse Plumber YAML file in VS Code and enjoy:
+
+1. **Auto-completion**: Press `Ctrl+Space` to see available options
+2. **Documentation**: Hover over any field to see descriptions
+3. **Validation**: Red underlines indicate errors with helpful messages
+4. **Structure**: IntelliSense guides you through the correct YAML structure
+
+Example of IntelliSense in action:
+```yaml
+# Type "actions:" and get auto-completion for action types
+actions:
+  - name: load_data
+    type: # ← IntelliSense suggests: load, transform, write
+    source:
+      type: # ← IntelliSense suggests: cloudfiles, delta, sql, jdbc, python
+      path: # ← Documentation shows path requirements
+```
+
+### 🛠️ Troubleshooting
+
+#### Extension Conflicts
+Some YAML extensions may conflict with LakehousePlumber schemas:
+```bash
+# Check for conflicts
+lhp setup-intellisense --conflicts
+
+# View detailed conflict analysis
+lhp setup-intellisense --conflicts
+```
+
+#### Setup Issues
+```bash
+# Force setup even if prerequisites aren't met
+lhp setup-intellisense --force
+
+# Clean up and start fresh
+lhp setup-intellisense --cleanup
+lhp setup-intellisense
+```
+
+#### Common Issues
+
+**IntelliSense not working after setup:**
+1. Restart VS Code completely
+2. Verify setup: `lhp setup-intellisense --verify`
+3. Check for extension conflicts: `lhp setup-intellisense --conflicts`
+
+**Schema associations missing:**
+1. Check status: `lhp setup-intellisense --status`
+2. Re-run setup: `lhp setup-intellisense --force`
+
+**Red Hat YAML extension conflicts:**
+- The Red Hat YAML extension is detected but usually works well alongside LakehousePlumber schemas
+- If issues persist, you can temporarily disable it or adjust its settings
+
+### 🔄 Maintenance
+
+The IntelliSense setup is persistent and doesn't need regular maintenance. However, you may want to:
+
+```bash
+# Check status periodically
+lhp setup-intellisense --status
+
+# Update after LakehousePlumber upgrades
+lhp setup-intellisense --force
+```
+
 ## 🎨 Advanced Features
 
 ### Presets
