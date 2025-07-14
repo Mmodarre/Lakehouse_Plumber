@@ -1,0 +1,517 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LakehousePlumber Template",
+    "description": "Schema for LakehousePlumber template files",
+    "type": "object",
+    "required": ["name"],
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Name of the template"
+        },
+        "version": {
+            "type": "string",
+            "default": "1.0",
+            "description": "Version of the template"
+        },
+        "description": {
+            "type": "string",
+            "description": "Description of the template"
+        },
+        "presets": {
+            "type": "array",
+            "description": "List of preset names to apply to template actions",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "parameters": {
+            "type": "array",
+            "description": "Template parameters",
+            "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Parameter name"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": ["string", "number", "boolean", "array", "object"],
+                        "default": "string",
+                        "description": "Parameter type"
+                    },
+                    "required": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Whether this parameter is required"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Parameter description"
+                    },
+                    "default": {
+                        "description": "Default value for the parameter"
+                    }
+                }
+            },
+            "default": []
+        },
+        "actions": {
+            "type": "array",
+            "description": "List of actions in the template",
+            "items": {
+                "$ref": "#/definitions/Action"
+            },
+            "default": []
+        }
+    },
+    "definitions": {
+        "Action": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the action (can use template parameters with {{ }})"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": ["load", "transform", "write"],
+                    "description": "Type of action"
+                },
+                "source": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "oneOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "enum": ["cloudfiles", "delta", "sql", "python", "jdbc"]
+                                },
+                                "path": {
+                                    "type": "string",
+                                    "description": "Path to data files (can use template parameters with {{ }})"
+                                },
+                                "format": {
+                                    "type": "string",
+                                    "enum": ["json", "parquet", "csv", "avro", "orc", "text", "binaryfile", "xml"],
+                                    "description": "File format"
+                                },
+                                "database": {
+                                    "type": "string",
+                                    "description": "Database name (can use template parameters with {{ }})"
+                                },
+                                "table": {
+                                    "type": "string",
+                                    "description": "Table name (can use template parameters with {{ }})"
+                                },
+                                "catalog": {
+                                    "type": "string",
+                                    "description": "Catalog name (can use template parameters with {{ }})"
+                                },
+                                "sql": {
+                                    "type": "string",
+                                    "description": "SQL query (can use template parameters with {{ }})"
+                                },
+                                "sql_path": {
+                                    "type": "string",
+                                    "description": "Path to SQL file (can use template parameters with {{ }})"
+                                },
+                                "url": {
+                                    "type": "string",
+                                    "description": "JDBC URL (can use template parameters with {{ }})"
+                                },
+                                "user": {
+                                    "type": "string",
+                                    "description": "Database user (can use template parameters with {{ }})"
+                                },
+                                "password": {
+                                    "type": "string",
+                                    "description": "Database password (can use template parameters with {{ }})"
+                                },
+                                "driver": {
+                                    "type": "string",
+                                    "description": "JDBC driver (can use template parameters with {{ }})"
+                                },
+                                "query": {
+                                    "type": "string",
+                                    "description": "SQL query for JDBC (can use template parameters with {{ }})"
+                                },
+                                "module_path": {
+                                    "type": "string",
+                                    "description": "Python module path (can use template parameters with {{ }})"
+                                },
+                                "function_name": {
+                                    "type": "string",
+                                    "description": "Python function name (can use template parameters with {{ }})"
+                                },
+                                "parameters": {
+                                    "type": "object",
+                                    "description": "Parameters for Python source (can use template parameters with {{ }})",
+                                    "additionalProperties": true
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "description": "Reader options",
+                                    "additionalProperties": true
+                                },
+                                "reader_options": {
+                                    "type": "object",
+                                    "description": "Reader-specific options",
+                                    "additionalProperties": true
+                                },
+                                "format_options": {
+                                    "type": "object",
+                                    "description": "Format-specific options",
+                                    "additionalProperties": true
+                                },
+                                "schema": {
+                                    "type": "string",
+                                    "description": "Schema definition (can use template parameters with {{ }})"
+                                },
+                                "schema_file": {
+                                    "type": "string",
+                                    "description": "Path to schema file (can use template parameters with {{ }})"
+                                },
+                                "readMode": {
+                                    "type": "string",
+                                    "enum": ["batch", "stream"],
+                                    "description": "Read mode"
+                                },
+                                "schema_location": {
+                                    "type": "string",
+                                    "description": "Schema location (can use template parameters with {{ }})"
+                                },
+                                "schema_infer_column_types": {
+                                    "type": "boolean",
+                                    "description": "Whether to infer column types"
+                                },
+                                "max_files_per_trigger": {
+                                    "type": "integer",
+                                    "description": "Maximum files per trigger"
+                                },
+                                "schema_evolution_mode": {
+                                    "type": "string",
+                                    "enum": ["addNewColumns", "rescue", "failOnNewColumns"],
+                                    "description": "Schema evolution mode"
+                                },
+                                "rescue_data_column": {
+                                    "type": "string",
+                                    "description": "Column for rescued data (can use template parameters with {{ }})"
+                                },
+                                "cdf_enabled": {
+                                    "type": "boolean",
+                                    "description": "Whether change data feed is enabled"
+                                },
+                                "read_change_feed": {
+                                    "type": "boolean",
+                                    "description": "Whether to read change feed"
+                                },
+                                "cdc_options": {
+                                    "type": "object",
+                                    "description": "CDC options",
+                                    "additionalProperties": true
+                                },
+                                "where_clause": {
+                                    "type": "string",
+                                    "description": "WHERE clause for filtering (can use template parameters with {{ }})"
+                                },
+                                "select_columns": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Columns to select"
+                                }
+                            }
+                        }
+                    ],
+                    "description": "Source configuration for the action (can use template parameters with {{ }})"
+                },
+                "target": {
+                    "type": "string",
+                    "description": "Target view or table name (can use template parameters with {{ }})"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of the action (can use template parameters with {{ }})"
+                },
+                "readMode": {
+                    "type": "string",
+                    "enum": ["batch", "stream"],
+                    "description": "Read mode: 'batch' or 'stream'"
+                },
+                "write_target": {
+                    "$ref": "#/definitions/WriteTarget",
+                    "description": "Write target configuration"
+                },
+                "transform_type": {
+                    "type": "string",
+                    "enum": ["sql", "python", "data_quality", "temp_table", "schema"],
+                    "description": "Type of transformation"
+                },
+                "sql": {
+                    "type": "string",
+                    "description": "SQL query for the action (can use template parameters with {{ }})"
+                },
+                "sql_path": {
+                    "type": "string",
+                    "description": "Path to SQL file (can use template parameters with {{ }})"
+                },
+                "operational_metadata": {
+                    "oneOf": [
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "description": "Operational metadata configuration"
+                },
+                "expectations_file": {
+                    "type": "string",
+                    "description": "Path to expectations file for data quality transforms (can use template parameters with {{ }})"
+                },
+                "once": {
+                    "type": "boolean",
+                    "description": "Whether this is a one-time flow/backfill"
+                },
+                "module_path": {
+                    "type": "string",
+                    "description": "Path to Python module for Python transforms (can use template parameters with {{ }})"
+                },
+                "function_name": {
+                    "type": "string",
+                    "description": "Function name for Python transforms (can use template parameters with {{ }})"
+                },
+                "parameters": {
+                    "type": "object",
+                    "description": "Parameters for Python transforms (can use template parameters with {{ }})",
+                    "additionalProperties": true
+                },
+                "schema_file": {
+                    "type": "string",
+                    "description": "Path to schema file for schema transforms (can use template parameters with {{ }})"
+                },
+                "schema_path": {
+                    "type": "string",
+                    "description": "Path to schema file (alternative to schema_file) (can use template parameters with {{ }})"
+                }
+            }
+        },
+        "WriteTarget": {
+            "type": "object",
+            "required": ["type", "database", "table"],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["streaming_table", "materialized_view"],
+                    "description": "Type of write target"
+                },
+                "database": {
+                    "type": "string",
+                    "description": "Target database name (can use template parameters with {{ }})"
+                },
+                "table": {
+                    "type": "string",
+                    "description": "Target table name (can use template parameters with {{ }})"
+                },
+                "create_table": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether to create the table"
+                },
+                "comment": {
+                    "type": "string",
+                    "description": "Table comment (can use template parameters with {{ }})"
+                },
+                "table_properties": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Table properties"
+                },
+                "partition_columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Partition columns"
+                },
+                "cluster_columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Cluster columns"
+                },
+                "spark_conf": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Spark configuration"
+                },
+                "schema": {
+                    "type": "string",
+                    "description": "Table schema (can use template parameters with {{ }})"
+                },
+                "table_schema": {
+                    "type": "string",
+                    "description": "Table schema (deprecated, use 'schema')"
+                },
+                "row_filter": {
+                    "type": "string",
+                    "description": "Row filter expression"
+                },
+                "temporary": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether the table is temporary"
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Table path (can use template parameters with {{ }})"
+                },
+                "refresh_schedule": {
+                    "type": "string",
+                    "description": "Refresh schedule for materialized views"
+                },
+                "sql": {
+                    "type": "string",
+                    "description": "SQL query for materialized views (can use template parameters with {{ }})"
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["cdc", "snapshot_cdc"],
+                    "description": "Table mode for CDC operations"
+                },
+                "cdc_config": {
+                    "type": "object",
+                    "description": "CDC configuration for change data capture",
+                    "properties": {
+                        "keys": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Primary key columns for CDC"
+                        },
+                        "sequence_by": {
+                            "type": "string",
+                            "description": "Column to sequence changes by"
+                        },
+                        "ignore_null_updates": {
+                            "type": "boolean",
+                            "description": "Whether to ignore null updates"
+                        },
+                        "apply_as_deletes": {
+                            "type": "string",
+                            "description": "Expression to identify delete records"
+                        },
+                        "apply_as_truncates": {
+                            "type": "string",
+                            "description": "Expression to identify truncate records"
+                        },
+                        "except_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to exclude from change detection"
+                        },
+                        "stored_as_scd_type": {
+                            "type": "string",
+                            "enum": ["1", "2"],
+                            "description": "SCD type for storage"
+                        },
+                        "track_history_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to track history for"
+                        },
+                        "track_history_except_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to exclude from history tracking"
+                        }
+                    }
+                },
+                "snapshot_cdc_config": {
+                    "type": "object",
+                    "description": "Snapshot CDC configuration",
+                    "properties": {
+                        "source": {
+                            "type": "string",
+                            "description": "Source table for snapshot CDC"
+                        },
+                        "source_function": {
+                            "type": "object",
+                            "description": "Source function configuration",
+                            "properties": {
+                                "file": {
+                                    "type": "string",
+                                    "description": "File containing the source function"
+                                },
+                                "function": {
+                                    "type": "string",
+                                    "description": "Function name"
+                                }
+                            }
+                        },
+                        "keys": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Primary key columns"
+                        },
+                        "stored_as_scd_type": {
+                            "type": "string",
+                            "enum": ["1", "2"],
+                            "description": "SCD type for storage"
+                        },
+                        "track_history_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to track history for"
+                        },
+                        "track_history_except_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to exclude from history tracking"
+                        }
+                    }
+                }
+            }
+        }
+    }
+} 

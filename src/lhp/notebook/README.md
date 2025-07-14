@@ -94,7 +94,6 @@ my_project/
 ├── pipelines/         # Pipeline YAML files
 ├── substitutions/     # Environment configurations
 ├── presets/          # Preset configurations
-├── schemas/          # Schema definitions
 └── setup.py          # Package configuration
 ```
 

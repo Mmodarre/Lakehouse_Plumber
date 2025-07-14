@@ -78,8 +78,8 @@ def test_burrowbuilder_style_formatting(tmp_path):
     
     # Check for pipeline configuration
     assert "# Pipeline Configuration" in code
-    assert 'PIPELINE_ID = "test_flowgroup"' in code
-    assert 'PIPELINE_GROUP = "test_pipeline"' in code
+    assert 'PIPELINE_ID = "test_pipeline"' in code
+    assert 'FLOWGROUP_ID = "test_flowgroup"' in code
     
     # Verify sections appear in correct order
     source_idx = code.index("# SOURCE VIEWS")

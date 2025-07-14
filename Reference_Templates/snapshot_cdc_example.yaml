@@ -1,0 +1,117 @@
+# Snapshot CDC Example - Lakehouse Plumber
+# Demonstrates the new create_auto_cdc_from_snapshot_flow functionality
+
+pipeline_name: "snapshot_cdc_example"
+flowgroups:
+  - pipeline: "snapshot_cdc_example"
+    flowgroup: "customer_dimension_snapshots"
+    operational_metadata: true
+    
+    actions:
+      # Example 1: Simple Snapshot CDC with table source
+      - name: "customer_snapshot_cdc_simple"
+        type: "write"
+        write_target:
+          type: "streaming_table"
+          mode: "snapshot_cdc"  # New mode for snapshot CDC
+          database: "silver"
+          table: "dim_customer_simple"
+          
+          # Snapshot CDC configuration
+          snapshot_cdc_config:
+            # Simple approach: Direct table reference
+            source: "raw.customer_snapshots"
+            
+            # Required: Primary key columns for CDC
+            keys: ["customer_id"]
+            
+            # SCD Type (1 or 2)
+            stored_as_scd_type: 1
+          
+          # Standard DLT table options also work
+          table_properties:
+            delta.enableChangeDataFeed: "true"
+            delta.autoOptimize.optimizeWrite: "true"
+            custom.data.owner: "data_team"
+          
+          partition_columns: ["region"]
+          cluster_columns: ["customer_id"]
+          comment: "Customer dimension using snapshot CDC (simple source)"
+        
+        description: "Create customer dimension from snapshots using simple table source"
+      
+      # Example 2: Advanced Snapshot CDC with function source
+      - name: "customer_snapshot_cdc_advanced"
+        type: "write"
+        write_target:
+          type: "streaming_table"
+          mode: "snapshot_cdc"
+          database: "silver"
+          table: "dim_customer_advanced"
+          
+          snapshot_cdc_config:
+            # Advanced approach: Function-based snapshot processing
+            source_function:
+              file: "customer_snapshot_functions.py"  # Python file with snapshot logic
+              function: "next_customer_snapshot"       # Function name
+            
+            keys: ["customer_id", "region"]  # Composite key
+            stored_as_scd_type: 2            # SCD Type 2 for history tracking
+            
+            # Track history for specific columns
+            track_history_column_list: ["name", "email", "address", "phone"]
+          
+          # Advanced table configuration
+          spark_conf:
+            spark.sql.adaptive.enabled: "true"
+            spark.sql.adaptive.coalescePartitions.enabled: "true"
+          
+          table_properties:
+            delta.enableChangeDataFeed: "true"
+            delta.autoOptimize.optimizeWrite: "true"
+            delta.autoOptimize.autoCompact: "true"
+            custom.data.classification: "pii"
+            custom.scd.type: "2"
+          
+          schema: |
+            customer_id BIGINT NOT NULL,
+            region STRING NOT NULL,
+            name STRING,
+            email STRING,
+            address STRING,
+            phone STRING,
+            status STRING,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+          
+          partition_columns: ["region"]
+          cluster_columns: ["customer_id"]
+          path: "/mnt/data/silver/dim_customer_advanced"
+          comment: "Advanced customer dimension with SCD Type 2 using function-based snapshots"
+        
+        description: "Create customer dimension with SCD Type 2 using function-based snapshot processing"
+      
+      # Example 3: Snapshot CDC with track_history_except_column_list
+      - name: "product_snapshot_cdc_except"
+        type: "write"
+        write_target:
+          type: "streaming_table"
+          mode: "snapshot_cdc"
+          database: "silver"
+          table: "dim_product"
+          
+          snapshot_cdc_config:
+            source: "raw.product_daily_snapshots"
+            keys: ["product_id"]
+            stored_as_scd_type: 2
+            
+            # Track history for all columns EXCEPT these
+            track_history_except_column_list: ["created_at", "updated_at", "_metadata", "_audit_timestamp"]
+          
+          table_properties:
+            delta.enableChangeDataFeed: "true"
+            custom.data.domain: "product"
+          
+          comment: "Product dimension excluding audit columns from history tracking"
+        
+        description: "Product dimension using except column list for history tracking"

@@ -6,7 +6,7 @@ Loads project-level configuration from lhp.yaml including operational metadata d
 import yaml
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from ..models.config import (
     ProjectConfig,
@@ -103,6 +103,11 @@ class ProjectConfigLoader:
                 config_data["operational_metadata"]
             )
 
+        # Parse and validate include patterns
+        include_patterns = None
+        if "include" in config_data:
+            include_patterns = self._parse_include_patterns(config_data["include"])
+
         # Create project config
         project_config = ProjectConfig(
             name=config_data.get("name", "unnamed_project"),
@@ -110,10 +115,83 @@ class ProjectConfigLoader:
             description=config_data.get("description"),
             author=config_data.get("author"),
             created_date=config_data.get("created_date"),
+            include=include_patterns,
             operational_metadata=operational_metadata_config,
         )
 
         return project_config
+
+    def _parse_include_patterns(self, include_data: Any) -> List[str]:
+        """Parse and validate include patterns from configuration.
+
+        Args:
+            include_data: Raw include data from YAML
+
+        Returns:
+            List of validated include patterns
+
+        Raises:
+            LHPError: If include patterns are invalid
+        """
+        # Validate that include is a list
+        if not isinstance(include_data, list):
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="003",
+                title="Invalid include field type",
+                details=f"Include field must be a list of strings, got {type(include_data).__name__}",
+                suggestions=[
+                    "Change include to a list format: include: ['*.yaml', 'bronze_*.yaml']",
+                    "Use array syntax in YAML with proper indentation",
+                ],
+            )
+
+        # Validate each pattern
+        validated_patterns = []
+        for i, pattern in enumerate(include_data):
+            if not isinstance(pattern, str):
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="004",
+                    title="Invalid include pattern type",
+                    details=f"Include pattern at index {i} must be a string, got {type(pattern).__name__}",
+                    suggestions=[
+                        "Ensure all include patterns are strings",
+                        "Quote patterns if they contain special characters",
+                    ],
+                )
+
+            # Validate pattern format
+            if not self._validate_include_pattern(pattern):
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="005",
+                    title="Invalid include pattern",
+                    details=f"Include pattern '{pattern}' is not a valid glob pattern",
+                    suggestions=[
+                        "Use valid glob patterns like '*.yaml', 'bronze_*.yaml', 'dir/**/*.yaml'",
+                        "Avoid empty patterns or invalid regex characters",
+                        "Check pattern syntax for proper glob format",
+                    ],
+                )
+
+            validated_patterns.append(pattern)
+
+        return validated_patterns
+
+    def _validate_include_pattern(self, pattern: str) -> bool:
+        """Validate a single include pattern.
+
+        Args:
+            pattern: The pattern to validate
+
+        Returns:
+            True if pattern is valid, False otherwise
+        """
+        # Import here to avoid circular imports
+        from ..utils.file_pattern_matcher import validate_pattern
+        
+        return validate_pattern(pattern)
 
     def _parse_operational_metadata_config(
         self, metadata_config: Dict[str, Any]

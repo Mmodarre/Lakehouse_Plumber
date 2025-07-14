@@ -1,0 +1,282 @@
+name: json_autoloader_comprehensive
+version: "1.0"
+description: "Comprehensive JSON Auto Loader template with all available options"
+
+parameters:
+  - name: table_name
+    required: true
+    description: "Name of the table to ingest"
+  - name: source_path
+    required: true
+    description: "Path to source files"
+  - name: target_database
+    required: true
+    description: "Target database name"
+  - name: target_table
+    required: true
+    description: "Target table name"
+
+actions:
+  - name: load_{{ table_name }}_json
+    type: load
+    source:
+      type: cloudfiles
+      path: "{{ source_path }}"
+      format: json
+      options:
+        # =============================================================================
+        # COMMON AUTO LOADER OPTIONS
+        # =============================================================================
+        
+        # File format (required)
+        cloudFiles.format: "json"
+        
+        # Whether to allow input directory file changes to overwrite existing data
+        # Default: false
+        cloudFiles.allowOverwrites: false
+        
+        # Auto Loader can trigger asynchronous backfills at a given interval
+        # Example: "1 day" for daily backfills, "1 week" for weekly backfills
+        # Do not use when cloudFiles.useManagedFileEvents is set to true
+        # Default: None
+        # cloudFiles.backfillInterval: "1 day"
+        
+        # Whether to automatically delete processed files from input directory
+        # OFF: no files are deleted (default)
+        # DELETE: files deleted 30 days after processing
+        # MOVE: files moved to specified location after 30 days
+        # Default: OFF
+        cloudFiles.cleanSource: "OFF"
+        
+        # Amount of time to wait before processed files become candidates for cleanup
+        # Must be greater than 7 days for DELETE mode
+        # Default: 30 days
+        cloudFiles.cleanSource.retentionDuration: "30 days"
+        
+        # Path to archive processed files when cleanSource is set to MOVE
+        # Must be in same bucket/container as source
+        # Default: None
+        # cloudFiles.cleanSource.moveDestination: "/path/to/archive"
+        
+        # Whether to include existing files in stream processing or only new files
+        # Only evaluated when starting stream for first time
+        # Default: true
+        cloudFiles.includeExistingFiles: true
+        
+        # Whether to infer exact column types when leveraging schema inference
+        # By default, columns are inferred as strings for JSON and CSV
+        # Default: false
+        cloudFiles.inferColumnTypes: false
+        
+        # Maximum number of files to process in each trigger
+        # Default: 1000
+        cloudFiles.maxFilesPerTrigger: 50
+        
+        # Maximum number of bytes to process in each trigger
+        # Default: None (no limit)
+        # cloudFiles.maxBytesPerTrigger: "1g"
+        
+        # Ignore files with modification timestamps older than this threshold
+        # Format: interval string like "7 days", "1 hour"
+        # Default: None
+        # cloudFiles.ignoreFilesOlderThan: "7 days"
+        
+        # Schema evolution mode for handling new columns
+        # none: disallow schema changes
+        # addNewColumns: allow new columns to be added
+        # rescue: rescue data that doesn't match schema
+        # Default: addNewColumns
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        
+        # Location to store schema information
+        # Default: None (uses checkpoint location)
+        # cloudFiles.schemaLocation: "/path/to/schema"
+        
+        # Whether to collect unparseable data in a separate column
+        # Default: None (rescue column not added)
+        cloudFiles.rescueDataColumn: "_rescued_data"
+        
+        # Whether to use file notifications instead of directory listing
+        # Default: false
+        cloudFiles.useNotifications: false
+        
+        # Whether to use Databricks-managed file events
+        # Default: false
+        # cloudFiles.useManagedFileEvents: false
+        
+        # =============================================================================
+        # DIRECTORY LISTING OPTIONS
+        # =============================================================================
+        
+        # Whether to list files recursively in subdirectories
+        # Default: true
+        recursiveFileLookup: true
+        
+        # Path glob filter for selecting files
+        # Example: "*.json" to only process JSON files
+        # Default: None
+        # pathGlobFilter: "*.json"
+        
+        # Modified before timestamp filter
+        # Format: "yyyy-MM-dd HH:mm:ss"
+        # Default: None
+        # modifiedBefore: "2023-12-31 23:59:59"
+        
+        # Modified after timestamp filter
+        # Format: "yyyy-MM-dd HH:mm:ss"
+        # Default: None
+        # modifiedAfter: "2023-01-01 00:00:00"
+        
+        # =============================================================================
+        # JSON-SPECIFIC OPTIONS
+        # =============================================================================
+        
+        # Whether to allow comments in JSON files
+        # Default: false
+        cloudFiles.allowComments: false
+        
+        # Whether to allow unquoted field names in JSON
+        # Default: false
+        cloudFiles.allowUnquotedFieldNames: false
+        
+        # Whether to allow single quotes in JSON
+        # Default: true
+        cloudFiles.allowSingleQuotes: true
+        
+        # Whether to allow numeric leading zeros in JSON
+        # Default: false
+        cloudFiles.allowNumericLeadingZeros: false
+        
+        # Whether to allow non-numeric numbers (NaN, Infinity) in JSON
+        # Default: true
+        cloudFiles.allowNonNumericNumbers: true
+        
+        # Whether to allow backslash escaping any character in JSON
+        # Default: false
+        cloudFiles.allowBackslashEscapingAnyCharacter: false
+        
+        # Whether to allow unquoted control characters in JSON strings
+        # Default: false
+        cloudFiles.allowUnquotedControlChars: false
+        
+        # Date format for parsing date columns
+        # Default: "yyyy-MM-dd"
+        cloudFiles.dateFormat: "yyyy-MM-dd"
+        
+        # Timestamp format for parsing timestamp columns
+        # Default: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+        cloudFiles.timestampFormat: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+        
+        # Timestamp format for parsing timestamp columns without timezone
+        # Default: "yyyy-MM-dd'T'HH:mm:ss.SSS"
+        cloudFiles.timestampNTZFormat: "yyyy-MM-dd'T'HH:mm:ss.SSS"
+        
+        # Whether to enable multi-line JSON parsing
+        # Default: false
+        cloudFiles.multiline: false
+        
+        # Character set encoding of JSON files
+        # Default: UTF-8
+        cloudFiles.encoding: "UTF-8"
+        
+        # Line separator for JSON files
+        # Default: covers \r, \r\n and \n
+        cloudFiles.lineSep: "\n"
+        
+        # Whether to sample files to infer schema
+        # Default: 1.0 (sample all files)
+        cloudFiles.samplingRatio: 1.0
+        
+        # Whether to drop fields that start with underscore
+        # Default: false
+        cloudFiles.dropFieldIfAllNull: false
+        
+        # Mode for handling corrupt records
+        # PERMISSIVE: corrupt records are stored in _corrupt_record column
+        # DROPMALFORMED: corrupt records are dropped
+        # FAILFAST: exception is thrown when corrupt record is encountered
+        # Default: PERMISSIVE
+        cloudFiles.mode: "PERMISSIVE"
+        
+        # Column name for storing corrupt records (when mode is PERMISSIVE)
+        # Default: "_corrupt_record"
+        cloudFiles.columnNameOfCorruptRecord: "_corrupt_record"
+        
+        # Controls rebasing of DATE and TIMESTAMP values
+        # EXCEPTION: throw exception for dates that need rebasing
+        # LEGACY: use legacy behavior
+        # CORRECTED: use corrected behavior
+        # Default: EXCEPTION
+        cloudFiles.datetimeRebaseMode: "EXCEPTION"
+        
+        # Controls rebasing of INT96 timestamp values (Parquet)
+        # EXCEPTION: throw exception for timestamps that need rebasing
+        # LEGACY: use legacy behavior
+        # CORRECTED: use corrected behavior
+        # Default: EXCEPTION
+        cloudFiles.int96RebaseMode: "EXCEPTION"
+        
+        # Schema hints for column data types
+        # Format: "col1 TYPE1, col2 TYPE2, ..."
+        # Example: "id INT, name STRING, created_at TIMESTAMP"
+        cloudFiles.schemaHints: "id BIGINT, name STRING, created_at TIMESTAMP"
+        
+        # Whether to enable case-sensitive column matching
+        # Default: true
+        readerCaseSensitive: true
+        
+        # Whether to prefer decimal type over double for numeric values
+        # Default: false
+        cloudFiles.preferDecimal: false
+        
+        # Prefix for column names when flattening nested JSON
+        # Default: None
+        # cloudFiles.primitivesAsString: false
+        
+        # Whether to parse primitive values as strings
+        # Default: false
+        cloudFiles.primitivesAsString: false
+        
+        # Whether to allow empty files
+        # Default: true
+        cloudFiles.allowEmptyFiles: true
+        
+        # =============================================================================
+        # CLOUD-SPECIFIC OPTIONS (AWS Example)
+        # =============================================================================
+        
+        # AWS region where source S3 bucket resides
+        # Default: region of EC2 instance
+        # cloudFiles.region: "us-east-1"
+        
+        # URL of existing SQS queue for notifications
+        # Default: None
+        # cloudFiles.queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
+        
+        # Databricks service credential name
+        # Default: None
+        # databricks.serviceCredential: "my-service-credential"
+        
+        # AWS authentication options (when service credentials not available)
+        # cloudFiles.awsAccessKey: "YOUR_ACCESS_KEY"
+        # cloudFiles.awsSecretKey: "YOUR_SECRET_KEY"
+        # cloudFiles.roleArn: "arn:aws:iam::123456789012:role/MyRole"
+        # cloudFiles.roleExternalId: "external-id"
+        # cloudFiles.roleSessionName: "session-name"
+        # cloudFiles.stsEndpoint: "https://sts.amazonaws.com"
+        
+    target: v_{{ table_name }}_raw
+    description: "Load {{ table_name }} JSON files with comprehensive Auto Loader options"
+
+  - name: write_{{ table_name }}_target
+    type: write
+    source: v_{{ table_name }}_raw
+    write_target:
+      type: streaming_table
+      database: "{{ target_database }}"
+      table: "{{ target_table }}"
+      comment: "Streaming table for {{ table_name }} loaded via Auto Loader"
+      table_properties:
+        "delta.autoOptimize.optimizeWrite": "true"
+        "delta.enableChangeDataFeed": "true"
+      description: "Write {{ table_name }} to streaming table with Auto Loader" 

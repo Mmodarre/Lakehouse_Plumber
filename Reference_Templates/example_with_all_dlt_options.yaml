@@ -1,0 +1,477 @@
+# Example YAML configuration showing all new DLT table options
+# This demonstrates the complete feature set for all load types, transforms, and write targets
+
+pipeline: "comprehensive_dlt_example"
+flowgroup: "comprehensive_pipeline"
+operational_metadata: true
+
+actions:
+  # ==================================================================================
+  # LOAD ACTIONS - Examples for every supported load type
+  # ==================================================================================
+  
+  # 1. CloudFiles (Auto Loader) - Most comprehensive load type
+  - name: "load_sales_cloudfiles"
+    type: "load"
+    readMode: "stream"  # CloudFiles requires stream mode
+    source:
+      type: "cloudfiles"
+      path: "/mnt/data/sales"
+      format: "csv"
+      
+      # Modern options approach (recommended)
+      options:
+        cloudFiles.inferColumnTypes: "true"
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.maxFilesPerTrigger: "1000"
+        cloudFiles.rescueDataColumn: "_rescued_data"
+        cloudFiles.includeExistingFiles: "false"
+        cloudFiles.useIncrementalListing: "true"
+        cloudFiles.schemaHints: "customer_id BIGINT, product_id STRING, amount DECIMAL(18,2), transaction_date TIMESTAMP, region STRING"
+        
+        # CSV-specific options
+        csv.header: "true"
+        csv.delimiter: ","
+        csv.quote: "\""
+        csv.escape: "\\"
+        csv.multiLine: "false"
+        csv.timestampFormat: "yyyy-MM-dd HH:mm:ss"
+        csv.dateFormat: "yyyy-MM-dd"
+    target: "v_sales_raw"
+    description: "Load raw sales data from CSV files using Auto Loader"
+  
+  # 2. CloudFiles with JSON format and schema file
+  - name: "load_events_json"
+    type: "load"
+    readMode: "stream"
+    source:
+      type: "cloudfiles"
+      path: "/mnt/data/events"
+      format: "json"
+      schema: "schemas/events_schema.yaml"  # Reference to schema file
+      options:
+        cloudFiles.schemaLocation: "/checkpoints/events_schema"
+        cloudFiles.schemaEvolutionMode: "rescue"
+        cloudFiles.rescueDataColumn: "_rescued_data"
+        cloudFiles.maxBytesPerTrigger: "1g"
+    target: "v_events_raw"
+    description: "Load JSON events with schema evolution"
+  
+  # 3. CloudFiles with Parquet format (minimal configuration)
+  - name: "load_transactions_parquet"
+    type: "load"
+    readMode: "stream"
+    source:
+      type: "cloudfiles"
+      path: "/mnt/data/transactions"
+      format: "parquet"
+      options:
+        cloudFiles.schemaLocation: "/checkpoints/transactions_schema"
+        cloudFiles.maxFilesPerTrigger: "500"
+    target: "v_transactions_raw"
+    description: "Load Parquet transaction files"
+  
+  # 4. Delta table load (batch mode)
+  - name: "load_customers_delta"
+    type: "load"
+    readMode: "batch"
+    source:
+      type: "delta"
+      table: "customers"
+      database: "bronze"
+      catalog: "main"
+      # Alternative: path: "/mnt/data/delta/customers"
+      where_clause: "status = 'active' AND created_date >= '2023-01-01'"
+      select_columns: ["customer_id", "name", "email", "status", "created_date", "region"]
+      reader_options:
+        versionAsOf: "10"
+        # Alternative: timestampAsOf: "2023-12-01 00:00:00"
+    target: "v_customers_active"
+    description: "Load active customers from Delta table with version"
+  
+  # 5. Delta table with CDC (Change Data Feed)
+  - name: "load_orders_cdc"
+    type: "load"
+    readMode: "stream"  # CDC requires stream mode
+    source:
+      type: "delta"
+      table: "orders"
+      database: "bronze"
+      catalog: "main"
+      cdf_enabled: true  # Enable Change Data Feed
+      cdc_options:
+        starting_version: "0"
+        # Alternative: starting_timestamp: "2023-01-01 00:00:00"
+    target: "v_orders_changes"
+    description: "Stream order changes using Delta Change Data Feed"
+  
+  # 6. SQL query load (inline SQL)
+  - name: "load_sales_summary"
+    type: "load"
+    readMode: "batch"
+    source:
+      type: "sql"
+      sql: |
+        SELECT 
+          region,
+          product_category,
+          SUM(amount) as total_sales,
+          COUNT(*) as transaction_count,
+          AVG(amount) as avg_amount
+        FROM bronze.sales_raw
+        WHERE transaction_date >= current_date() - INTERVAL 30 DAYS
+        GROUP BY region, product_category
+    target: "v_sales_summary_30d"
+    description: "Load 30-day sales summary using SQL query"
+  
+  # 7. SQL query load (external SQL file)
+  - name: "load_customer_metrics"
+    type: "load"
+    readMode: "batch"
+    source:
+      type: "sql"
+      sql_path: "sql/customer_metrics.sql"  # Reference to external SQL file
+    target: "v_customer_metrics"
+    description: "Load customer metrics from external SQL file"
+  
+  # 8. JDBC connection (with secrets)
+  - name: "load_external_customers"
+    type: "load"
+    readMode: "batch"
+    source:
+      type: "jdbc"
+      url: "jdbc:postgresql://db.example.com:5432/production"
+      driver: "org.postgresql.Driver"
+      user: "${secret:database/username}"  # Secret reference
+      password: "${secret:database/password}"  # Secret reference
+      query: |
+        SELECT 
+          customer_id,
+          first_name,
+          last_name,
+          email,
+          registration_date,
+          country
+        FROM customers 
+        WHERE status = 'active'
+        AND registration_date >= CURRENT_DATE - INTERVAL '7 days'
+      # Alternative: table: "customers"
+    target: "v_external_customers"
+    description: "Load customers from external PostgreSQL database"
+  
+  # 9. JDBC with table reference (simpler)
+  - name: "load_external_products"
+    type: "load"
+    readMode: "batch"
+    source:
+      type: "jdbc"
+      url: "jdbc:mysql://mysql.example.com:3306/catalog"
+      driver: "com.mysql.cj.jdbc.Driver"
+      user: "${secret:mysql/username}"
+      password: "${secret:mysql/password}"
+      table: "products"
+    target: "v_external_products"
+    description: "Load products table from external MySQL database"
+  
+  # 10. Python function load
+  - name: "load_api_data"
+    type: "load"
+    readMode: "batch"
+    source:
+      type: "python"
+      function: "extract_api_data"
+      file: "extractors/api_extractor.py"
+      # The Python file should contain a function that returns a DataFrame or SQL query
+    target: "v_api_data"
+    description: "Load data using custom Python extraction function"
+  
+  # ==================================================================================
+  # TRANSFORM ACTIONS - Examples for different transform types
+  # ==================================================================================
+  
+  # SQL Transform
+  - name: "transform_sales_enriched"
+    type: "transform"
+    transform_type: "sql"
+    source: "v_sales_raw"
+    target: "v_sales_enriched"
+    sql: |
+      SELECT 
+        s.*,
+        c.name as customer_name,
+        c.segment as customer_segment,
+        p.category as product_category,
+        p.unit_price,
+        s.amount / p.unit_price as quantity
+      FROM v_sales_raw s
+      LEFT JOIN v_customers_active c ON s.customer_id = c.customer_id
+      LEFT JOIN v_external_products p ON s.product_id = p.product_id
+      WHERE s.amount > 0
+    description: "Enrich sales data with customer and product information"
+  
+  # Data Quality Transform
+  - name: "validate_sales_quality"
+    type: "transform"
+    transform_type: "data_quality"
+    source: "v_sales_enriched"
+    target: "v_sales_validated"
+    expectations_file: "expectations/sales_expectations.yaml"
+    description: "Apply data quality checks to sales data"
+  
+  # Schema enforcement transform
+  - name: "enforce_sales_schema"
+    type: "transform"
+    transform_type: "schema"
+    source: "v_sales_validated"
+    target: "v_sales_final"
+    sql: |
+      customer_id BIGINT NOT NULL,
+      product_id STRING NOT NULL,
+      amount DECIMAL(18,2) NOT NULL,
+      quantity DECIMAL(10,3),
+      transaction_date TIMESTAMP NOT NULL,
+      customer_name STRING,
+      customer_segment STRING,
+      product_category STRING,
+      region STRING NOT NULL
+    description: "Enforce final schema for sales data"
+  
+  # ==================================================================================
+  # WRITE ACTIONS - Examples with all DLT table options
+  # ==================================================================================
+  
+  # Streaming table with comprehensive configuration
+  - name: "write_sales_streaming"
+    type: "write"
+    source: "v_sales_final"
+    write_target:
+      type: "streaming_table"
+      database: "{catalog}.{silver_schema}"
+      table: "sales_transactions"
+      
+      # DLT table options
+      spark_conf:
+        spark.sql.streaming.checkpointLocation: "/checkpoints/sales_streaming"
+        spark.sql.streaming.stateStore.providerClass: "RocksDBStateStoreProvider"
+        spark.sql.adaptive.enabled: "true"
+        spark.sql.adaptive.coalescePartitions.enabled: "true"
+        spark.sql.adaptive.skewJoin.enabled: "true"
+      
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        delta.autoOptimize.optimizeWrite: "true"
+        delta.autoOptimize.autoCompact: "true"
+        delta.tuneFileSizesForRewrites: "true"
+        custom.data.owner: "data_engineering"
+        custom.data.classification: "internal"
+        custom.retention.days: "2555"  # 7 years
+      
+      # Schema definition (using new field name)
+      table_schema: |
+        customer_id BIGINT NOT NULL,
+        product_id STRING NOT NULL,
+        amount DECIMAL(18,2) NOT NULL,
+        quantity DECIMAL(10,3),
+        transaction_date TIMESTAMP NOT NULL,
+        customer_name STRING,
+        customer_segment STRING,
+        product_category STRING,
+        region STRING NOT NULL,
+        processing_timestamp TIMESTAMP GENERATED ALWAYS AS (current_timestamp()),
+        _metadata STRUCT<
+          file_path: STRING,
+          file_name: STRING,
+          file_size: BIGINT,
+          file_modification_time: TIMESTAMP
+        >
+      
+      # Row-level security
+      row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
+      
+      # Partitioning and clustering
+      partition_columns: ["region", "DATE(transaction_date)"]
+      cluster_columns: ["customer_id", "product_id"]
+      
+      # Custom storage location
+      path: "/mnt/data/silver/sales_transactions"
+      
+      # Table comment
+      comment: "Validated sales transactions with customer and product enrichment"
+    
+    description: "Write enriched sales data to streaming table with full DLT options"
+  
+  # Materialized view with comprehensive configuration
+  - name: "create_daily_sales_summary"
+    type: "write"
+    write_target:
+      type: "materialized_view"
+      database: "{catalog}.{gold_schema}"
+      table: "daily_sales_summary"
+      
+      # Spark configuration for materialized view
+      spark_conf:
+        spark.sql.adaptive.enabled: "true"
+        spark.sql.adaptive.coalescePartitions.enabled: "true"
+        spark.sql.adaptive.skewJoin.enabled: "true"
+        spark.sql.adaptive.localShuffleReader.enabled: "true"
+        spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes: "256MB"
+      
+      # Table properties for materialized view
+      table_properties:
+        delta.autoOptimize.optimizeWrite: "true"
+        delta.autoOptimize.autoCompact: "true"
+        delta.enableChangeDataFeed: "false"
+        custom.data.owner: "analytics_team"
+        custom.refresh.frequency: "daily"
+        custom.business.domain: "sales_analytics"
+      
+      # Schema definition for the materialized view
+      table_schema: |
+        region STRING NOT NULL,
+        product_category STRING NOT NULL,
+        transaction_date DATE NOT NULL,
+        total_sales DECIMAL(18,2) NOT NULL,
+        total_quantity DECIMAL(10,3) NOT NULL,
+        transaction_count BIGINT NOT NULL,
+        unique_customers BIGINT NOT NULL,
+        avg_transaction_amount DECIMAL(18,2) NOT NULL,
+        min_transaction_amount DECIMAL(18,2) NOT NULL,
+        max_transaction_amount DECIMAL(18,2) NOT NULL,
+        created_timestamp TIMESTAMP GENERATED ALWAYS AS (current_timestamp())
+      
+      # Row filter for materialized view
+      row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
+      
+      # Partitioning and clustering for materialized view
+      partition_columns: ["region", "transaction_date"]
+      cluster_columns: ["product_category"]
+      
+      # Custom storage location
+      path: "/mnt/data/gold/daily_sales_summary"
+      
+      # Refresh schedule for materialized view
+      refresh_schedule: "@daily"
+      
+      # SQL query for the materialized view
+      sql: |
+        SELECT 
+          region,
+          product_category,
+          DATE(transaction_date) as transaction_date,
+          ROUND(SUM(amount), 2) as total_sales,
+          ROUND(SUM(quantity), 3) as total_quantity,
+          COUNT(*) as transaction_count,
+          COUNT(DISTINCT customer_id) as unique_customers,
+          ROUND(AVG(amount), 2) as avg_transaction_amount,
+          ROUND(MIN(amount), 2) as min_transaction_amount,
+          ROUND(MAX(amount), 2) as max_transaction_amount
+        FROM {catalog}.{silver_schema}.sales_transactions
+        WHERE transaction_date >= current_date() - INTERVAL 90 DAYS
+        GROUP BY 
+          region, 
+          product_category, 
+          DATE(transaction_date)
+        HAVING total_sales > 0
+      
+      comment: "Daily sales summary by region and product category (90-day rolling window)"
+    
+    description: "Create daily sales summary materialized view with comprehensive DLT options"
+  
+  # Streaming table with CDC configuration
+  - name: "write_customer_changes"
+    type: "write"
+    source: "v_external_customers"
+    write_target:
+      type: "streaming_table"
+      database: "{catalog}.{silver_schema}"
+      table: "customer_changes"
+      mode: "cdc"
+      
+      # CDC configuration
+      cdc_config:
+        keys: ["customer_id"]
+        sequence_by: "registration_date"
+        scd_type: 2
+        ignore_null_updates: false
+        apply_as_deletes: "status = 'deleted'"
+        track_history_columns: ["email", "country", "status"]
+      
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        delta.autoOptimize.optimizeWrite: "true"
+        custom.data.source: "external_postgresql"
+      
+      # CDC requires specific schema with history tracking columns
+      table_schema: |
+        customer_id BIGINT NOT NULL,
+        first_name STRING,
+        last_name STRING,
+        email STRING,
+        registration_date TIMESTAMP,
+        country STRING,
+        status STRING,
+        __START_AT TIMESTAMP,
+        __END_AT TIMESTAMP
+      
+      partition_columns: ["country"]
+      cluster_columns: ["customer_id"]
+      
+      comment: "Customer changes with SCD Type 2 history tracking"
+    
+    description: "Track customer changes with CDC and SCD Type 2"
+  
+  # Temporary table for analysis
+  - name: "create_temp_regional_analysis"
+    type: "write"
+    source: "v_sales_final"
+    write_target:
+      type: "streaming_table"
+      database: "sandbox"
+      table: "temp_regional_analysis"
+      
+      # Minimal configuration for temporary table
+      spark_conf:
+        spark.sql.adaptive.enabled: "true"
+      
+      table_properties:
+        delta.enableChangeDataFeed: "false"
+        custom.data.purpose: "temporary_analysis"
+        custom.data.retention: "7_days"
+      
+      # Mark as temporary - won't be published to metastore
+      temporary: true
+      
+      # Simple schema for analysis
+      table_schema: |
+        region STRING NOT NULL,
+        customer_segment STRING,
+        total_amount DECIMAL(18,2),
+        transaction_count BIGINT,
+        analysis_date DATE
+      
+      comment: "Temporary table for regional sales analysis"
+    
+    description: "Create temporary table for regional analysis (not published to metastore)"
+  
+  # Write target with multiple source append flows
+  - name: "write_combined_metrics"
+    type: "write"
+    source: 
+      - "v_sales_summary_30d"
+      - "v_customer_metrics"
+    write_target:
+      type: "streaming_table"
+      database: "{catalog}.{gold_schema}"
+      table: "combined_business_metrics"
+      create_table: false  # This assumes another action creates the table
+      
+      spark_conf:
+        spark.sql.adaptive.enabled: "true"
+      
+      table_properties:
+        delta.autoOptimize.optimizeWrite: "true"
+        custom.data.source: "multiple_aggregations"
+      
+      comment: "Combined business metrics from multiple sources"
+    
+    description: "Append multiple metric sources to combined metrics table" 

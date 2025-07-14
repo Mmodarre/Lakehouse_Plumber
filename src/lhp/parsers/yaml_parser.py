@@ -40,10 +40,29 @@ class YAMLParser:
         content = self.parse_file(file_path)
         return Preset(**content)
 
-    def discover_flowgroups(self, pipelines_dir: Path) -> List[FlowGroup]:
-        """Discover all FlowGroup files in pipelines directory."""
+    def discover_flowgroups(self, pipelines_dir: Path, include_patterns: List[str] = None) -> List[FlowGroup]:
+        """Discover all FlowGroup files in pipelines directory.
+        
+        Args:
+            pipelines_dir: Directory containing flowgroup YAML files
+            include_patterns: Optional list of glob patterns to filter files
+            
+        Returns:
+            List of discovered flowgroups
+        """
         flowgroups = []
-        for yaml_file in pipelines_dir.rglob("*.yaml"):
+        
+        if include_patterns:
+            # Use include filtering
+            from ..utils.file_pattern_matcher import discover_files_with_patterns
+            yaml_files = discover_files_with_patterns(pipelines_dir, include_patterns)
+        else:
+            # No include patterns, discover all YAML files (backwards compatibility)
+            yaml_files = []
+            yaml_files.extend(pipelines_dir.rglob("*.yaml"))
+            yaml_files.extend(pipelines_dir.rglob("*.yml"))
+        
+        for yaml_file in yaml_files:
             if yaml_file.is_file():
                 try:
                     flowgroup = self.parse_flowgroup(yaml_file)

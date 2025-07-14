@@ -161,10 +161,10 @@ class TestCLI:
                 # Change to project directory
                 os.chdir(project_name)
                 
-                # Now test validate (will fail because no pipelines, but should reach that stage)
+                # Now test validate (will fail because no flowgroups, but should reach that stage)
                 result = self.runner.invoke(cli, ['validate', '--env', 'dev'])
-                assert result.exit_code == 1  # Expected to fail with no pipelines
-                assert "No pipelines found" in result.output
+                assert result.exit_code == 1  # Expected to fail with no flowgroups
+                assert "No flowgroups found in project" in result.output
             finally:
                 os.chdir(original_cwd)
     
@@ -183,10 +183,10 @@ class TestCLI:
                 # Change to project directory
                 os.chdir(project_name)
                 
-                # Now test generate (will fail because no pipelines, but should reach that stage)
+                # Now test generate (will fail because no flowgroups, but should reach that stage)
                 result = self.runner.invoke(cli, ['generate', '--env', 'dev'])
-                assert result.exit_code == 1  # Expected to fail with no pipelines
-                assert "No pipelines found" in result.output
+                assert result.exit_code == 1  # Expected to fail with no flowgroups
+                assert "No flowgroups found in project" in result.output
             finally:
                 os.chdir(original_cwd)
     

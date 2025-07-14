@@ -296,6 +296,32 @@ class ConfigValidator:
 
         return errors
 
+    def validate_duplicate_pipeline_flowgroup(self, flowgroups: List[FlowGroup]) -> List[str]:
+        """Validate that there are no duplicate pipeline+flowgroup combinations.
+        
+        Args:
+            flowgroups: List of all flowgroups to validate
+            
+        Returns:
+            List of validation error messages
+        """
+        errors = []
+        seen_combinations = set()
+        
+        for flowgroup in flowgroups:
+            # Create a unique key from pipeline and flowgroup
+            combination_key = f"{flowgroup.pipeline}.{flowgroup.flowgroup}"
+            
+            if combination_key in seen_combinations:
+                errors.append(
+                    f"Duplicate pipeline+flowgroup combination: '{combination_key}'. "
+                    f"Each pipeline+flowgroup combination must be unique across all YAML files."
+                )
+            else:
+                seen_combinations.add(combination_key)
+                
+        return errors
+
     def _get_full_table_name(
         self, write_target: Union[Dict[str, Any], "WriteTarget"]
     ) -> Optional[str]:
