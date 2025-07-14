@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.2.7"
+version = "0.2.11"
 description = "A tool for building and managing data lakehouse pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -66,6 +66,10 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "lhp.schemas" = ["*.json", "*.md"]
+"lhp.templates" = ["*.j2"]
+"lhp.templates.load" = ["*.j2"]
+"lhp.templates.transform" = ["*.j2"]
+"lhp.templates.write" = ["*.j2"]
 
 
 
