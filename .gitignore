@@ -18,3 +18,4 @@ ERROR_REFERENCE.md
 UNTESTED_LOGIC_ANALYSIS.md
 docs/
 .readthedocs.yaml
+publish.sh

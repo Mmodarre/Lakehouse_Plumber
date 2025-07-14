@@ -52,7 +52,7 @@ def get_version():
             pass
 
         # Final fallback
-        return "0.2.6"
+        return "0.2.11"
 
 
 # Configure logging
