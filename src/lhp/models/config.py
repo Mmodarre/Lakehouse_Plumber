@@ -73,6 +73,7 @@ class ProjectConfig(BaseModel):
     description: Optional[str] = None
     author: Optional[str] = None
     created_date: Optional[str] = None
+    include: Optional[List[str]] = None
     operational_metadata: Optional[ProjectOperationalMetadataConfig] = None
 
 

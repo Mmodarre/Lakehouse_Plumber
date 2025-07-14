@@ -1,0 +1,36 @@
+# Standard ingestion template
+name: standard_ingestion
+version: "1.0"
+description: "Template for standard data ingestion pattern"
+parameters:
+  - name: source_path
+    type: string
+    required: true
+    description: "Path to source data files"
+  - name: table_name
+    type: string
+    required: true
+    description: "Target table name"
+  - name: file_format
+    type: string
+    default: "json"
+    description: "Source file format"
+
+actions:
+  - name: load_{{ table_name }}_raw
+    type: load
+    target: v_{{ table_name }}_raw
+    source:
+      type: cloudfiles
+      path: "{{ source_path }}"
+      format: "{{ file_format }}"
+    description: "Load raw {{ table_name }} data"
+  
+  - name: write_{{ table_name }}
+    type: write
+    source:
+      type: streaming_table
+      database: bronze
+      table: "{{ table_name }}"
+      view: v_{{ table_name }}_raw
+    description: "Write to bronze {{ table_name }} table"

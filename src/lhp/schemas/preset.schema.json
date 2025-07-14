@@ -1,0 +1,156 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LakehousePlumber Preset",
+    "description": "Schema for LakehousePlumber preset files",
+    "type": "object",
+    "required": ["name"],
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Name of the preset"
+        },
+        "version": {
+            "type": "string",
+            "default": "1.0",
+            "description": "Version of the preset"
+        },
+        "extends": {
+            "type": "string",
+            "description": "Name of parent preset to extend"
+        },
+        "description": {
+            "type": "string",
+            "description": "Description of the preset"
+        },
+        "defaults": {
+            "type": "object",
+            "description": "Default configuration values",
+            "properties": {
+                "load_actions": {
+                    "type": "object",
+                    "description": "Default settings for load actions",
+                    "properties": {
+                        "cloudfiles": {
+                            "type": "object",
+                            "description": "Default CloudFiles settings",
+                            "additionalProperties": true
+                        },
+                        "delta": {
+                            "type": "object",
+                            "description": "Default Delta settings",
+                            "additionalProperties": true
+                        },
+                        "sql": {
+                            "type": "object",
+                            "description": "Default SQL settings",
+                            "additionalProperties": true
+                        },
+                        "python": {
+                            "type": "object",
+                            "description": "Default Python settings",
+                            "additionalProperties": true
+                        },
+                        "jdbc": {
+                            "type": "object",
+                            "description": "Default JDBC settings",
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "transform_actions": {
+                    "type": "object",
+                    "description": "Default settings for transform actions",
+                    "properties": {
+                        "sql": {
+                            "type": "object",
+                            "description": "Default SQL transform settings",
+                            "additionalProperties": true
+                        },
+                        "python": {
+                            "type": "object",
+                            "description": "Default Python transform settings",
+                            "additionalProperties": true
+                        },
+                        "data_quality": {
+                            "type": "object",
+                            "description": "Default data quality settings",
+                            "additionalProperties": true
+                        },
+                        "temp_table": {
+                            "type": "object",
+                            "description": "Default temp table settings",
+                            "additionalProperties": true
+                        },
+                        "schema": {
+                            "type": "object",
+                            "description": "Default schema transform settings",
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "write_actions": {
+                    "type": "object",
+                    "description": "Default settings for write actions",
+                    "properties": {
+                        "streaming_table": {
+                            "type": "object",
+                            "description": "Default streaming table settings",
+                            "properties": {
+                                "table_properties": {
+                                    "type": "object",
+                                    "description": "Default table properties",
+                                    "additionalProperties": true
+                                },
+                                "spark_conf": {
+                                    "type": "object",
+                                    "description": "Default Spark configuration",
+                                    "additionalProperties": true
+                                }
+                            },
+                            "additionalProperties": true
+                        },
+                        "materialized_view": {
+                            "type": "object",
+                            "description": "Default materialized view settings",
+                            "properties": {
+                                "table_properties": {
+                                    "type": "object",
+                                    "description": "Default table properties",
+                                    "additionalProperties": true
+                                },
+                                "spark_conf": {
+                                    "type": "object",
+                                    "description": "Default Spark configuration",
+                                    "additionalProperties": true
+                                }
+                            },
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "operational_metadata": {
+                    "type": "object",
+                    "description": "Default operational metadata settings",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Whether operational metadata is enabled by default"
+                        },
+                        "preset": {
+                            "type": "string",
+                            "description": "Default operational metadata preset"
+                        },
+                        "columns": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Default operational metadata columns"
+                        }
+                    }
+                }
+            },
+            "additionalProperties": true
+        }
+    }
+} 

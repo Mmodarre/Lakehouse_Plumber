@@ -1,0 +1,502 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LakehousePlumber FlowGroup",
+    "description": "Schema for LakehousePlumber pipeline configuration files",
+    "type": "object",
+    "required": ["pipeline", "flowgroup"],
+    "properties": {
+        "pipeline": {
+            "type": "string",
+            "description": "Name of the pipeline this flowgroup belongs to"
+        },
+        "flowgroup": {
+            "type": "string",
+            "description": "Name of the flowgroup"
+        },
+        "presets": {
+            "type": "array",
+            "description": "List of preset names to apply",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "use_template": {
+            "type": "string",
+            "description": "Name of the template to use"
+        },
+        "template_parameters": {
+            "type": "object",
+            "description": "Parameters to pass to the template",
+            "additionalProperties": true
+        },
+        "actions": {
+            "type": "array",
+            "description": "List of actions to perform",
+            "items": {
+                "$ref": "#/definitions/Action"
+            },
+            "default": []
+        },
+        "operational_metadata": {
+            "oneOf": [
+                {
+                    "type": "boolean"
+                },
+                {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            ],
+            "description": "Operational metadata configuration"
+        }
+    },
+    "definitions": {
+        "Action": {
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the action"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": ["load", "transform", "write"],
+                    "description": "Type of action"
+                },
+                "source": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "oneOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "enum": ["cloudfiles", "delta", "sql", "python", "jdbc"]
+                                },
+                                "path": {
+                                    "type": "string",
+                                    "description": "Path to data files"
+                                },
+                                "format": {
+                                    "type": "string",
+                                    "enum": ["json", "parquet", "csv", "avro", "orc", "text", "binaryfile", "xml"],
+                                    "description": "File format"
+                                },
+                                "database": {
+                                    "type": "string",
+                                    "description": "Database name"
+                                },
+                                "table": {
+                                    "type": "string",
+                                    "description": "Table name"
+                                },
+                                "catalog": {
+                                    "type": "string",
+                                    "description": "Catalog name"
+                                },
+                                "sql": {
+                                    "type": "string",
+                                    "description": "SQL query"
+                                },
+                                "sql_path": {
+                                    "type": "string",
+                                    "description": "Path to SQL file"
+                                },
+                                "url": {
+                                    "type": "string",
+                                    "description": "JDBC URL"
+                                },
+                                "user": {
+                                    "type": "string",
+                                    "description": "Database user"
+                                },
+                                "password": {
+                                    "type": "string",
+                                    "description": "Database password"
+                                },
+                                "driver": {
+                                    "type": "string",
+                                    "description": "JDBC driver"
+                                },
+                                "query": {
+                                    "type": "string",
+                                    "description": "SQL query for JDBC"
+                                },
+                                "module_path": {
+                                    "type": "string",
+                                    "description": "Python module path"
+                                },
+                                "function_name": {
+                                    "type": "string",
+                                    "description": "Python function name"
+                                },
+                                "parameters": {
+                                    "type": "object",
+                                    "description": "Parameters for Python source",
+                                    "additionalProperties": true
+                                },
+                                "options": {
+                                    "type": "object",
+                                    "description": "Reader options",
+                                    "additionalProperties": true
+                                },
+                                "reader_options": {
+                                    "type": "object",
+                                    "description": "Reader-specific options",
+                                    "additionalProperties": true
+                                },
+                                "format_options": {
+                                    "type": "object",
+                                    "description": "Format-specific options",
+                                    "additionalProperties": true
+                                },
+                                "schema": {
+                                    "type": "string",
+                                    "description": "Schema definition"
+                                },
+                                "schema_file": {
+                                    "type": "string",
+                                    "description": "Path to schema file"
+                                },
+                                "readMode": {
+                                    "type": "string",
+                                    "enum": ["batch", "stream"],
+                                    "description": "Read mode"
+                                },
+                                "schema_location": {
+                                    "type": "string",
+                                    "description": "Schema location"
+                                },
+                                "schema_infer_column_types": {
+                                    "type": "boolean",
+                                    "description": "Whether to infer column types"
+                                },
+                                "max_files_per_trigger": {
+                                    "type": "integer",
+                                    "description": "Maximum files per trigger"
+                                },
+                                "schema_evolution_mode": {
+                                    "type": "string",
+                                    "enum": ["addNewColumns", "rescue", "failOnNewColumns"],
+                                    "description": "Schema evolution mode"
+                                },
+                                "rescue_data_column": {
+                                    "type": "string",
+                                    "description": "Column for rescued data"
+                                },
+                                "cdf_enabled": {
+                                    "type": "boolean",
+                                    "description": "Whether change data feed is enabled"
+                                },
+                                "read_change_feed": {
+                                    "type": "boolean",
+                                    "description": "Whether to read change feed"
+                                },
+                                "cdc_options": {
+                                    "type": "object",
+                                    "description": "CDC options",
+                                    "additionalProperties": true
+                                },
+                                "where_clause": {
+                                    "type": "string",
+                                    "description": "WHERE clause for filtering"
+                                },
+                                "select_columns": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Columns to select"
+                                }
+                            }
+                        }
+                    ],
+                    "description": "Source configuration for the action"
+                },
+                "target": {
+                    "type": "string",
+                    "description": "Target view or table name"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of the action"
+                },
+                "readMode": {
+                    "type": "string",
+                    "enum": ["batch", "stream"],
+                    "description": "Read mode: 'batch' or 'stream'"
+                },
+                "write_target": {
+                    "$ref": "#/definitions/WriteTarget",
+                    "description": "Write target configuration"
+                },
+                "transform_type": {
+                    "type": "string",
+                    "enum": ["sql", "python", "data_quality", "temp_table", "schema"],
+                    "description": "Type of transformation"
+                },
+                "sql": {
+                    "type": "string",
+                    "description": "SQL query for the action"
+                },
+                "sql_path": {
+                    "type": "string",
+                    "description": "Path to SQL file"
+                },
+                "operational_metadata": {
+                    "oneOf": [
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "description": "Operational metadata configuration"
+                },
+                "expectations_file": {
+                    "type": "string",
+                    "description": "Path to expectations file for data quality transforms"
+                },
+                "once": {
+                    "type": "boolean",
+                    "description": "Whether this is a one-time flow/backfill"
+                },
+                "module_path": {
+                    "type": "string",
+                    "description": "Path to Python module for Python transforms"
+                },
+                "function_name": {
+                    "type": "string",
+                    "description": "Function name for Python transforms"
+                },
+                "parameters": {
+                    "type": "object",
+                    "description": "Parameters for Python transforms",
+                    "additionalProperties": true
+                },
+                "schema_file": {
+                    "type": "string",
+                    "description": "Path to schema file for schema transforms"
+                },
+                "schema_path": {
+                    "type": "string",
+                    "description": "Path to schema file (alternative to schema_file)"
+                }
+            }
+        },
+        "WriteTarget": {
+            "type": "object",
+            "required": ["type", "database", "table"],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["streaming_table", "materialized_view"],
+                    "description": "Type of write target"
+                },
+                "database": {
+                    "type": "string",
+                    "description": "Target database name"
+                },
+                "table": {
+                    "type": "string",
+                    "description": "Target table name"
+                },
+                "create_table": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether to create the table"
+                },
+                "comment": {
+                    "type": "string",
+                    "description": "Table comment"
+                },
+                "table_properties": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Table properties"
+                },
+                "partition_columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Partition columns"
+                },
+                "cluster_columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Cluster columns"
+                },
+                "spark_conf": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Spark configuration"
+                },
+                "schema": {
+                    "type": "string",
+                    "description": "Table schema"
+                },
+                "table_schema": {
+                    "type": "string",
+                    "description": "Table schema (deprecated, use 'schema')"
+                },
+                "row_filter": {
+                    "type": "string",
+                    "description": "Row filter expression"
+                },
+                "temporary": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether the table is temporary"
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Table path"
+                },
+                "refresh_schedule": {
+                    "type": "string",
+                    "description": "Refresh schedule for materialized views"
+                },
+                "sql": {
+                    "type": "string",
+                    "description": "SQL query for materialized views"
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["cdc", "snapshot_cdc"],
+                    "description": "Table mode for CDC operations"
+                },
+                "cdc_config": {
+                    "type": "object",
+                    "description": "CDC configuration for change data capture",
+                    "properties": {
+                        "keys": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Primary key columns for CDC"
+                        },
+                        "sequence_by": {
+                            "type": "string",
+                            "description": "Column to sequence changes by"
+                        },
+                        "ignore_null_updates": {
+                            "type": "boolean",
+                            "description": "Whether to ignore null updates"
+                        },
+                        "apply_as_deletes": {
+                            "type": "string",
+                            "description": "Expression to identify delete records"
+                        },
+                        "apply_as_truncates": {
+                            "type": "string",
+                            "description": "Expression to identify truncate records"
+                        },
+                        "except_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to exclude from change detection"
+                        },
+                        "stored_as_scd_type": {
+                            "type": "string",
+                            "enum": ["1", "2"],
+                            "description": "SCD type for storage"
+                        },
+                        "track_history_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to track history for"
+                        },
+                        "track_history_except_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to exclude from history tracking"
+                        }
+                    }
+                },
+                "snapshot_cdc_config": {
+                    "type": "object",
+                    "description": "Snapshot CDC configuration",
+                    "properties": {
+                        "source": {
+                            "type": "string",
+                            "description": "Source table for snapshot CDC"
+                        },
+                        "source_function": {
+                            "type": "object",
+                            "description": "Source function configuration",
+                            "properties": {
+                                "file": {
+                                    "type": "string",
+                                    "description": "File containing the source function"
+                                },
+                                "function": {
+                                    "type": "string",
+                                    "description": "Function name"
+                                }
+                            }
+                        },
+                        "keys": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Primary key columns"
+                        },
+                        "stored_as_scd_type": {
+                            "type": "string",
+                            "enum": ["1", "2"],
+                            "description": "SCD type for storage"
+                        },
+                        "track_history_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to track history for"
+                        },
+                        "track_history_except_column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to exclude from history tracking"
+                        }
+                    }
+                }
+            }
+        }
+    }
+} 

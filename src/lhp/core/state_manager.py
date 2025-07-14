@@ -57,6 +57,26 @@ class StateManager:
         # Load existing state
         self._load_state()
 
+    def _get_include_patterns(self) -> List[str]:
+        """Get include patterns from project configuration.
+        
+        Returns:
+            List of include patterns, or empty list if none specified
+        """
+        try:
+            from .project_config_loader import ProjectConfigLoader
+            config_loader = ProjectConfigLoader(self.project_root)
+            project_config = config_loader.load_project_config()
+            
+            if project_config and project_config.include:
+                return project_config.include
+            else:
+                # No include patterns specified, return empty list (no filtering)
+                return []
+        except Exception as e:
+            self.logger.warning(f"Could not load project config for include patterns: {e}")
+            return []
+
     def _load_state(self):
         """Load state from file."""
         if self.state_file.exists():
@@ -203,7 +223,11 @@ class StateManager:
         ]
 
     def find_orphaned_files(self, environment: str) -> List[FileState]:
-        """Find generated files whose source YAML files no longer exist.
+        """Find generated files whose source YAML files no longer exist or don't match include patterns.
+
+        A file is considered orphaned if:
+        1. The source YAML file doesn't exist anymore, OR
+        2. The source YAML file exists but doesn't match the current include patterns
 
         Args:
             environment: Environment name
@@ -214,10 +238,23 @@ class StateManager:
         orphaned = []
         env_files = self._state.environments.get(environment, {})
 
+        # Get current YAML files that match include patterns
+        current_yaml_files = self.get_current_yaml_files()
+        current_yaml_paths = {
+            str(f.relative_to(self.project_root)) for f in current_yaml_files
+        }
+
         for file_state in env_files.values():
             source_path = self.project_root / file_state.source_yaml
+            
+            # Check if source file doesn't exist
             if not source_path.exists():
                 orphaned.append(file_state)
+                self.logger.debug(f"File orphaned - source doesn't exist: {file_state.source_yaml}")
+            # Check if source file exists but doesn't match current include patterns
+            elif file_state.source_yaml not in current_yaml_paths:
+                orphaned.append(file_state)
+                self.logger.debug(f"File orphaned - doesn't match include patterns: {file_state.source_yaml}")
 
         return orphaned
 
@@ -410,6 +447,19 @@ class StateManager:
             # Get all YAML files
             yaml_files.update(pipelines_dir.rglob("*.yaml"))
             yaml_files.update(pipelines_dir.rglob("*.yml"))
+
+        # Apply include filtering if patterns are specified
+        include_patterns = self._get_include_patterns()
+        if include_patterns:
+            # Filter files based on include patterns
+            from ..utils.file_pattern_matcher import discover_files_with_patterns
+            
+            # Convert absolute paths to relative paths for pattern matching
+            yaml_files_list = list(yaml_files)
+            filtered_files = discover_files_with_patterns(pipelines_dir, include_patterns)
+            
+            # Convert back to set of absolute paths
+            yaml_files = set(filtered_files)
 
         return yaml_files
 

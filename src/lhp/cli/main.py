@@ -3,7 +3,7 @@
 import sys
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from collections import defaultdict
 import click
 import yaml
@@ -146,6 +146,16 @@ version: "1.0"
 description: "Generated DLT pipeline project"
 author: ""
 created_date: "{Path.cwd()}"
+
+# Optional: Include patterns to filter which YAML files to process
+# By default, all YAML files in the pipelines directory are processed
+# Uncomment and customize the patterns below to filter files
+# include:
+#   - "*.yaml"                    # All YAML files
+#   - "bronze_*.yaml"             # Files starting with "bronze_"
+#   - "silver/**/*.yaml"          # All YAML files in silver subdirectories
+#   - "gold/dimension_*.yaml"     # Dimension files in gold directory
+#   - "!**/temp_*.yaml"           # Exclude temporary files (prefix with !)
 """
     )
 
@@ -270,7 +280,6 @@ A LakehousePlumber DLT pipeline project.
 - `presets/` - Reusable configuration presets
 - `templates/` - Reusable action templates
 - `substitutions/` - Environment-specific token and secret configurations
-- `schemas/` - Schema definitions
 - `expectations/` - Data quality expectations
 - `generated/` - Generated DLT pipeline code
 
@@ -374,23 +383,28 @@ def validate(env, pipeline, verbose):
     # Initialize orchestrator instead of validator
     orchestrator = ActionOrchestrator(project_root)
 
-    # Determine which pipelines to validate
+    # Determine which pipelines to validate (using pipeline field, not directory names)
     pipelines_to_validate = []
     if pipeline:
-        # Validate specific pipeline
-        pipeline_dir = project_root / "pipelines" / pipeline
-        if not pipeline_dir.exists():
-            click.echo(f"❌ Pipeline not found: {pipeline}")
+        # Check if pipeline field exists in flowgroups
+        all_flowgroups = orchestrator.discover_all_flowgroups()
+        pipeline_fields = {fg.pipeline for fg in all_flowgroups}
+        
+        if pipeline not in pipeline_fields:
+            click.echo(f"❌ Pipeline field '{pipeline}' not found in any flowgroup")
+            if pipeline_fields:
+                click.echo(f"💡 Available pipeline fields: {sorted(pipeline_fields)}")
             sys.exit(1)
         pipelines_to_validate = [pipeline]
     else:
-        # Discover all pipelines
-        pipelines_dir = project_root / "pipelines"
-        if not pipelines_dir.exists() or not any(pipelines_dir.iterdir()):
-            click.echo("❌ No pipelines found in project")
+        # Discover all pipeline fields from flowgroups
+        all_flowgroups = orchestrator.discover_all_flowgroups()
+        if not all_flowgroups:
+            click.echo("❌ No flowgroups found in project")
             sys.exit(1)
 
-        pipelines_to_validate = [p.name for p in pipelines_dir.iterdir() if p.is_dir()]
+        pipeline_fields = {fg.pipeline for fg in all_flowgroups}
+        pipelines_to_validate = sorted(pipeline_fields)
 
     # Track validation results
     total_errors = 0
@@ -402,8 +416,8 @@ def validate(env, pipeline, verbose):
         click.echo(f"\n🔧 Validating pipeline: {pipeline_name}")
 
         try:
-            # Validate pipeline using orchestrator
-            errors, warnings = orchestrator.validate_pipeline(pipeline_name, env)
+            # Validate pipeline using orchestrator by field
+            errors, warnings = orchestrator.validate_pipeline_by_field(pipeline_name, env)
 
             validated_pipelines += 1
             pipeline_errors = len(errors)
@@ -500,23 +514,28 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
     orchestrator = ActionOrchestrator(project_root)
     state_manager = StateManager(project_root) if cleanup else None
 
-    # Determine which pipelines to generate
+    # Determine which pipelines to generate (using pipeline field, not directory names)
     pipelines_to_generate = []
     if pipeline:
-        # Generate specific pipeline
-        pipeline_dir = project_root / "pipelines" / pipeline
-        if not pipeline_dir.exists():
-            click.echo(f"❌ Pipeline not found: {pipeline}")
+        # Check if pipeline field exists in flowgroups
+        all_flowgroups = orchestrator.discover_all_flowgroups()
+        pipeline_fields = {fg.pipeline for fg in all_flowgroups}
+        
+        if pipeline not in pipeline_fields:
+            click.echo(f"❌ Pipeline field '{pipeline}' not found in any flowgroup")
+            if pipeline_fields:
+                click.echo(f"💡 Available pipeline fields: {sorted(pipeline_fields)}")
             sys.exit(1)
         pipelines_to_generate = [pipeline]
     else:
-        # Discover all pipelines
-        pipelines_dir = project_root / "pipelines"
-        if not pipelines_dir.exists() or not any(pipelines_dir.iterdir()):
-            click.echo("❌ No pipelines found in project")
+        # Discover all pipeline fields from flowgroups
+        all_flowgroups = orchestrator.discover_all_flowgroups()
+        if not all_flowgroups:
+            click.echo("❌ No flowgroups found in project")
             sys.exit(1)
 
-        pipelines_to_generate = [p.name for p in pipelines_dir.iterdir() if p.is_dir()]
+        pipeline_fields = {fg.pipeline for fg in all_flowgroups}
+        pipelines_to_generate = sorted(pipeline_fields)
 
     # Set output directory
     output_dir = project_root / output
@@ -599,9 +618,9 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
         click.echo("   FlowGroups:")
 
         try:
-            # Generate pipeline
-            pipeline_output_dir = output_dir / pipeline_name if not dry_run else None
-            generated_files = orchestrator.generate_pipeline(
+            # Generate pipeline by field
+            pipeline_output_dir = output_dir if not dry_run else None
+            generated_files = orchestrator.generate_pipeline_by_field(
                 pipeline_name,
                 env,
                 pipeline_output_dir,
@@ -983,8 +1002,12 @@ def show(flowgroup, env):
     # Find the flowgroup file
     flowgroup_file = None
     pipelines_dir = project_root / "pipelines"
+    
+    # Get include patterns and discover files accordingly
+    include_patterns = _get_include_patterns(project_root)
+    yaml_files = _discover_yaml_files_with_include(pipelines_dir, include_patterns)
 
-    for yaml_file in pipelines_dir.rglob("*.yaml"):
+    for yaml_file in yaml_files:
         try:
             with open(yaml_file, "r") as f:
                 content = yaml.safe_load(f)
@@ -1241,10 +1264,13 @@ def stats(pipeline):
         "action_types": defaultdict(int),
     }
 
+    # Get include patterns for filtering
+    include_patterns = _get_include_patterns(project_root)
+    
     # Analyze each pipeline
     for pipeline_dir in pipeline_dirs:
         pipeline_name = pipeline_dir.name
-        flowgroup_files = list(pipeline_dir.rglob("*.yaml"))
+        flowgroup_files = _discover_yaml_files_with_include(pipeline_dir, include_patterns)
 
         if pipeline_dirs and len(pipeline_dirs) == 1:
             click.echo(f"\n📁 Pipeline: {pipeline_name}")
@@ -1696,6 +1722,252 @@ def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
     )
 
 
+@cli.command()
+@click.option("--status", is_flag=True, help="Show current IntelliSense setup status")
+@click.option("--check", is_flag=True, help="Check prerequisites for IntelliSense setup")
+@click.option("--verify", is_flag=True, help="Verify that IntelliSense setup is working correctly")
+@click.option("--cleanup", is_flag=True, help="Remove IntelliSense setup and schema associations")
+@click.option("--force", is_flag=True, help="Force setup even if prerequisites are not met")
+@click.option("--conflicts", is_flag=True, help="Show extension conflict analysis")
+def setup_intellisense(status, check, verify, cleanup, force, conflicts):
+    """Set up VS Code IntelliSense support for Lakehouse Plumber YAML files."""
+    
+    try:
+        from lhp.intellisense.setup import IntelliSenseSetup, IntelliSenseSetupError
+        from rich.console import Console
+        from rich.table import Table
+        from rich.panel import Panel
+        from rich.text import Text
+        
+        console = Console()
+        
+        # Initialize setup
+        setup = IntelliSenseSetup()
+        
+        # Handle status check
+        if status:
+            console.print("\n[bold blue]IntelliSense Setup Status[/bold blue]")
+            console.print("=" * 50)
+            
+            status_info = setup.get_setup_status()
+            
+            # Create status table
+            table = Table(title="Setup Status")
+            table.add_column("Component", style="cyan")
+            table.add_column("Status", style="green")
+            table.add_column("Details")
+            
+            table.add_row(
+                "Setup Detected", 
+                "✓" if status_info["setup_detected"] else "✗", 
+                status_info.get("last_setup_time", "Never")
+            )
+            table.add_row(
+                "Schemas Available", 
+                "✓" if status_info["schemas_available"] else "✗", 
+                f"{status_info['schema_count']} schemas"
+            )
+            table.add_row(
+                "VS Code Configured", 
+                "✓" if status_info["vscode_configured"] else "✗", 
+                f"{status_info['association_count']} associations"
+            )
+            
+            console.print(table)
+            
+            if status_info["issues"]:
+                console.print("\n[bold red]Issues Found:[/bold red]")
+                for issue in status_info["issues"]:
+                    console.print(f"• {issue}")
+            
+            return
+        
+        # Handle prerequisite check
+        if check:
+            console.print("\n[bold blue]Prerequisites Check[/bold blue]")
+            console.print("=" * 50)
+            
+            prereqs = setup.check_prerequisites()
+            
+            # Create prerequisites table
+            table = Table(title="Prerequisites")
+            table.add_column("Requirement", style="cyan")
+            table.add_column("Status", style="green")
+            table.add_column("Details")
+            
+            table.add_row(
+                "VS Code Installed", 
+                "✓" if prereqs["vscode_installed"] else "✗", 
+                "Accessible" if prereqs["vscode_accessible"] else "Not found"
+            )
+            table.add_row(
+                "Schemas Available", 
+                "✓" if prereqs["schemas_available"] else "✗", 
+                "All schemas found" if prereqs["schemas_available"] else "Some schemas missing"
+            )
+            table.add_row(
+                "Settings Writable", 
+                "✓" if prereqs["settings_writable"] else "✗", 
+                "Can modify VS Code settings" if prereqs["settings_writable"] else "Permission denied"
+            )
+            
+            console.print(table)
+            
+            if prereqs["conflicts_detected"]:
+                console.print(f"\n[bold yellow]Warning:[/bold yellow] {len(prereqs['conflict_details'])} potentially conflicting extensions detected")
+            
+            if prereqs["missing_requirements"]:
+                console.print("\n[bold red]Missing Requirements:[/bold red]")
+                for req in prereqs["missing_requirements"]:
+                    console.print(f"• {req}")
+            
+            if prereqs["warnings"]:
+                console.print("\n[bold yellow]Warnings:[/bold yellow]")
+                for warning in prereqs["warnings"]:
+                    console.print(f"• {warning}")
+            
+            return
+        
+        # Handle verification
+        if verify:
+            console.print("\n[bold blue]IntelliSense Verification[/bold blue]")
+            console.print("=" * 50)
+            
+            verification = setup.verify_setup()
+            
+            # Create verification table
+            table = Table(title="Verification Results")
+            table.add_column("Component", style="cyan")
+            table.add_column("Status", style="green")
+            table.add_column("Details")
+            
+            table.add_row(
+                "Schemas Cached", 
+                "✓" if verification["schemas_cached"] else "✗", 
+                "Schemas found in cache" if verification["schemas_cached"] else "No cached schemas"
+            )
+            table.add_row(
+                "VS Code Configured", 
+                "✓" if verification["vscode_configured"] else "✗", 
+                "Settings configured" if verification["vscode_configured"] else "Not configured"
+            )
+            table.add_row(
+                "Associations Active", 
+                "✓" if verification["associations_active"] else "✗", 
+                "Schema associations found" if verification["associations_active"] else "No associations"
+            )
+            table.add_row(
+                "Validation Enabled", 
+                "✓" if verification["validation_enabled"] else "✗", 
+                "YAML validation enabled" if verification["validation_enabled"] else "Validation disabled"
+            )
+            
+            console.print(table)
+            
+            if verification["issues"]:
+                console.print("\n[bold red]Issues Found:[/bold red]")
+                for issue in verification["issues"]:
+                    console.print(f"• {issue}")
+            
+            return
+        
+        # Handle cleanup
+        if cleanup:
+            console.print("\n[bold yellow]Cleaning up IntelliSense setup...[/bold yellow]")
+            
+            if not click.confirm("This will remove all schema associations and cached files. Continue?"):
+                console.print("Cleanup cancelled.")
+                return
+            
+            try:
+                cleanup_results = setup.cleanup_setup()
+                
+                if cleanup_results["success"]:
+                    console.print("\n[bold green]✓ IntelliSense cleanup completed successfully![/bold green]")
+                    console.print(f"• Removed {cleanup_results['associations_removed']} schema associations")
+                    console.print(f"• Removed {cleanup_results['schemas_removed']} cached schemas")
+                    if cleanup_results["cache_cleared"]:
+                        console.print("• Cleared schema cache directory")
+                else:
+                    console.print("\n[bold red]✗ IntelliSense cleanup completed with errors:[/bold red]")
+                    for error in cleanup_results["errors"]:
+                        console.print(f"• {error}")
+                        
+            except IntelliSenseSetupError as e:
+                console.print(f"\n[bold red]✗ Cleanup failed: {str(e)}[/bold red]")
+                
+            return
+        
+        # Handle conflicts report
+        if conflicts:
+            console.print("\n[bold blue]Extension Conflicts Analysis[/bold blue]")
+            console.print("=" * 50)
+            
+            conflict_report = setup.get_conflict_report()
+            console.print(conflict_report)
+            
+            return
+        
+        # Default: Run setup
+        console.print("\n[bold blue]Setting up IntelliSense for Lakehouse Plumber[/bold blue]")
+        console.print("=" * 50)
+        
+        # Check prerequisites first unless forced
+        if not force:
+            prereqs = setup.check_prerequisites()
+            if prereqs["missing_requirements"]:
+                console.print("\n[bold red]Prerequisites not met:[/bold red]")
+                for req in prereqs["missing_requirements"]:
+                    console.print(f"• {req}")
+                console.print("\nUse --force to skip prerequisite checks or --check to see detailed requirements.")
+                return
+        
+        # Run setup
+        console.print("\n[bold green]Running IntelliSense setup...[/bold green]")
+        
+        try:
+            setup_results = setup.run_full_setup(force=force)
+            
+            if setup_results["success"]:
+                console.print("\n[bold green]✓ IntelliSense setup completed successfully![/bold green]")
+                console.print(f"• Copied {setup_results['schemas_copied']} schemas to cache")
+                console.print(f"• Created {setup_results['associations_created']} schema associations")
+                
+                if setup_results["backup_created"]:
+                    console.print("• Created backup of existing VS Code settings")
+                
+                if setup_results["conflicts_detected"]:
+                    console.print("\n[bold yellow]Warning:[/bold yellow] Potentially conflicting extensions detected")
+                    console.print("Use --conflicts to see detailed conflict analysis")
+                
+                if setup_results["warnings"]:
+                    console.print("\n[bold yellow]Warnings:[/bold yellow]")
+                    for warning in setup_results["warnings"]:
+                        console.print(f"• {warning}")
+                
+                # Show next steps
+                console.print("\n[bold cyan]Next Steps:[/bold cyan]")
+                console.print("1. Restart VS Code to apply schema associations")
+                console.print("2. Open a Lakehouse Plumber YAML file to test IntelliSense")
+                console.print("3. Use 'lhp setup-intellisense --verify' to verify setup")
+                
+            else:
+                console.print("\n[bold red]✗ IntelliSense setup failed:[/bold red]")
+                for error in setup_results["errors"]:
+                    console.print(f"• {error}")
+                    
+        except IntelliSenseSetupError as e:
+            console.print(f"\n[bold red]✗ Setup failed: {str(e)}[/bold red]")
+            
+    except ImportError as e:
+        console = Console()
+        console.print(f"[bold red]Error: IntelliSense feature not available: {str(e)}[/bold red]")
+        console.print("Please ensure all required dependencies are installed.")
+    except Exception as e:
+        console = Console()
+        console.print(f"[bold red]Unexpected error: {str(e)}[/bold red]")
+
+
 def _find_project_root() -> Optional[Path]:
     """Find the project root by looking for lhp.yaml."""
     current = Path.cwd()
@@ -1732,6 +2004,50 @@ def _load_project_config(project_root: Path) -> dict:
     except Exception as e:
         logger.warning(f"Could not load project config: {e}")
         return {}
+
+
+def _get_include_patterns(project_root: Path) -> List[str]:
+    """Get include patterns from project configuration.
+    
+    Args:
+        project_root: Project root directory
+        
+    Returns:
+        List of include patterns, or empty list if none specified
+    """
+    try:
+        from ..core.project_config_loader import ProjectConfigLoader
+        config_loader = ProjectConfigLoader(project_root)
+        project_config = config_loader.load_project_config()
+        
+        if project_config and project_config.include:
+            return project_config.include
+        else:
+            return []
+    except Exception as e:
+        logger.warning(f"Could not load project config for include patterns: {e}")
+        return []
+
+
+def _discover_yaml_files_with_include(pipelines_dir: Path, include_patterns: List[str] = None) -> List[Path]:
+    """Discover YAML files in pipelines directory with optional include filtering.
+    
+    Args:
+        pipelines_dir: Directory to search in
+        include_patterns: Optional list of include patterns
+        
+    Returns:
+        List of YAML files
+    """
+    if include_patterns:
+        from ..utils.file_pattern_matcher import discover_files_with_patterns
+        return discover_files_with_patterns(pipelines_dir, include_patterns)
+    else:
+        # No include patterns, discover all YAML files (backwards compatibility)
+        yaml_files = []
+        yaml_files.extend(pipelines_dir.rglob("*.yaml"))
+        yaml_files.extend(pipelines_dir.rglob("*.yml"))
+        return yaml_files
 
 
 if __name__ == "__main__":

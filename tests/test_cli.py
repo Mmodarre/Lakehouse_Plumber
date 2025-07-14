@@ -84,7 +84,7 @@ class TestCLI:
             result = runner.invoke(cli, ['validate'])
             
             assert result.exit_code == 1
-            assert "❌ No pipelines found in project" in result.output
+            assert "❌ No flowgroups found in project" in result.output
     
     def test_validate_with_pipeline(self, runner, temp_project):
         """Test validate with a valid pipeline."""

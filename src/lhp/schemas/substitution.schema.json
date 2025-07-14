@@ -1,0 +1,130 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LakehousePlumber Substitution Configuration",
+    "description": "Schema for LakehousePlumber substitution files",
+    "type": "object",
+    "description": "Environment-specific substitution values with environment as top-level key",
+    "additionalProperties": {
+        "type": "object",
+        "description": "Environment configuration (e.g., 'dev', 'staging', 'prod')",
+        "properties": {
+            "catalog": {
+                "type": "string",
+                "description": "Default catalog name"
+            },
+            "bronze_schema": {
+                "type": "string",
+                "description": "Bronze layer schema name"
+            },
+            "silver_schema": {
+                "type": "string",
+                "description": "Silver layer schema name"
+            },
+            "gold_schema": {
+                "type": "string",
+                "description": "Gold layer schema name"
+            },
+            "raw_schema": {
+                "type": "string",
+                "description": "Raw data schema name"
+            },
+            "landing_path": {
+                "type": "string",
+                "description": "Landing zone path"
+            },
+            "landing_volume": {
+                "type": "string",
+                "description": "Landing zone volume"
+            },
+            "checkpoint_path": {
+                "type": "string",
+                "description": "Checkpoint path for streaming"
+            },
+            "workspace_env": {
+                "type": "string",
+                "description": "Workspace environment name"
+            },
+            "logical_env": {
+                "type": "string",
+                "description": "Logical environment name"
+            },
+            "env": {
+                "type": "string",
+                "description": "Environment name"
+            },
+            "secrets": {
+                "type": "object",
+                "description": "Secret configuration",
+                "properties": {
+                    "default_scope": {
+                        "type": "string",
+                        "description": "Default secret scope"
+                    },
+                    "scopes": {
+                        "type": "object",
+                        "description": "Secret scope aliases",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "prefix_suffix_rules": {
+                "type": "object",
+                "description": "Prefix/suffix rules for token substitution",
+                "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                        "prefix": {
+                            "type": "string",
+                            "description": "Prefix to add"
+                        },
+                        "suffix": {
+                            "type": "string",
+                            "description": "Suffix to add"
+                        }
+                    }
+                }
+            },
+            "database_config": {
+                "type": "object",
+                "description": "Database configuration",
+                "properties": {
+                    "host": {
+                        "type": "string",
+                        "description": "Database host"
+                    },
+                    "port": {
+                        "type": "integer",
+                        "description": "Database port"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Database name"
+                    }
+                }
+            },
+            "storage_config": {
+                "type": "object",
+                "description": "Storage configuration",
+                "properties": {
+                    "account_name": {
+                        "type": "string",
+                        "description": "Storage account name"
+                    },
+                    "container": {
+                        "type": "string",
+                        "description": "Storage container"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Storage path"
+                    }
+                }
+            }
+        },
+        "additionalProperties": {
+            "description": "Additional custom substitution tokens"
+        }
+    }
+} 

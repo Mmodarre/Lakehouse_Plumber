@@ -1,0 +1,298 @@
+name: aws_autoloader_comprehensive
+version: "1.0"
+description: "Comprehensive AWS-specific Auto Loader template with all AWS configuration options"
+
+parameters:
+  - name: table_name
+    required: true
+    description: "Name of the table to ingest"
+  - name: source_path
+    required: true
+    description: "Path to source files in S3"
+  - name: target_database
+    required: true
+    description: "Target database name"
+  - name: target_table
+    required: true
+    description: "Target table name"
+  - name: file_format
+    required: true
+    description: "File format (csv, json, parquet, avro, xml, orc, text, binaryFile)"
+
+actions:
+  - name: load_{{ table_name }}_aws
+    type: load
+    source:
+      type: cloudfiles
+      path: "{{ source_path }}"
+      format: "{{ file_format }}"
+      options:
+        # =============================================================================
+        # COMMON AUTO LOADER OPTIONS
+        # =============================================================================
+        
+        # File format (required)
+        cloudFiles.format: "{{ file_format }}"
+        
+        # Whether to allow input directory file changes to overwrite existing data
+        # Default: false
+        cloudFiles.allowOverwrites: false
+        
+        # Auto Loader can trigger asynchronous backfills at a given interval
+        # Example: "1 day" for daily backfills, "1 week" for weekly backfills
+        # Do not use when cloudFiles.useManagedFileEvents is set to true
+        # Default: None
+        # cloudFiles.backfillInterval: "1 day"
+        
+        # Whether to automatically delete processed files from input directory
+        # OFF: no files are deleted (default)
+        # DELETE: files deleted 30 days after processing
+        # MOVE: files moved to specified location after 30 days
+        # Default: OFF
+        cloudFiles.cleanSource: "OFF"
+        
+        # Amount of time to wait before processed files become candidates for cleanup
+        # Must be greater than 7 days for DELETE mode
+        # Default: 30 days
+        cloudFiles.cleanSource.retentionDuration: "30 days"
+        
+        # Path to archive processed files when cleanSource is set to MOVE
+        # Must be in same bucket/container as source
+        # Default: None
+        # cloudFiles.cleanSource.moveDestination: "/path/to/archive"
+        
+        # Whether to include existing files in stream processing or only new files
+        # Only evaluated when starting stream for first time
+        # Default: true
+        cloudFiles.includeExistingFiles: true
+        
+        # Whether to infer exact column types when leveraging schema inference
+        # Default: false
+        cloudFiles.inferColumnTypes: false
+        
+        # Maximum number of files to process in each trigger
+        # Default: 1000
+        cloudFiles.maxFilesPerTrigger: 50
+        
+        # Maximum number of bytes to process in each trigger
+        # Default: None (no limit)
+        # cloudFiles.maxBytesPerTrigger: "1g"
+        
+        # Ignore files with modification timestamps older than this threshold
+        # Format: interval string like "7 days", "1 hour"
+        # Default: None
+        # cloudFiles.ignoreFilesOlderThan: "7 days"
+        
+        # Schema evolution mode for handling new columns
+        # none: disallow schema changes
+        # addNewColumns: allow new columns to be added
+        # rescue: rescue data that doesn't match schema
+        # Default: addNewColumns
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        
+        # Location to store schema information
+        # Default: None (uses checkpoint location)
+        # cloudFiles.schemaLocation: "/path/to/schema"
+        
+        # Whether to collect unparseable data in a separate column
+        # Default: None (rescue column not added)
+        cloudFiles.rescueDataColumn: "_rescued_data"
+        
+        # Whether to use file notifications instead of directory listing
+        # Default: false
+        cloudFiles.useNotifications: true
+        
+        # Whether to use Databricks-managed file events
+        # Default: false
+        # cloudFiles.useManagedFileEvents: false
+        
+        # =============================================================================
+        # AWS-SPECIFIC OPTIONS
+        # =============================================================================
+        
+        # AWS region where source S3 bucket resides and where SNS/SQS services will be created
+        # Default: region of EC2 instance
+        # This is required if cloudFiles.useNotifications=true and you want Auto Loader to set up notification services
+        cloudFiles.region: "us-east-1"
+        
+        # URL of existing SQS queue for notifications
+        # If provided, Auto Loader directly consumes events from this queue
+        # instead of setting up its own AWS SNS and SQS services
+        # Default: None
+        # cloudFiles.queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
+        
+        # =============================================================================
+        # AWS AUTHENTICATION OPTIONS
+        # =============================================================================
+        
+        # OPTION 1: Databricks Service Credential (Recommended)
+        # The name of your Databricks service credential
+        # Available in Databricks Runtime 16.1 and above
+        # Default: None
+        # databricks.serviceCredential: "my-service-credential"
+        
+        # OPTION 2: AWS Access Keys (when service credentials not available)
+        # AWS access key ID for the user
+        # Must be provided with cloudFiles.awsSecretKey
+        # Default: None
+        # cloudFiles.awsAccessKey: "YOUR_ACCESS_KEY"
+        
+        # AWS secret access key for the user
+        # Must be provided with cloudFiles.awsAccessKey
+        # Default: None
+        # cloudFiles.awsSecretKey: "YOUR_SECRET_KEY"
+        
+        # OPTION 3: IAM Role Assumption
+        # ARN of an IAM role to assume, if needed
+        # The role can be assumed from your cluster's instance profile
+        # or by providing credentials with cloudFiles.awsAccessKey and cloudFiles.awsSecretKey
+        # Default: None
+        # cloudFiles.roleArn: "arn:aws:iam::123456789012:role/MyRole"
+        
+        # An identifier to provide while assuming a role using cloudFiles.roleArn
+        # Default: None
+        # cloudFiles.roleExternalId: "external-id"
+        
+        # An optional session name to use while assuming a role using cloudFiles.roleArn
+        # Default: None
+        # cloudFiles.roleSessionName: "session-name"
+        
+        # An optional endpoint to provide for accessing AWS STS when assuming a role
+        # Default: None
+        # cloudFiles.stsEndpoint: "https://sts.amazonaws.com"
+        
+        # =============================================================================
+        # AWS S3-SPECIFIC OPTIONS
+        # =============================================================================
+        
+        # S3 server-side encryption
+        # Options: SSE-S3, SSE-KMS, SSE-C
+        # Default: None
+        # cloudFiles.s3.serverSideEncryption: "SSE-S3"
+        
+        # S3 KMS key ID for SSE-KMS encryption
+        # Default: None
+        # cloudFiles.s3.kmsKeyId: "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
+        
+        # S3 customer-provided encryption key for SSE-C
+        # Default: None
+        # cloudFiles.s3.customerKey: "base64-encoded-key"
+        
+        # S3 request timeout in milliseconds
+        # Default: 50000
+        # cloudFiles.s3.requestTimeout: 50000
+        
+        # S3 connection timeout in milliseconds
+        # Default: 10000
+        # cloudFiles.s3.connectionTimeout: 10000
+        
+        # Maximum number of concurrent S3 requests
+        # Default: 50
+        # cloudFiles.s3.maxConcurrentRequests: 50
+        
+        # S3 transfer acceleration
+        # Whether to use S3 transfer acceleration
+        # Default: false
+        # cloudFiles.s3.accelerate: false
+        
+        # S3 path style access
+        # Whether to use path-style access for S3
+        # Default: false
+        # cloudFiles.s3.pathStyleAccess: false
+        
+        # Custom S3 endpoint
+        # Default: None (uses AWS S3 endpoints)
+        # cloudFiles.s3.endpoint: "https://s3.amazonaws.com"
+        
+        # =============================================================================
+        # AWS SNS/SQS NOTIFICATION OPTIONS
+        # =============================================================================
+        
+        # SNS topic name for notifications
+        # If not provided, Auto Loader will create one
+        # Default: None
+        # cloudFiles.sns.topicName: "my-autoloader-topic"
+        
+        # SQS queue name for notifications
+        # If not provided, Auto Loader will create one
+        # Default: None
+        # cloudFiles.sqs.queueName: "my-autoloader-queue"
+        
+        # SQS message visibility timeout in seconds
+        # Default: 30
+        # cloudFiles.sqs.visibilityTimeout: 30
+        
+        # SQS message retention period in seconds
+        # Default: 1209600 (14 days)
+        # cloudFiles.sqs.messageRetentionPeriod: 1209600
+        
+        # SQS receive message wait time in seconds
+        # Default: 20
+        # cloudFiles.sqs.receiveMessageWaitTime: 20
+        
+        # Maximum number of messages to receive from SQS in one call
+        # Default: 10
+        # cloudFiles.sqs.maxReceiveCount: 10
+        
+        # =============================================================================
+        # AWS CLOUDWATCH METRICS OPTIONS
+        # =============================================================================
+        
+        # Whether to enable CloudWatch metrics for Auto Loader
+        # Default: false
+        # cloudFiles.cloudwatch.enabled: false
+        
+        # CloudWatch namespace for metrics
+        # Default: "Databricks/AutoLoader"
+        # cloudFiles.cloudwatch.namespace: "Databricks/AutoLoader"
+        
+        # CloudWatch metric dimensions
+        # Default: None
+        # cloudFiles.cloudwatch.dimensions: "Environment=prod,Application=DataPipeline"
+        
+        # =============================================================================
+        # DIRECTORY LISTING OPTIONS
+        # =============================================================================
+        
+        # Whether to list files recursively in subdirectories
+        # Default: true
+        recursiveFileLookup: true
+        
+        # Path glob filter for selecting files
+        # Default: None
+        # pathGlobFilter: "*.{{ file_format }}"
+        
+        # Modified before timestamp filter
+        # Format: "yyyy-MM-dd HH:mm:ss"
+        # Default: None
+        # modifiedBefore: "2023-12-31 23:59:59"
+        
+        # Modified after timestamp filter
+        # Format: "yyyy-MM-dd HH:mm:ss"
+        # Default: None
+        # modifiedAfter: "2023-01-01 00:00:00"
+        
+        # Schema hints for column data types
+        # Format: "col1 TYPE1, col2 TYPE2, ..."
+        # Example: "id INT, name STRING, created_at TIMESTAMP"
+        cloudFiles.schemaHints: "id BIGINT, name STRING, created_at TIMESTAMP"
+        
+        # Whether to enable case-sensitive column matching
+        # Default: true
+        readerCaseSensitive: true
+        
+    target: v_{{ table_name }}_raw
+    description: "Load {{ table_name }} from AWS S3 with comprehensive Auto Loader options"
+
+  - name: write_{{ table_name }}_target
+    type: write
+    source: v_{{ table_name }}_raw
+    write_target:
+      type: streaming_table
+      database: "{{ target_database }}"
+      table: "{{ target_table }}"
+      comment: "Streaming table for {{ table_name }} loaded via Auto Loader from AWS S3"
+      table_properties:
+        "delta.autoOptimize.optimizeWrite": "true"
+        "delta.enableChangeDataFeed": "true"
+      description: "Write {{ table_name }} to streaming table with Auto Loader" 

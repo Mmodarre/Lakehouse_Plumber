@@ -1,0 +1,114 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LakehousePlumber Project Configuration",
+    "description": "Schema for LakehousePlumber project configuration (lhp.yaml)",
+    "type": "object",
+    "required": ["name"],
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Name of the project"
+        },
+        "version": {
+            "type": "string",
+            "default": "1.0",
+            "description": "Version of the project"
+        },
+        "description": {
+            "type": "string",
+            "description": "Description of the project"
+        },
+        "author": {
+            "type": "string",
+            "description": "Author of the project"
+        },
+        "created_date": {
+            "type": "string",
+            "description": "Creation date of the project"
+        },
+        "include": {
+            "type": "array",
+            "description": "List of glob patterns to include when processing pipeline files",
+            "items": {
+                "type": "string",
+                "description": "Glob pattern for files to include (e.g., 'bronze_*.yaml', 'silver/**/*.yaml')"
+            },
+            "examples": [
+                ["bronze_*.yaml", "silver_*.yaml"],
+                ["pipelines/*/bronze/*.yaml", "ingestion/**/*.yaml"],
+                ["*.yaml"]
+            ]
+        },
+        "operational_metadata": {
+            "type": "object",
+            "description": "Project-level operational metadata configuration",
+            "properties": {
+                "columns": {
+                    "type": "object",
+                    "description": "Column definitions for operational metadata",
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "expression": {
+                                "type": "string",
+                                "description": "Spark SQL expression for the column"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Description of the column"
+                            },
+                            "applies_to": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "enum": ["streaming_table", "materialized_view"]
+                                },
+                                "default": ["streaming_table", "materialized_view"],
+                                "description": "Which write target types this column applies to"
+                            },
+                            "additional_imports": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "Additional imports needed for this column"
+                            },
+                            "enabled": {
+                                "type": "boolean",
+                                "default": true,
+                                "description": "Whether this column is enabled"
+                            }
+                        },
+                        "required": ["expression"]
+                    }
+                },
+                "presets": {
+                    "type": "object",
+                    "description": "Preset definitions for operational metadata",
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "columns": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "List of column names in this preset"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Description of the preset"
+                            }
+                        },
+                        "required": ["columns"]
+                    }
+                },
+                "defaults": {
+                    "type": "object",
+                    "description": "Default operational metadata settings",
+                    "additionalProperties": true
+                }
+            }
+        }
+    }
+} 

@@ -56,6 +56,18 @@ class ActionOrchestrator:
         else:
             self.logger.info("No project configuration found, using defaults")
 
+    def _get_include_patterns(self) -> List[str]:
+        """Get include patterns from project configuration.
+        
+        Returns:
+            List of include patterns, or empty list if none specified
+        """
+        if self.project_config and self.project_config.include:
+            return self.project_config.include
+        else:
+            # No include patterns specified, return empty list (no filtering)
+            return []
+
     def generate_pipeline(
         self,
         pipeline_name: str,
@@ -251,7 +263,20 @@ class ActionOrchestrator:
         """
         flowgroups = []
 
-        for yaml_file in pipeline_dir.rglob("*.yaml"):
+        # Get include patterns from project configuration
+        include_patterns = self._get_include_patterns()
+        
+        if include_patterns:
+            # Use include filtering
+            from ..utils.file_pattern_matcher import discover_files_with_patterns
+            yaml_files = discover_files_with_patterns(pipeline_dir, include_patterns)
+        else:
+            # No include patterns, discover all YAML files (backwards compatibility)
+            yaml_files = []
+            yaml_files.extend(pipeline_dir.rglob("*.yaml"))
+            yaml_files.extend(pipeline_dir.rglob("*.yml"))
+
+        for yaml_file in yaml_files:
             try:
                 flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
                 flowgroups.append(flowgroup)
@@ -262,6 +287,219 @@ class ActionOrchestrator:
                 self.logger.warning(f"Could not parse flowgroup {yaml_file}: {e}")
 
         return flowgroups
+
+    def discover_all_flowgroups(self) -> List[FlowGroup]:
+        """Discover all flowgroups across all directories in the project.
+
+        Returns:
+            List of all discovered flowgroups
+        """
+        flowgroups = []
+        pipelines_dir = self.project_root / "pipelines"
+        
+        if not pipelines_dir.exists():
+            return flowgroups
+
+        # Get include patterns from project configuration
+        include_patterns = self._get_include_patterns()
+        
+        if include_patterns:
+            # Use include filtering
+            from ..utils.file_pattern_matcher import discover_files_with_patterns
+            yaml_files = discover_files_with_patterns(pipelines_dir, include_patterns)
+        else:
+            # No include patterns, discover all YAML files (backwards compatibility)
+            yaml_files = []
+            yaml_files.extend(pipelines_dir.rglob("*.yaml"))
+            yaml_files.extend(pipelines_dir.rglob("*.yml"))
+
+        for yaml_file in yaml_files:
+            try:
+                flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
+                flowgroups.append(flowgroup)
+                self.logger.debug(
+                    f"Discovered flowgroup: {flowgroup.flowgroup} (pipeline: {flowgroup.pipeline}) in {yaml_file}"
+                )
+            except Exception as e:
+                self.logger.warning(f"Could not parse flowgroup {yaml_file}: {e}")
+
+        return flowgroups
+
+    def discover_flowgroups_by_pipeline_field(self, pipeline_field: str) -> List[FlowGroup]:
+        """Discover all flowgroups with a specific pipeline field across all directories.
+
+        Args:
+            pipeline_field: The pipeline field value to search for
+
+        Returns:
+            List of flowgroups with the specified pipeline field
+        """
+        all_flowgroups = self.discover_all_flowgroups()
+        matching_flowgroups = []
+        
+        for flowgroup in all_flowgroups:
+            if flowgroup.pipeline == pipeline_field:
+                matching_flowgroups.append(flowgroup)
+                self.logger.debug(
+                    f"Found flowgroup '{flowgroup.flowgroup}' for pipeline '{pipeline_field}'"
+                )
+        
+        return matching_flowgroups
+
+    def validate_duplicate_pipeline_flowgroup_combinations(self, flowgroups: List[FlowGroup]) -> None:
+        """Validate that there are no duplicate pipeline+flowgroup combinations.
+
+        Args:
+            flowgroups: List of flowgroups to validate
+
+        Raises:
+            ValueError: If duplicate combinations are found
+        """
+        errors = self.config_validator.validate_duplicate_pipeline_flowgroup(flowgroups)
+        if errors:
+            raise ValueError(f"Duplicate pipeline+flowgroup combinations found: {errors}")
+
+    def generate_pipeline_by_field(
+        self,
+        pipeline_field: str,
+        env: str,
+        output_dir: Path = None,
+        state_manager=None,
+        force_all: bool = False,
+        specific_flowgroups: List[str] = None,
+    ) -> Dict[str, str]:
+        """Generate complete pipeline from YAML configs using pipeline field.
+
+        Args:
+            pipeline_field: The pipeline field value to generate
+            env: Environment to generate for (e.g., 'dev', 'prod')
+            output_dir: Optional output directory for generated files
+            state_manager: Optional state manager for tracking generated files
+            force_all: If True, generate all flowgroups regardless of changes
+            specific_flowgroups: If provided, only generate these specific flowgroups
+
+        Returns:
+            Dictionary mapping filename to generated code content
+        """
+        self.logger.info(
+            f"Starting pipeline generation by field: {pipeline_field} for env: {env}"
+        )
+
+        # Discover flowgroups by pipeline field
+        flowgroups = self.discover_flowgroups_by_pipeline_field(pipeline_field)
+        
+        if not flowgroups:
+            self.logger.warning(f"No flowgroups found for pipeline field: {pipeline_field}")
+            return {}
+
+        # Validate no duplicate pipeline+flowgroup combinations
+        all_flowgroups = self.discover_all_flowgroups()
+        self.validate_duplicate_pipeline_flowgroup_combinations(all_flowgroups)
+
+        # Smart generation: filter flowgroups based on changes
+        if not force_all and state_manager and specific_flowgroups is None:
+            # Determine which flowgroups need generation
+            generation_info = state_manager.get_files_needing_generation(
+                env, pipeline_field
+            )
+
+            # Get flowgroups for new YAML files
+            new_flowgroups = set()
+            for yaml_path in generation_info["new"]:
+                try:
+                    fg = self.yaml_parser.parse_flowgroup(yaml_path)
+                    new_flowgroups.add(fg.flowgroup)
+                except Exception as e:
+                    self.logger.warning(
+                        f"Could not parse new flowgroup {yaml_path}: {e}"
+                    )
+
+            # Get flowgroups for stale files
+            stale_flowgroups = {fs.flowgroup for fs in generation_info["stale"]}
+
+            # Combine new and stale flowgroups
+            flowgroups_to_generate = new_flowgroups | stale_flowgroups
+
+            if flowgroups_to_generate:
+                # Filter to only include flowgroups that need generation
+                flowgroups = [
+                    fg
+                    for fg in flowgroups
+                    if fg.flowgroup in flowgroups_to_generate
+                ]
+                self.logger.info(
+                    f"Smart generation: processing {len(flowgroups)}/{len(all_flowgroups)} flowgroups"
+                )
+            else:
+                # Nothing to generate
+                flowgroups = []
+                self.logger.info("Smart generation: no flowgroups need processing")
+
+        elif specific_flowgroups:
+            # Filter to only specified flowgroups
+            flowgroups = [fg for fg in flowgroups if fg.flowgroup in specific_flowgroups]
+
+        # Set up output directory based on pipeline field
+        if output_dir:
+            pipeline_output_dir = output_dir / pipeline_field
+            pipeline_output_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            # For dry-run mode, don't create directories or write files
+            pipeline_output_dir = None
+
+        # Initialize substitution manager
+        substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
+        substitution_mgr = EnhancedSubstitutionManager(substitution_file, env)
+
+        generated_files = {}
+        
+        for flowgroup in flowgroups:
+            self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
+            
+            try:
+                # Process flowgroup
+                processed_flowgroup = self._process_flowgroup(flowgroup, substitution_mgr)
+                
+                # Generate code
+                generated_code = self._generate_flowgroup_code(processed_flowgroup, substitution_mgr)
+                
+                # Save to file only if output directory is specified (not dry-run)
+                if pipeline_output_dir:
+                    output_file = pipeline_output_dir / f"{flowgroup.flowgroup}.py"
+                    
+                    # Use SmartFileWriter for efficient file writing
+                    smart_writer = SmartFileWriter()
+                    smart_writer.write_if_changed(output_file, generated_code)
+                    
+                    # Track the generated file in state manager if provided
+                    if state_manager:
+                        source_yaml_path = self._find_source_yaml_for_flowgroup(flowgroup)
+                        if source_yaml_path:
+                            state_manager.track_generated_file(
+                                generated_path=output_file,
+                                source_yaml=source_yaml_path,
+                                environment=env,
+                                pipeline=pipeline_field,  # Use pipeline field for state tracking
+                                flowgroup=flowgroup.flowgroup,
+                            )
+                    
+                    self.logger.info(f"Generated: {output_file}")
+                else:
+                    # Dry-run mode: just log what would be generated
+                    self.logger.info(f"Would generate: {flowgroup.flowgroup}.py")
+                    
+                generated_files[f"{flowgroup.flowgroup}.py"] = generated_code
+                
+            except Exception as e:
+                self.logger.error(f"Error generating flowgroup {flowgroup.flowgroup}: {e}")
+                raise
+
+        # Save state after all files are generated
+        if state_manager:
+            state_manager.save()
+
+        self.logger.info(f"Pipeline generation complete: {pipeline_field}")
+        return generated_files
 
     def _find_source_yaml(
         self, pipeline_dir: Path, flowgroup_name: str
@@ -279,6 +517,31 @@ class ActionOrchestrator:
             try:
                 flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
                 if flowgroup.flowgroup == flowgroup_name:
+                    return yaml_file
+            except Exception as e:
+                self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
+
+        return None
+
+    def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
+        """Find the source YAML file for a given flowgroup.
+
+        Args:
+            flowgroup: The flowgroup to find the source YAML for
+
+        Returns:
+            Path to the source YAML file, or None if not found
+        """
+        pipelines_dir = self.project_root / "pipelines"
+        
+        if not pipelines_dir.exists():
+            return None
+
+        for yaml_file in pipelines_dir.rglob("*.yaml"):
+            try:
+                parsed_flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
+                if (parsed_flowgroup.pipeline == flowgroup.pipeline and 
+                    parsed_flowgroup.flowgroup == flowgroup.flowgroup):
                     return yaml_file
             except Exception as e:
                 self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
@@ -580,8 +843,8 @@ class ActionOrchestrator:
         # Add pipeline configuration section
         pipeline_config = f"""
 # Pipeline Configuration
-PIPELINE_ID = "{flowgroup.flowgroup}"
-PIPELINE_GROUP = "{flowgroup.pipeline}"
+PIPELINE_ID = "{flowgroup.pipeline}"
+FLOWGROUP_ID = "{flowgroup.flowgroup}"
 """
 
         header = f"""# Generated by LakehousePlumber
@@ -843,6 +1106,48 @@ PIPELINE_GROUP = "{flowgroup.pipeline}"
         try:
             pipeline_dir = self.project_root / "pipelines" / pipeline_name
             flowgroups = self._discover_flowgroups(pipeline_dir)
+
+            substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
+            substitution_mgr = EnhancedSubstitutionManager(substitution_file, env)
+
+            for flowgroup in flowgroups:
+                try:
+                    self._process_flowgroup(flowgroup, substitution_mgr)
+                    # Validation happens in _process_flowgroup
+                    warnings.append(
+                        f"Flowgroup '{flowgroup.flowgroup}' validated successfully"
+                    )
+
+                except Exception as e:
+                    errors.append(f"Flowgroup '{flowgroup.flowgroup}': {e}")
+
+        except Exception as e:
+            errors.append(f"Pipeline validation failed: {e}")
+
+        return errors, warnings
+
+    def validate_pipeline_by_field(
+        self, pipeline_field: str, env: str
+    ) -> tuple[List[str], List[str]]:
+        """Validate pipeline configuration using pipeline field without generating code.
+
+        Args:
+            pipeline_field: The pipeline field value to validate
+            env: Environment to validate for
+
+        Returns:
+            Tuple of (errors, warnings)
+        """
+        errors = []
+        warnings = []
+
+        try:
+            # Discover flowgroups by pipeline field
+            flowgroups = self.discover_flowgroups_by_pipeline_field(pipeline_field)
+            
+            if not flowgroups:
+                errors.append(f"No flowgroups found for pipeline field: {pipeline_field}")
+                return errors, warnings
 
             substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
             substitution_mgr = EnhancedSubstitutionManager(substitution_file, env)

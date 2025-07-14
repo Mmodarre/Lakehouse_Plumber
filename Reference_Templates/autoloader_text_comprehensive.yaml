@@ -1,0 +1,200 @@
+name: text_autoloader_comprehensive
+version: "1.0"
+description: "Comprehensive Text Auto Loader template with all available options"
+
+parameters:
+  - name: table_name
+    required: true
+    description: "Name of the table to ingest"
+  - name: source_path
+    required: true
+    description: "Path to source files"
+  - name: target_database
+    required: true
+    description: "Target database name"
+  - name: target_table
+    required: true
+    description: "Target table name"
+
+actions:
+  - name: load_{{ table_name }}_text
+    type: load
+    source:
+      type: cloudfiles
+      path: "{{ source_path }}"
+      format: text
+      options:
+        # =============================================================================
+        # COMMON AUTO LOADER OPTIONS
+        # =============================================================================
+        
+        # File format (required)
+        cloudFiles.format: "text"
+        
+        # Whether to allow input directory file changes to overwrite existing data
+        # Default: false
+        cloudFiles.allowOverwrites: false
+        
+        # Auto Loader can trigger asynchronous backfills at a given interval
+        # Example: "1 day" for daily backfills, "1 week" for weekly backfills
+        # Do not use when cloudFiles.useManagedFileEvents is set to true
+        # Default: None
+        # cloudFiles.backfillInterval: "1 day"
+        
+        # Whether to automatically delete processed files from input directory
+        # OFF: no files are deleted (default)
+        # DELETE: files deleted 30 days after processing
+        # MOVE: files moved to specified location after 30 days
+        # Default: OFF
+        cloudFiles.cleanSource: "OFF"
+        
+        # Amount of time to wait before processed files become candidates for cleanup
+        # Must be greater than 7 days for DELETE mode
+        # Default: 30 days
+        cloudFiles.cleanSource.retentionDuration: "30 days"
+        
+        # Path to archive processed files when cleanSource is set to MOVE
+        # Must be in same bucket/container as source
+        # Default: None
+        # cloudFiles.cleanSource.moveDestination: "/path/to/archive"
+        
+        # Whether to include existing files in stream processing or only new files
+        # Only evaluated when starting stream for first time
+        # Default: true
+        cloudFiles.includeExistingFiles: true
+        
+        # Whether to infer exact column types when leveraging schema inference
+        # Default: false
+        cloudFiles.inferColumnTypes: false
+        
+        # Maximum number of files to process in each trigger
+        # Default: 1000
+        cloudFiles.maxFilesPerTrigger: 50
+        
+        # Maximum number of bytes to process in each trigger
+        # Default: None (no limit)
+        # cloudFiles.maxBytesPerTrigger: "1g"
+        
+        # Ignore files with modification timestamps older than this threshold
+        # Format: interval string like "7 days", "1 hour"
+        # Default: None
+        # cloudFiles.ignoreFilesOlderThan: "7 days"
+        
+        # Schema evolution mode for handling new columns
+        # none: disallow schema changes
+        # addNewColumns: allow new columns to be added
+        # rescue: rescue data that doesn't match schema
+        # Default: addNewColumns
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        
+        # Location to store schema information
+        # Default: None (uses checkpoint location)
+        # cloudFiles.schemaLocation: "/path/to/schema"
+        
+        # Whether to collect unparseable data in a separate column
+        # Default: None (rescue column not added)
+        cloudFiles.rescueDataColumn: "_rescued_data"
+        
+        # Whether to use file notifications instead of directory listing
+        # Default: false
+        cloudFiles.useNotifications: false
+        
+        # Whether to use Databricks-managed file events
+        # Default: false
+        # cloudFiles.useManagedFileEvents: false
+        
+        # =============================================================================
+        # DIRECTORY LISTING OPTIONS
+        # =============================================================================
+        
+        # Whether to list files recursively in subdirectories
+        # Default: true
+        recursiveFileLookup: true
+        
+        # Path glob filter for selecting files
+        # Example: "*.txt" to only process text files
+        # Default: None
+        # pathGlobFilter: "*.txt"
+        
+        # Modified before timestamp filter
+        # Format: "yyyy-MM-dd HH:mm:ss"
+        # Default: None
+        # modifiedBefore: "2023-12-31 23:59:59"
+        
+        # Modified after timestamp filter
+        # Format: "yyyy-MM-dd HH:mm:ss"
+        # Default: None
+        # modifiedAfter: "2023-01-01 00:00:00"
+        
+        # =============================================================================
+        # TEXT-SPECIFIC OPTIONS
+        # =============================================================================
+        
+        # Character encoding name of the TEXT file
+        # For list of options, see java.nio.charset.Charset
+        # The content of the file is not affected by this option and is read as-is
+        # Default: UTF-8
+        cloudFiles.encoding: "UTF-8"
+        
+        # String between two consecutive TEXT records
+        # Default: None (covers \r, \r\n and \n)
+        # cloudFiles.lineSep: "\n"
+        
+        # Whether to read a file as a single record
+        # Default: false
+        cloudFiles.wholeText: false
+        
+        # Schema hints for column data types
+        # Format: "col1 TYPE1, col2 TYPE2, ..."
+        # Example: "value STRING"
+        cloudFiles.schemaHints: "value STRING"
+        
+        # Whether to enable case-sensitive column matching
+        # Default: true
+        readerCaseSensitive: true
+        
+        # Whether to collect all data that can't be parsed due to:
+        # - data type mismatch
+        # - schema mismatch (including column casing)
+        # Default: None
+        rescuedDataColumn: "_rescued_data"
+        
+        # =============================================================================
+        # CLOUD-SPECIFIC OPTIONS (AWS Example)
+        # =============================================================================
+        
+        # AWS region where source S3 bucket resides
+        # Default: region of EC2 instance
+        # cloudFiles.region: "us-east-1"
+        
+        # URL of existing SQS queue for notifications
+        # Default: None
+        # cloudFiles.queueUrl: "https://sqs.us-east-1.amazonaws.com/123456789012/my-queue"
+        
+        # Databricks service credential name
+        # Default: None
+        # databricks.serviceCredential: "my-service-credential"
+        
+        # AWS authentication options (when service credentials not available)
+        # cloudFiles.awsAccessKey: "YOUR_ACCESS_KEY"
+        # cloudFiles.awsSecretKey: "YOUR_SECRET_KEY"
+        # cloudFiles.roleArn: "arn:aws:iam::123456789012:role/MyRole"
+        # cloudFiles.roleExternalId: "external-id"
+        # cloudFiles.roleSessionName: "session-name"
+        # cloudFiles.stsEndpoint: "https://sts.amazonaws.com"
+        
+    target: v_{{ table_name }}_raw
+    description: "Load {{ table_name }} text files with comprehensive Auto Loader options"
+
+  - name: write_{{ table_name }}_target
+    type: write
+    source: v_{{ table_name }}_raw
+    write_target:
+      type: streaming_table
+      database: "{{ target_database }}"
+      table: "{{ target_table }}"
+      comment: "Streaming table for {{ table_name }} loaded via Auto Loader"
+      table_properties:
+        "delta.autoOptimize.optimizeWrite": "true"
+        "delta.enableChangeDataFeed": "true"
+      description: "Write {{ table_name }} to streaming table with Auto Loader" 

@@ -88,7 +88,6 @@ my_lakehouse_project/
 │   ├── dev.yaml
 │   ├── staging.yaml
 │   └── prod.yaml
-├── schemas/                   # Table schemas
 ├── expectations/              # Data quality rules
 └── generated/                 # Generated code
 ```
