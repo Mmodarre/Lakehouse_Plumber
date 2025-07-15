@@ -29,7 +29,7 @@ class StateDependencyResolver:
         """Resolve all dependencies for a YAML file.
         
         Args:
-            yaml_file: Path to the YAML file
+            yaml_file: Path to the YAML file (relative to project_root)
             environment: Environment name for dependency resolution
             
         Returns:
@@ -38,8 +38,11 @@ class StateDependencyResolver:
         dependencies = {}
         
         try:
+            # Resolve yaml_file path relative to project_root
+            resolved_yaml_file = self.project_root / yaml_file if not yaml_file.is_absolute() else yaml_file
+            
             # Parse the flowgroup
-            flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
+            flowgroup = self.yaml_parser.parse_flowgroup(resolved_yaml_file)
             
             # Resolve preset dependencies
             preset_deps = self._resolve_preset_dependencies(flowgroup)

@@ -224,12 +224,18 @@ class StateManager:
             rel_source = str(source_yaml)
 
         # Calculate checksums for both generated and source files
-        generated_checksum = self._calculate_checksum(generated_path)
-        source_checksum = self._calculate_checksum(source_yaml)
+        # Resolve paths relative to project_root if they're not absolute
+        resolved_generated_path = self.project_root / generated_path if not generated_path.is_absolute() else generated_path
+        resolved_source_yaml = self.project_root / source_yaml if not source_yaml.is_absolute() else source_yaml
+        
+        generated_checksum = self._calculate_checksum(resolved_generated_path)
+        source_checksum = self._calculate_checksum(resolved_source_yaml)
 
         # Resolve file-specific dependencies
+        # Ensure rel_source is a Path object
+        rel_source_path = Path(rel_source) if isinstance(rel_source, str) else rel_source
         file_dependencies = self.dependency_resolver.resolve_file_dependencies(
-            source_yaml, environment
+            rel_source_path, environment
         )
         
         # Calculate composite checksum for all dependencies

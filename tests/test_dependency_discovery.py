@@ -4,7 +4,7 @@ import tempfile
 import pytest
 from pathlib import Path
 
-from src.lhp.core.state_dependency_resolver import StateDependencyResolver
+from lhp.core.state_dependency_resolver import StateDependencyResolver
 
 
 class TestDependencyDiscovery:
