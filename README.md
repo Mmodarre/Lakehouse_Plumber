@@ -539,7 +539,7 @@ Each streaming table must have exactly one action with `create_table: true` acro
     create_table: false  # ← Error: No creator for table
 ```
 
-#### Rule 2: Explicit Configuration Required
+#### Rule 2: Explicit Configuration Required for Multiple Writes to Table
 The `create_table` field defaults to `true`, NOT requiring explicit specification unless you want to append to an existing table:
 
 ```yaml
