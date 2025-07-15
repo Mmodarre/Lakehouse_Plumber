@@ -1,0 +1,53 @@
+# This pipeline is used to load the part table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: bronze_load
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: part_bronze
+
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+  - name: part_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: part
+    target: v_part_raw
+    description: "Load part table from raw schema" 
+
+  - name: part_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_part_raw
+    target: v_part_bronze_cleaned
+    sql: |
+      SELECT 
+        p_partkey as part_id,
+        p_name as name,
+        p_mfgr as manufacturer,
+        p_brand as brand,
+        p_type as type,
+        p_size as size,
+        p_container as container,
+        p_retailprice as retail_price,
+        p_comment as comment,
+        _source_file_path,
+        _source_file_size,
+        _source_file_modification_time,
+        _record_hash,
+        _processing_timestamp
+      FROM stream(v_part_raw)
+
+
+  - name: write_part_bronze
+    type: write
+    source: v_part_bronze_cleaned
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "part"
+        

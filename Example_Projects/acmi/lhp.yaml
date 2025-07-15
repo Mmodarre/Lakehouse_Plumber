@@ -1,0 +1,46 @@
+# LakehousePlumber Project Configuration
+name: acmi_edw
+version: "1.0"
+description: "ACMI Delta Lakehouse Project - TPC-H"
+author: "Mehdi Modarressi"
+created_date: "2025-07-11"
+
+include:
+  - "01_raw_ingestion/csv_ingestions/*.yaml"
+  #- "03_silver/dim/*.yaml"
+
+operational_metadata:
+  columns:
+  
+    _source_file_path:
+      expression: "F.col('_metadata.file_path')"
+      description: "File paths"
+      applies_to: ["view"]
+    
+    _processing_timestamp:
+      expression: "F.current_timestamp()"
+      description: "When the record was processed by the pipeline"
+      applies_to: ["streaming_table", "materialized_view", "view"]
+
+    _source_file_name:
+      expression: "F.col('_metadata.file_name')"
+      description: "Name of the input file along with its extension"
+      applies_to: ["view"]
+
+    _source_file_size:
+      expression: "F.col('_metadata.file_size')"
+      description: "Length of the input file, in bytes"
+      applies_to: ["view"]
+
+    _source_file_modification_time:
+      expression: "F.col('_metadata.file_modification_time')"
+      description: "Last modification time of the input file"
+      applies_to: ["view"]
+
+
+    _record_hash:
+      expression: "F.xxhash64(*[F.col(c) for c in df.columns])"
+      description: "Hash of all record fields for change detection"
+      applies_to: ["streaming_table", "materialized_view", "view"]
+      additional_imports:
+        - "from pyspark.sql.functions import hash"

@@ -1,0 +1,12 @@
+2025-07-15 12:16:44,698 - lhp.cli.main - INFO - Logging initialized - File: /Users/mehdi.modarressi/Documents/Coding/Lakehouse_Plumber/Sample_Projects/acmi/.lhp/logs/lhp.log, Console level: WARNING
+2025-07-15 12:16:44,699 - lhp.core.template_engine - INFO - Loading 3 templates from /Users/mehdi.modarressi/Documents/Coding/Lakehouse_Plumber/Sample_Projects/acmi/templates
+2025-07-15 12:16:44,702 - lhp.core.template_engine - DEBUG - Loaded template: csv_ingestion_template
+2025-07-15 12:16:44,703 - lhp.core.template_engine - DEBUG - Loaded template: json_ingestion_template
+2025-07-15 12:16:44,705 - lhp.core.template_engine - DEBUG - Loaded template: parquet_ingestion_template
+2025-07-15 12:16:44,706 - lhp.core.state_manager - INFO - Loaded state from /Users/mehdi.modarressi/Documents/Coding/Lakehouse_Plumber/Sample_Projects/acmi/.lhp_state.json
+2025-07-15 12:16:44,712 - lhp.core.project_config_loader - INFO - Loaded project configuration from /Users/mehdi.modarressi/Documents/Coding/Lakehouse_Plumber/Sample_Projects/acmi/lhp.yaml
+2025-07-15 12:16:44,716 - lhp.core.state_manager - DEBUG - File orphaned - pipeline/flowgroup changed: pipelines/01_raw_ingestion/csv_ingestions/customer_ingestion.yaml (was: raw_ingestions/customer_ingestion, now: test_pipeline/customer_ingestion)
+2025-07-15 12:16:44,722 - lhp.core.project_config_loader - INFO - Loaded project configuration from /Users/mehdi.modarressi/Documents/Coding/Lakehouse_Plumber/Sample_Projects/acmi/lhp.yaml
+2025-07-15 12:16:44,727 - lhp.core.state_manager - DEBUG - File orphaned - pipeline/flowgroup changed: pipelines/01_raw_ingestion/csv_ingestions/customer_ingestion.yaml (was: raw_ingestions/customer_ingestion, now: test_pipeline/customer_ingestion)
+2025-07-15 12:16:44,728 - lhp.core.state_manager - INFO - Deleted orphaned file: generated/raw_ingestions/customer_ingestion.py
+2025-07-15 12:16:44,729 - lhp.core.state_manager - DEBUG - Saved state to /Users/mehdi.modarressi/Documents/Coding/Lakehouse_Plumber/Sample_Projects/acmi/.lhp_state.json

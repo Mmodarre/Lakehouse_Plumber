@@ -1,0 +1,45 @@
+# This pipeline is used to load the nation table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: bronze_load
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: nation_bronze
+
+actions:
+  - name: nation_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: nation
+    target: v_nation_raw
+    description: "Load nation table from raw schema" 
+
+  - name: nation_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_nation_raw
+    target: v_nation_bronze_cleaned
+    sql: |
+      SELECT 
+        n_nationkey as nation_id,
+        n_name as name,
+        n_regionkey as region_id,
+        n_comment as comment,
+        _source_file_path,
+        _source_file_size,
+        _source_file_modification_time,
+        _record_hash,
+        _processing_timestamp
+      FROM stream(v_nation_raw)
+
+
+  - name: write_nation_bronze
+    type: write
+    source: v_nation_bronze_cleaned
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "nation"

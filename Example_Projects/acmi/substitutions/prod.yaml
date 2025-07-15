@@ -1,0 +1,14 @@
+# This file is used to define the substitutions for the prod environment
+# on the cli when we use the flag -e prod this file is used to define the environment variables
+# and the secrets to use for the prod environment
+prod:
+  env: prod
+  catalog: prod_catalog
+  landing_zone: /mnt/prod/landing/tpch
+  checkpoint_path: /mnt/prod/checkpoints
+  bronze_schema: bronze
+  silver_schema: silver
+  gold_schema: gold
+  
+secrets:
+  default_scope: prod_secrets 

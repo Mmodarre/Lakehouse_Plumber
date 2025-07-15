@@ -1,0 +1,41 @@
+# This schema is used to define the customer table schema
+# It is used for the schema_hint column of autoloader to overeride the inferred schema
+name: customer
+version: "1.0"
+description: "Customer dimension table schema"
+
+columns:
+  - name: c_custkey
+    type: BIGINT
+    nullable: false
+    comment: "Customer key - primary identifier"
+  - name: c_name
+    type: STRING
+    nullable: false
+    comment: "Customer name"
+  - name: c_address
+    type: STRING
+    nullable: true
+    comment: "Customer address"
+  - name: c_nationkey
+    type: BIGINT
+    nullable: false
+    comment: "Nation key - foreign key to nation"
+  - name: c_phone
+    type: STRING
+    nullable: true
+    comment: "Customer phone number"
+  - name: c_acctbal
+    type: DECIMAL(18,2)
+    nullable: true
+    comment: "Account balance"
+  - name: c_mktsegment
+    type: STRING
+    nullable: true
+    comment: "Market segment"
+  - name: c_comment
+    type: STRING
+    nullable: true
+    comment: "Free-form comment"
+
+primary_key: [c_custkey]

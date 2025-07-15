@@ -1,0 +1,38 @@
+# This pipeline is used to load the lineitem table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: silver_load
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: nation_silver_dim
+
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+  - name: nation_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{bronze_schema}"
+      table: nation
+    target: v_nation_bronze
+    description: "Load nation table from silver schema" 
+
+  - name: write_nation_silver
+    type: write
+    source: v_nation_bronze
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{silver_schema}"
+      table: "nation_dim"
+      mode: "cdc"
+      
+      # CDC configuration
+      cdc_config:
+        keys: ["nation_id"]
+        sequence_by: "_source_file_modification_time"
+        scd_type: 2
+        ignore_null_updates: false
+        track_history_except_column_list: ["_source_file_path", "_source_file_size", "_source_file_modification_time", "_record_hash", "_processing_timestamp"]
+        

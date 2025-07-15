@@ -1,0 +1,7 @@
+pipeline: raw_ingestions
+flowgroup: part_ingestion
+
+use_template: json_ingestion_template
+template_parameters:
+  table_name: part
+  landing_folder: part

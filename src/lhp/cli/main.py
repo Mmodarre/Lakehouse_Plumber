@@ -567,6 +567,16 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
     if cleanup and state_manager and not force:
         click.echo(f"🔍 Analyzing changes in environment: {env}")
 
+        # Get detailed staleness information
+        staleness_info = state_manager.get_detailed_staleness_info(env)
+        
+        # Show global dependency changes if any
+        if staleness_info["global_changes"]:
+            click.echo("🌍 Global dependency changes detected:")
+            for change in staleness_info["global_changes"]:
+                click.echo(f"   • {change}")
+            click.echo("   → All files will be regenerated")
+
         for pipeline_name in pipelines_to_generate:
             generation_info = state_manager.get_files_needing_generation(
                 env, pipeline_name
@@ -584,6 +594,16 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
                 if stale_count > 0:
                     status_parts.append(f"{stale_count} stale")
                 click.echo(f"   📁 {pipeline_name}: {', '.join(status_parts)} file(s)")
+                
+                # Show detailed dependency changes for verbose mode
+                if verbose and stale_count > 0:
+                    for file_state in generation_info["stale"]:
+                        file_path = file_state.generated_path
+                        if file_path in staleness_info["files"]:
+                            file_info = staleness_info["files"][file_path]
+                            click.echo(f"      • {file_path}:")
+                            for detail in file_info["details"]:
+                                click.echo(f"        - {detail}")
             else:
                 click.echo(
                     f"   ✅ {pipeline_name}: {up_to_date_count} file(s) up-to-date"
@@ -1500,12 +1520,30 @@ def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
         click.echo(f"📝 Stale Files ({len(stale_files)} found)")
         click.echo("─" * 60)
 
+        # Get detailed staleness information
+        staleness_info = state_manager.get_detailed_staleness_info(env)
+        
+        # Show global changes if any
+        if staleness_info["global_changes"]:
+            click.echo("🌍 Global dependency changes:")
+            for change in staleness_info["global_changes"]:
+                click.echo(f"   • {change}")
+            click.echo()
+
         for file_state in stale_files:
             click.echo(f"• {file_state.generated_path}")
-            click.echo(f"  Source: {file_state.source_yaml} (changed)")
+            click.echo(f"  Source: {file_state.source_yaml}")
             click.echo(f"  Pipeline: {file_state.pipeline}")
             click.echo(f"  FlowGroup: {file_state.flowgroup}")
             click.echo(f"  Last generated: {file_state.timestamp}")
+            
+            # Show detailed dependency changes
+            if file_state.generated_path in staleness_info["files"]:
+                file_info = staleness_info["files"][file_state.generated_path]
+                click.echo(f"  Changes detected:")
+                for detail in file_info["details"]:
+                    click.echo(f"    - {detail}")
+            
             click.echo()
 
         if regen:

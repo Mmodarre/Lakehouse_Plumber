@@ -11,6 +11,24 @@ from collections import defaultdict
 
 
 @dataclass
+class DependencyInfo:
+    """Information about a dependency file."""
+    
+    path: str              # Relative path to dependency file
+    checksum: str          # SHA256 checksum of dependency
+    type: str             # 'preset', 'template', 'substitution', 'project_config'
+    last_modified: str    # ISO timestamp of last modification
+
+
+@dataclass
+class GlobalDependencies:
+    """Dependencies that affect all files in scope."""
+    
+    substitution_file: Optional[DependencyInfo] = None  # Per environment
+    project_config: Optional[DependencyInfo] = None     # Global across environments
+
+
+@dataclass
 class FileState:
     """Represents the state of a generated file."""
 
@@ -22,6 +40,10 @@ class FileState:
     environment: str  # Environment it was generated for
     pipeline: str  # Pipeline name
     flowgroup: str  # FlowGroup name
+    
+    # New dependency tracking fields
+    file_dependencies: Optional[Dict[str, DependencyInfo]] = None
+    file_composite_checksum: str = ""
 
 
 @dataclass
@@ -33,10 +55,15 @@ class ProjectState:
     environments: Dict[str, Dict[str, FileState]] = (
         None  # env -> file_path -> FileState
     )
+    
+    # Global dependencies per environment
+    global_dependencies: Optional[Dict[str, GlobalDependencies]] = None  # env -> GlobalDependencies
 
     def __post_init__(self):
         if self.environments is None:
             self.environments = {}
+        if self.global_dependencies is None:
+            self.global_dependencies = {}
 
 
 class StateManager:
@@ -53,6 +80,10 @@ class StateManager:
         self.state_file = project_root / state_file_name
         self.logger = logging.getLogger(__name__)
         self._state: Optional[ProjectState] = None
+        
+        # Initialize dependency resolver
+        from .state_dependency_resolver import StateDependencyResolver
+        self.dependency_resolver = StateDependencyResolver(project_root)
 
         # Load existing state
         self._load_state()
@@ -89,15 +120,45 @@ class StateManager:
                 for env_name, env_files in state_data.get("environments", {}).items():
                     environments[env_name] = {}
                     for file_path, file_state in env_files.items():
-                        # Handle backward compatibility - add source_yaml_checksum if missing
+                        # Handle backward compatibility - add missing fields
                         if "source_yaml_checksum" not in file_state:
                             file_state["source_yaml_checksum"] = ""
+                        if "file_dependencies" not in file_state:
+                            file_state["file_dependencies"] = None
+                        if "file_composite_checksum" not in file_state:
+                            file_state["file_composite_checksum"] = ""
+                        
+                        # Convert file_dependencies from dict to DependencyInfo objects
+                        if file_state["file_dependencies"]:
+                            file_deps = {}
+                            for dep_path, dep_info in file_state["file_dependencies"].items():
+                                file_deps[dep_path] = DependencyInfo(**dep_info)
+                            file_state["file_dependencies"] = file_deps
+                        
                         environments[env_name][file_path] = FileState(**file_state)
+
+                # Handle global dependencies
+                global_dependencies = {}
+                if "global_dependencies" in state_data:
+                    for env_name, global_deps in state_data["global_dependencies"].items():
+                        substitution_file = None
+                        project_config = None
+                        
+                        if "substitution_file" in global_deps and global_deps["substitution_file"]:
+                            substitution_file = DependencyInfo(**global_deps["substitution_file"])
+                        if "project_config" in global_deps and global_deps["project_config"]:
+                            project_config = DependencyInfo(**global_deps["project_config"])
+                        
+                        global_dependencies[env_name] = GlobalDependencies(
+                            substitution_file=substitution_file,
+                            project_config=project_config
+                        )
 
                 self._state = ProjectState(
                     version=state_data.get("version", "1.0"),
                     last_updated=state_data.get("last_updated", ""),
                     environments=environments,
+                    global_dependencies=global_dependencies
                 )
 
                 self.logger.info(f"Loaded state from {self.state_file}")
@@ -144,7 +205,7 @@ class StateManager:
         pipeline: str,
         flowgroup: str,
     ):
-        """Track a generated file in the state.
+        """Track a generated file in the state with dependency resolution.
 
         Args:
             generated_path: Path to the generated file
@@ -166,6 +227,15 @@ class StateManager:
         generated_checksum = self._calculate_checksum(generated_path)
         source_checksum = self._calculate_checksum(source_yaml)
 
+        # Resolve file-specific dependencies
+        file_dependencies = self.dependency_resolver.resolve_file_dependencies(
+            source_yaml, environment
+        )
+        
+        # Calculate composite checksum for all dependencies
+        dep_paths = [str(rel_source)] + list(file_dependencies.keys())
+        composite_checksum = self.dependency_resolver.calculate_composite_checksum(dep_paths)
+
         # Create file state
         file_state = FileState(
             source_yaml=str(rel_source),
@@ -176,6 +246,8 @@ class StateManager:
             environment=environment,
             pipeline=pipeline,
             flowgroup=flowgroup,
+            file_dependencies=file_dependencies,
+            file_composite_checksum=composite_checksum,
         )
 
         # Ensure environment exists in state
@@ -185,7 +257,45 @@ class StateManager:
         # Track the file
         self._state.environments[environment][str(rel_generated)] = file_state
 
-        self.logger.debug(f"Tracked generated file: {rel_generated} from {rel_source}")
+        # Update global dependencies for this environment
+        self._update_global_dependencies(environment)
+
+        self.logger.debug(f"Tracked generated file: {rel_generated} from {rel_source} with {len(file_dependencies)} dependencies")
+
+    def _update_global_dependencies(self, environment: str):
+        """Update global dependencies for an environment.
+        
+        Args:
+            environment: Environment name
+        """
+        try:
+            # Resolve global dependencies
+            global_deps = self.dependency_resolver.resolve_global_dependencies(environment)
+            
+            # Convert to GlobalDependencies object
+            substitution_file = None
+            project_config = None
+            
+            for dep_path, dep_info in global_deps.items():
+                if dep_info.type == "substitution":
+                    substitution_file = dep_info
+                elif dep_info.type == "project_config":
+                    project_config = dep_info
+            
+            # Ensure global_dependencies exists in state
+            if self._state.global_dependencies is None:
+                self._state.global_dependencies = {}
+            
+            # Update global dependencies for this environment
+            self._state.global_dependencies[environment] = GlobalDependencies(
+                substitution_file=substitution_file,
+                project_config=project_config
+            )
+            
+            self.logger.debug(f"Updated global dependencies for environment: {environment}")
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to update global dependencies for {environment}: {e}")
 
     def get_generated_files(self, environment: str) -> Dict[str, FileState]:
         """Get all generated files for an environment.
@@ -227,7 +337,8 @@ class StateManager:
 
         A file is considered orphaned if:
         1. The source YAML file doesn't exist anymore, OR
-        2. The source YAML file exists but doesn't match the current include patterns
+        2. The source YAML file exists but doesn't match the current include patterns, OR
+        3. The source YAML file exists but pipeline/flowgroup fields have changed (different expected path)
 
         Args:
             environment: Environment name
@@ -255,33 +366,345 @@ class StateManager:
             elif file_state.source_yaml not in current_yaml_paths:
                 orphaned.append(file_state)
                 self.logger.debug(f"File orphaned - doesn't match include patterns: {file_state.source_yaml}")
+            else:
+                # Check if pipeline/flowgroup fields have changed (different expected path)
+                try:
+                    from ..parsers.yaml_parser import YAMLParser
+                    parser = YAMLParser()
+                    current_flowgroup = parser.parse_flowgroup(source_path)
+                    
+                    # Check if the expected generated file path has changed
+                    expected_pipeline = current_flowgroup.pipeline
+                    expected_flowgroup = current_flowgroup.flowgroup
+                    
+                    # Compare with stored values
+                    if (file_state.pipeline != expected_pipeline or 
+                        file_state.flowgroup != expected_flowgroup):
+                        orphaned.append(file_state)
+                        self.logger.debug(f"File orphaned - pipeline/flowgroup changed: {file_state.source_yaml} "
+                                        f"(was: {file_state.pipeline}/{file_state.flowgroup}, "
+                                        f"now: {expected_pipeline}/{expected_flowgroup})")
+                except Exception as e:
+                    # If we can't parse the YAML, don't consider it orphaned
+                    # The file exists and matches include patterns, so it's still valid
+                    self.logger.debug(f"Could not parse YAML {file_state.source_yaml} for orphan check: {e}")
+                    # Don't add to orphaned list - let normal processing handle it
 
         return orphaned
 
     def find_stale_files(self, environment: str) -> List[FileState]:
-        """Find generated files whose source YAML files have changed.
+        """Find generated files that need regeneration due to dependency changes.
+
+        This enhanced method checks for staleness due to:
+        1. Source YAML file changes
+        2. Global dependency changes (substitution files, project config)
+        3. File-specific dependency changes (presets, templates)
 
         Args:
             environment: Environment name
 
         Returns:
-            List of FileState objects for stale files (YAML changed)
+            List of FileState objects for stale files
         """
         stale = []
         env_files = self._state.environments.get(environment, {})
 
+        if not env_files:
+            return stale
+
+        # Check for global dependency changes
+        global_deps_changed = self._check_global_dependencies_changed(environment)
+        
+        if global_deps_changed:
+            # If global dependencies changed, ALL files in the environment are stale
+            self.logger.debug(f"Global dependencies changed for {environment} - marking all files as stale")
+            return list(env_files.values())
+
+        # Check individual files for staleness
         for file_state in env_files.values():
             source_path = self.project_root / file_state.source_yaml
-            if source_path.exists():
-                current_checksum = self._calculate_checksum(source_path)
-                # If checksum is empty (backward compatibility) or different, it's stale
-                if (
-                    not file_state.source_yaml_checksum
-                    or current_checksum != file_state.source_yaml_checksum
-                ):
-                    stale.append(file_state)
+            
+            if not source_path.exists():
+                # Source file doesn't exist - this will be handled by find_orphaned_files
+                continue
+                
+            # Check if source YAML has changed
+            current_source_checksum = self._calculate_checksum(source_path)
+            source_changed = (
+                not file_state.source_yaml_checksum
+                or current_source_checksum != file_state.source_yaml_checksum
+            )
+            
+            # Check if file-specific dependencies have changed
+            file_deps_changed = self._check_file_dependencies_changed(file_state, environment)
+            
+            if source_changed or file_deps_changed:
+                stale.append(file_state)
+                reason = []
+                if source_changed:
+                    reason.append("source YAML changed")
+                if file_deps_changed:
+                    reason.append("file dependencies changed")
+                self.logger.debug(f"File {file_state.generated_path} is stale: {', '.join(reason)}")
 
         return stale
+
+    def _check_global_dependencies_changed(self, environment: str) -> bool:
+        """Check if global dependencies have changed for an environment.
+        
+        Args:
+            environment: Environment name
+            
+        Returns:
+            True if global dependencies have changed, False otherwise
+        """
+        try:
+            # Get current global dependencies
+            current_global_deps = self.dependency_resolver.resolve_global_dependencies(environment)
+            
+            # Get stored global dependencies
+            stored_global_deps = self._state.global_dependencies.get(environment) if self._state.global_dependencies else None
+            
+            # If no stored global dependencies, consider as changed (first time)
+            if not stored_global_deps:
+                return bool(current_global_deps)  # Changed if there are any global dependencies
+            
+            # Compare substitution file
+            if self._dependency_changed(
+                stored_global_deps.substitution_file, 
+                current_global_deps.get(f"substitutions/{environment}.yaml")
+            ):
+                self.logger.debug(f"Substitution file changed for {environment}")
+                return True
+            
+            # Compare project config
+            if self._dependency_changed(
+                stored_global_deps.project_config,
+                current_global_deps.get("lhp.yaml")
+            ):
+                self.logger.debug(f"Project config changed for {environment}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to check global dependencies for {environment}: {e}")
+            return True  # Assume changed on error to be safe
+
+    def _check_file_dependencies_changed(self, file_state: FileState, environment: str) -> bool:
+        """Check if file-specific dependencies have changed.
+        
+        Args:
+            file_state: FileState object to check
+            environment: Environment name
+            
+        Returns:
+            True if file dependencies have changed, False otherwise
+        """
+        try:
+            # Get current file dependencies
+            source_path = self.project_root / file_state.source_yaml
+            if not source_path.exists():
+                return False  # Will be handled as orphaned
+            
+            current_file_deps = self.dependency_resolver.resolve_file_dependencies(
+                source_path, environment
+            )
+            
+            # Get stored file dependencies
+            stored_file_deps = file_state.file_dependencies or {}
+            
+            # Compare dependency sets
+            current_dep_paths = set(current_file_deps.keys())
+            stored_dep_paths = set(stored_file_deps.keys())
+            
+            # Check for added or removed dependencies
+            if current_dep_paths != stored_dep_paths:
+                self.logger.debug(f"File dependencies changed for {file_state.generated_path}: added={current_dep_paths - stored_dep_paths}, removed={stored_dep_paths - current_dep_paths}")
+                return True
+            
+            # Check for changes in existing dependencies
+            for dep_path in current_dep_paths:
+                if self._dependency_changed(stored_file_deps.get(dep_path), current_file_deps.get(dep_path)):
+                    self.logger.debug(f"File dependency {dep_path} changed for {file_state.generated_path}")
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to check file dependencies for {file_state.generated_path}: {e}")
+            return True  # Assume changed on error to be safe
+
+    def _dependency_changed(self, stored_dep: Optional[DependencyInfo], current_dep: Optional[DependencyInfo]) -> bool:
+        """Check if a dependency has changed.
+        
+        Args:
+            stored_dep: Stored dependency info (can be None)
+            current_dep: Current dependency info (can be None)
+            
+        Returns:
+            True if dependency has changed, False otherwise
+        """
+        # If one exists and the other doesn't, it's changed
+        if bool(stored_dep) != bool(current_dep):
+            return True
+        
+        # If both are None, no change
+        if not stored_dep and not current_dep:
+            return False
+        
+        # Both exist - compare checksums
+        return stored_dep.checksum != current_dep.checksum
+
+    def get_detailed_staleness_info(self, environment: str) -> Dict[str, Any]:
+        """Get detailed information about which dependencies changed for each file.
+        
+        Args:
+            environment: Environment name
+            
+        Returns:
+            Dictionary with detailed staleness information
+        """
+        result = {
+            "global_changes": [],
+            "files": {}
+        }
+        
+        env_files = self._state.environments.get(environment, {})
+        if not env_files:
+            return result
+        
+        # Check for global dependency changes
+        global_deps_changed = self._check_global_dependencies_changed(environment)
+        
+        if global_deps_changed:
+            # Determine which global dependencies changed
+            try:
+                current_global_deps = self.dependency_resolver.resolve_global_dependencies(environment)
+                stored_global_deps = self._state.global_dependencies.get(environment) if self._state.global_dependencies else None
+                
+                if not stored_global_deps:
+                    if f"substitutions/{environment}.yaml" in current_global_deps:
+                        result["global_changes"].append(f"Substitution file (substitutions/{environment}.yaml) added")
+                    if "lhp.yaml" in current_global_deps:
+                        result["global_changes"].append("Project config (lhp.yaml) added")
+                else:
+                    # Compare specific global dependencies
+                    if self._dependency_changed(
+                        stored_global_deps.substitution_file,
+                        current_global_deps.get(f"substitutions/{environment}.yaml")
+                    ):
+                        result["global_changes"].append(f"Substitution file (substitutions/{environment}.yaml) changed")
+                    
+                    if self._dependency_changed(
+                        stored_global_deps.project_config,
+                        current_global_deps.get("lhp.yaml")
+                    ):
+                        result["global_changes"].append("Project config (lhp.yaml) changed")
+                        
+            except Exception as e:
+                self.logger.warning(f"Failed to analyze global dependency changes: {e}")
+                result["global_changes"].append("Global dependencies changed (details unavailable)")
+        
+        # If global dependencies changed, all files are stale
+        if global_deps_changed:
+            for file_state in env_files.values():
+                result["files"][file_state.generated_path] = {
+                    "reasons": ["Global dependencies changed"],
+                    "details": result["global_changes"]
+                }
+        else:
+            # Check individual files for staleness
+            for file_state in env_files.values():
+                reasons = []
+                details = []
+                
+                source_path = self.project_root / file_state.source_yaml
+                
+                if not source_path.exists():
+                    # This will be handled by find_orphaned_files
+                    continue
+                
+                # Check if source YAML has changed
+                current_source_checksum = self._calculate_checksum(source_path)
+                source_changed = (
+                    not file_state.source_yaml_checksum
+                    or current_source_checksum != file_state.source_yaml_checksum
+                )
+                
+                if source_changed:
+                    reasons.append("Source YAML changed")
+                    details.append(f"Source file {file_state.source_yaml} was modified")
+                
+                # Check file-specific dependencies
+                file_deps_info = self._get_file_dependency_changes(file_state, environment)
+                if file_deps_info:
+                    reasons.append("File dependencies changed")
+                    details.extend(file_deps_info)
+                
+                # Only add to result if there are changes
+                if reasons:
+                    result["files"][file_state.generated_path] = {
+                        "reasons": reasons,
+                        "details": details
+                    }
+        
+        return result
+
+    def _get_file_dependency_changes(self, file_state: FileState, environment: str) -> List[str]:
+        """Get detailed information about file dependency changes.
+        
+        Args:
+            file_state: FileState object to check
+            environment: Environment name
+            
+        Returns:
+            List of detailed change descriptions
+        """
+        changes = []
+        
+        try:
+            # Get current file dependencies
+            source_path = self.project_root / file_state.source_yaml
+            if not source_path.exists():
+                return changes
+            
+            current_file_deps = self.dependency_resolver.resolve_file_dependencies(
+                source_path, environment
+            )
+            
+            # Get stored file dependencies
+            stored_file_deps = file_state.file_dependencies or {}
+            
+            # Compare dependency sets
+            current_dep_paths = set(current_file_deps.keys())
+            stored_dep_paths = set(stored_file_deps.keys())
+            
+            # Check for added dependencies
+            added_deps = current_dep_paths - stored_dep_paths
+            for dep_path in added_deps:
+                dep_info = current_file_deps[dep_path]
+                changes.append(f"Added {dep_info.type}: {dep_path}")
+            
+            # Check for removed dependencies
+            removed_deps = stored_dep_paths - current_dep_paths
+            for dep_path in removed_deps:
+                dep_info = stored_file_deps[dep_path]
+                changes.append(f"Removed {dep_info.type}: {dep_path}")
+            
+            # Check for changes in existing dependencies
+            for dep_path in current_dep_paths & stored_dep_paths:
+                stored_dep = stored_file_deps[dep_path]
+                current_dep = current_file_deps[dep_path]
+                
+                if stored_dep.checksum != current_dep.checksum:
+                    changes.append(f"Modified {current_dep.type}: {dep_path}")
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to analyze file dependencies for {file_state.generated_path}: {e}")
+            changes.append("File dependencies changed (details unavailable)")
+        
+        return changes
 
     def find_new_yaml_files(self, environment: str, pipeline: str = None) -> List[Path]:
         """Find YAML files that exist but are not tracked in state.

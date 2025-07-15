@@ -61,7 +61,7 @@
                                 "type": "array",
                                 "items": {
                                     "type": "string",
-                                    "enum": ["streaming_table", "materialized_view"]
+                                    "enum": ["streaming_table", "materialized_view","view"]
                                 },
                                 "default": ["streaming_table", "materialized_view"],
                                 "description": "Which write target types this column applies to"

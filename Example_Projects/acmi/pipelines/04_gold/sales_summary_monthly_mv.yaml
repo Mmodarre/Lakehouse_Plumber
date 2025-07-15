@@ -1,0 +1,35 @@
+# This pipeline is used to create a daily sales summary materialized view
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: gold_load
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: sales_summary_monthly_mv
+
+actions:
+
+  - name: sales_summary_monthly_mv_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT 
+          YEAR(order_date) as year,
+          MONTH(order_date) as month,
+          SUM(total_price) as monthly_revenue,
+          COUNT(DISTINCT o.order_id) as monthly_orders,
+          COUNT(DISTINCT o.customer_id) as monthly_customers,
+          AVG(total_price) as avg_monthly_order_value
+        FROM {catalog}.{silver_schema}.orders_fct o
+        GROUP BY YEAR(order_date), MONTH(order_date)
+    target: v_sales_summary_monthly_mv_sql
+    
+
+  - name: write_sales_summary_monthly_mv
+    type: write
+    source: v_sales_summary_monthly_mv_sql
+    write_target:
+      type: materialized_view
+      database: "{catalog}.{gold_schema}"
+      table: "sales_summary_monthly_mv"
+
+    
