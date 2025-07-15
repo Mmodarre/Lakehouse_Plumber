@@ -1,0 +1,68 @@
+# This pipeline is used to load the lineitem table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: bronze_load
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: lineitem_bronze
+
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+  - name: lineitem_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: lineitem
+    target: v_lineitem_raw
+    description: "Load lineitem table from raw schema" 
+
+  - name: lineitem_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_lineitem_raw
+    target: v_lineitem_bronze_cleaned
+    sql: |
+      SELECT 
+        l_orderkey as order_id,
+        l_partkey as part_id,
+        l_suppkey as supplier_id,
+        l_linenumber as line_number,
+        l_quantity as quantity,
+        l_extendedprice as extended_price,
+        l_discount as discount,
+        l_tax as tax,
+        l_returnflag as return_flag,
+        l_linestatus as line_status,
+        l_shipdate as ship_date,
+        l_commitdate as commit_date,
+        l_receiptdate as receipt_date,
+        l_shipinstruct as ship_instruct,
+        l_shipmode as ship_mode,
+        l_comment as comment,
+        _source_file_path,
+        _source_file_size,
+        _source_file_modification_time,
+        _record_hash,
+        _processing_timestamp
+      FROM stream(v_lineitem_raw)
+
+  - name: lineitem_bronze_DQE
+    type: transform
+    transform_type: data_quality
+    source: v_lineitem_bronze_cleaned
+    target: v_lineitem_bronze_DQE
+    readMode: stream  
+    expectations_file: "expectations/lineitem_quality.json"
+    description: "Apply data quality checks to lineitem"
+
+  - name: write_lineitem_bronze
+    type: write
+    source: v_lineitem_bronze_DQE
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "lineitem"
+        

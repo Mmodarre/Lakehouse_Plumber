@@ -126,6 +126,17 @@ class ActionOrchestrator:
             # Get flowgroups for stale files
             stale_flowgroups = {fs.flowgroup for fs in generation_info["stale"]}
 
+            # Log dependency changes for debugging
+            if stale_flowgroups:
+                staleness_info = state_manager.get_detailed_staleness_info(env)
+                if staleness_info["global_changes"]:
+                    self.logger.info(f"Global dependency changes detected: {staleness_info['global_changes']}")
+                
+                for file_state in generation_info["stale"]:
+                    if file_state.generated_path in staleness_info["files"]:
+                        file_info = staleness_info["files"][file_state.generated_path]
+                        self.logger.debug(f"File {file_state.generated_path} is stale due to: {file_info['details']}")
+
             # Combine new and stale flowgroups
             flowgroups_to_generate = new_flowgroups | stale_flowgroups
 
@@ -416,6 +427,17 @@ class ActionOrchestrator:
 
             # Get flowgroups for stale files
             stale_flowgroups = {fs.flowgroup for fs in generation_info["stale"]}
+
+            # Log dependency changes for debugging
+            if stale_flowgroups:
+                staleness_info = state_manager.get_detailed_staleness_info(env)
+                if staleness_info["global_changes"]:
+                    self.logger.info(f"Global dependency changes detected: {staleness_info['global_changes']}")
+                
+                for file_state in generation_info["stale"]:
+                    if file_state.generated_path in staleness_info["files"]:
+                        file_info = staleness_info["files"][file_state.generated_path]
+                        self.logger.debug(f"File {file_state.generated_path} is stale due to: {file_info['details']}")
 
             # Combine new and stale flowgroups
             flowgroups_to_generate = new_flowgroups | stale_flowgroups

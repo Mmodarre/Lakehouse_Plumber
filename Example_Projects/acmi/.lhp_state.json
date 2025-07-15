@@ -1,0 +1,81 @@
+{
+  "environments": {
+    "dev": {
+      "generated/raw_ingestions/lineitem_ingestion.py": {
+        "checksum": "a84d98672b0662d730b5d065f38c412ef96051ed64bfb2e7398f63ac89ec9aa9",
+        "environment": "dev",
+        "file_composite_checksum": "c9137baa6a25a7e460e467dd30296dd599b16c6c6e0770e520ce1b3c4c07044f",
+        "file_dependencies": {
+          "templates/csv_ingestion_template.yaml": {
+            "checksum": "d75727a94d54326ec3f493d278567431dd0d279f1008808c5129a88b1faa7d41",
+            "last_modified": "2025-07-15T11:41:24.880463",
+            "path": "templates/csv_ingestion_template.yaml",
+            "type": "template"
+          }
+        },
+        "flowgroup": "lineitem_ingestion",
+        "generated_path": "generated/raw_ingestions/lineitem_ingestion.py",
+        "pipeline": "raw_ingestions",
+        "source_yaml": "pipelines/01_raw_ingestion/csv_ingestions/lineitem_ingestion.yaml",
+        "source_yaml_checksum": "a801d6881752f469091b9ad1d4784cc1322f73756ec9d40f14884c49504467b8",
+        "timestamp": "2025-07-15T12:12:45.274453"
+      },
+      "generated/raw_ingestions/nation_ingestion.py": {
+        "checksum": "65ed3e600825aba74852a6b71cb442399e0d6a43176d640d647464d4433705b4",
+        "environment": "dev",
+        "file_composite_checksum": "d9588a6c1c766f0c5f37ca29dab2ef01e451467b7bdc56de4027e0cd1a93adda",
+        "file_dependencies": {
+          "templates/csv_ingestion_template.yaml": {
+            "checksum": "d75727a94d54326ec3f493d278567431dd0d279f1008808c5129a88b1faa7d41",
+            "last_modified": "2025-07-15T11:41:24.880463",
+            "path": "templates/csv_ingestion_template.yaml",
+            "type": "template"
+          }
+        },
+        "flowgroup": "nation_ingestion",
+        "generated_path": "generated/raw_ingestions/nation_ingestion.py",
+        "pipeline": "raw_ingestions",
+        "source_yaml": "pipelines/01_raw_ingestion/csv_ingestions/nation_ingestion.yaml",
+        "source_yaml_checksum": "298014bbab3066103a8c8d880a52695a42c4312a86d97c6910fe731a21077f05",
+        "timestamp": "2025-07-15T12:12:45.477815"
+      },
+      "generated/raw_ingestions/orders_ingestion.py": {
+        "checksum": "0bc3bea2a9eb4d120225a1d9676c293c8d958155c643810cd49ff269f2acb92e",
+        "environment": "dev",
+        "file_composite_checksum": "0d6a745aa24aa67151f33a3f42a3621556e818235999d5ce45e644d9fd7be679",
+        "file_dependencies": {
+          "templates/csv_ingestion_template.yaml": {
+            "checksum": "d75727a94d54326ec3f493d278567431dd0d279f1008808c5129a88b1faa7d41",
+            "last_modified": "2025-07-15T11:41:24.880463",
+            "path": "templates/csv_ingestion_template.yaml",
+            "type": "template"
+          }
+        },
+        "flowgroup": "orders_ingestion",
+        "generated_path": "generated/raw_ingestions/orders_ingestion.py",
+        "pipeline": "raw_ingestions",
+        "source_yaml": "pipelines/01_raw_ingestion/csv_ingestions/orders_ingestion.yaml",
+        "source_yaml_checksum": "1c2f79a49f8fa827d8b2aa49f5ffaa1532bb5e7d06d9816fd19cf386e535ea43",
+        "timestamp": "2025-07-15T12:12:45.411249"
+      }
+    }
+  },
+  "global_dependencies": {
+    "dev": {
+      "project_config": {
+        "checksum": "9dcec4172ab5dc3af846a1705bc4ea563e3c3473cb3d3bd5004405967a3e3cda",
+        "last_modified": "2025-07-15T11:43:37.466934",
+        "path": "lhp.yaml",
+        "type": "project_config"
+      },
+      "substitution_file": {
+        "checksum": "188f03738e893a7889cb4fa7dc7eb41ea00f85c5039dc63a521012763cc96b82",
+        "last_modified": "2025-07-15T11:42:00.253457",
+        "path": "substitutions/dev.yaml",
+        "type": "substitution"
+      }
+    }
+  },
+  "last_updated": "2025-07-15T12:16:44.729434",
+  "version": "1.0"
+}

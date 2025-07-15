@@ -1,0 +1,53 @@
+# This pipeline is used to load the lineitem table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: bronze_load
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: orders_bronze
+
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines.
+  - name: orders_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: orders
+    target: v_orders_raw
+    description: "Load orders table from raw schema" 
+
+  - name: orders_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_orders_raw
+    target: v_orders_bronze_cleaned
+    sql: |
+      SELECT 
+        o_orderkey as order_id,
+        o_custkey as customer_id,
+        o_orderstatus as order_status,
+        o_totalprice as total_price,
+        o_orderdate as order_date,
+        o_orderpriority as order_priority,
+        o_clerk as clerk,
+        o_shippriority as ship_priority,
+        o_comment as comment,
+        _source_file_path,
+        _source_file_size,
+        _source_file_modification_time,
+        _record_hash,
+        _processing_timestamp
+      FROM stream(v_orders_raw)
+
+
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_bronze_cleaned
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "orders"
+        

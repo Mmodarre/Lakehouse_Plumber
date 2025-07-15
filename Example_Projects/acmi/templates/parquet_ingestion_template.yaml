@@ -1,0 +1,44 @@
+# This is a template for ingesting Parquet files
+# It is used to generate the actions for the pipeline
+# within the pipeline all it need to defined are the parameters for the table name and landing folder
+# the template will generate the actions for the pipeline
+name: parquet_ingestion_template
+version: "1.0"
+description: "Standard template for ingesting Parquet files with schema enforcement"
+
+presets:
+  - bronze_layer
+
+parameters:
+  - name: table_name
+    required: true
+    description: "Name of the table to ingest"
+  - name: landing_folder
+    required: true
+    description: "Name of the landing folder"
+
+actions:
+  - name: load_{{ table_name }}_parquet
+    type: load
+    operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time","_record_hash"]
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/{{ landing_folder }}/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_{{ table_name }}_cloudfiles
+    description: "Load {{ table_name }} Parquet files from landing volume"
+
+  - name: write_{{ table_name }}_cloudfiles
+    type: write
+    source: v_{{ table_name }}_cloudfiles
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{raw_schema}"
+      table: "{{ table_name }}"
+      description: "Write {{ table_name }} to raw layer" 

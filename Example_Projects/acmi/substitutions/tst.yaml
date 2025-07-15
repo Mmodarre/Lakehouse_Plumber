@@ -1,0 +1,28 @@
+# This file is used to define the substitutions for the tst environment
+# on the cli when we use the flag -e tst this file is used to define the environment variables
+# and the secrets to use for the tst environment
+tst:
+  env: dev
+  catalog: acmi_edw_dev
+  landing_volume: /Volumes/{catalog}/{raw_schema}/landing_volume
+  raw_schema: edw_raw
+  bronze_schema: edw_bronze
+  silver_schema: edw_silver
+  gold_schema: edw_gold
+  
+secrets:
+  default_scope: tst_secrets
+  scopes:
+    database: tst_db_secrets
+
+
+
+# global:
+#   # Company-wide standards
+#   company: mehdi_corp
+#   region: us-east-1
+#   timezone: UTC
+#   default_file_format: delta
+#   default_table_properties:
+#     delta.enableChangeDataFeed: "true"
+#     delta.autoOptimize.optimizeWrite: "true"
