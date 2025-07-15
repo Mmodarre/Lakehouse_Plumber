@@ -36,6 +36,7 @@ exclude =
     .mypy_cache,
     .pytest_cache,
     migrations
+    Example_Projects,
 per-file-ignores =
     # __init__.py files can have unused imports
     __init__.py:F401
