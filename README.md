@@ -540,18 +540,18 @@ Each streaming table must have exactly one action with `create_table: true` acro
 ```
 
 #### Rule 2: Explicit Configuration Required
-The `create_table` field defaults to `false`, requiring explicit specification:
+The `create_table` field defaults to `true`, NOT requiring explicit specification unless you want to append to an existing table:
 
 ```yaml
-# ❌ Implicit (defaults to false - may cause validation errors)
+# ❌ Implicit (defaults to true - may cause validation errors if you want to append to an existing table)
 write_target:
   table: my_table
-  # create_table not specified (defaults to false)
+  # create_table not specified (defaults to true)
 
-# ✅ Explicit (recommended)  
-write_target:
-  table: my_table
-  create_table: true  # or false
+# ✅ Explicit (recommended for single write to table, required for multiple writes to table)  
+write_target_1_n_more:
+  table: my_existing_table
+  create_table: false
 ```
 
 ### Error Handling
