@@ -1386,6 +1386,15 @@ def stats(pipeline):
         click.echo(f"   Overall complexity: {complexity}")
 
 
+
+
+
+
+
+
+
+
+
 @cli.command()
 @click.option("--env", "-e", help="Environment to show state for")
 @click.option("--pipeline", "-p", help="Specific pipeline to show state for")
@@ -1399,6 +1408,9 @@ def stats(pipeline):
 @click.option("--regen", is_flag=True, help="Regenerate stale files")
 def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
     """Show or manage the current state of generated files."""
+    from ..services.state_display_service import StateDisplayService
+    from ..services.state_display_utils import StateDisplayUtils
+    
     project_root = _ensure_project_root()
 
     # Get context info for verbose logging
@@ -1407,357 +1419,75 @@ def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
     log_file = ctx.obj.get("log_file") if ctx.obj else None
 
     state_manager = StateManager(project_root)
+    
+    # Initialize service layer
+    service = StateDisplayService(state_manager, project_root, verbose, log_file)
 
     if verbose and log_file:
         click.echo(f"📝 Detailed logs: {log_file}")
 
+    # Handle no environment specified - show overall stats
     if not env:
-        # Show overall state statistics
-        stats = state_manager.get_statistics()
-        click.echo("📊 LakehousePlumber State Information")
-        click.echo("=" * 60)
-
-        if stats["total_environments"] == 0:
-            click.echo("📭 No tracked files found")
-            click.echo("\n💡 Generate code with --cleanup flag to start tracking files")
-            return
-
-        click.echo(f"Total environments: {stats['total_environments']}")
-
-        for env_name, env_stats in stats["environments"].items():
-            click.echo(f"\n🌍 Environment: {env_name}")
-            click.echo(f"   Total files: {env_stats['total_files']}")
-            click.echo(f"   Pipelines: {len(env_stats['pipelines'])}")
-            click.echo(f"   FlowGroups: {len(env_stats['flowgroups'])}")
-
-            if env_stats["pipelines"]:
-                click.echo("   Pipeline breakdown:")
-                for pipeline_name, file_count in env_stats["pipelines"].items():
-                    click.echo(f"     • {pipeline_name}: {file_count} files")
-
-        click.echo("\n💡 Use --env <environment> to see detailed file information")
+        stats = service.get_overall_stats()
+        if stats is None:
+            StateDisplayUtils.display_no_tracked_files_message()
+        else:
+            StateDisplayUtils.display_overall_stats(stats)
         return
 
-    # Show specific environment state
-    click.echo(f"📊 State for Environment: {env}")
-    click.echo("=" * 60)
+    # Handle environment-specific display
+    StateDisplayUtils.display_environment_header(env)
 
-    tracked_files = state_manager.get_generated_files(env)
+    # Check if any tracked files exist for this environment/pipeline
+    tracked_files = service.get_tracked_files(env, pipeline)
 
-    if not tracked_files:
-        click.echo("📭 No tracked files found for this environment")
+    if not tracked_files and not new:
+        StateDisplayUtils.display_missing_tracked_files(env, pipeline)
         return
 
-    # Filter by pipeline if specified
-    if pipeline:
-        tracked_files = {
-            path: file_state
-            for path, file_state in tracked_files.items()
-            if file_state.pipeline == pipeline
-        }
-
-        if not tracked_files:
-            click.echo(
-                f"📭 No tracked files found for pipeline '{pipeline}' in environment '{env}'"
-            )
-            return
-
-    # Show orphaned files if requested
+    # Handle specific flag-based operations
     if orphaned:
-        orphaned_files = state_manager.find_orphaned_files(env)
-
-        if pipeline:
-            orphaned_files = [
-                file_state
-                for file_state in orphaned_files
-                if file_state.pipeline == pipeline
-            ]
-
-        if not orphaned_files:
-            click.echo("✅ No orphaned files found")
-            return
-
-        click.echo(f"🗑️  Orphaned Files ({len(orphaned_files)} found)")
-        click.echo("─" * 60)
-
-        for file_state in orphaned_files:
-            click.echo(f"• {file_state.generated_path}")
-            click.echo(f"  Source: {file_state.source_yaml} (missing)")
-            click.echo(f"  Pipeline: {file_state.pipeline}")
-            click.echo(f"  FlowGroup: {file_state.flowgroup}")
-            click.echo(f"  Generated: {file_state.timestamp}")
-            click.echo()
-
-        if cleanup:
-            if dry_run:
-                click.echo(
-                    "📋 Would delete these orphaned files (use without --dry-run to actually delete)"
-                )
-            else:
-                click.echo("🗑️  Cleaning up orphaned files...")
-                deleted_files = state_manager.cleanup_orphaned_files(env, dry_run=False)
-                click.echo(f"✅ Deleted {len(deleted_files)} orphaned files")
-        else:
-            click.echo("💡 Use --cleanup flag to remove these orphaned files")
-
-        return
-
-    # Show stale files if requested
-    if stale:
-        stale_files = state_manager.find_stale_files(env)
-
-        if pipeline:
-            stale_files = [
-                file_state
-                for file_state in stale_files
-                if file_state.pipeline == pipeline
-            ]
-
-        if not stale_files:
-            click.echo("✅ No stale files found")
-            return
-
-        click.echo(f"📝 Stale Files ({len(stale_files)} found)")
-        click.echo("─" * 60)
-
-        # Get detailed staleness information
-        staleness_info = state_manager.get_detailed_staleness_info(env)
+        orphaned_files = service.get_orphaned_files(env, pipeline)
+        StateDisplayUtils.display_orphaned_files(orphaned_files, cleanup, dry_run)
         
-        # Show global changes if any
-        if staleness_info["global_changes"]:
-            click.echo("🌍 Global dependency changes:")
-            for change in staleness_info["global_changes"]:
-                click.echo(f"   • {change}")
-            click.echo()
-
-        for file_state in stale_files:
-            click.echo(f"• {file_state.generated_path}")
-            click.echo(f"  Source: {file_state.source_yaml}")
-            click.echo(f"  Pipeline: {file_state.pipeline}")
-            click.echo(f"  FlowGroup: {file_state.flowgroup}")
-            click.echo(f"  Last generated: {file_state.timestamp}")
-            
-            # Show detailed dependency changes
-            if file_state.generated_path in staleness_info["files"]:
-                file_info = staleness_info["files"][file_state.generated_path]
-                click.echo(f"  Changes detected:")
-                for detail in file_info["details"]:
-                    click.echo(f"    - {detail}")
-            
-            click.echo()
-
-        if regen:
-            if dry_run:
-                click.echo(
-                    "📋 Would regenerate these stale files (use without --dry-run to actually regenerate)"
-                )
-            else:
-                click.echo("🔄 Regenerating stale files...")
-                # Import here to avoid circular imports
-                from ..core.orchestrator import ActionOrchestrator
-
-                orchestrator = ActionOrchestrator(project_root)
-                regenerated_count = 0
-
-                # Group by pipeline
-                by_pipeline = defaultdict(list)
-                for file_state in stale_files:
-                    by_pipeline[file_state.pipeline].append(file_state)
-
-                for pipeline_name, files in by_pipeline.items():
-                    try:
-                        output_dir = project_root / "generated" / pipeline_name
-                        generated_files = orchestrator.generate_pipeline(
-                            pipeline_name, env, output_dir, state_manager=state_manager
-                        )
-                        regenerated_count += len(generated_files)
-                        click.echo(
-                            f"   ✅ Regenerated {len(generated_files)} file(s) for {pipeline_name}"
-                        )
-                    except Exception as e:
-                        error_handler = ErrorHandler(verbose)
-                        error_handler.with_pipeline_context(
-                            pipeline_name, env
-                        ).handle_cli_error(
-                            e, f"Regeneration for pipeline '{pipeline_name}'"
-                        )
-                        if log_file:
-                            click.echo(f"   📝 Check detailed logs: {log_file}")
-                        click.echo(f"   ❌ Failed to regenerate {pipeline_name}: {e}")
-
-                click.echo(f"✅ Regenerated {regenerated_count} stale files")
-        else:
-            click.echo("💡 Use --regen flag to regenerate these stale files")
-
+        if cleanup and orphaned_files and not dry_run:
+            deleted_files = service.cleanup_orphaned_files(env, dry_run)
+            StateDisplayUtils.display_cleanup_results(deleted_files)
         return
 
-    # Show new files if requested
+    if stale:
+        stale_files, staleness_info = service.get_stale_files(env, pipeline)
+        StateDisplayUtils.display_stale_files(stale_files, staleness_info, regen, dry_run)
+        
+        if regen and stale_files and not dry_run:
+            try:
+                regenerated_count = service.regenerate_stale_files(env, stale_files, dry_run)
+                StateDisplayUtils.display_regeneration_results(regenerated_count)
+            except Exception:
+                # Error already handled by service layer
+                pass
+        return
+
     if new:
-        new_files = state_manager.find_new_yaml_files(env)
-
-        if pipeline:
-            # Filter new files by pipeline
-            filtered_new_files = []
-            for yaml_file in new_files:
-                try:
-                    relative_path = yaml_file.relative_to(project_root)
-                    if (
-                        len(relative_path.parts) > 1
-                        and relative_path.parts[1] == pipeline
-                    ):
-                        filtered_new_files.append(yaml_file)
-                except ValueError:
-                    continue
-            new_files = filtered_new_files
-
-        if not new_files:
-            click.echo("✅ No new YAML files found")
-            return
-
-        click.echo(f"🆕 New YAML Files ({len(new_files)} found)")
-        click.echo("─" * 60)
-
-        # Group new files by pipeline
-        new_by_pipeline = defaultdict(list)
-        for yaml_file in new_files:
-            # Extract pipeline from path (pipelines/pipeline_name/...)
-            try:
-                relative_path = yaml_file.relative_to(project_root)
-                pipeline_name = relative_path.parts[1]  # pipelines/pipeline_name/...
-                new_by_pipeline[pipeline_name].append(yaml_file)
-            except (ValueError, IndexError):
-                new_by_pipeline["unknown"].append(yaml_file)
-
-        for pipeline_name, files in sorted(new_by_pipeline.items()):
-            click.echo(f"\n🔧 Pipeline: {pipeline_name} ({len(files)} new files)")
-            for yaml_file in sorted(files):
-                try:
-                    relative_path = yaml_file.relative_to(project_root)
-                    click.echo(f"  • {relative_path}")
-                except ValueError:
-                    click.echo(f"  • {yaml_file}")
-
-        click.echo(
-            f"\n💡 Use 'lhp generate --env {env} --cleanup' to generate code for these files"
-        )
+        new_files = service.get_new_files(env, pipeline)
+        by_pipeline = service.group_files_by_pipeline(new_files)
+        StateDisplayUtils.display_new_files(new_files, project_root, env, by_pipeline)
         return
 
-    # Find new (untracked) YAML files
-    new_files = state_manager.find_new_yaml_files(env, pipeline)
-    new_count = len(new_files)
-
-    # Show all tracked files
-    click.echo(f"📁 Tracked Files ({len(tracked_files)} total)")
-    click.echo("─" * 60)
-
-    # Group by pipeline
-    by_pipeline = defaultdict(list)
-    for file_state in tracked_files.values():
-        by_pipeline[file_state.pipeline].append(file_state)
-
-    for pipeline_name, files in sorted(by_pipeline.items()):
-        click.echo(f"\n🔧 Pipeline: {pipeline_name} ({len(files)} files)")
-
-        for file_state in sorted(files, key=lambda f: f.flowgroup):
-            # Check if source still exists
-            source_path = project_root / file_state.source_yaml
-            source_exists = source_path.exists()
-
-            # Check if generated file still exists
-            generated_path = project_root / file_state.generated_path
-            generated_exists = generated_path.exists()
-
-            # Check if source has changed (stale)
-            change_status = ""
-            if source_exists and file_state.source_yaml_checksum:
-                current_checksum = state_manager._calculate_checksum(source_path)
-                if current_checksum != file_state.source_yaml_checksum:
-                    change_status = " 🟡 (stale)"
-                else:
-                    change_status = " 🟢 (up-to-date)"
-            elif source_exists and not file_state.source_yaml_checksum:
-                change_status = " 🟡 (unknown)"
-
-            source_status = "✅" if source_exists else "❌"
-            generated_status = "✅" if generated_exists else "❌"
-
-            click.echo(f"  • {file_state.generated_path} {generated_status}")
-            click.echo(
-                f"    Source: {file_state.source_yaml} {source_status}{change_status}"
-            )
-            click.echo(f"    FlowGroup: {file_state.flowgroup}")
-            click.echo(f"    Generated: {file_state.timestamp}")
-
-    # Show new (untracked) YAML files
-    if new_count > 0:
-        click.echo(f"\n📄 New YAML Files ({new_count} found)")
-        click.echo("─" * 60)
-
-        # Group new files by pipeline
-        new_by_pipeline = defaultdict(list)
-        for yaml_file in new_files:
-            # Extract pipeline from path (pipelines/pipeline_name/...)
-            try:
-                relative_path = yaml_file.relative_to(project_root)
-                pipeline_name = relative_path.parts[1]  # pipelines/pipeline_name/...
-                new_by_pipeline[pipeline_name].append(yaml_file)
-            except (ValueError, IndexError):
-                new_by_pipeline["unknown"].append(yaml_file)
-
-        for pipeline_name, files in sorted(new_by_pipeline.items()):
-            click.echo(f"\n🔧 Pipeline: {pipeline_name} ({len(files)} new files)")
-            for yaml_file in sorted(files):
-                try:
-                    relative_path = yaml_file.relative_to(project_root)
-                    click.echo(f"  • {relative_path} 🆕")
-                except ValueError:
-                    click.echo(f"  • {yaml_file} 🆕")
-
-        click.echo(
-            f"\n💡 Use 'lhp generate --env {env} --cleanup' to generate code for these files"
-        )
-
-    # Show comprehensive summary
-    orphaned_files = state_manager.find_orphaned_files(env)
-    stale_files = state_manager.find_stale_files(env)
-
-    # Filter by pipeline if specified
-    if pipeline:
-        orphaned_files = [f for f in orphaned_files if f.pipeline == pipeline]
-        stale_files = [f for f in stale_files if f.pipeline == pipeline]
-
-    orphaned_count = len(orphaned_files)
-    stale_count = len(stale_files)
-    total_tracked = len(tracked_files)
-    up_to_date_count = total_tracked - stale_count
-
-    click.echo("\n📊 Summary:")
-    click.echo(f"   🟢 {up_to_date_count} files up-to-date")
-
-    if new_count > 0:
-        click.echo(f"   🆕 {new_count} new YAML files (not generated yet)")
-        click.echo(f"      Use 'lhp generate --env {env} --cleanup' to generate them")
-
-    if stale_count > 0:
-        click.echo(f"   🟡 {stale_count} files stale (YAML changed)")
-        click.echo("      Use --stale flag to see details")
-        click.echo("      Use --stale --regen to regenerate them")
-
-    if orphaned_count > 0:
-        click.echo(f"   🔴 {orphaned_count} files orphaned (YAML deleted)")
-        click.echo("      Use --orphaned flag to see details")
-        click.echo("      Use --orphaned --cleanup to remove them")
-
-    if orphaned_count == 0 and stale_count == 0 and new_count == 0:
-        click.echo("   ✨ Everything is in perfect sync!")
-
-    click.echo("\n💡 Smart generation tips:")
-    click.echo(
-        f"   • lhp generate --env {env} --cleanup    # Only process changed files"
+    # Default comprehensive view
+    StateDisplayUtils.display_tracked_files(
+        tracked_files, project_root, service.calculate_file_status
     )
-    click.echo(
-        f"   • lhp generate --env {env} --cleanup --force  # Force regenerate all"
-    )
+
+    # Get new files for summary
+    new_files = service.get_new_files(env, pipeline)
+    
+    # Display comprehensive summary
+    counts = service.calculate_summary_counts(env, pipeline)
+    by_pipeline = service.group_files_by_pipeline(new_files)
+    
+    StateDisplayUtils.display_new_files_in_summary(new_files, project_root, env, by_pipeline)
+    StateDisplayUtils.display_comprehensive_summary(counts, env)
 
 
 @cli.command()
