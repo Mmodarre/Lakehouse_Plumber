@@ -5,9 +5,9 @@ description: "ACMI Delta Lakehouse Project - TPC-H"
 author: "Mehdi Modarressi"
 created_date: "2025-07-11"
 
-include:
-  - "01_raw_ingestion/csv_ingestions/*.yaml"
-  #- "03_silver/dim/*.yaml"
+# include:
+  # - "01_raw_ingestion/csv_ingestions/*.yaml"
+  # - "03_silver/dim/*.yaml"
 
 operational_metadata:
   columns:
