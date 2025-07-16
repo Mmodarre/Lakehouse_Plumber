@@ -12,11 +12,10 @@
 
 [![PyPI version](https://badge.fury.io/py/lakehouse-plumber.svg)](https://badge.fury.io/py/lakehouse-plumber)
 [![Tests](https://github.com/Mmodarre/Lakehouse_Plumber/actions/workflows/python_ci.yml/badge.svg)](https://github.com/Mmodarre/Lakehouse_Plumber/actions/workflows/python_ci.yml)
-<!-- [![Python Support](https://img.shields.io/pypi/pyversions/lakehouse-plumber.svg)](https://pypi.org/project/lakehouse-plumber/) -->
+[![Python Support](https://img.shields.io/pypi/pyversions/lakehouse-plumber.svg)](https://pypi.org/project/lakehouse-plumber/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Lines of Code](https://img.shields.io/badge/lines%20of%20code-~15k-blue)](https://github.com/Mmodarre/Lakehouse_Plumber)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 [![codecov](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber/branch/main/graph/badge.svg?token=80IBHIFAQY)](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber)
 [![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://lakehouse-plumber.readthedocs.io/)
 [![Databricks](https://img.shields.io/badge/Databricks-DLT-orange.svg)](https://databricks.com/product/delta-live-tables)
@@ -303,17 +302,7 @@ lhp setup-intellisense
 - The Red Hat YAML extension is detected but usually works well alongside LakehousePlumber schemas
 - If issues persist, you can temporarily disable it or adjust its settings
 
-### 🔄 Maintenance
 
-The IntelliSense setup is persistent and doesn't need regular maintenance. However, you may want to:
-
-```bash
-# Check status periodically
-lhp setup-intellisense --status
-
-# Update after LakehousePlumber upgrades
-lhp setup-intellisense --force
-```
 
 ## 🎨 Advanced Features
 
@@ -867,9 +856,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🆘 Support
 
-- **Documentation**: [Wiki](https://github.com/yourusername/lakehouse-plumber/wiki)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/lakehouse-plumber/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/lakehouse-plumber/discussions)
+- **Documentation**: [Read the Docs](https://mmodarre.github.io/Lakehouse_Plumber)
+- **Issues**: [GitHub Issues](https://github.com/Mmodarre/Lakehouse_Plumber/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Mmodarre/Lakehouse_Plumber/discussions)
 
 ## 🙏 Acknowledgments
 
@@ -879,4 +868,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ for Databricks and Lakeflow Declarative Data Pipelines** 
+**Made with ❤️ for Databricks and Lakeflow Declarative Pipelines**

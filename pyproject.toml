@@ -4,23 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.2.13"
-description = "A tool for building and managing data lakehouse pipelines"
+version = "0.2.14"
+description = "A framework for building and managing enterprise Lakeflow Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
     {name = "Mehdi Modarressi", email = "mehdi.modarressi@gmail.com"},
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Data Engineers",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
 requires-python = ">=3.8"
