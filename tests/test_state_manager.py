@@ -825,11 +825,27 @@ class TestStateManagerCurrentYamlFiles:
             pipeline_dir = pipelines_dir / "test_pipeline"
             pipeline_dir.mkdir(parents=True)
             
-            # Create YAML files
+            # Create valid YAML flowgroup files
             yaml1 = pipeline_dir / "test1.yaml"
             yaml2 = pipeline_dir / "test2.yml"
-            yaml1.write_text("test")
-            yaml2.write_text("test")
+            
+            # YAML files with pipeline field matching "test_pipeline"
+            yaml1.write_text("""
+pipeline: test_pipeline
+flowgroup: test1
+actions:
+  - name: test_action
+    type: load
+    source: test
+""")
+            yaml2.write_text("""
+pipeline: test_pipeline
+flowgroup: test2
+actions:
+  - name: test_action
+    type: load
+    source: test
+""")
             
             state_manager = StateManager(project_root)
             

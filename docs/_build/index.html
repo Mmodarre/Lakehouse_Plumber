@@ -1,0 +1,357 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lakehouse Plumber &mdash; Lakehouse Plumber 0.2.13 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=ba481074"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=0729d509"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+      <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+      <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Getting Started" href="getting_started.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            Lakehouse Plumber
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="concepts.html">Concepts &amp; Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="actions_reference.html">Actions Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">CLI Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">Lakehouse Plumber</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Lakehouse Plumber</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="lakehouse-plumber">
+<h1>Lakehouse Plumber<a class="headerlink" href="#lakehouse-plumber" title="Link to this heading"></a></h1>
+<p>Lakehouse Plumber turns concise YAML <strong>actions</strong> into fully-featured
+Databricks Lakeflow Declarative Pipelines(Formerly Delta Live Tables) – without hiding the Databricks
+platform you already know and love.</p>
+<nav class="contents local" id="page-outline">
+<p class="topic-title">Page Outline</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#why-lakehouse-plumber" id="id5">Why Lakehouse Plumber?</a></p></li>
+<li><p><a class="reference internal" href="#core-workflow" id="id6">Core Workflow</a></p></li>
+<li><p><a class="reference internal" href="#features-at-a-glance" id="id7">Features at a Glance</a></p></li>
+<li><p><a class="reference internal" href="#what-is-the-output-of-lakehouse-plumber" id="id8">What is the output of Lakehouse Plumber?</a></p></li>
+<li><p><a class="reference internal" href="#next-steps" id="id9">Next Steps</a></p></li>
+</ul>
+</nav>
+<section id="why-lakehouse-plumber">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Why Lakehouse Plumber?</a><a class="headerlink" href="#why-lakehouse-plumber" title="Link to this heading"></a></h2>
+<p><strong>Core principles of a good data engineering framework:</strong></p>
+<p>✅ <strong>It should…</strong></p>
+<ul class="simple">
+<li><p><strong>Eliminate repetitive boiler-plate</strong> so you spend time on business logic, not plumbing.</p></li>
+<li><p><strong>Standardise Lakehouse platform and quality</strong> – For instance, all tables in Bronze layer should have the same Delta table properties.</p></li>
+<li><p><strong>Remain transparent</strong> – the generated Python files are readable, version-controlled and exactly what runs in production.</p></li>
+<li><p><strong>Fit naturally into DataOps workflows</strong> (CI/CD, automated testing, environments).</p></li>
+<li><p><strong>Be easy to debug</strong> – The generated Python code is readable and can be debugged in the Databricks IDE for faster troubleshooting and development cycles.</p></li>
+<li><p><strong>Provide a pathway to data democratisation</strong> – Allow power users and non-technical teams to create artifacts while upholding platform standards.</p></li>
+</ul>
+<p>❌ <strong>And it should NOT…</strong></p>
+<ul class="simple">
+<li><p><strong>Introduce runtime overhead</strong> (no compiling configurations at runtime to generate pipelines).</p></li>
+<li><p><strong>Obscure or wrap Databricks features</strong> – you still work with notebooks, Unity Catalog, DLT UI.</p></li>
+<li><p><strong>Make debugging harder</strong> – any failures can be debugged using Databricks’ IDE and AI (Databricks Assistant).</p></li>
+<li><p><strong>Lock you in</strong> – the output is plain Python &amp; SQL that you control.</p></li>
+</ul>
+<p><strong>Real-World Example</strong></p>
+<p>Instead of repeating load code like this <strong>50 times for 50 tables</strong>:</p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">customer_bronze.py (86 lines × 50 tables = 4,300 lines!)</span><a class="headerlink" href="#id1" title="Link to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># Generated by LakehousePlumber</span>
+<span class="linenos"> 2</span><span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">functions</span> <span class="k">as</span> <span class="n">F</span>
+<span class="linenos"> 3</span><span class="kn">import</span><span class="w"> </span><span class="nn">dlt</span>
+<span class="linenos"> 4</span>
+<span class="linenos"> 5</span><span class="nd">@dlt</span><span class="o">.</span><span class="n">view</span><span class="p">()</span>
+<span class="linenos"> 6</span><span class="k">def</span><span class="w"> </span><span class="nf">v_customer_raw</span><span class="p">():</span>
+<span class="linenos"> 7</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Load customer table from raw schema&quot;&quot;&quot;</span>
+<span class="linenos"> 8</span>    <span class="n">df</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">readStream</span> \
+<span class="linenos"> 9</span>        <span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">&quot;acmi_edw_dev.edw_raw.customer&quot;</span><span class="p">)</span>
+<span class="linenos">10</span>    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;_processing_timestamp&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">current_timestamp</span><span class="p">())</span>
+<span class="linenos">11</span>    <span class="k">return</span> <span class="n">df</span>
+<span class="linenos">12</span>
+<span class="linenos">13</span><span class="nd">@dlt</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">comment</span><span class="o">=</span><span class="s2">&quot;SQL transform: customer_bronze_cleanse&quot;</span><span class="p">)</span>
+<span class="linenos">14</span><span class="k">def</span><span class="w"> </span><span class="nf">v_customer_bronze_cleaned</span><span class="p">():</span>
+<span class="linenos">15</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;SQL transform: customer_bronze_cleanse&quot;&quot;&quot;</span>
+<span class="linenos">16</span>    <span class="k">return</span> <span class="n">spark</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;SELECT</span>
+<span class="linenos">17</span><span class="s2">      c_custkey as customer_id,</span>
+<span class="linenos">18</span><span class="s2">      c_name as name,</span>
+<span class="linenos">19</span><span class="s2">      c_address as address,</span>
+<span class="linenos">20</span><span class="s2">      -- ... 50+ more lines of transformations</span>
+<span class="linenos">21</span><span class="s2">    FROM stream(v_customer_raw)&quot;&quot;&quot;</span><span class="p">)</span>
+<span class="linenos">22</span>
+<span class="linenos">23</span><span class="c1"># ... 50+ more lines of data quality, table creation, etc.</span>
+</pre></div>
+</div>
+</div>
+<p>We create <strong>one reusable template</strong>:</p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">templates/csv_ingestion_template.yaml (50 lines, used for ALL tables)</span><a class="headerlink" href="#id2" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">csv_ingestion_template</span>
+<span class="linenos"> 2</span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Standard</span><span class="nv"> </span><span class="s">template</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">ingesting</span><span class="nv"> </span><span class="s">CSV</span><span class="nv"> </span><span class="s">files&quot;</span>
+<span class="linenos"> 3</span>
+<span class="linenos"> 4</span><span class="nt">parameters</span><span class="p">:</span>
+<span class="linenos"> 5</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">table_name</span>
+<span class="linenos"> 6</span><span class="w">    </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="linenos"> 7</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">landing_folder</span>
+<span class="linenos"> 8</span><span class="w">    </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="linenos"> 9</span>
+<span class="linenos">10</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos">11</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_{{ table_name }}_csv</span>
+<span class="linenos">12</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos">13</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos">14</span><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudfiles</span>
+<span class="linenos">15</span><span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{landing_volume}/{{</span><span class="nv"> </span><span class="s">landing_folder</span><span class="nv"> </span><span class="s">}}/*.csv&quot;</span>
+<span class="linenos">16</span><span class="w">      </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">csv</span>
+<span class="linenos">17</span><span class="w">      </span><span class="nt">options</span><span class="p">:</span>
+<span class="linenos">18</span><span class="w">        </span><span class="nt">header</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
+<span class="linenos">19</span><span class="w">        </span><span class="nt">delimiter</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;|&quot;</span>
+<span class="linenos">20</span><span class="w">        </span><span class="nt">cloudFiles.schemaEvolutionMode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;addNewColumns&quot;</span>
+<span class="linenos">21</span><span class="w">    </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_{{ table_name }}_cloudfiles</span>
+<span class="linenos">22</span>
+<span class="linenos">23</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write_{{ table_name }}_cloudfiles</span>
+<span class="linenos">24</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write</span>
+<span class="linenos">25</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_{{ table_name }}_cloudfiles</span>
+<span class="linenos">26</span><span class="w">    </span><span class="nt">write_target</span><span class="p">:</span>
+<span class="linenos">27</span><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">streaming_table</span>
+<span class="linenos">28</span><span class="w">      </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{catalog}.{raw_schema}&quot;</span>
+<span class="linenos">29</span><span class="w">      </span><span class="nt">table</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">table_name</span><span class="nv"> </span><span class="s">}}&quot;</span>
+</pre></div>
+</div>
+</div>
+<p>And our pipeline code becomes this simple <strong>5-line configuration per table</strong>:</p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">customer_ingestion.yaml (5 lines per table)</span><a class="headerlink" href="#id3" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">raw_ingestions</span>
+<span class="nt">flowgroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_ingestion</span>
+
+<span class="hll"><span class="nt">use_template</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">csv_ingestion_template</span>
+</span><span class="hll"><span class="nt">template_parameters</span><span class="p">:</span>
+</span><span class="w">  </span><span class="nt">table_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer</span>
+<span class="w">  </span><span class="nt">landing_folder</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer</span>
+</pre></div>
+</div>
+</div>
+<p><strong>Result:</strong> 4,300 lines of repetitive Python → 250 lines total (1 template + 50 simple configs)</p>
+</section>
+<section id="core-workflow">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Core Workflow</a><a class="headerlink" href="#core-workflow" title="Link to this heading"></a></h2>
+<p>The execution model is deliberately simple:</p>
+<pre  class="mermaid">
+        graph LR
+    A[Load] --&gt; B{0..N Transform}
+    B --&gt; C[Write]
+    </pre><ol class="arabic simple">
+<li><p><strong>Load</strong>    Ingest raw data from CloudFiles, Delta, JDBC, SQL, or custom Python.</p></li>
+<li><p><strong>Transform</strong>   Apply <em>zero or many</em> transforms (SQL, Python, schema, data-quality, temp-tables…).</p></li>
+<li><p><strong>Write</strong>   Persist results as Streaming Tables, Materialized Views, or Snapshots.</p></li>
+</ol>
+</section>
+<section id="features-at-a-glance">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Features at a Glance</a><a class="headerlink" href="#features-at-a-glance" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Actions</strong> – Load | Transform | Write with many sub-types (see <a class="reference internal" href="actions_reference.html"><span class="doc">Actions Reference</span></a>).</p></li>
+<li><p><strong>Presets &amp; Templates</strong> – reuse patterns without copy-paste.</p></li>
+<li><p><strong>Substitutions</strong> – environment-aware tokens &amp; secret references.</p></li>
+<li><p><strong>CDC &amp; SCD</strong> – change-data capture SCD type 1 and 2 and snapshot ingestion.</p></li>
+<li><p><strong>Append Flows</strong> – append data to existing streaming tables.(multi source write to single target table)</p></li>
+<li><p><strong>Data-Quality</strong> – declarative expectations integrated into transforms.</p></li>
+<li><p><strong>Operational Metadata</strong> – custom audit columns and metadata.</p></li>
+<li><p><strong>Smart State Management</strong> – regenerate only what changed; cleanup orphaned code. (Terraform-like state management)</p></li>
+<li><p><strong>IntelliSense</strong> – VS Code schema hints &amp; YAML completion.</p></li>
+<li><p><strong>Seeding</strong> – seed data from existing tables using Lakeflow native features.</p></li>
+</ul>
+</section>
+<section id="what-is-the-output-of-lakehouse-plumber">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">What is the output of Lakehouse Plumber?</a><a class="headerlink" href="#what-is-the-output-of-lakehouse-plumber" title="Link to this heading"></a></h2>
+<p>Lakehouse Plumber generates Python files that can be used to create Databricks Lakeflow Declarative Pipelines.</p>
+<div class="literal-block-wrapper docutils container" id="id4">
+<div class="code-block-caption"><span class="caption-text">customer_ingestion.py (Generated by Lakehouse Plumber)</span><a class="headerlink" href="#id4" title="Link to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># Generated by LakehousePlumber</span>
+<span class="linenos"> 2</span><span class="c1"># Pipeline: raw_ingestions</span>
+<span class="linenos"> 3</span><span class="c1"># FlowGroup: customer_ingestion</span>
+<span class="linenos"> 4</span>
+<span class="linenos"> 5</span><span class="kn">from</span><span class="w"> </span><span class="nn">pyspark.sql</span><span class="w"> </span><span class="kn">import</span> <span class="n">functions</span> <span class="k">as</span> <span class="n">F</span>
+<span class="linenos"> 6</span><span class="kn">import</span><span class="w"> </span><span class="nn">dlt</span>
+<span class="linenos"> 7</span>
+<span class="linenos"> 8</span><span class="c1"># Pipeline Configuration</span>
+<span class="linenos"> 9</span><span class="n">PIPELINE_ID</span> <span class="o">=</span> <span class="s2">&quot;raw_ingestions&quot;</span>
+<span class="linenos">10</span><span class="n">FLOWGROUP_ID</span> <span class="o">=</span> <span class="s2">&quot;customer_ingestion&quot;</span>
+<span class="linenos">11</span>
+<span class="linenos">12</span><span class="c1"># ============================================================================</span>
+<span class="linenos">13</span><span class="c1"># SOURCE VIEWS</span>
+<span class="linenos">14</span><span class="c1"># ============================================================================</span>
+<span class="linenos">15</span>
+<span class="linenos">16</span><span class="c1"># Schema hints for customer_cloudfiles table</span>
+<span class="linenos">17</span><span class="n">customer_cloudfiles_schema_hints</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="linenos">18</span><span class="s2">   c_custkey BIGINT,</span>
+<span class="linenos">19</span><span class="s2">   c_name STRING,</span>
+<span class="linenos">20</span><span class="s2">   c_address STRING,</span>
+<span class="linenos">21</span><span class="s2">   c_nationkey BIGINT,</span>
+<span class="linenos">22</span><span class="s2">   c_phone STRING,</span>
+<span class="linenos">23</span><span class="s2">   c_acctbal DECIMAL(18,2),</span>
+<span class="linenos">24</span><span class="s2">   c_mktsegment STRING,</span>
+<span class="linenos">25</span><span class="s2">   c_comment STRING</span>
+<span class="linenos">26</span><span class="s2">   &quot;&quot;&quot;</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span>
+<span class="linenos">27</span>
+<span class="linenos">28</span>
+<span class="linenos">29</span><span class="nd">@dlt</span><span class="o">.</span><span class="n">view</span><span class="p">()</span>
+<span class="linenos">30</span><span class="k">def</span><span class="w"> </span><span class="nf">v_customer_cloudfiles</span><span class="p">():</span>
+<span class="linenos">31</span><span class="w"> </span><span class="sd">&quot;&quot;&quot;Load customer CSV files from landing volume&quot;&quot;&quot;</span>
+<span class="linenos">32</span> <span class="n">df</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">readStream</span> \
+<span class="linenos">33</span>     <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;cloudFiles&quot;</span><span class="p">)</span> \
+<span class="linenos">34</span>     <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;cloudFiles.format&quot;</span><span class="p">,</span> <span class="s2">&quot;csv&quot;</span><span class="p">)</span> \
+<span class="linenos">35</span>     <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;header&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> \
+<span class="linenos">36</span>     <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;delimiter&quot;</span><span class="p">,</span> <span class="s2">&quot;|&quot;</span><span class="p">)</span> \
+<span class="linenos">37</span>     <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;cloudFiles.maxFilesPerTrigger&quot;</span><span class="p">,</span> <span class="mi">11</span><span class="p">)</span> \
+<span class="linenos">38</span>     <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;cloudFiles.inferColumnTypes&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> \
+<span class="linenos">39</span>     <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;cloudFiles.schemaEvolutionMode&quot;</span><span class="p">,</span> <span class="s2">&quot;addNewColumns&quot;</span><span class="p">)</span> \
+<span class="linenos">40</span>     <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;cloudFiles.rescuedDataColumn&quot;</span><span class="p">,</span> <span class="s2">&quot;_rescued_data&quot;</span><span class="p">)</span> \
+<span class="linenos">41</span>     <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;cloudFiles.schemaHints&quot;</span><span class="p">,</span> <span class="n">customer_cloudfiles_schema_hints</span><span class="p">)</span> \
+<span class="linenos">42</span>     <span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;/Volumes/acmi_edw_dev/edw_raw/landing_volume/customer/*.csv&quot;</span><span class="p">)</span>
+<span class="linenos">43</span>
+<span class="linenos">44</span>
+<span class="linenos">45</span>   <span class="c1"># Add operational metadata columns</span>
+<span class="linenos">46</span>   <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;_record_hash&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">xxhash64</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">]))</span>
+<span class="linenos">47</span>   <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;_source_file_size&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;_metadata.file_size&#39;</span><span class="p">))</span>
+<span class="linenos">48</span>   <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;_source_file_modification_time&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;_metadata.file_modification_time&#39;</span><span class="p">))</span>
+<span class="linenos">49</span>   <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;_source_file_path&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;_metadata.file_path&#39;</span><span class="p">))</span>
+<span class="linenos">50</span>
+<span class="linenos">51</span> <span class="k">return</span> <span class="n">df</span>
+<span class="linenos">52</span>
+<span class="linenos">53</span>
+<span class="linenos">54</span><span class="c1"># ============================================================================</span>
+<span class="linenos">55</span><span class="c1"># TARGET TABLES</span>
+<span class="linenos">56</span><span class="c1"># ============================================================================</span>
+<span class="linenos">57</span>
+<span class="linenos">58</span><span class="c1"># Create the streaming table</span>
+<span class="linenos">59</span><span class="n">dlt</span><span class="o">.</span><span class="n">create_streaming_table</span><span class="p">(</span>
+<span class="linenos">60</span>   <span class="n">name</span><span class="o">=</span><span class="s2">&quot;acmi_edw_dev.edw_raw.customer&quot;</span><span class="p">,</span>
+<span class="linenos">61</span>   <span class="n">comment</span><span class="o">=</span><span class="s2">&quot;Streaming table: customer&quot;</span><span class="p">,</span>
+<span class="linenos">62</span>   <span class="n">table_properties</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;delta.autoOptimize.optimizeWrite&quot;</span><span class="p">:</span> <span class="s2">&quot;true&quot;</span><span class="p">,</span> <span class="s2">&quot;delta.enableChangeDataFeed&quot;</span><span class="p">:</span> <span class="s2">&quot;true&quot;</span><span class="p">})</span>
+<span class="linenos">63</span>
+<span class="linenos">64</span>
+<span class="linenos">65</span><span class="c1"># Define append flow(s)</span>
+<span class="linenos">66</span><span class="nd">@dlt</span><span class="o">.</span><span class="n">append_flow</span><span class="p">(</span>
+<span class="linenos">67</span>   <span class="n">target</span><span class="o">=</span><span class="s2">&quot;acmi_edw_dev.edw_raw.customer&quot;</span><span class="p">,</span>
+<span class="linenos">68</span>   <span class="n">name</span><span class="o">=</span><span class="s2">&quot;f_customer_cloudfiles&quot;</span><span class="p">,</span>
+<span class="linenos">69</span>   <span class="n">comment</span><span class="o">=</span><span class="s2">&quot;Append flow to acmi_edw_dev.edw_raw.customer&quot;</span>
+<span class="linenos">70</span><span class="p">)</span>
+<span class="linenos">71</span><span class="k">def</span><span class="w"> </span><span class="nf">f_customer_cloudfiles</span><span class="p">():</span>
+<span class="linenos">72</span><span class="w">   </span><span class="sd">&quot;&quot;&quot;Append flow to acmi_edw_dev.edw_raw.customer&quot;&quot;&quot;</span>
+<span class="linenos">73</span>   <span class="c1"># Streaming flow</span>
+<span class="linenos">74</span>   <span class="n">df</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">readStream</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">&quot;v_customer_cloudfiles&quot;</span><span class="p">)</span>
+<span class="linenos">75</span>
+<span class="linenos">76</span>   <span class="k">return</span> <span class="n">df</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="next-steps">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Next Steps</a><a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started</span></a> – a hands-on walk-through using the ACMI demo project.</p></li>
+<li><p><a class="reference internal" href="concepts.html"><span class="doc">Concepts &amp; Architecture</span></a> – deep-dive into FlowGroups, Actions, presets, templates and more.</p></li>
+<li><p><a class="reference internal" href="cli.html"><span class="doc">CLI Reference</span></a> – command-line reference.</p></li>
+</ul>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="getting_started.html" class="btn btn-neutral float-right" title="Getting Started" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Lakehouse Plumber.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

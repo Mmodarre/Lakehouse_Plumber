@@ -337,8 +337,9 @@ dev:
             assert "raw_ingestions" in result.output
             
             # Should validate all 3 flowgroups with pipeline: raw_ingestions
-            # The warnings indicate the flowgroups were processed
-            assert "3 warning(s)" in result.output or "validated successfully" in result.output
+            # After fixing the bug, success messages are no longer in warnings
+            assert "Pipeline 'raw_ingestions' is valid" in result.output
+            assert "Total errors: 0" in result.output
 
     def test_state_manager_tracks_by_pipeline_field(self, project_with_pipeline_field_structure):
         """Test that state manager tracks files by pipeline field, not directory name."""

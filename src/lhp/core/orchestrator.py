@@ -1134,9 +1134,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                 try:
                     self._process_flowgroup(flowgroup, substitution_mgr)
                     # Validation happens in _process_flowgroup
-                    warnings.append(
-                        f"Flowgroup '{flowgroup.flowgroup}' validated successfully"
-                    )
+                    # Note: Success validation does not generate warnings
 
                 except Exception as e:
                     errors.append(f"Flowgroup '{flowgroup.flowgroup}': {e}")
@@ -1176,9 +1174,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                 try:
                     self._process_flowgroup(flowgroup, substitution_mgr)
                     # Validation happens in _process_flowgroup
-                    warnings.append(
-                        f"Flowgroup '{flowgroup.flowgroup}' validated successfully"
-                    )
+                    # Note: Success validation does not generate warnings
 
                 except Exception as e:
                     errors.append(f"Flowgroup '{flowgroup.flowgroup}': {e}")

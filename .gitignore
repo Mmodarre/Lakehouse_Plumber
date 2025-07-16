@@ -16,6 +16,5 @@ Sample_Projects/
 TEST_DOCUMENTATION.md
 ERROR_REFERENCE.md
 UNTESTED_LOGIC_ANALYSIS.md
-docs/
-.readthedocs.yaml
+.readthedocs.yml
 publish.sh
