@@ -19,14 +19,6 @@
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
       <script src="_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="_static/copybutton.js?v=0729d509"></script>
-      <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
-      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
-      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
-      <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-      <script type="module">
-import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
-window.addEventListener("load", () => mermaid.run());
-</script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -60,14 +52,22 @@ window.addEventListener("load", () => mermaid.run());
 <li class="toctree-l2"><a class="reference internal" href="#actions">Actions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#presets">Presets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#templates">Templates</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#substitutions-secrets">Substitutions &amp; Secrets</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#operational-metadata">Operational Metadata</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#state-management-smart-generation">State Management &amp; Smart Generation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#dependency-resolver">Dependency Resolver</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#putting-it-together">Putting It Together</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#substitutions-secrets">Substitutions &amp; Secrets</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#environment-configuration">Environment Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#secret-management">Secret Management</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#operational-metadata">Operational Metadata</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#column-definitions">Column Definitions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#target-type-compatibility">Target Type Compatibility</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#usage-in-yaml-files">Usage in YAML Files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#usage-patterns">Usage Patterns</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="actions_reference.html">Actions Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="advanced.html">Advanced Topics</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cli.html">CLI Reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
 <li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
@@ -100,42 +100,57 @@ window.addEventListener("load", () => mermaid.run());
   <section id="concepts-architecture">
 <h1>Concepts &amp; Architecture<a class="headerlink" href="#concepts-architecture" title="Link to this heading"></a></h1>
 <p>At its core Lakehouse Plumber converts <strong>declarative YAML</strong> into regular
-Databricks Delta Live Tables (DLT) Python code.  The YAML files are intentionally
-simple – the heavy-lifting happens inside the Plumber engine at generation time.
+Databricks Lakeflow Declarative Pipelines (ETL) Python code.  The YAML files are intentionally
+simple and the heavy-lifting happens inside the Plumber engine at generation time.
 This page explains the key building blocks you will interact with.</p>
 <nav class="contents local" id="page-outline">
 <p class="topic-title">Page outline</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#flowgroups" id="id1">FlowGroups</a></p></li>
-<li><p><a class="reference internal" href="#actions" id="id2">Actions</a></p></li>
-<li><p><a class="reference internal" href="#presets" id="id3">Presets</a></p></li>
-<li><p><a class="reference internal" href="#templates" id="id4">Templates</a></p></li>
-<li><p><a class="reference internal" href="#substitutions-secrets" id="id5">Substitutions &amp; Secrets</a></p></li>
-<li><p><a class="reference internal" href="#operational-metadata" id="id6">Operational Metadata</a></p></li>
-<li><p><a class="reference internal" href="#state-management-smart-generation" id="id7">State Management &amp; Smart Generation</a></p></li>
-<li><p><a class="reference internal" href="#dependency-resolver" id="id8">Dependency Resolver</a></p></li>
-<li><p><a class="reference internal" href="#putting-it-together" id="id9">Putting It Together</a></p></li>
+<li><p><a class="reference internal" href="#flowgroups" id="id14">FlowGroups</a></p></li>
+<li><p><a class="reference internal" href="#actions" id="id15">Actions</a></p></li>
+<li><p><a class="reference internal" href="#presets" id="id16">Presets</a></p></li>
+<li><p><a class="reference internal" href="#templates" id="id17">Templates</a></p></li>
+<li><p><a class="reference internal" href="#substitutions-secrets" id="id18">Substitutions &amp; Secrets</a></p>
+<ul>
+<li><p><a class="reference internal" href="#environment-configuration" id="id19">Environment Configuration</a></p></li>
+<li><p><a class="reference internal" href="#secret-management" id="id20">Secret Management</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#operational-metadata" id="id21">Operational Metadata</a></p>
+<ul>
+<li><p><a class="reference internal" href="#column-definitions" id="id22">Column Definitions</a></p></li>
+<li><p><a class="reference internal" href="#target-type-compatibility" id="id23">Target Type Compatibility</a></p></li>
+<li><p><a class="reference internal" href="#usage-in-yaml-files" id="id24">Usage in YAML Files</a></p></li>
+<li><p><a class="reference internal" href="#usage-patterns" id="id25">Usage Patterns</a></p></li>
+</ul>
+</li>
 </ul>
 </nav>
 <section id="flowgroups">
-<h2><a class="toc-backref" href="#id1" role="doc-backlink">FlowGroups</a><a class="headerlink" href="#flowgroups" title="Link to this heading"></a></h2>
-<p>A <strong>FlowGroup</strong> represents a logical slice of your pipeline – often a single
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">FlowGroups</a><a class="headerlink" href="#flowgroups" title="Link to this heading"></a></h2>
+<p>A <strong>FlowGroup</strong> represents a logical slice of your pipeline often a single
 source table or business entity.  Each YAML file contains exactly one
 FlowGroup.</p>
-<p>Required keys:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>flowgroup: customer_bronze_ingestion  # unique name
-pipeline:  bronze_raw                 # group into a pipeline build
-actions:                              # ordered list of steps
-  - …
+<p>Required keys in the FlowGroup YAML file</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">pipeline</span><span class="p">:</span><span class="w">  </span><span class="l l-Scalar l-Scalar-Plain">bronze_raw</span><span class="w">                 </span><span class="c1"># pipeline name (logical)</span>
+<span class="nt">flowgroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_bronze_ingestion</span><span class="w">  </span><span class="c1"># unique name for the flowgroup (logical)</span>
+<span class="nt">actions</span><span class="p">:</span><span class="w">                              </span><span class="c1"># list of steps in the flowgroup</span>
 </pre></div>
 </div>
-<p>Splitting large pipelines into FlowGroups keeps configurations small, enables
-smart incremental regeneration, and mirrors the way DLT executes tables
-independently.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>FlowGroup vs Pipeline:</strong>
+- A <strong>FlowGroup</strong> represents a logical slice of your pipeline often a single source table or business entity.  Each YAML file contains exactly one
+FlowGroup.</p>
+<ul class="simple">
+<li><p>A <strong>Pipeline</strong> is a logical grouping of FlowGroups. It is used to group the generated python files in the same folder.</p></li>
+<li><p>Lakeflow Declarative Pipelines are <strong>declarative</strong> (as the name suggests) hence the order of the actions is determind at runtime by the Lakeflow engine based on the dependencies between the tables/views.</p></li>
+</ul>
+</div>
 </section>
 <section id="actions">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Actions</a><a class="headerlink" href="#actions" title="Link to this heading"></a></h2>
-<p>Every FlowGroup lists one or more <strong>Actions</strong> in the order they should run.
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">Actions</a><a class="headerlink" href="#actions" title="Link to this heading"></a></h2>
+<p>Every FlowGroup lists one or more <strong>Actions</strong>
 Actions come in three top-level types:</p>
 <table class="docutils align-default">
 <thead>
@@ -144,118 +159,515 @@ Actions come in three top-level types:</p>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><em>Load</em></p></td>
-<td><p>Bring data into a temporary <strong>view</strong> (e.g. CloudFiles,
-Delta, JDBC, SQL, Python).</p></td>
-</tr>
-<tr class="row-odd"><td colspan="2"><dl>
-<dt><em>Transform</em> | Manipulate data in one or more steps (SQL, Python,</dt><dd><div class="line-block">
-<div class="line">schema adjustments, data-quality checks, temp tables…).</div>
+<tr class="row-even"><td><div class="line-block">
+<div class="line"><strong>Load</strong></div>
+<div class="line"><br /></div>
 </div>
-</dd>
-</dl>
+</td>
+<td><div class="line-block">
+<div class="line">Bring data into a temporary <strong>view</strong> (e.g. CloudFiles,</div>
+<div class="line">Delta, JDBC, SQL, Python).</div>
+</div>
 </td>
 </tr>
-<tr class="row-even"><td><p><em>Write</em></p></td>
-<td><p>Persist the final dataset – <em>streaming_table</em> or
-<em>materialized_view</em>.</p></td>
+<tr class="row-odd"><td><div class="line-block">
+<div class="line"><strong>Transform</strong></div>
+<div class="line"><br /></div>
+</div>
+</td>
+<td><div class="line-block">
+<div class="line">Manipulate data in one or more steps (SQL, Python,</div>
+<div class="line">schema adjustments, data-quality checks, temp tables…).</div>
+</div>
+</td>
+</tr>
+<tr class="row-even"><td><div class="line-block">
+<div class="line"><strong>Write</strong></div>
+<div class="line"><br /></div>
+</div>
+</td>
+<td><div class="line-block">
+<div class="line">Persist the final dataset to a <em>streaming_table</em> or</div>
+<div class="line"><em>materialized_view</em>.</div>
+</div>
+</td>
 </tr>
 </tbody>
 </table>
-<p>You may chain <strong>zero or many Transform actions</strong> between a Load and a Write.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul class="simple">
+<li><p>You may chain <strong>zero or many Transform actions</strong> between a Load and a Write.</p></li>
+</ul>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<ul class="simple">
+<li><p>the order of the actions is determind at runtime by the Lakeflow engine based on the dependencies between the tables/views, Not the order in the YAML file or the generated Python file.</p></li>
+</ul>
+</div>
 <p>For a complete catalogue of Action sub-types and their options see
 <a class="reference internal" href="actions_reference.html"><span class="doc">Actions Reference</span></a>.</p>
 </section>
 <section id="presets">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Presets</a><a class="headerlink" href="#presets" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">Presets</a><a class="headerlink" href="#presets" title="Link to this heading"></a></h2>
 <p>A <strong>Preset</strong> is a YAML file that provides default configuration snippets you can
 reuse across FlowGroups.  Typical examples:</p>
 <ul class="simple">
 <li><p>Standardised table properties for all Bronze streaming tables.</p></li>
-<li><p>Company-wide data-quality policy for Personally Identifiable Information.</p></li>
+<li><p>Standardised CloudFiles properties</p></li>
 </ul>
-<p>Usage inside a FlowGroup:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">presets</span><span class="p">:</span>
-  <span class="o">-</span> <span class="n">bronze_layer</span>
+<p>Usage inside a FlowGroup YAML file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">presets</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bronze_layer</span>
 </pre></div>
 </div>
 </section>
 <section id="templates">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">Templates</a><a class="headerlink" href="#templates" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">Templates</a><a class="headerlink" href="#templates" title="Link to this heading"></a></h2>
 <p>While presets inject reusable <strong>values</strong>, <strong>Templates</strong> inject reusable <strong>action
-patterns</strong> – think of them as parametrised macros.</p>
+patterns</strong> think of them as parametrised macros.</p>
 <p>In a template file you define parameters and a list of actions that reference
 those parameters.  Inside a FlowGroup you apply the template and provide actual
-arguments:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">use_template</span><span class="p">:</span> <span class="n">standard_ingestion</span>
-<span class="n">template_parameters</span><span class="p">:</span>
-  <span class="n">source_path</span><span class="p">:</span> <span class="o">/</span><span class="n">mnt</span><span class="o">/</span><span class="n">landing</span><span class="o">/</span><span class="n">customers</span><span class="o">/*.</span><span class="n">json</span>
-  <span class="n">table_name</span><span class="p">:</span>  <span class="n">customers</span>
+arguments</p>
+<p><strong>Example of a template file:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">templates/csv_ingestion_template.yaml</span><a class="headerlink" href="#id1" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># This is a template for ingesting CSV files with schema enforcement</span>
+<span class="linenos"> 2</span><span class="c1"># It is used to generate the actions for the pipeline</span>
+<span class="linenos"> 3</span><span class="c1"># within the pipeline all it need to defined are the parameters for the table name and landing folder</span>
+<span class="linenos"> 4</span><span class="c1"># the template will generate the actions for the pipeline</span>
+<span class="linenos"> 5</span>
+<span class="linenos"> 6</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">csv_ingestion_template</span>
+<span class="linenos"> 7</span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0&quot;</span>
+<span class="linenos"> 8</span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Standard</span><span class="nv"> </span><span class="s">template</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">ingesting</span><span class="nv"> </span><span class="s">CSV</span><span class="nv"> </span><span class="s">files</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">schema</span><span class="nv"> </span><span class="s">enforcement&quot;</span>
+<span class="linenos"> 9</span>
+<span class="linenos">10</span><span class="nt">presets</span><span class="p">:</span>
+<span class="linenos">11</span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bronze_layer</span>
+<span class="linenos">12</span>
+<span class="linenos">13</span><span class="nt">parameters</span><span class="p">:</span>
+<span class="linenos">14</span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">table_name</span>
+<span class="linenos">15</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">required</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="linenos">16</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">description</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">&quot;Name</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">table</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">ingest&quot;</span>
+<span class="linenos">17</span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">landing_folder</span>
+<span class="linenos">18</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">required</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="linenos">19</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">description</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">&quot;Name</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">landing</span><span class="nv"> </span><span class="s">folder&quot;</span>
+<span class="linenos">20</span>
+<span class="linenos">21</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos">22</span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_{{ table_name }}_csv</span>
+<span class="linenos">23</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">type</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos">24</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">readMode</span><span class="w"> </span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">&quot;stream&quot;</span>
+<span class="linenos">25</span><span class="w">   </span><span class="nt">operational_metadata</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;_source_file_path&quot;</span><span class="p p-Indicator">,</span><span class="s">&quot;_source_file_size&quot;</span><span class="p p-Indicator">,</span><span class="s">&quot;_source_file_modification_time&quot;</span><span class="p p-Indicator">,</span><span class="s">&quot;_record_hash&quot;</span><span class="p p-Indicator">]</span>
+<span class="linenos">26</span><span class="w">   </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos">27</span><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudfiles</span>
+<span class="linenos">28</span><span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{landing_volume}/{{</span><span class="nv"> </span><span class="s">landing_folder</span><span class="nv"> </span><span class="s">}}/*.csv&quot;</span>
+<span class="linenos">29</span><span class="w">      </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">csv</span>
+<span class="linenos">30</span><span class="w">      </span><span class="nt">options</span><span class="p">:</span>
+<span class="linenos">31</span><span class="w">      </span><span class="nt">cloudFiles.format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">csv</span>
+<span class="linenos">32</span><span class="w">      </span><span class="nt">header</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">True</span>
+<span class="linenos">33</span><span class="w">      </span><span class="nt">delimiter</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;|&quot;</span>
+<span class="linenos">34</span><span class="w">      </span><span class="nt">cloudFiles.maxFilesPerTrigger</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">11</span>
+<span class="linenos">35</span><span class="w">      </span><span class="nt">cloudFiles.inferColumnTypes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">False</span>
+<span class="linenos">36</span><span class="w">      </span><span class="nt">cloudFiles.schemaEvolutionMode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;addNewColumns&quot;</span>
+<span class="linenos">37</span><span class="w">      </span><span class="nt">cloudFiles.rescuedDataColumn</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;_rescued_data&quot;</span>
+<span class="linenos">38</span><span class="w">      </span><span class="nt">cloudFiles.schemaHints</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;schemas/{{</span><span class="nv"> </span><span class="s">table_name</span><span class="nv"> </span><span class="s">}}_schema.yaml&quot;</span>
+<span class="linenos">39</span>
+<span class="linenos">40</span><span class="w">   </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_{{ table_name }}_cloudfiles</span>
+<span class="linenos">41</span><span class="w">   </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Load</span><span class="nv"> </span><span class="s">{{</span><span class="nv"> </span><span class="s">table_name</span><span class="nv"> </span><span class="s">}}</span><span class="nv"> </span><span class="s">CSV</span><span class="nv"> </span><span class="s">files</span><span class="nv"> </span><span class="s">from</span><span class="nv"> </span><span class="s">landing</span><span class="nv"> </span><span class="s">volume&quot;</span>
+<span class="linenos">42</span>
+<span class="linenos">43</span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write_{{ table_name }}_cloudfiles</span>
+<span class="linenos">44</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">type</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write</span>
+<span class="linenos">45</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">source</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_{{ table_name }}_cloudfiles</span>
+<span class="linenos">46</span><span class="w">   </span><span class="l l-Scalar l-Scalar-Plain">write_target</span><span class="p p-Indicator">:</span>
+<span class="linenos">47</span><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">streaming_table</span>
+<span class="linenos">48</span><span class="w">      </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{catalog}.{raw_schema}&quot;</span>
+<span class="linenos">49</span><span class="w">      </span><span class="nt">table</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{{</span><span class="nv"> </span><span class="s">table_name</span><span class="nv"> </span><span class="s">}}&quot;</span>
+<span class="linenos">50</span><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Write</span><span class="nv"> </span><span class="s">{{</span><span class="nv"> </span><span class="s">table_name</span><span class="nv"> </span><span class="s">}}</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">raw</span><span class="nv"> </span><span class="s">layer&quot;</span>
 </pre></div>
+</div>
+</div>
+<p><strong>Example of a flowgroup using the template:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">pipelines/01_raw_ingestion/csv_ingestions/customer_ingestion.yaml</span><a class="headerlink" href="#id2" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># This pipeline is used to ingest the customer table from the csv files into the raw schema</span>
+<span class="linenos"> 2</span><span class="c1"># Pipeline variable puts the generate files in the same folder for the pipeline to pick up</span>
+<span class="linenos"> 3</span><span class="nt">pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">raw_ingestions</span>
+<span class="linenos"> 4</span><span class="c1"># Flowgroup are conceptual artifacts and has no functional purpose</span>
+<span class="linenos"> 5</span><span class="c1"># there are used to group actions together in the generated files</span>
+<span class="linenos"> 6</span><span class="nt">flowgroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_ingestion</span>
+<span class="linenos"> 7</span>
+<span class="linenos"> 8</span><span class="c1"># Use the template to generate the actions for the pipeline</span>
+<span class="linenos"> 9</span><span class="c1"># Template parameters are used to pass in the table name and landing folder</span>
+<span class="linenos">10</span><span class="c1"># The template will generate the actions for the pipeline</span>
+<span class="hll"><span class="linenos">11</span><span class="nt">use_template</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">csv_ingestion_template</span>
+</span><span class="hll"><span class="linenos">12</span><span class="nt">template_parameters</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">13</span><span class="nt">table_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer</span>
+</span><span class="hll"><span class="linenos">14</span><span class="nt">landing_folder</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer</span>
+</span></pre></div>
+</div>
 </div>
 </section>
 <section id="substitutions-secrets">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">Substitutions &amp; Secrets</a><a class="headerlink" href="#substitutions-secrets" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">Substitutions &amp; Secrets</a><a class="headerlink" href="#substitutions-secrets" title="Link to this heading"></a></h2>
+<section id="environment-configuration">
+<h3><a class="toc-backref" href="#id19" role="doc-backlink">Environment Configuration</a><a class="headerlink" href="#environment-configuration" title="Link to this heading"></a></h3>
 <p>Tokens wrapped in <code class="docutils literal notranslate"><span class="pre">{token}</span></code> or <code class="docutils literal notranslate"><span class="pre">${token}</span></code> are replaced at generation time
-using files under <code class="docutils literal notranslate"><span class="pre">substitutions/&lt;env&gt;.yaml</span></code>.</p>
-<p>Example <code class="docutils literal notranslate"><span class="pre">substitutions/dev.yaml</span></code>:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">catalog</span><span class="p">:</span> <span class="n">dev_catalog</span>
-<span class="n">bronze_schema</span><span class="p">:</span> <span class="n">bronze</span>
+using files under <code class="docutils literal notranslate"><span class="pre">substitutions/&lt;env&gt;.yaml</span></code>. This enables environment-specific
+configurations while keeping pipeline definitions portable.</p>
+<p><strong>Example substitution file:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">substitutions/dev.yaml</span><a class="headerlink" href="#id3" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># Environment-specific tokens</span>
+<span class="linenos"> 2</span><span class="nt">dev</span><span class="p">:</span>
+<span class="linenos"> 3</span><span class="w">  </span><span class="nt">catalog</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev_catalog</span>
+<span class="linenos"> 4</span><span class="w">  </span><span class="nt">bronze_schema</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bronze</span>
+<span class="linenos"> 5</span><span class="w">  </span><span class="nt">silver_schema</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">silver</span>
+<span class="linenos"> 6</span><span class="w">  </span><span class="nt">landing_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/mnt/dev/landing</span>
+<span class="linenos"> 7</span><span class="w">  </span><span class="nt">checkpoint_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/mnt/dev/checkpoints</span>
+<span class="linenos"> 8</span>
+<span class="linenos"> 9</span><span class="c1"># Secret configuration</span>
+<span class="hll"><span class="linenos">10</span><span class="nt">secrets</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">11</span><span class="w">  </span><span class="nt">default_scope</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev_secrets</span>
+</span><span class="hll"><span class="linenos">12</span><span class="w">  </span><span class="nt">scopes</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">13</span><span class="w">    </span><span class="nt">database_secrets</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev_db_secrets</span>
+</span><span class="hll"><span class="linenos">14</span><span class="w">    </span><span class="nt">storage_secrets</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev_azure_secrets</span>
+</span><span class="hll"><span class="linenos">15</span><span class="w">    </span><span class="nt">api_secrets</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev_external_apis</span>
+</span></pre></div>
+</div>
+</div>
+</section>
+<section id="secret-management">
+<h3><a class="toc-backref" href="#id20" role="doc-backlink">Secret Management</a><a class="headerlink" href="#secret-management" title="Link to this heading"></a></h3>
+<p><strong>Secret references</strong> use the <code class="docutils literal notranslate"><span class="pre">${secret:scope/key}</span></code> syntax and are converted to
+secure <code class="docutils literal notranslate"><span class="pre">dbutils.secrets.get()</span></code> calls in generated Python code. LHP validates
+scope aliases and collects every secret used by the pipeline, making security
+reviews and approvals easier.</p>
+<p><strong>Secret reference formats:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">${secret:scope_alias/key}</span></code> - Uses specific scope alias (resolved to actual Databricks scope)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">${secret:key}</span></code> - Uses default_scope if configured</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Scope aliases (like <code class="docutils literal notranslate"><span class="pre">database_secrets</span></code>) are mapped to actual Databricks secret scope
+names (like <code class="docutils literal notranslate"><span class="pre">dev_db_secrets</span></code>) in the substitution file. This provides flexibility
+to use different scope names across environments while keeping pipeline definitions portable.</p>
+</div>
+<p><strong>Example pipeline with secrets:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id4">
+<div class="code-block-caption"><span class="caption-text">pipelines/customer_ingestion/external_load.yaml</span><a class="headerlink" href="#id4" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="nt">pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_ingestion</span>
+<span class="linenos"> 2</span><span class="nt">flowgroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">external_load</span>
+<span class="linenos"> 3</span>
+<span class="linenos"> 4</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos"> 5</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_from_postgres</span>
+<span class="linenos"> 6</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos"> 7</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos"> 8</span><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jdbc</span>
+<span class="hll"><span class="linenos"> 9</span><span class="w">      </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;jdbc:postgresql://${secret:database_secrets/host}:5432/customers&quot;</span>
+</span><span class="hll"><span class="linenos">10</span><span class="w">      </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${secret:database_secrets/username}&quot;</span>
+</span><span class="hll"><span class="linenos">11</span><span class="w">      </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${secret:database_secrets/password}&quot;</span>
+</span><span class="hll"><span class="linenos">12</span><span class="w">      </span><span class="nt">driver</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;org.postgresql.Driver&quot;</span>
+</span><span class="linenos">13</span><span class="w">      </span><span class="nt">table</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;customers&quot;</span>
+<span class="linenos">14</span><span class="w">    </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_customers_raw</span>
 </pre></div>
 </div>
-<p><strong>Secret references</strong> use the <code class="docutils literal notranslate"><span class="pre">${secret:scope/key}</span></code> syntax.  Plumber validates
-scope aliases and collects every secret used by the pipeline, making reviews and
-approvals easier.</p>
+</div>
+<p><strong>Generated Python code:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id5">
+<div class="code-block-caption"><span class="caption-text">Generated DLT code with secure secret handling</span><a class="headerlink" href="#id5" title="Link to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="nd">@dlt</span><span class="o">.</span><span class="n">view</span><span class="p">()</span>
+<span class="linenos"> 2</span><span class="k">def</span><span class="w"> </span><span class="nf">v_customers_raw</span><span class="p">():</span>
+<span class="linenos"> 3</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Load from external database&quot;&quot;&quot;</span>
+<span class="linenos"> 4</span>    <span class="n">df</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">read</span> \
+<span class="linenos"> 5</span>        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;jdbc&quot;</span><span class="p">)</span> \
+<span class="hll"><span class="linenos"> 6</span>        <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;url&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;jdbc:postgresql://</span><span class="si">{</span><span class="n">dbutils</span><span class="o">.</span><span class="n">secrets</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s1">&#39;dev_db_secrets&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="o">=</span><span class="s1">&#39;host&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">:5432/customers&quot;</span><span class="p">)</span> \
+</span><span class="hll"><span class="linenos"> 7</span>        <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dbutils</span><span class="o">.</span><span class="n">secrets</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s1">&#39;dev_db_secrets&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="o">=</span><span class="s1">&#39;username&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> \
+</span><span class="hll"><span class="linenos"> 8</span>        <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;password&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">dbutils</span><span class="o">.</span><span class="n">secrets</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s1">&#39;dev_db_secrets&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="o">=</span><span class="s1">&#39;password&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> \
+</span><span class="linenos"> 9</span>        <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;driver&quot;</span><span class="p">,</span> <span class="s2">&quot;org.postgresql.Driver&quot;</span><span class="p">)</span> \
+<span class="linenos">10</span>        <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;dbtable&quot;</span><span class="p">,</span> <span class="s2">&quot;customers&quot;</span><span class="p">)</span> \
+<span class="linenos">11</span>        <span class="o">.</span><span class="n">load</span><span class="p">()</span>
+<span class="linenos">12</span>
+<span class="linenos">13</span>    <span class="k">return</span> <span class="n">df</span>
+</pre></div>
+</div>
+</div>
+</section>
 </section>
 <section id="operational-metadata">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">Operational Metadata</a><a class="headerlink" href="#operational-metadata" title="Link to this heading"></a></h2>
-<p>Add lineage columns without writing code.  At project, preset, FlowGroup or
-Action level specify:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">operational_metadata</span><span class="p">:</span> <span class="n">true</span>          <span class="c1"># all default columns</span>
+<h2><a class="toc-backref" href="#id21" role="doc-backlink">Operational Metadata</a><a class="headerlink" href="#operational-metadata" title="Link to this heading"></a></h2>
+<section id="column-definitions">
+<h3><a class="toc-backref" href="#id22" role="doc-backlink">Column Definitions</a><a class="headerlink" href="#column-definitions" title="Link to this heading"></a></h3>
+<p>Operational metadata are automatically generated columns that provide lineage, data
+provenance, and processing context. These columns are added to your tables without
+requiring manual SQL modifications.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Operational metadata columns are defined in the project level configuration file. under the <code class="docutils literal notranslate"><span class="pre">operational_metadata</span></code> key.</p>
+</div>
+<p><strong>Project-level configuration:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id6">
+<div class="code-block-caption"><span class="caption-text">lhp.yaml - Project operational metadata configuration</span><a class="headerlink" href="#id6" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># LakehousePlumber Project Configuration</span>
+<span class="linenos"> 2</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_lakehouse_project</span>
+<span class="linenos"> 3</span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0&quot;</span>
+<span class="linenos"> 4</span>
+<span class="linenos"> 5</span><span class="nt">operational_metadata</span><span class="p">:</span>
+<span class="linenos"> 6</span><span class="w">  </span><span class="nt">columns</span><span class="p">:</span>
+<span class="linenos"> 7</span><span class="w">    </span><span class="nt">_processing_timestamp</span><span class="p">:</span>
+<span class="linenos"> 8</span><span class="w">      </span><span class="nt">expression</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;F.current_timestamp()&quot;</span>
+<span class="linenos"> 9</span><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;When</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">record</span><span class="nv"> </span><span class="s">was</span><span class="nv"> </span><span class="s">processed</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">pipeline&quot;</span>
+<span class="linenos">10</span><span class="w">      </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;streaming_table&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;materialized_view&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;view&quot;</span><span class="p p-Indicator">]</span>
+<span class="linenos">11</span>
+<span class="linenos">12</span><span class="w">    </span><span class="nt">_source_file_path</span><span class="p">:</span>
+<span class="linenos">13</span><span class="w">      </span><span class="nt">expression</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;F.col(&#39;_metadata.file_path&#39;)&quot;</span>
+<span class="linenos">14</span><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Source</span><span class="nv"> </span><span class="s">file</span><span class="nv"> </span><span class="s">path</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">lineage</span><span class="nv"> </span><span class="s">tracking&quot;</span>
+<span class="linenos">15</span><span class="w">      </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;view&quot;</span><span class="p p-Indicator">]</span>
+<span class="linenos">16</span>
+<span class="linenos">17</span><span class="w">    </span><span class="nt">_record_hash</span><span class="p">:</span>
+<span class="linenos">18</span><span class="w">      </span><span class="nt">expression</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;F.xxhash64(*[F.col(c)</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">c</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">df.columns])&quot;</span>
+<span class="linenos">19</span><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Hash</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">all</span><span class="nv"> </span><span class="s">record</span><span class="nv"> </span><span class="s">fields</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">change</span><span class="nv"> </span><span class="s">detection&quot;</span>
+<span class="linenos">20</span><span class="w">      </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;streaming_table&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;materialized_view&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;view&quot;</span><span class="p p-Indicator">]</span>
+<span class="linenos">21</span><span class="w">      </span><span class="nt">additional_imports</span><span class="p">:</span>
+<span class="linenos">22</span><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;from</span><span class="nv"> </span><span class="s">pyspark.sql.functions</span><span class="nv"> </span><span class="s">import</span><span class="nv"> </span><span class="s">xxhash64&quot;</span>
+<span class="linenos">23</span>
+<span class="linenos">24</span><span class="w">    </span><span class="nt">_pipeline_name</span><span class="p">:</span>
+<span class="linenos">25</span><span class="w">      </span><span class="nt">expression</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;F.lit(&#39;${pipeline_name}&#39;)&quot;</span>
+<span class="linenos">26</span><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Name</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">processing</span><span class="nv"> </span><span class="s">pipeline&quot;</span>
+<span class="linenos">27</span><span class="w">      </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;streaming_table&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;materialized_view&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;view&quot;</span><span class="p p-Indicator">]</span>
 </pre></div>
 </div>
-<p>…or provide an explicit list (order preserved):</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">operational_metadata</span><span class="p">:</span>
-  <span class="o">-</span> <span class="n">_ingestion_timestamp</span>
-  <span class="o">-</span> <span class="n">_source_file</span>
-</pre></div>
 </div>
-<p>The utility class ensures the column list is valid for the chosen target type
-(view, streaming_table, materialized_view).</p>
 </section>
-<section id="state-management-smart-generation">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">State Management &amp; Smart Generation</a><a class="headerlink" href="#state-management-smart-generation" title="Link to this heading"></a></h2>
-<p>Lakehouse Plumber keeps a small <strong>state file</strong> under <code class="docutils literal notranslate"><span class="pre">.lhp_state.json</span></code> that
-maps generated Python files to their source YAML.  It records checksums and
-dependency links so that future <cite>lhp generate</cite> runs can:</p>
+<section id="target-type-compatibility">
+<h3><a class="toc-backref" href="#id23" role="doc-backlink">Target Type Compatibility</a><a class="headerlink" href="#target-type-compatibility" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">applies_to</span></code> field controls which DLT table types can use each operational metadata column.
+LHP automatically filters columns based on the target type to prevent runtime errors.</p>
+<p><strong>Purpose of target type restrictions:</strong></p>
+<p>When defining operational metadata columns at the project level, the <code class="docutils literal notranslate"><span class="pre">applies_to</span></code> field serves as a
+<strong>safeguard mechanism</strong> to protect end users from accidentally using incompatible columns in their
+pipeline configurations. This is a defensive design pattern that prevents common mistakes.</p>
+<p><strong>Best practice for project administrators:</strong></p>
 <ul class="simple">
-<li><p>re-process only <em>new</em> or <em>stale</em> FlowGroups.</p></li>
-<li><p>skip files whose inputs did not change.</p></li>
-<li><p>optionally clean up orphaned files when you delete YAML.</p></li>
+<li><p>Set restrictive <code class="docutils literal notranslate"><span class="pre">applies_to</span></code> values for source-specific columns (e.g., CloudFiles metadata)</p></li>
+<li><p>Use broader <code class="docutils literal notranslate"><span class="pre">applies_to</span></code> values for universal columns (e.g., timestamps, pipeline names)</p></li>
+<li><p>This protects pipeline developers from runtime failures and provides clear usage guidance</p></li>
 </ul>
-<p>This behaviour is similar to Gradle’s incremental build or Terraform’s state
-management.</p>
+<p><strong>Target types:</strong></p>
+<ul class="simple">
+<li><p><strong>``view``</strong> - Source views created by load actions (<code class="docutils literal notranslate"><span class="pre">&#64;dlt.view()</span></code>)</p></li>
+<li><p><strong>``streaming_table``</strong> - Live tables with streaming updates (<code class="docutils literal notranslate"><span class="pre">&#64;dlt.table()</span></code>)</p></li>
+<li><p><strong>``materialized_view``</strong> - Batch-computed views for analytics (<code class="docutils literal notranslate"><span class="pre">&#64;dlt.view()</span></code>)</p></li>
+</ul>
+<p><strong>Source-specific metadata limitations:</strong></p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<ul class="simple">
+<li><p>Metadata columns that depend on CloudFiles features (like <code class="docutils literal notranslate"><span class="pre">_metadata.file_path</span></code>) are <strong>only available in views</strong> that load data from CloudFiles sources. These columns will cause runtime errors if used with JDBC, SQL, or Delta sources.</p></li>
+</ul>
+</div>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>For complete details on file metadata columns available in Databricks CloudFiles, refer to the Databricks documentation:
+<a class="reference external" href="https://docs.databricks.com/aws/en/ingestion/file-metadata-column">File Metadata Columns</a></p>
+</div>
+<p><strong>Examples of source-restricted columns:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id7">
+<div class="code-block-caption"><span class="caption-text">CloudFiles-only operational metadata</span><a class="headerlink" href="#id7" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="nt">operational_metadata</span><span class="p">:</span>
+<span class="linenos"> 2</span><span class="w">  </span><span class="nt">columns</span><span class="p">:</span>
+<span class="linenos"> 3</span><span class="w">    </span><span class="nt">_source_file_name</span><span class="p">:</span>
+<span class="linenos"> 4</span><span class="w">      </span><span class="nt">expression</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;F.col(&#39;_metadata.file_name&#39;)&quot;</span>
+<span class="linenos"> 5</span><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Original</span><span class="nv"> </span><span class="s">file</span><span class="nv"> </span><span class="s">name</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">extension&quot;</span>
+<span class="hll"><span class="linenos"> 6</span><span class="w">      </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;view&quot;</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Only views, and only CloudFiles sources</span>
+</span><span class="linenos"> 7</span>
+<span class="linenos"> 8</span><span class="w">    </span><span class="nt">_file_modification_time</span><span class="p">:</span>
+<span class="linenos"> 9</span><span class="w">      </span><span class="nt">expression</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;F.col(&#39;_metadata.file_modification_time&#39;)&quot;</span>
+<span class="linenos">10</span><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;When</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">source</span><span class="nv"> </span><span class="s">file</span><span class="nv"> </span><span class="s">was</span><span class="nv"> </span><span class="s">last</span><span class="nv"> </span><span class="s">modified&quot;</span>
+<span class="linenos">11</span><span class="w">      </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;view&quot;</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Only views, and only CloudFiles sources</span>
+<span class="linenos">12</span>
+<span class="linenos">13</span><span class="w">    </span><span class="nt">_processing_timestamp</span><span class="p">:</span>
+<span class="linenos">14</span><span class="w">      </span><span class="nt">expression</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;F.current_timestamp()&quot;</span>
+<span class="linenos">15</span><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;When</span><span class="nv"> </span><span class="s">record</span><span class="nv"> </span><span class="s">was</span><span class="nv"> </span><span class="s">processed</span><span class="nv"> </span><span class="s">(works</span><span class="nv"> </span><span class="s">everywhere)&quot;</span>
+<span class="linenos">16</span><span class="w">      </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;streaming_table&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;materialized_view&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;view&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</div>
+<p><strong>Safe usage patterns:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id8">
+<div class="code-block-caption"><span class="caption-text">Source-aware metadata configuration</span><a class="headerlink" href="#id8" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># CloudFiles load action - can use file metadata</span>
+<span class="linenos"> 2</span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_files</span>
+<span class="linenos"> 3</span><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos"> 4</span><span class="w">  </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos"> 5</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudfiles</span>
+<span class="linenos"> 6</span><span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/mnt/data/*.json&quot;</span>
+<span class="linenos"> 7</span><span class="w">  </span><span class="nt">operational_metadata</span><span class="p">:</span>
+<span class="linenos"> 8</span><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_source_file_name&quot;</span><span class="w">        </span><span class="c1"># ✓ Available in CloudFiles</span>
+<span class="linenos"> 9</span><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_file_modification_time&quot;</span><span class="w">  </span><span class="c1"># ✓ Available in CloudFiles</span>
+<span class="linenos">10</span><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_processing_timestamp&quot;</span><span class="w">    </span><span class="c1"># ✓ Available everywhere</span>
+<span class="linenos">11</span><span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_file_data</span>
+<span class="linenos">12</span>
+<span class="linenos">13</span><span class="c1"># JDBC load action - file metadata not available</span>
+<span class="linenos">14</span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_database</span>
+<span class="linenos">15</span><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos">16</span><span class="w">  </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos">17</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jdbc</span>
+<span class="linenos">18</span><span class="w">    </span><span class="nt">table</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;customers&quot;</span>
+<span class="linenos">19</span><span class="w">  </span><span class="nt">operational_metadata</span><span class="p">:</span>
+<span class="linenos">20</span><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_processing_timestamp&quot;</span><span class="w">    </span><span class="c1"># ✓ Available everywhere</span>
+<span class="linenos">21</span><span class="w">    </span><span class="c1"># DO NOT USE: &quot;_source_file_name&quot; would cause runtime error</span>
+<span class="linenos">22</span><span class="w">  </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_database_data</span>
+</pre></div>
+</div>
+</div>
 </section>
-<section id="dependency-resolver">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Dependency Resolver</a><a class="headerlink" href="#dependency-resolver" title="Link to this heading"></a></h2>
-<p>Transforms may reference earlier views (or tables) via the <code class="docutils literal notranslate"><span class="pre">source</span></code> field.
-Plumber’s resolver builds a DAG, checks for cycles, and ensures downstream
-FlowGroups regenerate when upstream definitions change.</p>
+<section id="usage-in-yaml-files">
+<h3><a class="toc-backref" href="#id24" role="doc-backlink">Usage in YAML Files</a><a class="headerlink" href="#usage-in-yaml-files" title="Link to this heading"></a></h3>
+<p>Operational metadata can be configured at multiple levels with <strong>additive behavior</strong> - columns from all levels are combined together:</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>Additive Behavior</strong>: Operational metadata columns are <strong>never overridden</strong> between levels.
+Instead, columns from preset + flowgroup + action levels are <strong>combined together</strong>.
+The only exception is <code class="docutils literal notranslate"><span class="pre">operational_metadata:</span> <span class="pre">false</span></code> at action level, which disables <strong>all</strong> metadata.</p>
+</div>
+<p><strong>Preset level</strong></p>
+<div class="literal-block-wrapper docutils container" id="id9">
+<div class="code-block-caption"><span class="caption-text">presets/bronze_layer.yaml</span><a class="headerlink" href="#id9" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos">1</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bronze_layer</span>
+<span class="linenos">2</span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0&quot;</span>
+<span class="linenos">3</span>
+<span class="linenos">4</span><span class="nt">defaults</span><span class="p">:</span>
+<span class="linenos">5</span><span class="w">  </span><span class="nt">operational_metadata</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;_processing_timestamp&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;_source_file_path&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</div>
+<p><strong>FlowGroup level</strong></p>
+<div class="literal-block-wrapper docutils container" id="id10">
+<div class="code-block-caption"><span class="caption-text">pipelines/customer_ingestion/load_customers.yaml</span><a class="headerlink" href="#id10" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="nt">pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_ingestion</span>
+<span class="linenos"> 2</span><span class="nt">flowgroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_customers</span>
+<span class="linenos"> 3</span><span class="nt">presets</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;bronze_layer&quot;</span><span class="p p-Indicator">]</span>
+<span class="hll"><span class="linenos"> 4</span><span class="nt">operational_metadata</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;_record_hash&quot;</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Adds to preset columns</span>
+</span><span class="linenos"> 5</span>
+<span class="linenos"> 6</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos"> 7</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_customer_files</span>
+<span class="linenos"> 8</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos"> 9</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos">10</span><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudfiles</span>
+<span class="linenos">11</span><span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/mnt/landing/customers/*.json&quot;</span>
+<span class="linenos">12</span><span class="w">      </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">json</span>
+<span class="linenos">13</span><span class="w">    </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_customers_raw</span>
+</pre></div>
+</div>
+</div>
+<p><strong>Action level</strong></p>
+<div class="literal-block-wrapper docutils container" id="id11">
+<div class="code-block-caption"><span class="caption-text">Action-specific metadata configuration</span><a class="headerlink" href="#id11" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos"> 2</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_with_custom_metadata</span>
+<span class="linenos"> 3</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos"> 4</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos"> 5</span><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudfiles</span>
+<span class="linenos"> 6</span><span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/mnt/data/*.parquet&quot;</span>
+<span class="linenos"> 7</span><span class="w">      </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">parquet</span>
+<span class="hll"><span class="linenos"> 8</span><span class="w">    </span><span class="nt">operational_metadata</span><span class="p">:</span><span class="w">  </span><span class="c1"># Adds to flowgroup + preset columns</span>
+</span><span class="hll"><span class="linenos"> 9</span><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_pipeline_name&quot;</span>
+</span><span class="hll"><span class="linenos">10</span><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_custom_business_logic&quot;</span>
+</span><span class="hll"><span class="linenos">11</span><span class="w">    </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_enriched_data</span>
+</span><span class="linenos">12</span>
+<span class="linenos">13</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_without_metadata</span>
+<span class="linenos">14</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos">15</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos">16</span><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sql</span>
+<span class="linenos">17</span><span class="w">      </span><span class="nt">sql</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;SELECT</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">FROM</span><span class="nv"> </span><span class="s">source_table&quot;</span>
+<span class="linenos">18</span><span class="w">            </span><span class="nt">operational_metadata</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># Disables all metadata</span>
+<span class="linenos">19</span><span class="w">    </span><span class="w w-Error"> </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_clean_data</span>
+</pre></div>
+</div>
+</div>
+<p><strong>Additive behavior example:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id12">
+<div class="code-block-caption"><span class="caption-text">Complete example showing additive behavior</span><a class="headerlink" href="#id12" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># Preset defines base columns</span>
+<span class="linenos"> 2</span><span class="c1"># presets/bronze_layer.yaml</span>
+<span class="linenos"> 3</span><span class="nt">defaults</span><span class="p">:</span>
+<span class="hll"><span class="linenos"> 4</span><span class="w">  </span><span class="nt">operational_metadata</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;_processing_timestamp&quot;</span><span class="p p-Indicator">]</span>
+</span><span class="linenos"> 5</span>
+<span class="linenos"> 6</span><span class="c1"># FlowGroup adds more columns</span>
+<span class="linenos"> 7</span><span class="nt">pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_ingestion</span>
+<span class="linenos"> 8</span><span class="nt">flowgroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_customers</span>
+<span class="hll"><span class="linenos"> 9</span><span class="nt">operational_metadata</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;_source_file_path&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;_record_hash&quot;</span><span class="p p-Indicator">]</span>
+</span><span class="linenos">10</span>
+<span class="linenos">11</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos">12</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_customer_files</span>
+<span class="linenos">13</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos">14</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos">15</span><span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cloudfiles</span>
+<span class="linenos">16</span><span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/mnt/data/*.json&quot;</span>
+<span class="linenos">17</span><span class="w">    </span><span class="c1"># Action adds even more columns</span>
+<span class="hll"><span class="linenos">18</span><span class="w">    </span><span class="nt">operational_metadata</span><span class="p">:</span>
+</span><span class="hll"><span class="linenos">19</span><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_pipeline_name&quot;</span>
+</span><span class="hll"><span class="linenos">20</span><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_custom_business_logic&quot;</span>
+</span><span class="linenos">21</span><span class="w">    </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_customers_raw</span>
+<span class="linenos">22</span>
+<span class="linenos">23</span><span class="c1"># Final result: ALL columns combined</span>
+<span class="linenos">24</span><span class="c1"># ✓ _processing_timestamp      (from preset)</span>
+<span class="linenos">25</span><span class="c1"># ✓ _source_file_path          (from flowgroup)</span>
+<span class="linenos">26</span><span class="c1"># ✓ _record_hash               (from flowgroup)</span>
+<span class="linenos">27</span><span class="c1"># ✓ _pipeline_name             (from action)</span>
+<span class="linenos">28</span><span class="c1"># ✓ _custom_business_logic     (from action)</span>
+</pre></div>
+</div>
+</div>
 </section>
-<section id="putting-it-together">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Putting It Together</a><a class="headerlink" href="#putting-it-together" title="Link to this heading"></a></h2>
-<p>The figure below shows a high-level data flow for one FlowGroup.</p>
-<pre  class="mermaid">
-        graph TD
-    subgraph Generate Time
-        A[FlowGroup YAML] --&gt;|Parser| B(Config Objects)
-        B --&gt;|Templates &amp; Presets| C[Resolved Config]
-        C --&gt;|Substitutions| D[Enriched Config]
-        D --&gt;|Validation &amp; DAG| E[Action Orchestrator]
-        E --&gt;|Jinja2| F[Python DLT Script]
-    end
-    F --&gt;|Commit / Upload| G[DLT Pipeline]
-    </pre></section>
+<section id="usage-patterns">
+<h3><a class="toc-backref" href="#id25" role="doc-backlink">Usage Patterns</a><a class="headerlink" href="#usage-patterns" title="Link to this heading"></a></h3>
+<p><strong>Enable all available columns:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">operational_metadata</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Select specific columns:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">operational_metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_processing_timestamp&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_source_file_path&quot;</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;_record_hash&quot;</span>
+</pre></div>
+</div>
+<p><strong>Disable metadata:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">operational_metadata</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<p><strong>Generated Python code:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id13">
+<div class="code-block-caption"><span class="caption-text">Generated DLT code with operational metadata</span><a class="headerlink" href="#id13" title="Link to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="nd">@dlt</span><span class="o">.</span><span class="n">view</span><span class="p">()</span>
+<span class="linenos"> 2</span><span class="k">def</span><span class="w"> </span><span class="nf">v_customers_raw</span><span class="p">():</span>
+<span class="linenos"> 3</span><span class="w">    </span><span class="sd">&quot;&quot;&quot;Load customer files from landing zone&quot;&quot;&quot;</span>
+<span class="linenos"> 4</span>    <span class="n">df</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">readStream</span> \
+<span class="linenos"> 5</span>        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;cloudFiles&quot;</span><span class="p">)</span> \
+<span class="linenos"> 6</span>        <span class="o">.</span><span class="n">option</span><span class="p">(</span><span class="s2">&quot;cloudFiles.format&quot;</span><span class="p">,</span> <span class="s2">&quot;json&quot;</span><span class="p">)</span> \
+<span class="linenos"> 7</span>        <span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;/mnt/landing/customers/*.json&quot;</span><span class="p">)</span>
+<span class="hll"><span class="linenos"> 8</span>
+</span><span class="hll"><span class="linenos"> 9</span>    <span class="c1"># Add operational metadata columns</span>
+</span><span class="hll"><span class="linenos">10</span>    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;_processing_timestamp&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">current_timestamp</span><span class="p">())</span>
+</span><span class="hll"><span class="linenos">11</span>    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;_source_file_path&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">&#39;_metadata.file_path&#39;</span><span class="p">))</span>
+</span><span class="linenos">12</span>    <span class="n">df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">withColumn</span><span class="p">(</span><span class="s1">&#39;_record_hash&#39;</span><span class="p">,</span> <span class="n">F</span><span class="o">.</span><span class="n">xxhash64</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">F</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">]))</span>
+<span class="linenos">13</span>
+<span class="linenos">14</span>    <span class="k">return</span> <span class="n">df</span>
+</pre></div>
+</div>
+</div>
+<div class="admonition danger">
+<p class="admonition-title">Danger</p>
+<ul class="simple">
+<li><p>When you add operational metadata columns to an upstream action,
+if your downstream action is a transformation, for example SQL transform,
+you need to make sure they are included in the SQL query.</p></li>
+</ul>
+</div>
+</section>
+</section>
 </section>
 
 

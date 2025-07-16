@@ -79,20 +79,20 @@ Step 4: Create your first pipeline configuration
 Create a new pipeline configuration in the ``pipelines/`` folder.
 
 .. tip::
-   **Analtomy of a pipeline configuration:**
+   **Understanding Pipeline Configuration Structure:**
    
-   **Pipeline:** (line 1) defines the pipeline that this flowgroup runs in. This directly relates to the pipeline, and all YAMLs with the same pipeline name will be placed in the same directory in the generated folder.
+   **Pipeline:** (line 1) specifies the pipeline name that contains this flowgroup. All YAML files sharing the same pipeline name will be organized together in the same directory during code generation.
    
-   **Flowgroup:** (line 2) is a conceptual grouping of the actions in the pipeline and does not directly affect the functionality.
+   **Flowgroup:** (line 2) represents a logical grouping of related actions within the pipeline and serves as an organizational construct without impacting runtime behavior.
 
-   **Actions:** (line 4) are the individual steps in the pipeline. They are the building blocks of the pipeline:
+   **Actions:** (line 4) define the individual operations in the pipeline. They serve as the fundamental components that execute the data processing workflow:
    
-      • **Loads** (lines 5-11) customer data from Databricks samples catalog using Delta streaming
-      • **Transforms** (lines 13-27) the raw data by renaming columns and cleaning field names  
+      • **Loads** (lines 5-11) customer data from the Databricks samples catalog using Delta streaming
+      • **Transforms** (lines 13-27) the raw data by renaming columns and standardizing field names  
       • **Writes** (lines 29-35) the processed data to a bronze layer streaming table
-      • **Uses substitutions** like ``{catalog}`` and ``{bronze_schema}`` for environment flexibility
-      • **Follows medallion architecture** by writing to bronze schema for further processing
-      • **Enables streaming** with ``readMode: stream`` for real-time data processing
+      • **Leverages substitutions** like ``{catalog}`` and ``{bronze_schema}`` for environment flexibility from ``dev.yaml`` file
+      • **Implements medallion architecture** by writing to the bronze schema for downstream processing
+      • **Enables streaming** with ``readMode: stream`` for incremental read from Delta Change Data Feed (CDF)
 
 .. code-block:: yaml
    :caption: pipelines/customer_sample.yaml
@@ -242,7 +242,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
 Deploy on Databricks
 --------------------
 
-1. Create a DLT pipeline in the Databricks UI.
+1. Create a Lakeflow Declarative Pipeline(ETL) in the Databricks UI.
 2. Point the *Notebook/Directory* field to your ``generated/`` folder in the
    workspace (or sync the files via Repos).
 3. Configure clusters & permissions, then click **Validate**.
