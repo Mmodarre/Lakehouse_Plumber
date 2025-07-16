@@ -1,0 +1,138 @@
+name: Build and Publish to PyPI
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
+    branches: [ "main" ]
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: write  # Required for creating git tags
+  id-token: write  # Required for trusted publishing to PyPI
+
+jobs:
+  check-and-publish:
+    runs-on: ubuntu-latest
+    # Only run if the test workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: Clean build artifacts
+      run: |
+        # Remove build directories (similar to publish.sh)
+        rm -rf build/
+        rm -rf dist/
+        rm -rf src/*.egg-info/
+        
+        # Find and remove __pycache__ directories
+        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+        
+        # Remove .pyc files
+        find . -name "*.pyc" -delete 2>/dev/null || true
+    
+    - name: Get current version from pyproject.toml
+      id: get_version
+      run: |
+        # Extract version similar to publish.sh
+        VERSION=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+        echo "Current version: $VERSION"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    
+    - name: Show package information
+      run: |
+        echo "Package: lakehouse-plumber"
+        echo "Version: ${{ steps.get_version.outputs.version }}"
+        echo "Repository: $(git remote get-url origin)"
+        echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
+        echo "Commit: $(git rev-parse --short HEAD)"
+    
+    - name: Check if version exists on PyPI
+      id: check_pypi
+      run: |
+        PACKAGE_NAME="lakehouse-plumber"
+        CURRENT_VERSION="${{ steps.get_version.outputs.version }}"
+        
+        # More robust check using PyPI API
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/${PACKAGE_NAME}/${CURRENT_VERSION}/json/")
+        
+        if [ "$HTTP_STATUS" = "200" ]; then
+          echo "❌ Version ${CURRENT_VERSION} already exists on PyPI"
+          echo "should_publish=false" >> $GITHUB_OUTPUT
+        else
+          echo "✅ Version ${CURRENT_VERSION} does not exist on PyPI - will publish"
+          echo "should_publish=true" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Build package
+      if: steps.check_pypi.outputs.should_publish == 'true'
+      run: |
+        echo "🔨 Building package..."
+        python -m build
+        
+        # Check if build was successful (similar to publish.sh)
+        if [ ! -d "dist" ] || [ -z "$(ls -A dist)" ]; then
+          echo "❌ Build failed - no distribution files found"
+          exit 1
+        fi
+        
+        echo "✅ Package built successfully"
+    
+    - name: Check package contents
+      if: steps.check_pypi.outputs.should_publish == 'true'
+      run: |
+        echo "🔍 Checking package contents..."
+        ls -la dist/
+        
+        # Verify the built package with twine (same as publish.sh)
+        python -m twine check dist/*
+        
+        echo "✅ Package check passed"
+        echo ""
+        echo "📦 Files to upload:"
+        ls -1 dist/
+    
+    - name: Publish to PyPI
+      if: steps.check_pypi.outputs.should_publish == 'true'
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        print-hash: true
+        verbose: true
+    
+    - name: Create Git tag
+      if: steps.check_pypi.outputs.should_publish == 'true'
+      run: |
+        VERSION="${{ steps.get_version.outputs.version }}"
+        echo "🏷️ Creating git tag v${VERSION}..."
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag -a "v${VERSION}" -m "Release version ${VERSION}"
+        git push origin "v${VERSION}"
+        echo "✅ Git tag v${VERSION} created and pushed"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Publication successful
+      if: steps.check_pypi.outputs.should_publish == 'true'
+      run: |
+        echo "🎉 Successfully published lakehouse-plumber v${{ steps.get_version.outputs.version }} to PyPI!"
+        echo "📦 You can install it with: pip install lakehouse-plumber"
+        echo "🔗 PyPI page: https://pypi.org/project/lakehouse-plumber/${{ steps.get_version.outputs.version }}/"
+    
+    - name: Skip message
+      if: steps.check_pypi.outputs.should_publish == 'false'
+      run: |
+        echo "🚫 Version ${{ steps.get_version.outputs.version }} already exists on PyPI. Skipping publication." 
