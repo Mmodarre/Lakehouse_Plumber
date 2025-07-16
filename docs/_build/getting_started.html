@@ -162,18 +162,18 @@ code generation.</p>
 <p>Create a new pipeline configuration in the <code class="docutils literal notranslate"><span class="pre">pipelines/</span></code> folder.</p>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
-<p><strong>Analtomy of a pipeline configuration:</strong></p>
-<p><strong>Pipeline:</strong> (line 1) defines the pipeline that this flowgroup runs in. This directly relates to the pipeline, and all YAMLs with the same pipeline name will be placed in the same directory in the generated folder.</p>
-<p><strong>Flowgroup:</strong> (line 2) is a conceptual grouping of the actions in the pipeline and does not directly affect the functionality.</p>
-<p><strong>Actions:</strong> (line 4) are the individual steps in the pipeline. They are the building blocks of the pipeline:</p>
+<p><strong>Understanding Pipeline Configuration Structure:</strong></p>
+<p><strong>Pipeline:</strong> (line 1) specifies the pipeline name that contains this flowgroup. All YAML files sharing the same pipeline name will be organized together in the same directory during code generation.</p>
+<p><strong>Flowgroup:</strong> (line 2) represents a logical grouping of related actions within the pipeline and serves as an organizational construct without impacting runtime behavior.</p>
+<p><strong>Actions:</strong> (line 4) define the individual operations in the pipeline. They serve as the fundamental components that execute the data processing workflow:</p>
 <blockquote>
 <div><ul class="simple">
-<li><p><strong>Loads</strong> (lines 5-11) customer data from Databricks samples catalog using Delta streaming</p></li>
-<li><p><strong>Transforms</strong> (lines 13-27) the raw data by renaming columns and cleaning field names</p></li>
+<li><p><strong>Loads</strong> (lines 5-11) customer data from the Databricks samples catalog using Delta streaming</p></li>
+<li><p><strong>Transforms</strong> (lines 13-27) the raw data by renaming columns and standardizing field names</p></li>
 <li><p><strong>Writes</strong> (lines 29-35) the processed data to a bronze layer streaming table</p></li>
-<li><p><strong>Uses substitutions</strong> like <code class="docutils literal notranslate"><span class="pre">{catalog}</span></code> and <code class="docutils literal notranslate"><span class="pre">{bronze_schema}</span></code> for environment flexibility</p></li>
-<li><p><strong>Follows medallion architecture</strong> by writing to bronze schema for further processing</p></li>
-<li><p><strong>Enables streaming</strong> with <code class="docutils literal notranslate"><span class="pre">readMode:</span> <span class="pre">stream</span></code> for real-time data processing</p></li>
+<li><p><strong>Leverages substitutions</strong> like <code class="docutils literal notranslate"><span class="pre">{catalog}</span></code> and <code class="docutils literal notranslate"><span class="pre">{bronze_schema}</span></code> for environment flexibility from <code class="docutils literal notranslate"><span class="pre">dev.yaml</span></code> file</p></li>
+<li><p><strong>Implements medallion architecture</strong> by writing to the bronze schema for downstream processing</p></li>
+<li><p><strong>Enables streaming</strong> with <code class="docutils literal notranslate"><span class="pre">readMode:</span> <span class="pre">stream</span></code> for incremental read from Delta Change Data Feed (CDF)</p></li>
 </ul>
 </div></blockquote>
 </div>
@@ -319,7 +319,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
 <section id="deploy-on-databricks">
 <h2>Deploy on Databricks<a class="headerlink" href="#deploy-on-databricks" title="Link to this heading"></a></h2>
 <ol class="arabic simple">
-<li><p>Create a DLT pipeline in the Databricks UI.</p></li>
+<li><p>Create a Lakeflow Declarative Pipeline(ETL) in the Databricks UI.</p></li>
 <li><p>Point the <em>Notebook/Directory</em> field to your <code class="docutils literal notranslate"><span class="pre">generated/</span></code> folder in the
 workspace (or sync the files via Repos).</p></li>
 <li><p>Configure clusters &amp; permissions, then click <strong>Validate</strong>.</p></li>

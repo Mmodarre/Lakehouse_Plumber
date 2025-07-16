@@ -1,0 +1,274 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Advanced Topics &mdash; Lakehouse Plumber 0.2.13 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=ba481074"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=0729d509"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
+      <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+      <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+      <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Lakehouse Plumber
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="concepts.html">Concepts &amp; Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="actions_reference.html">Actions Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">CLI Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Lakehouse Plumber</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Advanced Topics</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/advanced.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="advanced-topics">
+<h1>Advanced Topics<a class="headerlink" href="#advanced-topics" title="Link to this heading"></a></h1>
+<p>This section covers advanced LakehousePlumber features and internal workings
+that are useful for power users, troubleshooting, and understanding how LHP
+optimizes pipeline generation.</p>
+<section id="state-management-smart-generation">
+<h2>State Management &amp; Smart Generation<a class="headerlink" href="#state-management-smart-generation" title="Link to this heading"></a></h2>
+<p>Lakehouse Plumber keeps a small <strong>state file</strong> under <code class="docutils literal notranslate"><span class="pre">.lhp_state.json</span></code> that
+maps generated Python files to their source YAML.  It records checksums and
+dependency links so that future <cite>lhp generate</cite> runs can:</p>
+<ul class="simple">
+<li><p>re-process only <em>new</em> or <em>stale</em> FlowGroups.</p></li>
+<li><p>skip files whose inputs did not change.</p></li>
+<li><p>optionally clean up orphaned files when you delete YAML.</p></li>
+</ul>
+<p>This behaviour is similar to Gradle’s incremental build or Terraform’s state
+management.</p>
+<p><strong>How state management works:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">.lhp_state.json example</span><a class="headerlink" href="#id1" title="Link to this code"></a></div>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="p">{</span>
+<span class="linenos"> 2</span><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1.0&quot;</span><span class="p">,</span>
+<span class="linenos"> 3</span><span class="w">  </span><span class="nt">&quot;generated_files&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="linenos"> 4</span><span class="w">    </span><span class="nt">&quot;customer_ingestion.py&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="linenos"> 5</span><span class="w">      </span><span class="nt">&quot;source_yaml&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pipelines/bronze/customer_ingestion.yaml&quot;</span><span class="p">,</span>
+<span class="linenos"> 6</span><span class="w">      </span><span class="nt">&quot;checksum&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a1b2c3d4e5f6&quot;</span><span class="p">,</span>
+<span class="linenos"> 7</span><span class="w">      </span><span class="nt">&quot;environment&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;dev&quot;</span><span class="p">,</span>
+<span class="linenos"> 8</span><span class="w">      </span><span class="nt">&quot;dependencies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;presets/bronze_layer.yaml&quot;</span><span class="p">]</span>
+<span class="linenos"> 9</span><span class="w">    </span><span class="p">}</span>
+<span class="linenos">10</span><span class="w">  </span><span class="p">}</span>
+<span class="linenos">11</span><span class="p">}</span>
+</pre></div>
+</div>
+</div>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p><strong>Faster regeneration</strong> - Only changed files are processed</p></li>
+<li><p><strong>Dependency tracking</strong> - Upstream changes trigger downstream regeneration</p></li>
+<li><p><strong>Cleanup support</strong> - Detect and remove orphaned generated files</p></li>
+<li><p><strong>CI/CD optimization</strong> - Skip unchanged pipeline generation in builds</p></li>
+</ul>
+</section>
+<section id="dependency-resolver">
+<h2>Dependency Resolver<a class="headerlink" href="#dependency-resolver" title="Link to this heading"></a></h2>
+<p>Transforms may reference earlier views (or tables) via the <code class="docutils literal notranslate"><span class="pre">source</span></code> field.
+Plumber’s resolver builds a DAG, checks for cycles, and ensures downstream
+FlowGroups regenerate when upstream definitions change.</p>
+<p><strong>Dependency resolution process:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Parse source references</strong> - Extract view/table dependencies from actions</p></li>
+<li><p><strong>Build dependency graph</strong> - Create directed acyclic graph (DAG) of dependencies</p></li>
+<li><p><strong>Cycle detection</strong> - Prevent circular dependencies that would cause runtime errors</p></li>
+<li><p><strong>Topological ordering</strong> - Generate actions in correct execution order</p></li>
+<li><p><strong>Change propagation</strong> - Mark downstream FlowGroups for regeneration when dependencies change</p></li>
+</ol>
+<p><strong>Example dependency chain:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">Dependency example</span><a class="headerlink" href="#id2" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># raw_data.yaml - No dependencies (source)</span>
+<span class="linenos"> 2</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos"> 3</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load_files</span>
+<span class="linenos"> 4</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span>
+<span class="linenos"> 5</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> type</span><span class="p">:</span><span class="w"> </span><span class="nv">cloudfiles</span><span class="p p-Indicator">,</span><span class="nt"> path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/data/*.json&quot;</span><span class="w"> </span><span class="p p-Indicator">}</span>
+<span class="linenos"> 6</span><span class="w">    </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_raw_data</span>
+<span class="linenos"> 7</span>
+<span class="linenos"> 8</span><span class="c1"># clean_data.yaml - Depends on v_raw_data</span>
+<span class="linenos"> 9</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos">10</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">clean_data</span>
+<span class="linenos">11</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transform</span>
+<span class="linenos">12</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_raw_data</span><span class="w">  </span><span class="c1"># ← Dependency</span>
+<span class="linenos">13</span><span class="w">    </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_clean_data</span>
+<span class="linenos">14</span>
+<span class="linenos">15</span><span class="c1"># aggregated.yaml - Depends on v_clean_data</span>
+<span class="linenos">16</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos">17</span><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aggregate</span>
+<span class="linenos">18</span><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transform</span>
+<span class="linenos">19</span><span class="w">    </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_clean_data</span><span class="w">  </span><span class="c1"># ← Dependency</span>
+<span class="linenos">20</span><span class="w">    </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_aggregated</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="pipeline-generation-workflow">
+<h2>Pipeline Generation Workflow<a class="headerlink" href="#pipeline-generation-workflow" title="Link to this heading"></a></h2>
+<p>The complete pipeline generation process follows this workflow:</p>
+<pre  class="mermaid">
+        graph TD
+    subgraph &quot;Discovery Phase&quot;
+        A[Scan YAML Files] --&gt; B[Apply Include Patterns]
+        B --&gt; C[Parse FlowGroups]
+    end
+
+    subgraph &quot;Resolution Phase&quot;
+        C --&gt; D[Apply Presets]
+        D --&gt; E[Expand Templates]
+        E --&gt; F[Apply Substitutions]
+        F --&gt; G[Validate Configuration]
+    end
+
+    subgraph &quot;Generation Phase&quot;
+        G --&gt; H[Resolve Dependencies]
+        H --&gt; I[Check State]
+        I --&gt; J{Changed?}
+        J --&gt;|Yes| K[Generate Code]
+        J --&gt;|No| L[Skip Generation]
+        K --&gt; M[Update State]
+        L --&gt; M
+    end
+
+    subgraph &quot;Output&quot;
+        M --&gt; N[Python DLT Files]
+    end
+    </pre><p><strong>Key optimization points:</strong></p>
+<ul class="simple">
+<li><p><strong>Smart discovery</strong> - Include patterns reduce files to process</p></li>
+<li><p><strong>Incremental generation</strong> - State tracking skips unchanged files</p></li>
+<li><p><strong>Dependency awareness</strong> - Changes propagate to affected downstream files</p></li>
+<li><p><strong>Validation early</strong> - Catch errors before code generation</p></li>
+<li><p><strong>Parallel processing</strong> - Independent FlowGroups can be processed simultaneously</p></li>
+</ul>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<p><strong>Common state management issues:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id3">
+<div class="code-block-caption"><span class="caption-text">Debugging state issues</span><a class="headerlink" href="#id3" title="Link to this code"></a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Force regeneration of all files</span>
+lhp<span class="w"> </span>generate<span class="w"> </span>--force-all<span class="w"> </span>--env<span class="w"> </span>dev
+
+<span class="c1"># Clear state and regenerate everything</span>
+rm<span class="w"> </span>.lhp_state.json
+lhp<span class="w"> </span>generate<span class="w"> </span>--env<span class="w"> </span>dev
+
+<span class="c1"># Check what files would be regenerated</span>
+lhp<span class="w"> </span>generate<span class="w"> </span>--dry-run<span class="w"> </span>--env<span class="w"> </span>dev<span class="w"> </span>--verbose
+</pre></div>
+</div>
+</div>
+<p><strong>Debugging dependency issues:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id4">
+<div class="code-block-caption"><span class="caption-text">Dependency debugging</span><a class="headerlink" href="#id4" title="Link to this code"></a></div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Show dependency graph</span>
+lhp<span class="w"> </span>validate<span class="w"> </span>--env<span class="w"> </span>dev<span class="w"> </span>--show-dependencies
+
+<span class="c1"># Validate for circular dependencies</span>
+lhp<span class="w"> </span>validate<span class="w"> </span>--env<span class="w"> </span>dev<span class="w"> </span>--check-cycles
+</pre></div>
+</div>
+</div>
+<p><strong>Performance optimization:</strong></p>
+<ul class="simple">
+<li><p>Use <strong>include patterns</strong> to limit file scanning scope</p></li>
+<li><p>Keep <strong>FlowGroups focused</strong> - avoid overly large YAML files</p></li>
+<li><p>Leverage <strong>state management</strong> - don’t force regeneration unless needed</p></li>
+<li><p>Use <strong>specific targets</strong> when possible instead of full pipeline generation</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Lakehouse Plumber.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

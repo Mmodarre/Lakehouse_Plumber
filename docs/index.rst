@@ -261,6 +261,7 @@ Next Steps
    getting_started
    concepts
    actions_reference
+   advanced
    cli
    examples
    api 
