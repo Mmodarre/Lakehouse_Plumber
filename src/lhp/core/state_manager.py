@@ -866,16 +866,9 @@ class StateManager:
         if not pipelines_dir.exists():
             return yaml_files
 
-        if pipeline:
-            # Get YAML files for specific pipeline
-            pipeline_dir = pipelines_dir / pipeline
-            if pipeline_dir.exists():
-                yaml_files.update(pipeline_dir.rglob("*.yaml"))
-                yaml_files.update(pipeline_dir.rglob("*.yml"))
-        else:
-            # Get all YAML files
-            yaml_files.update(pipelines_dir.rglob("*.yaml"))
-            yaml_files.update(pipelines_dir.rglob("*.yml"))
+        # Get all YAML files first
+        yaml_files.update(pipelines_dir.rglob("*.yaml"))
+        yaml_files.update(pipelines_dir.rglob("*.yml"))
 
         # Apply include filtering if patterns are specified
         include_patterns = self._get_include_patterns()
@@ -889,6 +882,24 @@ class StateManager:
             
             # Convert back to set of absolute paths
             yaml_files = set(filtered_files)
+
+        # Filter by pipeline field content if specific pipeline requested
+        if pipeline:
+            pipeline_filtered_files = set()
+            from ..parsers.yaml_parser import YAMLParser
+            parser = YAMLParser()
+            
+            for yaml_file in yaml_files:
+                try:
+                    flowgroup = parser.parse_flowgroup(yaml_file)
+                    if flowgroup.pipeline == pipeline:
+                        pipeline_filtered_files.add(yaml_file)
+                except Exception as e:
+                    self.logger.debug(f"Could not parse {yaml_file} for pipeline filtering: {e}")
+                    # Skip files that can't be parsed
+                    continue
+            
+            yaml_files = pipeline_filtered_files
 
         return yaml_files
 

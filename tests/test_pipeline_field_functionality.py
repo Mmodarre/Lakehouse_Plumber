@@ -226,8 +226,10 @@ environment:
             assert "raw_ingestions" in result.output
             
             # Should validate both flowgroups with pipeline: raw_ingestions  
-            # The output format may vary but should indicate successful validation
-            assert "validated successfully" in result.output or "warning(s)" in result.output
+            # After fixing the bug, success messages are no longer in warnings
+            # Check for successful validation indicators in the output
+            assert "Pipeline 'raw_ingestions' is valid" in result.output
+            assert "Total errors: 0" in result.output
             
     def test_orchestrator_discovers_flowgroups_by_pipeline_field(self):
         """Test that orchestrator discovers flowgroups by pipeline field across multiple directories."""

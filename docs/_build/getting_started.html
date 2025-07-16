@@ -1,0 +1,372 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Getting Started &mdash; Lakehouse Plumber 0.2.13 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=ba481074"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="_static/copybutton.js?v=0729d509"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Concepts &amp; Architecture" href="concepts.html" />
+    <link rel="prev" title="Lakehouse Plumber" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Lakehouse Plumber
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Getting Started</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#option-1-clone-the-acme-example-pipeline">Option 1: Clone the ACME Example Pipeline</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#option-2-create-a-new-pipeline-configuration">Option 2: Create a new pipeline configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-1-project-initialisation">Step 1: Project Initialisation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-2-edit-the-project-configuration-file">Step 2: Edit the project configuration file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-3-edit-the-environment-configuration-file">Step 3: Edit the environment configuration file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-4-create-your-first-pipeline-configuration">Step 4: Create your first pipeline configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#validate-the-configuration">Validate the Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#generate-dlt-code">Generate DLT Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#inspect-the-output">Inspect the Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-on-databricks">Deploy on Databricks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="concepts.html">Concepts &amp; Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="actions_reference.html">Actions Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">CLI Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Lakehouse Plumber</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Getting Started</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/getting_started.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="getting-started">
+<h1>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h1>
+<p>This short tutorial walks you through creating your first <strong>Lakehouse Plumber</strong>
+project and generating a Delta Live Tables (DLT) pipeline based on the ACME demo
+configuration that ships with the repository.</p>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Python 3.8 + (3.10 recommended)</p></li>
+<li><p>Access to a Databricks workspace with DLT enabled (for actual deployment)</p></li>
+<li><p>Git installed (optional but recommended)</p></li>
+</ul>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create and activate a virtual environment (optional)</span>
+python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+
+<span class="c1"># Install Lakehouse Plumber CLI and its extras for docs &amp; examples</span>
+pip<span class="w"> </span>install<span class="w"> </span>lakehouse-plumber
+</pre></div>
+</div>
+</section>
+<section id="option-1-clone-the-acme-example-pipeline">
+<h2>Option 1: Clone the ACME Example Pipeline<a class="headerlink" href="#option-1-clone-the-acme-example-pipeline" title="Link to this heading"></a></h2>
+<p>#TODO CREATE SCRIPT TO GET THE DATA READY TO USE IN THE EXAMPLE
+There is a companion repository that includes a fully working example (TPC-H retail dataset).
+Copy its raw-ingestion flow into your new project:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Mmodarre/acme_edw.git
+<span class="nb">cd</span><span class="w"> </span>acme_edw
+hlp<span class="w"> </span>validate<span class="w"> </span>--env<span class="w"> </span>dev
+hlp<span class="w"> </span>generate<span class="w"> </span>--env<span class="w"> </span>dev
+</pre></div>
+</div>
+</section>
+<section id="option-2-create-a-new-pipeline-configuration">
+<h2>Option 2: Create a new pipeline configuration<a class="headerlink" href="#option-2-create-a-new-pipeline-configuration" title="Link to this heading"></a></h2>
+</section>
+<section id="step-1-project-initialisation">
+<h2>Step 1: Project Initialisation<a class="headerlink" href="#step-1-project-initialisation" title="Link to this heading"></a></h2>
+<p>Use the <strong>`lhp init`</strong> command to scaffold a new repo-ready directory structure:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>lhp<span class="w"> </span>init<span class="w"> </span>&lt;my_dlt_project&gt;
+<span class="nb">cd</span><span class="w"> </span>&lt;my_dlt_project&gt;
+</pre></div>
+</div>
+<p>The command creates folders such as <code class="docutils literal notranslate"><span class="pre">pipelines/</span></code>, <code class="docutils literal notranslate"><span class="pre">templates/</span></code>,
+<code class="docutils literal notranslate"><span class="pre">substitutions/</span></code> and a starter <code class="docutils literal notranslate"><span class="pre">lhp.yaml</span></code> project file.</p>
+</section>
+<section id="step-2-edit-the-project-configuration-file">
+<h2>Step 2: Edit the project configuration file<a class="headerlink" href="#step-2-edit-the-project-configuration-file" title="Link to this heading"></a></h2>
+<p>Edit the <code class="docutils literal notranslate"><span class="pre">lhp.yaml</span></code> file to configure your project.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">lhp.yaml</span></code> file is the main entry point for configuring your project.
+for full documentation on the project configuration file, see <span class="xref std std-doc">LHP YAML Configuration</span>.</p>
+</div>
+</section>
+<section id="step-3-edit-the-environment-configuration-file">
+<h2>Step 3: Edit the environment configuration file<a class="headerlink" href="#step-3-edit-the-environment-configuration-file" title="Link to this heading"></a></h2>
+<p>Edit the <code class="docutils literal notranslate"><span class="pre">substitutions/dev.yaml</span></code> file to match your workspace catalog &amp; storage paths.
+Tokens such as <code class="docutils literal notranslate"><span class="pre">{catalog}</span></code> or <code class="docutils literal notranslate"><span class="pre">${secret:scope/key}</span></code> will be replaced during
+code generation.</p>
+</section>
+<section id="step-4-create-your-first-pipeline-configuration">
+<h2>Step 4: Create your first pipeline configuration<a class="headerlink" href="#step-4-create-your-first-pipeline-configuration" title="Link to this heading"></a></h2>
+<p>Create a new pipeline configuration in the <code class="docutils literal notranslate"><span class="pre">pipelines/</span></code> folder.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p><strong>Analtomy of a pipeline configuration:</strong></p>
+<p><strong>Pipeline:</strong> (line 1) defines the pipeline that this flowgroup runs in. This directly relates to the pipeline, and all YAMLs with the same pipeline name will be placed in the same directory in the generated folder.</p>
+<p><strong>Flowgroup:</strong> (line 2) is a conceptual grouping of the actions in the pipeline and does not directly affect the functionality.</p>
+<p><strong>Actions:</strong> (line 4) are the individual steps in the pipeline. They are the building blocks of the pipeline:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p><strong>Loads</strong> (lines 5-11) customer data from Databricks samples catalog using Delta streaming</p></li>
+<li><p><strong>Transforms</strong> (lines 13-27) the raw data by renaming columns and cleaning field names</p></li>
+<li><p><strong>Writes</strong> (lines 29-35) the processed data to a bronze layer streaming table</p></li>
+<li><p><strong>Uses substitutions</strong> like <code class="docutils literal notranslate"><span class="pre">{catalog}</span></code> and <code class="docutils literal notranslate"><span class="pre">{bronze_schema}</span></code> for environment flexibility</p></li>
+<li><p><strong>Follows medallion architecture</strong> by writing to bronze schema for further processing</p></li>
+<li><p><strong>Enables streaming</strong> with <code class="docutils literal notranslate"><span class="pre">readMode:</span> <span class="pre">stream</span></code> for real-time data processing</p></li>
+</ul>
+</div></blockquote>
+</div>
+<div class="literal-block-wrapper docutils container" id="id1">
+<div class="code-block-caption"><span class="caption-text">pipelines/customer_sample.yaml</span><a class="headerlink" href="#id1" title="Link to this code"></a></div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="nt">pipeline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tpch_sample_ingestion</span><span class="w">  </span><span class="c1"># Grouping of generated python files in the same folder</span>
+<span class="linenos"> 2</span><span class="nt">flowgroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_ingestion</span><span class="w">   </span><span class="c1"># Logical grouping for generated Python file</span>
+<span class="linenos"> 3</span>
+<span class="linenos"> 4</span><span class="nt">actions</span><span class="p">:</span>
+<span class="linenos"> 5</span><span class="w">   </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_sample_load</span><span class="w">     </span><span class="c1"># Unique action identifier</span>
+<span class="linenos"> 6</span><span class="w">     </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">load</span><span class="w">                     </span><span class="c1"># Action type: Load</span>
+<span class="linenos"> 7</span><span class="w">     </span><span class="nt">readMode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stream</span><span class="w">              </span><span class="c1"># Read using streaming CDF</span>
+<span class="linenos"> 8</span><span class="w">     </span><span class="nt">source</span><span class="p">:</span>
+<span class="linenos"> 9</span><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">delta</span><span class="w">                </span><span class="c1"># Source format: Delta Lake table</span>
+<span class="linenos">10</span><span class="w">        </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;samples.tpch&quot;</span><span class="w">   </span><span class="c1"># Source database and schema in Unity Catalog</span>
+<span class="linenos">11</span><span class="w">        </span><span class="nt">table</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_sample</span><span class="w">     </span><span class="c1"># Source table name</span>
+<span class="linenos">12</span><span class="w">     </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_customer_sample_raw</span><span class="w"> </span><span class="c1"># Target view name (temporary in-memory)</span>
+<span class="linenos">13</span><span class="w">     </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Load</span><span class="nv"> </span><span class="s">customer</span><span class="nv"> </span><span class="s">sample</span><span class="nv"> </span><span class="s">table</span><span class="nv"> </span><span class="s">from</span><span class="nv"> </span><span class="s">Databricks</span><span class="nv"> </span><span class="s">samples</span><span class="nv"> </span><span class="s">catalog&quot;</span>
+<span class="linenos">14</span>
+<span class="linenos">15</span><span class="w">   </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transform_customer_sample</span><span class="w">  </span><span class="c1"># Unique action identifier</span>
+<span class="linenos">16</span><span class="w">     </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transform</span><span class="w">                  </span><span class="c1"># Action type: Transform</span>
+<span class="linenos">17</span><span class="w">     </span><span class="nt">transform_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sql</span><span class="w">             </span><span class="c1"># Transform using SQL query</span>
+<span class="linenos">18</span><span class="w">     </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_customer_sample_raw</span><span class="w">   </span><span class="c1"># Input view from previous action</span>
+<span class="linenos">19</span><span class="w">     </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_customer_sample_cleaned</span><span class="w">  </span><span class="c1"># Output view name</span>
+<span class="linenos">20</span><span class="w">     </span><span class="nt">sql</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span><span class="w">                          </span><span class="c1"># SQL transformation logic</span>
+<span class="linenos">21</span><span class="w">        </span><span class="no">SELECT</span>
+<span class="linenos">22</span><span class="w">        </span><span class="no">c_custkey as customer_id,    # Rename key field for clarity</span>
+<span class="linenos">23</span><span class="w">        </span><span class="no">c_name as name,              # Simplify column name</span>
+<span class="linenos">24</span><span class="w">        </span><span class="no">c_address as address,        # Keep address as-is</span>
+<span class="linenos">25</span><span class="w">        </span><span class="no">c_nationkey as nation_id,    # Rename for consistency</span>
+<span class="linenos">26</span><span class="w">        </span><span class="no">c_phone as phone,            # Simplify column name</span>
+<span class="linenos">27</span><span class="w">        </span><span class="no">c_acctbal as account_balance, # More descriptive name</span>
+<span class="linenos">28</span><span class="w">        </span><span class="no">c_mktsegment as market_segment, # Readable column name</span>
+<span class="linenos">29</span><span class="w">        </span><span class="no">c_comment as comment         # Keep comment as-is</span>
+<span class="linenos">30</span><span class="w">        </span><span class="no">FROM stream(v_customer_sample_raw)  # Stream from source view</span>
+<span class="linenos">31</span><span class="w">     </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Transform</span><span class="nv"> </span><span class="s">customer</span><span class="nv"> </span><span class="s">sample</span><span class="nv"> </span><span class="s">table&quot;</span>
+<span class="linenos">32</span>
+<span class="linenos">33</span><span class="w">   </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write_customer_sample_bronze</span><span class="w">  </span><span class="c1"># Unique action identifier</span>
+<span class="linenos">34</span><span class="w">     </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write</span><span class="w">                         </span><span class="c1"># Action type: Write</span>
+<span class="linenos">35</span><span class="w">     </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v_customer_sample_cleaned</span><span class="w">   </span><span class="c1"># Input view from previous action</span>
+<span class="linenos">36</span><span class="w">     </span><span class="nt">write_target</span><span class="p">:</span>
+<span class="linenos">37</span><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">streaming_table</span><span class="w">            </span><span class="c1"># Output as streaming table</span>
+<span class="linenos">38</span><span class="w">        </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{catalog}.{bronze_schema}&quot;</span><span class="w">  </span><span class="c1"># Target database.schema with substitutions</span>
+<span class="linenos">39</span><span class="w">        </span><span class="nt">table</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;tpch_sample_customer&quot;</span><span class="w">    </span><span class="c1"># Final table name</span>
+<span class="linenos">40</span><span class="w">     </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Write</span><span class="nv"> </span><span class="s">customer</span><span class="nv"> </span><span class="s">sample</span><span class="nv"> </span><span class="s">table</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">bronze</span><span class="nv"> </span><span class="s">schema&quot;</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="validate-the-configuration">
+<h2>Validate the Configuration<a class="headerlink" href="#validate-the-configuration" title="Link to this heading"></a></h2>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check for schema errors, missing secrets, circular dependencies …</span>
+lhp<span class="w"> </span>validate<span class="w"> </span>--env<span class="w"> </span>dev
+</pre></div>
+</div>
+<p>If everything is green you will see <strong>✅ All configurations are valid</strong>.</p>
+</section>
+<section id="generate-dlt-code">
+<h2>Generate DLT Code<a class="headerlink" href="#generate-dlt-code" title="Link to this heading"></a></h2>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create Python files in ./generated/ (default output dir)</span>
+lhp<span class="w"> </span>generate<span class="w"> </span>--env<span class="w"> </span>dev
+</pre></div>
+</div>
+</section>
+<section id="inspect-the-output">
+<h2>Inspect the Output<a class="headerlink" href="#inspect-the-output" title="Link to this heading"></a></h2>
+<p>Navigate to <code class="docutils literal notranslate"><span class="pre">generated/tpch_sample_ingestion</span></code> each FlowGroup became a Python
+file formatted with <a class="reference external" href="https://black.readthedocs.io">black</a>. These are standard
+Lakeflow Declarative Pipeline scripts containing you can run in
+Databricks or commit to your repository. (Databricks Assest Bundles integration is coming soon…)</p>
+<p><strong>This is the generated python file from the above YAML configuration:</strong></p>
+<div class="literal-block-wrapper docutils container" id="id2">
+<div class="code-block-caption"><span class="caption-text">generated/tpch_sample_ingestion/customer_ingestion.py</span><a class="headerlink" href="#id2" title="Link to this code"></a></div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="linenos"> 1</span><span class="c1"># Generated by LakehousePlumber</span>
+<span class="linenos"> 2</span><span class="c1"># Pipeline: tpch_sample_ingestion</span>
+<span class="linenos"> 3</span><span class="c1"># FlowGroup: customer_ingestion</span>
+<span class="linenos"> 4</span>
+<span class="linenos"> 5</span><span class="kn">import</span><span class="w"> </span><span class="nn">dlt</span>
+<span class="linenos"> 6</span>
+<span class="linenos"> 7</span><span class="c1"># Pipeline Configuration</span>
+<span class="linenos"> 8</span><span class="n">PIPELINE_ID</span> <span class="o">=</span> <span class="s2">&quot;tpch_sample_ingestion&quot;</span>
+<span class="linenos"> 9</span><span class="n">FLOWGROUP_ID</span> <span class="o">=</span> <span class="s2">&quot;customer_ingestion&quot;</span>
+<span class="linenos">10</span>
+<span class="linenos">11</span><span class="c1"># ============================================================================</span>
+<span class="linenos">12</span><span class="c1"># SOURCE VIEWS</span>
+<span class="linenos">13</span><span class="c1"># ============================================================================</span>
+<span class="linenos">14</span>
+<span class="linenos">15</span><span class="nd">@dlt</span><span class="o">.</span><span class="n">view</span><span class="p">()</span>
+<span class="linenos">16</span><span class="k">def</span><span class="w"> </span><span class="nf">v_customer_sample_raw</span><span class="p">():</span>
+<span class="linenos">17</span><span class="w">   </span><span class="sd">&quot;&quot;&quot;Load customer sample table from Databricks samples catalog&quot;&quot;&quot;</span>
+<span class="linenos">18</span>   <span class="n">df</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">readStream</span> \
+<span class="linenos">19</span>      <span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">&quot;samples.tpch.customer_sample&quot;</span><span class="p">)</span>
+<span class="linenos">20</span>
+<span class="linenos">21</span>   <span class="k">return</span> <span class="n">df</span>
+<span class="linenos">22</span>
+<span class="linenos">23</span>
+<span class="linenos">24</span><span class="c1"># ============================================================================</span>
+<span class="linenos">25</span><span class="c1"># TRANSFORMATION VIEWS</span>
+<span class="linenos">26</span><span class="c1"># ============================================================================</span>
+<span class="linenos">27</span>
+<span class="linenos">28</span><span class="nd">@dlt</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">comment</span><span class="o">=</span><span class="s2">&quot;Transform customer sample table&quot;</span><span class="p">)</span>
+<span class="linenos">29</span><span class="k">def</span><span class="w"> </span><span class="nf">v_customer_sample_cleaned</span><span class="p">():</span>
+<span class="linenos">30</span><span class="w">   </span><span class="sd">&quot;&quot;&quot;Transform customer sample table&quot;&quot;&quot;</span>
+<span class="linenos">31</span>   <span class="k">return</span> <span class="n">spark</span><span class="o">.</span><span class="n">sql</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;SELECT</span>
+<span class="linenos">32</span><span class="s2">c_custkey as customer_id,</span>
+<span class="linenos">33</span><span class="s2">c_name as name,</span>
+<span class="linenos">34</span><span class="s2">c_address as address,</span>
+<span class="linenos">35</span><span class="s2">c_nationkey as nation_id,</span>
+<span class="linenos">36</span><span class="s2">c_phone as phone,</span>
+<span class="linenos">37</span><span class="s2">c_acctbal as account_balance,</span>
+<span class="linenos">38</span><span class="s2">c_mktsegment as market_segment,</span>
+<span class="linenos">39</span><span class="s2">c_comment as comment</span>
+<span class="linenos">40</span><span class="s2">FROM stream(v_customer_sample_raw)&quot;&quot;&quot;</span><span class="p">)</span>
+<span class="linenos">41</span>
+<span class="linenos">42</span>
+<span class="linenos">43</span><span class="c1"># ============================================================================</span>
+<span class="linenos">44</span><span class="c1"># TARGET TABLES</span>
+<span class="linenos">45</span><span class="c1"># ============================================================================</span>
+<span class="linenos">46</span>
+<span class="linenos">47</span><span class="c1"># Create the streaming table</span>
+<span class="linenos">48</span><span class="n">dlt</span><span class="o">.</span><span class="n">create_streaming_table</span><span class="p">(</span>
+<span class="linenos">49</span>   <span class="n">name</span><span class="o">=</span><span class="s2">&quot;acmi_edw_dev.edw_bronze.tpch_sample_customer&quot;</span><span class="p">,</span>
+<span class="linenos">50</span>   <span class="n">comment</span><span class="o">=</span><span class="s2">&quot;Streaming table: tpch_sample_customer&quot;</span><span class="p">,</span>
+<span class="linenos">51</span>   <span class="n">table_properties</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;delta.autoOptimize.optimizeWrite&quot;</span><span class="p">:</span> <span class="s2">&quot;true&quot;</span><span class="p">,</span> <span class="s2">&quot;delta.enableChangeDataFeed&quot;</span><span class="p">:</span> <span class="s2">&quot;true&quot;</span><span class="p">})</span>
+<span class="linenos">52</span>
+<span class="linenos">53</span>
+<span class="linenos">54</span><span class="c1"># Define append flow(s)</span>
+<span class="linenos">55</span><span class="nd">@dlt</span><span class="o">.</span><span class="n">append_flow</span><span class="p">(</span>
+<span class="linenos">56</span>   <span class="n">target</span><span class="o">=</span><span class="s2">&quot;acmi_edw_dev.edw_bronze.tpch_sample_customer&quot;</span><span class="p">,</span>
+<span class="linenos">57</span>   <span class="n">name</span><span class="o">=</span><span class="s2">&quot;f_customer_sample_bronze&quot;</span><span class="p">,</span>
+<span class="linenos">58</span>   <span class="n">comment</span><span class="o">=</span><span class="s2">&quot;Write customer sample table to bronze schema&quot;</span>
+<span class="linenos">59</span><span class="p">)</span>
+<span class="linenos">60</span><span class="k">def</span><span class="w"> </span><span class="nf">f_customer_sample_bronze</span><span class="p">():</span>
+<span class="linenos">61</span><span class="w">   </span><span class="sd">&quot;&quot;&quot;Write customer sample table to bronze schema&quot;&quot;&quot;</span>
+<span class="linenos">62</span>   <span class="c1"># Streaming flow</span>
+<span class="linenos">63</span>   <span class="n">df</span> <span class="o">=</span> <span class="n">spark</span><span class="o">.</span><span class="n">readStream</span><span class="o">.</span><span class="n">table</span><span class="p">(</span><span class="s2">&quot;v_customer_sample_cleaned&quot;</span><span class="p">)</span>
+<span class="linenos">64</span>
+<span class="linenos">65</span>   <span class="k">return</span> <span class="n">df</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="deploy-on-databricks">
+<h2>Deploy on Databricks<a class="headerlink" href="#deploy-on-databricks" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>Create a DLT pipeline in the Databricks UI.</p></li>
+<li><p>Point the <em>Notebook/Directory</em> field to your <code class="docutils literal notranslate"><span class="pre">generated/</span></code> folder in the
+workspace (or sync the files via Repos).</p></li>
+<li><p>Configure clusters &amp; permissions, then click <strong>Validate</strong>.</p></li>
+</ol>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Explore <strong>Presets</strong> and <strong>Templates</strong> to reduce duplication.</p></li>
+<li><p>Add <strong>data-quality expectations</strong> to your transforms.</p></li>
+<li><p>Add <strong>operational metadata</strong> to your actions.</p></li>
+<li><p>Add <strong>Schema Hints</strong> to your Load actions.</p></li>
+<li><p>Enable <strong>Change-Data-Feed (CDC)</strong> in bronze ingestions.</p></li>
+<li><p>Continue reading the <a class="reference internal" href="concepts.html"><span class="doc">Concepts &amp; Architecture</span></a> section for deeper architectural details.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Lakehouse Plumber" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="concepts.html" class="btn btn-neutral float-right" title="Concepts &amp; Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Lakehouse Plumber.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
