@@ -1,20 +1,16 @@
-# Create temporary streaming table
-dlt.create_streaming_table(
-    name="{{ target_table }}",
-    comment="{{ comment }}",
-    table_properties={{ table_properties | tojson }},
-    temporary=True
+@dlt.table(
+    temporary=True,
 )
-
-@dlt.view()
-def {{ target_table }}_view():
+def {{ target_table }}():
     """{{ description }}"""
     {% if sql %}
-    return spark.sql("""{{ sql }}""")
+    df = spark.sql("""{{ sql }}""")
     {% else %}
     {% if readMode == "stream" %}
-    return spark.readStream.table("{{ source_view }}")
+    df = spark.readStream.table("{{ source_view }}")
     {% else %}
-    return spark.read.table("{{ source_view }}")
+    df = spark.read.table("{{ source_view }}")
     {% endif %}
-    {% endif %} 
+    {% endif %}
+
+    return df 

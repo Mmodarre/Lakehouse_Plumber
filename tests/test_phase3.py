@@ -274,10 +274,13 @@ class TestTransformGenerators:
         
         code = generator.generate(action, {})
         
-        # Verify generated code
-        assert "dlt.create_streaming_table" in code
-        assert "customers_staging_temp" in code
+        # Verify generated code uses correct pattern
+        assert "@dlt.table(" in code
         assert "temporary=True" in code
+        assert "def customers_staging():" in code
+        # Verify it does NOT use the old incorrect pattern
+        assert "dlt.create_streaming_table" not in code
+        assert "customers_staging_temp" not in code
 
 
 class TestWriteGenerators:

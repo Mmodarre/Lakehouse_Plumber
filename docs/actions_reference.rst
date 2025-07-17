@@ -1092,44 +1092,14 @@ Temp table transform actions create temporary streaming tables for intermediate 
 
   import dlt
 
-  # Create temporary streaming table
-  dlt.create_streaming_table(
-      name="customer_intermediate_temp",
-      comment="Temporary table for customer intermediate processing",
-      table_properties={},
-      temporary=True
+  @dlt.table(
+      temporary=True,
   )
-
-  @dlt.view()
-  def customer_intermediate_temp_view():
+  def customer_intermediate():
       """Create temporary table for customer intermediate processing"""
-      return spark.readStream.table("v_customer_processed")
-
-.. code-block:: python
-  :linenos:
-
-  import dlt
-
-  @dlt.view()
-  def v_customer_bronze_cleaned():
-      """Cleanse and standardize customer data for bronze layer"""
-      return spark.sql("""
-          SELECT 
-            c_custkey as customer_id,
-            c_name as name,
-            c_address as address,
-            c_nationkey as nation_id,
-            c_phone as phone,
-            c_acctbal as account_balance,
-            c_mktsegment as market_segment,
-            c_comment as comment,
-            _source_file_path,
-            _source_file_size,
-            _source_file_modification_time,
-            _record_hash,
-            _processing_timestamp
-          FROM stream(LIVE.v_customer_raw)
-      """)
+      df = spark.readStream.table("v_customer_processed")
+      
+      return df
 
 Write Actions
 ~~~~~~~~~~~~~
@@ -1176,6 +1146,7 @@ Streaming table write actions create or append to Delta streaming tables. They s
           registration_date DATE,
           _source_file_path STRING,
           _processing_timestamp TIMESTAMP
+        row_filter: "ROW FILTER catalog.schema.customer_access_filter ON (region)"
       description: "Write customer data to bronze streaming table"
 
 **Anatomy of a streaming table write action**
@@ -1193,6 +1164,7 @@ Streaming table write actions create or append to Delta streaming tables. They s
       - **cluster_columns**: Columns to cluster/z-order the table by
       - **spark_conf**: Streaming-specific Spark configuration
       - **table_schema**: DDL schema definition for the table
+      - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
       - **mode**: Streaming mode - "standard" (default), "cdc", or "snapshot_cdc"
 - **description**: Optional documentation for the action
@@ -1218,6 +1190,7 @@ Streaming table write actions create or append to Delta streaming tables. They s
       },
       partition_cols=["region", "year"],
       cluster_by=["customer_id"],
+      row_filter="ROW FILTER catalog.schema.customer_access_filter ON (region)",
       schema="""customer_id BIGINT NOT NULL,
         name STRING,
         email STRING,
@@ -1257,6 +1230,7 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
         table_properties:
           delta.enableChangeDataFeed: "true"
           quality: "silver"
+        row_filter: "ROW FILTER catalog.schema.customer_region_filter ON (region)"
         cdc_config:
           keys: ["customer_id"]
           sequence_by: "_commit_timestamp"
@@ -1279,7 +1253,8 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
       table_properties={
           "delta.enableChangeDataFeed": "true",
           "quality": "silver"
-      }
+      },
+      row_filter="ROW FILTER catalog.schema.customer_region_filter ON (region)"
   )
 
   # CDC mode using auto_cdc
@@ -1321,6 +1296,7 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
           custom.data.owner: "data_team"
         partition_columns: ["region"]
         cluster_columns: ["customer_id"]
+        row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
       description: "Create customer dimension from snapshot table"
 
 **Option 2: Function Source with SCD Type 2**
@@ -1426,7 +1402,8 @@ Create file `customer_snapshot_functions.py`:
           "custom.data.owner": "data_team"
       },
       partition_cols=["region"],
-      cluster_by=["customer_id"]
+      cluster_by=["customer_id"],
+      row_filter="ROW FILTER catalog.schema.region_access_filter ON (region)"
   )
 
   # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
@@ -1546,6 +1523,7 @@ for pre-computed analytics tables based on the output of a query.
         partition_columns: ["region"]
         cluster_columns: ["customer_segment"]
         refresh_schedule: "0 2 * * *"
+        row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
         comment: "Daily customer summary materialized view"
       description: "Create daily customer summary for analytics"
 
@@ -1576,6 +1554,7 @@ for pre-computed analytics tables based on the output of a query.
           custom.business.domain: "sales_analytics"
         partition_columns: ["sales_date"]
         refresh_schedule: "0 1 * * *"
+        row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
       description: "Daily sales summary by region and category"
 
 **Anatomy of a materialized view write action**
@@ -1593,6 +1572,7 @@ for pre-computed analytics tables based on the output of a query.
       - **cluster_columns**: Columns to cluster/z-order the view by
       - **refresh_schedule**: Cron expression for refresh schedule
       - **table_schema**: DDL schema definition for the view
+      - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
 - **description**: Optional documentation for the action
 
@@ -1614,7 +1594,8 @@ for pre-computed analytics tables based on the output of a query.
       },
       partition_cols=["region"],
       cluster_by=["customer_segment"],
-      refresh_schedule="0 2 * * *"
+      refresh_schedule="0 2 * * *",
+      row_filter="ROW FILTER catalog.schema.region_access_filter ON (region)"
   )
   def customer_summary():
       """Create daily customer summary for analytics"""
@@ -1637,7 +1618,8 @@ for pre-computed analytics tables based on the output of a query.
           "custom.business.domain": "sales_analytics"
       },
       partition_cols=["sales_date"],
-      refresh_schedule="0 1 * * *"
+      refresh_schedule="0 1 * * *",
+      row_filter="ROW FILTER catalog.schema.region_access_filter ON (region)"
   )
   def daily_sales_summary():
       """Daily sales summary by region and category"""
@@ -1659,6 +1641,53 @@ for pre-computed analytics tables based on the output of a query.
   Materialized views are designed for analytics workloads and always use batch processing.
   Use `refresh_schedule` to control when the view refreshes. 
   Materialized views can either read from source views or execute custom SQL queries.
+
+Row-Level Security with row_filter
++++++++++++++++++++++++++++++++++++
+
+The `row_filter` option enables row-level security for both streaming tables and materialized views. Row filters use SQL user-defined functions (UDFs) to control which rows users can see based on their identity, group membership, or other criteria.
+
+**Creating a Row Filter Function**
+
+Before applying a row filter to a table, you must create a SQL UDF that returns a boolean value:
+
+.. code-block:: sql
+
+  -- Example: Region-based access control
+  CREATE FUNCTION catalog.schema.region_access_filter(region STRING)
+  RETURN 
+    CASE 
+      WHEN IS_ACCOUNT_GROUP_MEMBER('admin') THEN TRUE
+      WHEN IS_ACCOUNT_GROUP_MEMBER('na_users') THEN region IN ('US', 'Canada')
+      WHEN IS_ACCOUNT_GROUP_MEMBER('emea_users') THEN region IN ('UK', 'Germany', 'France')
+      ELSE FALSE
+    END;
+
+  -- Example: User-specific customer access
+  CREATE FUNCTION catalog.schema.customer_access_filter(customer_id BIGINT)
+  RETURN 
+    IS_ACCOUNT_GROUP_MEMBER('admin') OR 
+    EXISTS(
+      SELECT 1 FROM catalog.access_control.user_customer_mapping 
+      WHERE username = CURRENT_USER() AND customer_id_access = customer_id
+    );
+
+**Key Functions for Row Filters:**
+
+- **CURRENT_USER()**: Returns the username of the current user
+- **IS_ACCOUNT_GROUP_MEMBER('group_name')**: Returns true if user is in the specified group
+- **EXISTS()**: Checks for existence in mapping tables for complex access control
+
+**Row Filter Syntax**
+
+The row filter format is: ``"ROW FILTER function_name ON (column_names)"``
+
+- **function_name**: Name of the SQL UDF that implements the filtering logic
+- **column_names**: Comma-separated list of columns to pass to the function
+
+.. seealso::
+  - For complete row filter documentation see the `Databricks Row Filters and Column Masks documentation <https://docs.databricks.com/aws/en/dlt/unity-catalog#row-filters-and-column-masks>`_.
+
 
 Further Reading
 ---------------

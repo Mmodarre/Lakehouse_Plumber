@@ -19,8 +19,8 @@ class TempTableTransformGenerator(BaseActionGenerator):
         # Get readMode from action or default to batch
         readMode = action.readMode or "batch"
 
-        # Target table name with _temp suffix
-        target_table = action.target + "_temp"
+        # Target table name (use exact target from YAML)
+        target_table = action.target
 
         template_context = {
             "action_name": action.name,

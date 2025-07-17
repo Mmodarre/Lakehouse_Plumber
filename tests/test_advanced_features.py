@@ -152,9 +152,16 @@ actions:
         
         code = generated_files["temp_processing.py"]
         
-        # Check for temporary streaming table creation
-        assert "dlt.create_streaming_table" in code
-        assert "temp_daily_aggregates_temp" in code  # Should have _temp suffix
+        # Check for correct temporary table implementation
+        assert "@dlt.table(" in code
+        assert "temporary=True" in code
+        assert "def temp_daily_aggregates():" in code
+        # Verify it does NOT use the old incorrect temp table pattern
+        assert "temp_daily_aggregates_temp" not in code
+        # Verify the temp table section uses @dlt.table, not dlt.create_streaming_table for temp
+        temp_table_section = code.split("# TRANSFORMATION VIEWS")[1].split("# TARGET TABLES")[0]
+        assert "@dlt.table(" in temp_table_section
+        assert "dlt.create_streaming_table" not in temp_table_section
         
         # Check for SQL with multiple sources
         assert "v_raw_data r" in code
