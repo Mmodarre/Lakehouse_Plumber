@@ -8,8 +8,8 @@ Actions are the building block of Lakehouse Plumber flowgroups.
    :local:
 
 
-Action Types
-------------
+Actions Overview
+----------------
 
 Actions come in three top-level types:
 
@@ -31,7 +31,7 @@ Actions come in three top-level types:
 
 
 Load Actions
-~~~~~~~~~~~~
+------------
 
 .. note::
   - At this time the framework supports the following load sub-types.
@@ -57,7 +57,7 @@ Load Actions
 +-------------+------------------------------------------------------------+
 
 cloudFiles
-++++++++++
+~~~~~~~~~~
 .. code-block:: yaml
 
   actions:
@@ -157,7 +157,7 @@ cloudFiles
       return df
 
 delta
-++++++
+~~~~~~
 .. code-block:: yaml
 
   actions:
@@ -213,7 +213,7 @@ delta
       return df
 
 sql
-+++
+~~~
 SQL load actions support both **inline SQL** and **external SQL files**.
 
 **Option 1: Inline SQL**
@@ -325,7 +325,7 @@ SQL load actions support both **inline SQL** and **external SQL files**.
       """)
 
 jdbc
-+++++
+~~~~
 JDBC load actions connect to external relational databases using JDBC drivers. They support both **table queries** and **custom SQL queries**.
 
 **Option 1: Query-based JDBC**
@@ -465,7 +465,7 @@ JDBC load actions connect to external relational databases using JDBC drivers. T
       return df
 
 python
-++++++
+~~~~~~
 Python load actions call custom Python functions that return DataFrames. This allows for complex data extraction logic, API calls, or custom data processing.
 
 **YAML Configuration:**
@@ -590,7 +590,7 @@ Python load actions call custom Python functions that return DataFrames. This al
       return df
 
 Transform Actions
-~~~~~~~~~~~~~~~~~
+------------------
 
 +--------------+---------------------------------------------------------------+
 | Sub-type     | Purpose                                                       |
@@ -607,7 +607,7 @@ Transform Actions
 +--------------+---------------------------------------------------------------+
 
 sql
-+++
+~~~
 SQL transform actions execute SQL queries to transform data between views. They support both **inline SQL** and **external SQL files**.
 
 **Option 1: Inline SQL**
@@ -735,7 +735,7 @@ SQL transform actions execute SQL queries to transform data between views. They 
       """)
 
 python
-++++++
+~~~~~~
 Python transform actions call custom Python functions to apply complex transformation logic that goes beyond SQL capabilities.
 
 .. code-block:: yaml
@@ -864,7 +864,7 @@ Python transform actions call custom Python functions to apply complex transform
       return enrich_customer_data(v_customer_bronze_df, spark, parameters)
 
 data_quality
-++++++++++++
+~~~~~~~~~~~~
 Data quality transform actions apply data validation rules using Databricks DLT expectations. They automatically handle data that fails validation based on configured actions.
 
 .. code-block:: yaml
@@ -973,7 +973,7 @@ Data quality transform actions apply data validation rules using Databricks DLT 
       return df
 
 schema
-++++++
+~~~~~~
 Schema transform actions apply column mapping, type casting, and schema enforcement to standardize data structures.
 
 .. code-block:: yaml
@@ -1050,7 +1050,7 @@ Schema transform actions apply column mapping, type casting, and schema enforcem
       return df
 
 Temporary Tables
-++++++++++++++++
+~~~~~~~~~~~~~~~~
 Temp table transform actions create temporary streaming tables for intermediate processing and reuse across multiple downstream actions.
 
 .. code-block:: yaml
@@ -1102,7 +1102,7 @@ Temp table transform actions create temporary streaming tables for intermediate 
       return df
 
 Write Actions
-~~~~~~~~~~~~~
+--------------
 
 +-------------------+--------------------------------------------------------------------------+
 | Sub-type          | Purpose                                                                  |
@@ -1114,10 +1114,11 @@ Write Actions
 +-------------------+--------------------------------------------------------------------------+
 
 streaming_table
-+++++++++++++++
+~~~~~~~~~~~~~~~
 Streaming table write actions create or append to Delta streaming tables. They support three modes: **standard** (append flows), **cdc** (change data capture), and **snapshot_cdc** (snapshot-based CDC).
 
-**Standard Mode (Default)**
+Append Streaming Table Write
+++++++++++++++++++++++++++++
 
 .. code-block:: yaml
 
@@ -1212,7 +1213,11 @@ Streaming table write actions create or append to Delta streaming tables. They s
       df = spark.readStream.table("v_customer_cleansed")
       return df
 
-**CDC Mode**
+CDC Mode
+++++++++
+
+
+**Incremental CDC**
 
 CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD Type 1 and Type 2 processing.
 
@@ -1271,7 +1276,7 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
 .. seealso::
   - For more information on ``create_auto_cdc_flow`` see the `Databricks official documentation <https://docs.databricks.com/en/delta-live-tables/dlt-python-ref-apply-changes.html>`_
 
-**Snapshot CDC Mode**
+**Snapshot CDC**
 
 Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `create_auto_cdc_from_snapshot_flow()`. It supports two source approaches: direct table references or custom Python functions.
 
@@ -1501,7 +1506,7 @@ Create file `customer_snapshot_functions.py`:
   - Function file paths are relative to the YAML file location
 
 materialized_view
-++++++++++++++++++
+~~~~~~~~~~~~~~~~~
 Materialized view write actions create Databricks materialized views
 for pre-computed analytics tables based on the output of a query.
 
@@ -1643,7 +1648,7 @@ for pre-computed analytics tables based on the output of a query.
   Materialized views can either read from source views or execute custom SQL queries.
 
 Row-Level Security with row_filter
-+++++++++++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The `row_filter` option enables row-level security for both streaming tables and materialized views. Row filters use SQL user-defined functions (UDFs) to control which rows users can see based on their identity, group membership, or other criteria.
 
@@ -1690,7 +1695,7 @@ The row filter format is: ``"ROW FILTER function_name ON (column_names)"``
 
 
 Further Reading
----------------
-* :doc:`concepts` – deeper dive into how Actions fit inside FlowGroups.
-* `Reference templates <https://github.com/.../Reference_Templates>`_ – fully-
+----------------
+
+* `Reference templates(Github Repo) <https://github.com/Mmodarre/Lakehouse_Plumber/tree/main/Reference_Templates>`_ fully
   documented YAML files covering every option. 
