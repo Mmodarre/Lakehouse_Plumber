@@ -519,6 +519,9 @@ class ActionOrchestrator:
         if state_manager:
             state_manager.save()
 
+        # Note: Bundle synchronization is handled at the CLI level after all pipelines are processed
+        # to ensure it sees the complete state of all generated files
+
         self.logger.info(f"Pipeline generation complete: {pipeline_field}")
         return generated_files
 
@@ -938,6 +941,38 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
             grouped[full_table_name].append(action)
 
         return dict(grouped)
+
+    def _sync_bundle_resources(self, output_dir: Optional[Path], environment: str) -> None:
+        """Synchronize bundle resources after successful generation.
+        
+        Args:
+            output_dir: Output directory for generated files (None for dry-run)
+            environment: Environment name for generation
+        """
+        try:
+            # Check if bundle support is enabled
+            from ..utils.bundle_detection import should_enable_bundle_support
+            
+            if not should_enable_bundle_support(self.project_root):
+                self.logger.debug("Bundle support disabled, skipping bundle synchronization")
+                return
+            
+            # Import and create bundle manager
+            from ..bundle.manager import BundleManager
+            
+            bundle_manager = BundleManager(self.project_root)
+            
+            # Perform synchronization 
+            self.logger.debug(f"Starting bundle resource synchronization for environment: {environment}")
+            bundle_manager.sync_resources_with_generated_files(output_dir, environment)
+            self.logger.info("Bundle resource synchronization completed successfully")
+            
+        except ImportError as e:
+            self.logger.debug(f"Bundle modules not available: {e}")
+        except Exception as e:
+            # Bundle errors should not fail the core generation process
+            self.logger.warning(f"Bundle synchronization failed: {e}")
+            self.logger.debug(f"Bundle sync error details: {e}", exc_info=True)
 
     def _create_combined_write_action(
         self, actions: List[Action], target_table: str
