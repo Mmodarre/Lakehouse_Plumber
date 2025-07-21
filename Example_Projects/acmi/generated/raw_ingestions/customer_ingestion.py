@@ -45,10 +45,10 @@ def v_customer_cloudfiles():
 
 
     # Add operational metadata columns
-    df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
-    df = df.withColumn('_record_hash', F.xxhash64(*[F.col(c) for c in df.columns]))
     df = df.withColumn('_source_file_modification_time', F.col('_metadata.file_modification_time'))
     df = df.withColumn('_source_file_size', F.col('_metadata.file_size'))
+    df = df.withColumn('_record_hash', F.xxhash64(*[F.col(c) for c in df.columns]))
+    df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
 
     return df
 
@@ -60,7 +60,8 @@ def v_customer_cloudfiles():
 # Create the streaming table
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_raw.customer",
-    comment="Streaming table: customer")
+    comment="Streaming table: customer",
+    table_properties={"tag1": "hello", "tag2": "world", "PII": "true"})
 
 
 # Define append flow(s)

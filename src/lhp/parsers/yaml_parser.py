@@ -34,6 +34,21 @@ class YAMLParser:
         """Parse a Template YAML file."""
         content = self.parse_file(file_path)
         return Template(**content)
+    
+    def parse_template_raw(self, file_path: Path) -> Template:
+        """Parse a Template YAML file with raw actions (no Action object creation).
+        
+        This is used during template loading to avoid validation of template syntax
+        like {{ table_properties }}. Actions will be validated later during rendering
+        when actual parameter values are available.
+        """
+        content = self.parse_file(file_path)
+        
+        # Create template with raw actions
+        raw_actions = content.pop('actions', [])
+        template = Template(**content, actions=raw_actions)
+        template._raw_actions = True  # Set flag after creation
+        return template
 
     def parse_preset(self, file_path: Path) -> Preset:
         """Parse a Preset YAML file."""

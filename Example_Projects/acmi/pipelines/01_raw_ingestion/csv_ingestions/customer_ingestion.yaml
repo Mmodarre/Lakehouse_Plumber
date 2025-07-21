@@ -12,4 +12,7 @@ use_template: csv_ingestion_template
 template_parameters:
   table_name: customer
   landing_folder: customer
-
+  table_properties:
+    tag1: hello
+    tag2: world
+    PII: "true"

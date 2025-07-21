@@ -17,6 +17,10 @@ parameters:
   - name: landing_folder
     required: true
     description: "Name of the landing folder"
+  - name: table_properties
+    required: false
+    description: "Optional table properties as key-value pairs"
+    default: {}
 
 
 actions:
@@ -49,3 +53,4 @@ actions:
       database: "{catalog}.{raw_schema}"
       table: "{{ table_name }}"
       description: "Write {{ table_name }} to raw layer" 
+      table_properties: "{{ table_properties }}"
