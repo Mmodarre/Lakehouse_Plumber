@@ -14,6 +14,9 @@ from ..utils.substitution import EnhancedSubstitutionManager
 from ..parsers.yaml_parser import YAMLParser
 from ..models.config import ActionType
 from ..utils.error_handler import ErrorHandler
+from ..utils.bundle_detection import should_enable_bundle_support
+from ..bundle.manager import BundleManager
+from ..bundle.exceptions import BundleResourceError
 
 # Import for dynamic version detection
 try:
@@ -128,7 +131,12 @@ def cli(verbose):
 
 @cli.command()
 @click.argument("project_name")
-def init(project_name):
+@click.option(
+    "--bundle",
+    is_flag=True,
+    help="Initialize as a Databricks Asset Bundle project",
+)
+def init(project_name, bundle):
     """Initialize a new LakehousePlumber project"""
     project_path = Path(project_name)
     if project_path.exists():
@@ -346,16 +354,31 @@ secrets/
 """
     )
 
-    click.echo(f"✅ Initialized LakehousePlumber project: {project_name}")
-    click.echo(f"📁 Created directories: {', '.join(directories)}")
-    click.echo(
-        "📄 Created example files: presets/bronze_layer.yaml, templates/standard_ingestion.yaml"
-    )
-    click.echo("\n🚀 Next steps:")
-    click.echo(f"   cd {project_name}")
-    click.echo("   # Create your first pipeline")
-    click.echo("   mkdir pipelines/my_pipeline")
-    click.echo("   # Add flowgroup configurations")
+    # Create bundle-specific files if requested
+    if bundle:
+        _create_bundle_files(project_path, project_name)
+        click.echo(f"✅ Initialized Databricks Asset Bundle project: {project_name}")
+        click.echo(f"📁 Created directories: {', '.join(directories)}, resources")
+        click.echo(
+            "📄 Created example files: presets/bronze_layer.yaml, templates/standard_ingestion.yaml, databricks.yml"
+        )
+        click.echo("\n🚀 Next steps:")
+        click.echo(f"   cd {project_name}")
+        click.echo("   # Create your first pipeline")
+        click.echo("   mkdir pipelines/my_pipeline")
+        click.echo("   # Add flowgroup configurations")
+        click.echo("   # Deploy bundle with: databricks bundle deploy")
+    else:
+        click.echo(f"✅ Initialized LakehousePlumber project: {project_name}")
+        click.echo(f"📁 Created directories: {', '.join(directories)}")
+        click.echo(
+            "📄 Created example files: presets/bronze_layer.yaml, templates/standard_ingestion.yaml"
+        )
+        click.echo("\n🚀 Next steps:")
+        click.echo(f"   cd {project_name}")
+        click.echo("   # Create your first pipeline")
+        click.echo("   mkdir pipelines/my_pipeline")
+        click.echo("   # Add flowgroup configurations")
 
 
 @cli.command()
@@ -489,7 +512,12 @@ def validate(env, pipeline, verbose):
     is_flag=True,
     help="Force regeneration of all files, even if unchanged",
 )
-def generate(env, pipeline, output, dry_run, format, cleanup, force):
+@click.option(
+    "--no-bundle",
+    is_flag=True,
+    help="Disable bundle support even if databricks.yml exists",
+)
+def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
     """Generate DLT pipeline code"""
     project_root = _ensure_project_root()
 
@@ -612,17 +640,18 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
         if not pipelines_needing_generation:
             click.echo("✨ All files are up-to-date! Nothing to generate.")
             click.echo("💡 Use --force flag to regenerate all files anyway.")
-            return
+            # Don't return early - still need to run bundle sync
+            pipelines_to_generate = []  # Set to empty list to skip generation loop
+        else:
+            # Update pipelines_to_generate to only process those that need it
+            original_count = len(pipelines_to_generate)
+            pipelines_to_generate = list(pipelines_needing_generation.keys())
+            skipped_count = original_count - len(pipelines_to_generate)
 
-        # Update pipelines_to_generate to only process those that need it
-        original_count = len(pipelines_to_generate)
-        pipelines_to_generate = list(pipelines_needing_generation.keys())
-        skipped_count = original_count - len(pipelines_to_generate)
-
-        if skipped_count > 0:
-            click.echo(
-                f"⚡ Smart generation: processing {len(pipelines_to_generate)}/{original_count} pipelines"
-            )
+            if skipped_count > 0:
+                click.echo(
+                    f"⚡ Smart generation: processing {len(pipelines_to_generate)}/{original_count} pipelines"
+                )
     elif force:
         click.echo("🔄 Force mode: regenerating all files regardless of changes")
     else:
@@ -762,6 +791,27 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force):
     # Save state if cleanup is enabled
     if cleanup and state_manager:
         state_manager.save()
+
+    # Bundle synchronization (if enabled)
+    try:
+        bundle_enabled = should_enable_bundle_support(project_root, cli_no_bundle=no_bundle)
+        if bundle_enabled:
+            if verbose:
+                click.echo("🔗 Bundle support detected - syncing resource files...")
+            
+            bundle_manager = BundleManager(project_root)
+            bundle_manager.sync_resources_with_generated_files(output_dir, env)
+            
+            if verbose:
+                click.echo("✅ Bundle resource files synchronized")
+    except BundleResourceError as e:
+        click.echo(f"⚠️  Bundle sync warning: {e}")
+        if verbose and log_file:
+            click.echo(f"📝 Bundle details in logs: {log_file}")
+    except Exception as e:
+        click.echo(f"⚠️  Bundle sync failed: {e}")
+        if verbose and log_file:
+            click.echo(f"📝 Bundle error details in logs: {log_file}")
 
     # Summary
     click.echo("\n📊 Generation Summary:")
@@ -1816,6 +1866,18 @@ def _discover_yaml_files_with_include(pipelines_dir: Path, include_patterns: Lis
         yaml_files.extend(pipelines_dir.rglob("*.yaml"))
         yaml_files.extend(pipelines_dir.rglob("*.yml"))
         return yaml_files
+
+
+def _create_bundle_files(project_path: Path, project_name: str):
+    """Create Databricks Asset Bundle specific files."""
+    from ..bundle.template_fetcher import DatabricksTemplateFetcher
+    
+    # Use new local template approach
+    fetcher = DatabricksTemplateFetcher(project_path)
+    template_vars = {"project_name": project_name}
+    
+    # Create bundle files (databricks.yml and resources/ folder)
+    fetcher.create_bundle_files(project_name, template_vars)
 
 
 if __name__ == "__main__":
