@@ -21,3 +21,5 @@ publish.sh
 
 docs/_build/
 README.md.bkup
+Example_Projects/acmi/.lhp/
+Example_Projects/acmi/.lhp/logs/lhp.log
