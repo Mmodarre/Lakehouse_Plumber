@@ -1,8 +1,10 @@
 {% if mode == "append_flow" %}
 @dlt.table(
     name="{{ full_table_name }}",
-    comment="{{ comment }}",
+    comment="{{ comment }}"
+    {%- if properties %},
     table_properties={{ properties | tojson }}
+    {%- endif %}
     {%- if spark_conf %},
     spark_conf={{ spark_conf | tojson }}
     {%- endif %}
@@ -55,8 +57,10 @@ def {{ table_name }}():
 # Create the streaming table for CDC
 dlt.create_streaming_table(
     name="{{ full_table_name }}",
-    comment="{{ comment }}",
+    comment="{{ comment }}"
+    {%- if properties %},
     table_properties={{ properties | tojson }}
+    {%- endif %}
     {%- if spark_conf %},
     spark_conf={{ spark_conf | tojson }}
     {%- endif %}
@@ -120,8 +124,10 @@ dlt.create_auto_cdc_flow(
 # Create the streaming table for snapshot CDC
 dlt.create_streaming_table(
     name="{{ full_table_name }}",
-    comment="{{ comment }}",
+    comment="{{ comment }}"
+    {%- if properties %},
     table_properties={{ properties | tojson }}
+    {%- endif %}
     {%- if spark_conf %},
     spark_conf={{ spark_conf | tojson }}
     {%- endif %}
@@ -168,8 +174,10 @@ dlt.create_auto_cdc_from_snapshot_flow(
 # Create the streaming table
 dlt.create_streaming_table(
     name="{{ full_table_name }}",
-    comment="{{ comment }}",
+    comment="{{ comment }}"
+    {%- if properties %},
     table_properties={{ properties | tojson }}
+    {%- endif %}
     {%- if spark_conf %},
     spark_conf={{ spark_conf | tojson }}
     {%- endif %}

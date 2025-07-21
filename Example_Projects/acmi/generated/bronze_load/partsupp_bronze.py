@@ -54,8 +54,7 @@ FROM stream(v_partsupp_raw)""")
 # Create the streaming table
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_bronze.partsupp",
-    comment="Streaming table: partsupp",
-    table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
+    comment="Streaming table: partsupp")
 
 
 # Define append flow(s)

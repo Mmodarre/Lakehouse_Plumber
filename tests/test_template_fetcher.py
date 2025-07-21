@@ -75,12 +75,15 @@ class TestDatabricksTemplateFetcher:
         assert (self.project_root / "databricks.yml").exists()
         assert (self.project_root / "resources").exists()
         assert (self.project_root / "resources").is_dir()
+        # Verify LHP subdirectory is created
+        assert (self.project_root / "resources" / "lhp").exists()
+        assert (self.project_root / "resources" / "lhp").is_dir()
         
         # Verify content
         content = (self.project_root / "databricks.yml").read_text()
         assert "name: test_project" in content
         assert "include:" in content
-        assert "resources/*.yml" in content
+        assert "resources/lhp/*.yml" in content
         
     def test_create_bundle_files_preserves_existing_structure(self):
         """Should not overwrite existing LHP project structure."""
@@ -136,18 +139,23 @@ class TestDatabricksTemplateFetcher:
         assert "old_project" not in content
         
     def test_create_bundle_files_creates_empty_resources_folder(self):
-        """Should create empty resources folder for bundle resources."""
+        """Should create resources folder with lhp subdirectory for bundle resources."""
         project_name = "test_project"
         template_vars = {"project_name": project_name}
-        
+
         self.fetcher.create_bundle_files(project_name, template_vars)
-        
+
         resources_dir = self.project_root / "resources"
         assert resources_dir.exists()
         assert resources_dir.is_dir()
+
+        # Should contain lhp subdirectory
+        lhp_dir = resources_dir / "lhp"
+        assert lhp_dir.exists()
+        assert lhp_dir.is_dir()
         
-        # Should be empty initially
-        assert len(list(resources_dir.iterdir())) == 0
+        # LHP subdirectory should be empty initially
+        assert len(list(lhp_dir.iterdir())) == 0
 
     def test_jinja_template_unicode_project_name(self):
         """Should handle Unicode characters in project names."""

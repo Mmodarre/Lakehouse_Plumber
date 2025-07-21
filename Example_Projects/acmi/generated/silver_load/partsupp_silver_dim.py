@@ -33,8 +33,7 @@ def v_partsupp_bronze():
 # Create the streaming table for CDC
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_silver.partsupp_dim",
-    comment="Streaming table: partsupp_dim",
-    table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
+    comment="Streaming table: partsupp_dim")
 
 # CDC mode using auto_cdc
 dlt.create_auto_cdc_flow(

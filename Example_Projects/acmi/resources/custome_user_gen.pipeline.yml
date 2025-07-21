@@ -1,0 +1,13 @@
+# This is a user-managed pipeline resource file.
+# LHP will not touch this file
+resources:
+  pipelines:
+    customer_user_gen_pipeline:
+      name: customer_user_gen_pipeline
+      catalog: main
+      schema: lhp_${bundle.target}
+      libraries:
+        - notebook:
+            path: ../src/customer_bronze.py
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/generated

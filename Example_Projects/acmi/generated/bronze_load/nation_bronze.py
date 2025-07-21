@@ -53,8 +53,7 @@ FROM stream(v_nation_raw)""")
 # Create the streaming table
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_bronze.nation",
-    comment="Streaming table: nation",
-    table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
+    comment="Streaming table: nation")
 
 
 # Define append flow(s)

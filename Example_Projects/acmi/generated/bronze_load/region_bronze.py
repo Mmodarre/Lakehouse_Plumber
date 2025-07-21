@@ -52,8 +52,7 @@ FROM stream(v_region_raw)""")
 # Create the streaming table
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_bronze.region",
-    comment="Streaming table: region",
-    table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
+    comment="Streaming table: region")
 
 
 # Define append flow(s)

@@ -56,8 +56,7 @@ FROM stream(v_supplier_raw)""")
 # Create the streaming table
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_bronze.supplier",
-    comment="Streaming table: supplier",
-    table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
+    comment="Streaming table: supplier")
 
 
 # Define append flow(s)

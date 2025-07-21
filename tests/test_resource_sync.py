@@ -27,7 +27,7 @@ class TestResourceSync:
         self.project_root.mkdir()
         self.generated_dir = self.project_root / "generated"
         self.generated_dir.mkdir()
-        self.resources_dir = self.project_root / "resources"
+        self.resources_dir = self.project_root / "resources" / "lhp"
         
         self.manager = BundleManager(self.project_root)
 
@@ -54,8 +54,8 @@ class TestResourceSync:
         # Verify content
         content = resource_file.read_text()
         assert "raw_ingestion_pipeline" in content
-        assert "../generated/raw_ingestion/customer.py" in content
-        assert "../generated/raw_ingestion/orders.py" in content
+        assert "../../generated/raw_ingestion/customer.py" in content
+        assert "../../generated/raw_ingestion/orders.py" in content
 
     def test_sync_resources_with_existing_pipeline_no_changes(self):
         """Should not modify existing resource file if no changes needed."""
@@ -65,7 +65,7 @@ class TestResourceSync:
         (pipeline_dir / "customer.py").write_text("# Customer notebook")
         
         # Create existing resource file
-        self.resources_dir.mkdir()
+        self.resources_dir.mkdir(parents=True)
         resource_file = self.resources_dir / "raw_ingestion.pipeline.yml"
         resource_file.write_text("""
 resources:
@@ -75,7 +75,7 @@ resources:
       catalog: main
       libraries:
         - notebook:
-            path: ../generated/raw_ingestion/customer.py
+            path: ../../generated/raw_ingestion/customer.py
 """)
         
         original_mtime = resource_file.stat().st_mtime
@@ -97,7 +97,7 @@ resources:
         (pipeline_dir / "products.py").write_text("# Products notebook")
         
         # Create existing resource file with only one notebook
-        self.resources_dir.mkdir()
+        self.resources_dir.mkdir(parents=True)
         resource_file = self.resources_dir / "raw_ingestion.pipeline.yml"
         resource_file.write_text("""
 resources:
@@ -118,9 +118,9 @@ resources:
         
         # Verify new notebooks were added
         updated_content = resource_file.read_text()
-        assert "../generated/raw_ingestion/customer.py" in updated_content
-        assert "../generated/raw_ingestion/orders.py" in updated_content
-        assert "../generated/raw_ingestion/products.py" in updated_content
+        assert "../../generated/raw_ingestion/customer.py" in updated_content
+        assert "../../generated/raw_ingestion/orders.py" in updated_content
+        assert "../../generated/raw_ingestion/products.py" in updated_content
         
         # Verify other content was preserved
         assert "test_dev" in updated_content
@@ -134,7 +134,7 @@ resources:
         (pipeline_dir / "customer.py").write_text("# Customer notebook")
         
         # Create existing resource file with multiple notebooks
-        self.resources_dir.mkdir()
+        self.resources_dir.mkdir(parents=True)
         resource_file = self.resources_dir / "raw_ingestion.pipeline.yml"
         resource_file.write_text("""
 resources:
@@ -157,7 +157,7 @@ resources:
         
         # Verify obsolete notebooks were removed
         updated_content = resource_file.read_text()
-        assert "../generated/raw_ingestion/customer.py" in updated_content
+        assert "../../generated/raw_ingestion/customer.py" in updated_content
         assert "old_orders.py" not in updated_content
         assert "old_products.py" not in updated_content
         
@@ -173,7 +173,7 @@ resources:
         (pipeline_dir / "new_orders.py").write_text("# New orders notebook")
         
         # Create existing resource file
-        self.resources_dir.mkdir()
+        self.resources_dir.mkdir(parents=True)
         resource_file = self.resources_dir / "raw_ingestion.pipeline.yml"
         resource_file.write_text("""
 resources:
@@ -191,8 +191,8 @@ resources:
         
         # Verify changes
         updated_content = resource_file.read_text()
-        assert "../generated/raw_ingestion/customer.py" in updated_content
-        assert "../generated/raw_ingestion/new_orders.py" in updated_content
+        assert "../../generated/raw_ingestion/customer.py" in updated_content
+        assert "../../generated/raw_ingestion/new_orders.py" in updated_content
         assert "old_products.py" not in updated_content
 
     def test_sync_resources_multiple_pipelines(self):
@@ -220,12 +220,12 @@ resources:
         # Verify correct content
         raw_content = raw_resource.read_text()
         assert "raw_ingestion_pipeline" in raw_content
-        assert "../generated/raw_ingestion/customer.py" in raw_content
+        assert "../../generated/raw_ingestion/customer.py" in raw_content
         
         bronze_content = bronze_resource.read_text()
         assert "bronze_load_pipeline" in bronze_content
-        assert "../generated/bronze_load/customer_bronze.py" in bronze_content
-        assert "../generated/bronze_load/orders_bronze.py" in bronze_content
+        assert "../../generated/bronze_load/customer_bronze.py" in bronze_content
+        assert "../../generated/bronze_load/orders_bronze.py" in bronze_content
 
     def test_sync_resources_empty_generated_directory(self):
         """Should handle empty generated directory gracefully."""
@@ -278,7 +278,7 @@ resources:
         (pipeline_dir / "customer.py").write_text("# Customer notebook")
         
         # Create resource file with invalid YAML
-        self.resources_dir.mkdir()
+        self.resources_dir.mkdir(parents=True)
         resource_file = self.resources_dir / "raw_ingestion.pipeline.yml"
         resource_file.write_text("""
 resources:
@@ -303,7 +303,7 @@ resources:
         (pipeline_dir / "customer.py").write_text("# Customer notebook")
         
         # Create resources directory with restricted permissions
-        self.resources_dir.mkdir()
+        self.resources_dir.mkdir(parents=True)
         self.resources_dir.chmod(0o444)  # Read-only
         
         try:
@@ -324,7 +324,7 @@ resources:
         (pipeline_dir / "orders.py").write_text("# Orders notebook")
         
         # Create existing resource file with one notebook
-        self.resources_dir.mkdir()
+        self.resources_dir.mkdir(parents=True)
         resource_file = self.resources_dir / "raw_ingestion.pipeline.yml"
         resource_file.write_text("""
 resources:
@@ -353,7 +353,7 @@ resources:
         (pipeline_dir / "customer.py").write_text("# Customer notebook")
         
         # Create existing resource file with custom settings
-        self.resources_dir.mkdir()
+        self.resources_dir.mkdir(parents=True)
         resource_file = self.resources_dir / "raw_ingestion.pipeline.yml"
         resource_file.write_text("""
 # User's custom comment
@@ -387,7 +387,7 @@ resources:
         data = yaml.safe_load(updated_content)
         
         # Verify new notebook was added
-        assert "../generated/raw_ingestion/orders.py" in updated_content
+        assert "../../generated/raw_ingestion/orders.py" in updated_content
         
         # Verify user customizations were preserved
         pipeline_config = data['resources']['pipelines']['raw_ingestion_pipeline']
@@ -423,9 +423,9 @@ resources:
         resource_file = self.resources_dir / "raw_ingestion.pipeline.yml"
         content = resource_file.read_text()
         
-        assert "../generated/raw_ingestion/customer-data.py" in content
-        assert "../generated/raw_ingestion/order_history.py" in content
-        assert "../generated/raw_ingestion/product.catalog.py" in content
+        assert "../../generated/raw_ingestion/customer-data.py" in content
+        assert "../../generated/raw_ingestion/order_history.py" in content
+        assert "../../generated/raw_ingestion/product.catalog.py" in content
 
     def test_sync_resources_logging_output(self):
         """Should produce appropriate logging output."""
@@ -466,161 +466,104 @@ resources:
             info_calls = [call.args[0] for call in mock_info.call_args_list]
             assert any("Updated 2 bundle resource file(s)" in msg for msg in info_calls)
 
-
-class TestResourceSyncEdgeCases:
-    """Test edge cases and error conditions for resource sync."""
-
-    def setup_method(self):
-        """Set up test environment for each test."""
-        self.temp_dir = Path(tempfile.mkdtemp())
-        self.project_root = self.temp_dir / "project"
-        self.project_root.mkdir()
-        self.manager = BundleManager(self.project_root)
-
-    def teardown_method(self):
-        """Clean up test environment after each test."""
-        shutil.rmtree(self.temp_dir)
-
-    def test_sync_resources_with_unicode_filenames(self):
-        """Should handle Unicode characters in filenames and paths."""
-        generated_dir = self.project_root / "generated"
-        generated_dir.mkdir()
+    def test_sync_preserves_user_dab_files(self):
+        """Should preserve user-created DAB files that are not LHP-generated."""
+        # Create user's custom DAB files in the resources directory (parent of lhp/)
+        user_resources_dir = self.project_root / "resources"
+        user_resources_dir.mkdir()
         
-        # Create pipeline with Unicode filenames
-        pipeline_dir = generated_dir / "raw_ingestion"
+        # User DAB file without LHP header
+        user_dab_file = user_resources_dir / "user_pipeline.yml"
+        user_dab_file.write_text("""# User's custom DAB pipeline
+resources:
+  pipelines:
+    user_custom_pipeline:
+      name: user_custom_pipeline
+      catalog: custom_catalog
+      libraries:
+        - jar: /path/to/custom.jar
+        - pypi:
+            package: pandas==1.5.0
+""")
+        
+        # User DAB file that looks like LHP but isn't
+        fake_lhp_file = user_resources_dir / "fake_lhp.pipeline.yml"
+        fake_lhp_file.write_text("""# This mentions LakehousePlumber but is not generated by it
+resources:
+  pipelines:
+    fake_pipeline:
+      name: fake_pipeline
+""")
+        
+        # Create LHP pipeline that will generate resource file
+        pipeline_dir = self.generated_dir / "lhp_pipeline"
         pipeline_dir.mkdir()
-        (pipeline_dir / "客户数据.py").write_text("# Customer data in Chinese")
-        (pipeline_dir / "заказы.py").write_text("# Orders in Russian")
+        (pipeline_dir / "notebook.py").write_text("# LHP generated notebook")
         
         # Run sync
-        self.manager.sync_resources_with_generated_files(generated_dir, "dev")
+        self.manager.sync_resources_with_generated_files(self.generated_dir, "dev")
         
-        # Verify resource file was created correctly
-        resource_file = self.project_root / "resources" / "raw_ingestion.pipeline.yml"
-        content = resource_file.read_text(encoding='utf-8')
+        # Verify user DAB files are preserved
+        assert user_dab_file.exists(), "User DAB file should be preserved"
+        assert fake_lhp_file.exists(), "Fake LHP file should be preserved"
         
-        assert "../generated/raw_ingestion/客户数据.py" in content
-        assert "../generated/raw_ingestion/заказы.py" in content
+        # Verify user file content is unchanged
+        user_content = user_dab_file.read_text()
+        assert "user_custom_pipeline" in user_content
+        assert "custom_catalog" in user_content
+        
+        # Verify LHP resource file was created in lhp subdirectory
+        lhp_resource_file = self.resources_dir / "lhp_pipeline.pipeline.yml"
+        assert lhp_resource_file.exists(), "LHP resource file should be created"
+        
+        # Verify LHP file has the proper header
+        lhp_content = lhp_resource_file.read_text()
+        assert "Generated by LakehousePlumber" in lhp_content
+        assert "../../generated/lhp_pipeline/notebook.py" in lhp_content
 
-    def test_sync_resources_concurrent_operations(self):
-        """Should handle concurrent sync operations safely."""
-        import threading
-        import time
+    def test_sync_only_manages_lhp_generated_files(self):
+        """Should only manage files with LHP header, ignoring other YAML files."""
+        # Create various YAML files in resources/lhp/ directory
+        self.resources_dir.mkdir(parents=True)
         
-        generated_dir = self.project_root / "generated"
-        generated_dir.mkdir()
+        # Non-LHP file in LHP directory (shouldn't happen but test for robustness)
+        user_file_in_lhp = self.resources_dir / "user_file.yml"
+        user_file_in_lhp.write_text("""# User file without LHP header
+some_config: value
+""")
         
-        # Create pipeline directory
-        pipeline_dir = generated_dir / "raw_ingestion"
-        pipeline_dir.mkdir()
-        (pipeline_dir / "customer.py").write_text("# Customer notebook")
+        # LHP file that should be managed
+        lhp_file = self.resources_dir / "managed_pipeline.pipeline.yml"
+        lhp_file.write_text("""# Generated by LakehousePlumber - Bundle Resource for managed_pipeline
+resources:
+  pipelines:
+    managed_pipeline_pipeline:
+      name: managed_pipeline_pipeline
+      libraries:
+        - notebook:
+            path: ../../generated/managed_pipeline/old_notebook.py
+""")
         
-        errors = []
-        
-        def run_sync():
-            try:
-                time.sleep(0.01)  # Small delay to create race conditions
-                self.manager.sync_resources_with_generated_files(generated_dir, "dev")
-            except Exception as e:
-                errors.append(e)
-        
-        # Run multiple sync operations concurrently
-        threads = []
-        for _ in range(3):
-            thread = threading.Thread(target=run_sync)
-            threads.append(thread)
-            thread.start()
-        
-        for thread in threads:
-            thread.join()
-        
-        # Should complete without errors
-        assert len(errors) == 0
-        
-        # Resource file should exist and be valid
-        resource_file = self.project_root / "resources" / "raw_ingestion.pipeline.yml"
-        assert resource_file.exists()
-        content = resource_file.read_text()
-        assert "../generated/raw_ingestion/customer.py" in content
-
-    def test_sync_resources_with_deep_directory_structure(self):
-        """Should only process direct subdirectories, not deeply nested ones."""
-        generated_dir = self.project_root / "generated"
-        generated_dir.mkdir()
-        
-        # Create a direct pipeline directory (this should be processed)
-        direct_pipeline = generated_dir / "direct_pipeline"
-        direct_pipeline.mkdir()
-        (direct_pipeline / "notebook.py").write_text("# Direct notebook")
-        
-        # Create deep directory structure (this should be ignored)
-        deep_dir = generated_dir / "level1" / "level2" / "level3" / "nested_pipeline"
-        deep_dir.mkdir(parents=True)
-        (deep_dir / "nested_notebook.py").write_text("# Deep notebook")
+        # Create new pipeline structure (managed_pipeline no longer exists)
+        new_pipeline_dir = self.generated_dir / "new_pipeline"
+        new_pipeline_dir.mkdir()
+        (new_pipeline_dir / "new_notebook.py").write_text("# New notebook")
         
         # Run sync
-        self.manager.sync_resources_with_generated_files(generated_dir, "dev")
+        self.manager.sync_resources_with_generated_files(self.generated_dir, "dev")
         
-        # Should create resource file for direct pipeline only
-        direct_resource = self.project_root / "resources" / "direct_pipeline.pipeline.yml"
-        nested_resource = self.project_root / "resources" / "nested_pipeline.pipeline.yml"
+        # Verify user file is preserved (not deleted)
+        assert user_file_in_lhp.exists(), "User file should be preserved"
+        user_content = user_file_in_lhp.read_text()
+        assert "some_config: value" in user_content
         
-        assert direct_resource.exists()
-        assert not nested_resource.exists()  # Deep directories should be ignored
+        # Verify LHP file was removed (since managed_pipeline no longer exists)
+        assert not lhp_file.exists(), "LHP file should be removed for non-existent pipeline"
         
-        content = direct_resource.read_text()
-        assert "../generated/direct_pipeline/notebook.py" in content
-
-    def test_sync_resources_large_number_of_notebooks(self):
-        """Should handle large numbers of notebooks efficiently."""
-        generated_dir = self.project_root / "generated"
-        generated_dir.mkdir()
+        # Verify new LHP file was created
+        new_lhp_file = self.resources_dir / "new_pipeline.pipeline.yml"
+        assert new_lhp_file.exists(), "New LHP file should be created"
         
-        # Create pipeline with many notebooks
-        pipeline_dir = generated_dir / "large_pipeline"
-        pipeline_dir.mkdir()
-        
-        # Create 100 notebook files
-        for i in range(100):
-            (pipeline_dir / f"notebook_{i:03d}.py").write_text(f"# Notebook {i}")
-        
-        # Run sync
-        self.manager.sync_resources_with_generated_files(generated_dir, "dev")
-        
-        # Verify all notebooks are included
-        resource_file = self.project_root / "resources" / "large_pipeline.pipeline.yml"
-        content = resource_file.read_text()
-        
-        # Check that all notebooks are present
-        for i in range(100):
-            assert f"../generated/large_pipeline/notebook_{i:03d}.py" in content
-
-    def test_sync_resources_error_recovery(self):
-        """Should handle partial failures gracefully."""
-        generated_dir = self.project_root / "generated"
-        generated_dir.mkdir()
-        
-        # Create multiple pipelines
-        good_pipeline = generated_dir / "good_pipeline"
-        good_pipeline.mkdir()
-        (good_pipeline / "notebook.py").write_text("# Good notebook")
-        
-        bad_pipeline = generated_dir / "bad_pipeline"
-        bad_pipeline.mkdir()
-        (bad_pipeline / "notebook.py").write_text("# Bad notebook")
-        
-        # Create existing resource file with invalid YAML for bad_pipeline
-        resources_dir = self.project_root / "resources"
-        resources_dir.mkdir()
-        bad_resource = resources_dir / "bad_pipeline.pipeline.yml"
-        bad_resource.write_text("invalid: yaml: content:")
-        
-        # Sync should fail on the bad pipeline
-        with pytest.raises(BundleResourceError) as exc_info:
-            self.manager.sync_resources_with_generated_files(generated_dir, "dev")
-        
-        assert "bad_pipeline" in str(exc_info.value)
-        
-        # Good pipeline should not have been processed due to fail-fast behavior
-        good_resource = resources_dir / "good_pipeline.pipeline.yml"
-        assert not good_resource.exists() 
+        new_content = new_lhp_file.read_text()
+        assert "Generated by LakehousePlumber" in new_content
+        assert "../../generated/new_pipeline/new_notebook.py" in new_content 

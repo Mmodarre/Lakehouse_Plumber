@@ -18,6 +18,7 @@ parameters:
     required: true
     description: "Name of the landing folder"
 
+
 actions:
   - name: load_{{ table_name }}_csv
     type: load

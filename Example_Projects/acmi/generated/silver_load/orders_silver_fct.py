@@ -33,8 +33,7 @@ def v_orders_bronze():
 # Create the streaming table for CDC
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_silver.orders_fct",
-    comment="Streaming table: orders_fct",
-    table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
+    comment="Streaming table: orders_fct")
 
 # CDC mode using auto_cdc
 dlt.create_auto_cdc_flow(

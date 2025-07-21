@@ -3,8 +3,10 @@
 bundle:
   name: acme_dab
 
-
 include:
+  # LHP-managed resource files
+  - resources/lhp/*.yml
+  # User-managed resource files
   - resources/*.yml
 
 targets:
