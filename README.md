@@ -1,7 +1,7 @@
 # Lakehouse Plumber
 
 <div align="center">
-  <img src="lakehouse-plumber-logo.png" alt="LakehousePlumber Logo">
+  <img src="https://raw.githubusercontent.com/Mmodarre/Lakehouse_Plumber/main/lakehouse-plumber-logo.png" alt="LakehousePlumber Logo">
 </div>
 <div align="center">
 
