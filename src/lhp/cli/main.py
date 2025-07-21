@@ -10,6 +10,8 @@ import yaml
 
 from ..core.orchestrator import ActionOrchestrator
 from ..core.state_manager import StateManager
+from ..core.init_template_loader import InitTemplateLoader
+from ..core.init_template_context import InitTemplateContext
 from ..utils.substitution import EnhancedSubstitutionManager
 from ..parsers.yaml_parser import YAMLParser
 from ..models.config import ActionType
@@ -146,27 +148,6 @@ def init(project_name, bundle):
     # Create project structure
     project_path.mkdir()
 
-    # Create project configuration
-    (project_path / "lhp.yaml").write_text(
-        f"""# LakehousePlumber Project Configuration
-name: {project_name}
-version: "1.0"
-description: "Generated DLT pipeline project"
-author: ""
-created_date: "{Path.cwd()}"
-
-# Optional: Include patterns to filter which YAML files to process
-# By default, all YAML files in the pipelines directory are processed
-# Uncomment and customize the patterns below to filter files
-# include:
-#   - "*.yaml"                    # All YAML files
-#   - "bronze_*.yaml"             # Files starting with "bronze_"
-#   - "silver/**/*.yaml"          # All YAML files in silver subdirectories
-#   - "gold/dimension_*.yaml"     # Dimension files in gold directory
-#   - "!**/temp_*.yaml"           # Exclude temporary files (prefix with !)
-"""
-    )
-
     # Create directories
     directories = [
         "presets",
@@ -180,183 +161,32 @@ created_date: "{Path.cwd()}"
     for dir_name in directories:
         (project_path / dir_name).mkdir()
 
-    # Create example substitution file
-    (project_path / "substitutions" / "dev.yaml").write_text(
-        """# Development environment substitutions
-# Token substitutions
-catalog: dev_catalog
-bronze_schema: bronze
-silver_schema: silver
-gold_schema: gold
-landing_path: /mnt/dev/landing
-checkpoint_path: /mnt/dev/checkpoints
-
-# Secret configuration
-secrets:
-  default_scope: dev-secrets
-  scopes:
-    database: dev-db-secrets
-    storage: dev-storage-secrets
-    api: dev-api-secrets
-"""
-    )
-
-    # Create example preset
-    (project_path / "presets" / "bronze_layer.yaml").write_text(
-        """# Bronze layer preset for raw data ingestion
-name: bronze_layer
-version: "1.0"
-description: "Standard configuration for bronze layer tables"
-
-defaults:
-  load_actions:
-    cloudfiles:
-      schema_evolution_mode: "addNewColumns"
-      rescue_data_column: "_rescued_data"
-      schema_hints: "true"
-    
-  write_actions:
-    streaming_table:
-      table_properties:
-        delta.enableChangeDataFeed: "true"
-        delta.autoOptimize.optimizeWrite: "true"
-        quality: "bronze"
-"""
-    )
-
-    # Create example template
-    (project_path / "templates" / "standard_ingestion.yaml").write_text(
-        """# Standard data ingestion template
-name: standard_ingestion
-version: "1.0"
-description: "Template for standardized data ingestion with quality checks"
-
-parameters:
-  - name: source_path
-    type: string
-    required: true
-    description: "Path to source data files"
-  
-  - name: table_name
-    type: string
-    required: true
-    description: "Target table name"
-  
-  - name: file_format
-    type: string
-    default: "json"
-    description: "Source file format (json, parquet, csv)"
-
-actions:
-  - name: load_{table_name}_raw
-    type: load
-    source:
-      type: cloudfiles
-      path: "{source_path}"
-      format: "{file_format}"
-    target: v_{table_name}_raw
-    description: "Load raw {table_name} data"
-  
-  - name: validate_{table_name}
-    type: transform
-    transform_type: data_quality
-    source: v_{table_name}_raw
-    target: v_{table_name}_validated
-    expectations_file: "expectations/{table_name}_quality.yaml"
-    description: "Apply quality checks to {table_name}"
-  
-  - name: write_{table_name}_bronze
-    type: write
-    source: v_{table_name}_validated
-    write_target:
-      type: streaming_table
-      database: "{catalog}.{bronze_schema}"
-      table: "{table_name}"
-    description: "Write {table_name} to bronze layer"
-"""
-    )
-
-    # Create README
-    (project_path / "README.md").write_text(
-        f"""# {project_name}
-
-A LakehousePlumber DLT pipeline project.
-
-## Project Structure
-
-- `pipelines/` - Pipeline configurations organized by pipeline name
-- `presets/` - Reusable configuration presets
-- `templates/` - Reusable action templates
-- `substitutions/` - Environment-specific token and secret configurations
-- `expectations/` - Data quality expectations
-- `generated/` - Generated DLT pipeline code
-
-## Getting Started
-
-1. Create a pipeline directory:
-   ```bash
-   mkdir pipelines/my_pipeline
-   ```
-
-2. Create a flowgroup YAML file:
-   ```bash
-   touch pipelines/my_pipeline/ingestion.yaml
-   ```
-
-3. Validate your configuration:
-   ```bash
-   lhp validate --env dev
-   ```
-
-4. Generate DLT code:
-   ```bash
-   lhp generate --env dev
-   ```
-
-## Commands
-
-- `lhp validate` - Validate pipeline configurations
-- `lhp generate` - Generate DLT pipeline code
-- `lhp list-presets` - List available presets
-- `lhp list-templates` - List available templates
-- `lhp show <flowgroup>` - Show resolved configuration
-
-For more information, visit: https://github.com/yourusername/lakehouse-plumber
-"""
-    )
-
-    # Create .gitignore
-    (project_path / ".gitignore").write_text(
-        """# LakehousePlumber
-generated/
-*.pyc
-__pycache__/
-.pytest_cache/
-.coverage
-*.egg-info/
-dist/
-build/
-.env
-.venv/
-venv/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-
-# Secrets
-*.key
-*.pem
-secrets/
-"""
-    )
-
-    # Create bundle-specific files if requested
+    # Add resources directory for bundle projects
     if bundle:
-        _create_bundle_files(project_path, project_name)
+        resources_lhp_dir = project_path / "resources" / "lhp"
+        resources_lhp_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create template context
+    context = InitTemplateContext.create(
+        project_name=project_name,
+        bundle_enabled=bundle,
+        author=""  # Empty by default as in original code
+    )
+
+    # Initialize template loader and create all project files
+    try:
+        template_loader = InitTemplateLoader()
+        template_loader.create_project_files(project_path, context)
+    except Exception as e:
+        click.echo(f"❌ Failed to create project files: {e}")
+        # Clean up on failure
+        import shutil
+        if project_path.exists():
+            shutil.rmtree(project_path)
+        sys.exit(1)
+
+    # Display success message
+    if bundle:
         click.echo(f"✅ Initialized Databricks Asset Bundle project: {project_name}")
         click.echo(f"📁 Created directories: {', '.join(directories)}, resources")
         click.echo(
@@ -1868,16 +1698,7 @@ def _discover_yaml_files_with_include(pipelines_dir: Path, include_patterns: Lis
         return yaml_files
 
 
-def _create_bundle_files(project_path: Path, project_name: str):
-    """Create Databricks Asset Bundle specific files."""
-    from ..bundle.template_fetcher import DatabricksTemplateFetcher
-    
-    # Use new local template approach
-    fetcher = DatabricksTemplateFetcher(project_path)
-    template_vars = {"project_name": project_name}
-    
-    # Create bundle files (databricks.yml and resources/ folder)
-    fetcher.create_bundle_files(project_name, template_vars)
+
 
 
 if __name__ == "__main__":

@@ -350,7 +350,7 @@ class TestCLIInitBundleCommand:
                 "lhp.yaml",                    # LHP project config
                 "databricks.yml",              # Bundle config
                 "substitutions",               # LHP substitutions
-                "substitutions/dev.yaml",      # Only dev.yaml is created by default
+                "substitutions/dev.yaml.tmpl", # Template file is created by default
                 "pipelines",                   # LHP pipelines directory
                 "resources",                   # Bundle resources directory
                 "presets",                     # LHP presets directory
@@ -382,6 +382,11 @@ class TestCLIInitBundleCommand:
             lhp_config = yaml.safe_load((project_path / "lhp.yaml").read_text())
             assert lhp_config["name"] == "lhp_content_test"
             assert "version" in lhp_config
+            
+            # Create dev.yaml for testing by copying the template
+            import shutil
+            shutil.copy(str(project_path / "substitutions" / "dev.yaml.tmpl"), 
+                       str(project_path / "substitutions" / "dev.yaml"))
             
             # Verify substitution file content
             dev_subs = yaml.safe_load((project_path / "substitutions" / "dev.yaml").read_text())
@@ -690,6 +695,10 @@ class TestCLIBundleIntegrationEndToEnd:
             # Step 2: Add a pipeline configuration
             os.chdir(str(project_path))
             
+            # Create dev.yaml for testing by copying the template
+            import shutil
+            shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
+            
             pipeline_file = project_path / "pipelines" / "test_pipeline.yaml"
             pipeline_file.write_text("""pipeline: test_pipeline
 flowgroup: test_pipeline
@@ -727,6 +736,10 @@ actions:
             result = self.runner.invoke(cli, ['init', '--bundle', 'multi_pipeline_project'])
             project_path = self.temp_dir / "multi_pipeline_project"
             os.chdir(str(project_path))
+            
+            # Create dev.yaml for testing by copying the template
+            import shutil
+            shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
             
             # Add multiple pipelines
             (project_path / "pipelines" / "raw.yaml").write_text("""pipeline: raw
@@ -784,6 +797,10 @@ actions:
             result = self.runner.invoke(cli, ['init', '--bundle', 'bundle_override_test'])
             project_path = self.temp_dir / "bundle_override_test"
             os.chdir(str(project_path))
+            
+            # Create dev.yaml for testing by copying the template
+            import shutil
+            shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
             
             # Add pipeline
             (project_path / "pipelines" / "test.yaml").write_text("""pipeline: test

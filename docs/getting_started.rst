@@ -52,7 +52,8 @@ Use the **`lhp init`** command to scaffold a new repo-ready directory structure:
    cd <my_dlt_project>
 
 The command creates folders such as ``pipelines/``, ``templates/``,
-``substitutions/`` and a starter ``lhp.yaml`` project file.
+``substitutions/`` and a starter ``lhp.yaml`` project file. It also includes
+example template files with ``.tmpl`` extensions that you can use as starting points.
 
 Step 2: Edit the project configuration file
 -------------------------------------------
@@ -66,12 +67,22 @@ Edit the ``lhp.yaml`` file to configure your project.
    for full documentation on the project configuration file, see :doc:`LHP YAML Configuration`.
 
 
-Step 3: Edit the environment configuration file
------------------------------------------------
+Step 3: Create your environment configuration file
+--------------------------------------------------
 
-Edit the ``substitutions/dev.yaml`` file to match your workspace catalog & storage paths.
-Tokens such as ``{catalog}`` or ``${secret:scope/key}`` will be replaced during
-code generation.
+Create a ``substitutions/dev.yaml`` file to match your workspace catalog & storage paths.
+You can either:
+
+1. **Rename the example template**: ``mv substitutions/dev.yaml.tmpl substitutions/dev.yaml``
+2. **Create a new file** following the same structure as the example template
+
+Edit the file to configure tokens such as ``{catalog}`` or ``${secret:scope/key}`` 
+that will be replaced during code generation.
+
+.. tip::
+   The ``.tmpl`` files created by ``lhp init`` contain working examples that you can
+   use as starting points. Simply rename them or copy their content to create your
+   working configuration files.
 
 Step 4: Create your first pipeline configuration
 ------------------------------------------------
@@ -241,11 +252,54 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
 
 Deploy on Databricks
 --------------------
+**Option 1: Manually create a Lakeflow Declarative Pipeline(ETL)**
 
 1. Create a Lakeflow Declarative Pipeline(ETL) in the Databricks UI.
+
 2. Point the *Notebook/Directory* field to your ``generated/`` folder in the
    workspace (or sync the files via Repos).
+
+**OR** (create new python files and paste the generated code into them.)
+
 3. Configure clusters & permissions, then click **Validate**.
+
+**Option 2: Use Asset Bundles**
+
+:doc:`databricks_bundles`
+
+
+Working with Example Templates
+------------------------------
+
+When you run ``lhp init``, several example template files are created to help you get started:
+
+**Configuration Examples:**
+   - ``substitutions/dev.yaml.tmpl`` - Example environment configuration with common substitution variables
+   - ``substitutions/prod.yaml.tmpl`` - Production environment example
+   - ``substitutions/tst.yaml.tmpl`` - Test environment example
+
+**Pipeline Examples:**
+   - ``pipelines/01_raw_ingestion/`` - Complete ingestion pipeline examples for various data formats
+   - ``pipelines/02_bronze/`` - Bronze layer transformation examples
+   - ``pipelines/03_silver/`` - Silver layer examples with data quality
+
+**Preset Examples:**
+   - ``presets/bronze_layer.yaml.tmpl`` - Reusable bronze layer configuration template
+
+**Template Examples:**
+   - ``templates/standard_ingestion.yaml.tmpl`` - Standard ingestion pattern template
+
+To use these examples:
+
+1. **Copy and rename** template files: ``cp substitutions/dev.yaml.tmpl substitutions/dev.yaml``
+2. **Edit the copied files** to match your environment and requirements
+3. **Use them as references** when creating your own configurations
+4. **Explore the comprehensive examples** in the ``pipelines/`` directory for different data ingestion patterns
+
+.. note::
+   The ``.tmpl`` files are static examples containing LHP template syntax. They are not 
+   Jinja2 templates for the init command, but rather complete working examples that you 
+   can use as starting points for your own configurations.
 
 Next Steps
 ----------

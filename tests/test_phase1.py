@@ -161,6 +161,10 @@ class TestCLI:
                 # Change to project directory
                 os.chdir(project_name)
                 
+                # Create dev.yaml for testing by copying the template
+                import shutil
+                shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
+                
                 # Now test validate (will fail because no flowgroups, but should reach that stage)
                 result = self.runner.invoke(cli, ['validate', '--env', 'dev'])
                 assert result.exit_code == 1  # Expected to fail with no flowgroups
@@ -182,6 +186,10 @@ class TestCLI:
                 
                 # Change to project directory
                 os.chdir(project_name)
+                
+                # Create dev.yaml for testing by copying the template
+                import shutil
+                shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
                 
                 # Now test generate (will fail because no flowgroups, but should reach that stage)
                 result = self.runner.invoke(cli, ['generate', '--env', 'dev'])

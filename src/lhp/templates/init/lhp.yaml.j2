@@ -1,0 +1,55 @@
+# LakehousePlumber Project Configuration
+name: {{ project_name }}
+version: "1.0"
+description: "Generated DLT pipeline project"
+author: "{{ author }}"
+created_date: "{{ current_date }}"
+
+# Optional: Include patterns to filter which YAML files to process
+# By default, all YAML files in the pipelines directory are processed
+# Uncomment and customize the patterns below to filter files
+# include:
+#   - "*.yaml"                    # All YAML files
+#   - "bronze_*.yaml"             # Files starting with "bronze_"
+#   - "silver/**/*.yaml"          # All YAML files in silver subdirectories
+#   - "gold/dimension_*.yaml"     # Dimension files in gold directory
+#   - "!**/temp_*.yaml"           # Exclude temporary files (prefix with !) 
+
+
+## Optional: Add operational metadata columns to the generated pipelines
+## These can be used to track the source of the data and the processing of the data
+operational_metadata:
+  columns:
+  
+    _source_file_path:
+      expression: "F.col('_metadata.file_path')"
+      description: "File paths"
+      applies_to: ["view"]
+    
+    _processing_timestamp:
+      expression: "F.current_timestamp()"
+      description: "When the record was processed by the pipeline"
+      applies_to: ["streaming_table", "materialized_view", "view"]
+
+    _source_file_name:
+      expression: "F.col('_metadata.file_name')"
+      description: "Name of the input file along with its extension"
+      applies_to: ["view"]
+
+    _source_file_size:
+      expression: "F.col('_metadata.file_size')"
+      description: "Length of the input file, in bytes"
+      applies_to: ["view"]
+
+    _source_file_modification_time:
+      expression: "F.col('_metadata.file_modification_time')"
+      description: "Last modification time of the input file"
+      applies_to: ["view"]
+
+
+    _record_hash:
+      expression: "F.xxhash64(*[F.col(c) for c in df.columns])"
+      description: "Hash of all record fields for change detection"
+      applies_to: ["streaming_table", "materialized_view", "view"]
+      additional_imports:
+        - "from pyspark.sql.functions import hash"

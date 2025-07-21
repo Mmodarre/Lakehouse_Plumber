@@ -49,7 +49,7 @@ class TestCLI:
             assert (project_path / "presets").exists()
             assert (project_path / "templates").exists()
             assert (project_path / "substitutions").exists()
-            assert (project_path / "substitutions" / "dev.yaml").exists()
+            assert (project_path / "substitutions" / "dev.yaml.tmpl").exists()
             assert (project_path / "README.md").exists()
             assert (project_path / ".gitignore").exists()
     
@@ -80,6 +80,10 @@ class TestCLI:
             import os
             os.chdir('test_project')
             
+            # Create dev.yaml for testing by copying the template
+            import shutil
+            shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
+            
             # Run validate
             result = runner.invoke(cli, ['validate'])
             
@@ -91,14 +95,18 @@ class TestCLI:
         with runner.isolated_filesystem(temp_dir=temp_project):
             # Initialize project
             runner.invoke(cli, ['init', 'test_project'])
-            
+    
             import os
             os.chdir('test_project')
             
+            # Create dev.yaml for testing by copying the template
+            import shutil
+            shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
+    
             # Create a pipeline
             pipeline_dir = Path("pipelines/test_pipeline")
             pipeline_dir.mkdir(parents=True)
-            
+    
             # Create a flowgroup
             flowgroup_content = {
                 'pipeline': 'test_pipeline',
@@ -127,13 +135,13 @@ class TestCLI:
                     }
                 ]
             }
-            
+    
             with open(pipeline_dir / "test_flowgroup.yaml", 'w') as f:
                 yaml.dump(flowgroup_content, f)
-            
+    
             # Run validate
             result = runner.invoke(cli, ['validate', '--env', 'dev'])
-            
+    
             assert result.exit_code == 0
             assert "✅ All configurations are valid" in result.output
     
@@ -169,14 +177,18 @@ class TestCLI:
         """Test generate command with dry-run."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
+    
             import os
             os.chdir('test_project')
             
+            # Create dev.yaml for testing by copying the template
+            import shutil
+            shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
+    
             # Create a pipeline
             pipeline_dir = Path("pipelines/test_pipeline")
             pipeline_dir.mkdir(parents=True)
-            
+    
             flowgroup_content = {
                 'pipeline': 'test_pipeline',
                 'flowgroup': 'test_flowgroup',
@@ -203,13 +215,13 @@ class TestCLI:
                     }
                 ]
             }
-            
+    
             with open(pipeline_dir / "test_flowgroup.yaml", 'w') as f:
                 yaml.dump(flowgroup_content, f)
-            
+    
             # Run generate with dry-run
             result = runner.invoke(cli, ['generate', '--env', 'dev', '--dry-run'])
-            
+    
             assert result.exit_code == 0
             assert "✨ Dry run completed" in result.output
             assert "Would generate" in result.output
@@ -268,14 +280,18 @@ class TestCLI:
         """Test validate with secret references."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
+    
             import os
             os.chdir('test_project')
             
+            # Create dev.yaml for testing by copying the template
+            import shutil
+            shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
+    
             # Create a pipeline with secrets
             pipeline_dir = Path("pipelines/test_pipeline")
             pipeline_dir.mkdir(parents=True)
-            
+    
             flowgroup_content = {
                 'pipeline': 'test_pipeline',
                 'flowgroup': 'test_flowgroup',
@@ -306,13 +322,13 @@ class TestCLI:
                     }
                 ]
             }
-            
+    
             with open(pipeline_dir / "test_flowgroup.yaml", 'w') as f:
                 yaml.dump(flowgroup_content, f)
-            
+    
             # Run validate
             result = runner.invoke(cli, ['validate', '--env', 'dev', '--verbose'])
-            
+    
             assert result.exit_code == 0
             assert "🔍 Validating pipeline configurations" in result.output
             assert "✅ All configurations are valid" in result.output 
