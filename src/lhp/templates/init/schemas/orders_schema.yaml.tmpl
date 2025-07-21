@@ -1,0 +1,45 @@
+# This schema is used to define the orders table schema
+# It is used for the schema_hint column of autoloader to overeride the inferred schema
+name: orders
+version: "1.0"
+description: "Orders fact table schema"
+
+columns:
+  - name: o_orderkey
+    type: BIGINT
+    nullable: false
+    comment: "Order key - primary identifier"
+  - name: o_custkey
+    type: BIGINT
+    nullable: false
+    comment: "Customer key - foreign key to customer"
+  - name: o_orderstatus
+    type: STRING
+    nullable: false
+    comment: "Order status (F=Fulfilled, O=Open, P=Pending)"
+  - name: o_totalprice
+    type: DECIMAL(18,2)
+    nullable: false
+    comment: "Total order price"
+  - name: o_orderdate
+    type: DATE
+    nullable: false
+    comment: "Order date"
+  - name: o_orderpriority
+    type: STRING
+    nullable: false
+    comment: "Order priority"
+  - name: o_clerk
+    type: STRING
+    nullable: true
+    comment: "Clerk who processed the order"
+  - name: o_shippriority
+    type: INT
+    nullable: true
+    comment: "Shipping priority"
+  - name: o_comment
+    type: STRING
+    nullable: true
+    comment: "Free-form comment"
+
+primary_key: [o_orderkey] 

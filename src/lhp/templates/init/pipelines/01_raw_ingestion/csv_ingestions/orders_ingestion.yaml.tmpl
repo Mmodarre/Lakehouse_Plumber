@@ -1,0 +1,14 @@
+# This pipeline is used to ingest the orders table from the csv files into the raw schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: raw_ingestions
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: orders_ingestion
+
+# Use the template to generate the actions for the pipeline
+# Template parameters are used to pass in the table name and landing folder
+# The template will generate the actions for the pipeline
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: orders
+  landing_folder: orders

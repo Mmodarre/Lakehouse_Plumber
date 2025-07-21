@@ -1,0 +1,17 @@
+# Bronze layer preset for raw data ingestion
+name: bronze_layer
+version: "1.0"
+description: "Standard configuration for bronze layer tables"
+
+defaults:
+  load_actions:
+    cloudfiles:
+      schema_evolution_mode: "addNewColumns"
+      rescue_data_column: "_rescued_data"
+      schema_hints: "true"
+    
+  write_actions:
+    streaming_table:
+      table_properties:
+        delta.autoOptimize.optimizeWrite: "true"
+        quality: "bronze" 

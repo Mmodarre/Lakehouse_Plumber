@@ -152,8 +152,8 @@ actions:
             assert (project_path / "substitutions").exists()
             
             # Check example files were created
-            assert (project_path / "substitutions" / "dev.yaml").exists()
-            assert (project_path / "presets" / "bronze_layer.yaml").exists()
+            assert (project_path / "substitutions" / "dev.yaml.tmpl").exists()
+            assert (project_path / "presets" / "bronze_layer.yaml.tmpl").exists()
     
     def test_init_existing_directory(self, runner, temp_project):
         """Test init command on existing directory."""
