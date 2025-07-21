@@ -18,23 +18,8 @@ resources like jobs, pipelines, and notebooks using declarative YAML configurati
 Bundles enable version control, environment management, and CI/CD integration for 
 your entire Databricks workspace.
 
-**How LHP Integrates with DABs**
-
-Lakehouse Plumber automatically integrates with Databricks Asset Bundles when a 
-``databricks.yml`` file is present in your project. LHP will:
-
-* **Generate resource YAML files** for each pipeline in the ``resources/`` directory
-* **Synchronize resource files** with generated Python notebooks automatically
-* **Enable environment-specific deployments** through bundle targeting
-* **Maintain resource file consistency** by cleaning up obsolete resources
-
-**Benefits of Using Bundles with LHP**
-
-✅ **Unified Deployment**: Deploy pipelines, jobs, and configurations together  
-✅ **Environment Management**: Separate dev/staging/prod configurations  
-✅ **Version Control**: Track resource changes alongside pipeline code  
-✅ **CI/CD Integration**: Automated deployments through Databricks CLI  
-✅ **Resource Cleanup**: Automatic cleanup of deleted pipelines  
+.. seealso::
+    `Databricks Asset Bundles documentation <https://docs.databricks.com/en/dev-tools/bundles/index.html>`
 
 Prerequisites & Setup
 ---------------------
@@ -43,47 +28,16 @@ Prerequisites & Setup
 
 Install and configure the Databricks CLI:
 
-.. code-block:: bash
+.. note::
+    Follow the steps here to install `Databricks CLI <https://docs.databricks.com/en/dev-tools/cli/index.html>`_
 
-   # Install Databricks CLI
-   pip install databricks-cli
-   
+.. code-block:: bash
+  
    # Configure authentication
    databricks configure --token
    
    # Verify connection
    databricks workspace list
-
-**Bundle Initialization**
-
-If you don't have an existing bundle, initialize one:
-
-.. code-block:: bash
-
-   # In your LHP project directory
-   databricks bundle init
-   
-   # Or manually create databricks.yml
-   touch databricks.yml
-
-**Project Structure Requirements**
-
-Your project should have this structure:
-
-.. code-block:: text
-
-   my-data-platform/
-   ├── databricks.yml          # Bundle configuration
-   ├── lhp.yaml                # LHP project config
-   ├── pipelines/              # LHP pipeline definitions
-   │   ├── raw_ingestion/
-   │   └── bronze_layer/
-   ├── resources/              # Generated bundle resources
-   │   ├── raw_ingestion.pipeline.yml
-   │   └── bronze_layer.pipeline.yml
-   └── generated/              # Generated Python files
-       ├── raw_ingestion/
-       └── bronze_layer/
 
 Getting Started
 ---------------
@@ -100,66 +54,44 @@ Bundle support is automatically enabled when LHP detects a ``databricks.yml`` fi
 
 **First Bundle Deployment**
 
-1. **Initialize LHP project with bundle support**:
+1. **Initialize LHP project with bundle support**
 
 .. code-block:: bash
+
 
    lhp init --bundle my-data-platform
    cd my-data-platform
 
-2. **Configure your databricks.yml**:
+.. note::
+  With the ``--bundle`` flag, LHP will automatically create a ``databricks.yml`` file
+  and the ``resources/lhp`` directory.
 
-.. code-block:: yaml
+3. **Edit the databricks.yml file**
 
-   bundle:
-     name: my-data-platform
-   
-   targets:
-     dev:
-       workspace:
-         host: https://your-workspace.cloud.databricks.com
-   
-   resources:
-     # LHP will automatically populate this section
+Edit ``databricks.yml`` file to add your Databricks workspace details and your username/email address
 
-3. **Create your first pipeline**:
+.. note::
+  * You can edit the ``databricks.yml`` file to add as many targets as you wish.
+  * Also feel free to customize the ``databricks.yml`` file to your needs.
 
-.. code-block:: yaml
-   :caption: pipelines/raw_ingestion/customer.yaml
+.. seealso::
+  Refer to Databricks official documentation for more information on how to configure the ``databricks.yml`` file:
+  `Databricks Asset Bundles documentation <https://docs.databricks.com/aws/en/dev-tools/bundles/templates>`_
 
-   pipeline: raw_ingestion
-   flowgroup: customer
-   actions:
-     - name: load_customer
-       type: load
-       source:
-         type: cloudfiles
-         path: "/mnt/data/customers/"
-         format: parquet
-       target: customer_raw
-     
-     - name: write_customer
-       type: write
-       source: customer_raw
-       write_target:
-         type: streaming_table
-         database: "{catalog}.{raw_schema}"
-         table: "customer"
 
-4. **Generate and deploy**:
+
+1. **Create your first pipeline and flowgroup**
+
+Please see :doc:`getting_started` to create your first LHP flowgroup and pipeline.
+
+5. **Generate**
 
 .. code-block:: bash
 
-   # Generate Python files and sync bundle resources
-   lhp generate -e dev
-   
-   # Deploy bundle to Databricks
-   databricks bundle deploy --target dev
-   
-   # Verify deployment
-   databricks bundle status --target dev
+  lhp generate -e dev --cleanup
 
-**Verifying Bundle Integration**
+
+6. **Verifying Bundle Integration**
 
 After running ``lhp generate``, you should see:
 
@@ -168,11 +100,130 @@ After running ``lhp generate``, you should see:
    🔄 Syncing bundle resources with generated files...
    ✅ Updated 1 bundle resource file(s)
 
+.. important::
+  When generating code, LHP looks for a ``databricks.yml`` file in your project root.
+  If found, LHP will generate pipeline ``YAML`` files inside the ``resources/lhp/`` directory.
+  If not, only the Python files will be generated.
+
 Check the generated resource file:
 
 .. code-block:: bash
 
-   cat resources/raw_ingestion.pipeline.yml
+   cat resources/lhp/raw_ingestion.pipeline.yml
+
+
+7. **Validate and deploy the bundle to Databricks**:
+
+.. code-block:: bash
+
+   # Validate bundle configuration
+   databricks bundle validate --target dev
+
+
+.. code-block:: bash
+   
+   # Deploy bundle to Databricks
+   databricks bundle deploy --target dev
+
+
+.. code-block:: bash
+   
+   # Verify deployment
+   databricks bundle status --target dev
+
+
+
+
+How LHP Integrates with DABs
+----------------------------
+
+Lakehouse Plumber does NOT replace Databricks Asset Bundles or Databricks CLI. 
+It only generates the pipeline ``YAML`` files for DABs to use.
+
+
+LHP will:
+
+* **Generate resource YAML files** for each pipeline in the ``resources/`` directory
+* **Synchronize resource files** with generated Python notebooks automatically
+* **Maintain resource file consistency** by cleaning up obsolete resources
+
+**Benefits of Using Bundles with LHP**
+
+* **Unified Deployment**: Deploy pipelines, jobs, and configurations together 
+* **Environment Management**: Separate dev/staging/prod configurations  
+* **Version Control**: Track resource changes alongside pipeline code  
+* **CI/CD Integration**: Automated deployments through Databricks CLI  
+* **Resource Cleanup**: Automatic cleanup of deleted pipelines  
+
+**LHP Bundle Integration Flow**
+
+The following diagram illustrates how LHP integrates with Databricks Asset Bundles:
+
+.. mermaid::
+
+   flowchart TD
+       A["📁 pipelines/<br/>YAML Configurations"] --> B["🔧 LHP Process"]
+       B --> C["📖 Read Pipeline<br/>YAML Files"]
+       C --> D["🐍 Generate<br/>Python Code"]
+       D --> E["📂 generated/<br/>Python Files"]
+       D --> F["🔍 Check Bundle<br/>Support"]
+       F --> G["📁 resources/lhp/<br/>Directory"]
+       G --> H["📝 Create/Update<br/>Resource YAML"]
+       H --> I["📋 resources/lhp/<br/>Pipeline Resources"]
+       
+       style A fill:#e1f5fe
+       style E fill:#f3e5f5
+       style I fill:#e8f5e8
+       style B fill:#fff3e0
+
+When you run ``lhp generate``, this automated flow ensures your pipeline resources 
+stay synchronized with your generated Python code while safely preserving any 
+custom bundle resources you've created.
+
+
+
+Project Structure
+-----------------
+
+Your project should have this structure:
+
+.. code-block:: text
+  
+
+   my-data-platform/
+   ├── databricks.yml          # Bundle configuration
+   ├── lhp.yaml                # LHP project config
+   ├── pipelines/              # LHP pipeline definitions
+   │   ├── raw_ingestion/
+   │   └── bronze_layer/
+   ├── resources/              # Bundle resources
+   │   ├── lhp/                # LHP-managed resource files (Do NOT modify)
+   │   │   ├── raw_ingestion.pipeline.yml
+   │   │   └── bronze_layer.pipeline.yml
+   │   └── user_custom.pipeline.yml  # User's custom DAB files
+   └── generated/              # Generated Python files (Do NOT modify)
+       ├── raw_ingestion/
+       └── bronze_layer/
+
+.. note::
+  **Coexistence with User DAB Files**
+  
+  LHP manages its resource files in the ``resources/lhp/`` subdirectory, allowing you to 
+  safely place your own Databricks Asset Bundle files in the ``resources/`` directory.
+  LHP will only manage files it generates under ``resources/lhp/`` directory 
+  and those with the ``"Generated by LakehousePlumber"`` header
+  and will never modify or delete your custom DAB files.
+
+
+.. warning::
+  * Any DAB ``yml`` files under ``resources/lhp`` directory with 
+    the ``"Generated by LakehousePlumber"`` header
+    will be overwritten by LHP.
+
+  * For transparency and organization, we recommend to refrain from 
+    modifying the content of the ``resources/lhp/`` directory.
+
+
 
 Bundle Resource Synchronization
 -------------------------------
@@ -185,49 +236,45 @@ When bundle support is enabled, LHP automatically:
 2. **Creates/updates resource YAML files** for each pipeline
 3. **Removes obsolete resource files** for deleted pipelines
 4. **Maintains environment-specific configurations**
+  
+.. important::
+  * LHP will not edit the ``databricks.yml`` file.
+  * It will only create the pipeline ``YAML`` files in the ``resources/lhp/`` directory.
+  * You can edit the ``databricks.yml`` file to add your Databricks needs.
 
 **Generated Resource YAML Files**
 
-LHP generates bundle resource files with this structure:
-
 .. code-block:: yaml
-   :caption: resources/raw_ingestion.pipeline.yml
+  :linenos:
+  :caption: resources/lhp/bronze_load.pipeline.yml
+  
+  # Generated by LakehousePlumber - Bundle Resource for bronze_load
+  resources:
+    pipelines:
+      bronze_load_pipeline:
+        name: bronze_load_pipeline
+        catalog: main
+        schema: lhp_${bundle.target}
+        libraries:
+          - notebook:
+              path: ../../generated/bronze_load/customer_bronze.py
+          - notebook:
+              path: ../../generated/bronze_load/lineitem_bronze.py
+          - notebook:
+              path: ../../generated/bronze_load/nation_bronze.py
+          - notebook:
+              path: ../../generated/bronze_load/orders_bronze.py
+          - notebook:
+              path: ../../generated/bronze_load/part_bronze.py
+          - notebook:
+              path: ../../generated/bronze_load/partsupp_bronze.py
+          - notebook:
+              path: ../../generated/bronze_load/region_bronze.py
+          - notebook:
+              path: ../../generated/bronze_load/supplier_bronze.py
+        configuration:
+          bundle.sourcePath: ${workspace.file_path}/generated
 
-   resources:
-     jobs:
-       raw_ingestion:
-         name: "raw_ingestion_${bundle.target}"
-         job_clusters:
-           - job_cluster_key: "main"
-             new_cluster:
-               spark_version: "13.3.x-scala2.12"
-               node_type_id: "i3.xlarge"
-               num_workers: 2
-         tasks:
-           - task_key: "customer"
-             job_cluster_key: "main"
-             notebook_task:
-               notebook_path: "../generated/raw_ingestion/customer.py"
-               source: WORKSPACE
-           # Additional tasks for other flowgroups...
-
-**Environment-Specific Configurations**
-
-Resource files support environment-specific values through bundle variables:
-
-.. code-block:: yaml
-   :caption: databricks.yml
-
-   targets:
-     dev:
-       variables:
-         catalog: "dev_catalog"
-         cluster_size: "small"
-     
-     prod:
-       variables:
-         catalog: "prod_catalog"
-         cluster_size: "large"
 
 CLI Commands & Workflows
 ------------------------
@@ -245,6 +292,7 @@ Initialize a new LHP project with bundle support:
    # ├── lhp.yaml
    # ├── pipelines/
    # ├── resources/
+   # │   └── lhp/
    # └── substitutions/
 
 **lhp generate (with bundle sync)**
@@ -254,79 +302,15 @@ Generate Python files and automatically sync bundle resources:
 .. code-block:: bash
 
    # Generate for specific environment
-   lhp generate -e dev
+   lhp generate -e dev --cleanup
    
    # Force regeneration (ignores state)
    lhp generate -e dev --force
    
    # Disable bundle sync (if needed)
-   lhp generate -e dev --no-bundle
+   lhp generate -e dev --cleanup --no-bundle
 
-**Bundle Deployment Workflow**
 
-Complete workflow for deploying changes:
-
-.. code-block:: bash
-
-   # 1. Update pipeline definitions
-   vim pipelines/raw_ingestion/customer.yaml
-   
-   # 2. Generate Python files and sync resources
-   lhp generate -e dev
-   
-   # 3. Validate bundle configuration
-   databricks bundle validate --target dev
-   
-   # 4. Deploy to Databricks
-   databricks bundle deploy --target dev
-   
-   # 5. Monitor deployment
-   databricks bundle status --target dev
-
-Bundle Configuration
---------------------
-
-**databricks.yml Structure**
-
-Basic bundle configuration for LHP projects:
-
-.. code-block:: yaml
-   :caption: databricks.yml
-
-   bundle:
-     name: my-data-platform
-     
-   variables:
-     catalog:
-       description: "Unity Catalog name"
-     
-   targets:
-     dev:
-       workspace:
-         host: https://your-workspace.cloud.databricks.com
-         root_path: /Users/your-email@company.com/.bundle/${bundle.name}/${bundle.target}
-       variables:
-         catalog: "dev_catalog"
-     
-     prod:
-       workspace:
-         host: https://your-workspace.cloud.databricks.com
-         root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
-       variables:
-         catalog: "prod_catalog"
-   
-   resources:
-     # LHP automatically populates this section
-     # Do not edit manually - will be overwritten
-
-**Resource File Templates**
-
-LHP uses internal templates to generate resource files. The structure includes:
-
-* **Pipeline configurations**: DLT pipeline settings and cluster configs
-* **Notebook paths**: References to generated Python files
-* **Environment variables**: Integration with bundle variables
-* **Dependencies**: Automatic dependency resolution between pipelines
 
 **Environment Targeting**
 
@@ -397,38 +381,6 @@ For large projects with many pipelines:
    # Check resource file syntax
    yamllint resources/*.yml
 
-Examples
---------
-
-**Complete Workflow Example**
-
-Here's a complete example using the ACMI demo project:
-
-.. code-block:: bash
-
-   # 1. Clone the example project
-   git clone https://github.com/your-org/acmi-data-platform.git
-   cd acmi-data-platform
-   
-   # 2. Initialize bundle support
-   lhp init --bundle .
-   
-   # 3. Configure databricks.yml
-   cat > databricks.yml << EOF
-   bundle:
-     name: acmi-data-platform
-   
-   targets:
-     dev:
-       workspace:
-         host: https://your-workspace.cloud.databricks.com
-       variables:
-         catalog: "acmi_dev"
-   EOF
-   
-   # 4. Generate and deploy
-   lhp generate -e dev
-   databricks bundle deploy --target dev
 
 **Multi-Environment Setup**
 
@@ -536,6 +488,7 @@ Option             Description
 ================== ==========================================================
 ``--no-bundle``    Disable bundle support even if databricks.yml exists
 ``--force``        Force regeneration and bundle sync of all files
+``--cleanup``      Clean up obsolete resource files
 ================== ==========================================================
 
 **Resource File Structure**
@@ -572,4 +525,3 @@ Obsolete resources not cleaned up     Run ``lhp generate --force`` to trigger fu
 * :doc:`getting_started` – Basic LHP setup and usage
 * :doc:`concepts` – Understanding pipelines and flowgroups  
 * :doc:`cli` – Complete CLI command reference
-* `Databricks Asset Bundles Documentation <https://docs.databricks.com/dev-tools/bundles/index.html>`_ 

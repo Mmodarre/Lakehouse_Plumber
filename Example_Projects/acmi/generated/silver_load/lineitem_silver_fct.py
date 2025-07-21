@@ -33,8 +33,7 @@ def v_lineitem_bronze():
 # Create the streaming table for CDC
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_silver.lineitem_fct",
-    comment="Streaming table: lineitem_fct",
-    table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
+    comment="Streaming table: lineitem_fct")
 
 # CDC mode using auto_cdc
 dlt.create_auto_cdc_flow(

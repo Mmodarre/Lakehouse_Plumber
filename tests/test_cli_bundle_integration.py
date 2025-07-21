@@ -245,7 +245,7 @@ class TestCLIInitBundleCommand:
             assert (project_path / "resources").exists()
 
     def test_init_bundle_creates_resources_directory(self):
-        """Should create resources directory for bundle resource files."""
+        """Should create resources/lhp directory for bundle resource files."""
         with self.runner.isolated_filesystem():
             os.chdir(str(self.temp_dir))
             
@@ -255,9 +255,12 @@ class TestCLIInitBundleCommand:
             
             project_path = self.temp_dir / "test_resources_project"
             resources_dir = project_path / "resources"
+            resources_lhp_dir = project_path / "resources" / "lhp"
             
             assert resources_dir.exists()
             assert resources_dir.is_dir()
+            assert resources_lhp_dir.exists()
+            assert resources_lhp_dir.is_dir()
 
     def test_init_bundle_uses_local_template_no_network(self):
         """Should create bundle files using local template without network calls."""
@@ -301,7 +304,7 @@ class TestCLIInitBundleCommand:
             assert "bundle:" in content
             assert "name: template_accuracy_test" in content
             assert "include:" in content
-            assert "resources/*.yml" in content
+            assert "resources/lhp/*.yml" in content
             assert "targets:" in content
             assert "dev:" in content
             assert "prod:" in content
@@ -385,7 +388,7 @@ class TestCLIInitBundleCommand:
             assert "catalog" in dev_subs  # Should have standard substitution variables
             
     def test_init_bundle_resources_directory_empty(self):
-        """Should create empty resources directory for bundle resource files."""
+        """Should create empty resources/lhp directory for bundle resource files."""
         with self.runner.isolated_filesystem():
             os.chdir(str(self.temp_dir))
             
@@ -395,13 +398,16 @@ class TestCLIInitBundleCommand:
             
             project_path = self.temp_dir / "empty_resources_test"
             resources_dir = project_path / "resources"
+            resources_lhp_dir = project_path / "resources" / "lhp"
             
             assert resources_dir.exists()
             assert resources_dir.is_dir()
+            assert resources_lhp_dir.exists()
+            assert resources_lhp_dir.is_dir()
             
-            # Should be empty initially
-            contents = list(resources_dir.iterdir())
-            assert len(contents) == 0, f"Resources directory should be empty, found: {contents}"
+            # LHP subdirectory should be empty initially
+            lhp_contents = list(resources_lhp_dir.iterdir())
+            assert len(lhp_contents) == 0, f"LHP resources directory should be empty, found: {lhp_contents}"
 
 
 class TestCLIGenerateBundleIntegration:
@@ -465,8 +471,9 @@ actions:
       table: customer
 """)
         
-        # Create resources directory
-        (self.project_root / "resources").mkdir()
+        # Create resources/lhp directory
+        resources_lhp_dir = self.project_root / "resources" / "lhp"
+        resources_lhp_dir.mkdir(parents=True)
 
     @patch('lhp.bundle.manager.BundleManager')
     @patch('lhp.utils.bundle_detection.should_enable_bundle_support')

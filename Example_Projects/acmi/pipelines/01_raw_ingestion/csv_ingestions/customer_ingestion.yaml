@@ -12,3 +12,4 @@ use_template: csv_ingestion_template
 template_parameters:
   table_name: customer
   landing_folder: customer
+

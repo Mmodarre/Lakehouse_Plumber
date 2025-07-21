@@ -32,29 +32,34 @@ class TestBundleManagerCore:
     def test_bundle_manager_initialization(self):
         """Should initialize with correct project root and resources directory."""
         assert self.manager.project_root == self.project_root
-        assert self.manager.resources_dir == self.project_root / "resources"
+        assert self.manager.resources_dir == self.project_root / "resources" / "lhp"
 
     def test_bundle_manager_creates_resources_directory(self):
-        """Should create resources directory if it doesn't exist."""
-        # Ensure resources directory doesn't exist initially
-        assert not (self.project_root / "resources").exists()
+        """Should create resources/lhp directory if it doesn't exist."""
+        # Ensure resources/lhp directory doesn't exist initially
+        assert not (self.project_root / "resources" / "lhp").exists()
         
         # Initialize manager and call method that ensures directory exists
         self.manager._ensure_resources_directory()
         
-        # Resources directory should now exist
+        # Resources/lhp directory should now exist
+        assert (self.project_root / "resources" / "lhp").exists()
+        assert (self.project_root / "resources" / "lhp").is_dir()
+        # Parent resources directory should also exist
         assert (self.project_root / "resources").exists()
         assert (self.project_root / "resources").is_dir()
 
     def test_bundle_manager_resources_directory_already_exists(self):
-        """Should handle existing resources directory gracefully."""
-        # Create resources directory
-        (self.project_root / "resources").mkdir()
+        """Should handle existing resources/lhp directory gracefully."""
+        # Create resources/lhp directory
+        resources_lhp_dir = self.project_root / "resources" / "lhp"
+        resources_lhp_dir.mkdir(parents=True)
         
         # Should not raise error
         self.manager._ensure_resources_directory()
         
         # Directory should still exist
+        assert (self.project_root / "resources" / "lhp").exists()
         assert (self.project_root / "resources").exists()
 
     def test_get_pipeline_directories_with_multiple_pipelines(self):
@@ -127,27 +132,27 @@ class TestBundleManagerCore:
         # Create pipeline directory with Python files
         pipeline_dir = self.project_root / "generated" / "raw_ingestions"
         pipeline_dir.mkdir(parents=True)
-        
+
         # Create Python files
         (pipeline_dir / "customer_ingestion.py").write_text("# customer code")
         (pipeline_dir / "orders_ingestion.py").write_text("# orders code")
         (pipeline_dir / "products_ingestion.py").write_text("# products code")
-        
+
         # Create non-Python files (should be ignored)
         (pipeline_dir / "readme.txt").write_text("documentation")
         (pipeline_dir / "config.json").write_text('{"config": "value"}')
-        
+
         notebook_paths = self.manager._get_notebook_paths_for_pipeline(pipeline_dir)
-        
+
         # Should return relative paths for Python files only
         assert len(notebook_paths) == 3
-        
+
         expected_paths = [
-            "../generated/raw_ingestions/customer_ingestion.py",
-            "../generated/raw_ingestions/orders_ingestion.py", 
-            "../generated/raw_ingestions/products_ingestion.py"
+            "../../generated/raw_ingestions/customer_ingestion.py",
+            "../../generated/raw_ingestions/orders_ingestion.py",
+            "../../generated/raw_ingestions/products_ingestion.py"
         ]
-        
+
         # Sort both lists for comparison
         assert sorted(notebook_paths) == sorted(expected_paths)
 
@@ -180,7 +185,7 @@ class TestBundleManagerCore:
         # Test resource file path generation
         resource_path = self.manager._get_resource_file_path("raw_ingestions")
         
-        expected_path = self.project_root / "resources" / "raw_ingestions.pipeline.yml"
+        expected_path = self.project_root / "resources" / "lhp" / "raw_ingestions.pipeline.yml"
         assert resource_path == expected_path
 
     def test_resource_file_path_generation_with_special_characters(self):
@@ -188,7 +193,7 @@ class TestBundleManagerCore:
         # Test with pipeline name containing underscores and numbers
         resource_path = self.manager._get_resource_file_path("bronze_layer_v2")
         
-        expected_path = self.project_root / "resources" / "bronze_layer_v2.pipeline.yml"
+        expected_path = self.project_root / "resources" / "lhp" / "bronze_layer_v2.pipeline.yml"
         assert resource_path == expected_path
 
     def test_bundle_manager_logging(self):
@@ -251,7 +256,7 @@ class TestBundleManagerFileOperations:
         
         # Should include files from root level only (flat structure expected)
         assert len(notebook_paths) == 1
-        assert "../generated/complex_pipeline/main.py" in notebook_paths
+        assert "../../generated/complex_pipeline/main.py" in notebook_paths
 
     def test_get_pipeline_directories_with_symbolic_links(self):
         """Should handle symbolic links appropriately."""
@@ -361,7 +366,7 @@ class TestBundleManagerFileOperations:
         
         # All paths should be correctly formatted
         for path in notebook_paths:
-            assert path.startswith("../generated/large_pipeline/")
+            assert path.startswith("../../generated/large_pipeline/")
             assert path.endswith(".py")
 
     def test_bundle_manager_error_handling_initialization(self):

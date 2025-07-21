@@ -44,11 +44,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         # Build full table name
         full_table_name = f"{database}.{table}" if database else table
 
-        # Table properties with defaults
-        properties = {
-            "delta.autoOptimize.optimizeWrite": "true",
-            "delta.enableChangeDataFeed": "true",
-        }
+        # Table properties
+        properties = {}
         if target_config.get("table_properties"):
             properties.update(target_config["table_properties"])
 

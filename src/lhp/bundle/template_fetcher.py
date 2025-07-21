@@ -23,7 +23,7 @@ class DatabricksTemplateFetcher:
     This class handles local template processing using Jinja2 templates,
     creating databricks.yml configuration files and bundle directory structure.
     """
-    
+
     def __init__(self, project_root: Path):
         """
         Initialize the template fetcher.
@@ -34,7 +34,8 @@ class DatabricksTemplateFetcher:
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
 
-    def fetch_and_apply_template(self, project_name: str, template_vars: Dict[str, Any]):
+    def fetch_and_apply_template(self, project_name: str,
+                                 template_vars: Dict[str, Any]):
         """
         Create bundle files using embedded local template.
         
@@ -46,22 +47,22 @@ class DatabricksTemplateFetcher:
             TemplateError: If template processing or file creation fails
         """
         try:
-            self.logger.info(f"Creating Databricks bundle files for project: {project_name}")
-            
+            self.logger.info(
+                f"Creating Databricks bundle files for project: {project_name}"
+            )
+
             # Use new method name for consistency with test expectations
             self.create_bundle_files(project_name, template_vars)
-            
+
             self.logger.info("Successfully created bundle files")
-            
+
         except TemplateError:
             # Re-raise template errors as-is
             raise
         except Exception as e:
             raise TemplateError(
                 f"Unexpected error during bundle file creation: {e}\n"
-                f"Troubleshooting: Check file permissions and disk space.",
-                e
-            )
+                f"Troubleshooting: Check file permissions and disk space.", e)
 
     def _get_embedded_template(self) -> str:
         """
@@ -76,6 +77,9 @@ bundle:
   name: {{ project_name }}
 
 include:
+  # LHP-managed resource files
+  - resources/lhp/*.yml
+  # User-managed resource files
   - resources/*.yml
 
 targets:
@@ -100,7 +104,8 @@ targets:
         level: CAN_MANAGE
 """
 
-    def _process_local_template(self, project_name: str, template_vars: Dict[str, Any]) -> str:
+    def _process_local_template(self, project_name: str,
+                                template_vars: Dict[str, Any]) -> str:
         """
         Process embedded Jinja template with project variables.
         
@@ -117,30 +122,30 @@ targets:
         try:
             if template_vars is None:
                 raise TemplateError("Template variables cannot be None")
-                
+
             # Get embedded template content
             template_content = self._get_embedded_template()
-            
+
             # Create Jinja template
             template = Template(template_content)
-            
+
             # Combine variables
-            variables = {
-                'project_name': project_name,
-                **template_vars
-            }
-            
-            self.logger.debug(f"Processing template with variables: {list(variables.keys())}")
-            
+            variables = {'project_name': project_name, **template_vars}
+
+            self.logger.debug(
+                f"Processing template with variables: {list(variables.keys())}"
+            )
+
             # Render template
             rendered_content = template.render(**variables)
-            
+
             return rendered_content
-            
+
         except Exception as e:
             raise TemplateError(f"Failed to process template: {e}", e)
 
-    def create_bundle_files(self, project_name: str, template_vars: Dict[str, Any]):
+    def create_bundle_files(self, project_name: str, template_vars: Dict[str,
+                                                                         Any]):
         """
         Create bundle files using local template processing.
         
@@ -153,19 +158,23 @@ targets:
         """
         try:
             # Process template
-            databricks_yml_content = self._process_local_template(project_name, template_vars)
-            
+            databricks_yml_content = self._process_local_template(
+                project_name, template_vars)
+
             # Create databricks.yml
             databricks_yml_path = self.project_root / "databricks.yml"
-            databricks_yml_path.write_text(databricks_yml_content, encoding='utf-8')
-            
-            # Create resources directory
-            resources_dir = self.project_root / "resources"
-            resources_dir.mkdir(exist_ok=True)
-            
-            self.logger.info(f"Created databricks.yml and resources/ directory")
-            
+            databricks_yml_path.write_text(databricks_yml_content,
+                                           encoding='utf-8')
+
+            # Create resources/lhp directory for LHP-managed resource files
+            resources_lhp_dir = self.project_root / "resources" / "lhp"
+            resources_lhp_dir.mkdir(parents=True, exist_ok=True)
+
+            self.logger.info(
+                f"Created databricks.yml and resources/lhp/ directory")
+
         except (OSError, PermissionError) as e:
             raise TemplateError(f"Failed to create bundle files: {e}", e)
         except Exception as e:
-            raise TemplateError(f"Unexpected error creating bundle files: {e}", e) 
+            raise TemplateError(f"Unexpected error creating bundle files: {e}",
+                                e)

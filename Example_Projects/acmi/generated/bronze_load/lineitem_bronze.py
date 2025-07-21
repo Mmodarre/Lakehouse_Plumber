@@ -76,8 +76,7 @@ def v_lineitem_bronze_DQE():
 # Create the streaming table
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_bronze.lineitem",
-    comment="Streaming table: lineitem",
-    table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
+    comment="Streaming table: lineitem")
 
 
 # Define append flow(s)
