@@ -252,6 +252,7 @@ Next Steps
 
 * :doc:`getting_started` – a hands-on walk-through using the ACMI demo project.
 * :doc:`concepts` – deep-dive into FlowGroups, Actions, presets, templates and more.
+* :doc:`databricks_bundles` – integrate with Databricks Asset Bundles for production deployments.
 * :doc:`cli` – command-line reference.
 
 .. toctree::
@@ -260,6 +261,7 @@ Next Steps
 
    getting_started
    concepts
+   databricks_bundles
    actions_reference
    advanced
    cli
