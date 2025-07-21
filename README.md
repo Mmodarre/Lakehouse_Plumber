@@ -16,8 +16,7 @@
 [![codecov](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber/branch/main/graph/badge.svg?token=80IBHIFAQY)](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber)
 [![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://lakehouse-plumber.readthedocs.io/)
 [![Databricks](https://img.shields.io/badge/Databricks-Lakeflow-%23FF3621?logo=databricks)](https://www.databricks.com/product/data-engineering)
-
-<!-- ![PyPI - Downloads](https://img.shields.io/pypi/dm/lakehouse-plumber) -->
+![PyPI - Downloads](https://img.shields.io/pypi/dm/lakehouse-plumber)
 
 </div>
 
