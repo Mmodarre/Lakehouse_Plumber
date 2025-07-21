@@ -292,6 +292,74 @@ actions:
             transform_action = actions[1]
             assert "WHERE status = 'active'" in transform_action.sql
 
+    def test_table_properties_template_parameter(self):
+        """Test template with table_properties parameter - the original issue that caused validation errors."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            templates_dir = Path(tmpdir)
+            
+            # Create a template that uses table_properties parameter with template syntax
+            template_yaml = """
+name: csv_ingestion_template
+version: "1.0"
+description: "Template for CSV ingestion with table properties"
+
+parameters:
+  - name: table_name
+    required: true
+    description: "Name of the table to ingest"
+  - name: table_properties
+    required: false
+    description: "Optional table properties as key-value pairs"
+    default: {}
+
+actions:
+  - name: write_{{ table_name }}_cloudfiles
+    type: write
+    source: v_{{ table_name }}_cloudfiles
+    write_target:
+      type: streaming_table
+      database: "catalog.schema"
+      table: "{{ table_name }}"
+      table_properties: "{{ table_properties }}"
+      description: "Write {{ table_name }} to raw layer"
+"""
+            (templates_dir / "csv_ingestion_template.yaml").write_text(template_yaml)
+            
+            engine = TemplateEngine(templates_dir)
+            
+            # Test with table_properties provided
+            parameters = {
+                "table_name": "customer",
+                "table_properties": {
+                    "tag1": "hello",
+                    "tag2": "world",
+                    "delta.enableChangeDataFeed": "true"
+                }
+            }
+            
+            actions = engine.render_template("csv_ingestion_template", parameters)
+            
+            # Verify the action was created successfully
+            assert len(actions) == 1
+            action = actions[0]
+            assert action.name == "write_customer_cloudfiles"
+            assert action.type == ActionType.WRITE
+            assert action.write_target["table"] == "customer"
+            assert action.write_target["table_properties"]["tag1"] == "hello"
+            assert action.write_target["table_properties"]["tag2"] == "world"
+            assert action.write_target["table_properties"]["delta.enableChangeDataFeed"] == "true"
+            
+            # Test with empty table_properties (default)
+            parameters_empty = {
+                "table_name": "orders"
+            }
+            
+            actions_empty = engine.render_template("csv_ingestion_template", parameters_empty)
+            assert len(actions_empty) == 1
+            action_empty = actions_empty[0]
+            assert action_empty.write_target["table"] == "orders"
+            assert action_empty.write_target["table_properties"] == {}
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"]) 

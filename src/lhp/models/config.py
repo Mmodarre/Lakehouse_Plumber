@@ -154,7 +154,19 @@ class Template(BaseModel):
     version: str = "1.0"
     description: Optional[str] = None
     parameters: List[Dict[str, Any]] = []
-    actions: List[Action] = []
+    actions: Union[List[Action], List[Dict[str, Any]]] = []
+    _raw_actions: bool = False  # Internal flag to track if actions are raw dictionaries
+    
+    def has_raw_actions(self) -> bool:
+        """Check if template contains raw action dictionaries (not validated Action objects)."""
+        return self._raw_actions
+    
+    def get_actions_as_dicts(self) -> List[Dict[str, Any]]:
+        """Get actions as dictionaries, converting from Action objects if needed."""
+        if self._raw_actions:
+            return self.actions
+        else:
+            return [action.model_dump(mode="json") for action in self.actions]
 
 
 class Preset(BaseModel):

@@ -42,7 +42,8 @@ class TemplateEngine:
 
         for template_file in template_files:
             try:
-                template = self.yaml_parser.parse_template(template_file)
+                # Use raw parsing to avoid validation of template syntax like {{ table_properties }}
+                template = self.yaml_parser.parse_template_raw(template_file)
                 self._template_cache[template.name] = template
                 self.logger.debug(f"Loaded template: {template.name}")
             except Exception as e:
@@ -63,7 +64,8 @@ class TemplateEngine:
                 template_file = self.templates_dir / f"{template_name}.yaml"
                 if template_file.exists():
                     try:
-                        template = self.yaml_parser.parse_template(template_file)
+                        # Use raw parsing to avoid validation of template syntax like {{ table_properties }}
+                        template = self.yaml_parser.parse_template_raw(template_file)
                         self._template_cache[template_name] = template
                     except Exception as e:
                         self.logger.error(
@@ -99,9 +101,20 @@ class TemplateEngine:
 
         # Render actions with parameters
         rendered_actions = []
-        for action in template.actions:
-            rendered_action = self._render_action(action, final_params)
-            rendered_actions.append(rendered_action)
+        
+        if template.has_raw_actions():
+            # Template has raw action dictionaries - render them first, then create Action objects
+            for action_dict in template.actions:
+                # Render the raw action dictionary with parameters
+                rendered_dict = self._render_value(action_dict, final_params)
+                # Now create Action object from rendered dictionary (this will validate)
+                rendered_action = Action(**rendered_dict)
+                rendered_actions.append(rendered_action)
+        else:
+            # Template has Action objects (backward compatibility)
+            for action in template.actions:
+                rendered_action = self._render_action(action, final_params)
+                rendered_actions.append(rendered_action)
 
         return rendered_actions
 
@@ -149,7 +162,35 @@ class TemplateEngine:
         if isinstance(value, str):
             # Render string with Jinja2
             template = self.jinja_env.from_string(value)
-            return template.render(**parameters)
+            rendered = template.render(**parameters)
+            
+            # Try to parse dict/list strings back to objects (for template parameters like table_properties)
+            if rendered.startswith('{') and rendered.endswith('}'):
+                try:
+                    import json
+                    return json.loads(rendered)
+                except (json.JSONDecodeError, ValueError):
+                    # Try Python literal eval for dict format like {'key': 'value'}
+                    try:
+                        import ast
+                        return ast.literal_eval(rendered)
+                    except (ValueError, SyntaxError):
+                        # If neither works, return as string
+                        pass
+            elif rendered.startswith('[') and rendered.endswith(']'):
+                try:
+                    import json
+                    return json.loads(rendered)
+                except (json.JSONDecodeError, ValueError):
+                    # Try Python literal eval for list format like ['item1', 'item2']
+                    try:
+                        import ast
+                        return ast.literal_eval(rendered)
+                    except (ValueError, SyntaxError):
+                        # If neither works, return as string
+                        pass
+            
+            return rendered
 
         elif isinstance(value, dict):
             # Recursively render dictionary values
