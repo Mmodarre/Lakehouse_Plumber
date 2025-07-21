@@ -81,6 +81,28 @@ class TestBundleManagerCore:
         assert "bronze_load" in pipeline_names
         assert "silver_load" in pipeline_names
 
+    def test_get_pipeline_directories_returns_sorted_order(self):
+        """Should return pipeline directories in sorted order for deterministic processing."""
+        # Create generated directory structure
+        generated_dir = self.project_root / "generated"
+        generated_dir.mkdir()
+        
+        # Create pipeline directories in non-alphabetical order to test sorting
+        (generated_dir / "pipeline_3").mkdir()
+        (generated_dir / "pipeline_1").mkdir() 
+        (generated_dir / "pipeline_2").mkdir()
+        (generated_dir / "aaa_first").mkdir()
+        (generated_dir / "zzz_last").mkdir()
+        
+        pipeline_dirs = self.manager._get_pipeline_directories(generated_dir)
+        
+        # Should return directories in sorted order
+        assert len(pipeline_dirs) == 5
+        
+        pipeline_names = [d.name for d in pipeline_dirs]
+        expected_order = ["aaa_first", "pipeline_1", "pipeline_2", "pipeline_3", "zzz_last"]
+        assert pipeline_names == expected_order
+
     def test_get_pipeline_directories_empty_generated(self):
         """Should return empty list when generated directory is empty."""
         # Create empty generated directory

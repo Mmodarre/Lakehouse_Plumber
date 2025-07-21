@@ -182,7 +182,7 @@ class BundleManager:
             output_dir: Directory to scan for pipeline directories
             
         Returns:
-            List of pipeline directory paths
+            List of pipeline directory paths in sorted order
             
         Raises:
             BundleResourceError: If directory access fails
@@ -195,7 +195,8 @@ class BundleManager:
         
         try:
             pipeline_dirs = []
-            for item in output_dir.iterdir():
+            # Sort directories to ensure deterministic processing order across platforms
+            for item in sorted(output_dir.iterdir()):
                 if item.is_dir():
                     pipeline_dirs.append(item)
                     self.logger.debug(f"Found pipeline directory: {item.name}")
