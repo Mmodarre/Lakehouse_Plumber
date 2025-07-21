@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.3.4"
+version = "0.3.5"
 description = "A framework for building and managing enterprise Lakeflow Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
