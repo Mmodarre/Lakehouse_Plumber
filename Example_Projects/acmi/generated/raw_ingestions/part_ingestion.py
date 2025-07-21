@@ -44,10 +44,10 @@ def v_part_cloudfiles():
 
 
     # Add operational metadata columns
-    df = df.withColumn('_source_file_size', F.col('_metadata.file_size'))
     df = df.withColumn('_source_file_modification_time', F.col('_metadata.file_modification_time'))
-    df = df.withColumn('_record_hash', F.xxhash64(*[F.col(c) for c in df.columns]))
     df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
+    df = df.withColumn('_source_file_size', F.col('_metadata.file_size'))
+    df = df.withColumn('_record_hash', F.xxhash64(*[F.col(c) for c in df.columns]))
 
     return df
 
