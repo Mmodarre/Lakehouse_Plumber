@@ -33,7 +33,8 @@ def test_sql_transform_generates_clean_code():
     # Verify the generated code
     assert "@dlt.view(comment=" in code
     assert "Calculate customer metrics" in code
-    assert "return spark.sql(" in code
+    assert "df = spark.sql(" in code
+    assert "return df" in code
     
     # Verify it doesn't contain the old unnecessary code
     assert "dlt.read(" not in code

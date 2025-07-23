@@ -5,6 +5,7 @@ from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
+from ...utils.operational_metadata import OperationalMetadata
 import yaml
 
 
@@ -63,6 +64,35 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         # Extract source view
         source_view = self._extract_source_view(action.source)
 
+        # Handle operational metadata
+        flowgroup = flowgroup_config.get("flowgroup")
+        preset_config = flowgroup_config.get("preset_config", {})
+        project_config = flowgroup_config.get("project_config")
+
+        # Initialize operational metadata handler
+        operational_metadata = OperationalMetadata(
+            project_config=(
+                project_config.operational_metadata if project_config else None
+            )
+        )
+
+        # Update context for substitutions
+        if flowgroup:
+            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
+
+        # Resolve metadata selection
+        selection = operational_metadata.resolve_metadata_selection(
+            flowgroup, action, preset_config
+        )
+        metadata_columns = operational_metadata.get_selected_columns(
+            selection or {}, "view"
+        )
+
+        # Get required imports for metadata
+        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
+        for import_stmt in metadata_imports:
+            self.add_import(import_stmt)
+
         template_context = {
             "target_view": action.target,
             "source_view": source_view,
@@ -72,6 +102,8 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             "warn_expectations": warn_expectations,
             "description": action.description
             or f"Data quality checks for {action.source}",
+            "add_operational_metadata": bool(metadata_columns),
+            "metadata_columns": metadata_columns,
         }
 
         return self.render_template("transform/data_quality.py.j2", template_context)

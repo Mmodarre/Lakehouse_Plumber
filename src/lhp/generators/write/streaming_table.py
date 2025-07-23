@@ -1,4 +1,4 @@
-"""Streaming table write generator - adapted from BurrowBuilder."""
+"""Streaming table write generator """
 
 import ast
 from typing import Dict, List, Tuple

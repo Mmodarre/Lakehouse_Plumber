@@ -1,4 +1,4 @@
-"""SQL load generator - adapted from BurrowBuilder."""
+"""SQL load generator """
 
 from pathlib import Path
 from ...core.base_generator import BaseActionGenerator

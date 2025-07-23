@@ -1,4 +1,4 @@
-"""CloudFiles load generator - adapted from BurrowBuilder."""
+"""CloudFiles load generator """
 
 import logging
 from pathlib import Path
