@@ -5,7 +5,7 @@ providing a clean, testable interface for state operations.
 """
 
 import click
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 from collections import defaultdict
 
@@ -93,7 +93,7 @@ class StateDisplayService:
             
         return orphaned_files
     
-    def get_stale_files(self, env: str, pipeline: Optional[str] = None) -> tuple[List[Any], Dict[str, Any]]:
+    def get_stale_files(self, env: str, pipeline: Optional[str] = None) -> Tuple[List[Any], Dict[str, Any]]:
         """Get stale files and staleness information.
         
         Args:
@@ -236,7 +236,7 @@ class StateDisplayService:
                 
         return dict(by_pipeline)
     
-    def calculate_file_status(self, file_state: Any) -> tuple[bool, bool, str]:
+    def calculate_file_status(self, file_state: Any) -> Tuple[bool, bool, str]:
         """Calculate the status of a tracked file.
         
         Args:

@@ -131,4 +131,66 @@ class Action: pass
                     assert i <= 5, f"__future__ import should be early in {file_path}"
                     break
             
-            assert future_import_found, f"File {file_path} should have __future__ import" 
+            assert future_import_found, f"File {file_path} should have __future__ import"
+
+    def test_tuple_type_annotations_compatibility(self):
+        """Test that tuple type annotations work in Python 3.8."""
+        import sys
+        sys.path.insert(0, 'src')
+        
+        # Test orchestrator.py with Tuple annotations
+        try:
+            from lhp.core.orchestrator import ActionOrchestrator
+            assert ActionOrchestrator is not None
+            
+            # Test that methods with Tuple return types exist
+            assert hasattr(ActionOrchestrator, 'validate_pipeline')
+            assert hasattr(ActionOrchestrator, 'validate_pipeline_by_field')
+        except TypeError as e:
+            if "'type' object is not subscriptable" in str(e):
+                assert False, f"orchestrator.py has Python 3.8 tuple type annotation error: {e}"
+            else:
+                raise
+        except (SyntaxError, ImportError) as e:
+            assert False, f"orchestrator.py failed to import: {e}"
+            
+        # Test state_display_service.py with Tuple annotations  
+        try:
+            from lhp.services.state_display_service import StateDisplayService
+            assert StateDisplayService is not None
+            
+            # Test that methods with Tuple return types exist
+            service_methods = ['get_stale_files', 'calculate_file_status']
+            for method_name in service_methods:
+                assert hasattr(StateDisplayService, method_name)
+        except TypeError as e:
+            if "'type' object is not subscriptable" in str(e):
+                assert False, f"state_display_service.py has Python 3.8 tuple type annotation error: {e}"
+            else:
+                raise
+        except (SyntaxError, ImportError) as e:
+            assert False, f"state_display_service.py failed to import: {e}"
+
+    def test_all_critical_imports_work(self):
+        """Test that all critical import paths work without Python 3.8 errors."""
+        import sys
+        sys.path.insert(0, 'src')
+        
+        # Test the exact import chain that was failing in CI
+        try:
+            from lhp.cli.main import cli
+            from lhp.core.orchestrator import ActionOrchestrator  
+            from lhp.core.validator import ConfigValidator
+            from lhp.services.state_display_service import StateDisplayService
+            
+            # Test that we can import the full package
+            import lhp
+            
+            assert cli is not None
+            assert ActionOrchestrator is not None
+            assert ConfigValidator is not None
+            assert StateDisplayService is not None
+            assert lhp is not None
+            
+        except (SyntaxError, TypeError, ImportError) as e:
+            assert False, f"Critical import chain failed: {e}" 
