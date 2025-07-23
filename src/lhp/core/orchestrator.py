@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from collections import defaultdict
 
 from ..parsers.yaml_parser import YAMLParser
@@ -1145,7 +1145,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
 
     def validate_pipeline(
         self, pipeline_name: str, env: str
-    ) -> tuple[List[str], List[str]]:
+    ) -> Tuple[List[str], List[str]]:
         """Validate pipeline configuration without generating code.
 
         Args:
@@ -1181,7 +1181,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
 
     def validate_pipeline_by_field(
         self, pipeline_field: str, env: str
-    ) -> tuple[List[str], List[str]]:
+    ) -> Tuple[List[str], List[str]]:
         """Validate pipeline configuration using pipeline field without generating code.
 
         Args:
