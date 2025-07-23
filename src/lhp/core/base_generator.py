@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader
@@ -27,7 +29,7 @@ class BaseActionGenerator(ABC):
         self.env.filters["toyaml"] = yaml.dump
 
     @abstractmethod
-    def generate(self, action: "Action", context: Dict[str, Any]) -> str:
+    def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate code for the action."""
         pass
 

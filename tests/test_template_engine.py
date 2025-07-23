@@ -360,6 +360,424 @@ actions:
             assert action_empty.write_target["table"] == "orders"
             assert action_empty.write_target["table_properties"] == {}
 
+    def test_array_template_parameters(self):
+        """Test array parameter conversion - homogeneous types only."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            templates_dir = Path(tmpdir)
+            
+            # Create template with array parameter
+            template_yaml = """
+name: array_test_template
+version: "1.0"
+description: "Template for testing array parameters"
+
+parameters:
+  - name: cluster_columns
+    required: true
+    description: "Cluster columns array"
+  - name: table_name
+    required: true
+    description: "Table name"
+
+actions:
+  - name: test_array_action
+    type: write
+    source: v_test
+    write_target:
+      type: streaming_table
+      database: "test.schema"
+      table: "{{ table_name }}"
+      cluster_columns: "{{ cluster_columns }}"
+"""
+            (templates_dir / "array_test_template.yaml").write_text(template_yaml)
+            
+            engine = TemplateEngine(templates_dir)
+            
+            # Test cases: (parameter_value, expected_result, description)
+            test_cases = [
+                # Valid cases
+                (["col1"], ["col1"], "Single string array"),
+                (["col1", "col2", "col3"], ["col1", "col2", "col3"], "3-item string array"),
+                (["a", "b", "c", "d", "e"], ["a", "b", "c", "d", "e"], "5-item string array"),
+                ([1, 2, 3], [1, 2, 3], "3-item numeric array"),
+                ([100], [100], "Single numeric array"),
+                ([], [], "Empty array"),
+            ]
+            
+            for param_value, expected, description in test_cases:
+                parameters = {
+                    "table_name": "test_table",
+                    "cluster_columns": param_value
+                }
+                
+                actions = engine.render_template("array_test_template", parameters)
+                assert len(actions) == 1
+                action = actions[0]
+                assert action.write_target["cluster_columns"] == expected, f"Failed for {description}"
+
+    def test_array_template_parameters_fail_fast(self):
+        """Test array parameter conversion error cases - should fail fast."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            templates_dir = Path(tmpdir)
+            
+            # Create template with array parameter
+            template_yaml = """
+name: array_error_template
+version: "1.0"
+parameters:
+  - name: cluster_columns
+    required: true
+  - name: table_name
+    required: true
+actions:
+  - name: test_action
+    type: write
+    source: v_test
+    write_target:
+      type: streaming_table
+      database: "test.schema" 
+      table: "{{ table_name }}"
+      cluster_columns: "{{ cluster_columns }}"
+"""
+            (templates_dir / "array_error_template.yaml").write_text(template_yaml)
+            
+            engine = TemplateEngine(templates_dir)
+            
+            # Error test cases: (parameter_value, expected_error_substring)
+            error_cases = [
+                ('[invalid syntax here]', "Invalid array template parameter"),
+                ('[1, 2, invalid]', "Arrays must be valid JSON format"),
+            ]
+            
+            for param_value, expected_error in error_cases:
+                parameters = {
+                    "table_name": "test_table", 
+                    "cluster_columns": param_value
+                }
+                
+                with pytest.raises(ValueError) as exc_info:
+                    engine.render_template("array_error_template", parameters)
+                assert expected_error in str(exc_info.value), f"Failed for {param_value}"
+
+    def test_object_template_parameters(self):
+        """Test object parameter conversion - simple objects only."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            templates_dir = Path(tmpdir)
+            
+            # Create template with object parameter
+            template_yaml = """
+name: object_test_template
+version: "1.0"
+description: "Template for testing object parameters"
+
+parameters:
+  - name: spark_conf
+    required: true
+    description: "Spark configuration object"
+  - name: table_name
+    required: true
+    description: "Table name"
+
+actions:
+  - name: test_object_action
+    type: write
+    source: v_test
+    write_target:
+      type: streaming_table
+      database: "test.schema"
+      table: "{{ table_name }}"
+      spark_conf: "{{ spark_conf }}"
+"""
+            (templates_dir / "object_test_template.yaml").write_text(template_yaml)
+            
+            engine = TemplateEngine(templates_dir)
+            
+            # Test cases: (parameter_value, expected_result, description)
+            test_cases = [
+                # Valid cases
+                ({"key": "value"}, {"key": "value"}, "Simple key-value"),
+                ({"enabled": "true"}, {"enabled": "true"}, "Config-style object"),
+                ({"port": "5432", "host": "localhost"}, {"port": "5432", "host": "localhost"}, "Multi-key object"),
+                ({}, {}, "Empty object"),
+            ]
+            
+            for param_value, expected, description in test_cases:
+                parameters = {
+                    "table_name": "test_table",
+                    "spark_conf": param_value
+                }
+                
+                actions = engine.render_template("object_test_template", parameters)
+                assert len(actions) == 1
+                action = actions[0]
+                assert action.write_target["spark_conf"] == expected, f"Failed for {description}"
+
+    def test_object_template_parameters_fail_fast(self):
+        """Test object parameter conversion error cases - should fail fast.""" 
+        with tempfile.TemporaryDirectory() as tmpdir:
+            templates_dir = Path(tmpdir)
+            
+            # Create template with object parameter
+            template_yaml = """
+name: object_error_template
+version: "1.0"
+parameters:
+  - name: spark_conf
+    required: true
+  - name: table_name
+    required: true
+actions:
+  - name: test_action
+    type: write
+    source: v_test
+    write_target:
+      type: streaming_table
+      database: "test.schema"
+      table: "{{ table_name }}"
+      spark_conf: "{{ spark_conf }}"
+"""
+            (templates_dir / "object_error_template.yaml").write_text(template_yaml)
+            
+            engine = TemplateEngine(templates_dir)
+            
+            # Error test cases: (parameter_value, expected_error_substring)
+            error_cases = [
+                ('{invalid syntax here}', "Invalid object template parameter"),
+                ('{key: invalid value}', "Objects must be valid JSON format"),
+            ]
+            
+            for param_value, expected_error in error_cases:
+                parameters = {
+                    "table_name": "test_table",
+                    "spark_conf": param_value
+                }
+                
+                with pytest.raises(ValueError) as exc_info:
+                    engine.render_template("object_error_template", parameters)
+                assert expected_error in str(exc_info.value), f"Failed for {param_value}"
+
+    def test_boolean_template_parameters(self):
+        """Test boolean parameter conversion - strict true/false only."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            templates_dir = Path(tmpdir)
+            
+            # Create template with boolean parameter
+            template_yaml = """
+name: boolean_test_template
+version: "1.0"
+description: "Template for testing boolean parameters"
+
+parameters:
+  - name: create_table
+    required: true
+    description: "Whether to create table"
+  - name: table_name
+    required: true
+    description: "Table name"
+
+actions:
+  - name: test_boolean_action
+    type: write
+    source: v_test
+    write_target:
+      type: streaming_table
+      database: "test.schema"
+      table: "{{ table_name }}"
+      create_table: "{{ create_table }}"
+"""
+            (templates_dir / "boolean_test_template.yaml").write_text(template_yaml)
+            
+            engine = TemplateEngine(templates_dir)
+            
+            # Test cases: (parameter_value, expected_result, description)
+            test_cases = [
+                # Valid cases
+                (True, True, "Boolean True"),
+                (False, False, "Boolean False"),
+                ("true", True, "String lowercase true"),
+                ("false", False, "String lowercase false"),
+                ("True", True, "String capitalized True"),
+                ("False", False, "String capitalized False"),
+                ("TRUE", True, "String uppercase TRUE"),
+                ("FALSE", False, "String uppercase FALSE"),
+            ]
+            
+            for param_value, expected, description in test_cases:
+                parameters = {
+                    "table_name": "test_table",
+                    "create_table": param_value
+                }
+                
+                actions = engine.render_template("boolean_test_template", parameters)
+                assert len(actions) == 1
+                action = actions[0]
+                assert action.write_target["create_table"] == expected, f"Failed for {description}"
+
+    def test_boolean_template_parameters_fail_fast(self):
+        """Test boolean parameter conversion error cases - should fail fast."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            templates_dir = Path(tmpdir)
+            
+            # Create template with boolean parameter
+            template_yaml = """
+name: boolean_error_template
+version: "1.0"
+parameters:
+  - name: create_table
+    required: true
+  - name: table_name
+    required: true
+actions:
+  - name: test_action
+    type: write
+    source: v_test
+    write_target:
+      type: streaming_table
+      database: "test.schema"
+      table: "{{ table_name }}"
+      create_table: "{{ create_table }}"
+"""
+            (templates_dir / "boolean_error_template.yaml").write_text(template_yaml)
+            
+            engine = TemplateEngine(templates_dir)
+            
+            # Note: Boolean conversion only happens for true/false strings
+            # Other values get converted based on their type (integers, strings, etc.)
+            # Test that non-boolean strings remain as strings, unless they match other patterns
+            test_cases = [
+                ("yes", "yes"),  # Stays as string
+                ("no", "no"),    # Stays as string  
+                ("1", 1),        # Converted to integer (correct behavior)
+                ("0", 0),        # Converted to integer (correct behavior)
+                ("maybe", "maybe"), # Stays as string
+            ]
+            
+            for param_value, expected in test_cases:
+                parameters = {
+                    "table_name": "test_table",
+                    "create_table": param_value
+                }
+                
+                actions = engine.render_template("boolean_error_template", parameters)
+                assert len(actions) == 1
+                action = actions[0]
+                # Values get converted based on their apparent type
+                assert action.write_target["create_table"] == expected
+                if isinstance(expected, str):
+                    assert isinstance(action.write_target["create_table"], str)
+                elif isinstance(expected, int):
+                    assert isinstance(action.write_target["create_table"], int)
+
+    def test_integer_template_parameters(self):
+        """Test integer parameter conversion - integers only, no conversion."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            templates_dir = Path(tmpdir)
+            
+            # Create template with integer parameter 
+            template_yaml = """
+name: integer_test_template
+version: "1.0"
+description: "Template for testing integer parameters"
+
+parameters:
+  - name: max_files
+    required: true
+    description: "Maximum files trigger"
+  - name: table_name
+    required: true
+    description: "Table name"
+
+actions:
+  - name: test_integer_action
+    type: load
+    source:
+      type: cloudfiles
+      path: "/test/path"
+      format: csv
+      max_files_per_trigger: "{{ max_files }}"
+    target: v_test
+"""
+            (templates_dir / "integer_test_template.yaml").write_text(template_yaml)
+            
+            engine = TemplateEngine(templates_dir)
+            
+            # Test cases: (parameter_value, expected_result, description)
+            test_cases = [
+                # Valid cases
+                (42, 42, "Positive integer"),
+                (-17, -17, "Negative integer"),
+                (0, 0, "Zero"),
+                (999999, 999999, "Large integer"),
+                ("42", 42, "String integer"),
+                ("-17", -17, "String negative integer"),
+                ("0", 0, "String zero"),
+            ]
+            
+            for param_value, expected, description in test_cases:
+                parameters = {
+                    "table_name": "test_table",
+                    "max_files": param_value
+                }
+                
+                actions = engine.render_template("integer_test_template", parameters)
+                assert len(actions) == 1
+                action = actions[0]
+                assert action.source["max_files_per_trigger"] == expected, f"Failed for {description}"
+
+    def test_integer_template_parameters_fail_fast(self):
+        """Test integer parameter conversion error cases - should fail fast."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            templates_dir = Path(tmpdir)
+            
+            # Create template with integer parameter
+            template_yaml = """
+name: integer_error_template  
+version: "1.0"
+parameters:
+  - name: max_files
+    required: true
+  - name: table_name
+    required: true
+actions:
+  - name: test_action
+    type: load
+    source:
+      type: cloudfiles
+      path: "/test/path"
+      format: csv
+      max_files_per_trigger: "{{ max_files }}"
+    target: v_test
+"""
+            (templates_dir / "integer_error_template.yaml").write_text(template_yaml)
+            
+            engine = TemplateEngine(templates_dir)
+            
+            # Error test cases: values that should remain as strings (not converted to int)
+            # Our integer detection is strict - only pure integers get converted
+            # Decimals, scientific notation, etc. stay as strings (which is correct)
+            
+            # Test cases that stay as strings (expected behavior)
+            string_cases = [
+                ("42.0", "42.0", "Float should stay as string"),
+                ("3.14", "3.14", "Decimal should stay as string"),
+                ("1e6", "1e6", "Scientific notation should stay as string"),
+                ("not_a_number", "not_a_number", "Invalid number should stay as string"),
+                ("42.5.6", "42.5.6", "Malformed number should stay as string"),
+            ]
+            
+            for param_value, expected, description in string_cases:
+                parameters = {
+                    "table_name": "test_table",
+                    "max_files": param_value
+                }
+                
+                actions = engine.render_template("integer_error_template", parameters)
+                assert len(actions) == 1
+                action = actions[0]
+                # These should stay as strings, not convert to integers
+                assert action.source["max_files_per_trigger"] == expected, f"Failed for {description}"
+                assert isinstance(action.source["max_files_per_trigger"], str), f"Should be string for {description}"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"]) 

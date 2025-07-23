@@ -1,5 +1,7 @@
 """Template context for project initialization."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -20,7 +22,7 @@ class InitTemplateContext:
     bundle_enabled: bool = False
     
     @classmethod
-    def create(cls, project_name: str, bundle_enabled: bool = False, author: str = "") -> "InitTemplateContext":
+    def create(cls, project_name: str, bundle_enabled: bool = False, author: str = "") -> InitTemplateContext:
         """Create a new template context with current timestamp.
         
         Args:
