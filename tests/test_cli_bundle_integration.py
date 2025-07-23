@@ -23,16 +23,13 @@ from lhp.utils.bundle_detection import should_enable_bundle_support
 class TestCLIBundleFlags:
     """Test CLI flag handling for bundle support."""
 
-    def setup_method(self):
-        """Set up test environment for each test."""
-        self.temp_dir = Path(tempfile.mkdtemp())
+    @pytest.fixture(autouse=True)
+    def setup_test_env(self, windows_safe_tempdir):
+        """Set up test environment for each test using Windows-safe temporary directory."""
+        self.temp_dir = windows_safe_tempdir
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
         self.runner = CliRunner()
-
-    def teardown_method(self):
-        """Clean up test environment after each test."""
-        shutil.rmtree(self.temp_dir)
 
     def _create_basic_project(self, with_bundle=False):
         """Create a basic LHP project structure."""
@@ -136,14 +133,11 @@ bundle:
 class TestCLIInitBundleCommand:
     """Test init command with bundle support."""
 
-    def setup_method(self):
-        """Set up test environment for each test."""
-        self.temp_dir = Path(tempfile.mkdtemp())
+    @pytest.fixture(autouse=True)
+    def setup_test_env(self, windows_safe_tempdir):
+        """Set up test environment for each test using Windows-safe temporary directory."""
+        self.temp_dir = windows_safe_tempdir
         self.runner = CliRunner()
-
-    def teardown_method(self):
-        """Clean up test environment after each test."""
-        shutil.rmtree(self.temp_dir)
 
     def test_init_bundle_creates_bundle_structure(self):
         """Should create bundle project structure with --bundle flag."""
@@ -418,19 +412,16 @@ class TestCLIInitBundleCommand:
 class TestCLIGenerateBundleIntegration:
     """Test generate command integration with bundle sync."""
 
-    def setup_method(self):
-        """Set up test environment for each test."""
-        self.temp_dir = Path(tempfile.mkdtemp())
+    @pytest.fixture(autouse=True)
+    def setup_test_env(self, windows_safe_tempdir):
+        """Set up test environment for each test using Windows-safe temporary directory."""
+        self.temp_dir = windows_safe_tempdir
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
         self.runner = CliRunner()
         
         # Create project structure
         self._create_project_with_bundle()
-
-    def teardown_method(self):
-        """Clean up test environment after each test."""
-        shutil.rmtree(self.temp_dir)
 
     def _create_project_with_bundle(self):
         """Create a complete project with bundle support."""
@@ -588,16 +579,13 @@ actions:
 class TestCLIBundleErrorHandling:
     """Test CLI error handling for bundle operations."""
 
-    def setup_method(self):
-        """Set up test environment for each test."""
-        self.temp_dir = Path(tempfile.mkdtemp())
+    @pytest.fixture(autouse=True)
+    def setup_test_env(self, windows_safe_tempdir):
+        """Set up test environment for each test using Windows-safe temporary directory."""
+        self.temp_dir = windows_safe_tempdir
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
         self.runner = CliRunner()
-
-    def teardown_method(self):
-        """Clean up test environment after each test."""
-        shutil.rmtree(self.temp_dir)
 
     def test_generate_handles_missing_bundle_dependencies(self):
         """Should handle missing bundle dependencies gracefully."""
@@ -671,14 +659,11 @@ class TestCLIBundleErrorHandling:
 class TestCLIBundleIntegrationEndToEnd:
     """End-to-end tests for CLI bundle integration."""
 
-    def setup_method(self):
-        """Set up test environment for each test."""
-        self.temp_dir = Path(tempfile.mkdtemp())
+    @pytest.fixture(autouse=True)
+    def setup_test_env(self, windows_safe_tempdir):
+        """Set up test environment for each test using Windows-safe temporary directory."""
+        self.temp_dir = windows_safe_tempdir
         self.runner = CliRunner()
-
-    def teardown_method(self):
-        """Clean up test environment after each test."""
-        shutil.rmtree(self.temp_dir)
 
     def test_complete_bundle_workflow(self):
         """Test complete workflow: init bundle project, add pipeline, generate with bundle sync."""

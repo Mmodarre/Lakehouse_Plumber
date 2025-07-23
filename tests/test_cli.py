@@ -19,10 +19,9 @@ class TestCLI:
         return CliRunner()
     
     @pytest.fixture
-    def temp_project(self):
-        """Create a temporary project directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield Path(tmpdir)
+    def temp_project(self, windows_safe_tempdir):
+        """Create a temporary project directory with Windows-safe cleanup."""
+        return windows_safe_tempdir
     
     def test_cli_version(self, runner):
         """Test version command."""
