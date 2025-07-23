@@ -208,9 +208,8 @@ Option 2 (Legacy - will be deprecated):
 
         did_you_mean = ""
         if suggestions:
-            did_you_mean = (
-                f"\n\nDid you mean: {', '.join([f"'{s}'" for s in suggestions])}?"
-            )
+            suggestion_list = [f"'{s}'" for s in suggestions]
+            did_you_mean = f"\n\nDid you mean: {', '.join(suggestion_list)}?"
 
         valid_list = "\n".join([f"  • {v}" for v in sorted(valid_values)])
 
