@@ -115,8 +115,8 @@ jobs:
     - name: Test basic import and CLI
       run: |
         # Test that the package can be imported without syntax errors
-        python -c "import lhp; print('✓ Package imports successfully')"
+        python -c "import lhp; print('[OK] Package imports successfully')"
         # Test that the CLI command works
         lhp --version || echo "CLI version check failed"
-        lhp --help > /dev/null && echo "✓ CLI help works" || echo "CLI help failed"
+        lhp --help > /dev/null && echo "[OK] CLI help works" || echo "CLI help failed"
       shell: bash
