@@ -1,5 +1,7 @@
 """Configuration validator for LakehousePlumber."""
 
+from __future__ import annotations
+
 import logging
 from typing import List, Dict, Any, Optional, Union, TYPE_CHECKING
 
@@ -323,7 +325,7 @@ class ConfigValidator:
         return errors
 
     def _get_full_table_name(
-        self, write_target: Union[Dict[str, Any], "WriteTarget"]
+        self, write_target: Union[Dict[str, Any], WriteTarget]
     ) -> Optional[str]:
         """Extract the full table name from write target configuration."""
         if isinstance(write_target, dict):
