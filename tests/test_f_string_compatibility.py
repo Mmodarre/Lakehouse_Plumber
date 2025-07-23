@@ -104,4 +104,26 @@ class TestFStringCompatibility:
             
             assert isinstance(error, LHPError)
             # Should complete without syntax errors
-            assert error.title is not None 
+            assert error.title is not None
+
+    def test_validator_f_string_patterns(self):
+        """Test that validator.py f-string patterns work correctly."""
+        from lhp.core.validator import ConfigValidator
+        
+        # Test that ConfigValidator can be instantiated without f-string errors
+        validator = ConfigValidator()
+        assert validator is not None
+        
+        # Test the specific pattern that was causing issues
+        # Simulating the nested f-string pattern that was problematic
+        test_users = [
+            {'flowgroup': 'test_flow', 'action': 'test_action1'},
+            {'flowgroup': 'another_flow', 'action': 'test_action2'}
+        ]
+        
+        # This pattern should work without syntax errors
+        user_list = [f"{u['flowgroup']}.{u['action']}" for u in test_users]
+        result = f"Used by: {', '.join(user_list)}"
+        
+        expected = "Used by: test_flow.test_action1, another_flow.test_action2"
+        assert result == expected 

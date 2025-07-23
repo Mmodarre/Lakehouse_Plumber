@@ -1,5 +1,7 @@
 """Centralized error handling for LakehousePlumber."""
 
+from __future__ import annotations
+
 import logging
 import sys
 from typing import Optional, Dict, Any, List
@@ -65,28 +67,28 @@ class ErrorContext:
         self.file_path: Optional[str] = None
         self.extra: Dict[str, Any] = {}
 
-    def set_pipeline_context(self, pipeline: str, environment: str) -> "ErrorContext":
+    def set_pipeline_context(self, pipeline: str, environment: str) -> ErrorContext:
         """Set pipeline and environment context."""
         self.pipeline = pipeline
         self.environment = environment
         return self
 
-    def set_flowgroup_context(self, flowgroup: str) -> "ErrorContext":
+    def set_flowgroup_context(self, flowgroup: str) -> ErrorContext:
         """Set flowgroup context."""
         self.flowgroup = flowgroup
         return self
 
-    def set_action_context(self, action: str) -> "ErrorContext":
+    def set_action_context(self, action: str) -> ErrorContext:
         """Set action context."""
         self.action = action
         return self
 
-    def set_file_context(self, file_path: str) -> "ErrorContext":
+    def set_file_context(self, file_path: str) -> ErrorContext:
         """Set file context."""
         self.file_path = file_path
         return self
 
-    def add_extra(self, key: str, value: Any) -> "ErrorContext":
+    def add_extra(self, key: str, value: Any) -> ErrorContext:
         """Add extra context information."""
         self.extra[key] = value
         return self
@@ -240,17 +242,17 @@ class ErrorHandler:
 
         return details
 
-    def set_context(self, context: ErrorContext) -> "ErrorHandler":
+    def set_context(self, context: ErrorContext) -> ErrorHandler:
         """Set error context for subsequent operations."""
         self.context = context
         return self
 
-    def with_pipeline_context(self, pipeline: str, environment: str) -> "ErrorHandler":
+    def with_pipeline_context(self, pipeline: str, environment: str) -> ErrorHandler:
         """Create handler with pipeline context."""
         new_context = ErrorContext().set_pipeline_context(pipeline, environment)
         return ErrorHandler(self.verbose).set_context(new_context)
 
-    def with_action_context(self, action: str) -> "ErrorHandler":
+    def with_action_context(self, action: str) -> ErrorHandler:
         """Create handler with action context."""
         new_context = ErrorContext()
         new_context.__dict__.update(self.context.__dict__)

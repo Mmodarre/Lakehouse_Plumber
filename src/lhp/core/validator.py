@@ -241,10 +241,11 @@ class ConfigValidator:
 
             # Rule 1: Each table must have exactly one creator
             if len(creators) == 0:
+                user_list = [f"{u['flowgroup']}.{u['action']}" for u in users]
                 errors.append(
                     f"Table '{table_name}' has no creator. "
                     f"One action must have 'create_table: true'. "
-                    f"Used by: {', '.join(f'{u['flowgroup']}.{u['action']}' for u in users)}"
+                    f"Used by: {', '.join(user_list)}"
                 )
             elif len(creators) > 1:
                 creator_names = [f"{c['flowgroup']}.{c['action']}" for c in creators]
