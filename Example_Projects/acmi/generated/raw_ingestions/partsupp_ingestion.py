@@ -4,7 +4,6 @@
 # FlowGroup: partsupp_ingestion
 
 from pyspark.sql import functions as F
-from pyspark.sql.functions import hash
 import dlt
 
 # Pipeline Configuration
@@ -15,35 +14,21 @@ FLOWGROUP_ID = "partsupp_ingestion"
 # SOURCE VIEWS
 # ============================================================================
 
-# Schema hints for partsupp_cloudfiles table
-partsupp_cloudfiles_schema_hints = """
-    ps_partkey BIGINT,
-    ps_suppkey BIGINT,
-    ps_availqty INT,
-    ps_supplycost DECIMAL(18,2),
-    ps_comment STRING
-""".strip().replace("\n", " ")
-
-
 @dlt.view()
 def v_partsupp_cloudfiles():
-    """Load partsupp JSON files from landing volume"""
+    """Load partsupp Parquet files from landing volume"""
     df = spark.readStream \
         .format("cloudFiles") \
-        .option("cloudFiles.format", "json") \
+        .option("cloudFiles.format", "parquet") \
         .option("cloudFiles.maxFilesPerTrigger", 50) \
         .option("cloudFiles.inferColumnTypes", True) \
         .option("cloudFiles.schemaEvolutionMode", "addNewColumns") \
         .option("cloudFiles.rescuedDataColumn", "_rescued_data") \
-        .option("cloudFiles.schemaHints", partsupp_cloudfiles_schema_hints) \
-        .load("/Volumes/acmi_edw_dev/edw_raw/landing_volume/partsupp/*.json")
+        .load("/Volumes/acmi_edw_dev/edw_raw/landing_volume/partsupp/*.parquet")
 
 
     # Add operational metadata columns
-    df = df.withColumn('_source_file_size', F.col('_metadata.file_size'))
-    df = df.withColumn('_source_file_modification_time', F.col('_metadata.file_modification_time'))
     df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
-    df = df.withColumn('_record_hash', F.xxhash64(*[F.col(c) for c in df.columns]))
 
     return df
 

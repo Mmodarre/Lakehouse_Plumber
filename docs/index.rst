@@ -252,6 +252,7 @@ Next Steps
 
 * :doc:`getting_started` – a hands-on walk-through using the ACMI demo project.
 * :doc:`concepts` – deep-dive into FlowGroups, Actions, presets, templates and more.
+* :doc:`templates_reference` – comprehensive guide to creating and using templates with natural YAML syntax.
 * :doc:`databricks_bundles` – integrate with Databricks Asset Bundles for production deployments.
 * :doc:`cli` – command-line reference.
 
@@ -261,6 +262,7 @@ Next Steps
 
    getting_started
    concepts
+   templates_reference
    databricks_bundles
    actions_reference
    advanced

@@ -540,21 +540,19 @@ actions:
             
             engine = TemplateEngine(templates_dir)
             
-            # Error test cases: (parameter_value, expected_error_substring)
-            error_cases = [
-                ('{invalid syntax here}', "Invalid object template parameter"),
-                ('{key: invalid value}', "Objects must be valid JSON format"),
-            ]
+            # With smart template detection, invalid object strings are now treated as literal strings
+            # This is the expected behavior since template parameters should be properly typed
+            # Real error cases would be things like template syntax errors or missing parameters
             
-            for param_value, expected_error in error_cases:
-                parameters = {
-                    "table_name": "test_table",
-                    "spark_conf": param_value
-                }
-                
-                with pytest.raises(ValueError) as exc_info:
-                    engine.render_template("object_error_template", parameters)
-                assert expected_error in str(exc_info.value), f"Failed for {param_value}"
+            # Test case: string parameter gets rendered as string (no conversion attempted)
+            parameters = {
+                "table_name": "test_table",
+                "spark_conf": '{invalid syntax here}'  # This stays as a string
+            }
+            
+            # This should not raise an error - invalid strings stay as strings
+            actions = engine.render_template("object_error_template", parameters)
+            assert actions[0].write_target["spark_conf"] == '{invalid syntax here}'
 
     def test_boolean_template_parameters(self):
         """Test boolean parameter conversion - strict true/false only."""

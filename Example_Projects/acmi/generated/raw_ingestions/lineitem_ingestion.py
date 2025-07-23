@@ -4,7 +4,6 @@
 # FlowGroup: lineitem_ingestion
 
 from pyspark.sql import functions as F
-from pyspark.sql.functions import hash
 import dlt
 
 # Pipeline Configuration
@@ -38,25 +37,20 @@ lineitem_cloudfiles_schema_hints = """
 
 @dlt.view()
 def v_lineitem_cloudfiles():
-    """Load lineitem CSV files from landing volume"""
+    """Load lineitem JSON files from landing volume"""
     df = spark.readStream \
         .format("cloudFiles") \
-        .option("cloudFiles.format", "csv") \
-        .option("header", True) \
-        .option("delimiter", "|") \
-        .option("cloudFiles.maxFilesPerTrigger", 11) \
-        .option("cloudFiles.inferColumnTypes", False) \
+        .option("cloudFiles.format", "json") \
+        .option("cloudFiles.maxFilesPerTrigger", 50) \
+        .option("cloudFiles.inferColumnTypes", True) \
         .option("cloudFiles.schemaEvolutionMode", "addNewColumns") \
         .option("cloudFiles.rescuedDataColumn", "_rescued_data") \
         .option("cloudFiles.schemaHints", lineitem_cloudfiles_schema_hints) \
-        .load("/Volumes/acmi_edw_dev/edw_raw/landing_volume/lineitem/*.csv")
+        .load("/Volumes/acmi_edw_dev/edw_raw/landing_volume/lineitem/*.json")
 
 
     # Add operational metadata columns
-    df = df.withColumn('_source_file_modification_time', F.col('_metadata.file_modification_time'))
-    df = df.withColumn('_record_hash', F.xxhash64(*[F.col(c) for c in df.columns]))
     df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
-    df = df.withColumn('_source_file_size', F.col('_metadata.file_size'))
 
     return df
 

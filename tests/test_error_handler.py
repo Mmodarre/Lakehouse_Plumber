@@ -47,6 +47,21 @@ class TestErrorHandler:
     
     def test_detect_verbose_mode_default(self):
         """Test verbose mode detection defaults to False."""
+        # Set up logging environment that should detect as non-verbose
+        import logging
+        # Clear any existing handlers
+        root_logger = logging.getLogger()
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+        
+        # Set up logging with WARNING level (non-verbose)
+        logging.basicConfig(level=logging.WARNING, force=True)
+        
+        # Explicitly set handler levels to WARNING to ensure non-verbose detection
+        for handler in root_logger.handlers:
+            if isinstance(handler, logging.StreamHandler):
+                handler.setLevel(logging.WARNING)
+        
         handler = ErrorHandler()
         assert handler.verbose is False
     

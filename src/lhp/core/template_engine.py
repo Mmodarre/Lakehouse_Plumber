@@ -158,51 +158,145 @@ class TemplateEngine:
         return Action(**rendered_dict)
 
     def _render_value(self, value: Any, parameters: Dict[str, Any]) -> Any:
-        """Recursively render values with Jinja2 parameter substitution."""
+        """Recursively render values with smart template detection."""
         if isinstance(value, str):
-            # Render string with Jinja2
-            template = self.jinja_env.from_string(value)
-            rendered = template.render(**parameters)
-            
-            # Try to parse dict/list strings back to objects (for template parameters like table_properties)
-            if rendered.startswith('{') and rendered.endswith('}'):
-                try:
-                    import json
-                    return json.loads(rendered)
-                except (json.JSONDecodeError, ValueError):
-                    # Try Python literal eval for dict format like {'key': 'value'}
-                    try:
-                        import ast
-                        return ast.literal_eval(rendered)
-                    except (ValueError, SyntaxError):
-                        # If neither works, return as string
-                        pass
-            elif rendered.startswith('[') and rendered.endswith(']'):
-                try:
-                    import json
-                    return json.loads(rendered)
-                except (json.JSONDecodeError, ValueError):
-                    # Try Python literal eval for list format like ['item1', 'item2']
-                    try:
-                        import ast
-                        return ast.literal_eval(rendered)
-                    except (ValueError, SyntaxError):
-                        # If neither works, return as string
-                        pass
-            
-            return rendered
-
+            # Only process strings that contain template syntax
+            if "{{" in value and "}}" in value:
+                # Render template expression
+                template = self.jinja_env.from_string(value)
+                rendered = template.render(**parameters)
+                
+                # Convert rendered result to appropriate type
+                return self._convert_template_result(rendered)
+            else:
+                # Pass through non-template strings (substitutions, static values)
+                return value
         elif isinstance(value, dict):
-            # Recursively render dictionary values
             return {k: self._render_value(v, parameters) for k, v in value.items()}
-
         elif isinstance(value, list):
-            # Recursively render list items
             return [self._render_value(item, parameters) for item in value]
-
         else:
-            # Return other types as-is
             return value
+
+    def _convert_template_result(self, rendered: str) -> Any:
+        """Convert rendered string back to appropriate data type with fail-fast error handling.
+        
+        Args:
+            rendered: The rendered string value from template substitution
+            
+        Returns:
+            Converted value with appropriate type
+            
+        Raises:
+            ValueError: If template parameter conversion fails with clear user message
+        """
+        if not rendered:
+            return rendered
+            
+        # Handle None value (Jinja2 converts None to "None" string)
+        if rendered == "None":
+            return None
+            
+        # Handle empty object (Jinja2 converts {} to "{}" string)
+        if rendered == "{}":
+            return {}
+            
+        # Handle empty array (Jinja2 converts [] to "[]" string)  
+        if rendered == "[]":
+            return []
+            
+        # Try array conversion first (JSON format, then Python literal)
+        if rendered.startswith('[') and rendered.endswith(']'):
+            try:
+                import json
+                result = json.loads(rendered)
+                if not isinstance(result, list):
+                    raise ValueError(f"Expected array but got {type(result).__name__}")
+                return result
+            except json.JSONDecodeError:
+                # JSON failed, try Python literal eval (for single quotes)
+                try:
+                    import ast
+                    result = ast.literal_eval(rendered)
+                    if not isinstance(result, list):
+                        raise ValueError(f"Expected array but got {type(result).__name__}")
+                    return result
+                except (ValueError, SyntaxError) as e:
+                    raise ValueError(
+                        f"Invalid array template parameter: '{rendered}'. "
+                        f"Arrays must be valid JSON format like [\"item1\", \"item2\"] "
+                        f"or Python format like ['item1', 'item2']. "
+                        f"Error: {e}"
+                    )
+            except Exception as e:
+                raise ValueError(f"Failed to parse array template parameter: '{rendered}'. Error: {e}")
+        
+        # Try object conversion (JSON format, then Python literal) - but be more selective
+        # Only try to parse as object if it looks like a proper JSON/Python object
+        elif (rendered.startswith('{') and rendered.endswith('}') and 
+              ':' in rendered and 
+              ('"' in rendered or "'" in rendered)):  # Must contain quotes for proper object
+            try:
+                import json
+                result = json.loads(rendered)
+                if not isinstance(result, dict):
+                    raise ValueError(f"Expected object but got {type(result).__name__}")
+                return result
+            except json.JSONDecodeError:
+                # JSON failed, try Python literal eval (for single quotes)
+                try:
+                    import ast
+                    result = ast.literal_eval(rendered)
+                    if not isinstance(result, dict):
+                        raise ValueError(f"Expected object but got {type(result).__name__}")
+                    return result
+                except (ValueError, SyntaxError) as e:
+                    raise ValueError(
+                        f"Invalid object template parameter: '{rendered}'. "
+                        f"Objects must be valid JSON format like {{\"key\": \"value\"}} "
+                        f"or Python format like {{'key': 'value'}}. "
+                        f"Error: {e}"
+                    )
+            except Exception as e:
+                raise ValueError(f"Failed to parse object template parameter: '{rendered}'. Error: {e}")
+        
+        # Try boolean conversion (strict true/false only)
+        elif rendered.lower() in ('true', 'false'):
+            return rendered.lower() == 'true'
+        
+        # Try integer conversion (integers only, no decimals or scientific notation)
+        elif self._is_integer_string(rendered):
+            try:
+                return int(rendered)
+            except (ValueError, OverflowError) as e:
+                raise ValueError(
+                    f"Invalid integer template parameter: '{rendered}'. "
+                    f"Error: {e}"
+                )
+        
+        # Return as string if no conversion needed
+        return rendered
+    
+    def _is_integer_string(self, value: str) -> bool:
+        """Check if string represents a valid integer (no decimals or scientific notation).
+        
+        Args:
+            value: String to check
+            
+        Returns:
+            True if string represents a valid integer
+        """
+        if not value:
+            return False
+            
+        # Handle negative numbers
+        if value.startswith('-'):
+            if len(value) == 1:
+                return False
+            value = value[1:]
+        
+        # Must be all digits (no decimals, no scientific notation)
+        return value.isdigit()
 
     def list_templates(self) -> List[str]:
         """List all available template names."""

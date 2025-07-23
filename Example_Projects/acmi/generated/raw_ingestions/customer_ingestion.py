@@ -4,7 +4,6 @@
 # FlowGroup: customer_ingestion
 
 from pyspark.sql import functions as F
-from pyspark.sql.functions import hash
 import dlt
 
 # Pipeline Configuration
@@ -34,10 +33,10 @@ def v_customer_cloudfiles():
     df = spark.readStream \
         .format("cloudFiles") \
         .option("cloudFiles.format", "csv") \
-        .option("header", True) \
-        .option("delimiter", "|") \
-        .option("cloudFiles.maxFilesPerTrigger", 11) \
-        .option("cloudFiles.inferColumnTypes", False) \
+        .option("header", "True") \
+        .option("delimiter", ",") \
+        .option("cloudFiles.maxFilesPerTrigger", "11") \
+        .option("cloudFiles.inferColumnTypes", "False") \
         .option("cloudFiles.schemaEvolutionMode", "addNewColumns") \
         .option("cloudFiles.rescuedDataColumn", "_rescued_data") \
         .option("cloudFiles.schemaHints", customer_cloudfiles_schema_hints) \
@@ -45,10 +44,8 @@ def v_customer_cloudfiles():
 
 
     # Add operational metadata columns
-    df = df.withColumn('_source_file_modification_time', F.col('_metadata.file_modification_time'))
-    df = df.withColumn('_source_file_size', F.col('_metadata.file_size'))
-    df = df.withColumn('_record_hash', F.xxhash64(*[F.col(c) for c in df.columns]))
     df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
+    df = df.withColumn('_processing_timestamp', F.current_timestamp())
 
     return df
 
@@ -61,7 +58,8 @@ def v_customer_cloudfiles():
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_raw.customer",
     comment="Streaming table: customer",
-    table_properties={"tag1": "hello", "tag2": "world", "PII": "true"})
+    table_properties={"PII": "true"},
+    cluster_by=["c_name"])
 
 
 # Define append flow(s)
