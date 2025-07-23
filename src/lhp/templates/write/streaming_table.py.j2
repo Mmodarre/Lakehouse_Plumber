@@ -42,7 +42,7 @@ def {{ table_name }}():
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
-    {% for col_name, expression in metadata_columns.items() %}
+    {% for col_name, expression in metadata_columns.items()|sort %}
     df = df.withColumn('{{ col_name }}', {{ expression }})
     {% endfor %}
     {% endif %}
@@ -233,7 +233,7 @@ def {{ action_meta.flow_name }}():
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
-    {% for col_name, expression in metadata_columns.items() %}
+    {% for col_name, expression in metadata_columns.items()|sort %}
     df = df.withColumn('{{ col_name }}', {{ expression }})
     {% endfor %}
     {% endif %}
@@ -270,7 +270,7 @@ def {{ flow_name }}{% if source_views|length > 1 %}_{{ loop.index }}{% endif %}(
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
-    {% for col_name, expression in metadata_columns.items() %}
+    {% for col_name, expression in metadata_columns.items()|sort %}
     df = df.withColumn('{{ col_name }}', {{ expression }})
     {% endfor %}
     {% endif %}
