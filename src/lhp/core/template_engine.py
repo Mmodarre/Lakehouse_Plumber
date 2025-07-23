@@ -224,7 +224,7 @@ class TemplateEngine:
                 except (ValueError, SyntaxError) as e:
                     raise ValueError(
                         f"Invalid array template parameter: '{rendered}'. "
-                        f"Arrays must be valid JSON format like [\"item1\", \"item2\"] "
+                        f"Arrays must be valid JSON format like ['item1', 'item2'] "
                         f"or Python format like ['item1', 'item2']. "
                         f"Error: {e}"
                     )
@@ -253,7 +253,7 @@ class TemplateEngine:
                 except (ValueError, SyntaxError) as e:
                     raise ValueError(
                         f"Invalid object template parameter: '{rendered}'. "
-                        f"Objects must be valid JSON format like {{\"key\": \"value\"}} "
+                        f"Objects must be valid JSON format like {{'key': 'value'}} "
                         f"or Python format like {{'key': 'value'}}. "
                         f"Error: {e}"
                     )

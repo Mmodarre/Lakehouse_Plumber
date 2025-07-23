@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from click.testing import CliRunner
 
-from lhp.cli.main import cli
+from lhp.cli.main import cli, cleanup_logging
 
 
 class TestCLIComprehensive:
@@ -129,7 +129,11 @@ actions:
       create_table: true
 """)
             
-            yield project_root
+            try:
+                yield project_root
+            finally:
+                # Clean up logging handlers to prevent Windows file lock issues
+                cleanup_logging()
     
     def test_init_command(self, runner):
         """Test project initialization command."""

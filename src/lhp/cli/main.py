@@ -115,6 +115,19 @@ def configure_logging(verbose: bool, project_root: Optional[Path] = None):
     return log_file
 
 
+def cleanup_logging():
+    """Clean up logging handlers to ensure proper file closure on Windows."""
+    root_logger = logging.getLogger()
+    
+    # Close and remove all handlers
+    for handler in root_logger.handlers[:]:
+        try:
+            handler.close()
+        except Exception:
+            pass  # Ignore errors during cleanup
+        root_logger.removeHandler(handler)
+
+
 @click.group()
 @click.version_option(version=get_version(), prog_name="lhp")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
