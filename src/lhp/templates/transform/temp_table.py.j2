@@ -12,5 +12,12 @@ def {{ target_table }}():
     df = spark.read.table("{{ source_view }}")
     {% endif %}
     {% endif %}
+    {% if add_operational_metadata %}
+    
+    # Add operational metadata columns
+    {% for col_name, expression in metadata_columns.items()|sort %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
+    {% endif %}
 
     return df 

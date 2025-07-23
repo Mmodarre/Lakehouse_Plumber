@@ -33,7 +33,7 @@ class PresetManager:
         return resolved
 
     def _resolve_preset_inheritance(self, preset_name: str) -> Dict[str, Any]:
-        """Resolve preset inheritance (copy from BurrowBuilder pattern logic)."""
+        
         if preset_name not in self.presets:
             return {}
 
@@ -50,7 +50,7 @@ class PresetManager:
     def _deep_merge(
         self, base: Dict[str, Any], override: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Deep merge - copy from BurrowBuilder pattern validator."""
+        
         result = base.copy()
         for key, value in override.items():
             if (

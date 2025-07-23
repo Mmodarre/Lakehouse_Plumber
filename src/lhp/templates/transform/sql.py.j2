@@ -1,4 +1,13 @@
 @dlt.view({% if description %}comment="{{ description }}"{% endif %})
 def {{ target_view }}():
     """{{ description }}"""
-    return spark.sql("""{{ sql_query }}""") 
+    df = spark.sql("""{{ sql_query }}""")
+    {% if add_operational_metadata %}
+    
+    # Add operational metadata columns
+    {% for col_name, expression in metadata_columns.items()|sort %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
+    {% endif %}
+    
+    return df 

@@ -1,4 +1,4 @@
-"""Delta load generator - adapted from BurrowBuilder."""
+"""Delta load generator """
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action

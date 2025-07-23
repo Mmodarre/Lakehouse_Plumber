@@ -11,7 +11,7 @@ from lhp.cli.main import cli, cleanup_logging
 
 
 class TestCLIComprehensive:
-    """Comprehensive CLI tests based on requirements and BurrowBuilder patterns."""
+    """Comprehensive CLI tests"""
     
     @pytest.fixture
     def runner(self):

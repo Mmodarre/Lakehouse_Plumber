@@ -97,11 +97,71 @@ class TestYAMLParserErrorHandling:
             yaml_file = Path(f.name)
         
         try:
-            # Should return empty dict for empty file
+            # Should return None for empty file
             result = parser.parse_file(yaml_file)
-            assert result == {}
+            assert result is None
         finally:
             yaml_file.unlink()
+    
+    def test_parse_flowgroup_basic(self):
+        """Test basic FlowGroup parsing functionality."""
+        parser = YAMLParser()
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml_content = """
+pipeline: test_pipeline
+flowgroup: test_flowgroup
+presets:
+  - bronze_layer
+actions:
+  - name: load_data
+    type: load
+    target: raw_data
+    description: Load raw data
+"""
+            f.write(yaml_content)
+            f.flush()
+            
+            try:
+                flowgroup = parser.parse_flowgroup(Path(f.name))
+                assert flowgroup.pipeline == 'test_pipeline'
+                assert flowgroup.presets == ['bronze_layer']
+                assert len(flowgroup.actions) == 1
+                assert flowgroup.actions[0].name == 'load_data'
+            finally:
+                Path(f.name).unlink()
+    
+    def test_discover_flowgroups_basic(self):
+        """Test discovering multiple flowgroups."""
+        parser = YAMLParser()
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pipelines_dir = Path(temp_dir) / "pipelines"
+            pipelines_dir.mkdir()
+            
+            # Create test flowgroup files
+            (pipelines_dir / "flow1.yaml").write_text("""
+pipeline: pipeline1
+flowgroup: flow1
+actions:
+  - name: action1
+    type: load
+    target: table1
+""")
+            
+            (pipelines_dir / "flow2.yaml").write_text("""
+pipeline: pipeline1
+flowgroup: flow2
+actions:
+  - name: action2
+    type: transform
+    source: table1
+    target: table2
+""")
+            
+            flowgroups = parser.discover_flowgroups(pipelines_dir)
+            assert len(flowgroups) == 2
+            assert {fg.flowgroup for fg in flowgroups} == {'flow1', 'flow2'}
     
     def test_parse_file_success_with_null_yaml(self):
         """Test successful parsing of YAML file with null content."""

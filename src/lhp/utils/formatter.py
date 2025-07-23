@@ -1,7 +1,6 @@
 """Code formatting utilities for LakehousePlumber.
 
 Provides utilities for formatting generated Python code.
-Reused from BurrowBuilder.
 """
 
 import logging

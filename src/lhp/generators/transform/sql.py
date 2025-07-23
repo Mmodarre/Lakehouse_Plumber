@@ -3,6 +3,7 @@
 from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.operational_metadata import OperationalMetadata
 
 
 class SQLTransformGenerator(BaseActionGenerator):
@@ -21,6 +22,35 @@ class SQLTransformGenerator(BaseActionGenerator):
         is_final_target = context.get("is_final_target", False)
         target_table = context.get("target_table")
 
+        # Handle operational metadata
+        flowgroup = context.get("flowgroup")
+        preset_config = context.get("preset_config", {})
+        project_config = context.get("project_config")
+
+        # Initialize operational metadata handler
+        operational_metadata = OperationalMetadata(
+            project_config=(
+                project_config.operational_metadata if project_config else None
+            )
+        )
+
+        # Update context for substitutions
+        if flowgroup:
+            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
+
+        # Resolve metadata selection
+        selection = operational_metadata.resolve_metadata_selection(
+            flowgroup, action, preset_config
+        )
+        metadata_columns = operational_metadata.get_selected_columns(
+            selection or {}, "view"
+        )
+
+        # Get required imports for metadata
+        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
+        for import_stmt in metadata_imports:
+            self.add_import(import_stmt)
+
         template_context = {
             "action_name": action.name,
             "target_view": action.target,
@@ -29,6 +59,8 @@ class SQLTransformGenerator(BaseActionGenerator):
             "is_final_target": is_final_target,
             "target_table": target_table,
             "description": action.description or f"SQL transform: {action.name}",
+            "add_operational_metadata": bool(metadata_columns),
+            "metadata_columns": metadata_columns,
         }
 
         return self.render_template("transform/sql.py.j2", template_context)
