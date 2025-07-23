@@ -711,7 +711,7 @@ class TestSecretCodeGeneratorSyntaxValidation:
     def test_generated_code_compiles_intelligent_quotes(self):
         """Test that generated code with intelligent quote selection compiles."""
         # Create a complete Python statement for compilation
-        input_code = 'spark.read.option(\'query\', f\'SELECT * FROM "users" WHERE id={dbutils.secrets.get(scope=\'dev_secrets\', key=\'user_id\')}\')'
+        input_code = 'spark.read.option(\'query\', f"SELECT * FROM \\"users\\" WHERE id={dbutils.secrets.get(scope=\'dev_secrets\', key=\'user_id\')}")'
         
         # This should compile without syntax errors
         try:
