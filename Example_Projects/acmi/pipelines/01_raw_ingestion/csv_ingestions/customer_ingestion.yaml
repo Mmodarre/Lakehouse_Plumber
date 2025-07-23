@@ -13,6 +13,6 @@ template_parameters:
   table_name: customer
   landing_folder: customer
   table_properties:
-    tag1: hello
-    tag2: world
-    PII: "true"
+    PII: "true" # PII Tag on the table
+  cluster_columns:
+    - c_name

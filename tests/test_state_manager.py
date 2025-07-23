@@ -44,7 +44,7 @@ class TestStateManagerInitialization:
             with open(state_file, 'w') as f:
                 json.dump(state_data, f)
             
-            with caplog.at_level(logging.INFO):
+            with caplog.at_level(logging.INFO, logger="lhp.core.state_manager"):
                 state_manager = StateManager(project_root)
             
             # Verify state was loaded
@@ -132,7 +132,7 @@ class TestStateManagerSaveState:
             # Add some data to state
             state_manager._state.environments["dev"] = {}
             
-            with caplog.at_level(logging.DEBUG):
+            with caplog.at_level(logging.DEBUG, logger="lhp.core.state_manager"):
                 state_manager._save_state()
             
             # Verify state file was created
@@ -216,9 +216,9 @@ class TestStateManagerTrackGeneratedFile:
             generated_file.parent.mkdir(parents=True)
             source_file.parent.mkdir(parents=True)
             generated_file.write_text("# generated code")
-            source_file.write_text("pipeline: test")
+            source_file.write_text("pipeline: test\nflowgroup: test_flowgroup")
             
-            with caplog.at_level(logging.DEBUG):
+            with caplog.at_level(logging.DEBUG, logger="lhp.core.state_manager"):
                 state_manager.track_generated_file(
                     generated_file, source_file, "dev", "test_pipeline", "test_flowgroup"
                 )
@@ -667,7 +667,7 @@ class TestStateManagerCleanupOperations:
             
             state_manager._state.environments["dev"] = {"orphaned.py": file_state}
             
-            with caplog.at_level(logging.INFO):
+            with caplog.at_level(logging.INFO, logger="lhp.core.state_manager"):
                 deleted = state_manager.cleanup_orphaned_files("dev", dry_run=True)
             
             assert deleted == ["orphaned.py"]
@@ -699,7 +699,7 @@ class TestStateManagerCleanupOperations:
             
             state_manager._state.environments["dev"] = {"orphaned.py": file_state}
             
-            with caplog.at_level(logging.INFO):
+            with caplog.at_level(logging.INFO, logger="lhp.core.state_manager"):
                 deleted = state_manager.cleanup_orphaned_files("dev", dry_run=False)
             
             assert deleted == ["orphaned.py"]
@@ -772,7 +772,7 @@ class TestStateManagerCleanupOperations:
             
             state_manager._state.environments["dev"] = {"generated/pipeline1/test.py": file_state}
             
-            with caplog.at_level(logging.INFO):
+            with caplog.at_level(logging.INFO, logger="lhp.core.state_manager"):
                 state_manager._cleanup_empty_directories("dev")
             
             # Empty directory should be removed
@@ -796,7 +796,7 @@ class TestStateManagerCleanupOperations:
             
             # Patch pathlib.Path.rmdir to raise an error
             with patch('pathlib.Path.rmdir', side_effect=OSError("Cannot remove")):
-                with caplog.at_level(logging.DEBUG):
+                with caplog.at_level(logging.DEBUG, logger="lhp.core.state_manager"):
                     state_manager._cleanup_empty_directories("dev")
             
             # Should log debug message about failure

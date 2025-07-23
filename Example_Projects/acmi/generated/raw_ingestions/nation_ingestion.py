@@ -4,7 +4,6 @@
 # FlowGroup: nation_ingestion
 
 from pyspark.sql import functions as F
-from pyspark.sql.functions import hash
 import dlt
 
 # Pipeline Configuration
@@ -15,35 +14,21 @@ FLOWGROUP_ID = "nation_ingestion"
 # SOURCE VIEWS
 # ============================================================================
 
-# Schema hints for nation_cloudfiles table
-nation_cloudfiles_schema_hints = """
-    n_nationkey BIGINT,
-    n_name STRING,
-    n_regionkey BIGINT
-""".strip().replace("\n", " ")
-
-
 @dlt.view()
 def v_nation_cloudfiles():
-    """Load nation CSV files from landing volume"""
+    """Load nation Parquet files from landing volume"""
     df = spark.readStream \
         .format("cloudFiles") \
-        .option("cloudFiles.format", "csv") \
-        .option("header", True) \
-        .option("delimiter", "|") \
-        .option("cloudFiles.maxFilesPerTrigger", 11) \
-        .option("cloudFiles.inferColumnTypes", False) \
+        .option("cloudFiles.format", "parquet") \
+        .option("cloudFiles.maxFilesPerTrigger", 50) \
+        .option("cloudFiles.inferColumnTypes", True) \
         .option("cloudFiles.schemaEvolutionMode", "addNewColumns") \
         .option("cloudFiles.rescuedDataColumn", "_rescued_data") \
-        .option("cloudFiles.schemaHints", nation_cloudfiles_schema_hints) \
-        .load("/Volumes/acmi_edw_dev/edw_raw/landing_volume/nation/*.csv")
+        .load("/Volumes/acmi_edw_dev/edw_raw/landing_volume/nation/*.parquet")
 
 
     # Add operational metadata columns
-    df = df.withColumn('_source_file_modification_time', F.col('_metadata.file_modification_time'))
-    df = df.withColumn('_record_hash', F.xxhash64(*[F.col(c) for c in df.columns]))
     df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
-    df = df.withColumn('_source_file_size', F.col('_metadata.file_size'))
 
     return df
 

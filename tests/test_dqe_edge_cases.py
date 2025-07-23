@@ -221,7 +221,7 @@ class TestDQELoadExpectationsFromFile:
             yaml_file = Path(f.name)
         
         try:
-            with caplog.at_level(logging.INFO):
+            with caplog.at_level(logging.INFO, logger="lhp.utils.dqe"):
                 expectations = parser.load_expectations_from_file(yaml_file)
             
             # Should return list of expectations

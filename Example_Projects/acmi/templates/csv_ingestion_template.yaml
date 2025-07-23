@@ -21,25 +21,33 @@ parameters:
     required: false
     description: "Optional table properties as key-value pairs"
     default: {}
+  - name: cluster_columns
+    required: false
+    description: "Optional Liquid clustering columns"
+    default: []
 
 
 actions:
   - name: load_{{ table_name }}_csv
     type: load
     readMode : "stream"
-    operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time","_record_hash"]
+    # Natural YAML array format (was JSON string)
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
     source:
       type: cloudfiles
       path: "{landing_volume}/{{ landing_folder }}/*.csv"
       format: csv
+      # Natural YAML object format (was JSON string)
       options:
         cloudFiles.format: csv
-        header: True
-        delimiter: "|"
-        cloudFiles.maxFilesPerTrigger: 11
-        cloudFiles.inferColumnTypes: False
-        cloudFiles.schemaEvolutionMode: "addNewColumns"
-        cloudFiles.rescuedDataColumn: "_rescued_data"
+        header: "True"
+        delimiter: ","
+        cloudFiles.maxFilesPerTrigger: "11"
+        cloudFiles.inferColumnTypes: "False"
+        cloudFiles.schemaEvolutionMode: addNewColumns
+        cloudFiles.rescuedDataColumn: _rescued_data
         cloudFiles.schemaHints: "schemas/{{ table_name }}_schema.yaml"
 
     target: v_{{ table_name }}_cloudfiles
@@ -52,5 +60,6 @@ actions:
       type: streaming_table
       database: "{catalog}.{raw_schema}"
       table: "{{ table_name }}"
+      cluster_columns: "{{ cluster_columns }}"
       description: "Write {{ table_name }} to raw layer" 
       table_properties: "{{ table_properties }}"
