@@ -97,9 +97,9 @@ class TestYAMLParserErrorHandling:
             yaml_file = Path(f.name)
         
         try:
-            # Should return None for empty file
+            # Should return empty dict for empty file
             result = parser.parse_file(yaml_file)
-            assert result is None
+            assert result == {}
         finally:
             yaml_file.unlink()
     
