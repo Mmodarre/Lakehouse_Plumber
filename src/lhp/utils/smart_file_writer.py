@@ -1,6 +1,5 @@
 """Smart file writer that only writes files when content changes."""
 
-import hashlib
 import logging
 from pathlib import Path
 from typing import Tuple
@@ -81,20 +80,3 @@ class SmartFileWriter:
             Tuple of (files_written, files_skipped)
         """
         return (self.files_written, self.files_skipped)
-
-    def reset_stats(self):
-        """Reset file writing statistics."""
-        self.files_written = 0
-        self.files_skipped = 0
-
-    def get_content_hash(self, content: str) -> str:
-        """Get hash of normalized content for comparison.
-
-        Args:
-            content: Content to hash
-
-        Returns:
-            SHA256 hash of normalized content
-        """
-        normalized = self._normalize_content(content)
-        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
