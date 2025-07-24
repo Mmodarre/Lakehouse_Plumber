@@ -445,7 +445,7 @@ my_lakehouse_project/
 
 ## VS Code IntelliSense Support
 
-Get powerful auto-completion, validation, and documentation for all YAML files:
+**Automatically configured** when you run `lhp init` - no additional setup required!
 
 ### What You Get
 
@@ -453,6 +453,7 @@ Get powerful auto-completion, validation, and documentation for all YAML files:
 - **Real-time Validation** - Immediate error detection and feedback  
 - **Inline Documentation** - Hover descriptions for every configuration option
 - **Schema Validation** - Ensures correct YAML structure
+- **Always Up-to-date** - Latest schema definitions included with every new project
 
 ### Supported Files
 
@@ -461,6 +462,15 @@ Get powerful auto-completion, validation, and documentation for all YAML files:
 - Presets (`presets/**/*.yaml`)
 - Environment settings (`substitutions/**/*.yaml`)
 - Project configuration (`lhp.yaml`)
+
+### How It Works
+
+When you create a new project, LHP automatically:
+1. Creates `.vscode/settings.json` with schema associations
+2. Copies the latest JSON schema files to `.vscode/schemas/`
+3. Configures YAML validation, completion, and formatting
+
+Simply open your project in VS Code and start editing YAML files!
 
 ### Generated Optimized Code
 

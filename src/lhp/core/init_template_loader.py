@@ -160,6 +160,43 @@ class InitTemplateLoader:
                 basic_files.extend(['bundle/databricks.yml.j2', 'bundle/resources/.gitkeep'])
             return basic_files
     
+    def _copy_latest_schemas(self, project_path: Path):
+        """Copy the latest schema files from lhp.schemas package to .vscode/schemas/."""
+        try:
+            schemas_dir = project_path / ".vscode" / "schemas"
+            schemas_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Schema files to copy
+            schema_files = {
+                "flowgroup.schema.json",
+                "template.schema.json", 
+                "substitution.schema.json",
+                "project.schema.json",
+                "preset.schema.json"
+            }
+            
+            # Copy each schema file from lhp.schemas package
+            package_files = files('lhp.schemas')
+            copied_count = 0
+            
+            for schema_file in schema_files:
+                try:
+                    source_file = package_files / schema_file
+                    target_file = schemas_dir / schema_file
+                    
+                    content = source_file.read_text(encoding='utf-8')
+                    target_file.write_text(content, encoding='utf-8')
+                    copied_count += 1
+                    
+                except Exception as e:
+                    self.logger.warning(f"Failed to copy schema {schema_file}: {e}")
+            
+            self.logger.debug(f"Copied {copied_count} schema files to {schemas_dir}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to copy schemas: {e}")
+            # Don't fail the entire init process for schema copy errors
+    
     def create_project_files(self, project_path: Path, context: InitTemplateContext):
         """Create all project files by rendering templates.
         
@@ -224,5 +261,8 @@ class InitTemplateLoader:
             except Exception as e:
                 self.logger.error(f"Failed to create file from template {template_file}: {e}")
                 raise
+        
+        # Copy latest schemas to .vscode/schemas/
+        self._copy_latest_schemas(project_path)
         
         self.logger.info(f"Successfully created project structure with {len(template_files)} files") 
