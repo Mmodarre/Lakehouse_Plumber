@@ -128,6 +128,22 @@ And our pipeline code becomes this simple **5-line configuration per table**:
 
 **Result:** 4,300 lines of repetitive Python → 250 lines total (1 template + 50 simple configs)
 
+Quick Start
+===========
+
+Get started in 2 minutes:
+
+.. code-block:: bash
+
+   # Install and create project
+   pip install lakehouse-plumber
+   lhp init my_project --bundle
+   cd my_project
+   
+   # VS Code IntelliSense is automatically configured!
+   # Edit YAML files with autocomplete and validation
+
+See :doc:`getting_started` for a complete walkthrough.
 
 Core Workflow
 =============
@@ -155,7 +171,7 @@ Features at a Glance
 * **Data-Quality** – declarative expectations integrated into transforms.
 * **Operational Metadata** – custom audit columns and metadata.
 * **Smart State Management** – regenerate only what changed; cleanup orphaned code. (Terraform-like state management)
-* **IntelliSense** – VS Code schema hints & YAML completion.
+* **IntelliSense** – VS Code schema hints & YAML completion (automatically configured).
 * **Seeding** – seed data from existing tables using Lakeflow native features. 
 
 What is the output of Lakehouse Plumber?

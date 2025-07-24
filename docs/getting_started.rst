@@ -55,6 +55,11 @@ The command creates folders such as ``pipelines/``, ``templates/``,
 ``substitutions/`` and a starter ``lhp.yaml`` project file. It also includes
 example template files with ``.tmpl`` extensions that you can use as starting points.
 
+.. note::
+   **VS Code IntelliSense**: If you use VS Code, IntelliSense with autocomplete, 
+   validation, and documentation is automatically configured! Open any YAML file 
+   to see real-time validation and smart suggestions.
+
 Step 2: Edit the project configuration file
 -------------------------------------------
 

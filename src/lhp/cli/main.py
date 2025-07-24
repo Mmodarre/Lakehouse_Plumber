@@ -152,7 +152,7 @@ def cli(verbose):
     help="Initialize as a Databricks Asset Bundle project",
 )
 def init(project_name, bundle):
-    """Initialize a new LakehousePlumber project"""
+    """Initialize a new LakehousePlumber project with automatic VS Code IntelliSense setup"""
     project_path = Path(project_name)
     if project_path.exists():
         click.echo(f"❌ Directory {project_name} already exists")
@@ -205,6 +205,7 @@ def init(project_name, bundle):
         click.echo(
             "📄 Created example files: presets/bronze_layer.yaml, templates/standard_ingestion.yaml, databricks.yml"
         )
+        click.echo("🔧 VS Code IntelliSense automatically configured for YAML files")
         click.echo("\n🚀 Next steps:")
         click.echo(f"   cd {project_name}")
         click.echo("   # Create your first pipeline")
@@ -217,6 +218,7 @@ def init(project_name, bundle):
         click.echo(
             "📄 Created example files: presets/bronze_layer.yaml, templates/standard_ingestion.yaml"
         )
+        click.echo("🔧 VS Code IntelliSense automatically configured for YAML files")
         click.echo("\n🚀 Next steps:")
         click.echo(f"   cd {project_name}")
         click.echo("   # Create your first pipeline")
@@ -1381,252 +1383,6 @@ def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
     
     StateDisplayUtils.display_new_files_in_summary(new_files, project_root, env, by_pipeline)
     StateDisplayUtils.display_comprehensive_summary(counts, env)
-
-
-@cli.command()
-@click.option("--status", is_flag=True, help="Show current IntelliSense setup status")
-@click.option("--check", is_flag=True, help="Check prerequisites for IntelliSense setup")
-@click.option("--verify", is_flag=True, help="Verify that IntelliSense setup is working correctly")
-@click.option("--cleanup", is_flag=True, help="Remove IntelliSense setup and schema associations")
-@click.option("--force", is_flag=True, help="Force setup even if prerequisites are not met")
-@click.option("--conflicts", is_flag=True, help="Show extension conflict analysis")
-def setup_intellisense(status, check, verify, cleanup, force, conflicts):
-    """Set up VS Code IntelliSense support for Lakehouse Plumber YAML files."""
-    
-    try:
-        from lhp.intellisense.setup import IntelliSenseSetup, IntelliSenseSetupError
-        from rich.console import Console
-        from rich.table import Table
-        from rich.panel import Panel
-        from rich.text import Text
-        
-        console = Console()
-        
-        # Initialize setup
-        setup = IntelliSenseSetup()
-        
-        # Handle status check
-        if status:
-            console.print("\n[bold blue]IntelliSense Setup Status[/bold blue]")
-            console.print("=" * 50)
-            
-            status_info = setup.get_setup_status()
-            
-            # Create status table
-            table = Table(title="Setup Status")
-            table.add_column("Component", style="cyan")
-            table.add_column("Status", style="green")
-            table.add_column("Details")
-            
-            table.add_row(
-                "Setup Detected", 
-                "✓" if status_info["setup_detected"] else "✗", 
-                status_info.get("last_setup_time", "Never")
-            )
-            table.add_row(
-                "Schemas Available", 
-                "✓" if status_info["schemas_available"] else "✗", 
-                f"{status_info['schema_count']} schemas"
-            )
-            table.add_row(
-                "VS Code Configured", 
-                "✓" if status_info["vscode_configured"] else "✗", 
-                f"{status_info['association_count']} associations"
-            )
-            
-            console.print(table)
-            
-            if status_info["issues"]:
-                console.print("\n[bold red]Issues Found:[/bold red]")
-                for issue in status_info["issues"]:
-                    console.print(f"• {issue}")
-            
-            return
-        
-        # Handle prerequisite check
-        if check:
-            console.print("\n[bold blue]Prerequisites Check[/bold blue]")
-            console.print("=" * 50)
-            
-            prereqs = setup.check_prerequisites()
-            
-            # Create prerequisites table
-            table = Table(title="Prerequisites")
-            table.add_column("Requirement", style="cyan")
-            table.add_column("Status", style="green")
-            table.add_column("Details")
-            
-            table.add_row(
-                "VS Code Installed", 
-                "✓" if prereqs["vscode_installed"] else "✗", 
-                "Accessible" if prereqs["vscode_accessible"] else "Not found"
-            )
-            table.add_row(
-                "Schemas Available", 
-                "✓" if prereqs["schemas_available"] else "✗", 
-                "All schemas found" if prereqs["schemas_available"] else "Some schemas missing"
-            )
-            table.add_row(
-                "Settings Writable", 
-                "✓" if prereqs["settings_writable"] else "✗", 
-                "Can modify VS Code settings" if prereqs["settings_writable"] else "Permission denied"
-            )
-            
-            console.print(table)
-            
-            if prereqs["conflicts_detected"]:
-                console.print(f"\n[bold yellow]Warning:[/bold yellow] {len(prereqs['conflict_details'])} potentially conflicting extensions detected")
-            
-            if prereqs["missing_requirements"]:
-                console.print("\n[bold red]Missing Requirements:[/bold red]")
-                for req in prereqs["missing_requirements"]:
-                    console.print(f"• {req}")
-            
-            if prereqs["warnings"]:
-                console.print("\n[bold yellow]Warnings:[/bold yellow]")
-                for warning in prereqs["warnings"]:
-                    console.print(f"• {warning}")
-            
-            return
-        
-        # Handle verification
-        if verify:
-            console.print("\n[bold blue]IntelliSense Verification[/bold blue]")
-            console.print("=" * 50)
-            
-            verification = setup.verify_setup()
-            
-            # Create verification table
-            table = Table(title="Verification Results")
-            table.add_column("Component", style="cyan")
-            table.add_column("Status", style="green")
-            table.add_column("Details")
-            
-            table.add_row(
-                "Schemas Cached", 
-                "✓" if verification["schemas_cached"] else "✗", 
-                "Schemas found in cache" if verification["schemas_cached"] else "No cached schemas"
-            )
-            table.add_row(
-                "VS Code Configured", 
-                "✓" if verification["vscode_configured"] else "✗", 
-                "Settings configured" if verification["vscode_configured"] else "Not configured"
-            )
-            table.add_row(
-                "Associations Active", 
-                "✓" if verification["associations_active"] else "✗", 
-                "Schema associations found" if verification["associations_active"] else "No associations"
-            )
-            table.add_row(
-                "Validation Enabled", 
-                "✓" if verification["validation_enabled"] else "✗", 
-                "YAML validation enabled" if verification["validation_enabled"] else "Validation disabled"
-            )
-            
-            console.print(table)
-            
-            if verification["issues"]:
-                console.print("\n[bold red]Issues Found:[/bold red]")
-                for issue in verification["issues"]:
-                    console.print(f"• {issue}")
-            
-            return
-        
-        # Handle cleanup
-        if cleanup:
-            console.print("\n[bold yellow]Cleaning up IntelliSense setup...[/bold yellow]")
-            
-            if not click.confirm("This will remove all schema associations and cached files. Continue?"):
-                console.print("Cleanup cancelled.")
-                return
-            
-            try:
-                cleanup_results = setup.cleanup_setup()
-                
-                if cleanup_results["success"]:
-                    console.print("\n[bold green]✓ IntelliSense cleanup completed successfully![/bold green]")
-                    console.print(f"• Removed {cleanup_results['associations_removed']} schema associations")
-                    console.print(f"• Removed {cleanup_results['schemas_removed']} cached schemas")
-                    if cleanup_results["cache_cleared"]:
-                        console.print("• Cleared schema cache directory")
-                else:
-                    console.print("\n[bold red]✗ IntelliSense cleanup completed with errors:[/bold red]")
-                    for error in cleanup_results["errors"]:
-                        console.print(f"• {error}")
-                        
-            except IntelliSenseSetupError as e:
-                console.print(f"\n[bold red]✗ Cleanup failed: {str(e)}[/bold red]")
-                
-            return
-        
-        # Handle conflicts report
-        if conflicts:
-            console.print("\n[bold blue]Extension Conflicts Analysis[/bold blue]")
-            console.print("=" * 50)
-            
-            conflict_report = setup.get_conflict_report()
-            console.print(conflict_report)
-            
-            return
-        
-        # Default: Run setup
-        console.print("\n[bold blue]Setting up IntelliSense for Lakehouse Plumber[/bold blue]")
-        console.print("=" * 50)
-        
-        # Check prerequisites first unless forced
-        if not force:
-            prereqs = setup.check_prerequisites()
-            if prereqs["missing_requirements"]:
-                console.print("\n[bold red]Prerequisites not met:[/bold red]")
-                for req in prereqs["missing_requirements"]:
-                    console.print(f"• {req}")
-                console.print("\nUse --force to skip prerequisite checks or --check to see detailed requirements.")
-                return
-        
-        # Run setup
-        console.print("\n[bold green]Running IntelliSense setup...[/bold green]")
-        
-        try:
-            setup_results = setup.run_full_setup(force=force)
-            
-            if setup_results["success"]:
-                console.print("\n[bold green]✓ IntelliSense setup completed successfully![/bold green]")
-                console.print(f"• Copied {setup_results['schemas_copied']} schemas to cache")
-                console.print(f"• Created {setup_results['associations_created']} schema associations")
-                
-                if setup_results["backup_created"]:
-                    console.print("• Created backup of existing VS Code settings")
-                
-                if setup_results["conflicts_detected"]:
-                    console.print("\n[bold yellow]Warning:[/bold yellow] Potentially conflicting extensions detected")
-                    console.print("Use --conflicts to see detailed conflict analysis")
-                
-                if setup_results["warnings"]:
-                    console.print("\n[bold yellow]Warnings:[/bold yellow]")
-                    for warning in setup_results["warnings"]:
-                        console.print(f"• {warning}")
-                
-                # Show next steps
-                console.print("\n[bold cyan]Next Steps:[/bold cyan]")
-                console.print("1. Restart VS Code to apply schema associations")
-                console.print("2. Open a Lakehouse Plumber YAML file to test IntelliSense")
-                console.print("3. Use 'lhp setup-intellisense --verify' to verify setup")
-                
-            else:
-                console.print("\n[bold red]✗ IntelliSense setup failed:[/bold red]")
-                for error in setup_results["errors"]:
-                    console.print(f"• {error}")
-                    
-        except IntelliSenseSetupError as e:
-            console.print(f"\n[bold red]✗ Setup failed: {str(e)}[/bold red]")
-            
-    except ImportError as e:
-        console = Console()
-        console.print(f"[bold red]Error: IntelliSense feature not available: {str(e)}[/bold red]")
-        console.print("Please ensure all required dependencies are installed.")
-    except Exception as e:
-        console = Console()
-        console.print(f"[bold red]Unexpected error: {str(e)}[/bold red]")
 
 
 def _find_project_root() -> Optional[Path]:
