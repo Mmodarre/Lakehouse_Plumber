@@ -154,7 +154,7 @@ LHP will:
 * **Environment Management**: Separate dev/staging/prod configurations  
 * **Version Control**: Track resource changes alongside pipeline code  
 * **CI/CD Integration**: Automated deployments through Databricks CLI  
-* **Resource Cleanup**: Automatic cleanup of deleted pipelines  
+* **Resource Cleanup**: Automatic cleanup of deleted pipelines
 
 **LHP Bundle Integration Flow**
 
@@ -233,8 +233,8 @@ Bundle Resource Synchronization
 
 When bundle support is enabled, LHP automatically:
 
-1. **Scans generated Python files** in the output directory
-2. **Creates/updates resource YAML files** for each pipeline
+1. **Generates resource YAML files** using Jinja2 templates for each pipeline
+2. **Uses glob patterns** to automatically discover all files in pipeline directories
 3. **Removes obsolete resource files** for deleted pipelines
 4. **Maintains environment-specific configurations**
   
@@ -256,42 +256,28 @@ When bundle support is enabled, LHP automatically:
         name: bronze_load_pipeline
         catalog: main
         schema: lhp_${bundle.target}
+        
         libraries:
-          - notebook:
-              path: ../../generated/bronze_load/customer_bronze.py
-          - notebook:
-              path: ../../generated/bronze_load/lineitem_bronze.py
-          - notebook:
-              path: ../../generated/bronze_load/nation_bronze.py
-          - notebook:
-              path: ../../generated/bronze_load/orders_bronze.py
-          - notebook:
-              path: ../../generated/bronze_load/part_bronze.py
-          - notebook:
-              path: ../../generated/bronze_load/partsupp_bronze.py
-          - notebook:
-              path: ../../generated/bronze_load/region_bronze.py
-          - notebook:
-              path: ../../generated/bronze_load/supplier_bronze.py
+          - glob:
+              include: ../../generated/bronze_load/**
+        
+        root_path: ${workspace.file_path}/generated/bronze_load/
+        
         configuration:
           bundle.sourcePath: ${workspace.file_path}/generated
 
 DABs and Lakeflow Declarative Pipelines limitations
 ---------------------------------------------------
 
-  **❗ Why is LHP still using Notebooks as the source for the pipelines?!**
+  **❗ Why does LHP NOT use Notebooks as the source for the pipelines?!**
 
-  * Currently, Databricks Asset Bundles require pipelines to use Notebooks as their source, which is a legacy constraint.
-    To accommodate this, LHP adds ``# Databricks notebook source`` as the first line in each generated Python file.
+  * Lakeflow pipelines now use Python files as their source. Using notebooks as pipeline sources is the legacy approach and is now discouraged.
+  
+  * LHP now uses glob patterns in bundle resource files to automatically discover all Python files in pipeline directories,
+    eliminating the need to list individual notebook paths.
 
-  * When Databricks Asset Bundles support Python files directly, LHP will remove the ``# Databricks notebook source`` comment,
-    and the generated files will be standard Python scripts.
-
-  * Also, Lakeflow Declarative Pipelines(ETL) now allow glob patterns and directories as the location for pipeline source code
-    but the DABs still require Notebooks as the source.
-
-  * Once this limitation is rectified, LHP generated DAB YAMLs will be updated to use glob patterns and directories 
-    as the location for pipeline source code.
+  * This approach provides better maintainability and automatically includes new files added to pipeline directories
+    without requiring resource file updates.
 
 
 CLI Commands & Workflows
@@ -548,9 +534,10 @@ Generated resource files follow this pattern:
 
 Each resource file contains:
 
-* **Jobs configuration**: DLT pipeline as Databricks job
+* **Pipeline configuration**: DLT pipeline settings and metadata
 * **Cluster settings**: Compute configuration for the pipeline
-* **Notebook references**: Paths to generated Python files
+* **Glob patterns**: Automatic discovery of all Python files in pipeline directories
+* **Root path**: Base directory for pipeline execution
 * **Environment variables**: Integration with bundle variables
 
 **Troubleshooting Guide**

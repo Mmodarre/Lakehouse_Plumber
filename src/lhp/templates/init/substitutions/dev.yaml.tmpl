@@ -3,11 +3,14 @@
 
 # TODO: change to the actual catalog, schemas, and landing path
 # TODO: Add any other substitution variables you need here
-catalog: dev_catalog
-bronze_schema: dev_bronze_schema
-silver_schema: dev_silver_schema
-gold_schema: dev_gold_schema
-landing_path: /volumes/catalog/schema/volume_name/landing 
+
+dev:
+  env: dev
+  catalog: dev_catalog
+  bronze_schema: dev_bronze_schema
+  silver_schema: dev_silver_schema
+  gold_schema: dev_gold_schema
+  landing_path: /volumes/catalog/schema/volume_name/landing 
 
 
 # Secret configuration
