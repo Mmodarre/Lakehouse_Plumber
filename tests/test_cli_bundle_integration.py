@@ -384,7 +384,8 @@ class TestCLIInitBundleCommand:
             
             # Verify substitution file content
             dev_subs = yaml.safe_load((project_path / "substitutions" / "dev.yaml").read_text())
-            assert "catalog" in dev_subs  # Should have standard substitution variables
+            assert "dev" in dev_subs  # Should have dev environment section
+            assert "catalog" in dev_subs["dev"]  # Should have standard substitution variables
             
     def test_init_bundle_resources_directory_empty(self):
         """Should create empty resources/lhp directory for bundle resource files."""
