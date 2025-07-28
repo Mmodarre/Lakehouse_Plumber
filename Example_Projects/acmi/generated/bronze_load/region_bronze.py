@@ -33,7 +33,7 @@ def v_region_raw():
 @dlt.view(comment="SQL transform: region_bronze_cleanse")
 def v_region_bronze_cleaned():
     """SQL transform: region_bronze_cleanse"""
-    return spark.sql("""SELECT
+    df = spark.sql("""SELECT
   r_regionkey as region_id,
   r_name as name,
   r_comment as comment,
@@ -43,6 +43,8 @@ def v_region_bronze_cleaned():
   _record_hash,
   _processing_timestamp
 FROM stream(v_region_raw)""")
+
+    return df
 
 
 # ============================================================================

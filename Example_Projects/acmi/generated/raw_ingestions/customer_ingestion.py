@@ -36,16 +36,17 @@ def v_customer_cloudfiles():
         .option("header", "True") \
         .option("delimiter", ",") \
         .option("cloudFiles.maxFilesPerTrigger", "11") \
-        .option("cloudFiles.inferColumnTypes", "False") \
+        .option("cloudFiles.inferColumnTypes", False) \
         .option("cloudFiles.schemaEvolutionMode", "addNewColumns") \
         .option("cloudFiles.rescuedDataColumn", "_rescued_data") \
+        .option("cloudFiles.useManagedFileEvents", True) \
         .option("cloudFiles.schemaHints", customer_cloudfiles_schema_hints) \
         .load("/Volumes/acmi_edw_dev/edw_raw/landing_volume/customer/*.csv")
 
 
     # Add operational metadata columns
-    df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
     df = df.withColumn('_processing_timestamp', F.current_timestamp())
+    df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
 
     return df
 

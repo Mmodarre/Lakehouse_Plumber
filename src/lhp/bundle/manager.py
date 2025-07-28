@@ -11,7 +11,7 @@ from typing import List, Dict, Set, Optional, Union, Any
 import os
 
 from .exceptions import BundleResourceError, YAMLParsingError
-from .yaml_processor import YAMLProcessor
+from ..core.base_generator import BaseActionGenerator
 
 # TEMPORARY import - remove when Databricks fixes limitation
 from .temporary_databricks_headers import add_databricks_notebook_headers
@@ -20,7 +20,7 @@ from .temporary_databricks_headers import add_databricks_notebook_headers
 logger = logging.getLogger(__name__)
 
 
-class BundleManager:
+class BundleManager(BaseActionGenerator):
     """
     Manages Databricks Asset Bundle resource files for LHP.
     
@@ -39,6 +39,9 @@ class BundleManager:
         Raises:
             TypeError: If project_root is None
         """
+        # Initialize parent class for Jinja2 template support
+        super().__init__()
+        
         if project_root is None:
             raise TypeError("project_root cannot be None")
             
@@ -49,7 +52,13 @@ class BundleManager:
         self.project_root = project_root
         self.resources_dir = project_root / "resources" / "lhp"
         self.logger = logging.getLogger(__name__)
-        self.yaml_processor = YAMLProcessor()
+
+    def generate(self, action, context: Dict[str, Any]) -> str:
+        """
+        Required implementation for BaseActionGenerator.
+        BundleManager uses template rendering for bundle resources, not actions.
+        """
+        raise NotImplementedError("BundleManager uses render_template() for bundle resources, not generate()")
 
     def sync_resources_with_generated_files(self, output_dir: Path, env: str):
         """
@@ -104,19 +113,21 @@ class BundleManager:
                 self.logger.error(error_msg)
                 raise BundleResourceError(error_msg, e)
         
-        # Step 2: Remove resource files for pipeline directories that no longer exist
-        for resource_file_info in existing_resource_files:
+        # Step 2: Backup resource files for pipeline directories that no longer exist
+        # Check ALL files in resources/lhp, not just LHP-generated ones
+        all_resource_files = self._get_all_resource_files_in_lhp_directory()
+        for resource_file_info in all_resource_files:
             pipeline_name = resource_file_info["pipeline_name"]
             resource_file = resource_file_info["path"]
             
             if pipeline_name not in current_pipeline_names:
                 try:
-                    self._remove_resource_file(resource_file, pipeline_name)
+                    self._backup_resource_file(resource_file, pipeline_name)
                     removed_count += 1
-                    self.logger.debug(f"Successfully removed resource file for deleted pipeline: {pipeline_name}")
+                    self.logger.debug(f"Successfully backed up resource file for deleted pipeline: {pipeline_name}")
                     
                 except Exception as e:
-                    self.logger.warning(f"Failed to remove resource file {resource_file}: {e}")
+                    self.logger.warning(f"Failed to backup resource file {resource_file}: {e}")
         
         # Log summary
         if updated_count > 0 or removed_count > 0:
@@ -143,7 +154,7 @@ class BundleManager:
 
     def _sync_pipeline_resource(self, pipeline_name: str, pipeline_dir: Path, env: str) -> bool:
         """
-        Sync a single pipeline resource file. Returns True if updated.
+        Sync a single pipeline resource file using create-once model.
         
         Args:
             pipeline_name: Name of the pipeline
@@ -151,19 +162,36 @@ class BundleManager:
             env: Environment name
             
         Returns:
-            True if resource file was updated, False if no changes needed
+            True if resource file was created or updated, False if no changes needed
         """
-        resource_file = self._get_resource_file_path(pipeline_name)
+        # Handle multiple files scenario (E2): Find ALL files for this pipeline
+        related_files = self._find_all_resource_files_for_pipeline(pipeline_name)
         
-        # Get actual generated files
-        actual_notebook_paths = self._get_notebook_paths_for_pipeline(pipeline_dir)
-        
-        if resource_file.exists():
-            # Update existing resource file
-            return self._update_existing_resource_file(resource_file, actual_notebook_paths)
+        if related_files:
+            # Check if we have any LHP-managed files
+            lhp_files = [f for f in related_files if self._is_lhp_generated_file(f)]
+            non_lhp_files = [f for f in related_files if not self._is_lhp_generated_file(f)]
+            
+            # Backup all non-LHP files
+            for non_lhp_file in non_lhp_files:
+                self._backup_single_file(non_lhp_file, pipeline_name)
+            
+            if lhp_files:
+                # Backup any extra LHP files, keep primary for replacement
+                primary_file = lhp_files[0]
+                for extra_file in lhp_files[1:]:
+                    self._backup_single_file(extra_file, pipeline_name)
+                
+                # Always recreate the resource file with current template
+                self._backup_and_recreate_resource_file(primary_file, pipeline_name, env)
+                return True
+            else:
+                # All files were non-LHP, create new
+                self._create_new_resource_file(pipeline_name, env)
+                return True
         else:
             # Create new resource file
-            self._create_new_resource_file(pipeline_name, actual_notebook_paths, env)
+            self._create_new_resource_file(pipeline_name, env)
             return True
 
     def _ensure_resources_directory(self):
@@ -206,33 +234,7 @@ class BundleManager:
         except (OSError, PermissionError) as e:
             raise BundleResourceError(f"Error scanning output directory {output_dir}: {e}", e)
 
-    def _get_notebook_paths_for_pipeline(self, pipeline_dir: Path) -> List[str]:
-        """
-        Get list of notebook paths for a pipeline directory.
-        
-        Args:
-            pipeline_dir: Pipeline directory to scan
-            
-        Returns:
-            List of relative notebook paths for bundle configuration
-        """
-        try:
-            notebook_paths = []
-            
-            # Only look for .py files in the root of the pipeline directory
-            for py_file in pipeline_dir.glob("*.py"):
-                if py_file.is_file():
-                    # Convert to relative path for bundle configuration
-                    # Using ../../generated/ since we're now in resources/lhp/ subdirectory
-                    relative_path = f"../../generated/{pipeline_dir.name}/{py_file.name}"
-                    notebook_paths.append(relative_path)
-                    self.logger.debug(f"Found notebook: {relative_path}")
-            
-            return sorted(notebook_paths)  # Sort for consistent ordering
-            
-        except (OSError, PermissionError) as e:
-            self.logger.warning(f"Error scanning pipeline directory {pipeline_dir}: {e}")
-            return []
+
 
     def _get_resource_file_path(self, pipeline_name: str) -> Path:
         """
@@ -263,57 +265,23 @@ class BundleManager:
         # If neither exists, return preferred format for new file creation
         return preferred_path
 
-    def _update_existing_resource_file(self, resource_file: Path, notebook_paths: List[str]) -> bool:
-        """
-        Update existing resource file. Returns True if changes were made.
-        
-        Args:
-            resource_file: Path to the existing resource file
-            notebook_paths: List of current notebook paths
-            
-        Returns:
-            True if file was updated, False if no changes needed
-            
-        Raises:
-            BundleResourceError: If YAML processing fails
-        """
-        try:
-            # Extract current notebook paths from the resource file
-            existing_notebook_paths = self.yaml_processor.extract_notebook_paths(resource_file)
-            
-            # Compare and determine what needs to be updated
-            to_add, to_remove = self.yaml_processor.compare_notebook_paths(
-                existing_notebook_paths, notebook_paths
-            )
-            
-            # If no changes needed, return False
-            if not to_add and not to_remove:
-                self.logger.debug(f"No changes needed for resource file: {resource_file}")
-                return False
-            
-            # Update the resource file
-            self.yaml_processor.update_resource_file_libraries(resource_file, to_add, to_remove)
-            
-            self.logger.info(f"Updated resource file: {resource_file} (added: {len(to_add)}, removed: {len(to_remove)})")
-            return True
-            
-        except YAMLParsingError as e:
-            # Re-raise YAML errors as bundle resource errors with context
-            raise BundleResourceError(f"Failed to update resource file {resource_file}: {e}", e)
 
-    def _create_new_resource_file(self, pipeline_name: str, notebook_paths: List[str], env: str):
+
+    def _create_new_resource_file(self, pipeline_name: str, env: str):
         """
         Create new resource file for a pipeline.
         
         Args:
             pipeline_name: Name of the pipeline
-            notebook_paths: List of notebook paths to include
             env: Environment name for template processing
         """
+        # Ensure resources directory exists
+        self._ensure_resources_directory()
+        
         resource_file = self._get_resource_file_path(pipeline_name)
         
         # Generate basic resource file content
-        content = self._generate_resource_file_content(pipeline_name, notebook_paths)
+        content = self._generate_resource_file_content(pipeline_name)
         
         try:
             resource_file.write_text(content, encoding='utf-8')
@@ -322,36 +290,54 @@ class BundleManager:
         except (OSError, PermissionError) as e:
             raise BundleResourceError(f"Failed to create resource file {resource_file}: {e}", e)
 
-    def _generate_resource_file_content(self, pipeline_name: str, notebook_paths: List[str]) -> str:
+    def _backup_and_recreate_resource_file(self, resource_file: Path, pipeline_name: str, env: str):
         """
-        Generate content for a bundle resource file.
+        Backup existing resource file and create new LHP-managed file.
+        
+        Args:
+            resource_file: Path to existing resource file
+            pipeline_name: Name of the pipeline
+            env: Environment name for template processing
+            
+        Raises:
+            BundleResourceError: If backup or creation fails
+        """
+        try:
+            # Create backup with .bkup extension
+            backup_file = resource_file.with_suffix(resource_file.suffix + '.bkup')
+            
+            # If backup already exists, find a unique name
+            counter = 1
+            original_backup = backup_file
+            while backup_file.exists():
+                backup_file = original_backup.with_suffix(f'.bkup.{counter}')
+                counter += 1
+            
+            # Move original to backup
+            resource_file.rename(backup_file)
+            self.logger.info(f"📦 Backed up existing file: {resource_file.name} → {backup_file.name}")
+            
+            # Create new LHP-managed file
+            self._create_new_resource_file(pipeline_name, env)
+            
+        except (OSError, PermissionError) as e:
+            raise BundleResourceError(f"Failed to backup and recreate resource file {resource_file}: {e}", e)
+
+    def _generate_resource_file_content(self, pipeline_name: str) -> str:
+        """
+        Generate content for a bundle resource file using Jinja2 template.
         
         Args:
             pipeline_name: Name of the pipeline
-            notebook_paths: List of notebook paths to include
             
         Returns:
             YAML content for the resource file
         """
-        # Generate libraries section
-        libraries_section = ""
-        for notebook_path in notebook_paths:
-            libraries_section += f"        - notebook:\n            path: {notebook_path}\n"
+        context = {
+            "pipeline_name": pipeline_name
+        }
         
-        # Generate complete resource file content
-        content = f"""# Generated by LakehousePlumber - Bundle Resource for {pipeline_name}
-resources:
-  pipelines:
-    {pipeline_name}_pipeline:
-      name: {pipeline_name}_pipeline
-      catalog: main
-      schema: lhp_${{bundle.target}}
-      libraries:
-{libraries_section}      configuration:
-        bundle.sourcePath: ${{workspace.file_path}}/generated
-"""
-        
-        return content
+        return self.render_template("bundle/pipeline_resource.yml.j2", context)
 
     def _get_existing_resource_files(self) -> List[Dict[str, Any]]:
         """
@@ -459,4 +445,151 @@ resources:
                 
         except (OSError, PermissionError, UnicodeDecodeError) as e:
             self.logger.debug(f"Could not read file {resource_file} for LHP detection: {e}")
-            return False 
+            return False
+
+    def _get_all_resource_files_in_lhp_directory(self) -> List[Dict[str, Any]]:
+        """
+        Get ALL resource files in the resources/lhp directory, regardless of headers.
+        
+        Returns:
+            List of dictionaries with 'path' and 'pipeline_name' keys
+        """
+        resource_files = []
+        
+        if not self.resources_dir.exists():
+            return resource_files
+            
+        try:
+            # Look for ALL pipeline resource files (.pipeline.yml and .yml)
+            for resource_file in self.resources_dir.glob("*.yml"):
+                # Extract pipeline name from filename (not header check)
+                pipeline_name = self._extract_pipeline_name_from_filename(resource_file)
+                if pipeline_name:
+                    resource_files.append({
+                        "path": resource_file,
+                        "pipeline_name": pipeline_name
+                    })
+                    self.logger.debug(f"Found resource file: {resource_file.name} for pipeline: {pipeline_name}")
+            
+            return resource_files
+            
+        except (OSError, PermissionError) as e:
+            self.logger.warning(f"Error scanning resources directory {self.resources_dir}: {e}")
+            return []
+
+    def _extract_pipeline_name_from_filename(self, resource_file: Path) -> Optional[str]:
+        """
+        Extract pipeline name from resource file name (regardless of header).
+        
+        Args:
+            resource_file: Path to the resource file
+            
+        Returns:
+            Pipeline name extracted from filename, or None if not a pipeline file
+        """
+        file_name = resource_file.name
+        
+        # Handle .pipeline.yml format
+        if file_name.endswith(".pipeline.yml"):
+            return file_name[:-13]  # Remove ".pipeline.yml"
+        
+        # Handle .yml format  
+        elif file_name.endswith(".yml"):
+            return file_name[:-4]   # Remove ".yml"
+        
+        return None
+
+    def _backup_resource_file(self, resource_file: Path, pipeline_name: str):
+        """
+        Backup a resource file for a pipeline that no longer exists.
+        
+        Args:
+            resource_file: Path to the resource file to backup
+            pipeline_name: Name of the pipeline (for logging)
+            
+        Raises:
+            BundleResourceError: If file backup fails
+        """
+        try:
+            if resource_file.exists():
+                # Create backup with .bkup extension
+                backup_file = resource_file.with_suffix(resource_file.suffix + '.bkup')
+                
+                # If backup already exists, find a unique name
+                counter = 1
+                original_backup = backup_file
+                while backup_file.exists():
+                    backup_file = original_backup.with_suffix(f'.bkup.{counter}')
+                    counter += 1
+                
+                # Move original to backup
+                resource_file.rename(backup_file)
+                self.logger.info(f"📦 Backed up resource file: {resource_file.name} → {backup_file.name} (pipeline '{pipeline_name}' no longer exists)")
+            else:
+                self.logger.debug(f"Resource file already removed: {resource_file}")
+                
+        except (OSError, PermissionError) as e:
+            raise BundleResourceError(f"Failed to backup resource file {resource_file}: {e}", e)
+
+    def _find_all_resource_files_for_pipeline(self, pipeline_name: str) -> List[Path]:
+        """
+        Find all resource files that might be related to a pipeline.
+        
+        Args:
+            pipeline_name: Name of the pipeline to search for
+            
+        Returns:
+            List of Path objects for all related resource files
+        """
+        related_files = []
+        
+        if not self.resources_dir.exists():
+            return related_files
+        
+        try:
+            # Look for standard naming patterns
+            patterns = [
+                f"{pipeline_name}.pipeline.yml",
+                f"{pipeline_name}.yml",
+                f"{pipeline_name}_*.pipeline.yml",  # Custom suffixes
+                f"{pipeline_name}_*.yml"
+            ]
+            
+            for pattern in patterns:
+                for file_path in self.resources_dir.glob(pattern):
+                    if file_path.is_file() and file_path not in related_files:
+                        related_files.append(file_path)
+                        self.logger.debug(f"Found related file for pipeline '{pipeline_name}': {file_path.name}")
+            
+            return related_files
+            
+        except (OSError, PermissionError) as e:
+            self.logger.warning(f"Error finding resource files for pipeline '{pipeline_name}': {e}")
+            return []
+
+    def _backup_single_file(self, resource_file: Path, pipeline_name: str):
+        """
+        Backup a single resource file.
+        
+        Args:
+            resource_file: Path to the resource file to backup
+            pipeline_name: Name of the pipeline (for logging)
+        """
+        try:
+            if resource_file.exists():
+                # Create backup with .bkup extension
+                backup_file = resource_file.with_suffix(resource_file.suffix + '.bkup')
+                
+                # If backup already exists, find a unique name
+                counter = 1
+                original_backup = backup_file
+                while backup_file.exists():
+                    backup_file = original_backup.with_suffix(f'.bkup.{counter}')
+                    counter += 1
+                
+                # Move original to backup
+                resource_file.rename(backup_file)
+                self.logger.info(f"📦 Backed up file: {resource_file.name} → {backup_file.name}")
+            
+        except (OSError, PermissionError) as e:
+            self.logger.warning(f"Failed to backup file {resource_file}: {e}") 

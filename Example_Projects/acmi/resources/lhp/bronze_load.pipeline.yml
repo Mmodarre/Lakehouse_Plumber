@@ -5,22 +5,12 @@ resources:
       name: bronze_load_pipeline
       catalog: main
       schema: lhp_${bundle.target}
+      
       libraries:
-        - notebook:
-            path: ../../generated/bronze_load/customer_bronze.py
-        - notebook:
-            path: ../../generated/bronze_load/lineitem_bronze.py
-        - notebook:
-            path: ../../generated/bronze_load/nation_bronze.py
-        - notebook:
-            path: ../../generated/bronze_load/orders_bronze.py
-        - notebook:
-            path: ../../generated/bronze_load/part_bronze.py
-        - notebook:
-            path: ../../generated/bronze_load/partsupp_bronze.py
-        - notebook:
-            path: ../../generated/bronze_load/region_bronze.py
-        - notebook:
-            path: ../../generated/bronze_load/supplier_bronze.py
+        - glob:
+            include: ../../generated/bronze_load/**
+      
+      root_path: ${workspace.file_path}/generated/bronze_load/
+      
       configuration:
-        bundle.sourcePath: ${workspace.file_path}/generated
+        bundle.sourcePath: ${workspace.file_path}/generated 

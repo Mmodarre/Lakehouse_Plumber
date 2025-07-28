@@ -34,223 +34,23 @@ class TestYAMLProcessor:
         assert hasattr(self.processor, 'logger')
         assert self.processor.logger.name == 'lhp.bundle.yaml_processor'
 
-    def test_extract_notebook_paths_valid_yaml(self):
-        """Should extract notebook paths from well-formed resource YAML."""
-        yaml_content = """
-resources:
-  pipelines:
-    test_pipeline:
-      name: test_pipeline
-      catalog: main
-      schema: test_schema
-      libraries:
-        - notebook:
-            path: ../generated/raw_ingestions/customer.py
-        - notebook:
-            path: ../generated/raw_ingestions/orders.py
-        - notebook:
-            path: ../generated/raw_ingestions/products.py
-      configuration:
-        bundle.sourcePath: ${workspace.file_path}/generated
-"""
-        
-        yaml_file = self.temp_dir / "test_resource.yml"
-        yaml_file.write_text(yaml_content)
-        
-        notebook_paths = self.processor.extract_notebook_paths(yaml_file)
-        
-        expected_paths = [
-            "../generated/raw_ingestions/customer.py",
-            "../generated/raw_ingestions/orders.py", 
-            "../generated/raw_ingestions/products.py"
-        ]
-        
-        assert sorted(notebook_paths) == sorted(expected_paths)
 
-    def test_extract_notebook_paths_malformed_yaml(self):
-        """Should raise appropriate exception for malformed YAML."""
-        malformed_yaml = """
-resources:
-  pipelines:
-    test_pipeline:
-      name: test_pipeline
-      catalog: main
-      libraries:
-        - notebook:
-            path: ../generated/test.py
-      invalid: yaml: structure:
-        - malformed
-"""
-        
-        yaml_file = self.temp_dir / "malformed.yml"
-        yaml_file.write_text(malformed_yaml)
-        
-        with pytest.raises(YAMLParsingError) as exc_info:
-            self.processor.extract_notebook_paths(yaml_file)
-        
-        assert "malformed.yml" in str(exc_info.value)
-        assert "YAML processing error" in str(exc_info.value)
 
-    def test_extract_notebook_paths_missing_structure(self):
-        """Should handle missing keys (resources, pipelines, libraries)."""
-        # Missing resources key
-        yaml_content = """
-pipelines:
-  test_pipeline:
-    libraries:
-      - notebook:
-          path: ../generated/test.py
-"""
-        
-        yaml_file = self.temp_dir / "missing_resources.yml"
-        yaml_file.write_text(yaml_content)
-        
-        with pytest.raises(YAMLParsingError) as exc_info:
-            self.processor.extract_notebook_paths(yaml_file)
-        
-        assert "Missing 'resources' key" in str(exc_info.value)
 
-    def test_extract_notebook_paths_missing_pipelines(self):
-        """Should handle missing pipelines key."""
-        yaml_content = """
-resources:
-  not_pipelines:
-    test_pipeline:
-      libraries:
-        - notebook:
-            path: ../generated/test.py
-"""
-        
-        yaml_file = self.temp_dir / "missing_pipelines.yml"
-        yaml_file.write_text(yaml_content)
-        
-        with pytest.raises(YAMLParsingError) as exc_info:
-            self.processor.extract_notebook_paths(yaml_file)
-        
-        assert "Missing 'resources.pipelines' key" in str(exc_info.value)
 
-    def test_extract_notebook_paths_empty_libraries(self):
-        """Should handle empty libraries section."""
-        yaml_content = """
-resources:
-  pipelines:
-    test_pipeline:
-      name: test_pipeline
-      catalog: main
-      libraries: []
-"""
-        
-        yaml_file = self.temp_dir / "empty_libraries.yml"
-        yaml_file.write_text(yaml_content)
-        
-        notebook_paths = self.processor.extract_notebook_paths(yaml_file)
-        
-        assert notebook_paths == []
 
-    def test_extract_notebook_paths_missing_libraries(self):
-        """Should handle missing libraries section."""
-        yaml_content = """
-resources:
-  pipelines:
-    test_pipeline:
-      name: test_pipeline
-      catalog: main
-      schema: test_schema
-"""
-        
-        yaml_file = self.temp_dir / "missing_libraries.yml"
-        yaml_file.write_text(yaml_content)
-        
-        notebook_paths = self.processor.extract_notebook_paths(yaml_file)
-        
-        assert notebook_paths == []
 
-    def test_extract_notebook_paths_mixed_library_types(self):
-        """Should extract only notebook entries, ignore jar/pypi libraries."""
-        yaml_content = """
-resources:
-  pipelines:
-    test_pipeline:
-      libraries:
-        - notebook:
-            path: ../generated/raw_ingestions/customer.py
-        - jar: /path/to/some.jar
-        - pypi:
-            package: pandas==1.5.0
-        - notebook:
-            path: ../generated/raw_ingestions/orders.py
-        - maven:
-            coordinates: org.apache.spark:spark-sql_2.12:3.3.0
-"""
-        
-        yaml_file = self.temp_dir / "mixed_libraries.yml"
-        yaml_file.write_text(yaml_content)
-        
-        notebook_paths = self.processor.extract_notebook_paths(yaml_file)
-        
-        expected_paths = [
-            "../generated/raw_ingestions/customer.py",
-            "../generated/raw_ingestions/orders.py"
-        ]
-        
-        assert sorted(notebook_paths) == sorted(expected_paths)
 
-    def test_extract_notebook_paths_multiple_pipelines(self):
-        """Should handle multiple pipeline definitions and use first one."""
-        yaml_content = """
-resources:
-  pipelines:
-    first_pipeline:
-      libraries:
-        - notebook:
-            path: ../generated/first/test1.py
-        - notebook:
-            path: ../generated/first/test2.py
-    second_pipeline:
-      libraries:
-        - notebook:
-            path: ../generated/second/test3.py
-"""
-        
-        yaml_file = self.temp_dir / "multiple_pipelines.yml"
-        yaml_file.write_text(yaml_content)
-        
-        notebook_paths = self.processor.extract_notebook_paths(yaml_file)
-        
-        # Should return paths from first pipeline only
-        expected_paths = [
-            "../generated/first/test1.py",
-            "../generated/first/test2.py"
-        ]
-        
-        assert sorted(notebook_paths) == sorted(expected_paths)
 
-    def test_extract_notebook_paths_complex_notebook_structure(self):
-        """Should handle complex notebook library structures."""
-        yaml_content = """
-resources:
-  pipelines:
-    test_pipeline:
-      libraries:
-        - notebook:
-            path: ../generated/raw_ingestions/customer.py
-            # Comments should be preserved
-        - notebook:
-            path: ../generated/raw_ingestions/orders.py
-            additional_config: some_value
-"""
-        
-        yaml_file = self.temp_dir / "complex_structure.yml"
-        yaml_file.write_text(yaml_content)
-        
-        notebook_paths = self.processor.extract_notebook_paths(yaml_file)
-        
-        expected_paths = [
-            "../generated/raw_ingestions/customer.py",
-            "../generated/raw_ingestions/orders.py"
-        ]
-        
-        assert sorted(notebook_paths) == sorted(expected_paths)
+
+
+
+
+
+
+
+
+
 
     def test_update_resource_file_libraries_add_notebooks(self):
         """Should correctly add new notebook entries while preserving other content."""

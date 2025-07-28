@@ -45,9 +45,10 @@ actions:
         header: "True"
         delimiter: ","
         cloudFiles.maxFilesPerTrigger: "11"
-        cloudFiles.inferColumnTypes: "False"
+        cloudFiles.inferColumnTypes: False
         cloudFiles.schemaEvolutionMode: addNewColumns
         cloudFiles.rescuedDataColumn: _rescued_data
+        cloudFiles.useManagedFileEvents: True
         cloudFiles.schemaHints: "schemas/{{ table_name }}_schema.yaml"
 
     target: v_{{ table_name }}_cloudfiles

@@ -5,20 +5,12 @@ resources:
       name: gold_load_pipeline
       catalog: main
       schema: lhp_${bundle.target}
+      
       libraries:
-        - notebook:
-            path: ../../generated/gold_load/customer_lifetime_value.py
-        - notebook:
-            path: ../../generated/gold_load/customer_segmentation_mv.py
-        - notebook:
-            path: ../../generated/gold_load/executive_dashboard_mv.py
-        - notebook:
-            path: ../../generated/gold_load/product_performance_mv.py
-        - notebook:
-            path: ../../generated/gold_load/revenue_by_region_mv.py
-        - notebook:
-            path: ../../generated/gold_load/sales_summary_daily_mv.py
-        - notebook:
-            path: ../../generated/gold_load/sales_summary_monthly_mv.py
+        - glob:
+            include: ../../generated/gold_load/**
+      
+      root_path: ${workspace.file_path}/generated/gold_load/
+      
       configuration:
-        bundle.sourcePath: ${workspace.file_path}/generated
+        bundle.sourcePath: ${workspace.file_path}/generated 

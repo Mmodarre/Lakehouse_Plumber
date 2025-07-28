@@ -33,7 +33,7 @@ def v_partsupp_raw():
 @dlt.view(comment="SQL transform: partsupp_bronze_cleanse")
 def v_partsupp_bronze_cleaned():
     """SQL transform: partsupp_bronze_cleanse"""
-    return spark.sql("""SELECT
+    df = spark.sql("""SELECT
   ps_partkey as part_id,
   ps_suppkey as supplier_id,
   ps_availqty as available_quantity,
@@ -45,6 +45,8 @@ def v_partsupp_bronze_cleaned():
   _record_hash,
   _processing_timestamp
 FROM stream(v_partsupp_raw)""")
+
+    return df
 
 
 # ============================================================================

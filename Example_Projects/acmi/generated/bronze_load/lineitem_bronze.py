@@ -33,7 +33,7 @@ def v_lineitem_raw():
 @dlt.view(comment="SQL transform: lineitem_bronze_cleanse")
 def v_lineitem_bronze_cleaned():
     """SQL transform: lineitem_bronze_cleanse"""
-    return spark.sql("""SELECT
+    df = spark.sql("""SELECT
   l_orderkey as order_id,
   l_partkey as part_id,
   l_suppkey as supplier_id,
@@ -56,6 +56,8 @@ def v_lineitem_bronze_cleaned():
   _record_hash,
   _processing_timestamp
 FROM stream(v_lineitem_raw)""")
+
+    return df
 
 @dlt.view()
 # These expectations will fail the pipeline if violated

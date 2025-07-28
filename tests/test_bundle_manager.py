@@ -127,58 +127,11 @@ class TestBundleManagerCore:
         
         assert "Output directory does not exist" in str(exc_info.value)
 
-    def test_get_notebook_paths_for_pipeline(self):
-        """Should correctly extract .py files and convert to relative paths."""
-        # Create pipeline directory with Python files
-        pipeline_dir = self.project_root / "generated" / "raw_ingestions"
-        pipeline_dir.mkdir(parents=True)
 
-        # Create Python files
-        (pipeline_dir / "customer_ingestion.py").write_text("# customer code")
-        (pipeline_dir / "orders_ingestion.py").write_text("# orders code")
-        (pipeline_dir / "products_ingestion.py").write_text("# products code")
 
-        # Create non-Python files (should be ignored)
-        (pipeline_dir / "readme.txt").write_text("documentation")
-        (pipeline_dir / "config.json").write_text('{"config": "value"}')
 
-        notebook_paths = self.manager._get_notebook_paths_for_pipeline(pipeline_dir)
 
-        # Should return relative paths for Python files only
-        assert len(notebook_paths) == 3
 
-        expected_paths = [
-            "../../generated/raw_ingestions/customer_ingestion.py",
-            "../../generated/raw_ingestions/orders_ingestion.py",
-            "../../generated/raw_ingestions/products_ingestion.py"
-        ]
-
-        # Sort both lists for comparison
-        assert sorted(notebook_paths) == sorted(expected_paths)
-
-    def test_get_notebook_paths_for_pipeline_empty_directory(self):
-        """Should return empty list when pipeline directory has no Python files."""
-        # Create empty pipeline directory
-        pipeline_dir = self.project_root / "generated" / "empty_pipeline"
-        pipeline_dir.mkdir(parents=True)
-        
-        notebook_paths = self.manager._get_notebook_paths_for_pipeline(pipeline_dir)
-        
-        assert notebook_paths == []
-
-    def test_get_notebook_paths_for_pipeline_only_non_python_files(self):
-        """Should return empty list when pipeline directory has no Python files."""
-        # Create pipeline directory with non-Python files
-        pipeline_dir = self.project_root / "generated" / "no_python"
-        pipeline_dir.mkdir(parents=True)
-        
-        (pipeline_dir / "readme.txt").write_text("documentation")
-        (pipeline_dir / "data.csv").write_text("csv,data")
-        (pipeline_dir / "config.yml").write_text("config: value")
-        
-        notebook_paths = self.manager._get_notebook_paths_for_pipeline(pipeline_dir)
-        
-        assert notebook_paths == []
 
     def test_resource_file_path_generation(self):
         """Should generate correct resource file paths for pipelines."""
@@ -238,25 +191,7 @@ class TestBundleManagerFileOperations:
             # Restore permissions for cleanup
             pipeline_dir.chmod(0o755)
 
-    def test_get_notebook_paths_deep_directory_structure(self):
-        """Should handle Python files in nested subdirectories."""
-        # Create nested pipeline directory structure
-        pipeline_dir = self.project_root / "generated" / "complex_pipeline"
-        pipeline_dir.mkdir(parents=True)
-        
-        # Create Python files in subdirectories
-        subdir = pipeline_dir / "submodule"
-        subdir.mkdir()
-        (subdir / "nested_file.py").write_text("# nested code")
-        
-        # Create file at root level
-        (pipeline_dir / "main.py").write_text("# main code")
-        
-        notebook_paths = self.manager._get_notebook_paths_for_pipeline(pipeline_dir)
-        
-        # Should include files from root level only (flat structure expected)
-        assert len(notebook_paths) == 1
-        assert "../../generated/complex_pipeline/main.py" in notebook_paths
+
 
     def test_get_pipeline_directories_with_symbolic_links(self):
         """Should handle symbolic links appropriately."""
@@ -325,16 +260,16 @@ class TestBundleManagerFileOperations:
             dirs = self.manager._get_pipeline_directories(generated_dir)
             results.append(len(dirs))
         
-        def get_notebook_paths():
+        def test_template_rendering():
             time.sleep(0.01)
-            paths = self.manager._get_notebook_paths_for_pipeline(pipeline_dir)
-            results.append(len(paths))
+            content = self.manager._generate_resource_file_content("test_pipeline")
+            results.append(len(content))
         
         # Run operations concurrently
         threads = []
         for _ in range(3):
             threads.append(threading.Thread(target=get_directories))
-            threads.append(threading.Thread(target=get_notebook_paths))
+            threads.append(threading.Thread(target=test_template_rendering))
         
         for thread in threads:
             thread.start()
@@ -346,8 +281,9 @@ class TestBundleManagerFileOperations:
         assert len(results) == 6
         # Directory count results should be 1
         assert results.count(1) >= 3  # At least 3 directory results
-        # Notebook path results should be 1
-        assert all(r in [0, 1] for r in results)  # All results should be valid
+        # Template content length results should be much larger (string length)
+        template_results = [r for r in results if r > 10]  # Template content lengths
+        assert len(template_results) >= 3  # At least 3 template results
 
     def test_bundle_manager_large_number_of_files(self):
         """Should handle pipeline directories with many files efficiently."""
@@ -359,15 +295,13 @@ class TestBundleManagerFileOperations:
         for i in range(100):
             (pipeline_dir / f"file_{i:03d}.py").write_text(f"# file {i}")
         
-        notebook_paths = self.manager._get_notebook_paths_for_pipeline(pipeline_dir)
+        # Test template rendering instead of notebook path scanning (removed method)
+        content = self.manager._generate_resource_file_content("large_pipeline")
         
-        # Should find all 100 files
-        assert len(notebook_paths) == 100
-        
-        # All paths should be correctly formatted
-        for path in notebook_paths:
-            assert path.startswith("../../generated/large_pipeline/")
-            assert path.endswith(".py")
+        # Should generate template efficiently
+        assert "large_pipeline" in content
+        assert "- glob:" in content
+        assert "include: ../../generated/large_pipeline/**" in content
 
     def test_bundle_manager_error_handling_initialization(self):
         """Should handle initialization errors appropriately."""

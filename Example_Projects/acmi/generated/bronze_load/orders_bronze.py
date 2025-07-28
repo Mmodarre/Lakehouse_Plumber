@@ -33,7 +33,7 @@ def v_orders_raw():
 @dlt.view(comment="SQL transform: orders_bronze_cleanse")
 def v_orders_bronze_cleaned():
     """SQL transform: orders_bronze_cleanse"""
-    return spark.sql("""SELECT
+    df = spark.sql("""SELECT
   o_orderkey as order_id,
   o_custkey as customer_id,
   o_orderstatus as order_status,
@@ -49,6 +49,8 @@ def v_orders_bronze_cleaned():
   _record_hash,
   _processing_timestamp
 FROM stream(v_orders_raw)""")
+
+    return df
 
 
 # ============================================================================

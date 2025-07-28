@@ -5,22 +5,12 @@ resources:
       name: raw_ingestions_pipeline
       catalog: main
       schema: lhp_${bundle.target}
+      
       libraries:
-        - notebook:
-            path: ../../generated/raw_ingestions/customer_ingestion.py
-        - notebook:
-            path: ../../generated/raw_ingestions/lineitem_ingestion.py
-        - notebook:
-            path: ../../generated/raw_ingestions/nation_ingestion.py
-        - notebook:
-            path: ../../generated/raw_ingestions/orders_ingestion.py
-        - notebook:
-            path: ../../generated/raw_ingestions/part_ingestion.py
-        - notebook:
-            path: ../../generated/raw_ingestions/partsupp_ingestion.py
-        - notebook:
-            path: ../../generated/raw_ingestions/region_ingestion.py
-        - notebook:
-            path: ../../generated/raw_ingestions/supplier_ingestion.py
+        - glob:
+            include: ../../generated/raw_ingestions/**
+      
+      root_path: ${workspace.file_path}/generated/raw_ingestions/
+      
       configuration:
-        bundle.sourcePath: ${workspace.file_path}/generated
+        bundle.sourcePath: ${workspace.file_path}/generated 

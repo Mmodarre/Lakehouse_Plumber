@@ -33,7 +33,7 @@ def v_nation_raw():
 @dlt.view(comment="SQL transform: nation_bronze_cleanse")
 def v_nation_bronze_cleaned():
     """SQL transform: nation_bronze_cleanse"""
-    return spark.sql("""SELECT
+    df = spark.sql("""SELECT
   n_nationkey as nation_id,
   n_name as name,
   n_regionkey as region_id,
@@ -44,6 +44,8 @@ def v_nation_bronze_cleaned():
   _record_hash,
   _processing_timestamp
 FROM stream(v_nation_raw)""")
+
+    return df
 
 
 # ============================================================================
