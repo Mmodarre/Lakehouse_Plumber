@@ -347,9 +347,9 @@ def validate(env, pipeline, verbose):
 @click.option("--dry-run", is_flag=True, help="Preview without generating files")
 @click.option("--format", is_flag=True, help="Format generated code with Black")
 @click.option(
-    "--cleanup",
+    "--no-cleanup",
     is_flag=True,
-    help="Clean up generated files when source YAML files are removed (similar to Terraform state management)",
+    help="Disable cleanup of generated files when source YAML files are removed.",
 )
 @click.option(
     "--force",
@@ -362,7 +362,7 @@ def validate(env, pipeline, verbose):
     is_flag=True,
     help="Disable bundle support even if databricks.yml exists",
 )
-def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
+def generate(env, pipeline, output, dry_run, format, no_cleanup, force, no_bundle):
     """Generate DLT pipeline code"""
     project_root = _ensure_project_root()
 
@@ -385,7 +385,7 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
     if verbose:
         click.echo("🔧 Initializing orchestrator and state manager...")
     orchestrator = ActionOrchestrator(project_root)
-    state_manager = StateManager(project_root) if cleanup else None
+    state_manager = StateManager(project_root) if not no_cleanup else None
 
     # Determine which pipelines to generate (using pipeline field, not directory names)
     pipelines_to_generate = []
@@ -413,11 +413,41 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
     # Set output directory
     output_dir = project_root / output
 
-    # Handle cleanup if requested
-    if cleanup and state_manager:
+    # Handle cleanup if enabled (default behavior)
+    if not no_cleanup and state_manager:
         click.echo(f"🧹 Checking for orphaned files in environment: {env}")
 
-        # Find orphaned files
+        # Check for fresh start scenario (no state file exists)
+        if not state_manager.state_file_exists():
+            click.echo("🆕 Fresh start detected: no state file exists")
+            if not dry_run:
+                # Perform filesystem-aware cleanup for fresh start
+                deleted_files = state_manager.cleanup_untracked_files(output_dir, env)
+                if deleted_files:
+                    click.echo(f"🧹 Fresh start cleanup: removed {len(deleted_files)} orphaned file(s):")
+                    for deleted_file in deleted_files:
+                        click.echo(f"   • Deleted: {deleted_file}")
+                else:
+                    click.echo("✨ Fresh start cleanup: no orphaned files found")
+            else:
+                # Dry-run: show what would be cleaned up
+                existing_files = state_manager.scan_generated_directory(output_dir)
+                expected_files = state_manager.calculate_expected_files(output_dir, env)
+                orphaned_files_fs = existing_files - expected_files
+                lhp_orphaned = [f for f in orphaned_files_fs if state_manager.is_lhp_generated_file(f)]
+                
+                if lhp_orphaned:
+                    click.echo(f"📋 Fresh start cleanup would remove {len(lhp_orphaned)} orphaned file(s):")
+                    for file_path in sorted(lhp_orphaned):
+                        try:
+                            rel_path = file_path.relative_to(project_root)
+                            click.echo(f"   • {rel_path}")
+                        except ValueError:
+                            click.echo(f"   • {file_path}")
+                else:
+                    click.echo("📋 Fresh start cleanup: no orphaned files would be removed")
+
+        # Find orphaned files (tracked files)
         orphaned_files = state_manager.find_orphaned_files(env)
 
         if orphaned_files:
@@ -437,7 +467,7 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
 
     # Smart generation: determine what needs to be generated
     pipelines_needing_generation = {}
-    if cleanup and state_manager and not force:
+    if not no_cleanup and state_manager and not force:
         click.echo(f"🔍 Analyzing changes in environment: {env}")
 
         # Get detailed staleness information
@@ -519,7 +549,7 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
                 env,
                 pipeline_output_dir,
                 state_manager=state_manager,
-                force_all=force or not cleanup,
+                force_all=force or no_cleanup,
             )
 
             # Track files
@@ -556,8 +586,8 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
                 # This is expected when YAML files are removed - handle cleanup
                 click.echo(f"📭 No flowgroups found in pipeline: {pipeline_name}")
 
-                # Still run cleanup if enabled
-                if cleanup and state_manager:
+                # Still run cleanup if enabled (default behavior)
+                if not no_cleanup and state_manager:
                     click.echo(
                         f"🧹 Checking for orphaned files from pipeline: {pipeline_name}"
                     )
@@ -606,7 +636,7 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
                         click.echo("✅ No orphaned files found for this pipeline")
                 else:
                     click.echo(
-                        "💡 Use --cleanup flag to automatically clean up orphaned files"
+                        "💡 Cleanup is enabled by default. Use --no-cleanup to disable automatic cleanup"
                     )
 
                 # Track empty result
@@ -633,8 +663,8 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
                 click.echo(f"📝 Check detailed logs: {log_file}")
             sys.exit(1)
 
-    # Save state if cleanup is enabled
-    if cleanup and state_manager:
+    # Save state if cleanup is enabled (default behavior)
+    if not no_cleanup and state_manager:
         state_manager.save()
 
     # Bundle synchronization (if enabled)
@@ -668,8 +698,8 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
         if total_files > 0:
             click.echo(f"   Output location: {output_dir.relative_to(project_root)}")
 
-        # Show cleanup information if enabled
-        if cleanup and state_manager:
+        # Show cleanup information if enabled (default behavior)
+        if not no_cleanup and state_manager:
             click.echo("   State tracking: Enabled (.lhp_state.json)")
 
         if total_files > 0:
@@ -680,7 +710,7 @@ def generate(env, pipeline, output, dry_run, format, cleanup, force, no_bundle):
             click.echo("   3. Create a DLT pipeline with the generated notebooks")
         else:
             click.echo("\n✅ Pipeline processing completed")
-            if cleanup:
+            if not no_cleanup:
                 click.echo("   • Cleanup operations were performed")
             click.echo("   • No files were generated (no flowgroups found)")
     else:

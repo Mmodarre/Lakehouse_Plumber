@@ -89,7 +89,7 @@ Please see :doc:`getting_started` to create your first LHP flowgroup and pipelin
 
 .. code-block:: bash
 
-  lhp generate -e dev --cleanup
+  lhp generate -e dev 
 
 
 6. **Verifying Bundle Integration**
@@ -333,13 +333,13 @@ Generate Python files and automatically sync bundle resources:
 .. code-block:: bash
 
    # Generate for specific environment
-   lhp generate -e dev --cleanup
+   lhp generate -e dev 
    
    # Force regeneration (ignores state)
    lhp generate -e dev --force
    
    # Disable bundle sync (if needed)
-   lhp generate -e dev --cleanup --no-bundle
+   lhp generate -e dev  --no-bundle
 
 
 
@@ -519,7 +519,7 @@ Option             Description
 ================== ==========================================================
 ``--no-bundle``    Disable bundle support even if databricks.yml exists
 ``--force``        Force regeneration and bundle sync of all files
-``--cleanup``      Clean up obsolete resource files
+````      Clean up obsolete resource files
 ================== ==========================================================
 
 **Resource File Structure**

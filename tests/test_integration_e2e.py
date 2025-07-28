@@ -475,7 +475,7 @@ class TestEndToEndACMIIntegration:
             orchestrator = ActionOrchestrator(self.acmi_project)
             
             # Test dry-run generation
-            generated_files = orchestrator.generate_pipeline_by_field("bronze_load", "dev", None)
+            generated_files = orchestrator.generate_pipeline_by_field("bronze_load", "dev", None, force_all=True)
             assert len(generated_files) > 0
             
             # Verify realistic content

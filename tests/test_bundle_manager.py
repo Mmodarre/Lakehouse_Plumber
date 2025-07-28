@@ -262,7 +262,7 @@ class TestBundleManagerFileOperations:
         
         def test_template_rendering():
             time.sleep(0.01)
-            content = self.manager._generate_resource_file_content("test_pipeline")
+            content = self.manager._generate_resource_file_content("test_pipeline", generated_dir)
             results.append(len(content))
         
         # Run operations concurrently
@@ -296,7 +296,8 @@ class TestBundleManagerFileOperations:
             (pipeline_dir / f"file_{i:03d}.py").write_text(f"# file {i}")
         
         # Test template rendering instead of notebook path scanning (removed method)
-        content = self.manager._generate_resource_file_content("large_pipeline")
+        output_dir = self.project_root / "generated"
+        content = self.manager._generate_resource_file_content("large_pipeline", output_dir)
         
         # Should generate template efficiently
         assert "large_pipeline" in content

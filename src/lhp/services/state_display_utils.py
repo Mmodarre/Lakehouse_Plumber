@@ -38,7 +38,7 @@ class StateDisplayUtils:
     def display_no_tracked_files_message() -> None:
         """Display message when no tracked files are found."""
         click.echo("📭 No tracked files found")
-        click.echo("\n💡 Generate code with --cleanup flag to start tracking files")
+        click.echo("\n💡 Generate code to start tracking files")
     
     @staticmethod
     def display_environment_header(env: str) -> None:
@@ -173,7 +173,7 @@ class StateDisplayUtils:
                     click.echo(f"  • {yaml_file}")
 
         click.echo(
-            f"\n💡 Use 'lhp generate --env {env} --cleanup' to generate code for these files"
+            f"\n💡 Use 'lhp generate --env {env}' to generate code for these files"
         )
     
     @staticmethod
@@ -224,7 +224,7 @@ class StateDisplayUtils:
                         click.echo(f"  • {yaml_file} 🆕")
 
             click.echo(
-                f"\n💡 Use 'lhp generate --env {env} --cleanup' to generate code for these files"
+                f"\n💡 Use 'lhp generate --env {env}' to generate code for these files"
             )
     
     @staticmethod
@@ -235,7 +235,7 @@ class StateDisplayUtils:
 
         if counts['new_count'] > 0:
             click.echo(f"   🆕 {counts['new_count']} new YAML files (not generated yet)")
-            click.echo(f"      Use 'lhp generate --env {env} --cleanup' to generate them")
+            click.echo(f"      Use 'lhp generate --env {env}' to generate them")
 
         if counts['stale_count'] > 0:
             click.echo(f"   🟡 {counts['stale_count']} files stale (YAML changed)")
@@ -258,8 +258,8 @@ class StateDisplayUtils:
         """Display smart generation tips."""
         click.echo("\n💡 Smart generation tips:")
         click.echo(
-            f"   • lhp generate --env {env} --cleanup    # Only process changed files"
+            f"   • lhp generate --env {env}    # Only process changed files (default)"
         )
         click.echo(
-            f"   • lhp generate --env {env} --cleanup --force  # Force regenerate all"
+            f"   • lhp generate --env {env} --force  # Force regenerate all"
         ) 

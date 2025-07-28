@@ -227,7 +227,7 @@ class TestStateCommandBasicFunctionality:
             
             assert result.exit_code == 0
             assert "📭 No tracked files found" in result.output
-            assert "💡 Generate code with --cleanup flag to start tracking files" in result.output
+            assert "💡 Generate code to start tracking files" in result.output
     
     def test_state_command_no_args_with_files(self, runner, project_with_state):
         """Test state command with no arguments when files are tracked."""
@@ -385,7 +385,7 @@ class TestStateCommandFileOperations:
             assert "🆕 New YAML Files" in result.output
             assert "suppliers.yaml" in result.output
             assert "dashboard.yaml" in result.output
-            assert "lhp generate --env dev --cleanup" in result.output
+            assert "lhp generate --env dev" in result.output
     
     def test_new_files_none_found(self, runner, project_with_state):
         """Test --new flag when no new files exist."""

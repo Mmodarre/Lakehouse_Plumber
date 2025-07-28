@@ -360,7 +360,7 @@ cd my_lakehouse_project
 lhp validate --env dev
 
 # Generate production-ready Python code
-lhp generate --env dev --cleanup
+lhp generate --env dev 
 
 # Deploy with Databricks Bundles (optional)
 databricks bundle deploy --target dev

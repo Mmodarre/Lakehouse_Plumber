@@ -133,17 +133,17 @@ Create a new pipeline configuration in the ``pipelines/`` folder.
         transform_type: sql             # Transform using SQL query
         source: v_customer_sample_raw   # Input view from previous action
         target: v_customer_sample_cleaned  # Output view name
-        sql: |                          # SQL transformation logic
+        sql: |
            SELECT
-           c_custkey as customer_id,    # Rename key field for clarity
-           c_name as name,              # Simplify column name
-           c_address as address,        # Keep address as-is
-           c_nationkey as nation_id,    # Rename for consistency
-           c_phone as phone,            # Simplify column name
-           c_acctbal as account_balance, # More descriptive name
-           c_mktsegment as market_segment, # Readable column name
-           c_comment as comment         # Keep comment as-is
-           FROM stream(v_customer_sample_raw)  # Stream from source view
+           c_custkey as customer_id,
+           c_name as name,
+           c_address as address,
+           c_nationkey as nation_id,
+           c_phone as phone,
+           c_acctbal as account_balance,
+           c_mktsegment as market_segment,
+           c_comment as comment
+           FROM stream(v_customer_sample_raw)
         description: "Transform customer sample table"
 
       - name: write_customer_sample_bronze  # Unique action identifier
