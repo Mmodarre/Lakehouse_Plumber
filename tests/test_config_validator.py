@@ -227,14 +227,123 @@ class TestConfigValidator:
             type=ActionType.TRANSFORM,
             transform_type=TransformType.PYTHON,
             target="v_output",
-            source={
-                "module_path": "transformations.py",
-                "function_name": "transform_data",
-                "sources": ["v_input"]
-            }
+            source="v_input",
+            module_path="transformations/transform_data.py",
+            function_name="transform_data"
         )
         errors = validator.validate_action(action, 0)
         assert len(errors) == 0
+    
+    def test_python_transform_missing_file_validation(self):
+        """Test validation error when Python module file doesn't exist."""
+        import tempfile
+        from pathlib import Path
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            validator = ConfigValidator(project_root)
+            
+            # Test with non-existent file
+            action = Action(
+                name="transform_python",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="nonexistent/transform_data.py",
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action, 0)
+            assert len(errors) == 1
+            assert "Python module file not found" in errors[0]
+            assert "nonexistent/transform_data.py" in errors[0]
+            
+            # Test with existing file - should pass
+            transforms_dir = project_root / "transformations"
+            transforms_dir.mkdir(parents=True)
+            (transforms_dir / "transform_data.py").write_text("def transform_data(df, spark, parameters): return df")
+            
+            action_valid = Action(
+                name="transform_python_valid",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="transformations/transform_data.py",
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_valid, 0)
+            assert len(errors) == 0
+    
+    def test_python_transform_permission_issues(self):
+        """Test Python transform when source file has permission issues."""
+        import tempfile
+        import os
+        import stat
+        from pathlib import Path
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            validator = ConfigValidator(project_root)
+            
+            # Create a Python file
+            transforms_dir = project_root / "transformations"
+            transforms_dir.mkdir(parents=True)
+            restricted_file = transforms_dir / "restricted.py"
+            restricted_file.write_text("def transform_data(df, spark, parameters): return df")
+            
+            # Remove read permissions (make it unreadable)
+            try:
+                # Remove read permissions for owner, group, and others
+                current_permissions = restricted_file.stat().st_mode
+                restricted_file.chmod(stat.S_IWUSR)  # Only write permission for owner
+                
+                # Test that validation still passes (file exists, but permission issue will be caught later)
+                action = Action(
+                    name="transform_python",
+                    type=ActionType.TRANSFORM,
+                    transform_type=TransformType.PYTHON,
+                    target="v_output",
+                    source="v_input",
+                    module_path="transformations/restricted.py",
+                    function_name="transform_data"
+                )
+                
+                # Validation should still pass (file exists)
+                errors = validator.validate_action(action, 0)
+                assert len(errors) == 0, f"Validation should pass even with permission issues, got: {errors}"
+                
+                # Test that generator raises appropriate error during file copying
+                from lhp.generators.transform.python import PythonTransformGenerator
+                from lhp.models.config import FlowGroup
+                
+                generator = PythonTransformGenerator()
+                context = {
+                    "output_dir": project_root / "generated",
+                    "spec_dir": project_root,
+                    "flowgroup": FlowGroup(
+                        pipeline="test_pipeline",
+                        flowgroup="test_flowgroup",
+                        actions=[]
+                    )
+                }
+                
+                # Should raise PermissionError during file copying
+                try:
+                    generator.generate(action, context)
+                    assert False, "Expected PermissionError during file copying"
+                except PermissionError:
+                    pass  # Expected
+                except Exception as e:
+                    # On some systems, this might raise other exceptions like OSError
+                    assert "Permission denied" in str(e) or "Operation not permitted" in str(e), f"Expected permission-related error, got: {e}"
+                
+            finally:
+                # Restore permissions for cleanup
+                try:
+                    restricted_file.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+                except:
+                    pass  # Ignore cleanup errors
     
     def test_write_action_validation(self):
         """Test validation of write actions."""
@@ -975,6 +1084,280 @@ class TestConfigValidator:
                 data2 = yaml.safe_load(f)
                 assert data2["pipeline"] == "raw_ingestions"
                 assert data2["flowgroup"] == "orders_ingestion"
+
+    def test_python_transform_missing_required_fields(self):
+        """Test validation errors when module_path or function_name missing."""
+        import tempfile
+        from pathlib import Path
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            validator = ConfigValidator(project_root)
+            
+            # Test missing module_path
+            action_missing_module = Action(
+                name="transform_python_no_module",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                # module_path missing
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_missing_module, 0)
+            assert len(errors) >= 1, "Should have validation error for missing module_path"
+            assert any("module_path" in error for error in errors), f"Should mention module_path in error: {errors}"
+            
+            # Test missing function_name
+            action_missing_function = Action(
+                name="transform_python_no_function",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="transformations/transform_data.py",
+                # function_name missing
+            )
+            errors = validator.validate_action(action_missing_function, 0)
+            assert len(errors) >= 1, "Should have validation error for missing function_name"
+            assert any("function_name" in error for error in errors), f"Should mention function_name in error: {errors}"
+            
+            # Test both missing
+            action_missing_both = Action(
+                name="transform_python_no_fields",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input"
+                # both module_path and function_name missing
+            )
+            errors = validator.validate_action(action_missing_both, 0)
+            assert len(errors) >= 2, f"Should have validation errors for both missing fields, got: {errors}"
+            assert any("module_path" in error for error in errors), f"Should mention module_path in errors: {errors}"
+            assert any("function_name" in error for error in errors), f"Should mention function_name in errors: {errors}"
+            
+            # Test empty string values (should be treated as missing)
+            action_empty_strings = Action(
+                name="transform_python_empty",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="",  # Empty string
+                function_name=""  # Empty string
+            )
+            errors = validator.validate_action(action_empty_strings, 0)
+            assert len(errors) >= 2, f"Should have validation errors for empty strings, got: {errors}"
+            assert any("module_path" in error for error in errors), f"Should catch empty module_path: {errors}"
+            assert any("function_name" in error for error in errors), f"Should catch empty function_name: {errors}"
+            
+            # Test with nonexistent file (should also be caught by validation)
+            action_nonexistent_file = Action(
+                name="transform_python_nonexistent",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="nonexistent/file.py",  # File doesn't exist
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_nonexistent_file, 0)
+            assert len(errors) >= 1, f"Should have validation error for nonexistent file, got: {errors}"
+            assert any("not found" in error for error in errors), f"Should mention file not found: {errors}"
+            
+            # Test valid case for comparison
+            # Create actual file to avoid file not found error
+            transforms_dir = project_root / "transformations"
+            transforms_dir.mkdir(parents=True)
+            (transforms_dir / "valid_transform.py").write_text("def transform_data(df, spark, parameters): return df")
+            
+            action_valid = Action(
+                name="transform_python_valid",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="transformations/valid_transform.py",
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_valid, 0)
+            assert len(errors) == 0, f"Valid action should not have errors: {errors}"
+
+    def test_python_transform_parameters_validation(self):
+        """Test validation of parameters field for Python transforms."""
+        import tempfile
+        from pathlib import Path
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            validator = ConfigValidator(project_root)
+            
+            # Create valid Python file for testing
+            transforms_dir = project_root / "transformations"
+            transforms_dir.mkdir(parents=True)
+            (transforms_dir / "test_transform.py").write_text("def transform_data(df, spark, parameters): return df")
+            
+            # Test valid empty dict parameters (should pass)
+            action_empty_dict = Action(
+                name="transform_with_empty_dict",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="transformations/test_transform.py",
+                function_name="transform_data",
+                parameters={}  # Empty dict - should be valid
+            )
+            errors = validator.validate_action(action_empty_dict, 0)
+            assert len(errors) == 0, f"Empty dict parameters should be valid: {errors}"
+            
+            # Test valid non-empty dict parameters (should pass)
+            action_valid_dict = Action(
+                name="transform_with_valid_dict",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="transformations/test_transform.py",
+                function_name="transform_data",
+                parameters={
+                    "batch_size": 1000,
+                    "threshold": 0.5,
+                    "mode": "production",
+                    "features": ["col1", "col2", "col3"],
+                    "config": {"nested": "value"}
+                }
+            )
+            errors = validator.validate_action(action_valid_dict, 0)
+            assert len(errors) == 0, f"Valid dict parameters should pass: {errors}"
+            
+            # Test None parameters (should be allowed - means no parameters)
+            action_none_params = Action(
+                name="transform_with_none_params",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="transformations/test_transform.py",
+                function_name="transform_data",
+                parameters=None  # None should be allowed
+            )
+            errors = validator.validate_action(action_none_params, 0)
+            assert len(errors) == 0, f"None parameters should be allowed: {errors}"
+            
+            # Test missing parameters field (should be allowed - optional field)
+            action_no_params = Action(
+                name="transform_with_no_params",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input",
+                module_path="transformations/test_transform.py",
+                function_name="transform_data"
+                # parameters field not provided - should be allowed
+            )
+            errors = validator.validate_action(action_no_params, 0)
+            assert len(errors) == 0, f"Missing parameters field should be allowed: {errors}"
+            
+            # Note: Type validation (non-dict types) is handled by Pydantic at the model level
+            # This is the correct behavior - Pydantic ensures parameters is dict or None
+
+    def test_python_transform_invalid_source_types(self):
+        """Test validation when source is int, object, or other invalid types."""
+        import tempfile
+        from pathlib import Path
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            validator = ConfigValidator(project_root)
+            
+            # Create valid Python file for testing
+            transforms_dir = project_root / "transformations"
+            transforms_dir.mkdir(parents=True)
+            (transforms_dir / "test_transform.py").write_text("def transform_data(df, spark, parameters): return df")
+            
+            # Test source as None (should fail - transforms need input)
+            action_none_source = Action(
+                name="transform_with_none_source",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source=None,  # None not allowed for transforms
+                module_path="transformations/test_transform.py",
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_none_source, 0)
+            assert len(errors) >= 1, f"Should have validation error for None source: {errors}"
+            assert any("source" in error for error in errors), f"Should mention source in error: {errors}"
+            
+            # Test source as object/dict (should fail for transforms - dicts are for load actions)
+            action_dict_source = Action(
+                name="transform_with_dict_source",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source={"type": "invalid"},  # Dict not allowed for transforms (that's for loads)
+                module_path="transformations/test_transform.py",
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_dict_source, 0)
+            assert len(errors) >= 1, f"Should have validation error for dict source: {errors}"
+            assert any("source" in error and ("string" in error or "list" in error) for error in errors), f"Should mention source type requirements: {errors}"
+            
+            # Note: Type validation (numbers, mixed lists) is handled by Pydantic at model level
+            
+            # Test source as empty list (edge case - might be valid or invalid depending on requirements)
+            action_empty_list = Action(
+                name="transform_with_empty_list",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source=[],  # Empty list
+                module_path="transformations/test_transform.py",
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_empty_list, 0)
+            # Note: Empty list might be valid if we support data generators
+            # Let's see what the validator does
+            
+            # Test valid single string source (should pass)
+            action_string_source = Action(
+                name="transform_with_string_source",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source="v_input_view",  # Valid string
+                module_path="transformations/test_transform.py",
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_string_source, 0)
+            assert len(errors) == 0, f"Valid string source should pass: {errors}"
+            
+            # Test valid list of strings source (should pass)
+            action_list_source = Action(
+                name="transform_with_list_source",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source=["v_input1", "v_input2", "v_input3"],  # Valid list of strings
+                module_path="transformations/test_transform.py",
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_list_source, 0)
+            assert len(errors) == 0, f"Valid list source should pass: {errors}"
+            
+            # Test single-item list (should pass)
+            action_single_list = Action(
+                name="transform_with_single_list",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_output",
+                source=["v_single_input"],  # Single item list
+                module_path="transformations/test_transform.py",
+                function_name="transform_data"
+            )
+            errors = validator.validate_action(action_single_list, 0)
+            assert len(errors) == 0, f"Single item list should pass: {errors}"
 
 
 if __name__ == "__main__":

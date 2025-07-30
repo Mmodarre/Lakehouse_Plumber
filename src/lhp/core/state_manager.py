@@ -879,27 +879,49 @@ class StateManager:
 
         # Clean up empty directories
         if not dry_run and deleted_files:
-            self._cleanup_empty_directories(environment)
+            self._cleanup_empty_directories(environment, deleted_files)
             self._save_state()
 
         return deleted_files
 
-    def _cleanup_empty_directories(self, environment: str):
+    def _cleanup_empty_directories(self, environment: str, deleted_files: List[str] = None):
         """Remove empty directories in the generated output path."""
         output_dirs = set()
 
-        # Collect all output directories for this environment
+        # Collect all output directories for this environment (remaining files)
         for file_state in self._state.environments.get(environment, {}).values():
             output_path = self.project_root / file_state.generated_path
             output_dirs.add(output_path.parent)
 
-        # Also check recently deleted files' directories
-        # (This is approximate - we check common patterns)
+        # Add directories of recently deleted files
+        if deleted_files:
+            base_generated_dir = self.project_root / "generated"
+            for deleted_file in deleted_files:
+                deleted_path = self.project_root / deleted_file
+                
+                # Only process files within the generated directory
+                try:
+                    if deleted_path.is_relative_to(base_generated_dir):
+                        # Add immediate parent
+                        output_dirs.add(deleted_path.parent)
+                        
+                        # Add parent directories up to (but not including) generated/
+                        parent = deleted_path.parent
+                        while (parent != base_generated_dir and 
+                               parent.is_relative_to(base_generated_dir)):
+                            output_dirs.add(parent)
+                            parent = parent.parent
+                except ValueError:
+                    # Path is not relative to generated directory, skip
+                    self.logger.debug(f"Skipping cleanup for file outside generated/: {deleted_file}")
+                    continue
+
+        # Also check common output directories (only within generated/)
         base_output_dir = self.project_root / "generated"
         if base_output_dir.exists():
-            for pipeline_dir in base_output_dir.iterdir():
-                if pipeline_dir.is_dir():
-                    output_dirs.add(pipeline_dir)
+            for item in base_output_dir.rglob("*"):
+                if item.is_dir():
+                    output_dirs.add(item)
 
         # Remove empty directories (from deepest to shallowest)
         for dir_path in sorted(output_dirs, key=lambda x: len(x.parts), reverse=True):

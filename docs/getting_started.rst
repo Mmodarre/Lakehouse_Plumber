@@ -2,7 +2,7 @@ Getting Started
 ===============
 
 This short tutorial walks you through creating your first **Lakehouse Plumber**
-project and generating a Delta Live Tables (DLT) pipeline based on the ACME demo
+project and generating a Lakeflow Pipeliness (DLT) pipeline based on the ACME demo
 configuration that ships with the repository.
 
 Prerequisites

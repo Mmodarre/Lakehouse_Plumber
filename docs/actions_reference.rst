@@ -736,7 +736,8 @@ SQL transform actions execute SQL queries to transform data between views. They 
 
 python
 ~~~~~~
-Python transform actions call custom Python functions to apply complex transformation logic that goes beyond SQL capabilities.
+Python transform actions call custom Python functions to apply complex transformation logic that goes beyond SQL capabilities. 
+The framework automatically copies your Python functions into the generated pipeline and handles import management.
 
 .. code-block:: yaml
 
@@ -744,17 +745,35 @@ Python transform actions call custom Python functions to apply complex transform
     - name: customer_advanced_enrichment
       type: transform
       transform_type: python
-      source:
-        module_path: "transformations/customer_transforms.py"
-        function_name: "enrich_customer_data"
-        sources: ["v_customer_bronze"]
-        parameters:
-          api_endpoint: "https://api.example.com/geocoding"
-          api_key: "${secret:apis/geocoding_key}"
-          batch_size: 1000
+      source: v_customer_bronze
+      module_path: "transformations/customer_transforms.py"
+      function_name: "enrich_customer_data"
+      parameters:
+        api_endpoint: "https://api.example.com/geocoding"
+        api_key: "${secret:apis/geocoding_key}"
+        batch_size: 1000
       target: v_customer_enriched
       readMode: batch
+      operational_metadata: ["_processing_timestamp"]
       description: "Apply advanced customer enrichment using external APIs"
+
+**Multiple Source Views Example:**
+
+.. code-block:: yaml
+
+  actions:
+    - name: customer_order_analysis
+      type: transform
+      transform_type: python
+      source: ["v_customer_bronze", "v_orders_bronze"]
+      module_path: "analytics/customer_analysis.py"
+      function_name: "analyze_customer_orders"
+      parameters:
+        analysis_window_days: 90
+        min_order_count: 5
+      target: v_customer_order_insights
+      readMode: batch
+      description: "Analyze customer order patterns from multiple sources"
 
 **Python Function (transformations/customer_transforms.py):**
 
@@ -815,31 +834,137 @@ Python transform actions call custom Python functions to apply complex transform
       
       return enriched_df
 
+**Multiple Sources Function Example (analytics/customer_analysis.py):**
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark.sql import DataFrame
+  from pyspark.sql.functions import col, count, sum, avg, datediff, current_date
+  from typing import List
+
+  def analyze_customer_orders(dataframes: List[DataFrame], spark, parameters: dict) -> DataFrame:
+      """Analyze customer order patterns from multiple source views.
+      
+      Args:
+          dataframes: List of DataFrames [customers_df, orders_df]
+          spark: SparkSession instance
+          parameters: Configuration parameters from YAML
+          
+      Returns:
+          DataFrame: Customer order insights
+      """
+      customers_df, orders_df = dataframes
+      analysis_window_days = parameters.get("analysis_window_days", 90)
+      min_order_count = parameters.get("min_order_count", 5)
+      
+      # Join customers with their orders
+      customer_orders = customers_df.alias("c").join(
+          orders_df.alias("o"),
+          col("c.customer_id") == col("o.customer_id"),
+          "left"
+      )
+      
+      # Filter orders within analysis window
+      recent_orders = customer_orders.filter(
+          datediff(current_date(), col("o.order_date")) <= analysis_window_days
+      )
+      
+      # Calculate customer insights
+      insights = recent_orders.groupBy(
+          col("c.customer_id"),
+          col("c.customer_name"),
+          col("c.market_segment")
+      ).agg(
+          count("o.order_id").alias("order_count"),
+          sum("o.total_price").alias("total_spent"),
+          avg("o.total_price").alias("avg_order_value")
+      ).filter(
+          col("order_count") >= min_order_count
+      )
+      
+      return insights
+
 **Anatomy of a Python transform action**
 
 - **name**: Unique name for this action within the FlowGroup
 - **type**: Action type - transforms data from one view to another
 - **transform_type**: Specifies this is a Python-based transformation
-- **source**:
-      - **module_path**: Path to Python file containing the transformation function
-      - **function_name**: Name of function to call (defaults to "transform" if not specified)
-      - **sources**: List of source view names to pass to the function
-      - **parameters**: Dictionary of parameters to pass to the function
+- **source**: Source view name(s) to transform (string for single view, list for multiple views)
+- **module_path**: Path to Python file containing the transformation function (relative to project root)
+- **function_name**: Name of function to call (required)
+- **parameters**: Dictionary of parameters to pass to the function (optional)
 - **target**: Name of the output view to create
 - **readMode**: Either *batch* or *stream* - determines execution mode
+- **operational_metadata**: Add custom metadata columns (optional)
 - **description**: Optional documentation for the action
+
+**File Management & Copying Process**
+
+Lakehouse Plumber automatically handles Python function deployment:
+
+1. **Automatic File Copying**: Your Python functions are copied to ``generated/pipeline_name/custom_python_functions/`` during generation
+2. **Import Management**: Imports are automatically generated as ``from custom_python_functions.module_name import function_name``
+3. **Warning Headers**: Copied files include prominent warnings not to edit them directly
+4. **State Tracking**: All copied files are tracked and cleaned up when source YAML is removed
+5. **Package Structure**: A ``__init__.py`` file is automatically created to make the directory a Python package
 
 .. seealso::
   - For PySpark DataFrame operations see the `Databricks PySpark documentation <https://docs.databricks.com/en/spark/latest/spark-sql/index.html>`_.
   - Custom functions: :doc:`concepts`
 
 .. Important::
-  Python functions must accept three parameters: ``df`` (DataFrame), ``spark`` (SparkSession), and ``parameters`` (dict).
-  For multiple source views, the function receives a list of DataFrames as the first parameter.
+  **Function Requirements**: Python functions must accept the appropriate parameters based on source configuration:
+  
+  - **Single source**: ``function_name(df: DataFrame, spark: SparkSession, parameters: dict)``
+  - **Multiple sources**: ``function_name(dataframes: List[DataFrame], spark: SparkSession, parameters: dict)``  
+  - **No sources**: ``function_name(spark: SparkSession, parameters: dict)`` (for data generators)
 
 .. note::
-  **File Organization**: When using ``module_path``, the path is relative to your YAML file location.
-  Common practice is to create a ``transformations/`` folder alongside your pipeline YAML files.
+  **File Organization Tips**:
+  
+  - Keep your Python functions in a dedicated folder (e.g., ``transformations/``, ``functions/``)
+  - Use descriptive function names that clearly indicate their purpose
+  - Always edit the original files in your project, never the copied files in ``generated/``
+  - The ``module_path`` is relative to your project root directory
+  - Multiple transforms can reference the same Python file with different functions
+
+.. Warning::
+  **DO NOT Edit Generated Files**: The copied Python files in ``custom_python_functions/`` are automatically regenerated and include warning headers. Always edit your original source files.
+
+**Generated File Structure**
+
+After generation, your Python functions appear in the pipeline output with warning headers:
+
+.. code-block:: text
+
+  generated/
+  └── pipeline_name/
+      ├── flowgroup_name.py
+      └── custom_python_functions/
+          ├── __init__.py
+          └── customer_transforms.py
+
+**Example of Generated File with Warning Header:**
+
+.. code-block:: python
+
+  # ╔══════════════════════════════════════════════════════════════════════════════╗
+  # ║                                    WARNING                                   ║
+  # ║                          DO NOT EDIT THIS FILE DIRECTLY                      ║
+  # ╠══════════════════════════════════════════════════════════════════════════════╣
+  # ║ This file was automatically copied from: transformations/customer_transforms.py ║
+  # ║ during pipeline generation. Any changes made here will be OVERWRITTEN        ║
+  # ║ on the next generation cycle.                                                ║
+  # ║                                                                              ║
+  # ║ To make changes:                                                             ║
+  # ║ 1. Edit the original file: transformations/customer_transforms.py           ║
+  # ║ 2. Regenerate the pipeline                                                   ║
+  # ╚══════════════════════════════════════════════════════════════════════════════╝
+
+  import requests
+  from pyspark.sql import DataFrame
+  # ... rest of your original function code ...
 
 **The above YAML translates to the following PySpark code**
 
@@ -847,7 +972,8 @@ Python transform actions call custom Python functions to apply complex transform
   :linenos:
 
   import dlt
-  from transformations.customer_transforms import enrich_customer_data
+  from pyspark.sql.functions import current_timestamp
+  from custom_python_functions.customer_transforms import enrich_customer_data
 
   @dlt.view()
   def v_customer_enriched():
@@ -861,7 +987,37 @@ Python transform actions call custom Python functions to apply complex transform
           "api_key": "{{ secret_substituted_api_key }}",
           "batch_size": 1000
       }
-      return enrich_customer_data(v_customer_bronze_df, spark, parameters)
+      df = enrich_customer_data(v_customer_bronze_df, spark, parameters)
+      
+      # Add operational metadata columns
+      df = df.withColumn('_processing_timestamp', current_timestamp())
+      
+      return df
+
+**For multiple source views:**
+
+.. code-block:: python
+  :linenos:
+
+  import dlt
+  from custom_python_functions.customer_analysis import analyze_customer_orders
+
+  @dlt.view()
+  def v_customer_order_insights():
+      """Analyze customer order patterns from multiple sources"""
+      # Load source views
+      v_customer_bronze_df = spark.read.table("v_customer_bronze")
+      v_orders_bronze_df = spark.read.table("v_orders_bronze")
+      
+      # Apply Python transformation with multiple sources
+      parameters = {
+          "analysis_window_days": 90,
+          "min_order_count": 5
+      }
+      dataframes = [v_customer_bronze_df, v_orders_bronze_df]
+      df = analyze_customer_orders(dataframes, spark, parameters)
+      
+      return df
 
 data_quality
 ~~~~~~~~~~~~

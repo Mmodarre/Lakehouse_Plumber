@@ -144,6 +144,10 @@ class LoadActionValidator(BaseActionValidator):
 class TransformActionValidator(BaseActionValidator):
     """Validator for transform actions."""
 
+    def __init__(self, action_registry, field_validator, project_root=None):
+        super().__init__(action_registry, field_validator)
+        self.project_root = project_root
+
     def validate(self, action: Action, prefix: str) -> List[str]:
         """Validate transform action configuration."""
         errors = []
@@ -214,15 +218,47 @@ class TransformActionValidator(BaseActionValidator):
     def _validate_python_transform(self, action: Action, prefix: str) -> List[str]:
         """Validate Python transform configuration."""
         errors = []
-        # Must have source with module_path
-        if not isinstance(action.source, dict):
+
+        # Must have source for input data
+        if not hasattr(action, 'source') or action.source is None:
+            errors.append(f"{prefix}: Python transform must have 'source' (input view name)")
+        elif not isinstance(action.source, (str, list)):
             errors.append(
-                f"{prefix}: Python transform source must be a configuration object"
+                f"{prefix}: Python transform source must be a string or list of strings"
             )
-        elif not action.source.get("module_path"):
-            errors.append(
-                f"{prefix}: Python transform must have 'module_path' in source"
-            )
+        elif isinstance(action.source, list):
+            # Validate list elements are strings
+            for i, item in enumerate(action.source):
+                if not isinstance(item, str):
+                    errors.append(
+                        f"{prefix}: Python transform source list item {i} must be a string"
+                    )
+
+        # Must have module_path at action level
+        if not hasattr(action, 'module_path') or not getattr(action, 'module_path'):
+            errors.append(f"{prefix}: Python transform must have 'module_path'")
+        elif not isinstance(getattr(action, 'module_path'), str):
+            errors.append(f"{prefix}: Python transform module_path must be a string")
+        else:
+            # Check if module file exists (if project_root is available)
+            if self.project_root:
+                from pathlib import Path
+                module_path = getattr(action, 'module_path')
+                source_file = self.project_root / module_path
+                if not source_file.exists():
+                    errors.append(f"{prefix}: Python module file not found: {source_file}")
+
+        # Must have function_name at action level
+        if not hasattr(action, 'function_name') or not getattr(action, 'function_name'):
+            errors.append(f"{prefix}: Python transform must have 'function_name'")
+        elif not isinstance(getattr(action, 'function_name'), str):
+            errors.append(f"{prefix}: Python transform function_name must be a string")
+
+        # Validate parameters if provided
+        if hasattr(action, 'parameters') and action.parameters is not None:
+            if not isinstance(action.parameters, dict):
+                errors.append(f"{prefix}: Python transform parameters must be a dictionary")
+
         return errors
 
     def _validate_temp_table_transform(self, action: Action, prefix: str) -> List[str]:

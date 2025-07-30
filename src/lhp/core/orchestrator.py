@@ -38,7 +38,7 @@ class ActionOrchestrator:
         self.template_engine = TemplateEngine(project_root / "templates")
         self.project_config_loader = ProjectConfigLoader(project_root)
         self.action_registry = ActionRegistry()
-        self.config_validator = ConfigValidator()
+        self.config_validator = ConfigValidator(project_root)
         self.secret_validator = SecretValidator()
         self.dependency_resolver = DependencyResolver()
 
@@ -211,9 +211,14 @@ class ActionOrchestrator:
             )
 
             try:
+                # Find source YAML for this flowgroup (needed for file tracking)
+                source_yaml = self._find_source_yaml(
+                    pipeline_dir, processed_flowgroup.flowgroup
+                )
+                
                 # Step 4.5.6: Generate code
                 code = self._generate_flowgroup_code(
-                    processed_flowgroup, substitution_mgr
+                    processed_flowgroup, substitution_mgr, output_dir, state_manager, source_yaml, env
                 )
 
                 # Format code
@@ -229,19 +234,14 @@ class ActionOrchestrator:
                     smart_writer.write_if_changed(output_file, formatted_code)
 
                     # Track the generated file in state manager (regardless of whether it was written)
-                    if state_manager:
-                        # Find the source YAML file for this flowgroup
-                        source_yaml = self._find_source_yaml(
-                            pipeline_dir, processed_flowgroup.flowgroup
+                    if state_manager and source_yaml:
+                        state_manager.track_generated_file(
+                            generated_path=output_file,
+                            source_yaml=source_yaml,
+                            environment=env,
+                            pipeline=pipeline_name,
+                            flowgroup=processed_flowgroup.flowgroup,
                         )
-                        if source_yaml:
-                            state_manager.track_generated_file(
-                                generated_path=output_file,
-                                source_yaml=source_yaml,
-                                environment=env,
-                                pipeline=pipeline_name,
-                                flowgroup=processed_flowgroup.flowgroup,
-                            )
 
             except Exception as e:
                 self.logger.debug(
@@ -481,8 +481,11 @@ class ActionOrchestrator:
                 # Process flowgroup
                 processed_flowgroup = self._process_flowgroup(flowgroup, substitution_mgr)
                 
+                # Find source YAML for this flowgroup (needed for file tracking)
+                source_yaml_path = self._find_source_yaml_for_flowgroup(flowgroup)
+                
                 # Generate code
-                generated_code = self._generate_flowgroup_code(processed_flowgroup, substitution_mgr)
+                generated_code = self._generate_flowgroup_code(processed_flowgroup, substitution_mgr, pipeline_output_dir, state_manager, source_yaml_path, env)
                 
                 # Save to file only if output directory is specified (not dry-run)
                 if pipeline_output_dir:
@@ -493,16 +496,14 @@ class ActionOrchestrator:
                     smart_writer.write_if_changed(output_file, generated_code)
                     
                     # Track the generated file in state manager if provided
-                    if state_manager:
-                        source_yaml_path = self._find_source_yaml_for_flowgroup(flowgroup)
-                        if source_yaml_path:
-                            state_manager.track_generated_file(
-                                generated_path=output_file,
-                                source_yaml=source_yaml_path,
-                                environment=env,
-                                pipeline=pipeline_field,  # Use pipeline field for state tracking
-                                flowgroup=flowgroup.flowgroup,
-                            )
+                    if state_manager and source_yaml_path:
+                        state_manager.track_generated_file(
+                            generated_path=output_file,
+                            source_yaml=source_yaml_path,
+                            environment=env,
+                            pipeline=pipeline_field,  # Use pipeline field for state tracking
+                            flowgroup=flowgroup.flowgroup,
+                        )
                     
                     self.logger.info(f"Generated: {output_file}")
                 else:
@@ -575,7 +576,7 @@ class ActionOrchestrator:
     def _process_flowgroup(
         self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager
     ) -> FlowGroup:
-        """Step 4.5.3: Process flowgroup: apply presets, expand templates, apply substitutions.
+        """Step 4.5.3: Process flowgroup: expand templates, apply presets, apply substitutions.
 
         Args:
             flowgroup: FlowGroup to process
@@ -584,18 +585,18 @@ class ActionOrchestrator:
         Returns:
             Processed flowgroup
         """
-        # Step 4.5.4: Apply presets
-        if flowgroup.presets:
-            preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
-            flowgroup = self._apply_preset_config(flowgroup, preset_config)
-
-        # Step 4.5.5: Expand templates
+        # Step 4.5.4: Expand templates first
         if flowgroup.use_template:
             template_actions = self.template_engine.render_template(
                 flowgroup.use_template, flowgroup.template_parameters or {}
             )
             # Add template actions to existing actions
             flowgroup.actions.extend(template_actions)
+
+        # Step 4.5.5: Apply presets after template expansion
+        if flowgroup.presets:
+            preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
+            flowgroup = self._apply_preset_config(flowgroup, preset_config)
 
         # Apply substitutions
         flowgroup_dict = flowgroup.model_dump()
@@ -729,7 +730,7 @@ class ActionOrchestrator:
         return result
 
     def _generate_flowgroup_code(
-        self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager
+        self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager, output_dir: Path = None, state_manager=None, source_yaml: Path = None, env: str = None
     ) -> str:
         """Generate code for a flowgroup."""
 
@@ -799,6 +800,10 @@ class ActionOrchestrator:
                                 "spec_dir": self.project_root,
                                 "preset_config": preset_config,
                                 "project_config": self.project_config,  # Pass project config
+                                "output_dir": output_dir,  # Add output directory for file copying
+                                "state_manager": state_manager,  # Add state manager for additional file tracking
+                                "source_yaml": source_yaml,  # Add source YAML path for file tracking
+                                "environment": env,  # Add environment for file tracking
                             }
 
                             action_code = generator.generate(combined_action, context)
@@ -834,6 +839,10 @@ class ActionOrchestrator:
                                 "spec_dir": self.project_root,
                                 "preset_config": preset_config,  # Add preset config to context
                                 "project_config": self.project_config,  # Pass project config
+                                "output_dir": output_dir,  # Add output directory for file copying
+                                "state_manager": state_manager,  # Add state manager for additional file tracking
+                                "source_yaml": source_yaml,  # Add source YAML path for file tracking
+                                "environment": env,  # Add environment for file tracking
                             }
 
                             action_code = generator.generate(action, context)

@@ -133,6 +133,10 @@ class Action(BaseModel):
         None  # Simplified: bool or list of column names
     )
     expectations_file: Optional[str] = None  # For data quality transforms
+    # Python transform specific fields
+    module_path: Optional[str] = None  # Path to Python module (relative to project root)
+    function_name: Optional[str] = None  # Python function name to call
+    parameters: Optional[Dict[str, Any]] = None  # Parameters passed to Python function
     # Write action specific
     once: Optional[bool] = None  # For one-time flows/backfills
 

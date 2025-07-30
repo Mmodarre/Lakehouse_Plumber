@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "LakehousePlumber FlowGroup",
-    "description": "Schema for LakehousePlumber pipeline configuration files",
+    "description": "Schema for LakehousePlumber pipeline configuration files. For Python transforms: use module_path/function_name at action level, source as string/array for input views.",
     "type": "object",
     "required": ["pipeline", "flowgroup"],
     "properties": {
@@ -90,7 +90,7 @@
                             "properties": {
                                 "type": {
                                     "type": "string",
-                                    "enum": ["cloudfiles", "delta", "sql", "python", "jdbc"]
+                                    "enum": ["cloudfiles", "delta", "sql", "jdbc", "python"]
                                 },
                                 "path": {
                                     "type": "string",
@@ -143,15 +143,15 @@
                                 },
                                 "module_path": {
                                     "type": "string",
-                                    "description": "Python module path"
+                                    "description": "Python module path for load actions only (transforms use action-level module_path)"
                                 },
                                 "function_name": {
                                     "type": "string",
-                                    "description": "Python function name"
+                                    "description": "Python function name for load actions only (transforms use action-level function_name)"
                                 },
                                 "parameters": {
                                     "type": "object",
-                                    "description": "Parameters for Python source",
+                                    "description": "Parameters for Python load actions only (transforms use action-level parameters)",
                                     "additionalProperties": true
                                 },
                                 "options": {
@@ -230,7 +230,7 @@
                             }
                         }
                     ],
-                    "description": "Source configuration for the action"
+                    "description": "Source configuration: object for load actions (cloudfiles, delta, sql, jdbc, python), string or array of strings for transform actions (input view names). Python transforms use action-level module_path/function_name."
                 },
                 "target": {
                     "type": "string",
@@ -252,7 +252,7 @@
                 "transform_type": {
                     "type": "string",
                     "enum": ["sql", "python", "data_quality", "temp_table", "schema"],
-                    "description": "Type of transformation"
+                    "description": "Type of transformation. For 'python': requires module_path, function_name, and source as string/array"
                 },
                 "sql": {
                     "type": "string",
@@ -286,15 +286,15 @@
                 },
                 "module_path": {
                     "type": "string",
-                    "description": "Path to Python module for Python transforms"
+                    "description": "Path to Python module file relative to project root (e.g., 'transformations/customer_transforms.py'). Required for Python transforms and loads."
                 },
                 "function_name": {
                     "type": "string",
-                    "description": "Function name for Python transforms"
+                    "description": "Name of Python function to call. Required for Python transforms and loads."
                 },
                 "parameters": {
                     "type": "object",
-                    "description": "Parameters for Python transforms",
+                    "description": "Parameters dictionary passed to Python function. Optional for Python transforms and loads.",
                     "additionalProperties": true
                 },
                 "schema_file": {

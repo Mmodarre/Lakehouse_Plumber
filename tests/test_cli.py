@@ -214,7 +214,7 @@ bundle:
         result = runner.invoke(cli, ['--help'])
         assert result.exit_code == 0
         assert "LakehousePlumber" in result.output
-        assert "Generate Delta Live Tables pipelines from YAML configs" in result.output
+        assert "Generate Lakeflow Pipeliness pipelines from YAML configs" in result.output
     
     def test_validate_with_pipeline(self, runner, temp_project):
         """Test validate with a valid pipeline."""

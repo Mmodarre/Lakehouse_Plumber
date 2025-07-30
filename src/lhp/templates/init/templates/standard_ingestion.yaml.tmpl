@@ -30,7 +30,7 @@ actions:
     operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time","_record_hash"]
     source:
       type: cloudfiles
-      path: "{landing_volume}/{{ landing_folder }}/*.csv"
+      path: "{landing_volume}/{{ landing_folder }}/"
       format: csv
       options:
         cloudFiles.format: csv

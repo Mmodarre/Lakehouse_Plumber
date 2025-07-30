@@ -276,6 +276,105 @@ class TestStateManagerTrackGeneratedFile:
             assert "prod" in state_manager._state.environments
             assert len(state_manager._state.environments["prod"]) == 1
 
+    def test_python_transform_state_tracking_both_files(self):
+        """Test that both __init__.py and copied Python files are tracked in state manager."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            state_manager = StateManager(project_root)
+            
+            # Create Python transform function
+            transforms_dir = project_root / "transformations"
+            transforms_dir.mkdir(parents=True)
+            (transforms_dir / "customer_cleaner.py").write_text("""
+def clean_customer_data(df, spark, parameters):
+    return df.filter("email IS NOT NULL").dropDuplicates(["customer_id"])
+""")
+            
+            # Simulate the Python transform generator creating files
+            from lhp.generators.transform.python import PythonTransformGenerator
+            from lhp.models.config import Action, ActionType, TransformType, FlowGroup
+            
+            generator = PythonTransformGenerator()
+            action = Action(
+                name="clean_customer_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_customers_clean",
+                source="v_customers_raw",
+                module_path="transformations/customer_cleaner.py",
+                function_name="clean_customer_data"
+            )
+            
+            output_dir = project_root / "generated" / "customer_pipeline"
+            output_dir.mkdir(parents=True)
+            
+            context = {
+                "output_dir": output_dir,
+                "spec_dir": project_root,
+                "flowgroup": FlowGroup(
+                    pipeline="customer_pipeline",
+                    flowgroup="clean_customers",
+                    actions=[]
+                ),
+                "state_manager": state_manager,
+                "source_yaml": project_root / "pipelines" / "customer_pipeline" / "clean_customers.yaml",
+                "environment": "dev"
+            }
+            
+            # Generate the transform (this should create and track files)
+            code = generator.generate(action, context)
+            
+            # Verify files were created
+            custom_functions_dir = output_dir / "custom_python_functions"
+            init_file = custom_functions_dir / "__init__.py"
+            copied_file = custom_functions_dir / "customer_cleaner.py"
+            
+            assert init_file.exists(), "__init__.py should be generated"
+            assert copied_file.exists(), "Python function file should be copied"
+            
+            # Also track the main generated file (simulating what orchestrator would do)
+            main_file = output_dir / "clean_customers.py"
+            main_file.write_text(code)
+            state_manager.track_generated_file(
+                generated_path=main_file,
+                source_yaml=context["source_yaml"],
+                environment="dev",
+                pipeline="customer_pipeline",
+                flowgroup="clean_customers"
+            )
+            
+            # Check state tracking
+            environment_state = state_manager.get_generated_files("dev")
+            
+            # Look for tracked files
+            tracked_files = list(environment_state.keys())
+            
+            # All three files should be tracked
+            main_file_relative = "generated/customer_pipeline/clean_customers.py"
+            init_file_relative = "generated/customer_pipeline/custom_python_functions/__init__.py"
+            copied_file_relative = "generated/customer_pipeline/custom_python_functions/customer_cleaner.py"
+            
+            assert main_file_relative in tracked_files, f"Main file should be tracked: {tracked_files}"
+            assert init_file_relative in tracked_files, f"__init__.py should be tracked: {tracked_files}"
+            assert copied_file_relative in tracked_files, f"Copied Python file should be tracked: {tracked_files}"
+            
+            # Verify state details for Python files
+            init_state = environment_state[init_file_relative]
+            copied_state = environment_state[copied_file_relative]
+            
+            # Both should have same source, pipeline, flowgroup
+            expected_source = "pipelines/customer_pipeline/clean_customers.yaml"
+            assert init_state.source_yaml == expected_source
+            assert copied_state.source_yaml == expected_source
+            assert init_state.pipeline == "customer_pipeline"
+            assert init_state.flowgroup == "clean_customers"
+            assert copied_state.pipeline == "customer_pipeline"
+            assert copied_state.flowgroup == "clean_customers"
+            
+            # Both should have valid checksums
+            assert init_state.checksum is not None and len(init_state.checksum) > 0
+            assert copied_state.checksum is not None and len(copied_state.checksum) > 0
+
 
 class TestStateManagerQueryMethods:
     """Test query methods (get_generated_files, get_files_by_source, etc.)."""
@@ -1134,3 +1233,106 @@ flowgroup: customer_transforms
             
             assert customer_file.pipeline == "raw_ingestions"
             assert transforms_file.pipeline == "silver_transforms" 
+
+    def test_python_transform_cleanup_verification(self):
+        """Test state cleanup when Python transform YAML is removed - verify all files deleted."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            state_manager = StateManager(project_root)
+            
+            # Create Python transform function
+            transforms_dir = project_root / "transformations"
+            transforms_dir.mkdir(parents=True)
+            (transforms_dir / "data_processor.py").write_text("""
+def process_data(df, spark, parameters):
+    return df.withColumn("processed", "true")
+""")
+            
+            # Create and track files for Python transform
+            from lhp.generators.transform.python import PythonTransformGenerator
+            from lhp.models.config import Action, ActionType, TransformType, FlowGroup
+            
+            generator = PythonTransformGenerator()
+            action = Action(
+                name="process_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.PYTHON,
+                target="v_data_processed",
+                source="v_data_raw",
+                module_path="transformations/data_processor.py",
+                function_name="process_data"
+            )
+            
+            output_dir = project_root / "generated" / "data_pipeline"
+            output_dir.mkdir(parents=True)
+            
+            source_yaml_path = project_root / "pipelines" / "data_pipeline" / "process_data.yaml"
+            source_yaml_path.parent.mkdir(parents=True)
+            source_yaml_path.write_text("pipeline: data_pipeline\nflowgroup: process_data")
+            
+            context = {
+                "output_dir": output_dir,
+                "spec_dir": project_root,
+                "flowgroup": FlowGroup(
+                    pipeline="data_pipeline",
+                    flowgroup="process_data",
+                    actions=[]
+                ),
+                "state_manager": state_manager,
+                "source_yaml": source_yaml_path,
+                "environment": "dev"
+            }
+            
+            # Generate transform (creates and tracks __init__.py and copied file)
+            code = generator.generate(action, context)
+            
+            # Track main file
+            main_file = output_dir / "process_data.py"
+            main_file.write_text(code)
+            state_manager.track_generated_file(
+                generated_path=main_file,
+                source_yaml=source_yaml_path,
+                environment="dev",
+                pipeline="data_pipeline",
+                flowgroup="process_data"
+            )
+            
+            # Verify all files exist and are tracked
+            custom_functions_dir = output_dir / "custom_python_functions"
+            init_file = custom_functions_dir / "__init__.py"
+            copied_file = custom_functions_dir / "data_processor.py"
+            
+            assert main_file.exists(), "Main file should exist"
+            assert init_file.exists(), "__init__.py should exist"
+            assert copied_file.exists(), "Copied Python file should exist"
+            
+            # Verify all files are tracked
+            tracked_files = state_manager.get_generated_files("dev")
+            assert len(tracked_files) == 3, f"Should track 3 files, got: {list(tracked_files.keys())}"
+            
+            # Simulate YAML file removal
+            source_yaml_path.unlink()
+            
+            # Run cleanup (this should remove all orphaned files)
+            deleted_files = state_manager.cleanup_orphaned_files("dev", dry_run=False)
+            
+            # Verify all files were deleted
+            assert not main_file.exists(), "Main file should be deleted"
+            assert not init_file.exists(), "__init__.py should be deleted" 
+            assert not copied_file.exists(), "Copied Python file should be deleted"
+            
+            # Verify directories are cleaned up too
+            assert not custom_functions_dir.exists(), "custom_python_functions directory should be deleted"
+            
+            # Verify all files were reported as deleted
+            expected_deleted = {
+                "generated/data_pipeline/process_data.py",
+                "generated/data_pipeline/custom_python_functions/__init__.py", 
+                "generated/data_pipeline/custom_python_functions/data_processor.py"
+            }
+            deleted_set = set(deleted_files)
+            assert deleted_set == expected_deleted, f"Expected {expected_deleted}, got {deleted_set}"
+            
+            # Verify state is cleaned
+            tracked_files_after = state_manager.get_generated_files("dev")
+            assert len(tracked_files_after) == 0, f"No files should be tracked after cleanup, got: {list(tracked_files_after.keys())}" 

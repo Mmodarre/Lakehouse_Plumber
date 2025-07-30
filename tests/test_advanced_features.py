@@ -60,9 +60,9 @@ actions:
   - name: transform_with_python
     type: transform
     transform_type: python
-    source: 
-      module_path: "my_project.transformers.enrich_customers"
-      view: v_customers_python
+    source: v_customers_python
+    module_path: "transformers/enrich_customers.py"
+    function_name: "enrich_customers"
     target: v_customers_enriched
     description: "Enrich customers with Python"
     
@@ -76,6 +76,15 @@ actions:
       create_table: true
 """)
         
+        # Create the Python transform function file
+        transformers_dir = project_root / "transformers"
+        transformers_dir.mkdir(parents=True)
+        (transformers_dir / "enrich_customers.py").write_text("""
+def enrich_customers(df, spark, parameters):
+    # Mock enrichment function
+    return df.withColumn("enriched", "true")
+""")
+        
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
         generated_files = orchestrator.generate_pipeline("python_pipeline", "dev")
@@ -84,7 +93,7 @@ actions:
         
         # Check for Python imports
         assert "from my_project.loaders.customer_loader import" in code
-        assert "from my_project.transformers.enrich_customers import" in code
+        assert "from custom_python_functions.enrich_customers import" in code
         
         # Check for DLT decorators
         assert "@dlt.view()" in code

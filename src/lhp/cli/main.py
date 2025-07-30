@@ -132,7 +132,7 @@ def cleanup_logging():
 @click.version_option(version=get_version(), prog_name="lhp")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 def cli(verbose):
-    """LakehousePlumber - Generate Delta Live Tables pipelines from YAML configs."""
+    """LakehousePlumber - Generate Lakeflow Pipeliness pipelines from YAML configs."""
     # Try to find project root for better logging setup
     project_root = _find_project_root()
     log_file = configure_logging(verbose, project_root)

@@ -14,13 +14,22 @@ def {{ target_view }}():
     # Apply Python transformation
     parameters = {{ parameters | tojson }}
     {% if source_views|length == 1 %}
-    return {{ function_name }}({{ source_views[0] }}_df, spark, parameters)
+    df = {{ function_name }}({{ source_views[0] }}_df, spark, parameters)
     {% else %}
     dataframes = [{{ source_views|join('_df, ') }}_df]
-    return {{ function_name }}(dataframes, spark, parameters)
+    df = {{ function_name }}(dataframes, spark, parameters)
     {% endif %}
     {% else %}
     # No source views - function generates data
     parameters = {{ parameters | tojson }}
-    return {{ function_name }}(spark, parameters)
-    {% endif %} 
+    df = {{ function_name }}(spark, parameters)
+    {% endif %}
+    
+    {% if add_operational_metadata %}
+    # Add operational metadata columns
+    {% for col_name, expression in metadata_columns.items()|sort %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
+    {% endif %}
+    
+    return df 

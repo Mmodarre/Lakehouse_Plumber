@@ -24,8 +24,9 @@ if TYPE_CHECKING:
 class ConfigValidator:
     """Validate LakehousePlumber configurations."""
 
-    def __init__(self):
+    def __init__(self, project_root=None):
         self.logger = logging.getLogger(__name__)
+        self.project_root = project_root
         self.action_registry = ActionRegistry()
         self.dependency_resolver = DependencyResolver()
         self.field_validator = ConfigFieldValidator()
@@ -35,7 +36,7 @@ class ConfigValidator:
             self.action_registry, self.field_validator
         )
         self.transform_validator = TransformActionValidator(
-            self.action_registry, self.field_validator
+            self.action_registry, self.field_validator, self.project_root
         )
         self.write_validator = WriteActionValidator(
             self.action_registry, self.field_validator, self.logger

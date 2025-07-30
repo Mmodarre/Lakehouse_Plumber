@@ -8,7 +8,7 @@
 [![PyPI version](https://badge.fury.io/py/lakehouse-plumber.svg?icon=si%3Apython)](https://badge.fury.io/py/lakehouse-plumber)
 [![Tests](https://github.com/Mmodarre/Lakehouse_Plumber/actions/workflows/python_ci.yml/badge.svg)](https://github.com/Mmodarre/Lakehouse_Plumber/actions/workflows/python_ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Lines of Code](https://img.shields.io/badge/lines%20of%20code-~27k-blue)](https://github.com/Mmodarre/Lakehouse_Plumber)
+[![Lines of Code](https://img.shields.io/badge/lines%20of%20code-~30k-blue)](https://github.com/Mmodarre/Lakehouse_Plumber)
 [![codecov](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber/branch/main/graph/badge.svg?token=80IBHIFAQY)](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber)
 [![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://lakehouse-plumber.readthedocs.io/)
 [![Databricks](https://img.shields.io/badge/Databricks-Lakeflow-%23FF3621?logo=databricks)](https://www.databricks.com/product/data-engineering)
@@ -20,7 +20,7 @@
 
 - Metadata-driven frameworks that does not want to become your next enterprise blackbox.
 
-- The YAML-driven Metadata framework for Databricks Lakeflow Declarative Pipelines (formerly Delta Live Tables).
+- The YAML-driven Metadata framework for Databricks Lakeflow Declarative Pipelines (formerly Lakeflow Pipeliness).
 
 - The only Metadata framework that generates production ready Pyspark code for Lakeflow Declarative Pipelines
 

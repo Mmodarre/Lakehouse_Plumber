@@ -53,7 +53,9 @@ class ConfigFieldValidator:
                 # No additional fields - uses action.sql or action.sql_path
             },
             "python": {
-                # No additional fields - uses action.module_path, action.function_name, action.parameters
+                "module_path",      # Required - Python module path
+                "function_name",    # Required - function name to call
+                "parameters",       # Optional - parameters dict
             },
             "data_quality": {
                 # No additional fields - uses action.expectations_file
@@ -122,6 +124,10 @@ class ConfigFieldValidator:
             "operational_metadata",
             "expectations_file",
             "once",
+            # Python transform specific fields
+            "module_path",
+            "function_name",
+            "parameters",
         }
 
     def validate_load_source(

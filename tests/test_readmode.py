@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import yaml
 
-from lhp.models.config import Action, ActionType, TransformType, LoadSourceType
+from lhp.models.config import Action, ActionType, TransformType, LoadSourceType, FlowGroup
 from lhp.core.orchestrator import ActionOrchestrator
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
 from lhp.generators.load.delta import DeltaLoadGenerator
@@ -182,16 +182,32 @@ class TestReadMode:
             name="py_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.PYTHON,
-            source={
-                "view": "v_input",
-                "module_path": "transforms.clean",
-                "function_name": "clean_data"
-            },
+            source="v_input",
+            module_path="transforms/clean.py",
+            function_name="clean_data",
             target="v_cleaned",
             readMode="batch"
         )
         
-        code = python_gen.generate(action_python, {})
+        # Create temporary Python file for the test
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            transforms_dir = tmpdir_path / "transforms"
+            transforms_dir.mkdir(parents=True)
+            (transforms_dir / "clean.py").write_text("""
+def clean_data(df, spark, parameters):
+    return df.filter("value IS NOT NULL")
+""")
+            
+            code = python_gen.generate(action_python, {
+                "output_dir": tmpdir_path / "generated",
+                "spec_dir": tmpdir_path,
+                "flowgroup": FlowGroup(
+                    pipeline="test_pipeline",
+                    flowgroup="test_flowgroup",
+                    actions=[]
+                )
+            })
         assert "spark.read.table" in code
     
     def test_yaml_parsing_with_readmode(self):
