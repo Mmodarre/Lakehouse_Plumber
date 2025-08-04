@@ -64,7 +64,7 @@ version: "1.0"
 description: "Bronze layer preset for raw data ingestion"
 
 defaults:
-  operational_metadata: true
+  operational_metadata: ["_ingestion_timestamp", "_pipeline_name"]
   
   write_actions:
     streaming_table:

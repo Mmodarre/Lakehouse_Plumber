@@ -37,24 +37,27 @@ Load Actions
   - At this time the framework supports the following load sub-types.
   - Coming soon: It will support more sources and target types through **plugins**.
 
-+-------------+------------------------------------------------------------+
-| Sub-type    | Purpose & Source                                           |
-+=============+============================================================+
-|| cloudfiles || Databricks *Auto Loader* (CloudFiles) – stream files from |
-||            || object storage (CSV, JSON, Parquet, etc.).                |
-+-------------+------------------------------------------------------------+
-|| delta      || Read from an existing Delta table or Change Data Feed     |
-||            || (CDC).                                                    |
-+-------------+------------------------------------------------------------+
-|| sql        || Execute an arbitrary SQL query and load the result as a   |
-||            || view.                                                     |
-+-------------+------------------------------------------------------------+
-|| jdbc       || Ingest from an external RDBMS via JDBC with secret        |
-||            || handling.                                                 |
-+-------------+------------------------------------------------------------+
-|| python     || Call custom Python code (path or inline), returning a     |
-||            || DataFrame.                                                |
-+-------------+------------------------------------------------------------+
++----------------------------+------------------------------------------------------------+
+| Sub-type                   | Purpose & Source                                           |
++============================+============================================================+
+|| cloudfiles                || Databricks *Auto Loader* (CloudFiles) – stream files from |
+||                           || object storage (CSV, JSON, Parquet, etc.).                |
++----------------------------+------------------------------------------------------------+
+|| delta                     || Read from an existing Delta table or Change Data Feed     |
+||                           || (CDC).                                                    |
++----------------------------+------------------------------------------------------------+
+|| sql                       || Execute an arbitrary SQL query and load the result as a   |
+||                           || view.                                                     |
++----------------------------+------------------------------------------------------------+
+|| jdbc                      || Ingest from an external RDBMS via JDBC with secret        |
+||                           || handling.                                                 |
++----------------------------+------------------------------------------------------------+
+|| python                    || Call custom Python code (path or inline), returning a     |
+||                           || DataFrame.                                                |
++----------------------------+------------------------------------------------------------+
+|| custom_datasource(PySpark)|| Configured under ``source`` block with automatic import   |
+||                           || management and registration.                              |
++----------------------------+------------------------------------------------------------+
 
 cloudFiles
 ~~~~~~~~~~
@@ -589,6 +592,233 @@ Python load actions call custom Python functions that return DataFrames. This al
       
       return df
 
+PySpark Custom DataSource
+~~~~~~~~~~~~~~~~~~~~~~~~~
+Custom data source load actions use PySpark's DataSource API to implement specialized data ingestion from APIs, custom protocols, or any external system that requires custom logic. This allows for highly flexible data ingestion patterns.
+
+**YAML Configuration:**
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_currency_exchange
+      type: load
+      readMode: stream
+      operational_metadata: ["_processing_timestamp"]
+      source:
+        type: custom_datasource
+        module_path: "data_sources/currency_api_source.py"
+        custom_datasource_class: "CurrencyAPIStreamingDataSource"
+        options:
+          apiKey: "${secret:apis/currency_key}"
+          baseCurrencies: "USD,EUR,GBP"
+          progressPath: "/Volumes/catalog/schema/checkpoints/"
+          minCallIntervalSeconds: "300"
+          workspaceUrl: "adb-XYZ.azuredatabricks.net"
+      target: v_currency_bronze
+      description: "Load live currency exchange rates from external API"
+
+**Custom DataSource Implementation (data_sources/currency_api_source.py):**
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark.sql.datasource import DataSource, DataSourceStreamReader, InputPartition
+  from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType, BooleanType
+  from typing import Iterator, Tuple
+  import requests
+  import time
+  import json
+
+  class CurrencyInputPartition(InputPartition):
+      """Input partition for currency API data source"""
+      def __init__(self, start_time, end_time):
+          self.start_time = start_time
+          self.end_time = end_time
+
+  class CurrencyAPIStreamingDataSource(DataSource):
+      """
+      Custom data source for live currency exchange rates.
+      Fetches data from external API with rate limiting and progress tracking.
+      """
+
+      @classmethod
+      def name(cls):
+          return "currency_api_stream"
+
+      def schema(self):
+          return """
+              base_currency string,
+              target_currency string,
+              exchange_rate double,
+              api_timestamp timestamp,
+              fetch_timestamp timestamp,
+              rate_change_1h double,
+              is_crypto boolean,
+              data_source string,
+              pipeline_run_id string
+          """
+
+      def streamReader(self, schema: StructType):
+          return CurrencyAPIStreamingReader(schema, self.options)
+
+  class CurrencyAPIStreamingReader(DataSourceStreamReader):
+      """Streaming reader implementation with API calls and progress tracking"""
+      
+      def __init__(self, schema, options):
+          self.schema = schema
+          self.options = options
+          self.api_key = options.get("apiKey")
+          self.base_currencies = options.get("baseCurrencies", "USD").split(",")
+          self.progress_path = options.get("progressPath")
+          self.min_interval = int(options.get("minCallIntervalSeconds", "300"))
+
+      def initialOffset(self) -> dict:
+          return {"fetch_time": int(time.time() * 1000)}
+
+      def latestOffset(self) -> dict:
+          return {"fetch_time": int(time.time() * 1000)}
+
+      def partitions(self, start: dict, end: dict):
+          return [CurrencyInputPartition(start.get("fetch_time", 0), end.get("fetch_time", 0))]
+
+      def read(self, partition) -> Iterator[Tuple]:
+          """Fetch data from external API and yield as tuples"""
+          # API call logic here
+          for base_currency in self.base_currencies:
+              # Make API calls and yield data
+              yield (base_currency, "USD", 1.0, time.time(), time.time(), 0.0, False, "API", "run_1")
+
+**Anatomy of a custom data source load action**
+
+- **name**: Unique name for this action within the FlowGroup
+- **type**: Action type - brings data into a temporary view
+- **readMode**: Either *batch* or *stream* - determines if custom DataSource uses batch or stream reader
+- **operational_metadata**: Add custom metadata columns (e.g., processing timestamp)
+- **source**: Custom data source configuration
+      - **type**: Use custom_datasource as source type
+      - **module_path**: Path to Python file containing the custom DataSource implementation
+      - **custom_datasource_class**: Name of the DataSource class to register and use
+      - **options**: Dictionary of parameters passed to the DataSource (available via self.options)
+- **target**: Name of the temporary view created
+- **description**: Optional documentation for the action
+
+.. seealso::
+  - For PySpark DataSource API see the `PySpark DataSource documentation <https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.datasource.DataSource.html>`_.
+  - Custom integrations: :doc:`concepts`
+
+.. Important::
+  Custom DataSources require implementing the DataSource interface with appropriate reader methods.
+  The framework automatically registers your DataSource and copies the implementation to the generated pipeline.
+  Use options dictionary to pass configuration parameters from YAML to your DataSource.
+
+  **Key Implementation Requirements:**
+  - Your DataSource class must implement the ``name()`` class method returning the format name used in ``.format()``
+  - The framework uses the return value of ``name()`` method, not the class name, for the format string
+  - The custom source code is placed *before* the registration call to ensure proper class definition order
+  - Import management is handled automatically to resolve conflicts between source file imports and generated code
+
+.. note::
+  **File Organization**: The ``module_path`` is relative to your YAML file location.
+  Common practice is to create a ``data_sources/`` folder alongside your pipeline YAML files.
+  
+  **Schema Definition**: Define your schema in the ``schema()`` method using DDL string format as shown in the example.
+  This schema should match the data structure returned by your ``read()`` method.
+
+  **Import Management**: The framework automatically handles import deduplication and conflict resolution.
+  If your custom source uses wildcard imports (e.g., ``from pyspark.sql.functions import *``), 
+  they will take precedence over alias imports, and operational metadata expressions will adapt accordingly.
+
+**The above YAML translates to the following PySpark code**
+
+.. code-block:: python
+  :linenos:
+
+  # Generated by LakehousePlumber
+  # Pipeline: unirate_api_ingestion
+  # FlowGroup: api_unirate_ingestion_bronze
+
+  from pyspark.sql.datasource import DataSource, DataSourceStreamReader, InputPartition
+  from pyspark.sql.functions import *
+  from pyspark.sql.types import *
+  from typing import Iterator, Tuple
+  import dlt
+  import json
+  import os
+  import requests
+  import time
+
+  # Pipeline Configuration
+  PIPELINE_ID = "unirate_api_ingestion"
+  FLOWGROUP_ID = "api_unirate_ingestion_bronze"
+
+  # ============================================================================
+  # CUSTOM DATA SOURCE IMPLEMENTATIONS
+  # ============================================================================
+  # The following code was automatically copied from: data_sources/currency_api_source.py
+  # Used by action: load_currency_exchange
+
+  class CurrencyInputPartition(InputPartition):
+      """Input partition for currency API data source"""
+      def __init__(self, start_time, end_time):
+          self.start_time = start_time
+          self.end_time = end_time
+
+  class CurrencyAPIStreamingDataSource(DataSource):
+      """
+      Real currency exchange data source powered by UniRateAPI.
+      Fetches live exchange rates on each triggered pipeline run.
+      """
+
+      @classmethod
+      def name(cls):
+          return "currency_api_stream"
+
+      def schema(self):
+          return """
+              base_currency string,
+              target_currency string,
+              exchange_rate double,
+              api_timestamp timestamp,
+              fetch_timestamp timestamp,
+              rate_change_1h double,
+              is_crypto boolean,
+              data_source string,
+              pipeline_run_id string
+          """
+
+      def streamReader(self, schema: StructType):
+          return CurrencyAPIStreamingReader(schema, self.options)
+
+  # ... rest of custom data source implementation ...
+
+  # ============================================================================
+  # SOURCE VIEWS
+  # ============================================================================
+
+  # Try to register the custom data source
+  try:
+      spark.dataSource.register(CurrencyAPIStreamingDataSource)
+  except Exception:
+      pass  # Ignore if already registered
+
+  @dlt.view()
+  def v_currency_bronze():
+      """Load live currency exchange rates from external API"""
+      df = spark.readStream \
+          .format("currency_api_stream") \
+          .option("apiKey", dbutils.secrets.get(scope='apis', key='currency_key')) \
+          .option("baseCurrencies", "USD,EUR,GBP") \
+          .option("progressPath", "/Volumes/catalog/schema/checkpoints/") \
+          .option("minCallIntervalSeconds", "300") \
+          .option("workspaceUrl", "adb-XYZ.azuredatabricks.net") \
+          .load()
+
+      # Add operational metadata columns
+      df = df.withColumn('_processing_timestamp', current_timestamp())
+
+      return df
+
 Transform Actions
 ------------------
 
@@ -737,7 +967,9 @@ SQL transform actions execute SQL queries to transform data between views. They 
 python
 ~~~~~~
 Python transform actions call custom Python functions to apply complex transformation logic that goes beyond SQL capabilities. 
-The framework automatically copies your Python functions into the generated pipeline and handles import management.
+
+.. tip::
+  The framework automatically copies your Python functions into the generated pipeline and handles import management.
 
 .. code-block:: yaml
 
@@ -745,7 +977,7 @@ The framework automatically copies your Python functions into the generated pipe
     - name: customer_advanced_enrichment
       type: transform
       transform_type: python
-      source: v_customer_bronze
+      source: v_customer_bronze 
       module_path: "transformations/customer_transforms.py"
       function_name: "enrich_customer_data"
       parameters:
@@ -1089,7 +1321,7 @@ Data quality transform actions apply data validation rules using Databricks DLT 
 - **drop**: Remove records that violate the rule but continue processing
 
 .. seealso::
-  - For DLT expectations see the `Databricks DLT documentation <https://docs.databricks.com/en/delta-live-tables/expectations.html>`_.
+  - For DLT expectations see the `Databricks DLT expectations documentation <https://docs.databricks.com/en/delta-live-tables/expectations.html>`_.
   - Data quality patterns: :doc:`concepts`
 
 .. Important::
@@ -1231,7 +1463,7 @@ Temp table transform actions create temporary streaming tables for intermediate 
 - **description**: Optional documentation for the action
 
 .. seealso::
-  - For DLT table types see the `Databricks DLT documentation <https://docs.databricks.com/aws/en/dlt-ref/dlt-python-ref-table>`_.
+  - For DLT table types see the `Databricks DLT table types documentation <https://docs.databricks.com/aws/en/dlt-ref/dlt-python-ref-table>`_.
   - Intermediate processing: :doc:`concepts`
 
 .. Important::
@@ -1430,7 +1662,7 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
   )
 
 .. seealso::
-  - For more information on ``create_auto_cdc_flow`` see the `Databricks official documentation <https://docs.databricks.com/en/delta-live-tables/dlt-python-ref-apply-changes.html>`_
+  - For more information on ``create_auto_cdc_flow`` see the `Databricks CDC documentation <https://docs.databricks.com/en/delta-live-tables/dlt-python-ref-apply-changes.html>`_
 
 **Snapshot CDC**
 
@@ -1543,7 +1775,7 @@ Create file `customer_snapshot_functions.py`:
        # Add your logic here to determine if new snapshots are available
        return None  # No more snapshots available
 .. seealso::
-  - For more information on ``create_auto_cdc_from_snapshot_flow`` see the `Databricks official documentation <https://docs.databricks.com/en/delta-live-tables/python-ref.html#create_auto_cdc_from_snapshot_flow>`_
+  - For more information on ``create_auto_cdc_from_snapshot_flow`` see the `Databricks snapshot CDC documentation <https://docs.databricks.com/en/delta-live-tables/python-ref.html#create_auto_cdc_from_snapshot_flow>`_
 
 **The above YAML examples translate to the following PySpark code**
 

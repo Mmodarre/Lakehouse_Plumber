@@ -1,7 +1,7 @@
-pipeline: raw_ingestions
+pipeline: acmi_edw_raw_ingestions
 flowgroup: part_ingestion
 
 use_template: parquet_ingestion_template
 template_parameters:
-  table_name: part
+  table_name: part_raw
   landing_folder: part

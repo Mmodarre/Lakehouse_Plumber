@@ -16,11 +16,16 @@ parameters:
   - name: landing_folder
     required: true
     description: "Name of the landing folder"
-
+  - name: schema_file
+    required: true
+    description: "Schema file name"
+    default: ""
 actions:
   - name: load_{{ table_name }}_json
     type: load
-    operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time","_record_hash"]
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
     source:
       type: cloudfiles
       path: "{landing_volume}/{{ landing_folder }}/*.json"
@@ -31,7 +36,7 @@ actions:
         cloudFiles.inferColumnTypes: True
         cloudFiles.schemaEvolutionMode: "addNewColumns"
         cloudFiles.rescuedDataColumn: "_rescued_data"
-        cloudFiles.schemaHints: "schemas/{{ table_name }}_schema.yaml"
+        cloudFiles.schemaHints: "schemas/{{ schema_file }}.yaml"
     target: v_{{ table_name }}_cloudfiles
     description: "Load {{ table_name }} JSON files from landing volume"
 

@@ -141,7 +141,7 @@ class FunctionCallVisitor(ast.NodeVisitor):
 
 
 class OperationalMetadata:
-    """Enhanced operational metadata handler with project-level configuration."""
+    """Enhanced operational metadata handler with project-level configuration and ImportManager integration."""
 
     def __init__(
         self, project_config: Optional[ProjectOperationalMetadataConfig] = None
@@ -150,33 +150,43 @@ class OperationalMetadata:
         self.import_detector = ImportDetector(strategy="ast")
         self.project_config = project_config
 
-        # Default metadata columns (backward compatibility)
+        # Default metadata columns with adaptive expressions
+        # These will be dynamically adjusted based on available imports
         self.default_columns = {
             "_ingestion_timestamp": MetadataColumnConfig(
-                expression="F.current_timestamp()",
+                expression="F.current_timestamp()",  # Default format
                 description="When the record was ingested",
                 applies_to=["streaming_table", "materialized_view", "view"],
             ),
             "_source_file": MetadataColumnConfig(
-                expression="F.input_file_name()",
+                expression="F.input_file_name()",  # Default format
                 description="Source file path",
                 applies_to=["view"],  # Only views (load actions)
             ),
             "_pipeline_run_id": MetadataColumnConfig(
-                expression='F.lit(spark.conf.get("pipelines.id", "unknown"))',
+                expression='F.lit(spark.conf.get("pipelines.id", "unknown"))',  # Default format
                 description="Pipeline run identifier",
                 applies_to=["streaming_table", "materialized_view", "view"],
             ),
             "_pipeline_name": MetadataColumnConfig(
-                expression='F.lit("${pipeline_name}")',
+                expression='F.lit("${pipeline_name}")',  # Default format
                 description="Pipeline name",
                 applies_to=["streaming_table", "materialized_view", "view"],
             ),
             "_flowgroup_name": MetadataColumnConfig(
-                expression='F.lit("${flowgroup_name}")',
+                expression='F.lit("${flowgroup_name}")',  # Default format
                 description="FlowGroup name",
                 applies_to=["streaming_table", "materialized_view", "view"],
             ),
+        }
+
+        # Alternative expressions for when wildcard imports are available
+        self.wildcard_expressions = {
+            "_ingestion_timestamp": "current_timestamp()",
+            "_source_file": "input_file_name()",
+            "_pipeline_run_id": 'lit(spark.conf.get("pipelines.id", "unknown"))',
+            "_pipeline_name": 'lit("${pipeline_name}")',
+            "_flowgroup_name": 'lit("${flowgroup_name}")',
         }
 
         # Context for substitutions
@@ -184,136 +194,188 @@ class OperationalMetadata:
         self.flowgroup_name = None
 
     def update_context(self, pipeline_name: str, flowgroup_name: str):
-        """Update context for template substitutions."""
+        """Update context for substitutions."""
         self.pipeline_name = pipeline_name
         self.flowgroup_name = flowgroup_name
 
+    def adapt_expressions_for_imports(self, import_manager=None) -> None:
+        """
+        Adapt expressions based on available imports from ImportManager.
+        
+        If wildcard imports are available, use direct function calls.
+        Otherwise, use the F. prefix format.
+        
+        This adaptation applies to both default columns AND project-level custom columns.
+        Creates local copies to avoid mutating shared project config.
+        
+        Args:
+            import_manager: Optional ImportManager instance to check available imports
+        """
+        if not import_manager:
+            return  # No adaptation needed
+        
+        # Get current imports to check for wildcard patterns
+        current_imports = import_manager.get_consolidated_imports()
+        import_text = "\n".join(current_imports)
+        
+        # Check if wildcard imports are available
+        has_functions_wildcard = "from pyspark.sql.functions import *" in import_text
+        
+        if has_functions_wildcard:
+            self.logger.debug("Wildcard imports detected - adapting expressions to use direct function calls")
+            
+            # Update default columns to use direct function calls
+            for column_name, wildcard_expr in self.wildcard_expressions.items():
+                if column_name in self.default_columns:
+                    # Create updated config with wildcard expression
+                    original_config = self.default_columns[column_name]
+                    self.default_columns[column_name] = MetadataColumnConfig(
+                        expression=wildcard_expr,
+                        description=original_config.description,
+                        applies_to=original_config.applies_to,
+                        enabled=original_config.enabled,
+                        additional_imports=original_config.additional_imports
+                    )
+            
+            # FIXED: Create local adapted copy of project-level custom columns
+            if self.project_config and self.project_config.columns:
+                self.logger.debug("Creating locally adapted project-level column expressions")
+                
+                # Create local adapted columns dict (don't mutate original)
+                self._adapted_project_columns = {}
+                
+                for column_name, column_config in self.project_config.columns.items():
+                    # Adapt F. prefix expressions to direct calls
+                    adapted_expression = self._adapt_expression_for_wildcard(column_config.expression)
+                    
+                    if adapted_expression != column_config.expression:
+                        self.logger.debug(f"Adapted {column_name}: '{column_config.expression}' → '{adapted_expression}'")
+                        
+                        # Create local copy with adapted expression (don't mutate original)
+                        self._adapted_project_columns[column_name] = MetadataColumnConfig(
+                            expression=adapted_expression,
+                            description=column_config.description,
+                            applies_to=column_config.applies_to,
+                            enabled=column_config.enabled,
+                            additional_imports=column_config.additional_imports
+                        )
+                    else:
+                        # No adaptation needed - use original
+                        self._adapted_project_columns[column_name] = column_config
+        else:
+            self.logger.debug("No wildcard imports detected - using F. prefix expressions")
+            # Clear any local adaptations
+            self._adapted_project_columns = None
+    
+    def _adapt_expression_for_wildcard(self, expression: str) -> str:
+        """
+        Adapt a single expression to use direct function calls when wildcard imports are available.
+        
+        Examples:
+        - "F.current_timestamp()" → "current_timestamp()"
+        - "F.col('name')" → "col('name')"
+        - "F.lit('value')" → "lit('value')"
+        
+        Args:
+            expression: Original expression with potential F. prefix
+            
+        Returns:
+            Adapted expression with direct function calls
+        """
+        # Common PySpark function patterns to adapt
+        adaptations = {
+            # Basic functions
+            r'\bF\.current_timestamp\(\)': 'current_timestamp()',
+            r'\bF\.input_file_name\(\)': 'input_file_name()',
+            
+            # Functions with parameters (preserve parameters)
+            r'\bF\.col\(': 'col(',
+            r'\bF\.lit\(': 'lit(',
+            r'\bF\.when\(': 'when(',
+            r'\bF\.coalesce\(': 'coalesce(',
+            r'\bF\.concat\(': 'concat(',
+            r'\bF\.upper\(': 'upper(',
+            r'\bF\.lower\(': 'lower(',
+            r'\bF\.trim\(': 'trim(',
+            r'\bF\.split\(': 'split(',
+            r'\bF\.regexp_replace\(': 'regexp_replace(',
+            r'\bF\.date_format\(': 'date_format(',
+            r'\bF\.to_timestamp\(': 'to_timestamp(',
+            r'\bF\.from_unixtime\(': 'from_unixtime(',
+            r'\bF\.unix_timestamp\(': 'unix_timestamp(',
+            
+            # Aggregate functions
+            r'\bF\.sum\(': 'sum(',
+            r'\bF\.count\(': 'count(',
+            r'\bF\.max\(': 'max(',
+            r'\bF\.min\(': 'min(',
+            r'\bF\.avg\(': 'avg(',
+            
+            # Window functions
+            r'\bF\.row_number\(\)': 'row_number()',
+            r'\bF\.rank\(\)': 'rank()',
+            r'\bF\.dense_rank\(\)': 'dense_rank()',
+        }
+        
+        # Apply adaptations
+        adapted_expression = expression
+        for pattern, replacement in adaptations.items():
+            adapted_expression = re.sub(pattern, replacement, adapted_expression)
+        
+        return adapted_expression
+
     def resolve_metadata_selection(
-        self, flowgroup: FlowGroup, action: Action, preset_config: Dict[str, Any]
+        self, flowgroup: Optional[FlowGroup], action: Optional[Action], preset_config: dict
     ) -> Optional[Dict[str, Any]]:
         """Resolve metadata selection across preset, flowgroup, and action levels.
-
+        
         Args:
             flowgroup: FlowGroup configuration
             action: Action configuration
             preset_config: Preset configuration dictionary
-
+            
         Returns:
             Resolved metadata selection or None if disabled
         """
         # Check for explicit disable at action level first
-        if (
-            hasattr(action, "operational_metadata")
-            and action.operational_metadata is False
-        ):
+        if action and hasattr(action, 'operational_metadata') and action.operational_metadata is False:
             # Explicitly disabled at action level - no metadata at all
             return None
-
+        
         # Always collect from all levels for additive behavior
         result = {}
-
+        
         # Add preset level selection
-        if "operational_metadata" in preset_config:
-            result["preset"] = preset_config["operational_metadata"]
-
+        if 'operational_metadata' in preset_config:
+            result['preset'] = preset_config['operational_metadata']
+        
         # Add flowgroup level selection
-        if (
-            hasattr(flowgroup, "operational_metadata")
-            and flowgroup.operational_metadata is not None
-        ):
-            result["flowgroup"] = flowgroup.operational_metadata
-
+        if flowgroup and hasattr(flowgroup, 'operational_metadata') and flowgroup.operational_metadata is not None:
+            result['flowgroup'] = flowgroup.operational_metadata
+        
         # Add action level selection (unless it's False, which we already handled)
-        if (
-            hasattr(action, "operational_metadata")
-            and action.operational_metadata is not None
-        ):
-            result["action"] = action.operational_metadata
-
+        if action and hasattr(action, 'operational_metadata') and action.operational_metadata is not None:
+            result['action'] = action.operational_metadata
+        
         # Return combined result or None if no selections found
         return result if result else None
 
-    def _extract_column_names(
-        self, selection: Union[bool, List[str]], context: str = "metadata"
-    ) -> Set[str]:
-        """Extract column names from selection configuration.
-
-        Args:
-            selection: Selection configuration (bool or list of strings)
-            context: Context for error handling ("metadata" for lenient, others for strict)
-
-        Returns:
-            Set of column names
-        """
-        if selection is True:
-            # Boolean true means all available columns
-            return set(self._get_available_columns().keys())
-        elif isinstance(selection, list):
-            # List of specific column names - validate they exist
-            available_columns = set(self._get_available_columns().keys())
-            invalid_columns = set(selection) - available_columns
-
-            if invalid_columns:
-                if context == "metadata":
-                    # Lenient: Log warning and filter out unknown metadata columns
-                    self.logger.warning(
-                        f"Ignoring unknown metadata columns: {', '.join(sorted(invalid_columns))}"
-                    )
-                    return set(selection) - invalid_columns
-                else:
-                    # Strict: Throw error for other contexts
-                    raise LHPError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="006",
-                        title="Invalid operational metadata column references",
-                        details=f"The following columns are not defined in the project configuration: {', '.join(sorted(invalid_columns))}",
-                        suggestions=[
-                            "Define these columns in the operational_metadata.columns section of lhp.yaml",
-                            "Check for typos in column names",
-                            "Verify column names are correctly spelled and case-sensitive",
-                        ],
-                        example="""Add missing columns to lhp.yaml:
-
-operational_metadata:
-  columns:
-    _ingestion_timestamp:
-      expression: "F.current_timestamp()"
-      description: "When record was ingested"
-    _your_custom_column:
-      expression: "F.lit('your_value')"
-      description: "Your custom metadata" """,
-                        context={
-                            "Invalid columns": list(invalid_columns),
-                            "Available columns": list(available_columns),
-                        },
-                    )
-
-            # List of specific column names
-            return set(selection)
-        else:
-            # Invalid or empty selection
-            return set()
-
     def _validate_target_type(self, target_type: str):
-        """Validate target type is supported.
-
-        Args:
-            target_type: Target type to validate
-        """
+        """Validate target type is supported."""
         valid_types = ["streaming_table", "materialized_view", "view"]
         if target_type not in valid_types:
             raise LHPError(
                 category=ErrorCategory.CONFIG,
-                code_number="007",
+                code_number="008",
                 title="Invalid target type for operational metadata",
-                details=f"Target type '{target_type}' is not supported for operational metadata",
+                details=f"Target type '{target_type}' is not supported for operational metadata.",
                 suggestions=[
                     f"Use one of the supported target types: {', '.join(valid_types)}",
-                    "Check your target configuration",
+                    "Check your action configuration",
                 ],
                 context={
-                    "Provided target type": target_type,
-                    "Valid target types": valid_types,
+                    "Target type": target_type,
+                    "Valid types": valid_types,
                 },
             )
 
@@ -321,45 +383,39 @@ operational_metadata:
         self, selection: Dict[str, Any], target_type: str
     ) -> Dict[str, str]:
         """Get selected columns with expressions for the target type.
-
+        
         Args:
             selection: Selection configuration from resolve_metadata_selection
-            target_type: Target type ('streaming_table' or 'materialized_view')
-
+            target_type: Target type ('streaming_table', 'materialized_view', or 'view')
+            
         Returns:
             Dictionary of column_name -> expression
         """
         if not selection:
             return {}
-
+        
         # Validate target type
         self._validate_target_type(target_type)
-
+        
         # Get available columns (project config or defaults)
         available_columns = self._get_available_columns()
-
-        # Collect selected column names
+        
+        # Collect selected column names additively
         selected_column_names = set()
-
+        
         try:
             # Add from preset
-            if "preset" in selection and selection["preset"] is not None:
-                selected_column_names.update(
-                    self._extract_column_names(selection["preset"])
-                )
-
+            if 'preset' in selection and selection['preset'] is not None:
+                selected_column_names.update(self._extract_column_names(selection['preset']))
+            
             # Add from flowgroup
-            if "flowgroup" in selection and selection["flowgroup"] is not None:
-                selected_column_names.update(
-                    self._extract_column_names(selection["flowgroup"])
-                )
-
+            if 'flowgroup' in selection and selection['flowgroup'] is not None:
+                selected_column_names.update(self._extract_column_names(selection['flowgroup']))
+            
             # Add from action
-            if "action" in selection and selection["action"] is not None:
-                selected_column_names.update(
-                    self._extract_column_names(selection["action"])
-                )
-
+            if 'action' in selection and selection['action'] is not None:
+                selected_column_names.update(self._extract_column_names(selection['action']))
+        
         except Exception as e:
             # Re-raise LHPError as-is, wrap other errors
             if isinstance(e, LHPError):
@@ -373,22 +429,21 @@ operational_metadata:
                     suggestions=[
                         "Check your operational_metadata configuration syntax",
                         "Verify column names are correctly specified",
-                        "Ensure selection values are proper types (bool or list of strings)",
+                        "Ensure selection values are proper types (list of strings)"
                     ],
                     context={
                         "Selection": selection,
                         "Target type": target_type,
-                        "Original error": str(e),
-                    },
+                        "Original error": str(e)
+                    }
                 )
-
-        # Filter by target type and enabled status, then build result
+        
+        # Filter by target type and build result
         result = {}
         for column_name in selected_column_names:
             if column_name in available_columns:
                 column_config = available_columns[column_name]
-                # Check if column is enabled and applies to target type
-                if column_config.enabled and target_type in column_config.applies_to:
+                if target_type in column_config.applies_to:
                     # Apply context substitutions
                     try:
                         expression = self._apply_substitutions(column_config.expression)
@@ -402,20 +457,24 @@ operational_metadata:
                             suggestions=[
                                 "Check the expression syntax in your column configuration",
                                 "Verify substitution placeholders are valid (e.g., ${pipeline_name})",
-                                "Ensure the expression is valid PySpark code",
+                                "Ensure the expression is valid PySpark code"
                             ],
                             context={
                                 "Column name": column_name,
                                 "Expression": column_config.expression,
-                                "Error": str(e),
-                            },
+                                "Error": str(e)
+                            }
                         )
-
+        
         return result
 
     def _get_available_columns(self) -> Dict[str, MetadataColumnConfig]:
         """Get available metadata columns from project config or defaults."""
-        if self.project_config and self.project_config.columns:
+        # Use locally adapted project columns if available (from adapt_expressions_for_imports)
+        if hasattr(self, '_adapted_project_columns') and self._adapted_project_columns is not None:
+            return self._adapted_project_columns
+        # Otherwise use original project config or defaults
+        elif self.project_config and self.project_config.columns:
             return self.project_config.columns
         else:
             return self.default_columns
@@ -435,6 +494,45 @@ operational_metadata:
             expression = expression.replace("${flowgroup_name}", self.flowgroup_name)
 
         return expression
+
+    def _extract_column_names(self, selection, context: str = "metadata") -> set:
+        """Extract column names from selection configuration.
+        
+        Args:
+            selection: Selection configuration (list of strings)
+            context: Context for error handling ("metadata" for lenient, others for strict)
+            
+        Returns:
+            Set of column names
+        """
+        if isinstance(selection, list):
+            # List of specific column names - validate they exist
+            available_columns = set(self._get_available_columns().keys())
+            invalid_columns = set(selection) - available_columns
+            
+            if invalid_columns:
+                if context == "metadata":
+                    # Lenient: Log warning and filter out unknown metadata columns
+                    self.logger.warning(f"Ignoring unknown metadata columns: {', '.join(sorted(invalid_columns))}")
+                    return set(selection) - invalid_columns
+                else:
+                    # Strict: Throw error for other contexts
+                    raise LHPError(
+                        category=ErrorCategory.CONFIG,
+                        code_number="006",
+                        title="Invalid operational metadata column references",
+                        details=f"The following columns are not defined in the project configuration: {', '.join(sorted(invalid_columns))}",
+                        suggestions=[
+                            "Define these columns in the operational_metadata.columns section of lhp.yaml",
+                            "Check for typos in column names",
+                            "Verify column names are correctly spelled and case-sensitive"
+                        ]
+                    )
+            
+            return set(selection)
+        else:
+            # Invalid type - return empty set
+            return set()
 
     def get_required_imports(self, columns: Dict[str, str]) -> Set[str]:
         """Get required imports for selected columns.

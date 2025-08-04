@@ -1,5 +1,5 @@
 Templates Reference
-==================
+===================
 
 Templates are reusable action patterns that eliminate repetitive configuration and standardize common data pipeline workflows. They use parameter substitution to generate customized actions from a single template definition.
 
@@ -727,12 +727,12 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
      ignore_null_updates: true
 
 Environment and Secret Substitutions
------------------------------------
+------------------------------------
 
 In addition to template parameters, both template definitions and flowgroup YAML files support environment-specific substitutions and secret references. These use different syntax than template parameters and are resolved at generation time.
 
 Substitution Types
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 **Environment Substitutions**: ``{token}`` or ``${token}``
    Replaced with values from ``substitutions/{env}.yaml`` files
@@ -760,7 +760,7 @@ Substitution Types
    This allows templates to dynamically reference environment-specific values and secrets.
 
 Using Substitutions in Templates
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Templates can include environment and secret substitutions alongside template parameters:
 
@@ -889,7 +889,7 @@ Templates can include environment and secret substitutions alongside template pa
        return spark.readStream.table("v_customers_raw")
 
 Using Substitutions in FlowGroups
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 FlowGroups can also use environment and secret substitutions directly without templates:
 
@@ -934,7 +934,7 @@ FlowGroups can also use environment and secret substitutions directly without te
        description: "Write events to bronze layer"
 
 Multi-Environment Examples
-~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The same template or flowgroup works across environments by changing substitution files:
 
@@ -987,13 +987,13 @@ The same template or flowgroup works across environments by changing substitutio
    # Uses prod_catalog.bronze, prod API endpoint, prod secrets
 
 Advanced Substitution Patterns
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Conditional Secret Usage**
 
 Templates can conditionally use secrets based on environment:
 
-.. code-block:: yaml
+.. code-block:: text
    :caption: Template with conditional secrets
    :linenos:
 
@@ -1058,22 +1058,26 @@ Use scope aliases for flexible secret management:
      password: "${secret:databases/readonly_password}"
 
 Best Practices for Substitutions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When to Use Each Type:**
 
-+------------------------+--------------------------------------------------+---------------------------+
-| Substitution Type      | Use Case                                         | Example                   |
-+========================+==================================================+===========================+
-|| **Template Parameters**|| Values that change per template usage           || ``{{ table_name }}``     |
-|| ``{{ }}``             || within the same environment                     || ``{{ file_format }}``    |
-+------------------------+--------------------------------------------------+---------------------------+
-|| **Environment**       || Values that change between dev/staging/prod     || ``{catalog}``             |
-|| ``{token}``           || but stay consistent within an environment       || ``{bronze_schema}``       |
-+------------------------+--------------------------------------------------+---------------------------+
-|| **Secret References** || Sensitive data like passwords, API keys,        || ``${secret:db/password}``|
-|| ``${secret:}``        || connection strings                               || ``${secret:apis/key}``   |
-+------------------------+--------------------------------------------------+---------------------------+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 50 25
+
+   * - Substitution Type
+     - Use Case
+     - Example
+   * - **Template Parameters** ``{{ }}``
+     - Values that change per template usage within the same environment
+     - ``{{ table_name }}``, ``{{ file_format }}``
+   * - **Environment** ``{token}``
+     - Values that change between dev/staging/prod but stay consistent within an environment
+     - ``{catalog}``, ``{bronze_schema}``
+   * - **Secret References** ``${secret:}``
+     - Sensitive data like passwords, API keys, connection strings
+     - ``${secret:db/password}``, ``${secret:apis/key}``
 
 **Security Guidelines:**
 
@@ -1136,7 +1140,7 @@ Conditional Logic
 
 Use conditional expressions for dynamic action generation:
 
-.. code-block:: yaml
+.. code-block:: text
 
    # Template with conditional logic
    actions:
@@ -1158,7 +1162,7 @@ Use conditional expressions for dynamic action generation:
 **Note**: Complex conditional logic should be used sparingly. Consider creating separate templates for significantly different patterns.
 
 String Operations
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 Jinja2 filters for string manipulation:
 
@@ -1176,7 +1180,7 @@ Natural YAML Syntax
 Templates support natural YAML syntax for complex parameters, eliminating the need for JSON strings:
 
 Object Parameters
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 **Traditional approach (JSON strings):**
 
@@ -1199,7 +1203,7 @@ Object Parameters
        custom.business.domain: "customer_data"
 
 Array Parameters
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 **Traditional approach (JSON strings):**
 
@@ -1221,7 +1225,7 @@ Array Parameters
        - "region"
 
 Mixed Complex Parameters
-~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Natural YAML syntax enables readable complex configurations:
 
@@ -1287,7 +1291,7 @@ Template Design Principles
    Include comprehensive descriptions for the template and all parameters.
 
 Parameter Validation
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 **Use Strong Typing**
 
@@ -1330,7 +1334,7 @@ Parameter Validation
            scd_type: 2
 
 Template Organization
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 **File Structure**
 
@@ -1357,7 +1361,7 @@ Template Organization
    - Add version numbers for breaking changes (e.g., ``csv_ingestion_template_v2.yaml``)
 
 Error Handling
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 **Parameter Validation**
 
@@ -1387,7 +1391,7 @@ Use safe defaults that won't cause runtime errors:
        description: "CloudFiles options with safe defaults"
 
 Integration with Presets
------------------------
+------------------------
 
 Templates and presets work together to provide maximum reusability:
 
@@ -1444,7 +1448,7 @@ Troubleshooting Templates
 -------------------------
 
 Common Issues
-~~~~~~~~~~~~
+~~~~~~~~~~~~~
 
 **Parameter Type Mismatches**
 

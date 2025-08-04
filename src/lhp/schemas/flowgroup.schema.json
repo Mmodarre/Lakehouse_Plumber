@@ -1,7 +1,7 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "LakehousePlumber FlowGroup",
-    "description": "Schema for LakehousePlumber pipeline configuration files. For Python transforms: use module_path/function_name at action level, source as string/array for input views.",
+    "description": "Schema for LakehousePlumber pipeline configuration files. For Python transforms: use module_path/function_name at action level, source as string/array for input views. For custom_datasource loads: use module_path/custom_datasource_class/options under source object.",
     "type": "object",
     "required": ["pipeline", "flowgroup"],
     "properties": {
@@ -90,7 +90,7 @@
                             "properties": {
                                 "type": {
                                     "type": "string",
-                                    "enum": ["cloudfiles", "delta", "sql", "jdbc", "python"]
+                                    "enum": ["cloudfiles", "delta", "sql", "jdbc", "python", "custom_datasource"]
                                 },
                                 "path": {
                                     "type": "string",
@@ -226,11 +226,15 @@
                                         "type": "string"
                                     },
                                     "description": "Columns to select"
+                                },
+                                "custom_datasource_class": {
+                                    "type": "string",
+                                    "description": "Name of the custom DataSource class to register and use. Required for custom_datasource source type."
                                 }
                             }
                         }
                     ],
-                    "description": "Source configuration: object for load actions (cloudfiles, delta, sql, jdbc, python), string or array of strings for transform actions (input view names). Python transforms use action-level module_path/function_name."
+                    "description": "Source configuration: object for load actions (cloudfiles, delta, sql, jdbc, python, custom_datasource), string or array of strings for transform actions (input view names). Python transforms use action-level module_path/function_name. Custom datasource loads use source-level module_path/custom_datasource_class/options."
                 },
                 "target": {
                     "type": "string",
@@ -297,6 +301,7 @@
                     "description": "Parameters dictionary passed to Python function. Optional for Python transforms and loads.",
                     "additionalProperties": true
                 },
+
                 "schema_file": {
                     "type": "string",
                     "description": "Path to schema file for schema transforms"

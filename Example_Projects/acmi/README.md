@@ -1,13 +1,13 @@
 # ACMI EDW - Lakehouse Plumber Sample Project
 
-A **LakehousePlumber** Delta Live Tables (DLT) pipeline project for processing TPC-H benchmark data using a medallion architecture.
+A **LakehousePlumber** Lakeflow Pipeliness (DLT) pipeline project for processing TPC-H benchmark data using a medallion architecture.
 
 ![Data Flow](assets/banner.png)
 
 
 ## Overview
 
-This project implements a complete data lakehouse solution for the TPC-H benchmark dataset using [**LakehousePlumber (lhp)**](https://github.com/Mmodarre/Lakehouse_Plumber) to generate Delta Live Tables pipelines. The project follows a medallion architecture pattern with **raw ingestion**, **bronze**, **silver**, and **gold** layers.
+This project implements a complete data lakehouse solution for the TPC-H benchmark dataset using [**LakehousePlumber (lhp)**](https://github.com/Mmodarre/Lakehouse_Plumber) to generate Lakeflow Pipeliness pipelines. The project follows a medallion architecture pattern with **raw ingestion**, **bronze**, **silver**, and **gold** layers.
 
 The solution processes 8 core TPC-H tables:
 - `customer` - Customer dimension data

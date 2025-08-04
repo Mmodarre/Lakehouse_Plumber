@@ -1,7 +1,0 @@
-pipeline: raw_ingestions
-flowgroup: partsupp_ingestion
-
-use_template: parquet_ingestion_template
-template_parameters:
-  table_name: partsupp
-  landing_folder: partsupp

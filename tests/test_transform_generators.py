@@ -1227,6 +1227,203 @@ def transform_customers(df, spark, parameters):
             init_content = (custom_functions_dir / "__init__.py").read_text()
             assert "Generated package for custom Python functions" in init_content
 
+    def test_schema_transform_generator(self):
+        """Test schema transform generator."""
+        generator = SchemaTransformGenerator()
+        
+        # Test with both column mapping and type casting
+        action = Action(
+            name="standardize_customer_schema",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source={
+                "view": "v_customer_raw",
+                "schema": {
+                    "enforcement": "strict",
+                    "column_mapping": {
+                        "c_custkey": "customer_id",
+                        "c_name": "customer_name",
+                        "c_address": "address",
+                        "c_phone": "phone_number"
+                    },
+                    "type_casting": {
+                        "customer_id": "BIGINT",
+                        "account_balance": "DECIMAL(18,2)",
+                        "phone_number": "STRING"
+                    }
+                }
+            },
+            target="v_customer_standardized",
+            readMode="batch",
+            description="Standardize customer schema and data types"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Verify generated code structure
+        assert "@dlt.view()" in code
+        assert "v_customer_standardized" in code
+        assert "spark.read.table(\"v_customer_raw\")" in code
+        assert "return df" in code
+        
+        # Verify column renaming
+        assert "# Apply column renaming" in code
+        assert "df.withColumnRenamed(\"c_custkey\", \"customer_id\")" in code
+        assert "df.withColumnRenamed(\"c_name\", \"customer_name\")" in code
+        assert "df.withColumnRenamed(\"c_address\", \"address\")" in code
+        assert "df.withColumnRenamed(\"c_phone\", \"phone_number\")" in code
+        
+        # Verify type casting
+        assert "# Apply type casting" in code
+        assert "F.col(\"customer_id\").cast(\"BIGINT\")" in code
+        assert "F.col(\"account_balance\").cast(\"DECIMAL(18,2)\")" in code
+        assert "F.col(\"phone_number\").cast(\"STRING\")" in code
+        
+        # Verify description
+        assert "Standardize customer schema and data types" in code
+    
+    def test_schema_transform_column_mapping_only(self):
+        """Test schema transform with only column mapping."""
+        generator = SchemaTransformGenerator()
+        
+        action = Action(
+            name="rename_columns",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source={
+                "view": "v_raw_data",
+                "schema": {
+                    "column_mapping": {
+                        "old_name": "new_name",
+                        "legacy_id": "customer_id"
+                    }
+                }
+            },
+            target="v_renamed_data"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Should have column renaming but no type casting
+        assert "# Apply column renaming" in code
+        assert "df.withColumnRenamed(\"old_name\", \"new_name\")" in code
+        assert "df.withColumnRenamed(\"legacy_id\", \"customer_id\")" in code
+        assert "# Apply type casting" not in code
+        assert "F.col(" not in code
+    
+    def test_schema_transform_type_casting_only(self):
+        """Test schema transform with only type casting."""
+        generator = SchemaTransformGenerator()
+        
+        action = Action(
+            name="cast_types",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source={
+                "view": "v_raw_data",
+                "schema": {
+                    "type_casting": {
+                        "age": "INTEGER",
+                        "salary": "DECIMAL(10,2)",
+                        "active": "BOOLEAN"
+                    }
+                }
+            },
+            target="v_typed_data"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Should have type casting but no column renaming
+        assert "# Apply type casting" in code
+        assert "F.col(\"age\").cast(\"INTEGER\")" in code
+        assert "F.col(\"salary\").cast(\"DECIMAL(10,2)\")" in code
+        assert "F.col(\"active\").cast(\"BOOLEAN\")" in code
+        assert "# Apply column renaming" not in code
+        assert "withColumnRenamed" not in code
+    
+    def test_schema_transform_stream_mode(self):
+        """Test schema transform with stream readMode."""
+        generator = SchemaTransformGenerator()
+        
+        action = Action(
+            name="stream_schema",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source={
+                "view": "v_streaming_data",
+                "schema": {
+                    "type_casting": {
+                        "timestamp": "TIMESTAMP"
+                    }
+                }
+            },
+            target="v_typed_stream",
+            readMode="stream"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Should use readStream for streaming mode
+        assert "spark.readStream.table(\"v_streaming_data\")" in code
+        assert "spark.read.table" not in code
+    
+    def test_schema_transform_metadata_preservation(self):
+        """Test that schema transform preserves operational metadata columns."""
+        generator = SchemaTransformGenerator()
+        
+        # Mock project config with metadata columns
+        from lhp.models.config import ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
+        metadata_config = ProjectOperationalMetadataConfig(
+            columns={
+                "_ingestion_timestamp": MetadataColumnConfig(
+                    expression="current_timestamp()",
+                    description="Ingestion timestamp"
+                ),
+                "_source_file": MetadataColumnConfig(
+                    expression="input_file_name()",
+                    description="Source file path"
+                )
+            }
+        )
+        project_config = ProjectConfig(
+            name="test_project",
+            version="1.0",
+            operational_metadata=metadata_config
+        )
+        
+        action = Action(
+            name="clean_data",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source={
+                "view": "v_raw_data",
+                "schema": {
+                    "column_mapping": {
+                        "customer_id": "id",
+                        "_ingestion_timestamp": "ingestion_time"  # This should be ignored
+                    },
+                    "type_casting": {
+                        "age": "int",
+                        "_source_file": "int"  # This should be ignored
+                    }
+                }
+            },
+            target="v_clean_data"
+        )
+        
+        code = generator.generate(action, {"project_config": project_config})
+        
+        # Check that schema operations are applied to non-metadata columns
+        assert "df.withColumnRenamed(\"customer_id\", \"id\")" in code
+        assert "F.col(\"age\").cast(\"int\")" in code
+        
+        # Check that metadata columns are preserved (not renamed or cast)
+        assert "withColumnRenamed(\"_ingestion_timestamp\"" not in code
+        assert "withColumnRenamed(\"_source_file\"" not in code
+        assert "F.col(\"_ingestion_timestamp\").cast(" not in code
+        assert "F.col(\"_source_file\").cast(" not in code
+
 
 def test_transform_generator_imports():
     """Test that transform generators manage imports correctly."""

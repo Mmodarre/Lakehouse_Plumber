@@ -52,6 +52,10 @@ class StateDependencyResolver:
             template_deps = self._resolve_template_dependencies(flowgroup)
             dependencies.update(template_deps)
             
+            # Resolve custom data source dependencies
+            custom_datasource_deps = self._resolve_custom_datasource_dependencies(flowgroup)
+            dependencies.update(custom_datasource_deps)
+            
             self.logger.debug(f"Resolved {len(dependencies)} dependencies for {yaml_file}")
             
         except Exception as e:
@@ -264,6 +268,47 @@ class StateDependencyResolver:
         except Exception as e:
             self.logger.warning(f"Failed to get modification time for {file_path}: {e}")
             return ""
+
+    def _resolve_custom_datasource_dependencies(self, flowgroup: FlowGroup) -> Dict[str, DependencyInfo]:
+        """Resolve custom data source module_path dependencies.
+        
+        Args:
+            flowgroup: FlowGroup to resolve custom data source dependencies for
+            
+        Returns:
+            Dictionary mapping module paths to DependencyInfo objects
+        """
+        dependencies = {}
+        
+        if not flowgroup.actions:
+            return dependencies
+            
+        # Process each action looking for custom_datasource type
+        for action in flowgroup.actions:
+            if (hasattr(action, 'type') and action.type == 'load' and 
+                hasattr(action, 'source') and isinstance(action.source, dict) and
+                action.source.get('type') == 'custom_datasource' and
+                action.source.get('module_path') and action.source.get('custom_datasource_class')):
+                
+                # This is a custom data source action with module_path
+                module_path = action.source.get('module_path')
+                module_file = self.project_root / module_path
+                if module_file.exists():
+                    checksum = self._calculate_checksum(module_file)
+                    last_modified = self._get_file_modification_time(module_file)
+                    
+                    dependencies[module_path] = DependencyInfo(
+                        path=module_path,
+                        checksum=checksum,
+                        type="custom_datasource_module",
+                        last_modified=last_modified
+                    )
+                    
+                    self.logger.debug(f"Found custom data source dependency: {module_path}")
+                else:
+                    self.logger.warning(f"Custom data source module not found: {module_path}")
+                    
+        return dependencies
 
     def calculate_composite_checksum(self, dependencies: List[str]) -> str:
         """Calculate composite checksum for a list of dependency paths.

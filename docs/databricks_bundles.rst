@@ -519,7 +519,7 @@ Option             Description
 ================== ==========================================================
 ``--no-bundle``    Disable bundle support even if databricks.yml exists
 ``--force``        Force regeneration and bundle sync of all files
-````      Clean up obsolete resource files
+``--cleanup``      Clean up obsolete resource files
 ================== ==========================================================
 
 **Resource File Structure**

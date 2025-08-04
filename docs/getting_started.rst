@@ -69,7 +69,7 @@ Edit the ``lhp.yaml`` file to configure your project.
 .. note::
 
    The ``lhp.yaml`` file is the main entry point for configuring your project.
-   for full documentation on the project configuration file, see :doc:`LHP YAML Configuration`.
+   for full documentation on the project configuration file, see :doc:`concepts`.
 
 
 Step 3: Create your environment configuration file

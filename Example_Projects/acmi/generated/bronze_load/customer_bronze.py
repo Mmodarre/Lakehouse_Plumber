@@ -9,6 +9,8 @@ import dlt
 PIPELINE_ID = "bronze_load"
 FLOWGROUP_ID = "customer_bronze"
 
+
+
 # ============================================================================
 # SOURCE VIEWS
 # ============================================================================
@@ -70,7 +72,7 @@ def v_customer_bronze_DQE():
 dlt.create_streaming_table(
     name="acmi_edw_dev.edw_bronze.customer",
     comment="Streaming table: customer",
-    table_properties={"tag_name1": "tag_value1", "tag_name2": "tag_value2"})
+    table_properties={"delta.enableRowTracking": "true", "tag_name1": "tag_value1", "tag_name2": "tag_value2"})
 
 
 # Define append flow(s)

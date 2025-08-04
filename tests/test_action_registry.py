@@ -18,7 +18,7 @@ class TestActionRegistry:
         registry = ActionRegistry()
         
         # Check that all generator mappings are initialized
-        assert len(registry._load_generators) == 5
+        assert len(registry._load_generators) == 6
         assert len(registry._transform_generators) == 5
         assert len(registry._write_generators) == 2
     

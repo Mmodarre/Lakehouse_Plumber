@@ -128,6 +128,8 @@ class ConfigFieldValidator:
             "module_path",
             "function_name",
             "parameters",
+            # Custom data source specific fields
+            "custom_datasource_class",
         }
 
     def validate_load_source(

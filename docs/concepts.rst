@@ -43,7 +43,7 @@ Actions come in three top-level types:
 | Type           | Purpose                                                  |
 +================+==========================================================+
 || **Load**      || Bring data into a temporary **view** (e.g. CloudFiles,  |
-||               || Delta, JDBC, SQL, Python).                              |
+||               || Delta, JDBC, SQL, Python, custom_datasource).           |
 +----------------+----------------------------------------------------------+
 || **Transform** || Manipulate data in one or more steps (SQL, Python,      |
 ||               || schema adjustments, data-quality checks, temp tables…). |
@@ -339,7 +339,8 @@ pipeline configurations. This is a defensive design pattern that prevents common
 **Source-specific metadata limitations:**
 
 .. warning::
-   - Metadata columns that depend on CloudFiles features (like ``_metadata.file_path``) are **only available in views** that load data from CloudFiles sources. These columns will cause runtime errors if used with JDBC, SQL, or Delta sources.
+   - Metadata columns that depend on CloudFiles features (like ``_metadata.file_path``) are **only available in views** that load data from CloudFiles sources. These columns will cause runtime errors if used with JDBC, SQL, Delta, or custom_datasource sources.
+   - Custom data sources may provide their own metadata columns depending on their implementation, but CloudFiles-specific metadata will not be available.
 
 .. seealso::
    For complete details on file metadata columns available in Databricks CloudFiles, refer to the Databricks documentation:
@@ -398,6 +399,18 @@ pipeline configurations. This is a defensive design pattern that prevents common
        - "_processing_timestamp"    # ✓ Available everywhere
        # DO NOT USE: "_source_file_name" would cause runtime error
      target: v_database_data
+
+   # Custom data source - metadata depends on implementation
+   - name: load_api_data
+     type: load
+     module_path: "data_sources/api_source.py"
+     custom_datasource_class: "APIDataSource"
+     options:
+       api_endpoint: "https://api.example.com/data"
+     operational_metadata:
+       - "_processing_timestamp"    # ✓ Available everywhere
+       # Custom metadata depends on DataSource implementation
+     target: v_api_data
 
 Usage in YAML Files
 ~~~~~~~~~~~~~~~~~~~

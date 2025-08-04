@@ -1,0 +1,180 @@
+"""Custom data source load generator for LakehousePlumber."""
+
+import logging
+import re
+from pathlib import Path
+from ...core.base_generator import BaseActionGenerator
+from ...models.config import Action
+from ...utils.operational_metadata import OperationalMetadata
+from ...utils.error_formatter import ErrorFormatter
+
+
+class CustomDataSourceLoadGenerator(BaseActionGenerator):
+    """Generate custom data source load actions with unified import management."""
+
+    def __init__(self):
+        # Enable ImportManager for advanced import handling
+        super().__init__(use_import_manager=True)
+        self.add_import("import dlt")
+        self.logger = logging.getLogger(__name__)
+        self.custom_source_code = None  # Store for later appending by orchestrator
+        self.source_file_path = None    # Track source file
+
+    def _extract_datasource_format_name(self, source_code: str, class_name: str) -> str:
+        """Extract the format name from the DataSource class name() method."""
+        try:
+            # Look for the class definition and its name() method
+            class_pattern = rf'class\s+{re.escape(class_name)}\s*\([^)]*\):'
+            class_match = re.search(class_pattern, source_code, re.MULTILINE)
+            
+            if not class_match:
+                self.logger.warning(f"Could not find class {class_name} in source code")
+                return class_name  # Fallback to class name
+            
+            # Find the name() method within the class
+            class_start = class_match.end()
+            
+            # Look for the name() method after the class definition
+            name_method_pattern = r'@classmethod\s+def\s+name\s*\([^)]*\):\s*return\s+["\']([^"\']+)["\']'
+            name_match = re.search(name_method_pattern, source_code[class_start:], re.MULTILINE | re.DOTALL)
+            
+            if name_match:
+                format_name = name_match.group(1)
+                self.logger.info(f"Extracted format name '{format_name}' from {class_name}.name() method")
+                return format_name
+            else:
+                self.logger.warning(f"Could not find name() method in {class_name}, using class name as fallback")
+                return class_name  # Fallback to class name
+                
+        except Exception as e:
+            self.logger.warning(f"Error extracting format name from {class_name}: {e}, using class name as fallback")
+            return class_name  # Fallback to class name
+
+    def generate(self, action: Action, context: dict) -> str:
+        """Generate custom data source load code with unified import management."""
+        # Extract configuration from source (following cloudfiles pattern)
+        source_config = action.source
+        if isinstance(source_config, str):
+            raise ValueError("Custom data source must be a configuration object")
+        
+        # Process source config through substitution manager first if available
+        if "substitution_manager" in context:
+            source_config = context["substitution_manager"].substitute_yaml(
+                source_config
+            )
+        
+        module_path = source_config.get('module_path')
+        custom_datasource_class = source_config.get('custom_datasource_class')
+        parameters = source_config.get('options', {})
+
+        # Validate required fields
+        if not module_path:
+            raise ErrorFormatter.missing_required_field(
+                field_name="module_path",
+                component_type="Custom data source load action",
+                component_name=action.name,
+                field_description="This field specifies the Python module containing the custom DataSource class.",
+                example_config="""actions:
+  - name: load_custom_api
+    type: load
+    source:
+      type: custom_datasource
+      module_path: "data_sources/api_source.py"       # Required
+      custom_datasource_class: "APIDataSource"        # Required
+      options:                                         # Optional
+        apiKey: "your-api-key"
+        endpoint: "https://api.example.com" """,
+            )
+
+        if not custom_datasource_class:
+            raise ErrorFormatter.missing_required_field(
+                field_name="custom_datasource_class",
+                component_type="Custom data source load action",
+                component_name=action.name,
+                field_description="This field specifies the name of the custom DataSource class to register and use.",
+                example_config="""actions:
+  - name: load_custom_api
+    type: load
+    source:
+      type: custom_datasource
+      module_path: "data_sources/api_source.py"       # Required
+      custom_datasource_class: "APIDataSource"        # Required
+      options:                                         # Optional
+        apiKey: "your-api-key"
+        endpoint: "https://api.example.com" """,
+            )
+
+        # Read custom source file
+        project_root = context.get("spec_dir") or Path.cwd()
+        source_path = project_root / module_path
+        
+        if not source_path.exists():
+            raise FileNotFoundError(f"Custom data source file not found: {source_path}")
+        
+        raw_source_code = source_path.read_text()
+        self.source_file_path = source_path
+
+        # Use ImportManager to extract imports and get cleaned source
+        self.custom_source_code = self.add_imports_from_file(raw_source_code)
+        
+        self.logger.info(f"Extracted imports from custom source file: {source_path}")
+
+        # Extract the actual format name from the DataSource class
+        datasource_format_name = self._extract_datasource_format_name(
+            raw_source_code, custom_datasource_class
+        )
+
+        # Get readMode from action or default to stream
+        readMode = action.readMode or "stream"
+
+        # Handle operational metadata (using ImportManager for enhanced import handling)
+        flowgroup = context.get("flowgroup")
+        preset_config = context.get("preset_config", {})
+        project_config = context.get("project_config")
+
+        # Initialize operational metadata handler
+        operational_metadata = OperationalMetadata(
+            project_config=(
+                project_config.operational_metadata if project_config else None
+            )
+        )
+
+        # ENHANCED: Adapt expressions based on available imports
+        operational_metadata.adapt_expressions_for_imports(self.get_import_manager())
+
+        # Update context for substitutions
+        if flowgroup:
+            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
+
+        # Resolve metadata selection
+        selection = operational_metadata.resolve_metadata_selection(
+            flowgroup, action, preset_config
+        )
+        metadata_columns = operational_metadata.get_selected_columns(
+            selection or {}, "view"
+        )
+
+        # Use ImportManager for operational metadata imports (enhanced functionality)
+        for column_name, expression in metadata_columns.items():
+            self.add_imports_from_expression(expression)
+
+        # Also add any additional imports from metadata configuration
+        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
+        for import_stmt in metadata_imports:
+            self.add_import(import_stmt)
+
+        template_context = {
+            "action_name": action.name,
+            "target_view": action.target,
+            "custom_datasource_class": custom_datasource_class,
+            "datasource_format_name": datasource_format_name,
+            "readMode": readMode,
+            "options": parameters or {},  # Ensure it's never None
+            "description": action.description
+            or f"Load data from custom data source: {custom_datasource_class}",
+            "add_operational_metadata": bool(metadata_columns),
+            "metadata_columns": metadata_columns,
+            "flowgroup": flowgroup,
+        }
+
+        return self.render_template("load/custom_datasource.py.j2", template_context) 

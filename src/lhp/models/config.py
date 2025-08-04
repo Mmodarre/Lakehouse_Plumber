@@ -15,6 +15,7 @@ class LoadSourceType(str, Enum):
     SQL = "sql"
     PYTHON = "python"
     JDBC = "jdbc"
+    CUSTOM_DATASOURCE = "custom_datasource"
 
 
 class TransformType(str, Enum):
@@ -137,6 +138,8 @@ class Action(BaseModel):
     module_path: Optional[str] = None  # Path to Python module (relative to project root)
     function_name: Optional[str] = None  # Python function name to call
     parameters: Optional[Dict[str, Any]] = None  # Parameters passed to Python function
+    # Custom data source specific fields
+    custom_datasource_class: Optional[str] = None  # Custom DataSource class name
     # Write action specific
     once: Optional[bool] = None  # For one-time flows/backfills
 

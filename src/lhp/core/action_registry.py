@@ -12,6 +12,7 @@ from ..generators.load import (
     SQLLoadGenerator,
     JDBCLoadGenerator,
     PythonLoadGenerator,
+    CustomDataSourceLoadGenerator,
 )
 from ..generators.transform import (
     SQLTransformGenerator,
@@ -47,6 +48,7 @@ class ActionRegistry:
             LoadSourceType.SQL: SQLLoadGenerator,
             LoadSourceType.JDBC: JDBCLoadGenerator,
             LoadSourceType.PYTHON: PythonLoadGenerator,
+            LoadSourceType.CUSTOM_DATASOURCE: CustomDataSourceLoadGenerator,
         }
 
         # Transform generators

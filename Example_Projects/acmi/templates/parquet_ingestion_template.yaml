@@ -6,9 +6,6 @@ name: parquet_ingestion_template
 version: "1.0"
 description: "Standard template for ingesting Parquet files with schema enforcement"
 
-presets:
-  - bronze_layer
-
 parameters:
   - name: table_name
     required: true
@@ -16,11 +13,13 @@ parameters:
   - name: landing_folder
     required: true
     description: "Name of the landing folder"
-
+  - name: schema_file
 actions:
   - name: load_{{ table_name }}_parquet
     type: load
-    operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time","_record_hash"]
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
     source:
       type: cloudfiles
       path: "{landing_volume}/{{ landing_folder }}/*.parquet"

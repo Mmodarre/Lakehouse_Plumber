@@ -240,8 +240,11 @@ class TestLoadOperationalMetadata:
         assert "withColumn('_pipeline_name'" not in code
 
     def test_operational_metadata_all_columns(self):
-        """Test load action with operational_metadata=true (all columns)."""
+        """Test load action with all enabled columns specified."""
         generator = CloudFilesLoadGenerator()
+        
+        # List all enabled columns explicitly (replacing boolean True)
+        all_enabled_columns = ["_ingestion_timestamp", "_source_file", "_pipeline_name", "_source_table"]
         
         action = Action(
             name="load_files",
@@ -251,7 +254,7 @@ class TestLoadOperationalMetadata:
                 "path": "/data/files/*.json"
             },
             target="v_raw_data",
-            operational_metadata=True
+            operational_metadata=all_enabled_columns
         )
         
         code = generator.generate(action, self.context)
@@ -494,6 +497,9 @@ class TestLoadOperationalMetadata:
         """Test that columns with enabled=false are not included."""
         generator = CloudFilesLoadGenerator()
         
+        # List all enabled columns explicitly (excluding disabled ones)
+        enabled_columns = ["_ingestion_timestamp", "_source_file", "_pipeline_name", "_source_table"]
+        
         action = Action(
             name="load_files",
             type=ActionType.LOAD,
@@ -502,7 +508,7 @@ class TestLoadOperationalMetadata:
                 "path": "/data/files/*.json"
             },
             target="v_raw_data",
-            operational_metadata=True  # All columns
+            operational_metadata=enabled_columns
         )
         
         code = generator.generate(action, self.context)

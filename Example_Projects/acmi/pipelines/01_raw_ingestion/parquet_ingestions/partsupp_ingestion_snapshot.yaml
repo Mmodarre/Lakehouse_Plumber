@@ -1,0 +1,7 @@
+pipeline: acmi_edw_raw_ingestions
+flowgroup: partsupp_ingestion_snapshot
+
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: partsupp_raw
+  landing_folder: partsupp

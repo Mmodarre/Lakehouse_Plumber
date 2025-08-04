@@ -5,6 +5,9 @@ pipeline: bronze_load
 # there are used to group actions together in the generated files
 flowgroup: customer_bronze
 
+presets:
+  - default_delta_properties
+
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines

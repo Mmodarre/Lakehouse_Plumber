@@ -1117,18 +1117,20 @@ class TestOperationalMetadataSelection:
     # Backward Compatibility Tests
     # ========================================================================
     
-    def test_boolean_true_backward_compatibility(self, metadata_handler):
-        """Test that operational_metadata: true still works (uses defaults)."""
-        # No specific columns configured, should use project defaults
+    def test_all_columns_selection_compatibility(self, metadata_handler):
+        """Test that selecting all available columns works (replaces boolean true behavior)."""
+        # List all available columns explicitly instead of using boolean True
+        all_columns = ['_ingestion_timestamp', '_source_file', '_pipeline_name', '_business_quarter', '_data_classification', '_custom_function']
+        
         preset_config = {
-            'operational_metadata': True  # Old boolean style
+            'operational_metadata': all_columns
         }
         
         flowgroup = FlowGroup(
             pipeline='test_pipeline',
             flowgroup='test_flowgroup',
             presets=['bronze_layer'],
-            operational_metadata=True,  # Old boolean style
+            operational_metadata=all_columns,
             actions=[]
         )
         
@@ -1136,7 +1138,7 @@ class TestOperationalMetadataSelection:
             name='write_test',
             type=ActionType.WRITE,
             source='v_test',
-            operational_metadata=True,  # Old boolean style
+            operational_metadata=all_columns,
             write_target={'type': 'streaming_table', 'database': 'test.bronze', 'table': 'test'}
         )
         
@@ -1156,7 +1158,7 @@ class TestOperationalMetadataSelection:
             '_custom_function': 'custom_business_logic(F.col("revenue"))'
         }
         
-        assert columns == expected_columns, f"Boolean true should use all project columns, got {columns}"
+        assert columns == expected_columns, f"All columns selection should use all project columns, got {columns}"
     
     def test_boolean_false_backward_compatibility(self, metadata_handler):
         """Test that operational_metadata: false still works (disables metadata)."""
@@ -1191,38 +1193,38 @@ class TestOperationalMetadataSelection:
         
         assert columns == {}, f"Boolean false should disable all metadata, got {columns}"
     
-    def test_mixed_boolean_and_list_configurations(self, metadata_handler):
-        """Test mixing old boolean and new list configurations."""
-        # Preset uses old boolean style
+    def test_additive_list_configurations(self, metadata_handler):
+        """Test additive behavior with list configurations across all levels."""
+        # Preset uses list style
         preset_config = {
-            'operational_metadata': True  # Boolean - should use defaults
+            'operational_metadata': ['_ingestion_timestamp', '_source_file']
         }
         
-        # FlowGroup uses new list style
+        # FlowGroup adds more columns
         flowgroup = FlowGroup(
             pipeline='test_pipeline',
             flowgroup='test_flowgroup',
             presets=['bronze_layer'],
-            operational_metadata=['_business_quarter'],  # New list style
+            operational_metadata=['_business_quarter', '_pipeline_name'],
             actions=[]
         )
         
-        # Action uses new list style
+        # Action adds even more columns
         action = Action(
             name='write_test',
             type=ActionType.WRITE,
             source='v_test',
-            operational_metadata=True,  # Still boolean
+            operational_metadata=['_data_classification', '_custom_function'],
             write_target={'type': 'streaming_table', 'database': 'test.bronze', 'table': 'test'}
         )
         
         metadata_handler.update_context('test_pipeline', 'test_flowgroup')
         
-        # Should combine boolean defaults + list additions
+        # Should combine all lists additively (preset + flowgroup + action)
         selection = metadata_handler.resolve_metadata_selection(flowgroup, action, preset_config)
         columns = metadata_handler.get_selected_columns(selection or {}, 'streaming_table')
         
-        # Should get all project columns (from boolean true)
+        # Should get all columns from all levels combined
         expected_columns = {
             '_ingestion_timestamp': 'F.current_timestamp()',
             '_source_file': 'F.input_file_name()',
@@ -1232,7 +1234,7 @@ class TestOperationalMetadataSelection:
             '_custom_function': 'custom_business_logic(F.col("revenue"))'
         }
         
-        assert columns == expected_columns, f"Should use all project columns when boolean is true, got {columns}"
+        assert columns == expected_columns, f"Should combine all list configurations additively, got {columns}"
     
     def test_no_project_config_backward_compatibility(self, metadata_handler):
         """Test behavior when no project config exists (fallback to hardcoded defaults)."""
@@ -1240,7 +1242,7 @@ class TestOperationalMetadataSelection:
         metadata_handler_no_config = OperationalMetadata(project_config=None)
         
         preset_config = {
-            'operational_metadata': True  # Should use hardcoded defaults
+            'operational_metadata': ['_ingestion_timestamp', '_pipeline_run_id', '_pipeline_name', '_flowgroup_name']  # Should use hardcoded defaults
         }
         
         flowgroup = FlowGroup(
@@ -1274,62 +1276,38 @@ class TestOperationalMetadataSelection:
         
         assert columns == expected_columns, f"Should use hardcoded defaults when no project config, got {columns}"
     
-    def test_migration_from_boolean_to_list(self, metadata_handler):
-        """Test gradual migration from boolean to list configurations."""
-        # Scenario: User is migrating from boolean to list style
-        
-        # Stage 1: All boolean (old style)
-        preset_config_old = {
-            'operational_metadata': True
-        }
-        
-        flowgroup_old = FlowGroup(
-            pipeline='test_pipeline',
-            flowgroup='test_flowgroup',
-            presets=['bronze_layer'],
-            operational_metadata=True,
-            actions=[]
-        )
-        
-        action_old = Action(
-            name='write_test_old',
-            type=ActionType.WRITE,
-            source='v_test',
-            operational_metadata=True,
-            write_target={'type': 'streaming_table', 'database': 'test.bronze', 'table': 'test'}
-        )
-        
+    def test_various_list_configurations(self, metadata_handler):
+        """Test various list-based operational metadata configurations."""
         metadata_handler.update_context('test_pipeline', 'test_flowgroup')
         
-        selection_old = metadata_handler.resolve_metadata_selection(flowgroup_old, action_old, preset_config_old)
-        columns_old = metadata_handler.get_selected_columns(selection_old or {}, 'streaming_table')
+        # Test 1: Simple preset-only configuration
+        preset_config_simple = {
+            'operational_metadata': ['_ingestion_timestamp', '_pipeline_name']
+        }
         
-        # Stage 2: Partial migration (flowgroup uses list, others boolean)
-        flowgroup_mixed = FlowGroup(
+        flowgroup_simple = FlowGroup(
             pipeline='test_pipeline',
             flowgroup='test_flowgroup',
             presets=['bronze_layer'],
-            operational_metadata=['_business_quarter'],  # New list style
             actions=[]
         )
         
-        action_mixed = Action(
-            name='write_test_mixed',
+        action_simple = Action(
+            name='write_test_simple',
             type=ActionType.WRITE,
             source='v_test',
-            operational_metadata=True,  # Still boolean
             write_target={'type': 'streaming_table', 'database': 'test.bronze', 'table': 'test'}
         )
         
-        selection_mixed = metadata_handler.resolve_metadata_selection(flowgroup_mixed, action_mixed, preset_config_old)
-        columns_mixed = metadata_handler.get_selected_columns(selection_mixed or {}, 'streaming_table')
+        selection_simple = metadata_handler.resolve_metadata_selection(flowgroup_simple, action_simple, preset_config_simple)
+        columns_simple = metadata_handler.get_selected_columns(selection_simple or {}, 'streaming_table')
         
-        # Stage 3: Full migration (all list style)
-        preset_config_new = {
+        # Test 2: Full additive configuration (preset + flowgroup + action)
+        preset_config_full = {
             'operational_metadata': ['_ingestion_timestamp', '_source_file', '_pipeline_name']
         }
         
-        flowgroup_new = FlowGroup(
+        flowgroup_full = FlowGroup(
             pipeline='test_pipeline',
             flowgroup='test_flowgroup',
             presets=['bronze_layer'],
@@ -1337,30 +1315,34 @@ class TestOperationalMetadataSelection:
             actions=[]
         )
         
-        action_new = Action(
-            name='write_test_new',
+        action_full = Action(
+            name='write_test_full',
             type=ActionType.WRITE,
             source='v_test',
             operational_metadata=['_data_classification'],
             write_target={'type': 'streaming_table', 'database': 'test.bronze', 'table': 'test'}
         )
         
-        selection_new = metadata_handler.resolve_metadata_selection(flowgroup_new, action_new, preset_config_new)
-        columns_new = metadata_handler.get_selected_columns(selection_new or {}, 'streaming_table')
+        selection_full = metadata_handler.resolve_metadata_selection(flowgroup_full, action_full, preset_config_full)
+        columns_full = metadata_handler.get_selected_columns(selection_full or {}, 'streaming_table')
         
-        # All stages should work without errors
-        assert len(columns_old) > 0, "Old boolean style should work"
-        assert len(columns_mixed) > 0, "Mixed style should work"  
-        assert len(columns_new) > 0, "New list style should work"
+        # All configurations should work without errors
+        assert len(columns_simple) > 0, "Simple preset configuration should work"
+        assert len(columns_full) > 0, "Full additive configuration should work"
         
-        # Mixed should be additive (boolean defaults + list additions)
-        assert '_business_quarter' in columns_mixed, "Mixed style should add to boolean defaults"
+        # Simple should have only preset columns
+        expected_simple = {
+            '_ingestion_timestamp': 'F.current_timestamp()',
+            '_pipeline_name': 'F.lit("test_pipeline")'
+        }
+        assert columns_simple == expected_simple, f"Simple config should match expected, got {columns_simple}"
         
-        # New should have explicit selection only
-        assert columns_new == {
+        # Full should have all columns additively combined
+        expected_full = {
             '_ingestion_timestamp': 'F.current_timestamp()',
             '_source_file': 'F.input_file_name()',
             '_pipeline_name': 'F.lit("test_pipeline")',
             '_business_quarter': 'F.concat(F.lit("Q"), F.quarter(F.current_date()))',
             '_data_classification': 'F.lit("PII")'
-        }, "New style should have explicit selections only" 
+        }
+        assert columns_full == expected_full, f"Full config should combine all levels, got {columns_full}" 

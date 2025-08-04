@@ -1,0 +1,49 @@
+# Try to register the custom data source
+try:
+    spark.dataSource.register({{ custom_datasource_class }})
+except Exception:
+    pass  # Ignore if already registered
+
+@dlt.view()
+def {{ target_view }}():
+    """{{ description }}"""
+    {% if readMode == "stream" %}
+    df = spark.readStream \
+        .format("{{ datasource_format_name }}")
+    {%- if options %}
+    {%- for key, value in options.items() %}
+    {%- if value is boolean %} \
+        .option("{{ key }}", {{ value|string|title }})
+    {%- elif value is number %} \
+        .option("{{ key }}", {{ value }})
+    {%- else %} \
+        .option("{{ key }}", "{{ value }}")
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %} \
+        .load()
+    {% else %}
+    df = spark.read \
+        .format("{{ datasource_format_name }}")
+    {%- if options %}
+    {%- for key, value in options.items() %}
+    {%- if value is boolean %} \
+        .option("{{ key }}", {{ value|string|title }})
+    {%- elif value is number %} \
+        .option("{{ key }}", {{ value }})
+    {%- else %} \
+        .option("{{ key }}", "{{ value }}")
+    {%- endif %}
+    {%- endfor %}
+    {%- endif %} \
+        .load()
+    {% endif %}
+    
+    {% if add_operational_metadata %}
+    # Add operational metadata columns
+    {% for col_name, expression in metadata_columns.items()|sort %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
+    {% endif %}
+    
+    return df 

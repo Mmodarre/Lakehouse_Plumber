@@ -345,7 +345,7 @@ actions:
 name: with_metadata
 version: "1.0"
 defaults:
-  operational_metadata: true
+  operational_metadata: ["_ingestion_timestamp", "_pipeline_name"]
 """)
         
         pipeline_dir = project_root / "pipelines" / "metadata_test"
@@ -380,7 +380,7 @@ actions:
         (pipeline_dir / "override_metadata.yaml").write_text("""
 pipeline: metadata_test
 flowgroup: override_metadata
-operational_metadata: true
+operational_metadata: ["_ingestion_timestamp", "_pipeline_name"]
 
 actions:
   - name: load_data2

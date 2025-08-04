@@ -14,13 +14,14 @@
 - **💡 Advanced Topics** - Best practices and advanced usage
 - **🎯 Examples** - Real-world project examples
 
-### Quick Links:
+### Local Development
 
-- [Installation Guide](https://lakehouse-plumber.readthedocs.io/en/latest/getting_started.html)
-- [CLI Reference](https://lakehouse-plumber.readthedocs.io/en/latest/cli.html)
-- [Databricks Bundles](https://lakehouse-plumber.readthedocs.io/en/latest/databricks_bundles.html)
-- [Templates Reference](https://lakehouse-plumber.readthedocs.io/en/latest/templates_reference.html)
+This directory contains the Sphinx documentation source files. To build the documentation locally:
 
----
+```bash
+cd docs
+pip install -r requirements.txt
+sphinx-build -b html . _build/html
+```
 
-**Note:** The source files for this documentation are in this `docs/` folder and are built automatically when changes are pushed to the main branch. 
+The built documentation will be available in `_build/html/index.html`. 

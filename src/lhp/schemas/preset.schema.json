@@ -54,6 +54,11 @@
                             "type": "object",
                             "description": "Default JDBC settings",
                             "additionalProperties": true
+                        },
+                        "custom_datasource": {
+                            "type": "object",
+                            "description": "Default custom data source settings",
+                            "additionalProperties": true
                         }
                     }
                 },

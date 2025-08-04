@@ -752,6 +752,7 @@ class ActionOrchestrator:
         # 4. Generate code for each action group
         generated_sections = []
         all_imports = set()
+        custom_source_sections = []  # NEW: Collect custom source code
 
         # Add base imports
         all_imports.add("import dlt")
@@ -809,8 +810,24 @@ class ActionOrchestrator:
                             action_code = generator.generate(combined_action, context)
                             generated_sections.append(action_code)
 
-                            # Collect imports
-                            all_imports.update(generator.imports)
+                            # Enhanced import collection - use ImportManager if available
+                            import_manager = getattr(generator, 'get_import_manager', lambda: None)()
+                            if import_manager:
+                                # Generator uses ImportManager - get consolidated imports
+                                consolidated_imports = import_manager.get_consolidated_imports()
+                                all_imports.update(consolidated_imports)
+                                self.logger.debug(f"Used ImportManager for {combined_action.name}: {len(consolidated_imports)} imports")
+                            else:
+                                # Legacy generator - use simple import collection
+                                all_imports.update(generator.imports)
+                            
+                            # Collect custom source code if available
+                            if hasattr(generator, 'custom_source_code') and generator.custom_source_code:
+                                custom_source_sections.append({
+                                    'content': generator.custom_source_code,
+                                    'source_file': generator.source_file_path,
+                                    'action_name': combined_action.name
+                                })
 
                         except LHPError:
                             # Re-raise LHPError as-is (it's already well-formatted)
@@ -848,8 +865,24 @@ class ActionOrchestrator:
                             action_code = generator.generate(action, context)
                             generated_sections.append(action_code)
 
-                            # Collect imports
-                            all_imports.update(generator.imports)
+                            # Enhanced import collection - use ImportManager if available
+                            import_manager = getattr(generator, 'get_import_manager', lambda: None)()
+                            if import_manager:
+                                # Generator uses ImportManager - get consolidated imports
+                                consolidated_imports = import_manager.get_consolidated_imports()
+                                all_imports.update(consolidated_imports)
+                                self.logger.debug(f"Used ImportManager for {action.name}: {len(consolidated_imports)} imports")
+                            else:
+                                # Legacy generator - use simple import collection
+                                all_imports.update(generator.imports)
+                            
+                            # Collect custom source code if available
+                            if hasattr(generator, 'custom_source_code') and generator.custom_source_code:
+                                custom_source_sections.append({
+                                    'content': generator.custom_source_code,
+                                    'source_file': generator.source_file_path,
+                                    'action_name': action.name
+                                })
 
                         except LHPError:
                             # Re-raise LHPError as-is (it's already well-formatted)
@@ -870,7 +903,7 @@ class ActionOrchestrator:
             complete_code, substitution_mgr.get_secret_references()
         )
 
-        # 6. Build final file
+        # 6. Build final file with correct ordering
         imports_section = "\n".join(sorted(all_imports))
 
         # Add pipeline configuration section
@@ -887,7 +920,18 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
 {imports_section}
 {pipeline_config}"""
 
-        return header + complete_code
+        # FIXED ORDERING: Custom source code FIRST, then main generated code
+        final_code = header
+        
+        # Add custom source code first (so classes are defined before registration)
+        if custom_source_sections:
+            custom_code_block = self._build_custom_source_block(custom_source_sections)
+            final_code += "\n\n" + custom_code_block
+        
+        # Then add main generated code (registration happens after class definitions)
+        final_code += "\n\n" + complete_code
+
+        return final_code
 
     def _determine_action_subtype(self, action: Action) -> str:
         """Determine the sub-type of an action for generator selection.
@@ -915,6 +959,29 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
 
         else:
             raise ValueError(f"Unknown action type: {action.type}")
+
+    def _build_custom_source_block(self, custom_sections: List[Dict]) -> str:
+        """Build the custom source code block to append to flowgroup files.
+        
+        Args:
+            custom_sections: List of dictionaries with custom source code info
+            
+        Returns:
+            Formatted custom source code block with headers and registration
+        """
+        blocks = []
+        blocks.append("# " + "="*76)
+        blocks.append("# CUSTOM DATA SOURCE IMPLEMENTATIONS")
+        blocks.append("# " + "="*76)
+        
+        for section in custom_sections:
+            blocks.append(f"# The following code was automatically copied from: {section['source_file']}")
+            blocks.append(f"# Used by action: {section['action_name']}")
+            blocks.append("")
+            blocks.append(section['content'])
+            blocks.append("")
+        
+        return "\n".join(blocks)
 
     def _group_write_actions_by_target(
         self, write_actions: List[Action]

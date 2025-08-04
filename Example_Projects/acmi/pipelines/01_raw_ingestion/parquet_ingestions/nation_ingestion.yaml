@@ -1,6 +1,6 @@
 # This pipeline is used to ingest the nation table from the csv files into the raw schema
 # Pipeline variable puts the generate files in the same folder for the pipeline to pick up
-pipeline: raw_ingestions
+pipeline: acmi_edw_raw_ingestions
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: nation_ingestion
@@ -10,5 +10,5 @@ flowgroup: nation_ingestion
 # The template will generate the actions for the pipeline
 use_template: parquet_ingestion_template
 template_parameters:
-  table_name: nation
+  table_name: nation_raw
   landing_folder: nation

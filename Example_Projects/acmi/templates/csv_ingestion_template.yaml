@@ -7,8 +7,6 @@ name: csv_ingestion_template
 version: "1.0"
 description: "Standard template for ingesting CSV files with schema enforcement"
 
-presets:
-  - bronze_layer
 
 parameters:
   - name: table_name
@@ -25,7 +23,10 @@ parameters:
     required: false
     description: "Optional Liquid clustering columns"
     default: []
-
+  - name: schema_file
+    required: true
+    description: "Schema file name"
+    default: ""
 
 actions:
   - name: load_{{ table_name }}_csv
@@ -44,12 +45,12 @@ actions:
         cloudFiles.format: csv
         header: "True"
         delimiter: ","
-        cloudFiles.maxFilesPerTrigger: "11"
+        cloudFiles.maxFilesPerTrigger: "50"
         cloudFiles.inferColumnTypes: False
         cloudFiles.schemaEvolutionMode: addNewColumns
         cloudFiles.rescuedDataColumn: _rescued_data
         cloudFiles.useManagedFileEvents: True
-        cloudFiles.schemaHints: "schemas/{{ table_name }}_schema.yaml"
+        cloudFiles.schemaHints: "schemas/{{ schema_file }}.yaml"
 
     target: v_{{ table_name }}_cloudfiles
     description: "Load {{ table_name }} CSV files from landing volume"

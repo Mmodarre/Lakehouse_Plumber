@@ -105,7 +105,7 @@
                             "properties": {
                                 "type": {
                                     "type": "string",
-                                    "enum": ["cloudfiles", "delta", "sql", "python", "jdbc"]
+                                    "enum": ["cloudfiles", "delta", "sql", "python", "jdbc", "custom_datasource"]
                                 },
                                 "path": {
                                     "type": "string",
@@ -343,6 +343,10 @@
                         {"type": "string"}
                     ],
                     "description": "Parameters for Python transforms (can use template parameters with {{ }})"
+                },
+                "custom_datasource_class": {
+                    "type": "string",
+                    "description": "Name of the custom DataSource class for custom_datasource load actions (can use template parameters with {{ }})"
                 },
                 "schema_file": {
                     "type": "string",
