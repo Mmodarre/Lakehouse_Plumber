@@ -429,7 +429,7 @@ actions:
             state_manager = StateManager(project_root)
             
             # Test with various invalid environment names
-            invalid_envs = ["", "env with spaces", "env/with/slashes", "env\with\backslashes"]
+            invalid_envs = ["", "env with spaces", "env/with/slashes", r"env\with\backslashes"]
             
             for env in invalid_envs:
                 # Should handle gracefully

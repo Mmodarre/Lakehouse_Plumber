@@ -16,7 +16,7 @@ actions:
       module_path: "data_sources/currency_api_source.py"
       custom_datasource_class: "CurrencyAPIStreamingDataSource"
       options:
-        apiKey: "zDn5ypTHgrpvE57j0n2BYY6nobCclA3t5KHGBEDoZHouYplTLktcXgnso8OzBMkp"
+        apiKey: "XXX"
         baseCurrencies: "USD,EUR,GBP"
         progressPath: "/Volumes/catalog/schema/checkpoints/"
         minCallIntervalSeconds: "300"

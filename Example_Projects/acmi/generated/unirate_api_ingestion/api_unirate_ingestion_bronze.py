@@ -265,7 +265,7 @@ def v_currency_bronze():
     """Load live currency exchange rates from external API"""
     df = spark.readStream \
         .format("currency_api_stream") \
-        .option("apiKey", "zDn5ypTHgrpvE57j0n2BYY6nobCclA3t5KHGBEDoZHouYplTLktcXgnso8OzBMkp") \
+        .option("apiKey", "XXX") \
         .option("baseCurrencies", "USD,EUR,GBP") \
         .option("progressPath", "/Volumes/catalog/schema/checkpoints/") \
         .option("minCallIntervalSeconds", "300") \
