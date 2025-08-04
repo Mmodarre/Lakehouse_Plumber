@@ -35,8 +35,9 @@ exclude =
     .tox,
     .mypy_cache,
     .pytest_cache,
-    migrations
+    migrations,
     Example_Projects,
+    tests/fixtures,
 per-file-ignores =
     # __init__.py files can have unused imports
     __init__.py:F401
