@@ -37,5 +37,9 @@ columns:
     type: STRING
     nullable: true
     comment: "Free-form comment"
+  - name: last_modified_dt
+    type: TIMESTAMP
+    nullable: true
+    comment: "Last modified date"
 
 primary_key: [c_custkey]

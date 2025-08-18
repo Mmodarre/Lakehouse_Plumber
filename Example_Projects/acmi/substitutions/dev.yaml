@@ -3,8 +3,9 @@
 # and the secrets to use for the dev environment
 dev:
   env: dev
-  catalog: acmi_edw_dev
-  landing_volume: /Volumes/{catalog}/{raw_schema}/landing_volume
+  catalog: acme_edw_dev
+  landing_volume: /Volumes/{catalog}/{raw_schema}/incoming_volume
+  migration_schema: edw_old
   raw_schema: edw_raw
   bronze_schema: edw_bronze
   silver_schema: edw_silver

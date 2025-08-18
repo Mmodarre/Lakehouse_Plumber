@@ -1,7 +1,7 @@
 """Streaming table write generator """
 
 import ast
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
@@ -84,7 +84,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         source_function_name = None
         if mode == "snapshot_cdc" and snapshot_cdc_config.get("source_function"):
             source_function_code, source_function_name = self._process_source_function(
-                snapshot_cdc_config["source_function"]
+                snapshot_cdc_config["source_function"], context
             )
 
         # Process data quality expectations
@@ -260,12 +260,13 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             return []
 
     def _process_source_function(
-        self, source_function_config: Dict[str, str]
+        self, source_function_config: Dict[str, str], context: Dict[str, Any] = None
     ) -> Tuple[str, str]:
         """Process source_function configuration and return function code and function name.
 
         Args:
             source_function_config: Dict with 'file' and 'function' keys
+            context: Generation context containing substitution_manager and other data
 
         Returns:
             Tuple of (function_code, function_name)
@@ -366,6 +367,16 @@ snapshot_cdc_config:
         # Read and parse the Python file
         with open(function_file_path, "r") as f:
             source_code = f.read()
+
+        # Apply substitutions to the source code if substitution_manager is available
+        if context and "substitution_manager" in context:
+            substitution_mgr = context["substitution_manager"]
+            source_code = substitution_mgr._process_string(source_code)
+            
+            # Track secret references if they exist
+            secret_refs = substitution_mgr.get_secret_references()
+            if "secret_references" in context and context["secret_references"] is not None:
+                context["secret_references"].update(secret_refs)
 
         try:
             tree = ast.parse(source_code)

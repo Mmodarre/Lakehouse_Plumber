@@ -1,0 +1,16 @@
+# This pipeline is used to ingest the lineitem table from the csv files into the raw schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+# pipeline: acmi_edw_raw_ingestions
+pipeline: acmi_edw_raw
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are use to group actions together in the generated files
+flowgroup: lineitem_ingestion_europe
+presets:
+  - default_delta_properties
+# Use the template to generate the actions for the pipeline
+# Template parameters are used to pass in the table name and landing folder
+# The template will generate the actions for the pipeline
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: lineitem_europe_raw
+  landing_folder: lineitem/region_EUROPE

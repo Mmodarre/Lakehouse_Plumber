@@ -17,3 +17,9 @@ columns:
     type: BIGINT
     nullable: false
     comment: "Region key - foreign key to region"
+  - name: last_modified_dt
+    type: TIMESTAMP
+    nullable: true
+    comment: "Last modified date"
+
+primary_key: [n_nationkey]

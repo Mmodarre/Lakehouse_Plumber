@@ -1,10 +1,10 @@
 # This pipeline is used to load the lineitem table from the raw schema into the bronze schema
 # Pipeline variable puts the generate files in the same folder for the pipeline to pick up
-pipeline: silver_load
+pipeline: acmi_edw_silver
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: orders_silver_fct
-
+preset: default_delta_properties
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines
@@ -32,7 +32,7 @@ actions:
       ## SCD Type 1 for deduplication, no history table
       cdc_config:
         keys: ["order_id"]
-        sequence_by: "_source_file_modification_time"
+        sequence_by: "last_modified_dt"
         scd_type: 1
-        track_history_except_column_list: ["_source_file_path", "_source_file_size", "_source_file_modification_time", "_record_hash", "_processing_timestamp"]
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp"]
         

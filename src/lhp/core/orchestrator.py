@@ -805,6 +805,7 @@ class ActionOrchestrator:
                                 "state_manager": state_manager,  # Add state manager for additional file tracking
                                 "source_yaml": source_yaml,  # Add source YAML path for file tracking
                                 "environment": env,  # Add environment for file tracking
+                                "secret_references": set(),  # Track secret references from file processing
                             }
 
                             action_code = generator.generate(combined_action, context)

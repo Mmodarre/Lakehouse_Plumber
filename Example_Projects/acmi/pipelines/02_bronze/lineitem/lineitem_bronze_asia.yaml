@@ -1,0 +1,71 @@
+# This pipeline is used to load the lineitem table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_bronze
+
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: lineitem_bronze_asia
+
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+  - name: lineitem_asia_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: lineitem_asia_raw
+    target: v_lineitem_asia_raw
+    description: "Load lineitem table from raw schema"
+
+  - name: lineitem_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_lineitem_asia_raw
+    target: v_lineitem_asia_bronze_cleaned
+    sql: |
+      SELECT 
+        l_orderkey as order_id,
+        l_partkey as part_id,
+        l_suppkey as supplier_id,
+        l_linenumber as line_number,
+        l_quantity as quantity,
+        l_extendedprice as extended_price,
+        l_discount as discount,
+        l_tax as tax,
+        l_returnflag as return_flag,
+        l_linestatus as line_status,
+        l_shipdate as ship_date,
+        l_commitdate as commit_date,
+        l_receiptdate as receipt_date,
+        l_shipinstruct as ship_instruct,
+        l_shipmode as ship_mode,
+        l_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        * EXCEPT(l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment,last_modified_dt,_rescued_data)
+      FROM stream(v_lineitem_asia_raw)
+      
+      
+
+  - name: lineitem_bronze_DQE
+    type: transform
+    transform_type: data_quality
+    source: v_lineitem_asia_bronze_cleaned
+    target: v_lineitem_asia_bronze_DQE
+    readMode: stream  
+    expectations_file: "expectations/lineitem_quality.json"
+    description: "Apply data quality checks to lineitem"
+
+  - name: write_lineitem_asia_bronze
+    type: write
+    source: v_lineitem_asia_bronze_DQE
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "lineitem"
+
+        

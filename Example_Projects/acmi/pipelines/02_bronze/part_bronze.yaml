@@ -1,31 +1,34 @@
 # This pipeline is used to load the part table from the raw schema into the bronze schema
 # Pipeline variable puts the generate files in the same folder for the pipeline to pick up
-pipeline: bronze_load
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_bronze
+
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: part_bronze
-
+preset: default_delta_properties
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines
-  - name: part_raw_load
+  - name: part_raw_incremental_load
     type: load
     operational_metadata: ["_processing_timestamp"]
     readMode: stream
     source:
       type: delta
       database: "{catalog}.{raw_schema}"
-      table: part
+      table: part_raw
     target: v_part_raw
     description: "Load part table from raw schema" 
 
-  - name: part_bronze_cleanse
+  - name: part_bronze_incremental_cleanse
     type: transform
     transform_type: sql
     source: v_part_raw
     target: v_part_bronze_cleaned
     sql: |
       SELECT 
+        xxhash64(p_partkey,p_name,p_mfgr,p_brand,p_type,p_size,p_container,p_retailprice,p_comment) as part_key,
         p_partkey as part_id,
         p_name as name,
         p_mfgr as manufacturer,
@@ -35,19 +38,78 @@ actions:
         p_container as container,
         p_retailprice as retail_price,
         p_comment as comment,
-        _source_file_path,
-        _source_file_size,
-        _source_file_modification_time,
-        _record_hash,
-        _processing_timestamp
+        cast(extract_timestamp as TIMESTAMP) as extract_timestamp,
+        source_system,
+        cast(source_system_timestamp as TIMESTAMP) as source_system_timestamp,
+        split(split(_source_file_path, '/part/')[1], '/')[0] as snapshot_id,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        * EXCEPT(p_partkey, p_name, p_mfgr, p_brand, p_type, p_size, p_container, p_retailprice, p_comment, last_modified_dt,_rescued_data,extract_timestamp,source_system,source_system_timestamp)
       FROM stream(v_part_raw)
 
 
-  - name: write_part_bronze
+  - name: write_part_bronze_incremental
     type: write
     source: v_part_bronze_cleaned
     write_target:
+      create_table: true
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: "part"
+      partition_columns : ["snapshot_id"]
+
+
+# ============================================================================
+# MIGRATION TABLES
+# ============================================================================
+
+  - name: part_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      database: "{catalog}.{migration_schema}"
+      table: part
+    target: v_part_migration
+    description: "Load part table from migration schema" 
+
+  - name: part_migration_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_part_migration
+    target: v_part_migration_bronze_cleaned
+    sql: |
+      SELECT 
+        xxhash64(p_partkey,p_name,p_mfgr,p_brand,p_type,p_size,p_container,p_retailprice,p_comment) as part_key,
+        p_partkey as part_id,
+        p_name as name,
+        p_mfgr as manufacturer,
+        p_brand as brand,
+        p_type as type,
+        p_size as size,
+        p_container as container,
+        p_retailprice as retail_price,
+        p_comment as comment,
+        now() as extract_timestamp,
+        "DW MIGRATION" as source_system,
+        null as source_system_timestamp,
+        '2019-W01' as snapshot_id,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        'MIGRATION' as _source_file_path,
+        * EXCEPT(p_partkey, p_name, p_mfgr, p_brand, p_type, p_size, p_container, p_retailprice, p_comment, last_modified_dt)
+      FROM v_part_migration
+
+
+  - name: write_part_migration_bronze
+    type: write
+    source: v_part_migration_bronze_cleaned
+    once: true
+    readMode: batch
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "part"
+          
+
         

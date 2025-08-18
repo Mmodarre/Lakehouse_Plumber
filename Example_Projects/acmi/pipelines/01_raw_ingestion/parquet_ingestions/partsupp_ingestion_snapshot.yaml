@@ -1,4 +1,5 @@
-pipeline: acmi_edw_raw_ingestions
+# pipeline: acmi_edw_raw_ingestions
+pipeline: acmi_edw_raw
 flowgroup: partsupp_ingestion_snapshot
 
 use_template: parquet_ingestion_template

@@ -22,7 +22,7 @@ class SQLLoadGenerator(BaseActionGenerator):
         if isinstance(source_config, str):
             sql_query = source_config
         elif isinstance(source_config, dict):
-            sql_query = self._get_sql_query(source_config, context.get("spec_dir"))
+            sql_query = self._get_sql_query(source_config, context.get("spec_dir"), context)
         else:
             raise ValueError("SQL source must be a string or configuration object")
 
@@ -67,10 +67,12 @@ class SQLLoadGenerator(BaseActionGenerator):
 
         return self.render_template("load/sql.py.j2", template_context)
 
-    def _get_sql_query(self, source_config: dict, spec_dir: Path = None) -> str:
+    def _get_sql_query(self, source_config: dict, spec_dir: Path = None, context: dict = None) -> str:
         """Extract SQL query from configuration."""
+        sql_content = None
+        
         if "sql" in source_config:
-            return source_config["sql"]
+            sql_content = source_config["sql"]
         elif "sql_path" in source_config:
             sql_file = Path(source_config["sql_path"])
             if not sql_file.is_absolute() and spec_dir:
@@ -95,6 +97,18 @@ class SQLLoadGenerator(BaseActionGenerator):
                     file_type="SQL file",
                 )
 
-            return sql_file.read_text().strip()
+            sql_content = sql_file.read_text().strip()
         else:
             raise ValueError("SQL source must have 'sql' or 'sql_path'")
+        
+        # Apply substitutions to the SQL content if substitution_manager is available
+        if context and "substitution_manager" in context:
+            substitution_mgr = context["substitution_manager"]
+            sql_content = substitution_mgr._process_string(sql_content)
+            
+            # Track secret references if they exist
+            secret_refs = substitution_mgr.get_secret_references()
+            if "secret_references" in context and context["secret_references"] is not None:
+                context["secret_references"].update(secret_refs)
+        
+        return sql_content

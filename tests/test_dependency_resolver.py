@@ -2,7 +2,8 @@
 
 import pytest
 from lhp.core.dependency_resolver import DependencyResolver
-from lhp.models.config import Action, ActionType, TransformType
+from lhp.core.validator import ConfigValidator
+from lhp.models.config import Action, ActionType, TransformType, FlowGroup
 
 
 class TestDependencyResolver:
@@ -385,6 +386,253 @@ class TestDependencyResolver:
         
         # But should still validate other requirements
         assert any("must have at least one Load action" in error for error in errors)
+
+    def test_snapshot_cdc_source_function_no_false_dependencies(self):
+        """Test that snapshot CDC with source_function should not create false dependencies.
+        
+        This reproduces Error 1 from the ACMI project where a snapshot CDC action
+        with source_function has a redundant action.source field that creates a
+        false dependency error: "depends on 'v_part_bronze_snapshot' which is not produced by any action"
+        """
+        validator = ConfigValidator()
+        
+        # Create a snapshot CDC write action with source_function
+        # This mimics the part_silver_dim.yaml configuration
+        snapshot_cdc_action = Action(
+            name="write_part_silver_snapshot",
+            type=ActionType.WRITE,
+            source="v_part_bronze_snapshot",  # This is redundant for snapshot CDC with source_function
+            write_target={
+                "type": "streaming_table",
+                "database": "catalog.silver_schema",
+                "table": "part_dim",
+                "mode": "snapshot_cdc",
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": "py_functions/part_snapshot_func.py",
+                        "function": "next_snapshot_and_version"
+                    },
+                    "keys": ["part_id"],
+                    "stored_as_scd_type": 2,
+                    "track_history_except_column_list": ["_source_file_path", "_processing_timestamp"]
+                }
+            }
+        )
+        
+        # Create flowgroup to test complete validation flow
+        flowgroup = FlowGroup(
+            pipeline="test_pipeline",
+            flowgroup="part_silver_dim",
+            actions=[snapshot_cdc_action]
+        )
+        
+        # After fix: This should pass because source_function is self-contained
+        errors = validator.validate_flowgroup(flowgroup)
+        
+        # Should NOT have false dependency error for snapshot CDC with source_function
+        dependency_errors = [e for e in errors if "depends on 'v_part_bronze_snapshot' which is not produced by any action" in e]
+        assert len(dependency_errors) == 0, f"Should not have false dependency error for snapshot CDC with source_function. Got errors: {errors}"
+
+    def test_snapshot_cdc_source_function_no_load_action_required(self):
+        """Test that flowgroup with only snapshot CDC + source_function should be valid.
+        
+        This reproduces Error 2 from the ACMI project where a flowgroup containing
+        only a snapshot CDC action with source_function fails validation with:
+        "FlowGroup must have at least one Load action"
+        
+        However, snapshot CDC with source_function is self-contained and should not
+        require a separate load action.
+        """
+        validator = ConfigValidator()
+        
+        # Create a flowgroup with only snapshot CDC + source_function
+        # This should be valid because the source_function provides the data
+        snapshot_cdc_action = Action(
+            name="write_part_silver_snapshot",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "database": "catalog.silver_schema", 
+                "table": "part_dim",
+                "mode": "snapshot_cdc",
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": "py_functions/part_snapshot_func.py",
+                        "function": "next_snapshot_and_version"
+                    },
+                    "keys": ["part_id"],
+                    "stored_as_scd_type": 2
+                }
+            }
+        )
+        
+        # Create flowgroup to test complete validation flow
+        flowgroup = FlowGroup(
+            pipeline="test_pipeline",
+            flowgroup="part_silver_dim",
+            actions=[snapshot_cdc_action]  # Only one action, no LOAD actions
+        )
+        
+        # After fix: This should pass because snapshot CDC with source_function is self-contained
+        errors = validator.validate_flowgroup(flowgroup)
+        
+        # Should NOT have load action requirement error for self-contained snapshot CDC
+        load_action_errors = [e for e in errors if "FlowGroup must have at least one Load action" in e]
+        assert len(load_action_errors) == 0, f"Should not require load action for self-contained snapshot CDC flowgroup. Got errors: {errors}"
+
+    def test_normal_write_action_unchanged(self):
+        """Test that normal (non-CDC) write actions still work as before."""
+        resolver = DependencyResolver()
+        
+        # Create normal load and write actions (traditional pattern)
+        load_action = Action(
+            name="load_customer_data",
+            type=ActionType.LOAD,
+            target="v_customer_raw",
+            source={"type": "cloudfiles", "path": "/data/customers", "format": "parquet"}
+        )
+        
+        write_action = Action(
+            name="write_customer_table",
+            type=ActionType.WRITE,
+            source="v_customer_raw",  # Traditional source reference
+            write_target={
+                "type": "streaming_table",
+                "database": "catalog.bronze",
+                "table": "customers"
+            }
+        )
+        
+        actions = [load_action, write_action]
+        
+        # Should pass validation - normal pattern unchanged
+        errors = resolver.validate_relationships(actions)
+        assert len(errors) == 0, f"Normal write actions should still work. Got errors: {errors}"
+        
+        # Verify dependency detection works
+        sources = resolver._get_action_sources(write_action)
+        assert sources == ["v_customer_raw"], f"Normal write action should extract source correctly. Got: {sources}"
+
+    def test_cdc_mode_with_explicit_source(self):
+        """Test that CDC mode (not snapshot_cdc) with explicit source still works."""
+        resolver = DependencyResolver()
+        
+        # Create CDC write action with explicit source in cdc_config
+        cdc_action = Action(
+            name="write_customer_cdc",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "database": "catalog.bronze",
+                "table": "customers",
+                "mode": "cdc",
+                "cdc_config": {
+                    "source": "v_customer_changes",
+                    "keys": ["customer_id"]
+                }
+            }
+        )
+        
+        # Should extract source from cdc_config, not action.source
+        sources = resolver._get_action_sources(cdc_action)
+        assert sources == ["v_customer_changes"], f"CDC action should extract source from cdc_config. Got: {sources}"
+
+    def test_snapshot_cdc_with_explicit_source(self):
+        """Test that snapshot_cdc with explicit source (not source_function) still works."""
+        resolver = DependencyResolver()
+        
+        # Create snapshot CDC with explicit source reference
+        snapshot_action = Action(
+            name="write_customer_snapshot",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "database": "catalog.silver",
+                "table": "customers",
+                "mode": "snapshot_cdc",
+                "snapshot_cdc_config": {
+                    "source": "v_customer_snapshots",  # Explicit source, no source_function
+                    "keys": ["customer_id"]
+                }
+            }
+        )
+        
+        # Should extract source from snapshot_cdc_config.source
+        sources = resolver._get_action_sources(snapshot_action)
+        assert sources == ["v_customer_snapshots"], f"Snapshot CDC with explicit source should work. Got: {sources}"
+
+    def test_mixed_action_types_coexist(self):
+        """Test that different action types (normal, CDC, snapshot CDC) can coexist."""
+        validator = ConfigValidator()
+        
+        # Mix of different action types
+        load_action = Action(
+            name="load_raw_data",
+            type=ActionType.LOAD,
+            target="v_raw_data",
+            source={"type": "cloudfiles", "path": "/data", "format": "parquet"}
+        )
+        
+        normal_write = Action(
+            name="write_bronze_normal",
+            type=ActionType.WRITE,
+            source="v_raw_data",
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "normal_table"
+            }
+        )
+        
+        snapshot_cdc_self_contained = Action(
+            name="write_silver_snapshot",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "snapshot_table",
+                "mode": "snapshot_cdc",
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": "functions/snapshot.py",
+                        "function": "get_snapshot"
+                    },
+                    "keys": ["id"]
+                }
+            }
+        )
+        
+        flowgroup = FlowGroup(
+            pipeline="mixed_pipeline",
+            flowgroup="mixed_flowgroup",
+            actions=[load_action, normal_write, snapshot_cdc_self_contained]
+        )
+        
+        # Should validate successfully - mix of patterns should coexist
+        errors = validator.validate_flowgroup(flowgroup)
+        assert len(errors) == 0, f"Mixed action types should coexist. Got errors: {errors}"
+
+    def test_malformed_cdc_config_fallback(self):
+        """Test that malformed CDC configs fall back to action.source gracefully."""
+        resolver = DependencyResolver()
+        
+        # CDC action with malformed config - missing source in cdc_config
+        malformed_cdc = Action(
+            name="write_malformed_cdc",
+            type=ActionType.WRITE,
+            source="v_fallback_source",  # Should fallback to this
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "malformed",
+                "mode": "cdc",
+                "cdc_config": {}  # Empty config, no source
+            }
+        )
+        
+        # Should fallback to action.source
+        sources = resolver._get_action_sources(malformed_cdc)
+        assert sources == ["v_fallback_source"], f"Malformed CDC should fallback to action.source. Got: {sources}"
 
 
 if __name__ == "__main__":

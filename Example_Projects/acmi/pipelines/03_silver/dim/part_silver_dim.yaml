@@ -1,13 +1,14 @@
 # This pipeline is used to load the lineitem table from the raw schema into the bronze schema
 # Pipeline variable puts the generate files in the same folder for the pipeline to pick up
-pipeline: silver_load
+pipeline: acmi_edw_silver
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: part_silver_dim
-
+preset: default_delta_properties
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines
+
   - name: part_silver_load
     type: load
     operational_metadata: ["_processing_timestamp"]
@@ -18,7 +19,7 @@ actions:
       table: part
     target: v_part_bronze
     description: "Load part table from silver schema" 
-
+    
   - name: write_part_silver
     type: write
     source: v_part_bronze
@@ -29,10 +30,11 @@ actions:
       mode: "cdc"
       
       # CDC configuration
-      ## SCD Type 1 for deduplication, no history table
       cdc_config:
         keys: ["part_id"]
-        sequence_by: "_source_file_modification_time"
+        sequence_by: "last_modified_dt"
         scd_type: 2
-        track_history_except_column_list: ["_source_file_path", "_source_file_size", "_source_file_modification_time", "_record_hash", "_processing_timestamp"]
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp","snapshot_id","part_key","last_modified_dt"]
+
         

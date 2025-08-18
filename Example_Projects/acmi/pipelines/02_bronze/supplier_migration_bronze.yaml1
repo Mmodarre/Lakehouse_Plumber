@@ -1,0 +1,55 @@
+# This pipeline is used to load the supplier table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_e2e_pipeline
+
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: supplier_migration_bronze
+
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+  
+  - name: supplier_migration_incremental_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      database: "{catalog}.{migration_schema}"
+      table: supplier
+    target: v_supplier_migration
+    description: "Load supplier table from migration schema" 
+
+  - name: supplier_migration_bronze_incremental_cleanse
+    type: transform
+    transform_type: sql
+    source: v_supplier_migration
+    target: v_supplier_migration_bronze_cleaned
+    sql: |
+      SELECT 
+        s_suppkey as supplier_id,
+        s_name as name,
+        s_address as address,
+        s_nationkey as nation_id,
+        s_phone as phone,
+        s_acctbal as account_balance,
+        s_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        'MIGRATION' as _source_file_path,
+        * EXCEPT(s_suppkey, s_name, s_address, s_nationkey, s_phone, s_acctbal, s_comment, last_modified_dt)
+      FROM v_supplier_migration
+  
+
+  - name: write_supplier_migration_bronze_incremental
+    type: write
+    source: v_supplier_migration_bronze_cleaned
+    once: true
+    readMode: batch
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "supplier"
+        

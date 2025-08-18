@@ -56,6 +56,10 @@ class StateDependencyResolver:
             custom_datasource_deps = self._resolve_custom_datasource_dependencies(flowgroup)
             dependencies.update(custom_datasource_deps)
             
+            # Resolve external file dependencies (Python, SQL, etc.)
+            external_file_deps = self._resolve_external_file_dependencies(flowgroup)
+            dependencies.update(external_file_deps)
+            
             self.logger.debug(f"Resolved {len(dependencies)} dependencies for {yaml_file}")
             
         except Exception as e:
@@ -309,6 +313,107 @@ class StateDependencyResolver:
                     self.logger.warning(f"Custom data source module not found: {module_path}")
                     
         return dependencies
+
+    def _resolve_external_file_dependencies(self, flowgroup: FlowGroup) -> Dict[str, DependencyInfo]:
+        """Resolve external file dependencies (Python, SQL, etc.) using simple hash-based tracking.
+        
+        Args:
+            flowgroup: FlowGroup to resolve external file dependencies for
+            
+        Returns:
+            Dictionary mapping file paths to DependencyInfo objects
+        """
+        dependencies = {}
+        
+        if not flowgroup.actions:
+            return dependencies
+        
+        # Extract all external files from the flowgroup
+        all_external_files = self._extract_all_external_files(flowgroup)
+        
+        # Process each external file with simple hash-based dependency tracking
+        for file_path in all_external_files:
+            dependency_info = self._create_external_file_dependency(file_path)
+            if dependency_info:
+                dependencies[file_path] = dependency_info
+        
+        return dependencies
+
+    def _extract_all_external_files(self, flowgroup: FlowGroup) -> Set[str]:
+        """Extract all external file references from flowgroup - content agnostic.
+        
+        Args:
+            flowgroup: FlowGroup to extract external files from
+            
+        Returns:
+            Set of external file paths
+        """
+        files = set()
+        
+        if not flowgroup.actions:
+            return files
+        
+        for action in flowgroup.actions:
+            # Python transform files
+            if (hasattr(action, 'type') and action.type == 'transform' and
+                hasattr(action, 'transform_type') and action.transform_type == 'python' and
+                hasattr(action, 'module_path') and action.module_path):
+                files.add(action.module_path)
+            
+            # Python load files
+            elif (hasattr(action, 'type') and action.type == 'load' and
+                  hasattr(action, 'source') and isinstance(action.source, dict) and
+                  action.source.get('type') == 'python' and
+                  action.source.get('module_path')):
+                files.add(action.source['module_path'])
+            
+            # SQL files (load and transform with sql_path)
+            if (hasattr(action, 'sql_path') and action.sql_path):
+                files.add(action.sql_path)
+            elif (hasattr(action, 'source') and isinstance(action.source, dict) and
+                  action.source.get('sql_path')):
+                files.add(action.source['sql_path'])
+            
+            # Expectation files (data quality)
+            if (hasattr(action, 'expectations_file') and action.expectations_file):
+                files.add(action.expectations_file)
+            
+            # Snapshot CDC source function files
+            if (hasattr(action, 'type') and action.type == 'write' and
+                hasattr(action, 'write_target') and isinstance(action.write_target, dict) and
+                action.write_target.get('mode') == 'snapshot_cdc'):
+                snapshot_config = action.write_target.get('snapshot_cdc_config', {})
+                source_function = snapshot_config.get('source_function', {})
+                if source_function.get('file'):
+                    files.add(source_function['file'])
+        
+        return files
+
+    def _create_external_file_dependency(self, file_path: str) -> Optional[DependencyInfo]:
+        """Create dependency info for an external file using simple hash-based tracking.
+        
+        Args:
+            file_path: Path to external file (relative to project root)
+            
+        Returns:
+            DependencyInfo object if file exists, None otherwise
+        """
+        file_full_path = self.project_root / file_path
+        if file_full_path.exists():
+            checksum = self._calculate_checksum(file_full_path)
+            last_modified = self._get_file_modification_time(file_full_path)
+            
+            self.logger.debug(f"Found external file dependency: {file_path}")
+            
+            return DependencyInfo(
+                path=file_path,
+                checksum=checksum,
+                type="external_file",
+                last_modified=last_modified
+            )
+        else:
+            self.logger.debug(f"External file not found (will not track): {file_path}")
+            return None
 
     def calculate_composite_checksum(self, dependencies: List[str]) -> str:
         """Calculate composite checksum for a list of dependency paths.

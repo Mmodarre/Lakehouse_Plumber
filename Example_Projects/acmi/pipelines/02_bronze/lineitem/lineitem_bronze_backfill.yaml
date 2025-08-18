@@ -1,0 +1,64 @@
+# This pipeline is used to load the lineitem table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_bronze
+
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: lineitem_bronze_backfill
+
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+
+  - name: lineitem_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      database: "{catalog}.{migration_schema}"
+      table: lineitem
+    target: v_lineitem_migration
+    description: "Load lineitem table from migration schema"  
+
+  - name: lineitem_migration_cleanse
+    type: transform
+    transform_type: sql
+    source: v_lineitem_migration
+    target: v_lineitem_migration_cleaned
+    sql: |
+      SELECT
+        l_orderkey as order_id,
+        l_partkey as part_id,
+        l_suppkey as supplier_id,
+        l_linenumber as line_number,
+        l_quantity as quantity,
+        l_extendedprice as extended_price,
+        l_discount as discount,
+        l_tax as tax,
+        l_returnflag as return_flag,
+        l_linestatus as line_status,
+        l_shipdate as ship_date,
+        l_commitdate as commit_date,
+        l_receiptdate as receipt_date,
+        l_shipinstruct as ship_instruct,
+        l_shipmode as ship_mode,
+        l_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        'MIGRATION' as _source_file_path,
+        * EXCEPT(l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment,last_modified_dt)
+      FROM v_lineitem_migration
+
+
+  - name: write_lineitem_migration
+    type: write
+    source: v_lineitem_migration_cleaned
+    readMode: batch
+    once: true # This is to ensure that the table is created only once
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "lineitem"
+        

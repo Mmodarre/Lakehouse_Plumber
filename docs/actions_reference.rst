@@ -276,6 +276,12 @@ SQL load actions support both **inline SQL** and **external SQL files**.
 .. Important::
   SQL load actions allow you to create complex views from multiple tables using standard SQL.
   Use substitution variables like ``{catalog}`` and ``{schema}`` for environment-specific values.
+
+.. note:: **File Substitution Support**
+   
+   Substitution variables work in both inline SQL and external SQL files (``sql_path``). 
+   The same ``{token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
+   Files are processed for substitutions before query execution.
   
 .. note::
   **File Organization**: When using ``sql_path``, the path is relative to your YAML file location. 
@@ -712,6 +718,15 @@ Custom data source load actions use PySpark's DataSource API to implement specia
   The framework automatically registers your DataSource and copies the implementation to the generated pipeline.
   Use options dictionary to pass configuration parameters from YAML to your DataSource.
 
+.. note:: **File Substitution Support**
+   
+   Custom DataSource Python files support substitution variables:
+   
+   - **Environment tokens**: ``{catalog}``, ``{api_endpoint}``, ``{environment}``
+   - **Secret references**: ``${secret:scope/key}`` for API keys and credentials
+   
+   Substitutions are applied before the class is embedded in the generated code.
+
   **Key Implementation Requirements:**
   - Your DataSource class must implement the ``name()`` class method returning the format name used in ``.format()``
   - The framework uses the return value of ``name()`` method, not the class name, for the format string
@@ -899,6 +914,12 @@ SQL transform actions execute SQL queries to transform data between views. They 
 .. Important::
   SQL transforms can use ``stream()`` function for streaming data or direct view references for batch processing.
   Column aliasing and data type transformations are common patterns in bronze layer cleansing.
+
+.. note:: **File Substitution Support**
+   
+   Substitution variables work in both inline SQL and external SQL files (``sql_path``). 
+   The same ``{token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
+   Files are processed for substitutions before query execution.
 
 .. Warning::
   When writing SQL statements, if your source or target is a streaming table you must use the ``stream()`` function.
@@ -1136,10 +1157,20 @@ Python transform actions call custom Python functions to apply complex transform
 Lakehouse Plumber automatically handles Python function deployment:
 
 1. **Automatic File Copying**: Your Python functions are copied to ``generated/pipeline_name/custom_python_functions/`` during generation
-2. **Import Management**: Imports are automatically generated as ``from custom_python_functions.module_name import function_name``
-3. **Warning Headers**: Copied files include prominent warnings not to edit them directly
-4. **State Tracking**: All copied files are tracked and cleaned up when source YAML is removed
-5. **Package Structure**: A ``__init__.py`` file is automatically created to make the directory a Python package
+2. **Substitution Processing**: Files are processed for ``{token}`` and ``${secret:scope/key}`` substitutions before copying
+3. **Import Management**: Imports are automatically generated as ``from custom_python_functions.module_name import function_name``
+4. **Warning Headers**: Copied files include prominent warnings not to edit them directly
+5. **State Tracking**: All copied files are tracked and cleaned up when source YAML is removed
+6. **Package Structure**: A ``__init__.py`` file is automatically created to make the directory a Python package
+
+.. note:: **File Substitution Support**
+   
+   Python transform files support the same substitution syntax as YAML:
+   
+   - **Environment tokens**: ``{catalog}``, ``{schema}``, ``{environment}``
+   - **Secret references**: ``${secret:scope/key}`` or ``${secret:key}``
+   
+   Substitutions are applied before the file is copied and imported.
 
 .. seealso::
   - For PySpark DataFrame operations see the `Databricks PySpark documentation <https://docs.databricks.com/en/spark/latest/spark-sql/index.html>`_.
@@ -1668,6 +1699,13 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
 
 Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `create_auto_cdc_from_snapshot_flow()`. It supports two source approaches: direct table references or custom Python functions.
 
+.. note::
+  **Recent Improvements**: Snapshot CDC actions using ``source_function`` are now **self-contained** and automatically handle:
+  
+  - **Dependency Management**: No false dependency errors when using ``source_function``
+  - **FlowGroup Validation**: Exempt from "must have at least one Load action" requirement
+  - **Source Field Handling**: Action-level ``source`` field is redundant and should be omitted
+
 **Option 1: Table Source**
 
 .. code-block:: yaml
@@ -1692,28 +1730,26 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
         row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
       description: "Create customer dimension from snapshot table"
 
-**Option 2: Function Source with SCD Type 2**
+**Option 2: Function Source with SCD Type 2 (Self-Contained)**
 
 .. code-block:: yaml
 
   actions:
-    - name: write_customer_snapshot_advanced
+    - name: write_part_silver_snapshot
       type: write
       write_target:
         type: streaming_table
         database: "{catalog}.{silver_schema}"
-        table: dim_customer_advanced
+        table: "part_dim"
         mode: "snapshot_cdc"
         snapshot_cdc_config:
           source_function:
-            file: "customer_snapshot_functions.py"
-            function: "next_customer_snapshot"
-          keys: ["customer_id", "region"]
+            file: "py_functions/part_snapshot_func.py"
+            function: "next_snapshot_and_version"
+          keys: ["part_id"]
           stored_as_scd_type: 2
-          track_history_column_list: ["name", "email", "address", "phone"]
-        table_properties:
-          delta.enableChangeDataFeed: "true"
-      description: "Advanced customer dimension with function-based snapshots"
+          track_history_except_column_list: ["_source_file_path", "_processing_timestamp"]
+      description: "Create part dimension with function-based snapshots"
 
 **Option 3: Exclude Columns from History Tracking**
 
@@ -1746,9 +1782,19 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
       - **track_history_column_list**: Specific columns to track history for (optional)
       - **track_history_except_column_list**: Columns to exclude from history tracking (optional, mutually exclusive with track_history_column_list)
 
+.. Important::
+  **Source Configuration for snapshot CDC**: 
+
+  - **With source_function**: The action becomes **self-contained** and does not require external dependencies. 
+    Any ``source`` field at the action level is **redundant** and should be omitted.
+  - **With source table**: The action depends on the specified source table and requires proper dependency management.
+  
+  **FlowGroup Requirements**: Self-contained snapshot CDC actions (using ``source_function``) are exempt from the 
+  "FlowGroup must have at least one Load action" requirement, as they provide their own data source.
+
 **Example Python Function for source_function**
 
-Create file `customer_snapshot_functions.py`:
+Create file `py_functions/part_snapshot_func.py`:
 
 .. code-block:: python
   :linenos:
@@ -1756,24 +1802,47 @@ Create file `customer_snapshot_functions.py`:
   from typing import Optional, Tuple
   from pyspark.sql import DataFrame
 
-  def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
+  def next_snapshot_and_version(latest_snapshot_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
       """
-      Snapshot processing function for customer data.
+      Snapshot processing function for part dimension data.
       
       Args:
-          latest_version: Most recent version processed, or None for first run
+          latest_snapshot_version: Most recent snapshot version processed, or None for first run
           
       Returns:
-          Tuple of (DataFrame, version_number) or None if no more data
+          Tuple of (DataFrame, snapshot_version) or None if no more snapshots available
       """
-      if latest_version is None:
+      if latest_snapshot_version is None:
           # First run - load initial snapshot
-          df = spark.read.table("catalog.bronze.customer_snapshots")
-          return (df, 1)
+          df = spark.sql("""
+              SELECT * FROM acme_edw_dev.edw_bronze.part 
+              WHERE snapshot_id = (SELECT min(snapshot_id) FROM acme_edw_dev.edw_bronze.part)
+          """)
+          
+          min_snapshot_id = spark.sql("""
+              SELECT min(snapshot_id) as min_id FROM acme_edw_dev.edw_bronze.part
+          """).collect()[0].min_id
+          
+          return (df, min_snapshot_id)
       
-             # Subsequent runs - check for new snapshots
-       # Add your logic here to determine if new snapshots are available
-       return None  # No more snapshots available
+      else:
+          # Subsequent runs - check for new snapshots
+          next_snapshot_result = spark.sql(f"""
+              SELECT min(snapshot_id) as next_id 
+              FROM acme_edw_dev.edw_bronze.part 
+              WHERE snapshot_id > '{latest_snapshot_version}'
+          """).collect()[0]
+          
+          if next_snapshot_result.next_id is None:
+              return None  # No more snapshots available
+          
+          next_snapshot_id = next_snapshot_result.next_id
+          df = spark.sql(f"""
+              SELECT * FROM acme_edw_dev.edw_bronze.part 
+              WHERE snapshot_id = '{next_snapshot_id}'
+          """)
+          
+          return (df, next_snapshot_id)
 .. seealso::
   - For more information on ``create_auto_cdc_from_snapshot_flow`` see the `Databricks snapshot CDC documentation <https://docs.databricks.com/en/delta-live-tables/python-ref.html#create_auto_cdc_from_snapshot_flow>`_
 
@@ -1817,41 +1886,61 @@ Create file `customer_snapshot_functions.py`:
   from pyspark.sql import DataFrame
 
   # Snapshot function embedded directly in generated code
-  def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
+  def next_snapshot_and_version(latest_snapshot_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
       """
-      Snapshot processing function for customer data.
+      Snapshot processing function for part dimension data.
       
       Args:
-          latest_version: Most recent version processed, or None for first run
+          latest_snapshot_version: Most recent snapshot version processed, or None for first run
           
       Returns:
-          Tuple of (DataFrame, version_number) or None if no more data
+          Tuple of (DataFrame, snapshot_version) or None if no more snapshots available
       """
-      if latest_version is None:
+      if latest_snapshot_version is None:
           # First run - load initial snapshot
-          df = spark.read.table("catalog.bronze.customer_snapshots")
-          return (df, 1)
+          df = spark.sql("""
+              SELECT * FROM acme_edw_dev.edw_bronze.part 
+              WHERE snapshot_id = (SELECT min(snapshot_id) FROM acme_edw_dev.edw_bronze.part)
+          """)
+          
+          min_snapshot_id = spark.sql("""
+              SELECT min(snapshot_id) as min_id FROM acme_edw_dev.edw_bronze.part
+          """).collect()[0].min_id
+          
+          return (df, min_snapshot_id)
       
-      # Subsequent runs - check for new snapshots
-      # Add your logic here to determine if new snapshots are available
-      return None  # No more snapshots available
+      else:
+          # Subsequent runs - check for new snapshots
+          next_snapshot_result = spark.sql(f"""
+              SELECT min(snapshot_id) as next_id 
+              FROM acme_edw_dev.edw_bronze.part 
+              WHERE snapshot_id > '{latest_snapshot_version}'
+          """).collect()[0]
+          
+          if next_snapshot_result.next_id is None:
+              return None  # No more snapshots available
+          
+          next_snapshot_id = next_snapshot_result.next_id
+          df = spark.sql(f"""
+              SELECT * FROM acme_edw_dev.edw_bronze.part 
+              WHERE snapshot_id = '{next_snapshot_id}'
+          """)
+          
+          return (df, next_snapshot_id)
 
   # Create the streaming table for snapshot CDC
   dlt.create_streaming_table(
-      name="catalog.silver.dim_customer_advanced",
-      comment="Advanced customer dimension with function-based snapshots",
-      table_properties={
-          "delta.enableChangeDataFeed": "true"
-      }
+      name="catalog.silver.part_dim",
+      comment="Create part dimension with function-based snapshots"
   )
 
   # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
   dlt.create_auto_cdc_from_snapshot_flow(
-      target="catalog.silver.dim_customer_advanced",
-      source=next_customer_snapshot,
-      keys=["customer_id", "region"],
+      target="catalog.silver.part_dim",
+      source=next_snapshot_and_version,
+      keys=["part_id"],
       stored_as_scd_type=2,
-      track_history_column_list=["name", "email", "address", "phone"]
+      track_history_except_column_list=["_source_file_path", "_processing_timestamp"]
   )
 
 **For exclude columns (Option 3):**
@@ -1892,6 +1981,37 @@ Create file `customer_snapshot_functions.py`:
   - Can use either `track_history_column_list` OR `track_history_except_column_list` (mutually exclusive)
   - When using `source_function`, the Python function is embedded directly into the generated DLT code
   - Function file paths are relative to the YAML file location
+  - **Substitution support**: Python functions support ``{token}`` and ``${secret:scope/key}`` substitutions
+  
+  **⚠️ Source Field Redundancy**: When using ``source_function`` in snapshot CDC configuration, do NOT include a ``source`` field at the action level. The ``source`` field becomes redundant and may cause false dependency errors. The ``source_function`` provides the data source internally.
+
+  **✅ Correct pattern (self-contained)**:
+  
+  .. code-block:: yaml
+  
+    - name: write_part_silver_snapshot
+      type: write
+      # No source field needed
+      write_target:
+        mode: "snapshot_cdc" 
+        snapshot_cdc_config:
+          source_function: # This provides the data
+            file: "py_functions/part_snapshot_func.py"
+            function: "next_snapshot_and_version"
+  
+  **❌ Incorrect pattern (redundant source)**:
+  
+  .. code-block:: yaml
+  
+    - name: write_part_silver_snapshot
+      type: write
+      source: v_part_bronze_snapshot  # ← REDUNDANT, causes false dependencies
+      write_target:
+        mode: "snapshot_cdc"
+        snapshot_cdc_config:
+          source_function:
+            file: "py_functions/part_snapshot_func.py"
+            function: "next_snapshot_and_version"
 
 materialized_view
 ~~~~~~~~~~~~~~~~~

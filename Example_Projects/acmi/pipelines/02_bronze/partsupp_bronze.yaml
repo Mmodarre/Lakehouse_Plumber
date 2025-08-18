@@ -1,49 +1,103 @@
 # This pipeline is used to load the partsupp table from the raw schema into the bronze schema
 # Pipeline variable puts the generate files in the same folder for the pipeline to pick up
-pipeline: bronze_load
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_bronze
+
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: partsupp_bronze
-
+preset: default_delta_properties
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines
-  - name: partsupp_raw_load
+  - name: partsupp_raw_incremental_load
     type: load
     operational_metadata: ["_processing_timestamp"]
     readMode: stream
     source:
       type: delta
       database: "{catalog}.{raw_schema}"
-      table: partsupp
+      table: partsupp_raw
     target: v_partsupp_raw
     description: "Load partsupp table from raw schema" 
 
-  - name: partsupp_bronze_cleanse
+  - name: partsupp_bronze_incremental_cleanse
     type: transform
     transform_type: sql
     source: v_partsupp_raw
     target: v_partsupp_bronze_cleaned
     sql: |
       SELECT 
+        xxhash64(ps_partkey,ps_suppkey,ps_availqty,ps_supplycost,ps_comment) as partsupp_key,
+        ps_partkey as part_id,
+        ps_suppkey as supplier_id,
+        ps_availqty as available_quantity,
+        cast(ps_supplycost as decimal(18,2)) as supply_cost,
+        ps_comment as comment,
+        split(split(_source_file_path, '/partsupp/')[1], '/')[0] as snapshot_id,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        * EXCEPT(ps_partkey, ps_suppkey, ps_availqty, ps_supplycost, ps_comment, last_modified_dt,_rescued_data)
+      FROM stream(v_partsupp_raw)
+
+
+  - name: write_partsupp_bronze_incremental
+    type: write
+    source: v_partsupp_bronze_cleaned
+    write_target:
+      create_table: true
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "partsupp"
+      partition_columns: ["snapshot_id"]
+
+
+
+# ============================================================================
+# MIGRATION TABLES
+# ============================================================================
+
+
+  - name: partsupp_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      database: "{catalog}.{migration_schema}"
+      table: partsupp
+    target: v_partsupp_migration
+    description: "Load partsupp table from migration schema" 
+
+  - name: partsupp_migration_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_partsupp_migration
+    target: v_partsupp_migration_bronze_cleaned
+    sql: |
+      SELECT 
+        xxhash64(ps_partkey,ps_suppkey,ps_availqty,ps_supplycost,ps_comment) as partsupp_key,
         ps_partkey as part_id,
         ps_suppkey as supplier_id,
         ps_availqty as available_quantity,
         ps_supplycost as supply_cost,
         ps_comment as comment,
-        _source_file_path,
-        _source_file_size,
-        _source_file_modification_time,
-        _record_hash,
-        _processing_timestamp
-      FROM stream(v_partsupp_raw)
+        '2019-W01' as snapshot_id,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        'MIGRATION' as _source_file_path,
+        * EXCEPT(ps_partkey, ps_suppkey, ps_availqty, ps_supplycost, ps_comment, last_modified_dt)
+      FROM v_partsupp_migration
 
 
-  - name: write_partsupp_bronze
+  - name: write_partsupp_migration_bronze
     type: write
-    source: v_partsupp_bronze_cleaned
+    source: v_partsupp_migration_bronze_cleaned
+    once: true
+    readMode: batch
     write_target:
+      create_table: false
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: "partsupp"
         
+        
+

@@ -1,0 +1,51 @@
+# This pipeline is used to load the partsupp table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_e2e_pipeline
+
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: partsupp_migration_bronze
+
+actions:
+
+  - name: partsupp_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      database: "{catalog}.{migration_schema}"
+      table: partsupp
+    target: v_partsupp_migration
+    description: "Load partsupp table from migration schema" 
+
+  - name: partsupp_migration_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_partsupp_migration
+    target: v_partsupp_migration_bronze_cleaned
+    sql: |
+      SELECT 
+        ps_partkey as part_id,
+        ps_suppkey as supplier_id,
+        ps_availqty as available_quantity,
+        ps_supplycost as supply_cost,
+        ps_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        'MIGRATION' as _source_file_path,
+        * EXCEPT(ps_partkey, ps_suppkey, ps_availqty, ps_supplycost, ps_comment, last_modified_dt)
+      FROM v_partsupp_migration
+
+
+  - name: write_partsupp_migration_bronze
+    type: write
+    source: v_partsupp_migration_bronze_cleaned
+    once: true
+    readMode: batch
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "partsupp"
+        

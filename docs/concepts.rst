@@ -221,6 +221,85 @@ reviews and approvals easier.
    names (like ``dev_db_secrets``) in the substitution file. This provides flexibility 
    to use different scope names across environments while keeping pipeline definitions portable.
 
+
+File Substitution Support
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. versionadded:: Latest
+
+LakehousePlumber now supports substitutions in external files, providing the same environment-specific flexibility for Python functions and SQL files that you have in YAML configurations.
+
+**Supported File Types:**
+
++--------------------------------+--------------------------------------------------+
+|| File Type                     || Where Used                                       |
+|================================+==================================================+
+|| **Python Functions**          || • Snapshot CDC ``source_function`` files        |
+|||                               || • Python transform ``module_path`` files        |
+|||                               || • Custom datasource ``module_path`` files       |
++--------------------------------+--------------------------------------------------+
+|| **SQL Files**                 || • SQL load actions with ``sql_path``            |
+|||                               || • SQL transform actions with ``sql_path``       |
++--------------------------------+--------------------------------------------------+
+
+**Example Python Function with Substitutions:**
+
+.. code-block:: python
+   :caption: py_functions/customer_snapshot.py
+   :linenos:
+   :emphasize-lines: 4-5,10
+
+   from typing import Optional, Tuple
+   from pyspark.sql import DataFrame
+
+   catalog = "{catalog}"
+   schema = "{bronze_schema}"
+
+   def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
+       if latest_version is None:
+           df = spark.sql(f"""
+               SELECT * FROM {catalog}.{schema}.customers 
+               WHERE snapshot_id = 1
+           """)
+           return (df, 1)
+       return None
+
+**Example SQL File with Substitutions:**
+
+.. code-block:: sql
+   :caption: sql/customer_metrics.sql
+   :linenos:
+   :emphasize-lines: 4-6
+
+   SELECT 
+       customer_id,
+       customer_name,
+       '{environment}' as source_env
+   FROM {catalog}.{bronze_schema}.customers
+   WHERE created_date >= '{cutoff_date}'
+
+**Secret Support in Files:**
+
+Both Python and SQL files support secret substitutions with the same syntax as YAML:
+
+.. code-block:: python
+   :caption: Example with secrets
+
+   # Environment token
+   api_endpoint = "{api_base_url}"
+   
+   # Secret reference  
+   api_key = "${secret:api_keys/service_key}"
+   db_password = "${secret:database/password}"
+
+**Processing Behavior:**
+
+- **Tokens and secrets** are processed before the file content is used
+- **Python files** have substitutions applied before import management
+- **SQL files** have substitutions applied before query execution
+- **Backward compatible** - files without substitution variables work unchanged
+- **Same syntax** as YAML substitutions for consistency
+
 **Example pipeline with secrets:**
 
 .. code-block:: yaml

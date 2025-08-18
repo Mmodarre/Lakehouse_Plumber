@@ -23,3 +23,5 @@ docs/_build/
 README.md.bkup
 Example_Projects/acmi/databricks.yml
 
+Example_Projects/acmi/Data_Prep/__builtins__.pyi
+.cursor/rules/byterover-rules.mdc

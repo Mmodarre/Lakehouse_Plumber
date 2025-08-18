@@ -114,6 +114,16 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         raw_source_code = source_path.read_text()
         self.source_file_path = source_path
 
+        # Apply substitutions to the raw source code if substitution_manager is available
+        if context and "substitution_manager" in context:
+            substitution_mgr = context["substitution_manager"]
+            raw_source_code = substitution_mgr._process_string(raw_source_code)
+            
+            # Track secret references if they exist
+            secret_refs = substitution_mgr.get_secret_references()
+            if "secret_references" in context and context["secret_references"] is not None:
+                context["secret_references"].update(secret_refs)
+
         # Use ImportManager to extract imports and get cleaned source
         self.custom_source_code = self.add_imports_from_file(raw_source_code)
         

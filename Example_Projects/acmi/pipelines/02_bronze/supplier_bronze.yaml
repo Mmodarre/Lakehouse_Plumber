@@ -1,31 +1,80 @@
 # This pipeline is used to load the supplier table from the raw schema into the bronze schema
 # Pipeline variable puts the generate files in the same folder for the pipeline to pick up
-pipeline: bronze_load
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_bronze
+
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: supplier_bronze
-
+preset: default_delta_properties
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines
-  - name: supplier_raw_load
+  - name: supplier_raw_incremental_load
     type: load
     operational_metadata: ["_processing_timestamp"]
     readMode: stream
     source:
       type: delta
       database: "{catalog}.{raw_schema}"
-      table: supplier
+      table: supplier_raw
     target: v_supplier_raw
     description: "Load supplier table from raw schema" 
 
-  - name: supplier_bronze_cleanse
+  - name: supplier_bronze_incremental_cleanse
     type: transform
     transform_type: sql
     source: v_supplier_raw
     target: v_supplier_bronze_cleaned
     sql: |
       SELECT 
+        xxhash64(s_suppkey,s_name,s_address,s_nationkey,s_phone,s_acctbal,s_comment) as supplier_key,
+        s_suppkey as supplier_id,
+        s_name as name,
+        s_address as address,
+        s_nationkey as nation_id,
+        s_phone as phone,
+        cast(s_acctbal as decimal(18,2)) as account_balance,
+        s_comment as comment,
+        split(split(_source_file_path, '/supplier/')[1], '/')[0] as snapshot_id,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        * EXCEPT(s_suppkey, s_name, s_address, s_nationkey, s_phone, s_acctbal, s_comment, last_modified_dt,_rescued_data)
+      FROM stream(v_supplier_raw)
+
+
+  - name: write_supplier_bronze_incremental
+    type: write
+    source: v_supplier_bronze_cleaned
+    write_target:
+      create_table: true
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "supplier"
+      partition_columns: ["snapshot_id"]
+
+# ============================================================================
+# MIGRATION TABLES
+# ============================================================================
+
+  - name: supplier_migration_incremental_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      database: "{catalog}.{migration_schema}"
+      table: supplier
+    target: v_supplier_migration
+    description: "Load supplier table from migration schema" 
+
+  - name: supplier_migration_bronze_incremental_cleanse
+    type: transform
+    transform_type: sql
+    source: v_supplier_migration
+    target: v_supplier_migration_bronze_cleaned
+    sql: |
+      SELECT 
+        xxhash64(s_suppkey,s_name,s_address,s_nationkey,s_phone,s_acctbal,s_comment) as supplier_key,
         s_suppkey as supplier_id,
         s_name as name,
         s_address as address,
@@ -33,18 +82,20 @@ actions:
         s_phone as phone,
         s_acctbal as account_balance,
         s_comment as comment,
-        _source_file_path,
-        _source_file_size,
-        _source_file_modification_time,
-        _record_hash,
-        _processing_timestamp
-      FROM stream(v_supplier_raw)
+        '2019-W01' as snapshot_id,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        'MIGRATION' as _source_file_path,
+        * EXCEPT(s_suppkey, s_name, s_address, s_nationkey, s_phone, s_acctbal, s_comment, last_modified_dt)
+      FROM v_supplier_migration
+  
 
-
-  - name: write_supplier_bronze
+  - name: write_supplier_migration_bronze_incremental
     type: write
-    source: v_supplier_bronze_cleaned
+    source: v_supplier_migration_bronze_cleaned
+    once: true
+    readMode: batch
     write_target:
+      create_table: false
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: "supplier"

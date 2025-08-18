@@ -1,0 +1,44 @@
+# This pipeline is used to load the nation table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_bronze
+
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: nation_bronze
+preset: default_delta_properties
+actions:
+  - name: nation_raw_incremental_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: nation_raw
+    target: v_nation_raw
+    description: "Load nation table from raw schema" 
+
+  - name: nation_bronze_incremental_cleanse
+    type: transform
+    transform_type: sql
+    source: v_nation_raw
+    target: v_nation_bronze_cleaned
+    sql: |
+      SELECT 
+        xxhash64(n_name,n_regionkey,n_comment) as nation_key,
+        n_name as name,
+        n_regionkey as region_id,
+        n_comment as comment,
+        * EXCEPT(n_nationkey, n_name, n_regionkey, n_comment,_rescued_data)
+      FROM stream(v_nation_raw)
+
+
+  - name: write_nation_bronze_incremental
+    type: write
+    source: v_nation_bronze_cleaned
+    write_target:
+      create_table: true
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "nation"
