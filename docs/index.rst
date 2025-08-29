@@ -270,6 +270,7 @@ Next Steps
 * :doc:`concepts` – deep-dive into FlowGroups, Actions, presets, templates and more.
 * :doc:`templates_reference` – comprehensive guide to creating and using templates with natural YAML syntax.
 * :doc:`databricks_bundles` – integrate with Databricks Asset Bundles for production deployments.
+* :doc:`cicd_reference` – comprehensive CI/CD patterns, deployment strategies, and DataOps best practices.
 * :doc:`cli` – command-line reference.
 
 .. toctree::
@@ -280,7 +281,9 @@ Next Steps
    concepts
    templates_reference
    databricks_bundles
+   cicd_reference
    actions_reference
+   test_actions
    advanced
    cli
    examples

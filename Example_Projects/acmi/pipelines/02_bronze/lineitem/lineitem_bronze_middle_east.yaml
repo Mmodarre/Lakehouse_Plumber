@@ -6,7 +6,8 @@ pipeline: acmi_edw_bronze
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: lineitem_bronze_middle_east
-
+presets:
+  - default_delta_properties
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines

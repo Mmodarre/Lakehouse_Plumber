@@ -32,12 +32,14 @@ class TestBundleManagerConservative:
         self.project_root.mkdir()
         
         # Create directory structure
-        self.generated_dir = self.project_root / "generated"
-        self.generated_dir.mkdir()
-        self.resources_dir = self.project_root / "resources" / "lhp"
+        self.generated_dir = self.project_root / "generated" / "dev"
+        self.generated_dir.mkdir(parents=True)
+        self.resources_dir = self.project_root / "resources" / "lhp" / "dev"
         self.resources_dir.mkdir(parents=True)
         
         self.manager = BundleManager(self.project_root)
+        # Set the resources_dir to the dev environment directory
+        self.manager.resources_dir = self.resources_dir
 
     def teardown_method(self):
         """Clean up test environment after each test."""

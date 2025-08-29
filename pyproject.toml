@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.4.1"
+version = "0.5.0"
 description = "A framework for building and managing enterprise Lakeflow Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -30,6 +30,7 @@ dependencies = [
     "rich>=12.0.0",
     "pydantic>=2.0.0",
     "jsonschema>=4.0.0",
+    "packaging>=23.2",
     "importlib_resources>=1.3.0;python_version<'3.9'",
 ]
 
@@ -66,6 +67,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "lhp.schemas" = ["*.json", "*.md"]
 "lhp.templates" = ["*.j2"]
+"lhp.templates.bundle" = ["*.j2"]
 "lhp.templates.init" = ["**/*"]
 "lhp.templates.load" = ["*.j2"]
 "lhp.templates.transform" = ["*.j2"]

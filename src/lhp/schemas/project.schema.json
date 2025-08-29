@@ -39,6 +39,15 @@
                 ["*.yaml"]
             ]
         },
+        "required_lhp_version": {
+            "type": "string",
+            "description": "Required LakehousePlumber version range (e.g., '>=0.4.1,<0.5.0')",
+            "examples": [
+                ">=0.4.1,<0.5.0",
+                "~=0.4.1",
+                "==0.4.1"
+            ]
+        },
         "operational_metadata": {
             "type": "object",
             "description": "Project-level operational metadata configuration",

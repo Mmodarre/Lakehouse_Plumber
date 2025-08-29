@@ -11,7 +11,7 @@ Actions are the building block of Lakehouse Plumber flowgroups.
 Actions Overview
 ----------------
 
-Actions come in three top-level types:
+Actions come in four top-level types:
 
 +----------------+----------------------------------------------------------+
 | Type           | Purpose                                                  |
@@ -24,6 +24,9 @@ Actions come in three top-level types:
 +----------------+----------------------------------------------------------+
 || **Write**     || Persist the final dataset to a *streaming_table* or     |
 ||               || *materialized_view*.                                    |
++----------------+----------------------------------------------------------+
+|| **Test**      || Validate data quality using DLT expectations in         |
+||               || temporary tables (uniqueness, referential integrity…).  |
 +----------------+----------------------------------------------------------+
 
 
@@ -1659,7 +1662,7 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
           keys: ["customer_id"]
           sequence_by: "_commit_timestamp"
           scd_type: 2
-          track_history_columns: ["name", "address", "phone"]
+          track_history_column_list: ["name", "address", "phone"]
           ignore_null_updates: true
       description: "Track customer changes with CDC and SCD Type 2"
 

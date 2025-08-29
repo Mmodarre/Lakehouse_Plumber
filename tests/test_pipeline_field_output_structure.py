@@ -215,8 +215,8 @@ dev:
         
         # This should discover all flowgroups and organize by pipeline field
         # Currently this will fail because the system uses directory names
-        generated_files_raw = orchestrator.generate_pipeline_by_field("raw_ingestions", "dev", project_root / "generated")
-        generated_files_silver = orchestrator.generate_pipeline_by_field("silver_transforms", "dev", project_root / "generated")
+        generated_files_raw = orchestrator.generate_pipeline_by_field("raw_ingestions", "dev", project_root / "generated" / "dev")
+        generated_files_silver = orchestrator.generate_pipeline_by_field("silver_transforms", "dev", project_root / "generated" / "dev")
         
         # Should have 3 files for raw_ingestions pipeline (customer, orders, lineitem)
         assert len(generated_files_raw) == 3
@@ -229,8 +229,8 @@ dev:
         assert "customer_transforms.py" in generated_files_silver
         
         # Verify files are in directories named after pipeline field, not directory name
-        raw_ingestions_dir = project_root / "generated" / "raw_ingestions"
-        silver_transforms_dir = project_root / "generated" / "silver_transforms"
+        raw_ingestions_dir = project_root / "generated" / "dev" / "raw_ingestions"
+        silver_transforms_dir = project_root / "generated" / "dev" / "silver_transforms"
         
         assert (raw_ingestions_dir / "customer_ingestion.py").exists()
         assert (raw_ingestions_dir / "orders_ingestion.py").exists()
@@ -238,9 +238,9 @@ dev:
         assert (silver_transforms_dir / "customer_transforms.py").exists()
         
         # Should NOT create directories named after folder names
-        assert not (project_root / "generated" / "01_raw_ingestion").exists()
-        assert not (project_root / "generated" / "different_folder_name").exists()
-        assert not (project_root / "generated" / "02_silver_layer").exists()
+        assert not (project_root / "generated" / "dev" / "01_raw_ingestion").exists()
+        assert not (project_root / "generated" / "dev" / "different_folder_name").exists()
+        assert not (project_root / "generated" / "dev" / "02_silver_layer").exists()
 
     def test_cli_generate_all_finds_by_pipeline_field(self, runner, project_with_pipeline_field_structure):
         """Test that CLI generate (without --pipeline) finds all flowgroups and organizes by pipeline field."""
@@ -254,7 +254,7 @@ dev:
             assert result.exit_code == 0
             
             # Should organize by pipeline field, not directory name
-            generated_dir = project_with_pipeline_field_structure / "generated"
+            generated_dir = project_with_pipeline_field_structure / "generated" / "dev"
             
             # Should have directories named after pipeline fields
             raw_ingestions_dir = generated_dir / "raw_ingestions"
@@ -291,14 +291,14 @@ dev:
             
             # Should find all 3 flowgroups with pipeline: raw_ingestions
             # even though they're in different directories
-            generated_dir = project_with_pipeline_field_structure / "generated" / "raw_ingestions"
+            generated_dir = project_with_pipeline_field_structure / "generated" / "dev" / "raw_ingestions"
             
             assert (generated_dir / "customer_ingestion.py").exists()
             assert (generated_dir / "orders_ingestion.py").exists()
             assert (generated_dir / "lineitem_ingestion.py").exists()
             
             # Should NOT generate silver_transforms
-            silver_dir = project_with_pipeline_field_structure / "generated" / "silver_transforms"
+            silver_dir = project_with_pipeline_field_structure / "generated" / "dev" / "silver_transforms"
             assert not silver_dir.exists()
         finally:
             os.chdir(old_cwd)
@@ -316,12 +316,12 @@ dev:
             assert "silver_transforms" in result.output
             
             # Should only find the flowgroup with pipeline: silver_transforms
-            generated_dir = project_with_pipeline_field_structure / "generated" / "silver_transforms"
+            generated_dir = project_with_pipeline_field_structure / "generated" / "dev" / "silver_transforms"
             
             assert (generated_dir / "customer_transforms.py").exists()
             
             # Should NOT generate raw_ingestions files
-            raw_dir = project_with_pipeline_field_structure / "generated" / "raw_ingestions"
+            raw_dir = project_with_pipeline_field_structure / "generated" / "dev" / "raw_ingestions"
             assert not raw_dir.exists()
 
     def test_cli_validate_pipeline_flag_uses_pipeline_field(self, runner, project_with_pipeline_field_structure):

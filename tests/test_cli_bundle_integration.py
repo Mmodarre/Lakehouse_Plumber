@@ -298,7 +298,9 @@ class TestCLIInitBundleCommand:
             assert "bundle:" in content
             assert "name: template_accuracy_test" in content
             assert "include:" in content
-            assert "resources/lhp/*.yml" in content
+            assert "resources/*.yml" in content  # User-managed resources
+            assert "resources/lhp/dev/*.yml" in content  # Dev-specific LHP resources
+            assert "resources/lhp/prod/*.yml" in content  # Prod-specific LHP resources
             assert "targets:" in content
             assert "dev:" in content
             assert "prod:" in content

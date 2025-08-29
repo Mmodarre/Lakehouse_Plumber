@@ -1,7 +1,7 @@
 """Tests for core data models of LakehousePlumber."""
 
 import pytest
-from lhp.models.config import ActionType, LoadSourceType, TransformType, WriteTargetType, Action, FlowGroup, Template, Preset
+from lhp.models.config import ActionType, LoadSourceType, TransformType, WriteTargetType, Action, FlowGroup, Template, Preset, TestActionType, ViolationAction
 
 
 class TestModels:
@@ -12,6 +12,33 @@ class TestModels:
         assert ActionType.LOAD.value == "load"
         assert ActionType.TRANSFORM.value == "transform"
         assert ActionType.WRITE.value == "write"
+        # Test for new TEST action type
+        assert ActionType.TEST.value == "test"
+    
+    def test_test_type_enum(self):
+        """Test TestActionType enum exists with all required test types."""
+        # Test that TestActionType enum exists
+        assert TestActionType is not None
+        
+        # Test all 9 test types exist
+        assert TestActionType.ROW_COUNT.value == "row_count"
+        assert TestActionType.UNIQUENESS.value == "uniqueness"
+        assert TestActionType.REFERENTIAL_INTEGRITY.value == "referential_integrity"
+        assert TestActionType.COMPLETENESS.value == "completeness"
+        assert TestActionType.RANGE.value == "range"
+        assert TestActionType.SCHEMA_MATCH.value == "schema_match"
+        assert TestActionType.ALL_LOOKUPS_FOUND.value == "all_lookups_found"
+        assert TestActionType.CUSTOM_SQL.value == "custom_sql"
+        assert TestActionType.CUSTOM_EXPECTATIONS.value == "custom_expectations"
+    
+    def test_violation_action_enum(self):
+        """Test ViolationAction enum exists with required values."""
+        # Test that ViolationAction enum exists
+        assert ViolationAction is not None
+        
+        # Test violation action values
+        assert ViolationAction.FAIL.value == "fail"
+        assert ViolationAction.WARN.value == "warn"
     
     def test_action_model(self):
         """Test Action model creation."""

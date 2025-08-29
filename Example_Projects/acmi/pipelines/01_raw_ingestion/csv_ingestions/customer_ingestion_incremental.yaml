@@ -1,9 +1,6 @@
-# This pipeline is used to ingest the customer table from the csv files into the raw schema
-# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
-# pipeline: acmi_edw_raw_ingestions
+
+
 pipeline: acmi_edw_raw
-# Flowgroup are conceptual artifacts and has no functional purpose
-# there are used to group actions together in the generated files
 flowgroup: customer_ingestion_incremental
 presets:
   - default_delta_properties

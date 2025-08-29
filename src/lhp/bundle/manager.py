@@ -57,9 +57,21 @@ class BundleManager(BaseActionGenerator):
             project_root = Path(project_root)
             
         self.project_root = project_root
-        self.resources_dir = project_root / "resources" / "lhp"
+        self.resources_base_dir = project_root / "resources" / "lhp"
+        self.resources_dir = self.resources_base_dir  # Default to base dir for compatibility
         self.logger = logging.getLogger(__name__)
 
+    def _get_env_resources_dir(self, env: str) -> Path:
+        """Get environment-specific resources directory.
+        
+        Args:
+            env: Environment name
+            
+        Returns:
+            Path to environment-specific resources directory
+        """
+        return self.resources_base_dir / env
+    
     def generate(self, action, context: Dict[str, Any]) -> str:
         """
         Required implementation for BaseActionGenerator.
@@ -94,7 +106,10 @@ class BundleManager(BaseActionGenerator):
         Raises:
             BundleResourceError: If synchronization fails or multiple files detected
         """
-        self.logger.info("🔄 Syncing bundle resources with generated files...")
+        self.logger.info(f"🔄 Syncing bundle resources for environment: {env}...")
+        
+        # Set environment-specific resources directory
+        self.resources_dir = self._get_env_resources_dir(env)
         
         # Ensure resources directory exists
         self._ensure_resources_directory()
@@ -204,13 +219,13 @@ class BundleManager(BaseActionGenerator):
             else:
                 self.logger.info(f"📦 Scenario 1b: Backing up user file {existing_file.name} and replacing with LHP version")
                 self._backup_single_file(existing_file, pipeline_name)
-                self._create_new_resource_file(pipeline_name, pipeline_dir.parent)
+                self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
                 return True
         
         # Step 4: Scenario 2 - No file exists, CREATE new
         else:
             self.logger.info(f"📝 Scenario 2: Creating new resource file for pipeline '{pipeline_name}'")
-            self._create_new_resource_file(pipeline_name, pipeline_dir.parent)
+            self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
             return True
 
     def _ensure_resources_directory(self):
@@ -286,13 +301,14 @@ class BundleManager(BaseActionGenerator):
 
 
 
-    def _generate_resource_file_content(self, pipeline_name: str, output_dir: Path) -> str:
+    def _generate_resource_file_content(self, pipeline_name: str, output_dir: Path, env: str = None) -> str:
         """
         Generate content for a bundle resource file using Jinja2 template.
         
         Args:
             pipeline_name: Name of the pipeline
             output_dir: Output directory containing generated Python files
+            env: Environment name for template context
             
         Returns:
             YAML content for the resource file
@@ -302,6 +318,7 @@ class BundleManager(BaseActionGenerator):
         
         context = {
             "pipeline_name": pipeline_name,
+            "env": env,
             "catalog": database_info.get("catalog", "main"),
             "schema": database_info.get("schema", f"lhp_${{bundle.target}}")
         }
@@ -458,13 +475,14 @@ class BundleManager(BaseActionGenerator):
         return result
 
 
-    def _create_new_resource_file(self, pipeline_name: str, output_dir: Path):
+    def _create_new_resource_file(self, pipeline_name: str, output_dir: Path, env: str = None):
         """
         Create new resource file for a pipeline.
         
         Args:
             pipeline_name: Name of the pipeline
             output_dir: Output directory containing generated Python files
+            env: Environment name for template context
         """
         # Ensure resources directory exists
         self._ensure_resources_directory()
@@ -472,7 +490,7 @@ class BundleManager(BaseActionGenerator):
         resource_file = self._get_resource_file_path(pipeline_name)
         
         # Generate resource file content from Python files
-        content = self._generate_resource_file_content(pipeline_name, output_dir)
+        content = self._generate_resource_file_content(pipeline_name, output_dir, env)
         
         try:
             resource_file.write_text(content, encoding='utf-8')

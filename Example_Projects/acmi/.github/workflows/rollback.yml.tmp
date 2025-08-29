@@ -1,0 +1,235 @@
+name: Emergency Rollback Pipeline
+
+# Prevent concurrent rollback operations
+concurrency: 
+  group: rollback-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  push:
+    tags:
+      - 'v*-rollback'
+      - 'v*-maintenance'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # Emergency rollback with approval gate
+  emergency-rollback:
+    runs-on: ubuntu-latest
+    name: 'Emergency Rollback to Production'
+    if: startsWith(github.ref, 'refs/tags/v') && endsWith(github.ref, '-rollback')
+    environment:
+      name: production-emergency
+      url: ${{ secrets.DATABRICKS_PROD_HOST }}
+    
+    steps:
+      - name: Parse Rollback Target
+        id: rollback-target
+        run: |
+          # Extract target version from tag (e.g., v1.2.1-rollback)
+          ROLLBACK_VERSION=$(echo "${{ github.ref_name }}" | sed 's/-rollback$//')
+          echo "rollback_version=$ROLLBACK_VERSION" >> $GITHUB_OUTPUT
+          
+          # Find the commit SHA for the target version
+          ROLLBACK_COMMIT=$(git rev-list -n 1 ${ROLLBACK_VERSION}-prod 2>/dev/null || echo "")
+          if [ -z "$ROLLBACK_COMMIT" ]; then
+            echo "❌ Cannot find commit for ${ROLLBACK_VERSION}-prod tag"
+            exit 1
+          fi
+          
+          echo "rollback_commit=$ROLLBACK_COMMIT" >> $GITHUB_OUTPUT
+          echo "🎯 Rolling back to version: $ROLLBACK_VERSION"
+          echo "📍 Target commit: $ROLLBACK_COMMIT"
+      
+      - name: Checkout Target Commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.rollback-target.outputs.rollback_commit }}
+          fetch-depth: 0
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install LHP
+        run: pip install lakehouse-plumber
+      
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@main
+      
+      - name: Generate Rollback Configuration
+        run: |
+          echo "🔄 Generating configuration for rollback..."
+          lhp generate --env prod --output generated/
+          echo "✅ Rollback configuration generated"
+      
+      - name: Create Rollback Manifest
+        run: |
+          echo '{
+            "rollback_timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+            "rollback_tag": "'${{ github.ref_name }}'",
+            "rollback_from_commit": "'${{ github.sha }}'",
+            "rollback_to_commit": "'${{ steps.rollback-target.outputs.rollback_commit }}'",
+            "rollback_to_version": "'${{ steps.rollback-target.outputs.rollback_version }}'",
+            "initiated_by": "'${{ github.actor }}'",
+            "environment": "prod",
+            "rollback_type": "emergency"
+          }' > rollback-manifest.json
+          
+          echo "📄 Rollback manifest:"
+          cat rollback-manifest.json
+      
+      - name: Deploy Rollback
+        run: |
+          echo "🚨 EMERGENCY ROLLBACK IN PROGRESS..."
+          echo "Rolling back to version: ${{ steps.rollback-target.outputs.rollback_version }}"
+          databricks bundle deploy --target prod --mode production
+          echo "✅ Rollback deployment completed"
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_PROD_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_PROD_HOST }}
+      
+      - name: Verify Rollback Success
+        run: |
+          echo "🔍 Verifying rollback success..."
+          databricks bundle validate --target prod
+          echo "✅ Rollback verification completed"
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_PROD_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_PROD_HOST }}
+      
+      - name: Create Emergency Incident Report
+        run: |
+          cat > incident-report.md << EOF
+          # Emergency Rollback Incident Report
+          
+          **Incident Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Rollback Tag:** ${{ github.ref_name }}
+          **Initiated By:** ${{ github.actor }}
+          
+          ## Rollback Details
+          - **From Version:** Current production (commit: ${{ github.sha }})
+          - **To Version:** ${{ steps.rollback-target.outputs.rollback_version }}
+          - **Target Commit:** ${{ steps.rollback-target.outputs.rollback_commit }}
+          - **Environment:** Production
+          
+          ## Timeline
+          - **Rollback Initiated:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          - **Rollback Completed:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ## Next Steps
+          1. Monitor production systems for stability
+          2. Investigate root cause of issue that triggered rollback
+          3. Plan fix deployment once issue is resolved
+          4. Update runbooks based on lessons learned
+          
+          ## Verification
+          - [ ] Production systems are stable
+          - [ ] Critical pipelines are running
+          - [ ] Data quality checks passed
+          - [ ] Stakeholders notified
+          EOF
+          
+          echo "📝 Incident report created"
+          cat incident-report.md
+      
+      - name: Summary
+        run: |
+          echo "🚨 EMERGENCY ROLLBACK COMPLETED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Rollback Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- **From:** Current production" >> $GITHUB_STEP_SUMMARY  
+          echo "- **To:** ${{ steps.rollback-target.outputs.rollback_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Commit:** ${{ steps.rollback-target.outputs.rollback_commit }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Initiated By:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Completed At:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **Post-rollback actions required:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Monitor production systems" >> $GITHUB_STEP_SUMMARY
+          echo "2. Investigate root cause" >> $GITHUB_STEP_SUMMARY
+          echo "3. Plan fix deployment" >> $GITHUB_STEP_SUMMARY
+
+  # Planned maintenance rollback  
+  maintenance-rollback:
+    runs-on: ubuntu-latest
+    name: 'Planned Maintenance Rollback'
+    if: startsWith(github.ref, 'refs/tags/v') && endsWith(github.ref, '-maintenance')
+    environment:
+      name: production-maintenance
+      url: ${{ secrets.DATABRICKS_PROD_HOST }}
+    
+    steps:
+      - name: Parse Maintenance Target
+        id: maintenance-target
+        run: |
+          # Extract target version from tag (e.g., v1.2.1-maintenance)
+          MAINTENANCE_VERSION=$(echo "${{ github.ref_name }}" | sed 's/-maintenance$//')
+          echo "maintenance_version=$MAINTENANCE_VERSION" >> $GITHUB_OUTPUT
+          
+          # Find the commit SHA for the target version
+          MAINTENANCE_COMMIT=$(git rev-list -n 1 ${MAINTENANCE_VERSION}-prod 2>/dev/null || echo "")
+          if [ -z "$MAINTENANCE_COMMIT" ]; then
+            echo "❌ Cannot find commit for ${MAINTENANCE_VERSION}-prod tag"
+            exit 1
+          fi
+          
+          echo "maintenance_commit=$MAINTENANCE_COMMIT" >> $GITHUB_OUTPUT
+          echo "🔧 Planned rollback to version: $MAINTENANCE_VERSION"
+      
+      - name: Checkout Target Commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.maintenance-target.outputs.maintenance_commit }}
+          fetch-depth: 0
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install LHP
+        run: pip install lakehouse-plumber
+      
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@main
+      
+      - name: Generate Maintenance Configuration
+        run: |
+          echo "🔧 Generating configuration for planned rollback..."
+          lhp generate --env prod --output generated/
+          echo "✅ Maintenance configuration generated"
+      
+      - name: Deploy Planned Rollback
+        run: |
+          echo "🔧 PLANNED MAINTENANCE ROLLBACK IN PROGRESS..."
+          echo "Rolling back to version: ${{ steps.maintenance-target.outputs.maintenance_version }}"
+          databricks bundle deploy --target prod --mode production
+          echo "✅ Planned rollback completed"
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_PROD_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_PROD_HOST }}
+      
+      - name: Full Validation Suite
+        run: |
+          echo "🧪 Running full validation suite..."
+          databricks bundle validate --target prod
+          # Add comprehensive validation tests here
+          echo "✅ Full validation completed"
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_PROD_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_PROD_HOST }}
+      
+      - name: Create Maintenance Report
+        run: |
+          echo "🔧 PLANNED MAINTENANCE COMPLETED" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Rollback Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- **To Version:** ${{ steps.maintenance-target.outputs.maintenance_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Commit:** ${{ steps.maintenance-target.outputs.maintenance_commit }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Initiated By:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Completed At:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type:** Planned Maintenance" >> $GITHUB_STEP_SUMMARY

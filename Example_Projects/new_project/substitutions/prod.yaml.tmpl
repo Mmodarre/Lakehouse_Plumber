@@ -1,0 +1,23 @@
+# Development environment substitutions
+# Token substitutions
+
+# TODO: change to the actual catalog, schemas, and landing path
+# TODO: Add any other substitution variables you need here
+prod:
+  env: prod
+  catalog: prod_catalog
+  bronze_schema: prod_bronze_schema
+  silver_schema: prod_silver_schema
+  gold_schema: prod_gold_schema
+  landing_path: /volumes/catalog/schema/volume_name/landing 
+
+
+# Secret configuration
+# TODO: change to the actual secret scopes
+# These secrets need to be created in the Databricks workspace and accessible using dbutils.secrets.get(scope, key)
+secrets:
+  default_scope: prod-secrets
+  scopes:
+    database: prod-db-secrets
+    storage: prod-storage-secrets
+    api: prod-api-secrets 

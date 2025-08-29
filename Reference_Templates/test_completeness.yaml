@@ -1,0 +1,57 @@
+# Completeness Test Template
+# Validates that required fields are not null
+
+pipeline: data_quality_tests
+flowgroup: completeness_tests
+description: Validate required fields are populated
+
+actions:
+  # Check critical fields are not null
+  - name: test_customer_required_fields
+    type: test
+    test_type: completeness
+    source: customers
+    required_columns: [customer_id, name, email, created_date]
+    on_violation: fail
+    description: "Ensure critical customer fields are populated"
+
+  # Partial completeness check with warning
+  - name: test_customer_optional_fields
+    type: test
+    test_type: completeness
+    source: customers
+    required_columns: [phone, address, postal_code]
+    on_violation: warn  # Only warn for optional fields
+    description: "Check optional customer fields completeness"
+
+  # Dimension table completeness
+  - name: test_product_dim_completeness
+    type: test
+    test_type: completeness
+    source: dim_product
+    required_columns: [
+      product_sk,  # Surrogate key
+      product_id,  # Natural key
+      product_name,
+      category,
+      brand,
+      effective_date
+    ]
+    on_violation: fail
+    description: "Validate all dimension attributes are populated"
+
+  # Transaction data completeness
+  - name: test_transaction_completeness
+    type: test
+    test_type: completeness
+    source: ${schema}.transactions
+    required_columns: [
+      transaction_id,
+      customer_id,
+      product_id,
+      amount,
+      transaction_date,
+      status
+    ]
+    on_violation: fail
+    description: "Ensure all transaction fields are complete"

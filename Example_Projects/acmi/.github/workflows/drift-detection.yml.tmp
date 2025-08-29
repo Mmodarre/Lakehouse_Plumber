@@ -1,0 +1,247 @@
+name: Configuration Drift Detection
+
+# Run independently of other workflows
+concurrency: 
+  group: drift-detection
+  cancel-in-progress: true
+
+on:
+  # Daily monitoring at 8 AM UTC
+  schedule:
+    - cron: '0 8 * * *'
+  
+  # Manual trigger for on-demand drift detection
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to check (dev, tst, prod, all)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - dev
+        - tst 
+        - prod
+
+permissions:
+  contents: read
+  issues: write  # To create issues for drift alerts
+
+jobs:
+  drift-detection:
+    runs-on: ubuntu-latest
+    name: 'Monitor Configuration Drift'
+    
+    strategy:
+      matrix:
+        environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment != 'all' && fromJson(format('["${0}"]', github.event.inputs.environment)) || fromJson('["dev", "tst", "prod"]') }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for comprehensive drift analysis
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install LHP
+        run: pip install lakehouse-plumber
+      
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@main
+      
+      - name: Generate Current Configuration
+        run: |
+          echo "🔍 Generating current configuration for ${{ matrix.environment }}..."
+          lhp generate --env ${{ matrix.environment }} --output current-config/
+          echo "✅ Current configuration generated"
+      
+      - name: Check Bundle Status
+        id: bundle-status
+        run: |
+          echo "📊 Checking bundle status for ${{ matrix.environment }}..."
+          
+          # Get target environment token and host
+          case "${{ matrix.environment }}" in
+            "dev")
+              DATABRICKS_TOKEN="${{ secrets.DATABRICKS_DEV_TOKEN }}"
+              DATABRICKS_HOST="${{ secrets.DATABRICKS_DEV_HOST }}"
+              ;;
+            "tst")
+              DATABRICKS_TOKEN="${{ secrets.DATABRICKS_TEST_TOKEN }}"
+              DATABRICKS_HOST="${{ secrets.DATABRICKS_TEST_HOST }}"
+              ;;
+            "prod")
+              DATABRICKS_TOKEN="${{ secrets.DATABRICKS_PROD_TOKEN }}"
+              DATABRICKS_HOST="${{ secrets.DATABRICKS_PROD_HOST }}"
+              ;;
+          esac
+          
+          # Check bundle status
+          BUNDLE_OUTPUT=$(databricks bundle status --target ${{ matrix.environment }} 2>&1 || echo "ERROR")
+          
+          if echo "$BUNDLE_OUTPUT" | grep -q "ERROR"; then
+            echo "❌ Bundle status check failed for ${{ matrix.environment }}"
+            echo "bundle_status=error" >> $GITHUB_OUTPUT
+            echo "error_message=$BUNDLE_OUTPUT" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Bundle status check successful for ${{ matrix.environment }}"
+            echo "bundle_status=success" >> $GITHUB_OUTPUT
+          fi
+        env:
+          DATABRICKS_TOKEN: ${{ matrix.environment == 'dev' && secrets.DATABRICKS_DEV_TOKEN || matrix.environment == 'tst' && secrets.DATABRICKS_TEST_TOKEN || secrets.DATABRICKS_PROD_TOKEN }}
+          DATABRICKS_HOST: ${{ matrix.environment == 'dev' && secrets.DATABRICKS_DEV_HOST || matrix.environment == 'tst' && secrets.DATABRICKS_TEST_HOST || secrets.DATABRICKS_PROD_HOST }}
+      
+      - name: Analyze Configuration Changes
+        id: drift-analysis
+        run: |
+          echo "🔬 Analyzing configuration drift for ${{ matrix.environment }}..."
+          
+          # Get the latest production-like tag for comparison
+          LATEST_TAG=""
+          case "${{ matrix.environment }}" in
+            "dev")
+              LATEST_TAG=$(git tag --list 'v*' | grep -v '\-test\|\-prod\|\-rollback\|\-maintenance' | sort -V | tail -n 1 || echo "")
+              ;;
+            "tst") 
+              LATEST_TAG=$(git tag --list 'v*-test' | sort -V | tail -n 1 || echo "")
+              ;;
+            "prod")
+              LATEST_TAG=$(git tag --list 'v*-prod' | sort -V | tail -n 1 || echo "")
+              ;;
+          esac
+          
+          if [ -n "$LATEST_TAG" ]; then
+            echo "📌 Comparing against deployed tag: $LATEST_TAG"
+            
+            # Get commit of deployed tag
+            DEPLOYED_COMMIT=$(git rev-list -n 1 "$LATEST_TAG" 2>/dev/null || echo "")
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+            
+            if [ "$DEPLOYED_COMMIT" != "$CURRENT_COMMIT" ]; then
+              echo "⚠️ Configuration drift detected!"
+              
+              # Analyze changed files
+              CHANGED_FILES=$(git diff --name-only "$DEPLOYED_COMMIT" "$CURRENT_COMMIT" | grep -E '\.(yaml|yml)$' || echo "")
+              
+              if [ -n "$CHANGED_FILES" ]; then
+                echo "drift_detected=true" >> $GITHUB_OUTPUT
+                echo "deployed_commit=$DEPLOYED_COMMIT" >> $GITHUB_OUTPUT
+                echo "current_commit=$CURRENT_COMMIT" >> $GITHUB_OUTPUT
+                echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+                
+                # Save changed files
+                echo "$CHANGED_FILES" > changed-files.txt
+                echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+                echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+                echo "EOF" >> $GITHUB_OUTPUT
+              else
+                echo "✅ No YAML configuration changes detected"
+                echo "drift_detected=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "✅ Configuration is in sync with deployed version"
+              echo "drift_detected=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ No deployment tag found for ${{ matrix.environment }}"
+            echo "drift_detected=unknown" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Drift Report
+        if: steps.drift-analysis.outputs.drift_detected == 'true'
+        run: |
+          cat > drift-report-${{ matrix.environment }}.md << EOF
+          # Configuration Drift Report - ${{ matrix.environment }}
+          
+          **Detection Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Environment:** ${{ matrix.environment }}
+          **Bundle Status:** ${{ steps.bundle-status.outputs.bundle_status }}
+          
+          ## Drift Details
+          - **Deployed Version:** ${{ steps.drift-analysis.outputs.latest_tag }}
+          - **Deployed Commit:** ${{ steps.drift-analysis.outputs.deployed_commit }}
+          - **Current Commit:** ${{ steps.drift-analysis.outputs.current_commit }}
+          
+          ## Changed Configuration Files
+          \`\`\`
+          ${{ steps.drift-analysis.outputs.changed_files }}
+          \`\`\`
+          
+          ## Recommendations
+          1. Review the changes in the files listed above
+          2. If changes are intentional, create appropriate deployment tags:
+             - For dev: Merge to main (auto-deploy)
+             - For test: Create \`${{ steps.drift-analysis.outputs.latest_tag }}-test\` tag
+             - For prod: Create \`${{ steps.drift-analysis.outputs.latest_tag }}-prod\` tag
+          3. If changes are unintentional, investigate source of drift
+          
+          ## Bundle Status
+          ${{ steps.bundle-status.outputs.bundle_status == 'error' && steps.bundle-status.outputs.error_message || 'Bundle status check successful' }}
+          EOF
+          
+          echo "📄 Drift report created for ${{ matrix.environment }}"
+          cat drift-report-${{ matrix.environment }}.md
+      
+      - name: Create GitHub Issue for Drift Alert
+        if: steps.drift-analysis.outputs.drift_detected == 'true' && matrix.environment == 'prod'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const driftReport = fs.readFileSync('drift-report-${{ matrix.environment }}.md', 'utf8');
+            
+            // Check if there's already an open drift issue
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'drift-alert,${{ matrix.environment }}'
+            });
+            
+            if (existingIssues.data.length === 0) {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `⚠️ Configuration Drift Detected - ${{ matrix.environment }}`,
+                body: driftReport,
+                labels: ['drift-alert', '${{ matrix.environment }}', 'needs-review'],
+                assignees: ['Mmodarre']
+              });
+              
+              console.log('Created new drift alert issue');
+            } else {
+              // Update existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssues.data[0].number,
+                body: `## Updated Drift Detection\n\n${driftReport}`
+              });
+              
+              console.log('Updated existing drift alert issue');
+            }
+      
+      - name: Summary Report
+        run: |
+          echo "🔍 DRIFT DETECTION SUMMARY - ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Check Date:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "**Bundle Status:** ${{ steps.bundle-status.outputs.bundle_status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.drift-analysis.outputs.drift_detected }}" == "true" ]; then
+            echo "🔴 **Status:** Drift Detected" >> $GITHUB_STEP_SUMMARY
+            echo "**Deployed Tag:** ${{ steps.drift-analysis.outputs.latest_tag }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Changed Files:** ${{ steps.drift-analysis.outputs.changed_files }}" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.drift-analysis.outputs.drift_detected }}" == "false" ]; then
+            echo "🟢 **Status:** In Sync" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🟡 **Status:** Unknown (No deployment tag found)" >> $GITHUB_STEP_SUMMARY
+          fi

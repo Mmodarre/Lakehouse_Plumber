@@ -231,16 +231,15 @@ LakehousePlumber now supports substitutions in external files, providing the sam
 
 **Supported File Types:**
 
-+--------------------------------+--------------------------------------------------+
-|| File Type                     || Where Used                                       |
-|================================+==================================================+
-|| **Python Functions**          || • Snapshot CDC ``source_function`` files        |
-|||                               || • Python transform ``module_path`` files        |
-|||                               || • Custom datasource ``module_path`` files       |
-+--------------------------------+--------------------------------------------------+
-|| **SQL Files**                 || • SQL load actions with ``sql_path``            |
-|||                               || • SQL transform actions with ``sql_path``       |
-+--------------------------------+--------------------------------------------------+
+================== ==================================================
+File Type          Where Used
+================== ==================================================
+**Python Files**   • Snapshot CDC ``source_function`` files
+                   • Python transform ``module_path`` files
+                   • Custom datasource ``module_path`` files
+**SQL Files**      • SQL load actions with ``sql_path``
+                   • SQL transform actions with ``sql_path``
+================== ==================================================
 
 **Example Python Function with Substitutions:**
 
@@ -390,6 +389,80 @@ requiring manual SQL modifications.
          expression: "F.lit('${pipeline_name}')"
          description: "Name of the processing pipeline"
          applies_to: ["streaming_table", "materialized_view", "view"]
+
+Version Requirements
+~~~~~~~~~~~~~~~~~~~~
+
+LakehousePlumber supports version enforcement to ensure consistent code generation across development and CI environments. This prevents "works on my machine" issues and ensures reproducible builds.
+
+**Basic configuration:**
+
+.. code-block:: yaml
+   :caption: lhp.yaml - Version enforcement examples
+   :linenos:
+
+   # LakehousePlumber Project Configuration
+   name: my_lakehouse_project
+   version: "1.0"
+   
+   # Enforce version requirements (optional)
+   required_lhp_version: ">=0.4.1,<0.5.0"  # Allow patch updates within 0.4.x
+
+**Version specification formats:**
+
+.. code-block:: yaml
+   :caption: Version requirement examples
+
+   # Exact version pin (strict)
+   required_lhp_version: "==0.4.1"
+   
+   # Allow patch updates only
+   required_lhp_version: "~=0.4.1"          # Equivalent to >=0.4.1,<0.5.0
+   
+   # Range with exclusions
+   required_lhp_version: ">=0.4.1,<0.5.0,!=0.4.3"  # Exclude known bad version
+   
+   # Allow minor updates
+   required_lhp_version: ">=0.4.0,<1.0.0"
+
+**Behavior:**
+
+- When ``required_lhp_version`` is set, ``lhp validate`` and ``lhp generate`` will fail if the installed version doesn't satisfy the requirement
+- Informational commands like ``lhp show`` skip version checking to allow inspection even with mismatches
+- Version checking uses `PEP 440 <https://peps.python.org/pep-0440/>`_ version specifiers
+
+**Emergency bypass:**
+
+.. code-block:: bash
+   :caption: Bypass version checking in emergencies
+
+   # Temporarily bypass version checking
+   export LHP_IGNORE_VERSION=1
+   lhp generate -e dev
+   
+   # Or inline
+   LHP_IGNORE_VERSION=1 lhp validate -e prod
+
+**CI/CD integration:**
+
+.. code-block:: bash
+   :caption: CI pipeline with version enforcement
+
+   # Install exact version matching project requirements
+   pip install "lakehouse-plumber$(yq -r .required_lhp_version lhp.yaml | sed 's/^//')"
+   
+   # Or use range-compatible version
+   pip install "lakehouse-plumber>=0.4.1,<0.5.0"
+   
+   # Validate and generate (will fail if version mismatch)
+   lhp validate -e prod
+   lhp generate -e prod
+
+.. note::
+   Version enforcement is **optional**. Projects without ``required_lhp_version`` work normally with any installed LakehousePlumber version.
+
+.. warning::
+   Use the bypass environment variable (``LHP_IGNORE_VERSION=1``) only in emergencies. It's not recommended for production environments as it defeats the purpose of version consistency.
 
 Target Type Compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~~

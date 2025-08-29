@@ -95,20 +95,21 @@ dlt.create_auto_cdc_flow(
     {%- else -%}
     sequence_by=struct({{ cdc_config['sequence_by'] | map('tojson') | join(', ') }}),
     {%- endif -%}
-    {% endif -%}
+    {% endif %}
     stored_as_scd_type={{ cdc_config['scd_type'] | default(1) }},
-    {% if cdc_config['scd_type'] == 2 and cdc_config['track_history_columns'] %}track_history_column_list={{ cdc_config['track_history_columns'] | tojson }},
-    {% endif -%}
+    {% if cdc_config['scd_type'] == 2 and cdc_config.get('track_history_column_list') %}track_history_column_list={{ cdc_config['track_history_column_list'] | tojson }},
+    {% elif cdc_config['scd_type'] == 2 and cdc_config.get('track_history_except_column_list') %}track_history_except_column_list={{ cdc_config['track_history_except_column_list'] | tojson }},
+    {% endif %}
     {% if cdc_config['column_list'] %}column_list={{ cdc_config['column_list'] | tojson }},
-    {% endif -%}
+    {% endif %}
     {% if cdc_config['except_column_list'] %}except_column_list={{ cdc_config['except_column_list'] | tojson }},
-    {% endif -%}
+    {% endif %}
     {% if cdc_config['ignore_null_updates'] is not none %}ignore_null_updates={{ 'True' if cdc_config['ignore_null_updates'] else 'False' }},
-    {% endif -%}
+    {% endif %}
     {% if cdc_config['apply_as_deletes'] %}apply_as_deletes="{{ cdc_config['apply_as_deletes'] }}",
-    {% endif -%}
+    {% endif %}
     {% if cdc_config['apply_as_truncates'] %}apply_as_truncates="{{ cdc_config['apply_as_truncates'] }}"
-    {% endif -%}
+    {% endif %}
 )
 
 {% elif mode == "snapshot_cdc" %}
@@ -156,7 +157,7 @@ dlt.create_auto_cdc_from_snapshot_flow(
     target="{{ full_table_name }}",
     {% if source_function_name %}source={{ source_function_name }},
     {% else %}source="{{ snapshot_cdc_config['source'] }}",
-    {% endif -%}
+    {% endif %}
     keys={{ snapshot_cdc_config['keys'] | tojson }},
     stored_as_scd_type={{ snapshot_cdc_config['stored_as_scd_type'] | default(1) }}
     {%- if snapshot_cdc_config.get('track_history_column_list') %},

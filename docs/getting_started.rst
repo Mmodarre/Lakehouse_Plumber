@@ -173,6 +173,9 @@ Generate DLT Code
 
    # Create Python files in ./generated/ (default output dir)
    lhp generate --env dev
+   
+   # Include data quality tests (optional - for development/testing)
+   lhp generate --env dev --include-tests
 
 Inspect the Output
 ------------------

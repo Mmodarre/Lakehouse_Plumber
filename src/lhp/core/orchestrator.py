@@ -1,6 +1,7 @@
 """Main orchestration for LakehousePlumber pipeline generation."""
 
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from collections import defaultdict
@@ -16,20 +17,23 @@ from ..core.secret_validator import SecretValidator
 from ..core.dependency_resolver import DependencyResolver
 from ..utils.formatter import format_code
 from ..models.config import FlowGroup, Action, ActionType
-from ..utils.error_formatter import LHPError
+from ..utils.error_formatter import LHPError, ErrorCategory
 from ..utils.smart_file_writer import SmartFileWriter
+from ..utils.version import get_version
 
 
 class ActionOrchestrator:
     """Main orchestration for pipeline generation."""
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, enforce_version: bool = True):
         """Initialize orchestrator with project root.
 
         Args:
             project_root: Root directory of the LakehousePlumber project
+            enforce_version: Whether to enforce version requirements (default: True)
         """
         self.project_root = project_root
+        self.enforce_version = enforce_version
         self.logger = logging.getLogger(__name__)
 
         # Step 4.5.1: Initialize all components
@@ -45,6 +49,10 @@ class ActionOrchestrator:
         # Load project configuration
         self.project_config = self.project_config_loader.load_project_config()
 
+        # Enforce version requirements if specified and enabled
+        if self.enforce_version:
+            self._enforce_version_requirements()
+
         self.logger.info(
             f"Initialized ActionOrchestrator with project root: {project_root}"
         )
@@ -54,6 +62,74 @@ class ActionOrchestrator:
             )
         else:
             self.logger.info("No project configuration found, using defaults")
+
+    def _enforce_version_requirements(self) -> None:
+        """Enforce version requirements if specified in project config."""
+        # Skip if no project config or no version requirement
+        if not self.project_config or not self.project_config.required_lhp_version:
+            return
+        
+        # Check for bypass environment variable
+        if os.environ.get("LHP_IGNORE_VERSION", "").lower() in ("1", "true", "yes"):
+            self.logger.warning(
+                f"Version requirement bypass enabled via LHP_IGNORE_VERSION. "
+                f"Required: {self.project_config.required_lhp_version}"
+            )
+            return
+        
+        try:
+            from packaging.version import Version
+            from packaging.specifiers import SpecifierSet
+        except ImportError:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="006",
+                title="Missing packaging dependency",
+                details="The 'packaging' library is required for version range checking but is not installed.",
+                suggestions=[
+                    "Install packaging: pip install packaging>=23.2",
+                    "Or set LHP_IGNORE_VERSION=1 to bypass version checking",
+                ],
+            )
+        
+        required_spec = self.project_config.required_lhp_version
+        actual_version = get_version()
+        
+        try:
+            spec_set = SpecifierSet(required_spec)
+            actual_ver = Version(actual_version)
+            
+            if actual_ver not in spec_set:
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="007",
+                    title="LakehousePlumber version requirement not satisfied",
+                    details=f"Project requires LakehousePlumber version '{required_spec}', but version '{actual_version}' is installed.",
+                    suggestions=[
+                        f"Install a compatible version: pip install 'lakehouse-plumber{required_spec}'",
+                        f"Or update the project's version requirement in lhp.yaml if you intend to upgrade",
+                        "Or set LHP_IGNORE_VERSION=1 to bypass version checking (not recommended for production)",
+                    ],
+                    context={
+                        "Required Version": required_spec,
+                        "Installed Version": actual_version,
+                        "Project Name": self.project_config.name,
+                    },
+                )
+        except Exception as e:
+            if isinstance(e, LHPError):
+                raise
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="008",
+                title="Invalid version requirement specification",
+                details=f"Could not parse version requirement '{required_spec}': {e}",
+                suggestions=[
+                    "Use valid PEP 440 version specifiers (e.g., '>=0.4.1,<0.5.0')",
+                    "Check the required_lhp_version field in lhp.yaml",
+                    "Examples: '==0.4.1', '~=0.4.1', '>=0.4.1,<0.5.0'",
+                ],
+            )
 
     def _get_include_patterns(self) -> List[str]:
         """Get include patterns from project configuration.
@@ -75,6 +151,7 @@ class ActionOrchestrator:
         state_manager=None,
         force_all: bool = False,
         specific_flowgroups: List[str] = None,
+        include_tests: bool = False,
     ) -> Dict[str, str]:
         """Generate complete pipeline from YAML configs.
 
@@ -218,14 +295,21 @@ class ActionOrchestrator:
                 
                 # Step 4.5.6: Generate code
                 code = self._generate_flowgroup_code(
-                    processed_flowgroup, substitution_mgr, output_dir, state_manager, source_yaml, env
+                    processed_flowgroup, substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
                 )
 
                 # Format code
                 formatted_code = format_code(code)
 
-                # Store result
+                # Check if content is empty BEFORE any file operations
                 filename = f"{processed_flowgroup.flowgroup}.py"
+                if not formatted_code.strip():
+                    # Skip this flowgroup entirely - don't write files or track in state
+                    self.logger.info(f"Skipping empty flowgroup: {processed_flowgroup.flowgroup} (no content to generate)")
+                    continue  # Skip to next flowgroup
+
+                # Only proceed with file operations if content exists
+                # Store result (we know it's not empty at this point)
                 generated_files[filename] = formatted_code
 
                 # Step 4.5.7: Write to output directory if specified
@@ -233,7 +317,7 @@ class ActionOrchestrator:
                     output_file = output_dir / filename
                     smart_writer.write_if_changed(output_file, formatted_code)
 
-                    # Track the generated file in state manager (regardless of whether it was written)
+                    # Track the generated file in state manager
                     if state_manager and source_yaml:
                         state_manager.track_generated_file(
                             generated_path=output_file,
@@ -377,6 +461,7 @@ class ActionOrchestrator:
         state_manager=None,
         force_all: bool = False,
         specific_flowgroups: List[str] = None,
+        include_tests: bool = False,
     ) -> Dict[str, str]:
         """Generate complete pipeline from YAML configs using pipeline field.
 
@@ -485,15 +570,25 @@ class ActionOrchestrator:
                 source_yaml_path = self._find_source_yaml_for_flowgroup(flowgroup)
                 
                 # Generate code
-                generated_code = self._generate_flowgroup_code(processed_flowgroup, substitution_mgr, pipeline_output_dir, state_manager, source_yaml_path, env)
+                generated_code = self._generate_flowgroup_code(processed_flowgroup, substitution_mgr, pipeline_output_dir, state_manager, source_yaml_path, env, include_tests)
                 
+                # Format code with Black
+                formatted_code = format_code(generated_code)
+                
+                # Check if content is empty BEFORE any file operations
+                if not formatted_code.strip():
+                    # Skip this flowgroup entirely - don't write files or track in state
+                    self.logger.info(f"Skipping empty flowgroup: {flowgroup.flowgroup} (no content to generate)")
+                    continue  # Skip to next flowgroup
+                
+                # Only proceed with file operations if content exists
                 # Save to file only if output directory is specified (not dry-run)
                 if pipeline_output_dir:
                     output_file = pipeline_output_dir / f"{flowgroup.flowgroup}.py"
                     
                     # Use SmartFileWriter for efficient file writing
                     smart_writer = SmartFileWriter()
-                    smart_writer.write_if_changed(output_file, generated_code)
+                    smart_writer.write_if_changed(output_file, formatted_code)
                     
                     # Track the generated file in state manager if provided
                     if state_manager and source_yaml_path:
@@ -510,7 +605,8 @@ class ActionOrchestrator:
                     # Dry-run mode: just log what would be generated
                     self.logger.info(f"Would generate: {flowgroup.flowgroup}.py")
                     
-                generated_files[f"{flowgroup.flowgroup}.py"] = generated_code
+                # Add to generated_files (we know it's not empty at this point)
+                generated_files[f"{flowgroup.flowgroup}.py"] = formatted_code
                 
             except Exception as e:
                 self.logger.error(f"Error generating flowgroup {flowgroup.flowgroup}: {e}")
@@ -730,7 +826,7 @@ class ActionOrchestrator:
         return result
 
     def _generate_flowgroup_code(
-        self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager, output_dir: Path = None, state_manager=None, source_yaml: Path = None, env: str = None
+        self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager, output_dir: Path = None, state_manager=None, source_yaml: Path = None, env: str = None, include_tests: bool = False
     ) -> str:
         """Generate code for a flowgroup."""
 
@@ -749,6 +845,15 @@ class ActionOrchestrator:
         for action in ordered_actions:
             action_groups[action.type].append(action)
 
+        # 3.1. Check for test-only flowgroups when include_tests is False
+        if not include_tests:
+            # Check if this flowgroup contains only TEST actions
+            non_test_actions = [action for action in ordered_actions if action.type != ActionType.TEST]
+            if not non_test_actions:
+                # This is a test-only flowgroup, skip entirely
+                self.logger.info(f"Skipping test-only flowgroup: {flowgroup.flowgroup} (--include-tests not specified)")
+                return ""  # Return empty string to skip this flowgroup
+
         # 4. Generate code for each action group
         generated_sections = []
         all_imports = set()
@@ -762,10 +867,16 @@ class ActionOrchestrator:
             ActionType.LOAD: "SOURCE VIEWS",
             ActionType.TRANSFORM: "TRANSFORMATION VIEWS",
             ActionType.WRITE: "TARGET TABLES",
+            ActionType.TEST: "DATA QUALITY TESTS",
         }
 
         # Process each action type in order
-        for action_type in [ActionType.LOAD, ActionType.TRANSFORM, ActionType.WRITE]:
+        # Filter action types based on include_tests flag
+        action_types = [ActionType.LOAD, ActionType.TRANSFORM, ActionType.WRITE]
+        if include_tests:
+            action_types.append(ActionType.TEST)
+            
+        for action_type in action_types:
             if action_type in action_groups:
                 # Add section header
                 header_text = section_headers.get(action_type, str(action_type).upper())
@@ -957,6 +1068,9 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                 return action.write_target.get("type", "streaming_table")
             else:
                 return "streaming_table"  # Default to streaming table
+
+        elif action.type == ActionType.TEST:
+            return action.test_type or "row_count"  # Default to row_count test
 
         else:
             raise ValueError(f"Unknown action type: {action.type}")

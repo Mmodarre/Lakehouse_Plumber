@@ -1,0 +1,51 @@
+# Referential Integrity Test Template
+# Validates foreign key relationships between tables
+
+pipeline: data_quality_tests
+flowgroup: referential_integrity_tests
+description: Validate foreign key relationships
+
+actions:
+  # Basic foreign key validation
+  - name: test_orders_customer_fk
+    type: test
+    test_type: referential_integrity
+    source: orders  # Table with foreign key
+    reference: customers  # Referenced table
+    source_columns: [customer_id]  # Foreign key column(s)
+    reference_columns: [id]  # Referenced column(s)
+    on_violation: fail
+    description: "All orders must have valid customer reference"
+
+  # Composite foreign key validation
+  - name: test_inventory_location_fk
+    type: test
+    test_type: referential_integrity
+    source: inventory
+    reference: warehouse_locations
+    source_columns: [warehouse_id, location_id]
+    reference_columns: [warehouse_id, location_id]
+    on_violation: fail
+    description: "Validate inventory location references"
+
+  # Cross-schema referential integrity
+  - name: test_sales_product_fk
+    type: test
+    test_type: referential_integrity
+    source: ${sales_schema}.transactions
+    reference: ${product_schema}.catalog
+    source_columns: [product_id]
+    reference_columns: [product_id]
+    on_violation: warn
+    description: "Check product references across schemas"
+
+  # Dimension to fact relationship
+  - name: test_fact_date_dim_fk
+    type: test
+    test_type: referential_integrity
+    source: fact_sales
+    reference: dim_date
+    source_columns: [date_key]
+    reference_columns: [date_key]
+    on_violation: fail
+    description: "Ensure all fact dates exist in date dimension"

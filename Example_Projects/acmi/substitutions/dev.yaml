@@ -10,6 +10,7 @@ dev:
   bronze_schema: edw_bronze
   silver_schema: edw_silver
   gold_schema: edw_gold
+  modelled_schema: edw_gold
   
 secrets:
   default_scope: dev_secrets

@@ -1,0 +1,113 @@
+# Custom Expectations Test Template
+# Apply multiple custom DLT expectations to existing data
+
+pipeline: data_quality_tests
+flowgroup: custom_expectations_tests
+description: Apply complex business rules as expectations
+
+actions:
+  # Customer data quality rules
+  - name: test_customer_data_quality
+    type: test
+    test_type: custom_expectations
+    source: customers
+    expectations:
+      - name: valid_email
+        expression: "email RLIKE '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}$'"
+        on_violation: warn
+      - name: valid_phone
+        expression: "LENGTH(REGEXP_REPLACE(phone, '[^0-9]', '')) >= 10"
+        on_violation: warn
+      - name: valid_age
+        expression: "age BETWEEN 18 AND 120"
+        on_violation: fail
+      - name: valid_status
+        expression: "status IN ('ACTIVE', 'INACTIVE', 'PENDING')"
+        on_violation: fail
+    description: "Comprehensive customer data validation"
+
+  # Product catalog validation
+  - name: test_product_catalog
+    type: test
+    test_type: custom_expectations
+    source: products
+    expectations:
+      - name: valid_sku
+        expression: "sku RLIKE '^[A-Z]{3}-[0-9]{6}$'"
+        on_violation: fail
+      - name: price_consistency
+        expression: "list_price >= cost_price"
+        on_violation: fail
+      - name: discount_limits
+        expression: "discount_percent BETWEEN 0 AND 75"
+        on_violation: warn
+      - name: required_images
+        expression: "image_count >= 1"
+        on_violation: warn
+    description: "Product catalog business rules"
+
+  # Financial transaction validation
+  - name: test_financial_transactions
+    type: test
+    test_type: custom_expectations
+    source: transactions
+    expectations:
+      - name: valid_amount
+        expression: "amount > 0"
+        on_violation: fail
+      - name: valid_currency
+        expression: "currency_code IN ('USD', 'EUR', 'GBP', 'JPY')"
+        on_violation: fail
+      - name: transaction_limits
+        expression: "amount <= 1000000"
+        on_violation: warn
+      - name: valid_status_transition
+        expression: |
+          CASE 
+            WHEN status = 'COMPLETED' THEN previous_status IN ('PENDING', 'PROCESSING')
+            WHEN status = 'CANCELLED' THEN previous_status IN ('PENDING', 'PROCESSING')
+            WHEN status = 'REFUNDED' THEN previous_status = 'COMPLETED'
+            ELSE true
+          END
+        on_violation: fail
+    description: "Financial transaction integrity checks"
+
+  # Inventory management rules
+  - name: test_inventory_rules
+    type: test
+    test_type: custom_expectations
+    source: inventory
+    expectations:
+      - name: non_negative_quantity
+        expression: "quantity_on_hand >= 0"
+        on_violation: fail
+      - name: reorder_logic
+        expression: "quantity_on_hand > reorder_point OR pending_order_quantity > 0"
+        on_violation: warn
+      - name: location_format
+        expression: "location RLIKE '^[A-Z]{2}-[0-9]{2}-[A-Z][0-9]{2}$'"
+        on_violation: warn
+      - name: expiry_date_future
+        expression: "expiry_date IS NULL OR expiry_date > CURRENT_DATE()"
+        on_violation: fail
+    description: "Inventory management business rules"
+
+  # Mixed violation actions example
+  - name: test_mixed_severity
+    type: test
+    test_type: custom_expectations
+    source: orders
+    expectations:
+      # Critical - fail the pipeline
+      - name: order_id_not_null
+        expression: "order_id IS NOT NULL"
+        on_violation: fail
+      # Important - warn but continue
+      - name: delivery_date_reasonable
+        expression: "delivery_date <= DATE_ADD(order_date, 30)"
+        on_violation: warn
+      # Critical - fail if invalid status
+      - name: valid_order_status
+        expression: "status IN ('NEW', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED')"
+        on_violation: fail
+    description: "Orders with mixed severity rules"

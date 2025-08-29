@@ -227,7 +227,7 @@ actions: []
             assert "Generated" in result.output
             
             # Check generated files
-            generated_file = temp_project / "generated" / "test_pipeline" / "test_flowgroup.py"
+            generated_file = temp_project / "generated" / "dev" / "test_pipeline" / "test_flowgroup.py"
             assert generated_file.exists()
             
             # Verify generated code content
@@ -253,15 +253,15 @@ actions: []
             assert not list(generated_dir.glob("**/*.py"))
     
     def test_generate_with_format(self, runner, temp_project):
-        """Test generation with code formatting."""
+        """Test generation with code formatting (always applied by default)."""
         with runner.isolated_filesystem():
             import os
             os.chdir(str(temp_project))
             
-            result = runner.invoke(cli, ['generate', '--env', 'dev', '--format'])
+            result = runner.invoke(cli, ['generate', '--env', 'dev'])
             
             assert result.exit_code == 0
-            # Code should be formatted (Black would have been applied)
+            # Code should be formatted (Black is always applied by default)
     
     def test_generate_specific_pipeline(self, runner, temp_project):
         """Test generating a specific pipeline."""
@@ -275,7 +275,7 @@ actions: []
             assert "test_pipeline" in result.output
             
             # Check it used prod substitutions
-            generated_file = temp_project / "generated" / "test_pipeline" / "test_flowgroup.py"
+            generated_file = temp_project / "generated" / "prod" / "test_pipeline" / "test_flowgroup.py"
             code = generated_file.read_text()
             assert "prod_catalog" in code
     

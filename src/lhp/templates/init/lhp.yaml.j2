@@ -5,6 +5,12 @@ description: "Generated DLT pipeline project"
 author: "{{ author }}"
 created_date: "{{ current_date }}"
 
+# Optional: Enforce LakehousePlumber version requirements
+# Ensures consistent code generation across development and CI environments
+# required_lhp_version: ">=0.4.1,<0.5.0"  # Allow patch updates within 0.4.x
+# required_lhp_version: "~=0.4.1"          # Equivalent to >=0.4.1,<0.5.0
+# required_lhp_version: "==0.4.1"          # Exact version pin
+
 # Optional: Include patterns to filter which YAML files to process
 # By default, all YAML files in the pipelines directory are processed
 # Uncomment and customize the patterns below to filter files

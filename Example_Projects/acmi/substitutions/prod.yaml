@@ -3,12 +3,16 @@
 # and the secrets to use for the prod environment
 prod:
   env: prod
-  catalog: prod_catalog
-  landing_zone: /mnt/prod/landing/tpch
-  checkpoint_path: /mnt/prod/checkpoints
-  bronze_schema: bronze
-  silver_schema: silver
-  gold_schema: gold
+  catalog: acme_edw_prod
+  landing_volume: /Volumes/{catalog}/{raw_schema}/incoming_volume
+  migration_schema: edw_old
+  raw_schema: edw_raw
+  bronze_schema: edw_bronze
+  silver_schema: edw_silver
+  gold_schema: edw_gold
+  modelled_schema: edw_gold
   
 secrets:
-  default_scope: prod_secrets 
+  default_scope: prod_secrets
+  scopes:
+    database: prod_db_secrets

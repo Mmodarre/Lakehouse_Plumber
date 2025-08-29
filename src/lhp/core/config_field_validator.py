@@ -130,6 +130,23 @@ class ConfigFieldValidator:
             "parameters",
             # Custom data source specific fields
             "custom_datasource_class",
+            # Test action specific fields
+            "test_type",
+            "on_violation",
+            "tolerance",
+            "columns",
+            "filter",
+            "reference",
+            "source_columns",
+            "reference_columns",
+            "required_columns",
+            "column",
+            "min_value",
+            "max_value",
+            "lookup_table",
+            "lookup_columns",
+            "lookup_result_columns",
+            "expectations",
         }
 
     def validate_load_source(

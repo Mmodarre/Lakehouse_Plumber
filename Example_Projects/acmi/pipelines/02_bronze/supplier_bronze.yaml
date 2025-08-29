@@ -6,7 +6,8 @@ pipeline: acmi_edw_bronze
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: supplier_bronze
-preset: default_delta_properties
+presets:
+  - default_delta_properties
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines
@@ -28,7 +29,7 @@ actions:
     target: v_supplier_bronze_cleaned
     sql: |
       SELECT 
-        xxhash64(s_suppkey,s_name,s_address,s_nationkey,s_phone,s_acctbal,s_comment) as supplier_key,
+        xxhash64(s_suppkey,s_name,s_address,s_nationkey,s_phone,s_acctbal,s_comment,split(split(_source_file_path, '/supplier/')[1], '/')[0]) as supplier_key,
         s_suppkey as supplier_id,
         s_name as name,
         s_address as address,
@@ -36,7 +37,7 @@ actions:
         s_phone as phone,
         cast(s_acctbal as decimal(18,2)) as account_balance,
         s_comment as comment,
-        split(split(_source_file_path, '/supplier/')[1], '/')[0] as snapshot_id,
+        replace(split(split(_source_file_path, '/supplier/')[1], '/')[0], '-W', '') as snapshot_id,
         cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
         * EXCEPT(s_suppkey, s_name, s_address, s_nationkey, s_phone, s_acctbal, s_comment, last_modified_dt,_rescued_data)
       FROM stream(v_supplier_raw)
@@ -74,7 +75,7 @@ actions:
     target: v_supplier_migration_bronze_cleaned
     sql: |
       SELECT 
-        xxhash64(s_suppkey,s_name,s_address,s_nationkey,s_phone,s_acctbal,s_comment) as supplier_key,
+        xxhash64(s_suppkey,s_name,s_address,s_nationkey,s_phone,s_acctbal,s_comment,'2019-W01') as supplier_key,
         s_suppkey as supplier_id,
         s_name as name,
         s_address as address,
@@ -82,7 +83,7 @@ actions:
         s_phone as phone,
         s_acctbal as account_balance,
         s_comment as comment,
-        '2019-W01' as snapshot_id,
+        '201901' as snapshot_id,
         cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
         'MIGRATION' as _source_file_path,
         * EXCEPT(s_suppkey, s_name, s_address, s_nationkey, s_phone, s_acctbal, s_comment, last_modified_dt)
