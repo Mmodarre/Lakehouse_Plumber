@@ -42,7 +42,7 @@ class TestBundleJinja2Templates:
         pipeline_name = "raw_ingestion"
         
         # Generate content using template
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         # Verify basic structure
         assert content is not None
@@ -64,14 +64,14 @@ class TestBundleJinja2Templates:
         pipeline_names = ["bronze_load", "silver_transformations", "gold_aggregations"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Verify pipeline_name is substituted in all expected locations
             assert f"Bundle Resource for {pipeline_name}" in content  # Header
             assert f"{pipeline_name}_pipeline:" in content  # Pipeline key
             assert f"name: {pipeline_name}_pipeline" in content  # Pipeline name
-            assert f"include: ../../generated/{pipeline_name}/**" in content  # Glob pattern
-            assert f"generated/{pipeline_name}" in content  # Root path
+            assert f"include: ../../generated/dev/{pipeline_name}/**" in content  # Glob pattern
+            assert f"generated/dev/{pipeline_name}" in content  # Root path
             
             # Verify no template syntax remains
             assert "{{ pipeline_name }}" not in content
@@ -83,7 +83,7 @@ class TestBundleJinja2Templates:
         pipeline_name = "data_quality_checks"
         
         # Template rendering should work regardless of file existence
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         # Verify template renders successfully
         assert content is not None
@@ -91,8 +91,8 @@ class TestBundleJinja2Templates:
         assert len(content) > 0
         
         # Verify glob pattern is still present (will capture any future files)
-        assert f"include: ../../generated/{pipeline_name}/**" in content
-        assert f"root_path: ${{workspace.file_path}}/generated/{pipeline_name}" in content
+        assert f"include: ../../generated/dev/{pipeline_name}/**" in content
+        assert f"root_path: ${{workspace.file_path}}/generated/dev/{pipeline_name}" in content
         
         # Verify basic structure
         assert f"{pipeline_name}_pipeline:" in content
@@ -161,7 +161,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["raw_ingestion", "bronze_load", "silver_transforms", "gold_aggregations"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Should parse as valid YAML without errors
             try:
@@ -195,7 +195,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["raw_ingestion", "bronze_processing", "silver_analytics"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             parsed_yaml = yaml.safe_load(content)
             
             # Navigate to libraries section
@@ -210,7 +210,7 @@ class TestBundleJinja2Templates:
             glob_config = libraries[0]["glob"]
             assert "include" in glob_config
             
-            expected_pattern = f"../../generated/{pipeline_name}/**"
+            expected_pattern = f"../../generated/dev/{pipeline_name}/**"
             actual_pattern = glob_config["include"]
             
             assert actual_pattern == expected_pattern, f"Expected '{expected_pattern}', got '{actual_pattern}'"
@@ -227,7 +227,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["bronze_load", "silver_transforms", "gold_metrics"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             parsed_yaml = yaml.safe_load(content)
             
             # Navigate to pipeline configuration
@@ -237,14 +237,14 @@ class TestBundleJinja2Templates:
             # Verify root_path exists and has correct format
             assert "root_path" in pipeline_config
             
-            expected_root_path = f"${{workspace.file_path}}/generated/{pipeline_name}"
+            expected_root_path = f"${{workspace.file_path}}/generated/dev/{pipeline_name}"
             actual_root_path = pipeline_config["root_path"]
             
             assert actual_root_path == expected_root_path, f"Expected '{expected_root_path}', got '{actual_root_path}'"
             
             # Verify the path contains workspace variable substitution
             assert "${workspace.file_path}" in actual_root_path
-            assert f"/generated/{pipeline_name}" in actual_root_path
+            assert f"/generated/dev/{pipeline_name}" in actual_root_path
     
     def test_yaml_structure_completeness(self):
         """Should include all required YAML fields (libraries, root_path, etc.)"""
@@ -252,7 +252,7 @@ class TestBundleJinja2Templates:
         
         # Test with realistic pipeline name
         pipeline_name = "bronze_data_processing"
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         parsed_yaml = yaml.safe_load(content)
         
         # Verify top-level structure
@@ -376,7 +376,7 @@ class TestBundleJinja2Templates:
             pipeline_names = ["context_test", "bronze_processing", "silver_analytics"]
             
             for pipeline_name in pipeline_names:
-                self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+                self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Verify contexts were captured
             assert len(captured_contexts) == len(pipeline_names)
@@ -395,8 +395,10 @@ class TestBundleJinja2Templates:
                 expected_name = pipeline_names[i]
                 assert context["pipeline_name"] == expected_name
                 
-                # Context should contain pipeline_name, catalog, and schema
-                assert len(context) == 3, f"Context should contain pipeline_name, catalog, and schema, got: {context.keys()}"
+                # Context should contain pipeline_name, env, catalog, and schema
+                assert len(context) == 4, f"Context should contain pipeline_name, env, catalog, and schema, got: {context.keys()}"
+                assert "env" in context
+                assert context["env"] == "dev"
                 
                 # Verify default catalog and schema values
                 assert context["catalog"] == "main"
@@ -438,7 +440,7 @@ class TestBundleJinja2Templates:
         # Test 3: Verify normal operation still works
         # This confirms our error handling doesn't break normal functionality
         pipeline_name = "error_handling_test"
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         assert content is not None
         assert pipeline_name in content
@@ -472,7 +474,7 @@ class TestBundleJinja2Templates:
         ]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Check for any Jinja2 syntax patterns
             for pattern in jinja2_patterns:
@@ -491,7 +493,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["header_test", "bronze_processing", "complex_data_transformation"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Split content into lines for easier analysis
             lines = content.split('\n')
@@ -500,8 +502,8 @@ class TestBundleJinja2Templates:
             assert len(lines) > 0, "Generated content should not be empty"
             first_line = lines[0].strip()
             
-            # Verify LHP header format
-            expected_header = f"# Generated by LakehousePlumber - Bundle Resource for {pipeline_name}"
+            # Verify LHP header format (now includes environment)
+            expected_header = f"# Generated by LakehousePlumber - Bundle Resource for {pipeline_name} (dev)"
             assert first_line == expected_header, f"Expected header '{expected_header}', got '{first_line}'"
             
             # Verify header contains key components
@@ -527,7 +529,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["glob_test", "bronze_ingestion", "silver_transformation"] 
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             parsed_yaml = yaml.safe_load(content)
             
             # Navigate to libraries section
@@ -548,15 +550,15 @@ class TestBundleJinja2Templates:
             glob_config = library_entry["glob"]
             assert "include" in glob_config, "Glob should have 'include' pattern"
             
-            expected_pattern = f"../../generated/{pipeline_name}/**"
+            expected_pattern = f"../../generated/dev/{pipeline_name}/**"
             actual_pattern = glob_config["include"]
             assert actual_pattern == expected_pattern, f"Expected pattern '{expected_pattern}', got '{actual_pattern}'"
             
             # Verify no legacy library path patterns in content
             # (Note: root_path legitimately contains the path, so we check for specific library patterns)
             legacy_library_patterns = [
-                f"notebook: ../../generated/{pipeline_name}/",  # Individual notebook entries
-                f"path: ../../generated/{pipeline_name}/",  # Path entries
+                f"notebook: ../../generated/dev/{pipeline_name}/",  # Individual notebook entries
+                f"path: ../../generated/dev/{pipeline_name}/",  # Path entries
                 f"- notebook:",  # Individual library entries
                 f"- file:",      # File library entries  
                 f"- jar:",       # JAR library entries
@@ -567,12 +569,12 @@ class TestBundleJinja2Templates:
                 
             # Verify the path only appears in expected contexts (root_path and glob include)
             expected_contexts = [
-                f"root_path: ${{workspace.file_path}}/generated/{pipeline_name}",  # Root path (no trailing slash)
-                f"include: ../../generated/{pipeline_name}/**",  # Glob pattern
+                f"root_path: ${{workspace.file_path}}/generated/dev/{pipeline_name}",  # Root path (no trailing slash)
+                f"include: ../../generated/dev/{pipeline_name}/**",  # Glob pattern
             ]
             
             # Count how many times the path appears in expected vs unexpected contexts
-            path_pattern = f"generated/{pipeline_name}"
+            path_pattern = f"generated/dev/{pipeline_name}"
             total_occurrences = content.count(path_pattern)
             expected_occurrences = sum(1 for context in expected_contexts if context in content)
             
@@ -596,7 +598,7 @@ class TestBundleJinja2Templates:
             
             # Generate content without any file system scanning
             pipeline_name = "no_iteration_test"
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Verify content was generated successfully
             assert content is not None
@@ -614,8 +616,8 @@ class TestBundleJinja2Templates:
         method_sig = inspect.signature(self.manager._generate_resource_file_content)
         param_names = list(method_sig.parameters.keys())
         
-        # Should have pipeline_name and output_dir parameters
-        assert param_names == ['pipeline_name', 'output_dir'], f"Expected 'pipeline_name' and 'output_dir' parameters, got {param_names}"
+        # Should have pipeline_name, output_dir, and env parameters
+        assert param_names == ['pipeline_name', 'output_dir', 'env'], f"Expected 'pipeline_name', 'output_dir', and 'env' parameters, got {param_names}"
         
         # Verify no methods exist for path iteration (removed in migration)
         removed_methods = [
@@ -636,7 +638,7 @@ class TestBundleJinja2Templates:
         
         # Test 1: Verify normal operation works
         pipeline_name = "corruption_test"
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         assert content is not None
         assert isinstance(content, str)
@@ -678,7 +680,7 @@ class TestBundleJinja2Templates:
         
         # Test 1: Verify normal template produces valid YAML
         pipeline_name = "validation_test"
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir)
+        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         # Should parse without errors
         try:

@@ -1,7 +1,7 @@
 # Lakehouse Plumber
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/Mmodarre/Lakehouse_Plumber/main/lakehouse-plumber-logo.png" alt="LakehousePlumber Logo">
+<div align="center" ">
+  <img src="lhp_colour.png" alt="LakehousePlumber Logo" style="width: 50%;>
 </div>
 <div align="center">
 
@@ -250,7 +250,7 @@ As such, the output of LHP is a set of Python files that can be used to create D
 
 ### Action-Based Architecture
 
-LHP has 100% coverage of Databricks Lakeflow Declarative Pipelines (ETL) through **Load**, **Transform**, and **Write** actions:
+LHP has 100% coverage of Databricks Lakeflow Declarative Pipelines (ETL) through **Load**, **Transform**, **Write**, and **Test** actions:
 
 #### Load Actions
 
@@ -274,6 +274,18 @@ LHP has 100% coverage of Databricks Lakeflow Declarative Pipelines (ETL) through
 - **Materialized View**: Batch-computed analytics views
 - **Append Flow**: Append data to streaming tables from multiple sources
 - **CDC**: Change Data Capture Type 1 and 2 and from snapshots
+
+#### Test Actions (🆕 New!)
+
+- **Row Count**: Compare record counts between sources with tolerance
+- **Uniqueness**: Validate primary key and unique constraints
+- **Referential Integrity**: Check foreign key relationships
+- **Completeness**: Ensure required fields are populated
+- **Range**: Validate values are within expected bounds
+- **Schema Match**: Compare schema consistency across tables
+- **All Lookups Found**: Validate dimension lookups succeed
+- **Custom SQL**: User-defined test queries with expectations
+- **Custom Expectations**: Apply complex business rules as DLT expectations
 
 ### Template & Preset System
 
@@ -584,6 +596,57 @@ actions:
       type: materialized_view
       table: "customer_metrics"
       refresh_schedule: "0 2 * * *"  # Daily at 2 AM
+```
+
+### Data Quality Tests
+
+```yaml
+pipeline: data_quality_tests
+flowgroup: pipeline_validation
+
+actions:
+  # Validate no data loss between layers
+  - name: test_bronze_to_silver_count
+    type: test
+    test_type: row_count
+    source: ["{{ bronze_schema }}.orders", "{{ silver_schema }}.fact_orders"]
+    tolerance: 0
+    on_violation: fail
+    description: "Ensure no data loss in silver transformation"
+
+  # Check primary key uniqueness
+  - name: test_customer_key_unique
+    type: test
+    test_type: uniqueness
+    source: "{{ silver_schema }}.dim_customers"
+    columns: [customer_key]
+    on_violation: fail
+    description: "Validate customer surrogate key is unique"
+
+  # Verify referential integrity
+  - name: test_orders_customer_fk
+    type: test
+    test_type: referential_integrity
+    source: "{{ silver_schema }}.fact_orders"
+    reference: "{{ silver_schema }}.dim_customers"
+    source_columns: [customer_key]
+    reference_columns: [customer_key]
+    on_violation: fail
+    description: "All orders must have valid customer references"
+
+  # Custom business rule validation
+  - name: test_order_amounts
+    type: test
+    test_type: custom_expectations
+    source: "{{ silver_schema }}.fact_orders"
+    expectations:
+      - name: positive_amounts
+        expression: "total_price > 0"
+        on_violation: fail
+      - name: reasonable_discount
+        expression: "discount_percent <= 50"
+        on_violation: warn
+    description: "Validate order business rules"
 ```
 
 ## Community & Support

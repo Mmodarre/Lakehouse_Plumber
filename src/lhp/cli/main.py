@@ -343,9 +343,8 @@ def validate(env, pipeline, verbose):
 @cli.command()
 @click.option("--env", "-e", required=True, help="Environment")
 @click.option("--pipeline", "-p", help="Specific pipeline to generate")
-@click.option("--output", "-o", default="generated", help="Output directory")
+@click.option("--output", "-o", help="Output directory (defaults to generated/{env})")
 @click.option("--dry-run", is_flag=True, help="Preview without generating files")
-@click.option("--format", is_flag=True, help="Format generated code with Black")
 @click.option(
     "--no-cleanup",
     is_flag=True,
@@ -362,9 +361,19 @@ def validate(env, pipeline, verbose):
     is_flag=True,
     help="Disable bundle support even if databricks.yml exists",
 )
-def generate(env, pipeline, output, dry_run, format, no_cleanup, force, no_bundle):
+@click.option(
+    "--include-tests",
+    is_flag=True,
+    default=False,
+    help="Include test actions in generation (skipped by default for faster builds)",
+)
+def generate(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests):
     """Generate DLT pipeline code"""
     project_root = _ensure_project_root()
+    
+    # Set default output based on environment if not provided
+    if output is None:
+        output = f"generated/{env}"
 
     # Get context info
     ctx = click.get_current_context()
@@ -380,6 +389,25 @@ def generate(env, pipeline, output, dry_run, format, no_cleanup, force, no_bundl
     if not substitution_file.exists():
         click.echo(f"❌ Substitution file not found: {substitution_file}")
         sys.exit(1)
+    
+    # Validate environment consistency with databricks.yml
+    databricks_yml = project_root / "databricks.yml"
+    if databricks_yml.exists():
+        try:
+            with open(databricks_yml, 'r') as f:
+                bundle_config = yaml.safe_load(f)
+            
+            if bundle_config and "targets" in bundle_config:
+                targets = bundle_config.get("targets", {})
+                if env not in targets:
+                    click.echo(
+                        f"⚠️  Warning: Environment '{env}' not found in databricks.yml targets.\n"
+                        f"   Add a target named '{env}' to databricks.yml for bundle deployment.\n"
+                        f"   LHP will generate resources to: resources/lhp/{env}/"
+                    )
+        except Exception as e:
+            if verbose:
+                click.echo(f"⚠️  Could not validate databricks.yml: {e}")
 
     # Initialize orchestrator and state manager
     if verbose:
@@ -550,6 +578,7 @@ def generate(env, pipeline, output, dry_run, format, no_cleanup, force, no_bundl
                 pipeline_output_dir,
                 state_manager=state_manager,
                 force_all=force or no_cleanup,
+                include_tests=include_tests,
             )
 
             # Track files
@@ -982,8 +1011,8 @@ def show(flowgroup, env):
     else:
         substitution_mgr = EnhancedSubstitutionManager(substitution_file, env)
 
-    # Process flowgroup with presets and templates
-    orchestrator = ActionOrchestrator(project_root)
+    # Process flowgroup with presets and templates (skip version enforcement for info command)
+    orchestrator = ActionOrchestrator(project_root, enforce_version=False)
     try:
         processed_fg = orchestrator._process_flowgroup(fg, substitution_mgr)
     except Exception as e:

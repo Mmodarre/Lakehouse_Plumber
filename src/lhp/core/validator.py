@@ -16,6 +16,7 @@ from .action_validators import (
     TransformActionValidator,
     WriteActionValidator,
 )
+from .test_action_validator import TestActionValidator
 
 if TYPE_CHECKING:
     from ..models.config import WriteTarget
@@ -40,6 +41,9 @@ class ConfigValidator:
         )
         self.write_validator = WriteActionValidator(
             self.action_registry, self.field_validator, self.logger
+        )
+        self.test_validator = TestActionValidator(
+            self.action_registry, self.field_validator
         )
 
     def validate_flowgroup(self, flowgroup: FlowGroup) -> List[str]:
@@ -141,6 +145,9 @@ class ConfigValidator:
 
         elif action.type == ActionType.WRITE:
             errors.extend(self.write_validator.validate(action, prefix))
+
+        elif action.type == ActionType.TEST:
+            errors.extend(self.test_validator.validate(action, prefix))
 
         else:
             errors.append(f"{prefix}: Unknown action type '{action.type}'")

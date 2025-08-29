@@ -65,6 +65,7 @@ class DependencyResolver:
         # Validate action type constraints
         load_actions = [a for a in actions if a.type == ActionType.LOAD]
         write_actions = [a for a in actions if a.type == ActionType.WRITE]
+        test_actions = [a for a in actions if a.type == ActionType.TEST]
 
         # Check if there are self-contained snapshot CDC actions that provide data
         has_self_contained_snapshot_cdc = any(
@@ -72,11 +73,15 @@ class DependencyResolver:
             for action in actions
         )
 
-        if not load_actions and not has_self_contained_snapshot_cdc:
-            errors.append("FlowGroup must have at least one Load action")
+        # Test-only flowgroups are allowed (for data quality testing)
+        is_test_only_flowgroup = test_actions and not (load_actions or write_actions)
+        
+        if not is_test_only_flowgroup:
+            if not load_actions and not has_self_contained_snapshot_cdc:
+                errors.append("FlowGroup must have at least one Load action")
 
-        if not write_actions:
-            errors.append("FlowGroup must have at least one Write action")
+            if not write_actions:
+                errors.append("FlowGroup must have at least one Write action")
 
         # Check for orphaned actions (no dependencies and not depended upon)
         orphaned = self._find_orphaned_actions(actions, graph, targets)

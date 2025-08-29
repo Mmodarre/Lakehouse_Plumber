@@ -184,12 +184,12 @@ environment:
             
             # Should generate files for both customer_ingestion and orders_ingestion
             # since they both have pipeline: raw_ingestions
-            generated_dir = temp_project_with_pipeline_field_test / "generated" / "raw_ingestions"
+            generated_dir = temp_project_with_pipeline_field_test / "generated" / "dev" / "raw_ingestions"
             assert (generated_dir / "customer_ingestion.py").exists()
             assert (generated_dir / "orders_ingestion.py").exists()
             
             # Should NOT generate file for customer_transforms (different pipeline field)
-            transforms_dir = temp_project_with_pipeline_field_test / "generated" / "silver_transforms"
+            transforms_dir = temp_project_with_pipeline_field_test / "generated" / "dev" / "silver_transforms"
             assert not (transforms_dir / "customer_transforms.py").exists()
     
     def test_cli_pipeline_flag_different_pipeline_fields(self, runner, temp_project_with_pipeline_field_test):
@@ -205,11 +205,11 @@ environment:
             assert "silver_transforms" in result.output
             
             # Should only generate file for customer_transforms (has pipeline: silver_transforms)
-            transforms_dir = temp_project_with_pipeline_field_test / "generated" / "silver_transforms"
+            transforms_dir = temp_project_with_pipeline_field_test / "generated" / "dev" / "silver_transforms"
             assert (transforms_dir / "customer_transforms.py").exists()
             
             # Should NOT generate files for raw_ingestions flowgroups
-            raw_dir = temp_project_with_pipeline_field_test / "generated" / "raw_ingestions"
+            raw_dir = temp_project_with_pipeline_field_test / "generated" / "dev" / "raw_ingestions"
             assert not (raw_dir / "customer_ingestion.py").exists()
             assert not (raw_dir / "orders_ingestion.py").exists()
             

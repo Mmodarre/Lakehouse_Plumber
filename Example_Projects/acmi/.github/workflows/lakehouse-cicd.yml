@@ -1,0 +1,257 @@
+name: Lakehouse CI/CD Pipeline
+
+# NOTE: Before running this workflow, you must create GitHub environments:
+# - development (no protection rules)
+# - test (no protection rules) 
+# - production (require reviewers: Mmodarre)
+# Each environment needs the appropriate DATABRICKS_*_TOKEN and DATABRICKS_*_HOST secrets
+
+# Ensure only one deployment runs at a time per environment
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*-test'
+      - 'v*-prod'
+  pull_request:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # Validation job runs on all triggers
+  validate:
+    runs-on: ubuntu-latest
+    name: 'Validate Pipeline Configuration'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+      
+      - name: Install dependencies
+        run: |
+          pip install lakehouse-plumber
+          pip install yamllint
+      
+    
+      - name: LHP Configuration Validation
+        run: |
+          lhp validate --env dev
+          lhp validate --env tst  
+          lhp validate --env prod
+      
+      # - name: Security Scan for Secrets
+      #   run: |
+      #     # Basic secret scanning - check for potential hardcoded secrets in YAML files
+      #     # Exclude legitimate patterns: GitHub Actions secrets, Databricks secret scopes, and approved comments
+      #     if grep -r -i "password\|secret\|token\|key" --include="*.yaml" --include="*.yml" . \
+      #       | grep -v "secretScope\|getSecret" \
+      #       | grep -v "# allowed\|# approved" \
+      #       | grep -v 'secrets\.' \
+      #       | grep -v 'vars\.' \
+      #       | grep -v 'DATABRICKS_TOKEN\|DATABRICKS_HOST'; then
+      #       echo "⚠️ Potential hardcoded secrets found in configuration files"
+      #       echo "Please use Databricks secret scopes or GitHub Actions secrets instead of hardcoded values"
+      #       exit 1
+      #     fi
+      #     echo "✅ Security scan passed - no hardcoded secrets detected"
+
+  # Development deployment - automatic on main branch push
+  deploy-dev:
+    runs-on: ubuntu-latest
+    name: 'Deploy to Development'
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: development
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+      
+      - name: Install LHP
+        run: pip install lakehouse-plumber
+      
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@main
+      
+      - name: Generate Pipeline Configuration
+        run: |
+          lhp generate --env dev --output generated/
+          echo "📋 Generated pipeline files:"
+          find generated/ -name "*.py" | head -10
+      
+      - name: Validate Bundle Configuration
+        run: databricks bundle validate --target dev-ci-cd
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_DEV_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_DEV_HOST }}
+      
+      - name: Deploy to Development
+        run: databricks bundle deploy --target dev-ci-cd
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_DEV_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_DEV_HOST }}
+      
+      - name: Create Deployment Record
+        run: |
+          echo "🚀 DEV Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Development" >> $GITHUB_STEP_SUMMARY
+          echo "- **Generated Files:** $(find generated/ -name "*.py" | wc -l) pipeline files" >> $GITHUB_STEP_SUMMARY
+
+  # Test deployment - triggered by v*-test tags
+  deploy-test:
+    runs-on: ubuntu-latest
+    name: 'Deploy to Test'
+    needs: validate
+    if: startsWith(github.ref, 'refs/tags/v') && endsWith(github.ref, '-test')
+    environment: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+      
+      - name: Install LHP
+        run: pip install lakehouse-plumber
+      
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@main
+      
+      - name: Generate Pipeline Configuration
+        run: |
+          lhp generate --env tst --output generated/
+          echo "📋 Generated pipeline files for TEST environment"
+      
+      - name: Deploy to Test
+        run: databricks bundle deploy --target tst
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TEST_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_TEST_HOST }}
+      
+      - name: Run Integration Tests
+        run: |
+          # Add your integration tests here
+          echo "🧪 Running integration tests..."
+          # Example: databricks bundle run integration_tests --target tst
+          echo "✅ Integration tests completed"
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TEST_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_TEST_HOST }}
+      
+      - name: Create Test Deployment Record
+        run: |
+          echo "🔄 TEST Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Test" >> $GITHUB_STEP_SUMMARY
+
+  # Production deployment - triggered by v*-prod tags with approval
+  deploy-prod:
+    runs-on: ubuntu-latest
+    name: 'Deploy to Production'
+    needs: validate
+    if: startsWith(github.ref, 'refs/tags/v') && endsWith(github.ref, '-prod')
+    environment:
+      name: production
+      url: ${{ vars.DATABRICKS_PROD_HOST }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+      
+      - name: Install LHP
+        run: pip install lakehouse-plumber
+      
+      - name: Setup Databricks CLI  
+        uses: databricks/setup-cli@main
+      
+      - name: Verify Tag Format and Progression
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION=$(echo "$TAG_NAME" | sed 's/-prod$//')
+          
+          # Check if corresponding test tag exists
+          if ! git tag --list | grep -q "${VERSION}-test"; then
+            echo "❌ No corresponding ${VERSION}-test tag found"
+            echo "Please deploy to test environment first"
+            exit 1
+          fi
+          
+          echo "✅ Tag validation passed: $TAG_NAME"
+          echo "version=$VERSION" >> $GITHUB_ENV
+      
+      - name: Generate Production Configuration
+        run: |
+          lhp generate --env prod --output generated/
+          echo "📋 Generated production pipeline configuration"
+      
+      - name: Create Deployment Manifest
+        run: |
+          echo '{
+            "timestamp": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'",
+            "commit_hash": "'${{ github.sha }}'",
+            "tag": "'${{ github.ref_name }}'",
+            "environment": "prod",
+            "lhp_version": "'$(lhp --version)'",
+            "pipeline_files": '$(find generated/ -name "*.py" | jq -R . | jq -s .)'
+          }' > deployment-manifest-prod.json
+          
+          echo "📄 Deployment manifest created"
+          cat deployment-manifest-prod.json
+      
+      - name: Production Deployment
+        run: |
+          echo "🚀 Deploying to PRODUCTION..."
+          databricks bundle deploy --target prod --mode production
+          echo "✅ Production deployment completed"
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_PROD_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_PROD_HOST }}
+      
+      - name: Post-deployment Health Check
+        run: |
+          echo "🏥 Running production health checks..."
+          # Add your health check commands here
+          databricks bundle validate --target prod
+          echo "✅ Health checks completed"
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_PROD_TOKEN }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_PROD_HOST }}
+      
+      - name: Create Production Deployment Record
+        run: |
+          echo "✅ PRODUCTION Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ env.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **Approver:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

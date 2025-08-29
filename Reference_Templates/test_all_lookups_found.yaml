@@ -1,0 +1,62 @@
+# All Lookups Found Test Template
+# Validates that all dimension lookups are successful
+
+pipeline: data_quality_tests
+flowgroup: lookup_tests
+description: Validate all dimension lookups succeed
+
+actions:
+  # Basic dimension lookup validation
+  - name: test_customer_dim_lookup
+    type: test
+    test_type: all_lookups_found
+    source: fact_sales  # Source table
+    lookup_table: dim_customer  # Lookup/dimension table
+    lookup_columns: [customer_id]  # Column(s) to join on
+    lookup_result_columns: [customer_sk]  # Expected result column(s)
+    on_violation: fail
+    description: "All sales must have valid customer dimension records"
+
+  # Multiple dimension lookups
+  - name: test_product_dim_lookup
+    type: test
+    test_type: all_lookups_found
+    source: fact_inventory
+    lookup_table: dim_product
+    lookup_columns: [product_code, variant_id]
+    lookup_result_columns: [product_sk]
+    on_violation: fail
+    description: "Validate all inventory items have product dimensions"
+
+  # Cross-schema lookup validation
+  - name: test_location_lookup
+    type: test
+    test_type: all_lookups_found
+    source: ${sales}.transactions
+    lookup_table: ${reference}.locations
+    lookup_columns: [store_id]
+    lookup_result_columns: [location_name, region]
+    on_violation: warn
+    description: "Check all stores exist in location reference"
+
+  # Slowly changing dimension lookup
+  - name: test_scd_customer_lookup
+    type: test
+    test_type: all_lookups_found
+    source: fact_orders
+    lookup_table: dim_customer_scd
+    lookup_columns: [customer_id]
+    lookup_result_columns: [customer_sk, current_flag]
+    on_violation: fail
+    description: "Ensure all orders map to customer SCD records"
+
+  # Reference data validation
+  - name: test_currency_lookup
+    type: test
+    test_type: all_lookups_found
+    source: international_sales
+    lookup_table: currency_reference
+    lookup_columns: [currency_code]
+    lookup_result_columns: [currency_name, exchange_rate]
+    on_violation: fail
+    description: "Validate all currency codes are recognized"

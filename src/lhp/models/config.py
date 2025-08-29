@@ -7,6 +7,26 @@ class ActionType(str, Enum):
     LOAD = "load"
     TRANSFORM = "transform"
     WRITE = "write"
+    TEST = "test"
+
+
+class TestActionType(str, Enum):
+    """Types of test actions available."""
+    ROW_COUNT = "row_count"
+    UNIQUENESS = "uniqueness"
+    REFERENTIAL_INTEGRITY = "referential_integrity"
+    COMPLETENESS = "completeness"
+    RANGE = "range"
+    SCHEMA_MATCH = "schema_match"
+    ALL_LOOKUPS_FOUND = "all_lookups_found"
+    CUSTOM_SQL = "custom_sql"
+    CUSTOM_EXPECTATIONS = "custom_expectations"
+
+
+class ViolationAction(str, Enum):
+    """Actions to take when test expectations are violated."""
+    FAIL = "fail"
+    WARN = "warn"
 
 
 class LoadSourceType(str, Enum):
@@ -76,6 +96,7 @@ class ProjectConfig(BaseModel):
     created_date: Optional[str] = None
     include: Optional[List[str]] = None
     operational_metadata: Optional[ProjectOperationalMetadataConfig] = None
+    required_lhp_version: Optional[str] = None
 
 
 class WriteTarget(BaseModel):
@@ -142,6 +163,23 @@ class Action(BaseModel):
     custom_datasource_class: Optional[str] = None  # Custom DataSource class name
     # Write action specific
     once: Optional[bool] = None  # For one-time flows/backfills
+    # Test action specific fields
+    test_type: Optional[str] = None  # Test type (row_count, uniqueness, etc.)
+    on_violation: Optional[str] = None  # Action on violation (fail, warn)
+    tolerance: Optional[int] = None  # Tolerance for row_count tests
+    columns: Optional[List[str]] = None  # Columns for uniqueness/completeness tests
+    filter: Optional[str] = None  # Optional WHERE clause filter for uniqueness tests
+    reference: Optional[str] = None  # Reference table for referential integrity
+    source_columns: Optional[List[str]] = None  # Source columns for joins
+    reference_columns: Optional[List[str]] = None  # Reference columns for joins
+    required_columns: Optional[List[str]] = None  # Required columns for completeness
+    column: Optional[str] = None  # Column for range tests
+    min_value: Optional[Any] = None  # Min value for range tests
+    max_value: Optional[Any] = None  # Max value for range tests
+    lookup_table: Optional[str] = None  # Lookup table for ALL_LOOKUPS_FOUND
+    lookup_columns: Optional[List[str]] = None  # Lookup columns
+    lookup_result_columns: Optional[List[str]] = None  # Expected result columns
+    expectations: Optional[List[Dict[str, Any]]] = None  # Custom expectations
 
 
 class FlowGroup(BaseModel):

@@ -1,0 +1,43 @@
+# Uniqueness Test Template
+# Validates unique constraints on specified columns
+
+pipeline: data_quality_tests
+flowgroup: uniqueness_tests
+description: Validate primary keys and unique constraints
+
+actions:
+  # Single column uniqueness (primary key)
+  - name: test_customer_primary_key
+    type: test
+    test_type: uniqueness
+    source: customer_table
+    columns: [customer_id]  # Single column to check
+    on_violation: fail
+    description: "Validate customer ID is unique"
+
+  # Composite key uniqueness
+  - name: test_order_line_composite_key
+    type: test
+    test_type: uniqueness
+    source: order_lines
+    columns: [order_id, line_number]  # Multiple columns for composite key
+    on_violation: fail
+    description: "Validate order line composite key uniqueness"
+
+  # Uniqueness with warning (for non-critical fields)
+  - name: test_email_uniqueness
+    type: test
+    test_type: uniqueness
+    source: user_profiles
+    columns: [email_address]
+    on_violation: warn  # Only warn, don't fail the pipeline
+    description: "Check for duplicate email addresses"
+
+  # Multiple unique constraints
+  - name: test_product_sku
+    type: test
+    test_type: uniqueness
+    source: ${catalog}.products
+    columns: [sku_code]
+    on_violation: fail
+    description: "Ensure product SKU codes are unique"

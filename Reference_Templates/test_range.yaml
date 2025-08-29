@@ -1,0 +1,71 @@
+# Range Test Template
+# Validates that values are within expected ranges
+
+pipeline: data_quality_tests
+flowgroup: range_tests
+description: Validate values are within expected bounds
+
+actions:
+  # Date range validation
+  - name: test_order_date_range
+    type: test
+    test_type: range
+    source: orders
+    column: order_date
+    min_value: '2020-01-01'
+    max_value: 'current_date()'  # Can use SQL functions
+    on_violation: fail
+    description: "Validate order dates are within business operation period"
+
+  # Numeric range validation
+  - name: test_product_price_range
+    type: test
+    test_type: range
+    source: products
+    column: price
+    min_value: 0.01
+    max_value: 999999.99
+    on_violation: fail
+    description: "Ensure product prices are positive and reasonable"
+
+  # Age validation
+  - name: test_customer_age_range
+    type: test
+    test_type: range
+    source: customers
+    column: age
+    min_value: 18
+    max_value: 120
+    on_violation: warn
+    description: "Check customer ages are within valid range"
+
+  # Percentage validation
+  - name: test_discount_percentage
+    type: test
+    test_type: range
+    source: promotions
+    column: discount_percent
+    min_value: 0
+    max_value: 100
+    on_violation: fail
+    description: "Validate discount percentages are between 0 and 100"
+
+  # Only minimum value check
+  - name: test_inventory_quantity
+    type: test
+    test_type: range
+    source: inventory
+    column: quantity_on_hand
+    min_value: 0  # No maximum, but must be non-negative
+    on_violation: fail
+    description: "Ensure inventory quantities are non-negative"
+
+  # Only maximum value check
+  - name: test_return_period
+    type: test
+    test_type: range
+    source: returns
+    column: days_since_purchase
+    max_value: 90  # Return policy: max 90 days
+    on_violation: warn
+    description: "Check returns are within policy period"

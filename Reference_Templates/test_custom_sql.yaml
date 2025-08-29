@@ -1,0 +1,103 @@
+# Custom SQL Test Template
+# Define custom SQL queries with DLT expectations
+
+pipeline: data_quality_tests
+flowgroup: custom_sql_tests
+description: Custom business logic validation tests
+
+actions:
+  # Revenue reconciliation test
+  - name: test_revenue_reconciliation
+    type: test
+    test_type: custom_sql
+    source: fact_sales  # Base table (can be used in SQL)
+    sql: |
+      WITH daily_revenue AS (
+        SELECT 
+          date_key,
+          SUM(revenue) as fact_revenue
+        FROM fact_sales
+        GROUP BY date_key
+      ),
+      expected_revenue AS (
+        SELECT 
+          date_key,
+          SUM(amount) as transaction_revenue
+        FROM raw_transactions
+        GROUP BY DATE(transaction_date) as date_key
+      )
+      SELECT 
+        d.date_key,
+        d.fact_revenue,
+        e.transaction_revenue,
+        ABS(d.fact_revenue - e.transaction_revenue) as difference
+      FROM daily_revenue d
+      JOIN expected_revenue e ON d.date_key = e.date_key
+    expectations:
+      - name: revenue_matches
+        expression: "difference < 0.01"
+        on_violation: fail
+      - name: revenue_positive
+        expression: "fact_revenue > 0 AND transaction_revenue > 0"
+        on_violation: warn
+    description: "Validate daily revenue aggregations match source"
+
+  # Customer segmentation validation
+  - name: test_customer_segments
+    type: test
+    test_type: custom_sql
+    source: customer_segments
+    sql: |
+      SELECT 
+        segment,
+        COUNT(*) as customer_count,
+        AVG(lifetime_value) as avg_ltv,
+        MIN(lifetime_value) as min_ltv,
+        MAX(lifetime_value) as max_ltv
+      FROM customer_segments
+      GROUP BY segment
+    expectations:
+      - name: high_value_threshold
+        expression: "segment != 'HIGH_VALUE' OR min_ltv >= 10000"
+        on_violation: fail
+      - name: segment_size
+        expression: "customer_count > 0"
+        on_violation: fail
+    description: "Validate customer segmentation rules"
+
+  # Data freshness test
+  - name: test_data_freshness
+    type: test
+    test_type: custom_sql
+    source: streaming_events
+    sql: |
+      SELECT 
+        MAX(event_timestamp) as last_event,
+        CURRENT_TIMESTAMP() as current_time,
+        TIMESTAMPDIFF(MINUTE, MAX(event_timestamp), CURRENT_TIMESTAMP()) as minutes_behind
+      FROM streaming_events
+    expectations:
+      - name: data_is_fresh
+        expression: "minutes_behind <= 15"
+        on_violation: warn
+    description: "Ensure streaming data is current"
+
+  # Cross-table consistency
+  - name: test_order_consistency
+    type: test
+    test_type: custom_sql
+    source: orders
+    sql: |
+      SELECT 
+        o.order_id,
+        o.total_amount as order_total,
+        SUM(l.quantity * l.unit_price) as calculated_total
+      FROM orders o
+      JOIN order_lines l ON o.order_id = l.order_id
+      GROUP BY o.order_id, o.total_amount
+      HAVING ABS(order_total - calculated_total) > 0.01
+    expectations:
+      - name: no_mismatches
+        expression: "false"  # This query returns mismatches, so always fail if any rows
+        on_violation: fail
+    description: "Order totals must match sum of line items"

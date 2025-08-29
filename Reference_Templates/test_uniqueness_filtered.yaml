@@ -1,0 +1,78 @@
+# Uniqueness Test with Filter - For Type 2 Dimensions and Conditional Uniqueness
+# This template demonstrates how to use the filter field to check uniqueness
+# within a subset of records (e.g., only active records in Type 2 SCDs)
+
+pipeline: data_quality_tests
+flowgroup: dimension_uniqueness_tests
+
+actions:
+  # Example 1: Type 2 Dimension - Only active records should be unique
+  - name: test_customer_active_unique
+    type: test
+    test_type: uniqueness
+    source: silver.customer_dim
+    columns: [customer_id]  # Natural key
+    filter: "__END_AT IS NULL"  # Only check active records
+    on_violation: fail
+    description: "Only one active record should exist per customer"
+
+  # Example 2: Alternative Type 2 pattern with is_current flag
+  - name: test_product_current_unique
+    type: test
+    test_type: uniqueness
+    source: silver.product_dim
+    columns: [product_code]
+    filter: "is_current = true"  # Using a boolean flag instead
+    on_violation: fail
+    description: "Only one current record per product"
+
+  # Example 3: Regional uniqueness
+  - name: test_store_regional_unique
+    type: test
+    test_type: uniqueness
+    source: silver.store_dim
+    columns: [store_code, region]
+    filter: "status = 'ACTIVE'"  # Only active stores
+    on_violation: fail
+    description: "Store codes must be unique within active stores per region"
+
+  # Example 4: Date-based uniqueness
+  - name: test_promotion_active_unique
+    type: test
+    test_type: uniqueness
+    source: silver.promotions
+    columns: [promo_code]
+    filter: "start_date <= current_date() AND end_date >= current_date()"
+    on_violation: fail
+    description: "Only one active promotion per code at any time"
+
+  # Example 5: Complex filter with multiple conditions
+  - name: test_employee_assignment_unique
+    type: test
+    test_type: uniqueness
+    source: silver.employee_assignments
+    columns: [employee_id, department_id]
+    filter: "assignment_status IN ('ACTIVE', 'PENDING') AND end_date IS NULL"
+    on_violation: fail
+    description: "Employee can only have one active/pending assignment per department"
+
+  # Example 6: Standard uniqueness without filter (for comparison)
+  - name: test_order_id_unique
+    type: test
+    test_type: uniqueness
+    source: silver.orders
+    columns: [order_id]
+    # No filter - checks ALL records for uniqueness
+    on_violation: fail
+    description: "Order IDs must be globally unique"
+
+# Notes:
+# - The filter field is OPTIONAL - if not provided, all records are checked
+# - Filter accepts any valid SQL WHERE clause condition
+# - Useful for Type 2 slowly changing dimensions where natural keys can repeat
+# - Can combine with composite keys (multiple columns)
+# - Common patterns:
+#   - Type 2 SCD: filter: "__END_AT IS NULL" or "is_current = true"
+#   - Status-based: filter: "status = 'ACTIVE'"
+#   - Date ranges: filter: "effective_date >= '2024-01-01'"
+#   - Regional: filter: "region IN ('US', 'EU', 'APAC')"

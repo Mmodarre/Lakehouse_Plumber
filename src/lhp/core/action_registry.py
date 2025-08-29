@@ -2,7 +2,7 @@
 
 from typing import Dict, Type
 from ..core.base_generator import BaseActionGenerator
-from ..models.config import ActionType, LoadSourceType, TransformType, WriteTargetType
+from ..models.config import ActionType, LoadSourceType, TransformType, WriteTargetType, TestActionType
 from ..utils.error_formatter import ErrorFormatter
 
 # Import all generators
@@ -25,6 +25,9 @@ from ..generators.write import (
     StreamingTableWriteGenerator,
     MaterializedViewWriteGenerator,
 )
+from ..generators.test import (
+    TestActionGenerator,
+)
 
 
 class ActionRegistry:
@@ -35,6 +38,7 @@ class ActionRegistry:
         self._load_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._transform_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._write_generators: Dict[str, Type[BaseActionGenerator]] = {}
+        self._test_generators: Dict[str, Type[BaseActionGenerator]] = {}
 
         # Step 4.1.2: Map action types to generators
         self._initialize_generators()
@@ -64,6 +68,20 @@ class ActionRegistry:
         self._write_generators = {
             WriteTargetType.STREAMING_TABLE: StreamingTableWriteGenerator,
             WriteTargetType.MATERIALIZED_VIEW: MaterializedViewWriteGenerator,
+        }
+        
+        # Test generators - all test types use the same generator
+        # The generator will handle different test types internally
+        self._test_generators = {
+            TestActionType.ROW_COUNT: TestActionGenerator,
+            TestActionType.UNIQUENESS: TestActionGenerator,
+            TestActionType.REFERENTIAL_INTEGRITY: TestActionGenerator,
+            TestActionType.COMPLETENESS: TestActionGenerator,
+            TestActionType.RANGE: TestActionGenerator,
+            TestActionType.SCHEMA_MATCH: TestActionGenerator,
+            TestActionType.ALL_LOOKUPS_FOUND: TestActionGenerator,
+            TestActionType.CUSTOM_SQL: TestActionGenerator,
+            TestActionType.CUSTOM_EXPECTATIONS: TestActionGenerator,
         }
 
     def get_generator(
@@ -168,6 +186,35 @@ class ActionRegistry:
 
             return self._write_generators[sub_type]()
 
+        elif action_type == ActionType.TEST:
+            # For test actions, sub_type is the test_type
+            if not sub_type:
+                # Default to a basic test type if not specified
+                sub_type = 'row_count'
+
+            # Convert string to enum if needed
+            if isinstance(sub_type, str):
+                try:
+                    sub_type = TestActionType(sub_type)
+                except ValueError:
+                    valid_types = [t.value for t in TestActionType]
+                    raise ErrorFormatter.unknown_type_with_suggestion(
+                        value_type="test_type",
+                        provided_value=sub_type,
+                        valid_values=valid_types,
+                        example_usage="""actions:
+  - name: test_row_count
+    type: test
+    test_type: row_count  # ← Valid test_type
+    source: [v_source, v_target]
+    on_violation: fail""",
+                    )
+
+            if sub_type not in self._test_generators:
+                raise ValueError(f"No generator registered for test type: {sub_type}")
+
+            return self._test_generators[sub_type]()
+
         else:
             raise ValueError(f"Unknown action type: {action_type}")
 
@@ -177,6 +224,7 @@ class ActionRegistry:
             "load": [gen.value for gen in self._load_generators.keys()],
             "transform": [gen.value for gen in self._transform_generators.keys()],
             "write": [gen.value for gen in self._write_generators.keys()],
+            "test": [gen.value for gen in self._test_generators.keys()],
         }
 
     def is_generator_available(self, action_type: ActionType, sub_type: str) -> bool:

@@ -1,0 +1,36 @@
+# Row Count Test Template
+# Compares row counts between two sources to ensure no data loss
+# Generated as temporary DLT tables for inspection and debugging
+
+pipeline: data_quality_tests
+flowgroup: row_count_tests
+description: Validate row counts between source and target tables
+
+actions:
+  # Basic row count test - no tolerance
+  - name: test_exact_row_count
+    type: test
+    test_type: row_count
+    source: ['source_table', 'target_table']  # Two tables to compare
+    target: v_test_exact_row_count  # Optional: defaults to v_test_<name>
+    on_violation: fail  # fail or warn
+    tolerance: 0  # No difference allowed
+    description: "Ensure exact row count match between source and target"
+
+  # Row count test with tolerance
+  - name: test_approximate_row_count
+    type: test
+    test_type: row_count
+    source: ['raw_orders', 'processed_orders']
+    on_violation: warn
+    tolerance: 10  # Allow up to 10 row difference
+    description: "Check row counts within acceptable tolerance"
+
+  # Row count test with substitutions
+  - name: test_layer_row_counts
+    type: test
+    test_type: row_count
+    source: ['${source_schema}.customers', '${target_schema}.customers']
+    on_violation: fail
+    tolerance: 0
+    description: "Validate no data loss between layers"

@@ -1,0 +1,38 @@
+# This pipeline is used to load the lineitem table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: silver_load
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: orders_silver_fct
+
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+  - name: orders_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{bronze_schema}"
+      table: orders
+    target: v_orders_bronze
+    description: "Load orders table from silver schema" 
+
+  - name: write_orders_silver
+    type: write
+    source: v_orders_bronze
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{silver_schema}"
+      table: "orders_fct"
+      mode: "cdc"
+      
+      # CDC configuration
+      ## SCD Type 1 for deduplication, no history table
+      cdc_config:
+        keys: ["order_id"]
+        sequence_by: "_source_file_modification_time"
+        scd_type: 1
+        track_history_except_column_list: ["_source_file_path", "_source_file_size", "_source_file_modification_time", "_record_hash", "_processing_timestamp"]
+        

@@ -896,7 +896,11 @@ Environment-specific configurations are defined in `substitutions/` directory.
 
 3. **Generate DLT pipeline code**:
    ```bash
+   # Generate core pipeline (faster)
    lhp generate --env dev
+   
+   # Generate with data quality tests
+   lhp generate --env dev --include-tests
    ```
 
 4. **Deploy to Databricks**:
@@ -936,10 +940,17 @@ All tables include operational metadata:
 - SCD Type 2 implementation
 - Delta table change data feed enabled
 
+### Data Quality Testing
+- Comprehensive test suite in `pipelines/05_tests/`
+- Tests for uniqueness, referential integrity, completeness, and custom business rules
+- Type 2 dimension testing with active record filtering
+- **Note**: Use `--include-tests` flag to generate test code: `lhp generate --env dev --include-tests`
+
 ## Commands
 
 - `lhp validate --env <environment>` - Validate pipeline configurations
-- `lhp generate --env <environment>` - Generate DLT pipeline code
+- `lhp generate --env <environment>` - Generate DLT pipeline code (tests skipped by default)
+- `lhp generate --env <environment> --include-tests` - Generate with data quality tests
 - `lhp list-presets` - List available presets
 - `lhp list-templates` - List available templates
 - `lhp show <flowgroup> --env <environment>` - Show resolved configuration

@@ -24,7 +24,7 @@ def test_cdc_mode_creates_table_and_flow():
                 "keys": ["customer_id"],
                 "sequence_by": "_commit_timestamp",
                 "scd_type": 2,
-                "track_history_columns": ["name", "address", "phone"]
+                "track_history_column_list": ["name", "address", "phone"]
             }
         }
     )

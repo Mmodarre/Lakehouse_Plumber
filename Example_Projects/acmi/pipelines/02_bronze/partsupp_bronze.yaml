@@ -6,7 +6,8 @@ pipeline: acmi_edw_bronze
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: partsupp_bronze
-preset: default_delta_properties
+presets:
+  - default_delta_properties
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines
@@ -28,13 +29,13 @@ actions:
     target: v_partsupp_bronze_cleaned
     sql: |
       SELECT 
-        xxhash64(ps_partkey,ps_suppkey,ps_availqty,ps_supplycost,ps_comment) as partsupp_key,
+        xxhash64(ps_partkey,ps_suppkey,ps_availqty,ps_supplycost,ps_comment, split(split(_source_file_path, '/partsupp/')[1], '/')[0]) as partsupp_key,
         ps_partkey as part_id,
         ps_suppkey as supplier_id,
         ps_availqty as available_quantity,
         cast(ps_supplycost as decimal(18,2)) as supply_cost,
         ps_comment as comment,
-        split(split(_source_file_path, '/partsupp/')[1], '/')[0] as snapshot_id,
+        replace(split(split(_source_file_path, '/partsupp/')[1], '/')[0], '-W', '') as snapshot_id,
         cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
         * EXCEPT(ps_partkey, ps_suppkey, ps_availqty, ps_supplycost, ps_comment, last_modified_dt,_rescued_data)
       FROM stream(v_partsupp_raw)
@@ -75,13 +76,13 @@ actions:
     target: v_partsupp_migration_bronze_cleaned
     sql: |
       SELECT 
-        xxhash64(ps_partkey,ps_suppkey,ps_availqty,ps_supplycost,ps_comment) as partsupp_key,
+        xxhash64(ps_partkey,ps_suppkey,ps_availqty,ps_supplycost,ps_comment,'2019-W01') as partsupp_key,
         ps_partkey as part_id,
         ps_suppkey as supplier_id,
         ps_availqty as available_quantity,
         ps_supplycost as supply_cost,
         ps_comment as comment,
-        '2019-W01' as snapshot_id,
+        '201901' as snapshot_id,
         cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
         'MIGRATION' as _source_file_path,
         * EXCEPT(ps_partkey, ps_suppkey, ps_availqty, ps_supplycost, ps_comment, last_modified_dt)

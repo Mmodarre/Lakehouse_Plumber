@@ -234,16 +234,36 @@ class CdcConfigValidator:
                     f"{prefix}: 'apply_as_truncates' is not supported with SCD Type 2"
                 )
 
-        # Validate track_history_columns for SCD Type 2
-        track_history_columns = cdc_config.get("track_history_columns")
-        if track_history_columns is not None:
-            if not isinstance(track_history_columns, list):
-                errors.append(f"{prefix}: 'track_history_columns' must be a list")
+        # Validate track_history_column_list and track_history_except_column_list for SCD Type 2
+        track_history_column_list = cdc_config.get("track_history_column_list")
+        track_history_except_list = cdc_config.get("track_history_except_column_list")
+        
+        # Check they are mutually exclusive
+        if track_history_column_list is not None and track_history_except_list is not None:
+            errors.append(
+                f"{prefix}: cannot have both 'track_history_column_list' and 'track_history_except_column_list'"
+            )
+        
+        # Validate track_history_column_list
+        if track_history_column_list is not None:
+            if not isinstance(track_history_column_list, list):
+                errors.append(f"{prefix}: 'track_history_column_list' must be a list")
             else:
-                for i, col in enumerate(track_history_columns):
+                for i, col in enumerate(track_history_column_list):
                     if not isinstance(col, str):
                         errors.append(
-                            f"{prefix}: track_history_columns[{i}] must be a string"
+                            f"{prefix}: track_history_column_list[{i}] must be a string"
+                        )
+        
+        # Validate track_history_except_column_list
+        if track_history_except_list is not None:
+            if not isinstance(track_history_except_list, list):
+                errors.append(f"{prefix}: 'track_history_except_column_list' must be a list")
+            else:
+                for i, col in enumerate(track_history_except_list):
+                    if not isinstance(col, str):
+                        errors.append(
+                            f"{prefix}: track_history_except_column_list[{i}] must be a string"
                         )
 
         return errors

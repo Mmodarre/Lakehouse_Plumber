@@ -1,0 +1,201 @@
+# Comprehensive Test Example
+# Demonstrates using multiple test types in a data pipeline
+# All tests generate temporary DLT tables for inspection and debugging
+
+pipeline: etl_quality_tests
+flowgroup: comprehensive_validation
+description: End-to-end data quality validation for ETL pipeline
+
+# This example shows a complete test suite for a customer orders ETL pipeline
+# covering all layers: raw → bronze → silver → gold
+
+actions:
+  # ============================================================================
+  # RAW LAYER TESTS
+  # ============================================================================
+  
+  # Validate ingestion completeness
+  - name: test_raw_ingestion_completeness
+    type: test
+    test_type: row_count
+    source: ['source_system.orders', 'raw.orders']
+    tolerance: 0
+    on_violation: fail
+    description: "Ensure all orders are ingested from source"
+
+  # ============================================================================
+  # BRONZE LAYER TESTS
+  # ============================================================================
+  
+  # No data loss during bronze transformation
+  - name: test_bronze_row_count
+    type: test
+    test_type: row_count
+    source: ['raw.orders', 'bronze.orders']
+    tolerance: 0
+    on_violation: fail
+    description: "Validate no data loss in bronze layer"
+
+  # Primary key integrity
+  - name: test_bronze_order_pk
+    type: test
+    test_type: uniqueness
+    source: bronze.orders
+    columns: [order_id]
+    on_violation: fail
+    description: "Ensure order IDs are unique"
+
+  # Required fields populated
+  - name: test_bronze_completeness
+    type: test
+    test_type: completeness
+    source: bronze.orders
+    required_columns: [order_id, customer_id, order_date, status]
+    on_violation: fail
+    description: "Validate required fields are populated"
+
+  # ============================================================================
+  # SILVER LAYER TESTS
+  # ============================================================================
+  
+  # Referential integrity with dimensions
+  - name: test_silver_customer_fk
+    type: test
+    test_type: referential_integrity
+    source: silver.fact_orders
+    reference: silver.dim_customer
+    source_columns: [customer_id]
+    reference_columns: [customer_id]
+    on_violation: fail
+    description: "All orders must have valid customers"
+
+  - name: test_silver_product_fk
+    type: test
+    test_type: referential_integrity
+    source: silver.fact_order_items
+    reference: silver.dim_product
+    source_columns: [product_id]
+    reference_columns: [product_id]
+    on_violation: fail
+    description: "All order items must have valid products"
+
+  # Dimension lookup completeness
+  - name: test_silver_date_lookup
+    type: test
+    test_type: all_lookups_found
+    source: silver.fact_orders
+    lookup_table: silver.dim_date
+    lookup_columns: [order_date]
+    lookup_result_columns: [date_key]
+    on_violation: fail
+    description: "All order dates must exist in date dimension"
+
+  # Business rule validation
+  - name: test_silver_business_rules
+    type: test
+    test_type: custom_expectations
+    source: silver.fact_orders
+    expectations:
+      - name: valid_order_amount
+        expression: "order_total > 0"
+        on_violation: fail
+      - name: valid_tax_rate
+        expression: "tax_amount <= order_subtotal * 0.15"
+        on_violation: warn
+      - name: valid_discount
+        expression: "discount_amount <= order_subtotal * 0.5"
+        on_violation: warn
+    description: "Validate business rules in silver layer"
+
+  # ============================================================================
+  # GOLD LAYER TESTS
+  # ============================================================================
+  
+  # Date range validation for aggregations
+  - name: test_gold_date_range
+    type: test
+    test_type: range
+    source: gold.daily_sales_summary
+    column: sale_date
+    min_value: '2020-01-01'
+    max_value: 'current_date()'
+    on_violation: fail
+    description: "Ensure summary dates are within expected range"
+
+  # Cross-layer reconciliation
+  - name: test_gold_revenue_reconciliation
+    type: test
+    test_type: custom_sql
+    source: gold.monthly_revenue
+    sql: |
+      WITH gold_totals AS (
+        SELECT 
+          DATE_TRUNC('month', report_date) as month,
+          SUM(total_revenue) as gold_revenue
+        FROM gold.monthly_revenue
+        GROUP BY 1
+      ),
+      silver_totals AS (
+        SELECT 
+          DATE_TRUNC('month', order_date) as month,
+          SUM(order_total) as silver_revenue
+        FROM silver.fact_orders
+        WHERE order_status = 'COMPLETED'
+        GROUP BY 1
+      )
+      SELECT 
+        g.month,
+        g.gold_revenue,
+        s.silver_revenue,
+        ABS(g.gold_revenue - s.silver_revenue) as difference,
+        (ABS(g.gold_revenue - s.silver_revenue) / s.silver_revenue) * 100 as pct_difference
+      FROM gold_totals g
+      JOIN silver_totals s ON g.month = s.month
+    expectations:
+      - name: revenue_matches
+        expression: "pct_difference < 0.01"  # Less than 0.01% difference
+        on_violation: fail
+    description: "Ensure gold aggregations match silver details"
+
+  # ============================================================================
+  # CROSS-LAYER INTEGRITY TESTS
+  # ============================================================================
+  
+  # Customer journey validation
+  - name: test_customer_journey_integrity
+    type: test
+    test_type: custom_sql
+    source: bronze.customers
+    sql: |
+      WITH customer_layers AS (
+        SELECT 
+          'bronze' as layer,
+          COUNT(DISTINCT customer_id) as customer_count
+        FROM bronze.customers
+        UNION ALL
+        SELECT 
+          'silver' as layer,
+          COUNT(DISTINCT customer_id) as customer_count
+        FROM silver.dim_customer
+        UNION ALL
+        SELECT 
+          'gold' as layer,
+          COUNT(DISTINCT customer_id) as customer_count
+        FROM gold.customer_360
+      )
+      SELECT 
+        layer,
+        customer_count,
+        LAG(customer_count) OVER (ORDER BY 
+          CASE layer 
+            WHEN 'bronze' THEN 1 
+            WHEN 'silver' THEN 2 
+            WHEN 'gold' THEN 3 
+          END
+        ) as previous_count
+      FROM customer_layers
+    expectations:
+      - name: no_customer_loss
+        expression: "customer_count >= previous_count OR previous_count IS NULL"
+        on_violation: fail
+    description: "Validate customers flow through all layers"

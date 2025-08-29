@@ -117,6 +117,7 @@ class ProjectConfigLoader:
             created_date=config_data.get("created_date"),
             include=include_patterns,
             operational_metadata=operational_metadata_config,
+            required_lhp_version=config_data.get("required_lhp_version"),
         )
 
         return project_config

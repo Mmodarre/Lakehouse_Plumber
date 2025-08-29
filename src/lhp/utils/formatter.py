@@ -5,10 +5,42 @@ Provides utilities for formatting generated Python code.
 
 import logging
 import re
-from typing import List
+from typing import List, Dict, Any, Optional
 import tempfile
 import subprocess
 from pathlib import Path
+import tomllib
+
+
+def _read_black_config() -> Dict[str, Any]:
+    """Read Black configuration from pyproject.toml.
+    
+    Returns:
+        Dictionary with Black configuration, or defaults if not found
+    """
+    # Start from current working directory and walk up to find pyproject.toml
+    current_path = Path.cwd()
+    
+    # Try up to 5 levels up to find pyproject.toml
+    for _ in range(5):
+        pyproject_path = current_path / "pyproject.toml"
+        if pyproject_path.exists():
+            try:
+                with open(pyproject_path, "rb") as f:
+                    config = tomllib.load(f)
+                return config.get("tool", {}).get("black", {})
+            except Exception:
+                # If we can't read the file, fall back to defaults
+                break
+        
+        # Move up one level
+        parent = current_path.parent
+        if parent == current_path:  # Reached root
+            break
+        current_path = parent
+    
+    # Return defaults if no pyproject.toml found or error reading it
+    return {}
 
 
 class CodeFormatter:
@@ -16,22 +48,28 @@ class CodeFormatter:
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        # Read Black configuration from pyproject.toml
+        self.black_config = _read_black_config()
 
-    def format_code(self, code: str, line_length: int = 100) -> str:
+    def format_code(self, code: str, line_length: Optional[int] = None) -> str:
         """Format Python code using Black.
 
         Args:
             code: Python code to format
-            line_length: Maximum line length
+            line_length: Maximum line length (if None, reads from pyproject.toml)
 
         Returns:
             Formatted code
         """
+        # Use provided line_length or read from project configuration
+        if line_length is None:
+            line_length = self.black_config.get("line-length", 88)  # Default to 88 if not found
+        
         try:
             # Try to use Black programmatically
             import black
 
-            # Format with Black
+            # Format with Black using project configuration
             mode = black.Mode(
                 line_length=line_length,
                 target_versions={black.TargetVersion.PY38},
@@ -50,7 +88,7 @@ class CodeFormatter:
             # Return organized code even if Black fails
             return self.organize_imports(code)
 
-    def _format_with_black_cli(self, code: str, line_length: int = 100) -> str:
+    def _format_with_black_cli(self, code: str, line_length: int) -> str:
         """Format code using Black CLI.
 
         Args:
@@ -265,12 +303,12 @@ class CodeFormatter:
         return "\n".join(indented_lines)
 
 
-def format_code(code: str, line_length: int = 100) -> str:
+def format_code(code: str, line_length: Optional[int] = None) -> str:
     """Convenience function to format code.
 
     Args:
         code: Python code to format
-        line_length: Maximum line length
+        line_length: Maximum line length (if None, reads from pyproject.toml)
 
     Returns:
         Formatted code

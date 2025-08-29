@@ -653,7 +653,7 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
        required: true
        description: "Primary key columns for the dimension"
      
-     - name: track_history_columns
+     - name: track_history_column_list
        type: array
        required: false
        default: []
@@ -690,12 +690,12 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
          database: "{catalog}.{silver_schema}"
          table: "dim_{{ table_name }}"
          mode: cdc
-         cdc_config:
-           keys: "{{ primary_keys }}"
-           sequence_by: "{{ sequence_column }}"
-           scd_type: 2
-           track_history_columns: "{{ track_history_columns }}"
-           ignore_null_updates: "{{ ignore_null_updates }}"
+                 cdc_config:
+          keys: "{{ primary_keys }}"
+          sequence_by: "{{ sequence_column }}"
+          scd_type: 2
+          track_history_column_list: "{{ track_history_column_list }}"
+          ignore_null_updates: "{{ ignore_null_updates }}"
          table_properties:
            delta.enableChangeDataFeed: true
            table.type: "dimension"
@@ -715,14 +715,14 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
    template_parameters:
      table_name: customer
      source_table: customer_bronze
-     primary_keys:
-       - "customer_id"
-     track_history_columns:
-       - "name"
-       - "address"
-       - "phone"
-       - "email"
-       - "market_segment"
+         primary_keys:
+      - "customer_id"
+    track_history_column_list:
+      - "name"
+      - "address"
+      - "phone"
+      - "email"
+      - "market_segment"
      sequence_column: "_commit_timestamp"
      ignore_null_updates: true
 

@@ -1,0 +1,23 @@
+# Development environment substitutions
+# Token substitutions
+
+# TODO: change to the actual catalog, schemas, and landing path
+# TODO: Add any other substitution variables you need here
+tst:
+  env: tst
+  catalog: tst_catalog
+  bronze_schema: tst_bronze_schema
+  silver_schema: tst_silver_schema
+  gold_schema: tst_gold_schema
+  landing_path: /volumes/catalog/schema/volume_name/landing 
+
+
+# Secret configuration
+# TODO: change to the actual secret scopes
+# These secrets need to be created in the Databricks workspace and accessible using dbutils.secrets.get(scope, key)
+secrets:
+  default_scope: tst-secrets
+  scopes:
+    database: tst-db-secrets
+    storage: tst-storage-secrets
+    api: tst-api-secrets 
