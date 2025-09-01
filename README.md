@@ -24,6 +24,9 @@
 
 - The only Metadata framework that generates production ready Pyspark code for Lakeflow Declarative Pipelines
 
+## 📚 Documentation 
+Full [documentation](https://lakehouse-plumber.readthedocs.io/) is available on ReadTheDocs.
+
 ## ⚡ Why Lakehouse Plumber?
 
 **Core principles of a good Metadata framework:**
