@@ -18,6 +18,7 @@ ERROR_REFERENCE.md
 UNTESTED_LOGIC_ANALYSIS.md
 .readthedocs.yml
 publish.sh
+Example_Projects/acmi/generated/
 
 docs/_build/
 README.md.bkup

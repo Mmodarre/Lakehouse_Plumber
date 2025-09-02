@@ -34,11 +34,11 @@ class TestBundleManagerConservative:
         # Create directory structure
         self.generated_dir = self.project_root / "generated" / "dev"
         self.generated_dir.mkdir(parents=True)
-        self.resources_dir = self.project_root / "resources" / "lhp" / "dev"
+        self.resources_dir = self.project_root / "resources" / "lhp"  # Root level now
         self.resources_dir.mkdir(parents=True)
         
         self.manager = BundleManager(self.project_root)
-        # Set the resources_dir to the dev environment directory
+        # Set the resources_dir to the root level directory (new behavior)
         self.manager.resources_dir = self.resources_dir
 
     def teardown_method(self):

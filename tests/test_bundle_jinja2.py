@@ -70,8 +70,8 @@ class TestBundleJinja2Templates:
             assert f"Bundle Resource for {pipeline_name}" in content  # Header
             assert f"{pipeline_name}_pipeline:" in content  # Pipeline key
             assert f"name: {pipeline_name}_pipeline" in content  # Pipeline name
-            assert f"include: ../../generated/dev/{pipeline_name}/**" in content  # Glob pattern
-            assert f"generated/dev/{pipeline_name}" in content  # Root path
+            assert f"include: ${{workspace.file_path}}/generated/${{bundle.target}}/{pipeline_name}/**" in content  # Glob pattern
+            assert f"${{workspace.file_path}}/generated/${{bundle.target}}/{pipeline_name}" in content  # Root path
             
             # Verify no template syntax remains
             assert "{{ pipeline_name }}" not in content
@@ -91,8 +91,8 @@ class TestBundleJinja2Templates:
         assert len(content) > 0
         
         # Verify glob pattern is still present (will capture any future files)
-        assert f"include: ../../generated/dev/{pipeline_name}/**" in content
-        assert f"root_path: ${{workspace.file_path}}/generated/dev/{pipeline_name}" in content
+        assert f"include: ${{workspace.file_path}}/generated/${{bundle.target}}/{pipeline_name}/**" in content
+        assert f"root_path: ${{workspace.file_path}}/generated/${{bundle.target}}/{pipeline_name}" in content
         
         # Verify basic structure
         assert f"{pipeline_name}_pipeline:" in content
@@ -114,8 +114,8 @@ class TestBundleJinja2Templates:
         assert f"Bundle Resource for {long_pipeline_name}" in content
         assert f"{long_pipeline_name}_pipeline:" in content
         assert f"name: {long_pipeline_name}_pipeline" in content
-        assert f"include: ../../generated/{long_pipeline_name}/**" in content
-        assert f"generated/{long_pipeline_name}" in content
+        assert f"include: ${{workspace.file_path}}/generated/${{bundle.target}}/{long_pipeline_name}/**" in content
+        assert f"${{workspace.file_path}}/generated/${{bundle.target}}/{long_pipeline_name}" in content
         
         # Verify template still produces valid structure
         assert "resources:" in content
@@ -210,7 +210,7 @@ class TestBundleJinja2Templates:
             glob_config = libraries[0]["glob"]
             assert "include" in glob_config
             
-            expected_pattern = f"../../generated/dev/{pipeline_name}/**"
+            expected_pattern = f"${{workspace.file_path}}/generated/${{bundle.target}}/{pipeline_name}/**"
             actual_pattern = glob_config["include"]
             
             assert actual_pattern == expected_pattern, f"Expected '{expected_pattern}', got '{actual_pattern}'"
@@ -237,14 +237,14 @@ class TestBundleJinja2Templates:
             # Verify root_path exists and has correct format
             assert "root_path" in pipeline_config
             
-            expected_root_path = f"${{workspace.file_path}}/generated/dev/{pipeline_name}"
+            expected_root_path = f"${{workspace.file_path}}/generated/${{bundle.target}}/{pipeline_name}"
             actual_root_path = pipeline_config["root_path"]
             
             assert actual_root_path == expected_root_path, f"Expected '{expected_root_path}', got '{actual_root_path}'"
             
             # Verify the path contains workspace variable substitution
             assert "${workspace.file_path}" in actual_root_path
-            assert f"/generated/dev/{pipeline_name}" in actual_root_path
+            assert f"/generated/${{bundle.target}}/{pipeline_name}" in actual_root_path
     
     def test_yaml_structure_completeness(self):
         """Should include all required YAML fields (libraries, root_path, etc.)"""
@@ -272,8 +272,8 @@ class TestBundleJinja2Templates:
         
         # Verify field values are properly set
         assert pipeline_config["name"] == f"{pipeline_name}_pipeline"
-        assert pipeline_config["catalog"] == "main"
-        assert pipeline_config["schema"] == "lhp_${bundle.target}"
+        assert pipeline_config["catalog"] == "${var.default_pipeline_catalog}"
+        assert pipeline_config["schema"] == "${var.default_pipeline_schema}"
         
         # Verify libraries structure
         libraries = pipeline_config["libraries"]
@@ -385,24 +385,17 @@ class TestBundleJinja2Templates:
                 # Verify correct template was used
                 assert template_name == "bundle/pipeline_resource.yml.j2"
                 
-                # Verify context structure
+                # Verify context structure (new behavior - only pipeline_name)
                 assert isinstance(context, dict)
                 assert "pipeline_name" in context
-                assert "catalog" in context
-                assert "schema" in context
+                # Note: catalog and schema are no longer in context (now use variables)
                 
                 # Verify correct pipeline_name value
                 expected_name = pipeline_names[i]
                 assert context["pipeline_name"] == expected_name
                 
-                # Context should contain pipeline_name, env, catalog, and schema
-                assert len(context) == 4, f"Context should contain pipeline_name, env, catalog, and schema, got: {context.keys()}"
-                assert "env" in context
-                assert context["env"] == "dev"
-                
-                # Verify default catalog and schema values
-                assert context["catalog"] == "main"
-                assert context["schema"] == "lhp_${bundle.target}"
+                # Context should contain only pipeline_name (new behavior)
+                assert len(context) == 1, f"Context should contain only pipeline_name, got: {context.keys()}"
                 
         finally:
             # Restore original method
@@ -502,8 +495,8 @@ class TestBundleJinja2Templates:
             assert len(lines) > 0, "Generated content should not be empty"
             first_line = lines[0].strip()
             
-            # Verify LHP header format (now includes environment)
-            expected_header = f"# Generated by LakehousePlumber - Bundle Resource for {pipeline_name} (dev)"
+            # Verify LHP header format (environment-agnostic)
+            expected_header = f"# Generated by LakehousePlumber - Bundle Resource for {pipeline_name}"
             assert first_line == expected_header, f"Expected header '{expected_header}', got '{first_line}'"
             
             # Verify header contains key components
@@ -550,7 +543,7 @@ class TestBundleJinja2Templates:
             glob_config = library_entry["glob"]
             assert "include" in glob_config, "Glob should have 'include' pattern"
             
-            expected_pattern = f"../../generated/dev/{pipeline_name}/**"
+            expected_pattern = f"${{workspace.file_path}}/generated/${{bundle.target}}/{pipeline_name}/**"
             actual_pattern = glob_config["include"]
             assert actual_pattern == expected_pattern, f"Expected pattern '{expected_pattern}', got '{actual_pattern}'"
             

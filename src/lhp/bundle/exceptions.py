@@ -112,4 +112,14 @@ class BundleConfigurationError(BundleResourceError):
     pass
 
 
+class MissingDatabricksTargetError(BundleResourceError):
+    """
+    Exception raised when substitution file exists but corresponding target missing in databricks.yml.
+    
+    This exception is used when LHP finds substitution files (e.g., substitutions/dev.yaml)
+    but the corresponding targets are not defined in databricks.yml.
+    """
+    pass
+
+
  

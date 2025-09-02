@@ -3,15 +3,21 @@
 bundle:
   name: {{ project_name }}
 
+variables:
+  default_pipeline_catalog:
+    description: "Default catalog for pipelines"
+  default_pipeline_schema:
+    description: "Default schema for pipelines"
+
 include:
   # User-managed resource files (shared across all environments)
   - resources/*.yml
+  - resources/lhp/*.yml
 
 targets:
-  # ⚠️ IMPORTANT: Target names MUST match your substitution environment names
-  # - Each target name should have a corresponding substitutions/{name}.yaml file
-  # - LHP generates environment-specific resources under resources/lhp/{env}/
-  # - Example: target 'dev' expects substitutions/dev.yaml
+  # ⚠️ IMPORTANT: Target names MUST match your LHP substitution environment names
+  # - Each target name should have a corresponding substitutions/{env}.yaml file
+  # LHP automatically adds environment-specific variables to each corresponding target below.
   
   dev:
     # The default target uses 'mode: development' to create a development copy.
@@ -20,19 +26,33 @@ targets:
     # See also https://docs.databricks.com/dev-tools/bundles/deployment-modes.html.
     mode: development
     default: true
-    include:
-      - resources/lhp/dev/*.yml  # Dev-specific LHP resources
     workspace:
       host: <databricks_host>
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}
 
-  prod:
+  
+  tst:
     mode: production
-    include:
-      - resources/lhp/prod/*.yml  # Prod-specific LHP resources
     workspace:
       host: <databricks_host>
       # We explicitly deploy to /Workspace/Users/<USERNAME> to make sure we only have a single copy.
-      root_path: /Workspace/Users/<USERNAME@COMPANY.com>/.bundle/${bundle.name}/${bundle.target}
+      root_path: /Workspace/<code_location>/.bundle/${bundle.name}/${bundle.target}
     permissions:
-      - user_name: <USERNAME@COMPANY.com>
-        level: CAN_MANAGE 
+      permissions:
+      - service_principal_name: <service_principal_id>
+        level: CAN_MANAGE
+    run_as:
+      service_principal_name: <service_principal_id>
+
+  prod:
+    mode: production
+    workspace:
+      host: <databricks_host>
+      # We explicitly deploy to /Workspace/Users/<USERNAME> to make sure we only have a single copy.
+      root_path: /Workspace/<code_location>/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      permissions:
+      - service_principal_name: <service_principal_id>
+        level: CAN_MANAGE
+    run_as:
+      service_principal_name: <service_principal_id>

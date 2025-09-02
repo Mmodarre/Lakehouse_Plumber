@@ -302,7 +302,7 @@ class TestBundleManagerFileOperations:
         # Should generate template efficiently
         assert "large_pipeline" in content
         assert "- glob:" in content
-        assert "include: ../../generated/large_pipeline/**" in content
+        assert "include: ${workspace.file_path}/generated/${bundle.target}/large_pipeline/**" in content
 
     def test_bundle_manager_error_handling_initialization(self):
         """Should handle initialization errors appropriately."""

@@ -62,15 +62,15 @@ class BundleManager(BaseActionGenerator):
         self.logger = logging.getLogger(__name__)
 
     def _get_env_resources_dir(self, env: str) -> Path:
-        """Get environment-specific resources directory.
+        """Get root-level resources directory (no longer environment-specific).
         
         Args:
-            env: Environment name
+            env: Environment name (kept for compatibility but not used)
             
         Returns:
-            Path to environment-specific resources directory
+            Path to root-level resources directory
         """
-        return self.resources_base_dir / env
+        return self.resources_base_dir
     
     def generate(self, action, context: Dict[str, Any]) -> str:
         """
@@ -161,6 +161,13 @@ class BundleManager(BaseActionGenerator):
                     
                 except Exception as e:
                     self.logger.warning(f"Failed to delete resource file {resource_file}: {e}")
+        
+        # Step 3: NEW - Update databricks.yml with pipeline variables
+        try:
+            self._update_databricks_variables(output_dir, env)
+        except Exception as e:
+            self.logger.error(f"Failed to update databricks.yml variables: {e}")
+            raise BundleResourceError(f"Databricks YAML variable update failed: {e}", e)
         
         # Log summary with conservative approach context
         if updated_count > 0 or removed_count > 0:
@@ -305,22 +312,23 @@ class BundleManager(BaseActionGenerator):
         """
         Generate content for a bundle resource file using Jinja2 template.
         
+        NEW BEHAVIOR: Template now uses static variables (${var.default_pipeline_catalog} 
+        and ${var.default_pipeline_schema}) instead of dynamic extraction from Python files.
+        The actual values are managed through databricks.yml variables.
+        
         Args:
             pipeline_name: Name of the pipeline
-            output_dir: Output directory containing generated Python files
+            output_dir: Output directory (not used for catalog/schema extraction anymore)
             env: Environment name for template context
             
         Returns:
-            YAML content for the resource file
+            YAML content for the resource file with static variable references
         """
-        # Extract database info from generated Python files
-        database_info = self._extract_database_from_python_files(pipeline_name, output_dir)
-        
+        # NEW: No database extraction needed - template uses static variables
         context = {
             "pipeline_name": pipeline_name,
-            "env": env,
-            "catalog": database_info.get("catalog", "main"),
-            "schema": database_info.get("schema", f"lhp_${{bundle.target}}")
+            # NOTE: env, catalog and schema are no longer needed in context
+            # Template now uses: ${var.default_pipeline_catalog} and ${var.default_pipeline_schema}
         }
         
         return self.render_template("bundle/pipeline_resource.yml.j2", context)
@@ -347,6 +355,344 @@ class BundleManager(BaseActionGenerator):
         # then by first occurrence for ties (deterministic)
         most_common = counter.most_common(1)[0][0]
         return most_common
+
+    def _extract_first_global_catalog_schema(self, output_dir: Union[Path, str]) -> Dict[str, str]:
+        """
+        Extract FIRST catalog.schema found from ANY Python file across ALL pipelines.
+        
+        This method:
+        1. Scans all pipeline directories in the output directory
+        2. Searches through all Python files for catalog.schema patterns
+        3. Returns the FIRST catalog.schema found (not most common)
+        
+        Args:
+            output_dir: Output directory containing generated Python files (Path or str)
+            
+        Returns:
+            Dict with 'catalog' and 'schema' keys containing resolved values
+        """
+        # Convert string to Path for backward compatibility
+        if isinstance(output_dir, str):
+            output_dir = self.project_root / "generated"
+        
+        if not output_dir.exists():
+            self.logger.debug(f"Output directory not found: {output_dir}")
+            return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
+        
+        # Find all pipeline directories (directories containing Python files)
+        pipeline_dirs = [d for d in output_dir.iterdir() if d.is_dir()]
+        self.logger.debug(f"Found {len(pipeline_dirs)} pipeline directories in {output_dir}")
+        
+        # Search through all Python files across all pipelines
+        for pipeline_dir in pipeline_dirs:
+            python_files = list(pipeline_dir.glob("*.py"))
+            self.logger.debug(f"Searching {len(python_files)} Python files in {pipeline_dir.name}")
+            
+            for py_file in python_files:
+                try:
+                    content = py_file.read_text(encoding='utf-8')
+                    file_database_values = self._extract_database_patterns(content)
+                    
+                    # Return the FIRST catalog.schema found
+                    if file_database_values:
+                        first_db_value = file_database_values[0]
+                        self.logger.info(f"Found first global catalog.schema: {first_db_value} in {py_file}")
+                        return self._parse_resolved_database_string(first_db_value)
+                        
+                except Exception as e:
+                    self.logger.debug(f"Could not read {py_file}: {e}")
+                    continue
+        
+        # No catalog.schema found in any Python files
+        self.logger.info("No catalog.schema patterns found in any Python files, using defaults")
+        return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
+
+    def _get_all_substitution_environments(self) -> List[str]:
+        """
+        Discover all substitution environment files and return environment names.
+        
+        Scans the substitutions/ directory for all *.yaml files and extracts
+        the environment names (filename without extension).
+        
+        Returns:
+            List of environment names found in substitutions directory
+            
+        Example:
+            If substitutions/ contains: dev.yaml, tst.yaml, prod.yaml
+            Returns: ['dev', 'tst', 'prod']
+        """
+        substitutions_dir = self.project_root / "substitutions"
+        
+        if not substitutions_dir.exists():
+            self.logger.debug(f"Substitutions directory not found: {substitutions_dir}")
+            return []
+        
+        # Find all .yaml files in substitutions directory
+        yaml_files = list(substitutions_dir.glob("*.yaml"))
+        environments = [f.stem for f in yaml_files if f.is_file()]
+        
+        # Sort for consistent ordering
+        environments.sort()
+        
+        self.logger.debug(f"Found {len(environments)} substitution environments: {environments}")
+        return environments
+
+    def _find_substitution_variables_for_values(self, catalog: str, schema: str, env: str) -> Dict[str, str]:
+        """
+        Find variable names in substitution files that contain specific catalog/schema values.
+        
+        Parses the specified environment's substitution file to find which variable names
+        contain the given catalog and schema values.
+        
+        Args:
+            catalog: Catalog value to search for (e.g., "acmi_edw_dev")
+            schema: Schema value to search for (e.g., "bronze_layer") 
+            env: Environment name to search in (e.g., "dev")
+            
+        Returns:
+            Dict mapping 'catalog_var' and 'schema_var' to variable names found
+            
+        Example:
+            If substitutions/dev.yaml contains:
+                catalog: "acmi_edw_dev"
+                bronze_schema: "bronze_layer"
+            And we search for catalog="acmi_edw_dev", schema="bronze_layer"
+            Returns: {"catalog_var": "catalog", "schema_var": "bronze_schema"}
+        """
+        substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
+        
+        if not substitution_file.exists():
+            self.logger.warning(f"Substitution file not found: {substitution_file}")
+            return {"catalog_var": None, "schema_var": None}
+        
+        try:
+            # Import yaml here to use PyYAML (not ruamel.yaml)
+            import yaml
+            
+            with open(substitution_file, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            
+            if not config:
+                self.logger.warning(f"Empty substitution file: {substitution_file}")
+                return {"catalog_var": None, "schema_var": None}
+            
+            # Get environment-specific config
+            env_config = config.get(env, {})
+            if not env_config:
+                self.logger.warning(f"No configuration found for environment '{env}' in {substitution_file}")
+                return {"catalog_var": None, "schema_var": None}
+            
+            # Search for variables with matching values
+            catalog_var = None
+            schema_var = None
+            
+            for var_name, var_value in env_config.items():
+                if isinstance(var_value, str):
+                    if var_value == catalog:
+                        catalog_var = var_name
+                        self.logger.debug(f"Found catalog variable: {var_name} = {var_value}")
+                    if var_value == schema:
+                        schema_var = var_name
+                        self.logger.debug(f"Found schema variable: {var_name} = {var_value}")
+            
+            result = {"catalog_var": catalog_var, "schema_var": schema_var}
+            self.logger.info(f"Variable resolution for {env}: {result}")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error parsing substitution file {substitution_file}: {e}")
+            return {"catalog_var": None, "schema_var": None}
+
+    def _validate_databricks_targets_exist(self, environments: List[str]) -> None:
+        """
+        Validate that all required targets exist in databricks.yml.
+        
+        Checks that databricks.yml exists and contains target definitions for
+        all specified environments. Raises error if any targets are missing.
+        
+        Args:
+            environments: List of environment names that should have targets
+                         (e.g., ['dev', 'tst', 'prod'])
+            
+        Raises:
+            FileNotFoundError: If databricks.yml doesn't exist
+            MissingDatabricksTargetError: If any targets are missing
+            BundleResourceError: If databricks.yml is malformed
+        """
+        databricks_file = self.project_root / "databricks.yml"
+        
+        if not databricks_file.exists():
+            raise FileNotFoundError(
+                f"databricks.yml not found at {databricks_file}. "
+                f"Please ensure your project has a databricks.yml file."
+            )
+        
+        try:
+            # Import yaml here to use PyYAML (not ruamel.yaml)
+            import yaml
+            
+            with open(databricks_file, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            
+            if not data:
+                raise BundleResourceError(
+                    f"databricks.yml is empty or malformed: {databricks_file}"
+                )
+            
+            if 'targets' not in data:
+                from .exceptions import MissingDatabricksTargetError
+                raise MissingDatabricksTargetError(
+                    f"databricks.yml missing 'targets' section. "
+                    f"Please add a targets section with your environment configurations."
+                )
+            
+            targets = data['targets']
+            if not isinstance(targets, dict):
+                raise BundleResourceError(
+                    f"databricks.yml 'targets' section must be a dictionary, "
+                    f"but found {type(targets).__name__}"
+                )
+            
+            # Check for missing targets
+            missing_targets = [env for env in environments if env not in targets]
+            
+            if missing_targets:
+                from .exceptions import MissingDatabricksTargetError
+                available_targets = list(targets.keys())
+                raise MissingDatabricksTargetError(
+                    f"Missing targets in databricks.yml: {missing_targets}. "
+                    f"Available targets: {available_targets}. "
+                    f"Please add the missing target configurations to your databricks.yml file."
+                )
+            
+            self.logger.debug(f"All required targets exist in databricks.yml: {environments}")
+            
+        except (yaml.YAMLError, OSError) as e:
+            raise BundleResourceError(
+                f"Failed to read or parse databricks.yml: {e}"
+            ) from e
+
+    def _update_databricks_variables(self, output_dir: Path, current_env: str) -> None:
+        """
+        Update databricks.yml with pipeline variables for all environments.
+        
+        This method implements the complete new flow:
+        1. Extract first global catalog.schema from any Python file
+        2. Get all substitution environments 
+        3. Find variable names for catalog/schema values in current environment
+        4. Load actual values from each environment's substitution file
+        5. Update databricks.yml variables for all targets
+        
+        Args:
+            output_dir: Directory containing generated Python files
+            current_env: Current environment being generated (e.g., 'dev')
+            
+        Raises:
+            BundleResourceError: If the update process fails
+            MissingDatabricksTargetError: If required targets are missing
+        """
+        self.logger.info("🔧 Updating databricks.yml with pipeline variables...")
+        
+        # Step 1: Extract first global catalog.schema
+        global_db_info = self._extract_first_global_catalog_schema(output_dir)
+        catalog_value = global_db_info.get("catalog")
+        schema_value = global_db_info.get("schema")
+        
+        if not catalog_value or not schema_value:
+            self.logger.warning(
+                f"Could not find catalog.schema in Python files. "
+                f"Found: catalog={catalog_value}, schema={schema_value}. "
+                f"Skipping databricks.yml variable update."
+            )
+            return
+        
+        self.logger.info(f"Found global catalog.schema: {catalog_value}.{schema_value}")
+        
+        # Step 2: Get all substitution environments
+        all_environments = self._get_all_substitution_environments()
+        if not all_environments:
+            self.logger.warning("No substitution files found. Skipping databricks.yml variable update.")
+            return
+        
+        self.logger.debug(f"Found substitution environments: {all_environments}")
+        
+        # Step 3: Find variable names in current environment's substitution file
+        variable_info = self._find_substitution_variables_for_values(
+            catalog_value, schema_value, current_env
+        )
+        catalog_var_name = variable_info.get("catalog_var")
+        schema_var_name = variable_info.get("schema_var")
+        
+        if not catalog_var_name or not schema_var_name:
+            self.logger.warning(
+                f"Could not find variable names in {current_env} substitution file for "
+                f"catalog='{catalog_value}', schema='{schema_value}'. "
+                f"Found: catalog_var={catalog_var_name}, schema_var={schema_var_name}. "
+                f"Skipping databricks.yml variable update."
+            )
+            return
+        
+        self.logger.info(f"Using variable names: {catalog_var_name}={catalog_value}, {schema_var_name}={schema_value}")
+        
+        # Step 4: Validate all targets exist in databricks.yml
+        self._validate_databricks_targets_exist(all_environments)
+        
+        # Step 5: Load actual values from each environment's substitution files
+        environment_variables = {}
+        for env in all_environments:
+            env_values = self._load_substitution_values_for_environment(env, catalog_var_name, schema_var_name)
+            environment_variables[env] = {
+                "default_pipeline_catalog": env_values["catalog"],
+                "default_pipeline_schema": env_values["schema"]
+            }
+        
+        # Step 6: Update databricks.yml using DatabricksYAMLManager
+        from .databricks_yaml_manager import DatabricksYAMLManager
+        
+        databricks_manager = DatabricksYAMLManager(self.project_root)
+        databricks_manager.bulk_update_all_targets(all_environments, environment_variables)
+        
+        self.logger.info(f"✅ Updated databricks.yml variables for {len(all_environments)} targets: {all_environments}")
+
+    def _load_substitution_values_for_environment(self, env: str, catalog_var: str, schema_var: str) -> Dict[str, str]:
+        """
+        Load actual catalog and schema values from a specific environment's substitution file.
+        
+        Args:
+            env: Environment name (e.g., 'dev')
+            catalog_var: Variable name for catalog (e.g., 'catalog')
+            schema_var: Variable name for schema (e.g., 'bronze_schema')
+            
+        Returns:
+            Dict with 'catalog' and 'schema' keys containing actual values
+        """
+        substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
+        
+        if not substitution_file.exists():
+            self.logger.warning(f"Substitution file not found: {substitution_file}")
+            return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
+        
+        try:
+            import yaml
+            
+            with open(substitution_file, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+            
+            env_config = config.get(env, {}) if config else {}
+            
+            catalog_value = env_config.get(catalog_var, "main")
+            schema_value = env_config.get(schema_var, f"lhp_${{bundle.target}}")
+            
+            self.logger.debug(f"Loaded values for {env}: {catalog_var}={catalog_value}, {schema_var}={schema_value}")
+            
+            return {
+                "catalog": catalog_value,
+                "schema": schema_value
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error loading substitution values from {substitution_file}: {e}")
+            return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
 
     def _extract_database_from_python_files(self, pipeline_name: str, output_dir: Union[Path, str]) -> Dict[str, str]:
         """
