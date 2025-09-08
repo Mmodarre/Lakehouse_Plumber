@@ -1,6 +1,6 @@
 # This pipeline is used to load the customer table from the raw schema into the bronze schema
 # Pipeline variable puts the generate files in the same folder for the pipeline to pick up
-pipeline: test_python_func_pipeline
+pipeline: sample_python_func_pipeline
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: python_func_flowgroup
