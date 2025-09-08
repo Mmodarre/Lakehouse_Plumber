@@ -469,8 +469,8 @@ class BundleManager(BaseActionGenerator):
             # Import yaml here to use PyYAML (not ruamel.yaml)
             import yaml
             
-            with open(substitution_file, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
+            from ..utils.yaml_loader import load_yaml_file
+            config = load_yaml_file(substitution_file, error_context="bundle substitution file")
             
             if not config:
                 self.logger.warning(f"Empty substitution file: {substitution_file}")
@@ -531,8 +531,11 @@ class BundleManager(BaseActionGenerator):
             # Import yaml here to use PyYAML (not ruamel.yaml)
             import yaml
             
-            with open(databricks_file, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)
+            from ..utils.yaml_loader import load_yaml_file
+            try:
+                data = load_yaml_file(databricks_file, allow_empty=False, error_context="databricks.yml")
+            except ValueError as e:
+                raise BundleResourceError(f"Failed to load databricks.yml: {e}")
             
             if not data:
                 raise BundleResourceError(
@@ -673,10 +676,8 @@ class BundleManager(BaseActionGenerator):
             return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
         
         try:
-            import yaml
-            
-            with open(substitution_file, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
+            from ..utils.yaml_loader import load_yaml_file
+            config = load_yaml_file(substitution_file, error_context="bundle substitution file")
             
             env_config = config.get(env, {}) if config else {}
             

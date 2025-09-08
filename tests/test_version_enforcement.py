@@ -188,9 +188,17 @@ version: "1.0"
 required_lhp_version: ">=0.4.0,<0.5.0"
 """)
         
-        # Mock ImportError for packaging
+        # Mock ImportError for packaging by patching the specific import path
         with patch('lhp.core.orchestrator.get_version', return_value='0.4.1'):
-            with patch('builtins.__import__', side_effect=ImportError("No module named 'packaging'")):
+            # Create a custom import function that raises ImportError only for packaging imports
+            original_import = __builtins__['__import__']
+            
+            def mock_import(name, *args, **kwargs):
+                if 'packaging' in name:
+                    raise ImportError("No module named 'packaging'")
+                return original_import(name, *args, **kwargs)
+            
+            with patch('builtins.__import__', side_effect=mock_import):
                 with pytest.raises(LHPError) as exc_info:
                     ActionOrchestrator(tmp_path)
                 

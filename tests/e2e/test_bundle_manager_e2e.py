@@ -8,6 +8,7 @@ bundle resource file management, covering all BM scenarios from test_scenario.md
 import pytest
 import shutil
 import os
+import hashlib
 from pathlib import Path
 from click.testing import CliRunner
 
@@ -42,24 +43,19 @@ class TestBundleManagerE2E:
         os.chdir(self.original_cwd)
     
     def _init_bundle_project(self):
-        """Initialize bundle project by copying baselines."""
-        # Copy generated baseline to generated directory
-        if (self.project_root / "generated_baseline" / "dev").exists():
-            if self.generated_dir.exists():
-                shutil.rmtree(self.generated_dir)
-            shutil.copytree(
-                self.project_root / "generated_baseline" / "dev",
-                self.generated_dir
-            )
+        """Initialize bundle project with empty working directories."""
+        # Ensure working directories exist but are empty for fresh generation
+        # Baselines are only used for comparison, never copied into working directories
         
-        # Copy resources baseline to resources directory
-        if (self.project_root / "resources_baseline" / "lhp").exists():
-            if self.resources_dir.exists():
-                shutil.rmtree(self.resources_dir)
-            shutil.copytree(
-                self.project_root / "resources_baseline" / "lhp",
-                self.resources_dir
-            )
+        # Remove any existing working directories
+        if self.generated_dir.exists():
+            shutil.rmtree(self.generated_dir)
+        if self.resources_dir.exists():
+            shutil.rmtree(self.resources_dir)
+        
+        # Create empty working directories
+        self.generated_dir.mkdir(parents=True, exist_ok=True)
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
     
     # ========================================================================
     # HELPER METHODS
@@ -189,6 +185,10 @@ resources:
         """BM-1: Preserve existing LHP-managed file (no changes)."""
         pipeline_name = "acmi_edw_bronze"
         
+        # Setup: Run initial generation to create the pipeline directory and resource file
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
         # Preconditions: Pipeline directory exists, LHP resource file exists with header
         assert (self.generated_dir / pipeline_name).exists(), "Pipeline directory should exist"
         resource_file = self.resources_dir / f"{pipeline_name}.pipeline.yml"
@@ -215,6 +215,10 @@ resources:
     def test_BM2_backup_and_replace_user_managed_file(self):
         """BM-2: Backup and replace user-managed file."""
         pipeline_name = "acmi_edw_bronze"
+        
+        # Setup: Run initial generation to create the pipeline directory
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
         
         # Preconditions: Pipeline directory exists, user resource file exists without LHP header
         assert (self.generated_dir / pipeline_name).exists(), "Pipeline directory should exist"
@@ -245,6 +249,10 @@ resources:
     def test_BM3_create_new_resource_file_when_missing(self):
         """BM-3: Create new resource file when missing."""
         pipeline_name = "acmi_edw_bronze"
+        
+        # Setup: Run initial generation to create the pipeline directory
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
         
         # Preconditions: Pipeline directory exists, no resource file present
         assert (self.generated_dir / pipeline_name).exists(), "Pipeline directory should exist"
@@ -300,6 +308,10 @@ resources:
     def test_BM5_error_on_multiple_resource_files(self):
         """BM-5: Error on multiple resource files for same pipeline."""
         pipeline_name = "acmi_edw_bronze"
+        
+        # Setup: Run initial generation to create the pipeline directory
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
         
         # Preconditions: Pipeline directory exists, multiple resource files exist
         assert (self.generated_dir / pipeline_name).exists(), "Pipeline directory should exist"
@@ -392,3 +404,363 @@ resources:
             self.assert_log_contains(output, "Bundle resource files synchronized")
         else:
             print("⚠️ BM-7: Unexpected behavior with missing directories")
+
+    # ========================================================================
+    # NEW E2E TESTS - BASELINE AND STATE MANAGEMENT
+    # ========================================================================
+    
+    def test_baseline_hash_comparison_dev_environment(self):
+        """Test that generate -e dev produces identical files to baseline using hashes."""
+        # Ensure baseline directory exists
+        baseline_dir = self.project_root / "generated_baseline" / "dev"
+        assert baseline_dir.exists(), "Baseline directory should exist for comparison"
+        
+        # Run generate command for dev environment
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Generate should succeed: {output}"
+        
+        # Use dev-specific directory for baseline comparison
+        dev_generated_dir = self.project_root / "generated" / "dev"
+        
+        # Compare generated files with baseline using hashes
+        hash_differences = self._compare_directory_hashes(dev_generated_dir, baseline_dir)
+        
+        if hash_differences:
+            print(f"\n❌ BASELINE HASH COMPARISON FAILURES ({len(hash_differences)} differences):")
+            for i, diff in enumerate(hash_differences, 1):
+                print(f"  {i}. {diff}")
+            assert False, f"Generated files differ from baseline: {len(hash_differences)} differences found"
+        
+        print("✅ Generated files match baseline perfectly (hash comparison)")
+
+    def test_include_directive_filtering(self):
+        """Test that include directive filters pipelines correctly and matches baseline."""
+        # Modify lhp.yaml to enable include filtering
+        lhp_config_file = self.project_root / "lhp.yaml"
+        original_content = self._enable_include_filtering(lhp_config_file)
+        
+        # Store original working directory for restoration
+        original_cwd = os.getcwd()
+        
+        try:
+            # Ensure we're in the correct working directory
+            os.chdir(self.project_root)
+            
+            # Run generate command for dev environment with include filtering
+            runner = CliRunner()
+            result = runner.invoke(cli, ['--verbose', 'generate', '--env', 'dev'], 
+                                 catch_exceptions=False)
+            exit_code, output = result.exit_code, result.output
+            
+            assert exit_code == 0, f"Generate with include filtering should succeed: {output}"
+            
+            # Use dev-specific directory for comparison
+            dev_generated_dir = self.project_root / "generated" / "dev"
+            
+            # Verify only acmi_edw_raw pipeline was generated
+            self._verify_selective_generation(dev_generated_dir)
+            
+            # Compare generated acmi_edw_raw files with baseline
+            generated_raw_dir = dev_generated_dir / "acmi_edw_raw"
+            baseline_raw_dir = self.project_root / "generated_baseline" / "dev" / "acmi_edw_raw"
+            
+            assert generated_raw_dir.exists(), f"acmi_edw_raw directory should be generated: {generated_raw_dir}"
+            assert baseline_raw_dir.exists(), f"acmi_edw_raw baseline should exist: {baseline_raw_dir}"
+            
+            # Hash comparison for generated files
+            hash_differences = self._compare_directory_hashes(generated_raw_dir, baseline_raw_dir)
+            if hash_differences:
+                print(f"\n❌ INCLUDE FILTERING - GENERATED FILES HASH FAILURES ({len(hash_differences)} differences):")
+                for i, diff in enumerate(hash_differences, 1):
+                    print(f"  {i}. {diff}")
+                assert False, f"Generated acmi_edw_raw files differ from baseline: {len(hash_differences)} differences"
+            
+            # Compare resource file with baseline
+            generated_resource_file = self.resources_dir / "acmi_edw_raw.pipeline.yml"
+            baseline_resource_file = self.project_root / "resources_baseline" / "lhp" / "acmi_edw_raw.pipeline.yml"
+            
+            assert generated_resource_file.exists(), f"acmi_edw_raw resource file should be generated: {generated_resource_file}"
+            assert baseline_resource_file.exists(), f"acmi_edw_raw resource baseline should exist: {baseline_resource_file}"
+            
+            # Hash comparison for resource file
+            resource_hash_diff = self._compare_file_hashes(generated_resource_file, baseline_resource_file)
+            if resource_hash_diff:
+                print(f"\n❌ INCLUDE FILTERING - RESOURCE FILE HASH FAILURE: {resource_hash_diff}")
+                assert False, f"Generated acmi_edw_raw resource file differs from baseline: {resource_hash_diff}"
+            
+            print("✅ Include directive filtering working correctly - generated files match baseline perfectly")
+            
+        finally:
+            # Restore original working directory and lhp.yaml content
+            os.chdir(original_cwd)
+            self._restore_lhp_config(lhp_config_file, original_content)
+
+    def test_multi_environment_consistency(self):
+        """Test same files exist across environments with non-empty content."""
+        environments = ["dev", "tst", "prod"]
+        file_structures = {}
+        
+        # Generate for each environment
+        for env in environments:
+            print(f"Generating for environment: {env}")
+            env_generated_dir = self._clean_and_generate(env)
+            file_structures[env] = self._get_file_structure_with_sizes(env_generated_dir)
+        
+        # Verify same file structure across all environments
+        dev_files = set(file_structures["dev"].keys())
+        for env in ["tst", "prod"]:
+            env_files = set(file_structures[env].keys())
+            missing_files = dev_files - env_files
+            extra_files = env_files - dev_files
+            
+            assert not missing_files, f"Files missing in {env}: {missing_files}"
+            assert not extra_files, f"Extra files in {env}: {extra_files}"
+        
+        # Verify all files have content (size > 0) in all environments
+        empty_files = {}
+        for env in environments:
+            empty_files[env] = [
+                file_path for file_path, size in file_structures[env].items() 
+                if size == 0
+            ]
+            
+        for env in environments:
+            if empty_files[env]:
+                assert False, f"Empty files found in {env}: {empty_files[env]}"
+        
+        # Report statistics
+        total_files = len(dev_files)
+        total_size = sum(file_structures["dev"].values())
+        print(f"✅ Multi-environment consistency verified:")
+        print(f"   - {total_files} files consistent across {len(environments)} environments")
+        print(f"   - All files have content (total size: {total_size} bytes)")
+        print(f"   - Environments: {', '.join(environments)}")
+
+    def test_flowgroup_deletion_triggers_cleanup(self):
+        """Test that deleting flowgroup YAML cleans up generated files."""
+        # Initial generation
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        # Use dev-specific directory for this test
+        dev_generated_dir = self.project_root / "generated" / "dev"
+        
+        # Verify files exist initially
+        generated_files_before = list(dev_generated_dir.rglob("*.py"))
+        assert len(generated_files_before) > 0, "Should have generated files initially"
+        
+        # Find a specific flowgroup file to delete (customer_bronze.yaml)
+        flowgroup_file = self.project_root / "pipelines" / "02_bronze" / "customer_bronze.yaml"
+        assert flowgroup_file.exists(), f"Flowgroup file should exist: {flowgroup_file}"
+        
+        # Store content for potential restoration and delete the file
+        original_content = flowgroup_file.read_text()
+        flowgroup_file.unlink()
+        
+        try:
+            # Re-generate after deletion
+            exit_code, output = self.run_bundle_sync()
+            assert exit_code == 0, f"Generation after flowgroup deletion should succeed: {output}"
+            
+            # Verify corresponding generated files are cleaned up
+            # Look for files that should be related to customer_bronze
+            remaining_customer_bronze_files = list(dev_generated_dir.rglob("*customer_bronze*"))
+            
+            # Also check in acmi_edw_bronze directory specifically
+            bronze_dir = dev_generated_dir / "acmi_edw_bronze"
+            if bronze_dir.exists():
+                remaining_in_bronze = [f for f in bronze_dir.rglob("*customer_bronze*")]
+                remaining_customer_bronze_files.extend(remaining_in_bronze)
+            
+            assert len(remaining_customer_bronze_files) == 0, \
+                f"Customer bronze generated files not cleaned up: {remaining_customer_bronze_files}"
+            
+            print("✅ Flowgroup deletion cleanup working correctly")
+            
+        finally:
+            # Restore the deleted file for other tests
+            flowgroup_file.write_text(original_content)
+
+    def test_pipeline_directory_deletion_cleanup(self):
+        """Test deleting pipeline directory cleans up entire generated pipeline."""
+        # Initial generation
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        # Use dev-specific directory for this test
+        dev_generated_dir = self.project_root / "generated" / "dev"
+        
+        # Verify bronze pipeline files exist
+        bronze_generated_dir = dev_generated_dir / "acmi_edw_bronze"
+        assert bronze_generated_dir.exists(), f"Bronze generated directory should exist: {bronze_generated_dir}"
+        bronze_files_before = list(bronze_generated_dir.rglob("*"))
+        assert len(bronze_files_before) > 0, "Should have bronze generated files initially"
+        
+        # Backup and delete entire bronze pipeline directory
+        bronze_pipeline_dir = self.project_root / "pipelines" / "02_bronze"
+        assert bronze_pipeline_dir.exists(), f"Bronze pipeline directory should exist: {bronze_pipeline_dir}"
+        
+        # Create backup for restoration
+        backup_dir = bronze_pipeline_dir.parent / "02_bronze_backup"
+        shutil.copytree(bronze_pipeline_dir, backup_dir)
+        
+        try:
+            # Delete the entire pipeline directory
+            shutil.rmtree(bronze_pipeline_dir)
+            
+            # Re-generate after deletion
+            exit_code, output = self.run_bundle_sync()
+            assert exit_code == 0, f"Generation after pipeline directory deletion should succeed: {output}"
+            
+            # Verify entire generated pipeline directory is cleaned up
+            assert not bronze_generated_dir.exists(), \
+                f"Generated pipeline directory should be deleted: {bronze_generated_dir}"
+            
+            print("✅ Pipeline directory deletion cleanup working correctly")
+            
+        finally:
+            # Restore the deleted pipeline directory for other tests
+            if backup_dir.exists():
+                shutil.copytree(backup_dir, bronze_pipeline_dir)
+                shutil.rmtree(backup_dir)
+
+    # ========================================================================
+    # HELPER METHODS FOR NEW TESTS
+    # ========================================================================
+    
+    def _compare_directory_hashes(self, generated_dir: Path, baseline_dir: Path) -> list:
+        """Compare directory contents using file hashes."""
+        def get_file_hash(file_path: Path) -> str:
+            """Calculate SHA256 hash of file contents."""
+            with open(file_path, 'rb') as f:
+                return hashlib.sha256(f.read()).hexdigest()
+        
+        differences = []
+        
+        # Get all files in both directories
+        generated_files = {f.relative_to(generated_dir): f for f in generated_dir.rglob("*") if f.is_file()}
+        baseline_files = {f.relative_to(baseline_dir): f for f in baseline_dir.rglob("*") if f.is_file()}
+        
+        # Files only in generated
+        only_in_generated = set(generated_files.keys()) - set(baseline_files.keys())
+        for file_path in only_in_generated:
+            differences.append(f"Extra file in generated: {file_path}")
+        
+        # Files only in baseline
+        only_in_baseline = set(baseline_files.keys()) - set(generated_files.keys())
+        for file_path in only_in_baseline:
+            differences.append(f"Missing file from generated: {file_path}")
+        
+        # Compare hashes of common files
+        common_files = set(generated_files.keys()) & set(baseline_files.keys())
+        for file_path in common_files:
+            try:
+                generated_hash = get_file_hash(generated_files[file_path])
+                baseline_hash = get_file_hash(baseline_files[file_path])
+                
+                if generated_hash != baseline_hash:
+                    differences.append(f"Content differs (hash mismatch): {file_path}")
+            except (OSError, IOError, UnicodeDecodeError) as e:
+                differences.append(f"Error comparing {file_path}: {e}")
+        
+        return differences
+
+    def _clean_and_generate(self, env: str):
+        """Clean generated directory and run generation for specific environment."""
+        # Use environment-specific generated directory
+        env_generated_dir = self.project_root / "generated" / env
+        
+        # Clean existing generated files
+        if env_generated_dir.exists():
+            shutil.rmtree(env_generated_dir)
+        
+        # Run generation for specified environment
+        runner = CliRunner()
+        result = runner.invoke(cli, ['--verbose', 'generate', '--env', env])
+        assert result.exit_code == 0, f"Generation failed for {env}: {result.output}"
+        
+        return env_generated_dir
+
+    def _get_file_structure_with_sizes(self, directory: Path) -> dict:
+        """Get all file paths mapped to their sizes in bytes."""
+        file_sizes = {}
+        if not directory.exists():
+            return file_sizes
+            
+        for file_path in directory.rglob("*"):
+            if file_path.is_file():
+                try:
+                    rel_path = file_path.relative_to(directory)
+                    file_sizes[rel_path] = file_path.stat().st_size
+                except (OSError, IOError) as e:
+                    # Skip files that can't be accessed
+                    print(f"Warning: Could not access {file_path}: {e}")
+        
+        return file_sizes
+
+    def _enable_include_filtering(self, lhp_config_file: Path) -> str:
+        """Enable include filtering in lhp.yaml and return original content."""
+        original_content = lhp_config_file.read_text()
+        
+        # Uncomment lines 9-10 to enable include filtering
+        lines = original_content.split('\n')
+        modified_lines = []
+        
+        for i, line in enumerate(lines):
+            # Lines are 0-indexed, so line 9 is index 8, line 10 is index 9
+            if i == 8 and line.strip().startswith('# include:'):
+                modified_lines.append('include:')
+            elif i == 9 and line.strip().startswith('#   - "01_raw_ingestion/**"'):
+                modified_lines.append('  - "01_raw_ingestion/**"')
+            else:
+                modified_lines.append(line)
+        
+        modified_content = '\n'.join(modified_lines)
+        lhp_config_file.write_text(modified_content)
+        
+        return original_content
+
+    def _restore_lhp_config(self, lhp_config_file: Path, original_content: str):
+        """Restore lhp.yaml to its original content."""
+        lhp_config_file.write_text(original_content)
+
+    def _verify_selective_generation(self, dev_generated_dir: Path):
+        """Verify that only acmi_edw_raw pipeline was generated."""
+        if not dev_generated_dir.exists():
+            assert False, f"Generated directory should exist: {dev_generated_dir}"
+        
+        # Get all generated pipeline directories
+        generated_dirs = {d.name for d in dev_generated_dir.iterdir() if d.is_dir()}
+        
+        # Should only contain acmi_edw_raw
+        expected_dirs = {"acmi_edw_raw"}
+        unexpected_dirs = generated_dirs - expected_dirs
+        missing_dirs = expected_dirs - generated_dirs
+        
+        if unexpected_dirs:
+            assert False, f"Unexpected pipeline directories generated (include filtering failed): {unexpected_dirs}"
+        
+        if missing_dirs:
+            assert False, f"Expected pipeline directories missing: {missing_dirs}"
+        
+        print(f"✅ Selective generation verified: only {expected_dirs} generated")
+
+    def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
+        """Compare hashes of two files, return difference description or empty string if identical."""
+        def get_file_hash(file_path: Path) -> str:
+            """Calculate SHA256 hash of file contents."""
+            with open(file_path, 'rb') as f:
+                return hashlib.sha256(f.read()).hexdigest()
+        
+        try:
+            hash1 = get_file_hash(file1)
+            hash2 = get_file_hash(file2)
+            
+            if hash1 != hash2:
+                return f"Hash mismatch: {file1.name} (generated) vs {file2.name} (baseline)"
+            
+            return ""  # Files are identical
+            
+        except (OSError, IOError, UnicodeDecodeError) as e:
+            return f"Error comparing files: {e}"
+

@@ -53,7 +53,7 @@ class TestEnhancedStalenessDetection:
             yaml_file.write_text("pipeline: test\nflowgroup: test\nactions: []")
             
             # Calculate current checksum
-            current_checksum = state_manager._calculate_checksum(yaml_file)
+            current_checksum = state_manager.calculate_checksum(yaml_file)
             
             # Create file state with current checksum
             file_state = FileState(
@@ -92,7 +92,7 @@ class TestEnhancedStalenessDetection:
             yaml_file.write_text("pipeline: test\nflowgroup: test\nactions: []")
             
             # Calculate current checksum
-            current_yaml_checksum = state_manager._calculate_checksum(yaml_file)
+            current_yaml_checksum = state_manager.calculate_checksum(yaml_file)
             
             # Create file state with current YAML checksum but old global dependencies
             file_state = FileState(
@@ -153,7 +153,7 @@ actions: []
 """)
             
             # Calculate current checksum
-            current_yaml_checksum = state_manager._calculate_checksum(yaml_file)
+            current_yaml_checksum = state_manager.calculate_checksum(yaml_file)
             
             # Create file state with current YAML checksum but old preset dependency
             old_preset_info = DependencyInfo(
@@ -207,8 +207,8 @@ actions: []
 """)
             
             # Calculate current checksums
-            current_yaml_checksum = state_manager._calculate_checksum(yaml_file)
-            current_preset_checksum = state_manager._calculate_checksum(preset_file)
+            current_yaml_checksum = state_manager.calculate_checksum(yaml_file)
+            current_preset_checksum = state_manager.calculate_checksum(preset_file)
             
             # Create file state with current checksums
             current_preset_info = DependencyInfo(
@@ -255,7 +255,7 @@ actions: []
             yaml_file.write_text("pipeline: test\nflowgroup: test\nactions: []")
             
             # Calculate current checksum
-            current_yaml_checksum = state_manager._calculate_checksum(yaml_file)
+            current_yaml_checksum = state_manager.calculate_checksum(yaml_file)
             
             # Create file state
             file_state = FileState(
@@ -293,7 +293,9 @@ actions: []
             assert len(staleness_info["global_changes"]) > 0
             assert "substitutions/dev.yaml" in staleness_info["global_changes"][0]
             assert "test.py" in staleness_info["files"]
-            assert "Global dependencies changed" in staleness_info["files"]["test.py"]["reasons"]
+            assert staleness_info["files"]["test.py"]["stale"] == True
+            assert staleness_info["files"]["test.py"]["reason"] == "global_dependency_change"
+            assert len(staleness_info["global_changes"]) > 0
     
     def test_get_detailed_staleness_info_file_changes(self):
         """Test getting detailed staleness information for file-specific changes."""
@@ -318,7 +320,7 @@ actions: []
 """)
             
             # Calculate current YAML checksum
-            current_yaml_checksum = state_manager._calculate_checksum(yaml_file)
+            current_yaml_checksum = state_manager.calculate_checksum(yaml_file)
             
             # Create file state with old preset dependency
             old_preset_info = DependencyInfo(
@@ -348,7 +350,8 @@ actions: []
             # Should detect file-specific changes
             assert len(staleness_info["global_changes"]) == 0
             assert "test.py" in staleness_info["files"]
-            assert "File dependencies changed" in staleness_info["files"]["test.py"]["reasons"]
+            assert staleness_info["files"]["test.py"]["stale"] == True
+            assert staleness_info["files"]["test.py"]["reason"] == "file_dependency_change"
             assert any("presets/bronze_layer.yaml" in detail for detail in staleness_info["files"]["test.py"]["details"])
     
     def test_get_detailed_staleness_info_source_changes(self):
@@ -381,7 +384,8 @@ actions: []
             # Should detect source changes
             assert len(staleness_info["global_changes"]) == 0
             assert "test.py" in staleness_info["files"]
-            assert "Source YAML changed" in staleness_info["files"]["test.py"]["reasons"]
+            assert staleness_info["files"]["test.py"]["stale"] == True
+            assert staleness_info["files"]["test.py"]["reason"] == "file_dependency_change"
             assert any("test.yaml" in detail for detail in staleness_info["files"]["test.py"]["details"])
     
     def test_get_detailed_staleness_info_no_changes(self):
@@ -395,7 +399,7 @@ actions: []
             yaml_file.write_text("pipeline: test\nflowgroup: test\nactions: []")
             
             # Calculate current checksum
-            current_yaml_checksum = state_manager._calculate_checksum(yaml_file)
+            current_yaml_checksum = state_manager.calculate_checksum(yaml_file)
             
             # Create file state with current checksum
             file_state = FileState(
@@ -416,7 +420,13 @@ actions: []
             
             # Should detect no changes
             assert len(staleness_info["global_changes"]) == 0
-            assert len(staleness_info["files"]) == 0
+            assert len(staleness_info["files"]) == 1  # File reported with status
+            
+            # Verify the file is marked as up-to-date
+            file_info = staleness_info["files"]["test.py"]
+            assert file_info["stale"] == False
+            assert file_info["reason"] == "up_to_date"
+            assert len(file_info["details"]) == 0
     
     def test_staleness_detection_with_multiple_files(self):
         """Test staleness detection with multiple files having different statuses."""
@@ -438,9 +448,9 @@ actions: []
             yaml_file2.write_text("pipeline: test\nflowgroup: test2\npresets:\n  - bronze_layer\nactions: []")
             
             # Calculate current checksums
-            current_yaml1_checksum = state_manager._calculate_checksum(yaml_file1)
-            current_yaml2_checksum = state_manager._calculate_checksum(yaml_file2)
-            current_preset_checksum = state_manager._calculate_checksum(preset_file)
+            current_yaml1_checksum = state_manager.calculate_checksum(yaml_file1)
+            current_yaml2_checksum = state_manager.calculate_checksum(yaml_file2)
+            current_preset_checksum = state_manager.calculate_checksum(preset_file)
             
             # Create file states
             # File 1: up-to-date
@@ -490,8 +500,19 @@ actions: []
             # Get detailed staleness info
             staleness_info = state_manager.get_detailed_staleness_info("dev")
             
-            # Should show only file 2 as stale
+            # Should report both files with their status
             assert len(staleness_info["global_changes"]) == 0
-            assert len(staleness_info["files"]) == 1
+            assert len(staleness_info["files"]) == 2
+            
+            # Verify file 1 is up-to-date
+            assert "test1.py" in staleness_info["files"]
+            file1_info = staleness_info["files"]["test1.py"]
+            assert file1_info["stale"] == False
+            assert file1_info["reason"] == "up_to_date"
+            
+            # Verify file 2 is stale
             assert "test2.py" in staleness_info["files"]
-            assert "test1.py" not in staleness_info["files"] 
+            file2_info = staleness_info["files"]["test2.py"]
+            assert file2_info["stale"] == True
+            assert file2_info["reason"] == "file_dependency_change"
+            assert len(file2_info["details"]) > 0  # Should have dependency change details 

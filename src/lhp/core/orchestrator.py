@@ -1,4 +1,4 @@
-"""Main orchestration for LakehousePlumber pipeline generation."""
+"""Main orchestration for LakehousePlumber pipeline generation (Refactored)."""
 
 import logging
 import os
@@ -6,15 +6,22 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from collections import defaultdict
 
+# Service imports
+from .services.flowgroup_discoverer import FlowgroupDiscoverer
+from .services.flowgroup_processor import FlowgroupProcessor
+from .services.code_generator import CodeGenerator
+from .services.pipeline_validator import PipelineValidator
+
+# Component imports (for service initialization)
 from ..parsers.yaml_parser import YAMLParser
 from ..presets.preset_manager import PresetManager
-from ..core.template_engine import TemplateEngine
-from ..core.project_config_loader import ProjectConfigLoader
+from .template_engine import TemplateEngine
+from .project_config_loader import ProjectConfigLoader
 from ..utils.substitution import EnhancedSubstitutionManager
-from ..core.action_registry import ActionRegistry
-from ..core.validator import ConfigValidator
-from ..core.secret_validator import SecretValidator
-from ..core.dependency_resolver import DependencyResolver
+from .action_registry import ActionRegistry
+from .validator import ConfigValidator
+from .secret_validator import SecretValidator
+from .dependency_resolver import DependencyResolver
 from ..utils.formatter import format_code
 from ..models.config import FlowGroup, Action, ActionType
 from ..utils.error_formatter import LHPError, ErrorCategory
@@ -23,10 +30,16 @@ from ..utils.version import get_version
 
 
 class ActionOrchestrator:
-    """Main orchestration for pipeline generation."""
+    """
+    Main orchestration for pipeline generation (Service-based architecture).
+    
+    Coordinates specialized services for discovery, processing, generation, and validation
+    while maintaining the same public API for backward compatibility.
+    """
 
     def __init__(self, project_root: Path, enforce_version: bool = True):
-        """Initialize orchestrator with project root.
+        """
+        Initialize orchestrator with service composition.
 
         Args:
             project_root: Root directory of the LakehousePlumber project
@@ -36,7 +49,7 @@ class ActionOrchestrator:
         self.enforce_version = enforce_version
         self.logger = logging.getLogger(__name__)
 
-        # Step 4.5.1: Initialize all components
+        # Initialize core components (still needed for services)
         self.yaml_parser = YAMLParser()
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
@@ -49,12 +62,26 @@ class ActionOrchestrator:
         # Load project configuration
         self.project_config = self.project_config_loader.load_project_config()
 
+        # Initialize services with component dependencies
+        self.discoverer = FlowgroupDiscoverer(project_root, self.project_config_loader)
+        self.processor = FlowgroupProcessor(
+            self.template_engine, self.preset_manager,
+            self.config_validator, self.secret_validator
+        )
+        self.generator = CodeGenerator(
+            self.action_registry, self.dependency_resolver,
+            self.preset_manager, self.project_config, project_root
+        )
+        self.validator = PipelineValidator(
+            project_root, self.config_validator, self.secret_validator
+        )
+
         # Enforce version requirements if specified and enabled
         if self.enforce_version:
             self._enforce_version_requirements()
 
         self.logger.info(
-            f"Initialized ActionOrchestrator with project root: {project_root}"
+            f"Initialized ActionOrchestrator with service-based architecture: {project_root}"
         )
         if self.project_config:
             self.logger.info(
@@ -83,7 +110,7 @@ class ActionOrchestrator:
         except ImportError:
             raise LHPError(
                 category=ErrorCategory.CONFIG,
-                code_number="006",
+                code_number="006", 
                 title="Missing packaging dependency",
                 details="The 'packaging' library is required for version range checking but is not installed.",
                 suggestions=[
@@ -131,17 +158,14 @@ class ActionOrchestrator:
                 ],
             )
 
-    def _get_include_patterns(self) -> List[str]:
-        """Get include patterns from project configuration.
+    def get_include_patterns(self) -> List[str]:
+        """
+        Get include patterns from project configuration.
         
         Returns:
             List of include patterns, or empty list if none specified
         """
-        if self.project_config and self.project_config.include:
-            return self.project_config.include
-        else:
-            # No include patterns specified, return empty list (no filtering)
-            return []
+        return self.discoverer.get_include_patterns()
 
     def generate_pipeline(
         self,
@@ -176,7 +200,7 @@ class ActionOrchestrator:
             raise ValueError(f"Pipeline directory not found: {pipeline_dir}")
 
         # Step 4.5.2: Implement flowgroup discovery
-        all_flowgroups = self._discover_flowgroups(pipeline_dir)
+        all_flowgroups = self.discoverer.discover_flowgroups(pipeline_dir)
         if not all_flowgroups:
             raise ValueError(f"No flowgroups found in pipeline: {pipeline_name}")
 
@@ -254,7 +278,7 @@ class ActionOrchestrator:
 
             try:
                 # Step 4.5.3: Process flowgroup
-                processed_flowgroup = self._process_flowgroup(
+                processed_flowgroup = self.process_flowgroup(
                     flowgroup, substitution_mgr
                 )
                 processed_flowgroups.append(processed_flowgroup)
@@ -294,7 +318,7 @@ class ActionOrchestrator:
                 )
                 
                 # Step 4.5.6: Generate code
-                code = self._generate_flowgroup_code(
+                code = self.generate_flowgroup_code(
                     processed_flowgroup, substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
                 )
 
@@ -346,78 +370,26 @@ class ActionOrchestrator:
 
         return generated_files
 
-    def _discover_flowgroups(self, pipeline_dir: Path) -> List[FlowGroup]:
-        """Step 4.5.2: Discover all flowgroups in pipeline directory.
-
+    def discover_flowgroups(self, pipeline_dir: Path) -> List[FlowGroup]:
+        """
+        Discover all flowgroups in a specific pipeline directory.
+        
         Args:
             pipeline_dir: Directory containing flowgroup YAML files
-
+            
         Returns:
             List of discovered flowgroups
         """
-        flowgroups = []
-
-        # Get include patterns from project configuration
-        include_patterns = self._get_include_patterns()
-        
-        if include_patterns:
-            # Use include filtering
-            from ..utils.file_pattern_matcher import discover_files_with_patterns
-            yaml_files = discover_files_with_patterns(pipeline_dir, include_patterns)
-        else:
-            # No include patterns, discover all YAML files (backwards compatibility)
-            yaml_files = []
-            yaml_files.extend(pipeline_dir.rglob("*.yaml"))
-            yaml_files.extend(pipeline_dir.rglob("*.yml"))
-
-        for yaml_file in yaml_files:
-            try:
-                flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
-                flowgroups.append(flowgroup)
-                self.logger.debug(
-                    f"Discovered flowgroup: {flowgroup.flowgroup} in {yaml_file}"
-                )
-            except Exception as e:
-                self.logger.warning(f"Could not parse flowgroup {yaml_file}: {e}")
-
-        return flowgroups
+        return self.discoverer.discover_flowgroups(pipeline_dir)
 
     def discover_all_flowgroups(self) -> List[FlowGroup]:
-        """Discover all flowgroups across all directories in the project.
+        """
+        Discover all flowgroups across all directories in the project.
 
         Returns:
             List of all discovered flowgroups
         """
-        flowgroups = []
-        pipelines_dir = self.project_root / "pipelines"
-        
-        if not pipelines_dir.exists():
-            return flowgroups
-
-        # Get include patterns from project configuration
-        include_patterns = self._get_include_patterns()
-        
-        if include_patterns:
-            # Use include filtering
-            from ..utils.file_pattern_matcher import discover_files_with_patterns
-            yaml_files = discover_files_with_patterns(pipelines_dir, include_patterns)
-        else:
-            # No include patterns, discover all YAML files (backwards compatibility)
-            yaml_files = []
-            yaml_files.extend(pipelines_dir.rglob("*.yaml"))
-            yaml_files.extend(pipelines_dir.rglob("*.yml"))
-
-        for yaml_file in yaml_files:
-            try:
-                flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
-                flowgroups.append(flowgroup)
-                self.logger.debug(
-                    f"Discovered flowgroup: {flowgroup.flowgroup} (pipeline: {flowgroup.pipeline}) in {yaml_file}"
-                )
-            except Exception as e:
-                self.logger.warning(f"Could not parse flowgroup {yaml_file}: {e}")
-
-        return flowgroups
+        return self.discoverer.discover_all_flowgroups()
 
     def discover_flowgroups_by_pipeline_field(self, pipeline_field: str) -> List[FlowGroup]:
         """Discover all flowgroups with a specific pipeline field across all directories.
@@ -564,13 +536,13 @@ class ActionOrchestrator:
             
             try:
                 # Process flowgroup
-                processed_flowgroup = self._process_flowgroup(flowgroup, substitution_mgr)
+                processed_flowgroup = self.process_flowgroup(flowgroup, substitution_mgr)
                 
                 # Find source YAML for this flowgroup (needed for file tracking)
                 source_yaml_path = self._find_source_yaml_for_flowgroup(flowgroup)
                 
                 # Generate code
-                generated_code = self._generate_flowgroup_code(processed_flowgroup, substitution_mgr, pipeline_output_dir, state_manager, source_yaml_path, env, include_tests)
+                generated_code = self.generate_flowgroup_code(processed_flowgroup, substitution_mgr, pipeline_output_dir, state_manager, source_yaml_path, env, include_tests)
                 
                 # Format code with Black
                 formatted_code = format_code(generated_code)
@@ -634,13 +606,15 @@ class ActionOrchestrator:
         Returns:
             Path to the source YAML file, or None if not found
         """
-        for yaml_file in pipeline_dir.rglob("*.yaml"):
-            try:
-                flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
-                if flowgroup.flowgroup == flowgroup_name:
-                    return yaml_file
-            except Exception as e:
-                self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
+        # Search both .yaml and .yml extensions
+        for extension in ["*.yaml", "*.yml"]:
+            for yaml_file in pipeline_dir.rglob(extension):
+                try:
+                    flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
+                    if flowgroup.flowgroup == flowgroup_name:
+                        return yaml_file
+                except Exception as e:
+                    self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
 
         return None
 
@@ -658,480 +632,94 @@ class ActionOrchestrator:
         if not pipelines_dir.exists():
             return None
 
-        for yaml_file in pipelines_dir.rglob("*.yaml"):
-            try:
-                parsed_flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
-                if (parsed_flowgroup.pipeline == flowgroup.pipeline and 
-                    parsed_flowgroup.flowgroup == flowgroup.flowgroup):
-                    return yaml_file
-            except Exception as e:
-                self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
+        # Search both .yaml and .yml extensions
+        for extension in ["*.yaml", "*.yml"]:
+            for yaml_file in pipelines_dir.rglob(extension):
+                try:
+                    parsed_flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
+                    if (parsed_flowgroup.pipeline == flowgroup.pipeline and 
+                        parsed_flowgroup.flowgroup == flowgroup.flowgroup):
+                        return yaml_file
+                except Exception as e:
+                    self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
 
         return None
 
-    def _process_flowgroup(
-        self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager
-    ) -> FlowGroup:
-        """Step 4.5.3: Process flowgroup: expand templates, apply presets, apply substitutions.
-
+    def process_flowgroup(self, flowgroup: FlowGroup, 
+                         substitution_mgr: EnhancedSubstitutionManager) -> FlowGroup:
+        """
+        Process flowgroup: expand templates, apply presets, apply substitutions.
+        
         Args:
             flowgroup: FlowGroup to process
             substitution_mgr: Substitution manager for the environment
-
+            
         Returns:
             Processed flowgroup
         """
-        # Step 4.5.4: Expand templates first
-        if flowgroup.use_template:
-            template_actions = self.template_engine.render_template(
-                flowgroup.use_template, flowgroup.template_parameters or {}
-            )
-            # Add template actions to existing actions
-            flowgroup.actions.extend(template_actions)
+        return self.processor.process_flowgroup(flowgroup, substitution_mgr)
 
-        # Step 4.5.5: Apply presets after template expansion
-        if flowgroup.presets:
-            preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
-            flowgroup = self._apply_preset_config(flowgroup, preset_config)
+    # _apply_preset_config and _deep_merge methods moved to FlowgroupProcessor service
 
-        # Apply substitutions
-        flowgroup_dict = flowgroup.model_dump()
-        substituted_dict = substitution_mgr.substitute_yaml(flowgroup_dict)
-        processed_flowgroup = FlowGroup(**substituted_dict)
-
-        # Validate individual flowgroup
-        errors = self.config_validator.validate_flowgroup(processed_flowgroup)
-        if errors:
-            raise ValueError(f"Flowgroup validation failed: {errors}")
-
-        # Validate secret references
-        secret_errors = self.secret_validator.validate_secret_references(
-            substitution_mgr.get_secret_references()
-        )
-        if secret_errors:
-            raise ValueError(f"Secret validation failed: {secret_errors}")
-
-        return processed_flowgroup
-
-    def _apply_preset_config(
-        self, flowgroup: FlowGroup, preset_config: Dict[str, Any]
-    ) -> FlowGroup:
-        """Apply preset configuration to flowgroup.
-
-        Args:
-            flowgroup: FlowGroup to apply presets to
-            preset_config: Resolved preset configuration
-
-        Returns:
-            FlowGroup with preset defaults applied
+    def generate_flowgroup_code(self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager,
+                               output_dir: Optional[Path] = None, state_manager=None,
+                               source_yaml: Optional[Path] = None, env: Optional[str] = None,
+                               include_tests: bool = False) -> str:
         """
-        flowgroup_dict = flowgroup.model_dump()
-
-        # Apply preset defaults to actions
-        for action in flowgroup_dict.get("actions", []):
-            action_type = action.get("type")
-
-            # Apply type-specific defaults
-            if action_type == "load" and "load_actions" in preset_config:
-                source_type = action.get("source", {}).get("type")
-                if source_type and source_type in preset_config["load_actions"]:
-                    # Merge preset defaults with action source
-                    preset_defaults = preset_config["load_actions"][source_type]
-                    action["source"] = self._deep_merge(
-                        preset_defaults, action.get("source", {})
-                    )
-
-            elif action_type == "transform" and "transform_actions" in preset_config:
-                transform_type = action.get("transform_type")
-                if (
-                    transform_type
-                    and transform_type in preset_config["transform_actions"]
-                ):
-                    # Apply transform defaults
-                    preset_defaults = preset_config["transform_actions"][transform_type]
-                    for key, value in preset_defaults.items():
-                        if key not in action:
-                            action[key] = value
-
-            elif action_type == "write" and "write_actions" in preset_config:
-                # For new structure, check write_target
-                if action.get("write_target") and isinstance(
-                    action["write_target"], dict
-                ):
-                    target_type = action["write_target"].get("type")
-                    if target_type and target_type in preset_config["write_actions"]:
-                        # Merge preset defaults with write_target configuration
-                        preset_defaults = preset_config["write_actions"][target_type]
-                        action["write_target"] = self._deep_merge(
-                            preset_defaults, action.get("write_target", {})
-                        )
-
-                        # Handle special cases like database_suffix
-                        if (
-                            "database_suffix" in preset_defaults
-                            and "database" in action["write_target"]
-                        ):
-                            action["write_target"]["database"] += preset_defaults[
-                                "database_suffix"
-                            ]
-                # Handle old structure for backward compatibility during migration
-                elif action.get("source") and isinstance(action["source"], dict):
-                    target_type = action["source"].get("type")
-                    if target_type and target_type in preset_config["write_actions"]:
-                        # Merge preset defaults with write configuration
-                        preset_defaults = preset_config["write_actions"][target_type]
-                        action["source"] = self._deep_merge(
-                            preset_defaults, action.get("source", {})
-                        )
-
-                        # Handle special cases like database_suffix
-                        if (
-                            "database_suffix" in preset_defaults
-                            and "database" in action["source"]
-                        ):
-                            action["source"]["database"] += preset_defaults[
-                                "database_suffix"
-                            ]
-
-        # Apply global preset settings
-        if "defaults" in preset_config:
-            for key, value in preset_config["defaults"].items():
-                if key not in flowgroup_dict:
-                    flowgroup_dict[key] = value
-
-        return FlowGroup(**flowgroup_dict)
-
-    def _deep_merge(
-        self, base: Dict[str, Any], override: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Deep merge two dictionaries.
-
+        Generate complete Python code for a flowgroup.
+        
         Args:
-            base: Base dictionary
-            override: Dictionary to override with
-
-        Returns:
-            Merged dictionary
-        """
-        result = base.copy()
-        for key, value in override.items():
-            if (
-                key in result
-                and isinstance(result[key], dict)
-                and isinstance(value, dict)
-            ):
-                result[key] = self._deep_merge(result[key], value)
-            else:
-                result[key] = value
-        return result
-
-    def _generate_flowgroup_code(
-        self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager, output_dir: Path = None, state_manager=None, source_yaml: Path = None, env: str = None, include_tests: bool = False
-    ) -> str:
-        """Generate code for a flowgroup."""
-
-        # 1. Resolve action dependencies
-        ordered_actions = self.dependency_resolver.resolve_dependencies(
-            flowgroup.actions
-        )
-
-        # 2. Get preset configuration if any
-        preset_config = {}
-        if flowgroup.presets:
-            preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
-
-        # 3. Group actions by type while preserving order
-        action_groups = defaultdict(list)
-        for action in ordered_actions:
-            action_groups[action.type].append(action)
-
-        # 3.1. Check for test-only flowgroups when include_tests is False
-        if not include_tests:
-            # Check if this flowgroup contains only TEST actions
-            non_test_actions = [action for action in ordered_actions if action.type != ActionType.TEST]
-            if not non_test_actions:
-                # This is a test-only flowgroup, skip entirely
-                self.logger.info(f"Skipping test-only flowgroup: {flowgroup.flowgroup} (--include-tests not specified)")
-                return ""  # Return empty string to skip this flowgroup
-
-        # 4. Generate code for each action group
-        generated_sections = []
-        all_imports = set()
-        custom_source_sections = []  # NEW: Collect custom source code
-
-        # Add base imports
-        all_imports.add("import dlt")
-
-        # Define section headers
-        section_headers = {
-            ActionType.LOAD: "SOURCE VIEWS",
-            ActionType.TRANSFORM: "TRANSFORMATION VIEWS",
-            ActionType.WRITE: "TARGET TABLES",
-            ActionType.TEST: "DATA QUALITY TESTS",
-        }
-
-        # Process each action type in order
-        # Filter action types based on include_tests flag
-        action_types = [ActionType.LOAD, ActionType.TRANSFORM, ActionType.WRITE]
-        if include_tests:
-            action_types.append(ActionType.TEST)
+            flowgroup: FlowGroup to generate code for
+            substitution_mgr: Substitution manager for the environment
+            output_dir: Output directory for generated files
+            state_manager: State manager for file tracking
+            source_yaml: Source YAML path for file tracking
+            env: Environment name for file tracking
+            include_tests: Whether to include test actions
             
-        for action_type in action_types:
-            if action_type in action_groups:
-                # Add section header
-                header_text = section_headers.get(action_type, str(action_type).upper())
-                section_header = f"""
-# {"=" * 76}
-# {header_text}
-# {"=" * 76}"""
-                generated_sections.append(section_header)
-
-                # Special handling for write actions - group by target table
-                if action_type == ActionType.WRITE:
-                    write_actions = action_groups[action_type]
-                    grouped_actions = self._group_write_actions_by_target(write_actions)
-
-                    for target_table, actions in grouped_actions.items():
-                        try:
-                            # Use the first action to determine sub-type and get generator
-                            first_action = actions[0]
-                            sub_type = self._determine_action_subtype(first_action)
-                            generator = self.action_registry.get_generator(
-                                first_action.type, sub_type
-                            )
-
-                            # Create a combined action with multiple source views
-                            combined_action = self._create_combined_write_action(
-                                actions, target_table
-                            )
-
-                            # Generate code
-                            context = {
-                                "flowgroup": flowgroup,
-                                "substitution_manager": substitution_mgr,
-                                "spec_dir": self.project_root,
-                                "preset_config": preset_config,
-                                "project_config": self.project_config,  # Pass project config
-                                "output_dir": output_dir,  # Add output directory for file copying
-                                "state_manager": state_manager,  # Add state manager for additional file tracking
-                                "source_yaml": source_yaml,  # Add source YAML path for file tracking
-                                "environment": env,  # Add environment for file tracking
-                                "secret_references": set(),  # Track secret references from file processing
-                            }
-
-                            action_code = generator.generate(combined_action, context)
-                            generated_sections.append(action_code)
-
-                            # Enhanced import collection - use ImportManager if available
-                            import_manager = getattr(generator, 'get_import_manager', lambda: None)()
-                            if import_manager:
-                                # Generator uses ImportManager - get consolidated imports
-                                consolidated_imports = import_manager.get_consolidated_imports()
-                                all_imports.update(consolidated_imports)
-                                self.logger.debug(f"Used ImportManager for {combined_action.name}: {len(consolidated_imports)} imports")
-                            else:
-                                # Legacy generator - use simple import collection
-                                all_imports.update(generator.imports)
-                            
-                            # Collect custom source code if available
-                            if hasattr(generator, 'custom_source_code') and generator.custom_source_code:
-                                custom_source_sections.append({
-                                    'content': generator.custom_source_code,
-                                    'source_file': generator.source_file_path,
-                                    'action_name': combined_action.name
-                                })
-
-                        except LHPError:
-                            # Re-raise LHPError as-is (it's already well-formatted)
-                            raise
-                        except Exception as e:
-                            action_names = [a.name for a in actions]
-                            raise ValueError(
-                                f"Error generating code for write actions {action_names}: {e}"
-                            )
-                else:
-                    # Generate code for each action in this group (non-write actions)
-                    for action in action_groups[action_type]:
-                        try:
-                            # Determine action sub-type
-                            sub_type = self._determine_action_subtype(action)
-
-                            # Get generator
-                            generator = self.action_registry.get_generator(
-                                action.type, sub_type
-                            )
-
-                            # Generate code
-                            context = {
-                                "flowgroup": flowgroup,
-                                "substitution_manager": substitution_mgr,
-                                "spec_dir": self.project_root,
-                                "preset_config": preset_config,  # Add preset config to context
-                                "project_config": self.project_config,  # Pass project config
-                                "output_dir": output_dir,  # Add output directory for file copying
-                                "state_manager": state_manager,  # Add state manager for additional file tracking
-                                "source_yaml": source_yaml,  # Add source YAML path for file tracking
-                                "environment": env,  # Add environment for file tracking
-                            }
-
-                            action_code = generator.generate(action, context)
-                            generated_sections.append(action_code)
-
-                            # Enhanced import collection - use ImportManager if available
-                            import_manager = getattr(generator, 'get_import_manager', lambda: None)()
-                            if import_manager:
-                                # Generator uses ImportManager - get consolidated imports
-                                consolidated_imports = import_manager.get_consolidated_imports()
-                                all_imports.update(consolidated_imports)
-                                self.logger.debug(f"Used ImportManager for {action.name}: {len(consolidated_imports)} imports")
-                            else:
-                                # Legacy generator - use simple import collection
-                                all_imports.update(generator.imports)
-                            
-                            # Collect custom source code if available
-                            if hasattr(generator, 'custom_source_code') and generator.custom_source_code:
-                                custom_source_sections.append({
-                                    'content': generator.custom_source_code,
-                                    'source_file': generator.source_file_path,
-                                    'action_name': action.name
-                                })
-
-                        except LHPError:
-                            # Re-raise LHPError as-is (it's already well-formatted)
-                            raise
-                        except Exception as e:
-                            raise ValueError(
-                                f"Error generating code for action '{action.name}': {e}"
-                            )
-
-        # 5. Apply secret substitutions to generated code
-        complete_code = "\n\n".join(generated_sections)
-
-        # Use SecretCodeGenerator to convert secret placeholders to valid f-strings
-        from lhp.utils.secret_code_generator import SecretCodeGenerator
-
-        secret_generator = SecretCodeGenerator()
-        complete_code = secret_generator.generate_python_code(
-            complete_code, substitution_mgr.get_secret_references()
+        Returns:
+            Complete Python code for the flowgroup
+        """
+        return self.generator.generate_flowgroup_code(
+            flowgroup, substitution_mgr, output_dir, state_manager, 
+            source_yaml, env, include_tests
         )
 
-        # 6. Build final file with correct ordering
-        imports_section = "\n".join(sorted(all_imports))
-
-        # Add pipeline configuration section
-        pipeline_config = f"""
-# Pipeline Configuration
-PIPELINE_ID = "{flowgroup.pipeline}"
-FLOWGROUP_ID = "{flowgroup.flowgroup}"
-"""
-
-        header = f"""# Generated by LakehousePlumber
-# Pipeline: {flowgroup.pipeline}
-# FlowGroup: {flowgroup.flowgroup}
-
-{imports_section}
-{pipeline_config}"""
-
-        # FIXED ORDERING: Custom source code FIRST, then main generated code
-        final_code = header
+    def determine_action_subtype(self, action: Action) -> str:
+        """
+        Determine the sub-type of an action for generator selection.
         
-        # Add custom source code first (so classes are defined before registration)
-        if custom_source_sections:
-            custom_code_block = self._build_custom_source_block(custom_source_sections)
-            final_code += "\n\n" + custom_code_block
-        
-        # Then add main generated code (registration happens after class definitions)
-        final_code += "\n\n" + complete_code
-
-        return final_code
-
-    def _determine_action_subtype(self, action: Action) -> str:
-        """Determine the sub-type of an action for generator selection.
-
         Args:
             action: Action to determine sub-type for
-
+            
         Returns:
             Sub-type string for generator selection
         """
-        if action.type == ActionType.LOAD:
-            if isinstance(action.source, dict):
-                return action.source.get("type", "sql")
-            else:
-                return "sql"  # String source is SQL
+        return self.generator.determine_action_subtype(action)
 
-        elif action.type == ActionType.TRANSFORM:
-            return action.transform_type or "sql"
-
-        elif action.type == ActionType.WRITE:
-            if action.write_target and isinstance(action.write_target, dict):
-                return action.write_target.get("type", "streaming_table")
-            else:
-                return "streaming_table"  # Default to streaming table
-
-        elif action.type == ActionType.TEST:
-            return action.test_type or "row_count"  # Default to row_count test
-
-        else:
-            raise ValueError(f"Unknown action type: {action.type}")
-
-    def _build_custom_source_block(self, custom_sections: List[Dict]) -> str:
-        """Build the custom source code block to append to flowgroup files.
+    def build_custom_source_block(self, custom_sections: List[Dict]) -> str:
+        """
+        Build the custom source code block to append to flowgroup files.
         
         Args:
             custom_sections: List of dictionaries with custom source code info
             
         Returns:
-            Formatted custom source code block with headers and registration
+            Formatted custom source code block with headers
         """
-        blocks = []
-        blocks.append("# " + "="*76)
-        blocks.append("# CUSTOM DATA SOURCE IMPLEMENTATIONS")
-        blocks.append("# " + "="*76)
-        
-        for section in custom_sections:
-            blocks.append(f"# The following code was automatically copied from: {section['source_file']}")
-            blocks.append(f"# Used by action: {section['action_name']}")
-            blocks.append("")
-            blocks.append(section['content'])
-            blocks.append("")
-        
-        return "\n".join(blocks)
+        return self.generator.build_custom_source_block(custom_sections)
 
-    def _group_write_actions_by_target(
-        self, write_actions: List[Action]
-    ) -> Dict[str, List[Action]]:
-        """Group write actions by their target table.
-
+    def group_write_actions_by_target(self, write_actions: List[Action]) -> Dict[str, List[Action]]:
+        """
+        Group write actions by their target table.
+        
         Args:
             write_actions: List of write actions
-
+            
         Returns:
             Dictionary mapping target table names to lists of actions
         """
-        grouped = defaultdict(list)
-
-        for action in write_actions:
-            target_config = action.write_target
-            if not target_config:
-                # Handle legacy structure
-                target_config = action.source if isinstance(action.source, dict) else {}
-
-            # Build full table name
-            database = target_config.get("database", "")
-            table = target_config.get("table") or target_config.get("name", "")
-
-            if database and table:
-                full_table_name = f"{database}.{table}"
-            elif table:
-                full_table_name = table
-            else:
-                # Use action name as fallback
-                full_table_name = action.name
-
-            grouped[full_table_name].append(action)
-
-        return dict(grouped)
+        return self.generator.group_write_actions_by_target(write_actions)
 
     def _sync_bundle_resources(self, output_dir: Optional[Path], environment: str) -> None:
         """Synchronize bundle resources after successful generation.
@@ -1165,101 +753,18 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
             self.logger.warning(f"Bundle synchronization failed: {e}")
             self.logger.debug(f"Bundle sync error details: {e}", exc_info=True)
 
-    def _create_combined_write_action(
-        self, actions: List[Action], target_table: str
-    ) -> Action:
-        """Create a combined write action with individual action metadata preserved.
-
+    def create_combined_write_action(self, actions: List[Action], target_table: str) -> Action:
+        """
+        Create a combined write action with individual action metadata preserved.
+        
         Args:
             actions: List of write actions targeting the same table
             target_table: Full target table name
-
+            
         Returns:
             Combined action with individual action metadata
         """
-        # Determine which action should create the table based on existing validation logic
-        table_creator = None
-        for action in actions:
-            if self.config_validator._action_creates_table(action):
-                table_creator = action
-                break
-
-        # If no explicit creator found, use the first action (default behavior)
-        if not table_creator:
-            table_creator = actions[0]
-
-        # Build individual action metadata for each append flow
-        action_metadata = []
-        for action in actions:
-            # Extract source views (can be multiple per action)
-            source_views_for_action = self._extract_source_views_from_action(
-                action.source
-            )
-
-            # Generate base flow name from action name
-            base_flow_name = action.name.replace("-", "_").replace(" ", "_")
-            if base_flow_name.startswith("write_"):
-                base_flow_name = base_flow_name[6:]  # Remove "write_" prefix
-            base_flow_name = (
-                f"f_{base_flow_name}"
-                if not base_flow_name.startswith("f_")
-                else base_flow_name
-            )
-
-            if len(source_views_for_action) > 1:
-                # Multiple sources in this action: create separate append flow for each
-                for i, source_view in enumerate(source_views_for_action):
-                    flow_name = f"{base_flow_name}_{i+1}"
-                    action_metadata.append(
-                        {
-                            "action_name": f"{action.name}_{i+1}",
-                            "source_view": source_view,
-                            "once": action.once or False,
-                            "flow_name": flow_name,
-                            "description": action.description
-                            or f"Append flow to {target_table} from {source_view}",
-                        }
-                    )
-            else:
-                # Single source in this action: create one append flow
-                source_view = (
-                    source_views_for_action[0] if source_views_for_action else ""
-                )
-                action_metadata.append(
-                    {
-                        "action_name": action.name,
-                        "source_view": source_view,
-                        "once": action.once or False,
-                        "flow_name": base_flow_name,
-                        "description": action.description
-                        or f"Append flow to {target_table}",
-                    }
-                )
-
-        # Extract all source views for backward compatibility
-        source_views = [
-            meta["source_view"] for meta in action_metadata if meta["source_view"]
-        ]
-
-        # Create a new action with the table creator's configuration
-        combined_action = Action(
-            name=f"write_{target_table.replace('.', '_')}",
-            type=table_creator.type,
-            source=source_views,  # Keep for backward compatibility
-            write_target=table_creator.write_target,
-            target=table_creator.target,
-            description=f"Write to {target_table} from multiple sources",
-            once=None,  # Don't use a single once flag
-        )
-
-        # Store individual action metadata for template use
-        combined_action._action_metadata = action_metadata
-        combined_action._table_creator = table_creator
-
-        # Store legacy flow names for backward compatibility
-        combined_action._flow_names = [meta["flow_name"] for meta in action_metadata]
-
-        return combined_action
+        return self.generator.create_combined_write_action(actions, target_table)
 
     def _extract_single_source_view(self, source) -> str:
         """Extract a single source view from various source formats.
@@ -1358,7 +863,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
 
             for flowgroup in flowgroups:
                 try:
-                    self._process_flowgroup(flowgroup, substitution_mgr)
+                    self.process_flowgroup(flowgroup, substitution_mgr)
                     # Validation happens in _process_flowgroup
                     # Note: Success validation does not generate warnings
 
@@ -1398,7 +903,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
 
             for flowgroup in flowgroups:
                 try:
-                    self._process_flowgroup(flowgroup, substitution_mgr)
+                    self.process_flowgroup(flowgroup, substitution_mgr)
                     # Validation happens in _process_flowgroup
                     # Note: Success validation does not generate warnings
 

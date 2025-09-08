@@ -92,7 +92,7 @@ project:
         )
         
         # Generate with include_tests=False
-        result = self.orchestrator._generate_flowgroup_code(
+        result = self.orchestrator.generate_flowgroup_code(
             flowgroup, 
             substitution_mgr,
             include_tests=False
@@ -134,7 +134,7 @@ project:
         )
         
         # Generate with include_tests=True
-        result = self.orchestrator._generate_flowgroup_code(
+        result = self.orchestrator.generate_flowgroup_code(
             flowgroup,
             substitution_mgr,
             include_tests=True
@@ -189,7 +189,7 @@ project:
         )
         
         # Test without tests - should have load, transform, write but no test
-        result_without = self.orchestrator._generate_flowgroup_code(
+        result_without = self.orchestrator.generate_flowgroup_code(
             flowgroup, substitution_mgr, include_tests=False
         )
         assert "SOURCE VIEWS" in result_without
@@ -198,7 +198,7 @@ project:
         assert "DATA QUALITY TESTS" not in result_without
         
         # Test with tests - should have all sections
-        result_with = self.orchestrator._generate_flowgroup_code(
+        result_with = self.orchestrator.generate_flowgroup_code(
             flowgroup, substitution_mgr, include_tests=True
         )
         assert "SOURCE VIEWS" in result_with
@@ -238,13 +238,13 @@ project:
         )
         
         # Test without tests - should return empty string (skip entirely)
-        result_without = self.orchestrator._generate_flowgroup_code(
+        result_without = self.orchestrator.generate_flowgroup_code(
             flowgroup, substitution_mgr, include_tests=False
         )
         assert result_without == "", "Test-only flowgroup should be skipped entirely"
         
         # Test with tests - should generate test content
-        result_with = self.orchestrator._generate_flowgroup_code(
+        result_with = self.orchestrator.generate_flowgroup_code(
             flowgroup, substitution_mgr, include_tests=True
         )
         assert result_with != "", "Test-only flowgroup should generate content when flag is set"

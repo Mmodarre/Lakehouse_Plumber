@@ -1,0 +1,33 @@
+pipeline: unirate_api_ingestion
+flowgroup: api_unirate_ingestion_bronze
+
+
+
+
+actions:
+
+
+  - name: load_currency_exchange
+    type: load
+    readMode: stream
+    operational_metadata: ["_processing_timestamp"]
+    source:
+      type: custom_datasource
+      module_path: "data_sources/currency_api_source.py"
+      custom_datasource_class: "CurrencyAPIStreamingDataSource"
+      options:
+        apiKey: "XXX"
+        baseCurrencies: "USD,EUR,GBP"
+        progressPath: "/Volumes/catalog/schema/checkpoints/"
+        minCallIntervalSeconds: "300"
+        workspaceUrl: "adb-984752964297111.11.azuredatabricks.net"
+    target: v_currency_bronze
+    description: "Load live currency exchange rates from external API"
+
+  - name: write_currency_exchange_bronze
+    type: write
+    source: v_currency_bronze
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "currency_exchange"

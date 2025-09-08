@@ -256,7 +256,7 @@ class StateDisplayService:
         # Check if source has changed (stale)
         change_status = ""
         if source_exists and file_state.source_yaml_checksum:
-            current_checksum = self.state_manager._calculate_checksum(source_path)
+            current_checksum = self.state_manager.calculate_checksum(source_path)
             if current_checksum != file_state.source_yaml_checksum:
                 change_status = " 🟡 (stale)"
             else:

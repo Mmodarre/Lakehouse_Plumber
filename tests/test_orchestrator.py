@@ -116,7 +116,7 @@ class TestActionOrchestrator:
             orchestrator = ActionOrchestrator(project_root)
             
             pipeline_dir = project_root / "pipelines" / "test_pipeline"
-            flowgroups = orchestrator._discover_flowgroups(pipeline_dir)
+            flowgroups = orchestrator.discover_flowgroups(pipeline_dir)
             
             assert len(flowgroups) == 1
             assert flowgroups[0].flowgroup == "test_flowgroup"
