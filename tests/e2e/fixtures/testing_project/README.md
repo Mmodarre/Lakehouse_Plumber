@@ -1,6 +1,6 @@
 # ACMI EDW - Lakehouse Plumber Sample Project
 
-A **LakehousePlumber** Lakeflow Pipeliness (DLT) pipeline project for processing TPC-H benchmark data using a medallion architecture.
+A **LakehousePlumber** Lakeflow Pipeliness (DLT) pipeline project for processing TPC-H benchmark data using a medallion architecture. 
 
 ![Data Flow](assets/banner.png)
 
