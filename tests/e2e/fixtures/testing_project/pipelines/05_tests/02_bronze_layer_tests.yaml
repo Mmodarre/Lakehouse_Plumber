@@ -1,0 +1,98 @@
+pipeline: acmi_edw_bronze
+flowgroup: bronze_layer_tests
+description: Unit tests for bronze layer tables
+
+actions:
+  # Test 1: Verify no data loss during bronze transformation
+  # This test will not work as it is not taking into account the migration table
+  - name: customer_bronze_rowcount
+    type: test
+    test_type: row_count
+    source: ['{catalog}.{raw_schema}.customer_raw', '{catalog}.{bronze_schema}.customer']
+    on_violation: fail
+    tolerance: 0
+    description: "Ensure all raw customer records reach bronze layer"
+  
+  # Test 1b: Verify no data loss during bronze transformation
+  - name: customer_bronze_rowcount_with_migration
+    type: test
+    test_type: custom_sql
+    source: '{catalog}.{bronze_schema}.customer'
+    sql: |
+        SELECT
+          (SELECT COUNT(*) AS source_count FROM {catalog}.{raw_schema}.customer_raw) as source_count,
+          (SELECT COUNT(*) AS target_count FROM {catalog}.{old_schema}.customer) as migration_count,
+          (SELECT COUNT(*) AS target_count FROM {catalog}.{bronze_schema}.customer) as target_count
+    expectations:
+      - name: row_count_match
+        expression: "abs(source_count + migration_count - target_count) == 0"
+    on_violation: fail
+    description: "Ensure all raw customer records reach bronze layer"
+
+  # Test 2: Validate referential integrity between orders and customers
+  - name: orders_customer_fk_referential_integrity
+    type: test
+    test_type: referential_integrity
+    source: "{catalog}.{bronze_schema}.orders"
+    reference: "{catalog}.{bronze_schema}.customer"
+    source_columns: [customer_id]
+    reference_columns: [customer_id]
+    on_violation: fail
+    description: "All orders must have valid customer reference"
+
+  # Test 3: Validate referential integrity between lineitem and orders
+  - name: lineitem_orders_fk_referential_integrity
+    type: test
+    test_type: referential_integrity
+    source: "{catalog}.{bronze_schema}.lineitem_africa"
+    reference: "{catalog}.{bronze_schema}.orders"
+    source_columns: [l_orderkey]
+    reference_columns: [o_orderkey]
+    on_violation: fail
+    description: "All line items must have valid order reference"
+
+  # Test 4: Validate referential integrity between lineitem and part
+  - name: lineitem_part_fk_referential_integrity
+    type: test
+    test_type: referential_integrity
+    source: "{catalog}.{bronze_schema}.lineitem_africa"
+    reference: "{catalog}.{bronze_schema}.part"
+    source_columns: [l_partkey]
+    reference_columns: [p_partkey]
+    on_violation: fail
+    description: "All line items must have valid part reference"
+
+  # Test 5: Check bronze data quality with custom expectations
+  - name: bronze_customer_quality_custom_expectations
+    type: test
+    test_type: custom_expectations
+    source: "{catalog}.{bronze_schema}.customer"
+    expectations:
+      - name: valid_account_balance
+        expression: "account_balance >= -999.99 AND account_balance <= 9999.99"
+        on_violation: fail
+      - name: valid_market_segment
+        expression: "market_segment IN ('AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY')"
+        on_violation: fail
+      - name: valid_phone_format
+        expression: "LENGTH(REGEXP_REPLACE(phone, '[^0-9]', '')) >= 10"
+        on_violation: fail
+    description: "Validate customer data quality rules in bronze layer"
+
+  # Test 6: Validate composite key uniqueness
+  - name: lineitem_composite_key_uniqueness
+    type: test
+    test_type: uniqueness
+    source: "{catalog}.{bronze_schema}.lineitem_africa"
+    columns: [l_orderkey, l_linenumber]
+    on_violation: fail
+    description: "Validate lineitem composite key uniqueness"
+
+  # Test 7: Schema consistency check
+  - name: customer_bronze_schema_consistency
+    type: test
+    test_type: schema_match
+    source: "{catalog}.{bronze_schema}.customer"
+    reference: "{catalog}.{bronze_schema}.customer_backup"
+    on_violation: fail
+    description: "Ensure customer schema hasn't changed unexpectedly"

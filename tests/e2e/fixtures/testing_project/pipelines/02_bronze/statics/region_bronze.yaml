@@ -1,0 +1,47 @@
+# This pipeline is used to load the region table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_bronze
+
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: region_bronze
+presets:
+  - default_delta_properties
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+  - name: region_raw_incremental_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: region_raw
+    target: v_region_raw
+    description: "Load region table from raw schema" 
+
+  - name: region_bronze_incremental_cleanse
+    type: transform
+    transform_type: sql
+    source: v_region_raw
+    target: v_region_bronze_cleaned
+    sql: |
+      SELECT 
+        xxhash64(r_regionkey,r_name,r_comment) as region_key,
+        r_regionkey as region_id,
+        r_name as name,
+        r_comment as comment,
+        * EXCEPT(r_regionkey, r_name, r_comment,_rescued_data)
+      FROM stream(v_region_raw)
+
+
+  - name: write_region_bronze_incremental
+    type: write
+    source: v_region_bronze_cleaned
+    write_target:
+      create_table: true
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "region"

@@ -26,3 +26,11 @@ Example_Projects/acmi/databricks.yml
 
 Example_Projects/acmi/Data_Prep/__builtins__.pyi
 .cursor/rules/byterover-rules.mdc
+.clinerules/byterover-rules.md
+.kilocode/rules/byterover-rules.md
+.roo/rules/byterover-rules.md
+.windsurf/rules/byterover-rules.md
+.kiro/steering/byterover-rules.md
+.qoder/rules/byterover-rules.md
+.augment/rules/byterover-rules.md
+BYTEROVER_MCP_HANDBOOK.md
