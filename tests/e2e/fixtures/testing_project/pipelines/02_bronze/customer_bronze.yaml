@@ -1,0 +1,113 @@
+# This pipeline is used to load the customer table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_bronze
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: customer_bronze
+presets:
+  - default_delta_properties
+
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+  - name: customer_raw_incremental_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: customer_raw
+    target: v_customer_raw
+    description: "Load customer table from raw schema" 
+
+  - name: customer_bronze_incremental_cleanse
+    type: transform
+    transform_type: sql
+    source: v_customer_raw
+    target: v_customer_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(c_custkey,c_name,c_address,c_nationkey,c_phone,c_acctbal,c_mktsegment,c_comment,last_modified_dt) as customer_key,
+        c_custkey as customer_id,
+        c_name as name,
+        c_address as address,
+        c_nationkey as nation_id,
+        c_phone as phone,
+        c_acctbal as account_balance,
+        c_mktsegment as market_segment,
+        c_comment as comment,
+        last_modified_dt,
+        * EXCEPT(c_custkey, c_name, c_address, c_nationkey, c_phone, c_acctbal, c_mktsegment, c_comment,last_modified_dt,_rescued_data)
+      FROM stream(v_customer_raw)
+
+  - name: customer_bronze_incremental_DQE
+    type: transform
+    transform_type: data_quality
+    source: v_customer_bronze_cleaned
+    target: v_customer_bronze_DQE
+    readMode: stream  
+    expectations_file: "expectations/customer_quality.json"
+    description: "Apply data quality checks to customer"
+
+  - name: write_customer_bronze_incremental
+    type: write
+    source: v_customer_bronze_DQE
+    write_target:
+      create_table: true
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "customer"
+      # table_properties:
+        # tag_name1: tag_value1
+        # tag_name2: tag_value2
+
+# ============================================================================
+# MIGRATION TABLES
+# ============================================================================
+  - name: customer_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      database: "{catalog}.{migration_schema}"
+      table: customer
+    target: v_customer_migration
+    description: "Load customer table from migration schema" 
+
+    # Creating the customer_key by hashing all the columns + PK + last_modified_dt (as the same customer with the same account balance may lead to having duplicate SK)
+  - name: customer_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_customer_migration
+    target: v_customer_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(c_custkey,c_name,c_address,c_nationkey,c_phone,c_acctbal,c_mktsegment,c_comment,cast(last_modified_dt as TIMESTAMP)) as customer_key,
+        c_custkey as customer_id,
+        c_name as name,
+        c_address as address,
+        c_nationkey as nation_id,
+        c_phone as phone,
+        c_acctbal as account_balance,
+        c_mktsegment as market_segment,
+        c_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        'MIGRATION' as _source_file_path,
+        * EXCEPT(c_custkey, c_name, c_address, c_nationkey, c_phone, c_acctbal, c_mktsegment, c_comment,last_modified_dt)
+      FROM v_customer_migration
+    
+
+  - name: write_customer_migration
+    type: write
+    source: v_customer_migration_cleaned
+    readMode: batch
+    once: true # This is to ensure that the table is created only once
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "customer"

@@ -8,13 +8,11 @@ in sync with generated Python notebooks.
 import pytest
 import tempfile
 import shutil
-import yaml
 from pathlib import Path
-from unittest.mock import Mock, patch, call
+from unittest.mock import patch
 
 from lhp.bundle.manager import BundleManager
 from lhp.bundle.exceptions import BundleResourceError
-from lhp.bundle.yaml_processor import YAMLParsingError
 
 
 class TestResourceSync:

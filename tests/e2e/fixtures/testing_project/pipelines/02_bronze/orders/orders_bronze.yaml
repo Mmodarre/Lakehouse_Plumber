@@ -1,0 +1,255 @@
+# This pipeline is used to load the lineitem table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+# pipeline: acmi_edw_bronze_pipeline
+pipeline: acmi_edw_bronze
+
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: orders_bronze
+presets:
+  - default_delta_properties
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines.
+  - name: orders_africa_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: orders_africa_raw
+    target: v_orders_africa_raw
+    description: "Load orders Africa table from raw schema" 
+
+  - name: orders_america_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: orders_america_raw
+    target: v_orders_america_raw
+    description: "Load orders America table from raw schema" 
+
+  - name: orders_asia_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: orders_asia_raw
+    target: v_orders_asia_raw
+    description: "Load orders Asia table from raw schema" 
+
+  - name: orders_europe_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: orders_europe_raw
+    target: v_orders_europe_raw
+    description: "Load orders Europe table from raw schema" 
+
+  - name: orders_middle_east_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: orders_middle_east_raw
+    target: v_orders_middle_east_raw
+    description: "Load orders Middle East table from raw schema" 
+
+  - name: orders_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      database: "{catalog}.{migration_schema}"
+      table: orders
+    target: v_orders_migration
+    description: "Load orders table from migration schema"
+
+  - name: orders_africa_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_orders_africa_raw
+    target: v_orders_africa_bronze_cleaned
+    sql: |
+      SELECT 
+        o_orderkey as order_id,
+        o_custkey as customer_id,
+        o_orderstatus as order_status,
+        o_totalprice as total_price,
+        o_orderdate as order_date,
+        o_orderpriority as order_priority,
+        o_clerk as clerk,
+        o_shippriority as ship_priority,
+        o_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
+      FROM stream(v_orders_africa_raw)
+
+  - name: orders_america_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_orders_america_raw
+    target: v_orders_america_bronze_cleaned
+    sql: |
+      SELECT 
+        o_orderkey as order_id,
+        o_custkey as customer_id,
+        o_orderstatus as order_status,
+        o_totalprice as total_price,
+        o_orderdate as order_date,
+        o_orderpriority as order_priority,
+        o_clerk as clerk,
+        o_shippriority as ship_priority,
+        o_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
+      FROM stream(v_orders_america_raw)
+
+  - name: orders_asia_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_orders_asia_raw
+    target: v_orders_asia_bronze_cleaned
+    sql: |
+      SELECT 
+        o_orderkey as order_id,
+        o_custkey as customer_id,
+        o_orderstatus as order_status,
+        o_totalprice as total_price,
+        o_orderdate as order_date,
+        o_orderpriority as order_priority,
+        o_clerk as clerk,
+        o_shippriority as ship_priority,
+        o_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
+      FROM stream(v_orders_asia_raw)
+
+  - name: orders_europe_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_orders_europe_raw
+    target: v_orders_europe_bronze_cleaned
+    sql: |
+      SELECT 
+        o_orderkey as order_id,
+        o_custkey as customer_id,
+        o_orderstatus as order_status, 
+        o_totalprice as total_price,
+        o_orderdate as order_date,
+        o_orderpriority as order_priority,
+        o_clerk as clerk,
+        o_shippriority as ship_priority,
+        o_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
+      FROM stream(v_orders_europe_raw)
+
+  - name: orders_middle_east_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_orders_middle_east_raw
+    target: v_orders_middle_east_bronze_cleaned
+    sql: |
+      SELECT 
+        o_orderkey as order_id,
+        o_custkey as customer_id,
+        o_orderstatus as order_status,
+        o_totalprice as total_price,
+        o_orderdate as order_date,
+        o_orderpriority as order_priority,
+        o_clerk as clerk,
+        o_shippriority as ship_priority,
+        o_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
+      FROM stream(v_orders_middle_east_raw)
+
+  - name: orders_migration_cleanse
+    type: transform
+    transform_type: sql
+    source: v_orders_migration
+    target: v_orders_migration_cleaned
+    sql: |
+      SELECT
+        o_orderkey as order_id,
+        o_custkey as customer_id,
+        o_orderstatus as order_status,
+        o_totalprice as total_price,
+        o_orderdate as order_date,
+        o_orderpriority as order_priority,
+        o_clerk as clerk,
+        o_shippriority as ship_priority,
+        o_comment as comment,
+        cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
+        'MIGRATION' as _source_file_path,
+        * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt)
+      FROM v_orders_migration
+
+  - name: write_orders_africa_bronze
+    type: write
+    source: v_orders_africa_bronze_cleaned
+    write_target:
+      create_table: true
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "orders"
+
+  - name: write_orders_america_bronze
+    type: write
+    source: v_orders_america_bronze_cleaned
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "orders"
+
+  - name: write_orders_asia_bronze
+    type: write
+    source: v_orders_asia_bronze_cleaned
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "orders"
+
+  - name: write_orders_europe_bronze
+    type: write
+    source: v_orders_europe_bronze_cleaned
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "orders"
+
+  - name: write_orders_middle_east_bronze
+    type: write
+    source: v_orders_middle_east_bronze_cleaned
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "orders" 
+
+  - name: write_orders_migration
+    type: write
+    source: v_orders_migration_cleaned
+    readMode: batch
+    once: true  
+    write_target:
+      create_table: false
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "orders"
