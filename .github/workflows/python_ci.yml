@@ -64,7 +64,7 @@ jobs:
       run: |
         # Run tests with coverage if tests directory exists
         if [ -d "tests" ]; then
-          pytest --cov --cov-branch --cov-report=xml --cov-fail-under=40
+          pytest --cov --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit.xml -o junit_family=legacy
         else
           echo "No tests directory found, skipping tests"
         fi
@@ -76,6 +76,12 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         slug: Mmodarre/Lakehouse_Plumber
+    
+    - name: Upload test results to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/test-results-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
 
   # Separate job for testing import functionality across platforms
   test-import:
