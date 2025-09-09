@@ -804,17 +804,39 @@ resources:
         baseline_path = Path(__file__).parent / "fixtures" / "testing_project" / "databricks_baseline.yml"
         assert baseline_path.exists(), f"Baseline file should exist: {baseline_path}"
         
-        # Use the existing _compare_file_hashes method for comparison
-        file_diff = self._compare_file_hashes(databricks_yml_path, baseline_path)
+        # Normalize content for cross-platform comparison
+        actual_content = databricks_yml_path.read_text().replace('\r\n', '\n').replace('\r', '\n')
+        expected_content = baseline_path.read_text().replace('\r\n', '\n').replace('\r', '\n')
+        
+        # Compare normalized content instead of file hashes
+        files_match = actual_content == expected_content
+        file_diff = "" if files_match else "Content differs after normalization"
         
         if file_diff:
             print(f" DATABRICKS.YML COMPARISON FAILURE: {file_diff}")
             
-            # Show the actual vs expected content for debugging
-            actual_content = databricks_yml_path.read_text()
-            expected_content = baseline_path.read_text()
-            print(f"ACTUAL databricks.yml content:\n{actual_content}")
-            print(f"EXPECTED databricks_baseline.yml content:\n{expected_content}")
+            # actual_content and expected_content are already loaded above
+            
+            # Show character-level differences for better debugging
+            actual_repr = repr(actual_content)
+            expected_repr = repr(expected_content)
+            
+            print(f"ACTUAL databricks.yml content ({len(actual_content)} chars):\n{actual_content}")
+            print(f"ACTUAL repr: {actual_repr}")
+            print(f"EXPECTED databricks_baseline.yml content ({len(expected_content)} chars):\n{expected_content}")
+            print(f"EXPECTED repr: {expected_repr}")
+            
+            # Try line-by-line comparison
+            actual_lines = actual_content.splitlines()
+            expected_lines = expected_content.splitlines()
+            print(f"Line count - actual: {len(actual_lines)}, expected: {len(expected_lines)}")
+            
+            for i, (actual_line, expected_line) in enumerate(zip(actual_lines, expected_lines)):
+                if actual_line != expected_line:
+                    print(f"DIFF at line {i+1}:")
+                    print(f"  ACTUAL:   {repr(actual_line)}")
+                    print(f"  EXPECTED: {repr(expected_line)}")
+                    break
             
             assert False, f"Generated databricks.yml differs from baseline: {file_diff}"
         
