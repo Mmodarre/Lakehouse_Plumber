@@ -31,3 +31,5 @@ Example_Projects/acmi/Data_Prep/__builtins__.pyi
 .qoder/rules/byterover-rules.md
 .augment/rules/byterover-rules.md
 BYTEROVER*
+tests/e2e/test_bundle_manager_e2e.py
+coverage.xml
