@@ -75,7 +75,7 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             "comment": target_config.get("comment", f"Materialized view: {table}"),
             "refresh_schedule": refresh_schedule,
             "description": action.description
-            or f"Write to materialized view: {full_table_name}",
+            or f"Write to {full_table_name} from multiple sources",
             "add_operational_metadata": bool(metadata_columns),
             "metadata_columns": metadata_columns,
             "flowgroup": flowgroup,  # Add flowgroup to context for template

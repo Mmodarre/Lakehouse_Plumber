@@ -38,8 +38,12 @@ class ProjectConfigLoader:
             return None
 
         try:
-            with open(self.config_file, "r", encoding="utf-8") as f:
-                config_data = yaml.safe_load(f)
+            from ..utils.yaml_loader import load_yaml_file
+            config_data = load_yaml_file(
+                self.config_file, 
+                allow_empty=False,
+                error_context="project configuration file"
+            )
 
             if not config_data:
                 self.logger.warning(
@@ -53,22 +57,24 @@ class ProjectConfigLoader:
             self.logger.info(f"Loaded project configuration from {self.config_file}")
             return project_config
 
-        except yaml.YAMLError as e:
-            error_msg = (
-                f"Invalid YAML in project configuration file {self.config_file}: {e}"
-            )
-            self.logger.error(error_msg)
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="001",
-                title="Invalid project configuration YAML",
-                details=error_msg,
-                suggestions=[
-                    "Check YAML syntax in lhp.yaml",
-                    "Ensure proper indentation and structure",
-                    "Validate YAML online or with a linter",
-                ],
-            )
+        except ValueError as e:
+            # yaml_loader converts YAML and file errors to ValueError with clear context
+            error_msg = str(e)
+            self.logger.error(f"Project configuration loading failed: {error_msg}")
+            
+            # Determine if it's a YAML syntax error or file error
+            if "Invalid YAML" in error_msg:
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="001", 
+                    title="Invalid project configuration YAML",
+                    details=error_msg,
+                    suggestions=[
+                        "Check YAML syntax in lhp.yaml",
+                        "Ensure proper indentation and structure",
+                        "Validate YAML online or with a linter",
+                    ],
+                )
 
         except Exception as e:
             error_msg = (

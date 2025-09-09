@@ -23,7 +23,7 @@ class TemplateEngine:
         self.yaml_parser = YAMLParser()
         self._template_cache: Dict[str, TemplateModel] = {}
 
-        # Step 4.2.1: Create Jinja2 environment for parameter expansion
+        # Create Jinja2 environment for parameter expansion
         self.jinja_env = Environment()
 
         # Load templates if directory provided
@@ -78,7 +78,7 @@ class TemplateEngine:
     def render_template(
         self, template_name: str, parameters: Dict[str, Any]
     ) -> List[Action]:
-        """Step 4.2.2: Implement template parameter handling.
+        """Implement template parameter handling.
 
         Render a template with given parameters, returning expanded actions.
 

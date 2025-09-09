@@ -1,0 +1,91 @@
+# This is a Databricks asset bundle definition for acme_dab.
+# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+bundle:
+  name: acme_dab
+  # uuid: "a7b8c9d0-e1f2-4a5b-8c9d-0e1f2a3b4c5d"
+
+variables:
+  default_pipeline_catalog:
+    description: "Default catalog for pipelines"
+  default_pipeline_schema:
+    description: "Default schema for pipelines"
+
+include:
+  # User-managed resource files
+-   resources/*.yml
+  # LHP-managed resource files - using environment-specific pattern
+  # NOTE: You must deploy with matching target name (e.g., databricks bundle deploy --target dev)
+  # This assumes one deployment per environment
+-   resources/lhp/*.yml
+
+
+sync:
+  include:
+  -   generated/${bundle.target}/*
+
+targets:
+
+  dev-userpyte:
+    # This is the  developer's dev target for deployment of the bundle to
+    # their own workspace to perform testing
+    # developer will need to authenticate with their own credentials
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-185ce232-0758.cloud.databricks.com
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}
+
+
+
+  dev:
+    # This is the CI/CD Dev target for deployment of the bundle to Dev CI/CD workspace
+    # for the CI/CD actions to test deployment of the bundle
+    mode: production
+    default: false
+    workspace:
+      host: https://dbc-185ce232-0758.cloud.databricks.com
+      root_path: /Workspace/ci_cd/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+    -   service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d
+        level: CAN_MANAGE
+    run_as:
+      service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d
+
+
+
+    variables:
+      default_pipeline_catalog: acme_edw_dev
+      default_pipeline_schema: edw_gold
+  tst:
+    # This is the CI/CD TST target for deployment of the bundle to the tst workspace
+    # for the CI/CD actions to test deployment of the bundle
+    mode: production
+    default: false
+    workspace:
+      host: https://dbc-3718d108-7d5e.cloud.databricks.com/
+      root_path: /Workspace/ci_cd/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+    -   service_principal_name: 65c09b34-5f72-48da-b70a-a57cd0e69531
+        level: CAN_MANAGE
+    run_as:
+      service_principal_name: 65c09b34-5f72-48da-b70a-a57cd0e69531
+    variables:
+      default_pipeline_catalog: acme_edw_tst
+      default_pipeline_schema: edw_gold
+
+
+  prod:
+    # This is the CI/CD Prod target for deployment of the bundle to the prod workspace
+    # for the CI/CD actions to test deployment of the bundle
+    mode: production
+    workspace:
+      host: https://dbc-c4243765-c447.cloud.databricks.com
+      root_path: /Workspace/ci_cd/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+    -   service_principal_name: e398c2e1-01a6-4a29-b2e9-970681433f09
+        level: CAN_MANAGE
+    run_as:
+      service_principal_name: e398c2e1-01a6-4a29-b2e9-970681433f09
+    variables:
+      default_pipeline_catalog: acme_edw_prod
+      default_pipeline_schema: edw_gold

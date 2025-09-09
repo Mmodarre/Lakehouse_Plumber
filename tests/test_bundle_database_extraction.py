@@ -162,7 +162,7 @@ def customer_summary():
         python_file.write_text(python_content)
         
         # Test the complete workflow
-        content = self.manager._generate_resource_file_content("bronze_load", output_dir)
+        content = self.manager.generate_resource_file_content("bronze_load", output_dir)
         
         # Verify the bundle resource content uses variable references (new behavior)
         assert "catalog: ${var.default_pipeline_catalog}" in content

@@ -141,8 +141,8 @@ class DataQualityTransformGenerator(BaseActionGenerator):
 
             # Try to load the file
             if expectations_file.exists():
-                with open(expectations_file, "r") as f:
-                    data = yaml.safe_load(f)
+                from ...utils.yaml_loader import load_yaml_file
+                data = load_yaml_file(expectations_file, error_context="data quality expectations file")
 
                 # Handle different formats
                 if isinstance(data, dict):

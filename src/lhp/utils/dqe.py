@@ -76,11 +76,12 @@ class DQEParser:
         if not expectations_file.exists():
             raise FileNotFoundError(f"Expectations file not found: {expectations_file}")
 
+        from .yaml_loader import load_yaml_file
         try:
-            with open(expectations_file, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-        except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML in expectations file: {e}")
+            data = load_yaml_file(expectations_file, error_context="expectations file")
+        except ValueError:
+            # yaml_loader already provides clear error context, re-raise as-is
+            raise
 
         expectations = data.get("expectations", [])
         self.logger.info(

@@ -1,0 +1,30 @@
+# This file is used to define the substitutions for the dev environment
+# on the cli when we use the flag -e dev this file is used to define the environment variables
+# and the secrets to use for the dev environment
+dev:
+  env: dev
+  catalog: acme_edw_dev
+  landing_volume: /Volumes/{catalog}/{raw_schema}/incoming_volume
+  migration_schema: edw_old
+  raw_schema: edw_raw
+  bronze_schema: edw_bronze
+  silver_schema: edw_silver
+  gold_schema: edw_gold
+  modelled_schema: edw_gold
+  
+secrets:
+  default_scope: dev_secrets
+  scopes:
+    database: dev_db_secrets
+
+
+
+# global:
+#   # Company-wide standards
+#   company: mehdi_corp
+#   region: us-east-1
+#   timezone: UTC
+#   default_file_format: delta
+#   default_table_properties:
+#     delta.enableChangeDataFeed: "true"
+#     delta.autoOptimize.optimizeWrite: "true"

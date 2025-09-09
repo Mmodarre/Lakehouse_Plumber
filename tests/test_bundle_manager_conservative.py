@@ -310,7 +310,7 @@ resources:
     def test_scenario_6_resources_directory_creation_error(self):
         """Should handle resources directory creation errors."""
         # Mock directory creation failure
-        with patch.object(self.manager, '_ensure_resources_directory', side_effect=BundleResourceError("Directory creation failed")):
+        with patch.object(self.manager, 'ensure_resources_directory', side_effect=BundleResourceError("Directory creation failed")):
             with pytest.raises(BundleResourceError, match="Directory creation failed"):
                 self.manager.sync_resources_with_generated_files(self.generated_dir, "dev")
 

@@ -1,0 +1,110 @@
+# This pipeline creates a customer segmentation materialized view
+# that reads from the customer_lifetime_value_mv to create customer segments
+pipeline: gold_load
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: customer_segmentation_mv
+
+actions:
+
+  - name: customer_segmentation_mv_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        WITH customer_scores AS (
+          SELECT 
+            customer_id,
+            customer_name,
+            market_segment,
+            nation,
+            lifetime_value,
+            total_orders,
+            avg_order_value,
+            customer_tenure_days,
+            
+            -- Calculate recency score (days since last order)
+            CASE 
+              WHEN DATEDIFF(CURRENT_DATE(), last_order_date) <= 30 THEN 5
+              WHEN DATEDIFF(CURRENT_DATE(), last_order_date) <= 90 THEN 4
+              WHEN DATEDIFF(CURRENT_DATE(), last_order_date) <= 180 THEN 3
+              WHEN DATEDIFF(CURRENT_DATE(), last_order_date) <= 365 THEN 2
+              ELSE 1
+            END as recency_score,
+            
+            -- Calculate frequency score (number of orders)
+            CASE 
+              WHEN total_orders >= 10 THEN 5
+              WHEN total_orders >= 5 THEN 4
+              WHEN total_orders >= 3 THEN 3
+              WHEN total_orders >= 2 THEN 2
+              ELSE 1
+            END as frequency_score,
+            
+            -- Calculate monetary score (lifetime value)
+            CASE 
+              WHEN lifetime_value >= 10000 THEN 5
+              WHEN lifetime_value >= 5000 THEN 4
+              WHEN lifetime_value >= 2000 THEN 3
+              WHEN lifetime_value >= 500 THEN 2
+              ELSE 1
+            END as monetary_score
+            
+          FROM {catalog}.{gold_schema}.customer_lifetime_value_mv
+        )
+        SELECT 
+          customer_id,
+          customer_name,
+          market_segment,
+          nation,
+          lifetime_value,
+          total_orders,
+          avg_order_value,
+          customer_tenure_days,
+          recency_score,
+          frequency_score,
+          monetary_score,
+          
+          -- Overall RFM score
+          CONCAT(recency_score, frequency_score, monetary_score) as rfm_score,
+          
+          -- Customer segment based on RFM analysis
+          CASE 
+            WHEN recency_score >= 4 AND frequency_score >= 4 AND monetary_score >= 4 THEN 'Champions'
+            WHEN recency_score >= 3 AND frequency_score >= 3 AND monetary_score >= 3 THEN 'Loyal Customers'
+            WHEN recency_score >= 4 AND frequency_score >= 2 AND monetary_score >= 2 THEN 'Potential Loyalists'
+            WHEN recency_score >= 4 AND frequency_score <= 1 AND monetary_score <= 2 THEN 'New Customers'
+            WHEN recency_score >= 3 AND frequency_score >= 1 AND monetary_score >= 1 THEN 'Promising'
+            WHEN recency_score >= 2 AND frequency_score >= 3 AND monetary_score >= 3 THEN 'Need Attention'
+            WHEN recency_score >= 2 AND frequency_score >= 2 AND monetary_score >= 2 THEN 'About to Sleep'
+            WHEN recency_score <= 2 AND frequency_score >= 2 AND monetary_score >= 3 THEN 'At Risk'
+            WHEN recency_score <= 1 AND frequency_score >= 3 AND monetary_score >= 4 THEN 'Cannot Lose Them'
+            WHEN recency_score <= 1 AND frequency_score <= 1 AND monetary_score <= 2 THEN 'Hibernating'
+            WHEN recency_score <= 1 AND frequency_score <= 2 AND monetary_score <= 2 THEN 'Lost'
+            ELSE 'Others'
+          END as customer_segment,
+          
+          -- Segment priority (1 = highest priority)
+          CASE 
+            WHEN recency_score >= 4 AND frequency_score >= 4 AND monetary_score >= 4 THEN 1  -- Champions
+            WHEN recency_score <= 1 AND frequency_score >= 3 AND monetary_score >= 4 THEN 2  -- Cannot Lose Them
+            WHEN recency_score <= 2 AND frequency_score >= 2 AND monetary_score >= 3 THEN 3  -- At Risk
+            WHEN recency_score >= 3 AND frequency_score >= 3 AND monetary_score >= 3 THEN 4  -- Loyal Customers
+            WHEN recency_score >= 2 AND frequency_score >= 3 AND monetary_score >= 3 THEN 5  -- Need Attention
+            ELSE 6
+          END as segment_priority,
+          
+          CURRENT_TIMESTAMP() as segmentation_updated_at
+          
+        FROM customer_scores
+        ORDER BY segment_priority, lifetime_value DESC
+    target: v_customer_segmentation_mv_sql
+    
+
+  - name: write_customer_segmentation_mv
+    type: write
+    source: v_customer_segmentation_mv_sql
+    write_target:
+      type: materialized_view
+      database: "{catalog}.{gold_schema}"
+      table: "customer_segmentation_mv" 

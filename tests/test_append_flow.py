@@ -212,7 +212,7 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
     actions = [streaming_action, backfill_action]
     target_table = "catalog.schema.lineitem"
     
-    combined_action = orchestrator._create_combined_write_action(actions, target_table)
+    combined_action = orchestrator.create_combined_write_action(actions, target_table)
     
     # Verify individual action metadata is preserved
     assert hasattr(combined_action, '_action_metadata')
@@ -426,7 +426,7 @@ def test_orchestrator_preserves_table_creation_logic():
     actions = [action1, action2]
     target_table = "catalog.schema.events"
     
-    combined_action = orchestrator._create_combined_write_action(actions, target_table)
+    combined_action = orchestrator.create_combined_write_action(actions, target_table)
     
     # Verify that the table creator is correctly identified (action2, not action1)
     assert combined_action._table_creator.name == "write_events_creator"

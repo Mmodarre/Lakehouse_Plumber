@@ -1,0 +1,45 @@
+# This pipeline is used to create a daily sales summary materialized view
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: gold_load
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: customer_lifetime_value
+
+actions:
+
+  - name: customer_lifetime_value_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT 
+          c.customer_id,
+          c.name as customer_name,
+          c.market_segment,
+          n.name as nation,
+          COUNT(DISTINCT o.order_id) as total_orders,
+          SUM(o.total_price) as lifetime_value,
+          AVG(o.total_price) as avg_order_value,
+          MIN(o.order_date) as first_order_date,
+          MAX(o.order_date) as last_order_date,
+          DATEDIFF(MAX(o.order_date), MIN(o.order_date)) as customer_tenure_days
+        FROM {catalog}.{silver_schema}.customer_dim c
+        JOIN {catalog}.{silver_schema}.orders_fct o ON c.customer_id = o.customer_id
+          AND o.order_date >= c.__start_at 
+          AND (o.order_date < c.__end_at OR c.__end_at IS NULL)
+        JOIN {catalog}.{silver_schema}.nation_dim n ON c.nation_id = n.nation_id
+          AND o.order_date >= n.__start_at 
+          AND (o.order_date < n.__end_at OR n.__end_at IS NULL)
+        GROUP BY c.customer_id, c.name, c.market_segment, n.name
+    target: v_customer_lifetime_value_sql
+    
+
+  - name: write_customer_lifetime_value
+    type: write
+    source: v_customer_lifetime_value_sql
+    write_target:
+      type: materialized_view
+      database: "{catalog}.{gold_schema}"
+      table: "customer_lifetime_value_mv"
+
+    

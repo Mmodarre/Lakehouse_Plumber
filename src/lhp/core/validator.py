@@ -47,7 +47,7 @@ class ConfigValidator:
         )
 
     def validate_flowgroup(self, flowgroup: FlowGroup) -> List[str]:
-        """Step 4.4.2: Validate flowgroups and actions.
+        """Validate flowgroups and actions.
 
         Args:
             flowgroup: FlowGroup to validate
@@ -107,7 +107,7 @@ class ConfigValidator:
         return errors
 
     def validate_action(self, action: Action, index: int) -> List[str]:
-        """Step 4.4.2: Validate action types and required fields.
+        """Validate action types and required fields.
 
         Args:
             action: Action to validate

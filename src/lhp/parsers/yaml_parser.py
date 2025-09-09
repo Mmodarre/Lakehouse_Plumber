@@ -9,21 +9,31 @@ class YAMLParser:
     """Parse and validate YAML configuration files."""
 
     def __init__(self):
-        self.loaded_configs = {}
+        pass
 
     def parse_file(self, file_path: Path) -> Dict[str, Any]:
         """Parse a single YAML file."""
+        # Import here to avoid circular imports
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = yaml.safe_load(f)
+            from ..utils.error_formatter import LHPError
+        except ImportError:
+            LHPError = None
+            
+        from ..utils.yaml_loader import load_yaml_file
+        try:
+            content = load_yaml_file(file_path, error_context=f"YAML file {file_path}")
             return content or {}
-        except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML in {file_path}: {e}")
-        except LHPError:
-            # Re-raise LHPError as-is (it's already well-formatted)
-            raise
         except Exception as e:
-            raise ValueError(f"Error reading {file_path}: {e}")
+            # Check if it's an LHPError that should be re-raised
+            if LHPError and isinstance(e, LHPError):
+                raise  # Re-raise LHPError as-is
+            elif isinstance(e, ValueError):
+                # For backward compatibility, convert back to generic error for non-LHPErrors
+                if "File not found" in str(e):
+                    raise ValueError(f"Error reading {file_path}: {e}")
+                raise  # Re-raise ValueError as-is for YAML errors
+            else:
+                raise ValueError(f"Error reading {file_path}: {e}")
 
     def parse_flowgroup(self, file_path: Path) -> FlowGroup:
         """Parse a FlowGroup YAML file."""

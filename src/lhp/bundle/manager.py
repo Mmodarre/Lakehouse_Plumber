@@ -7,17 +7,16 @@ resource operations including resource file synchronization and management.
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Set, Optional, Union, Any
-import os
+from typing import List, Dict, Optional, Union, Any
 
 from .exceptions import BundleResourceError, YAMLParsingError
-from ..core.base_generator import BaseActionGenerator
+from ..utils.template_renderer import TemplateRenderer
 
 
 logger = logging.getLogger(__name__)
 
 
-class BundleManager(BaseActionGenerator):
+class BundleManager:
     """
     Manages Databricks Asset Bundle resource files using a conservative approach.
     
@@ -46,9 +45,6 @@ class BundleManager(BaseActionGenerator):
         Raises:
             TypeError: If project_root is None
         """
-        # Initialize parent class for Jinja2 template support
-        super().__init__()
-        
         if project_root is None:
             raise TypeError("project_root cannot be None")
             
@@ -60,6 +56,10 @@ class BundleManager(BaseActionGenerator):
         self.resources_base_dir = project_root / "resources" / "lhp"
         self.resources_dir = self.resources_base_dir  # Default to base dir for compatibility
         self.logger = logging.getLogger(__name__)
+        
+        # Set up template rendering using composition
+        template_dir = Path(__file__).parent.parent / "templates"
+        self.template_renderer = TemplateRenderer(template_dir)
 
     def _get_env_resources_dir(self, env: str) -> Path:
         """Get root-level resources directory (no longer environment-specific).
@@ -72,14 +72,7 @@ class BundleManager(BaseActionGenerator):
         """
         return self.resources_base_dir
     
-    def generate(self, action, context: Dict[str, Any]) -> str:
-        """
-        Required implementation for BaseActionGenerator.
-        BundleManager uses template rendering for bundle resources, not actions.
-        """
-        raise NotImplementedError("BundleManager uses render_template() for bundle resources, not generate()")
-
-    def sync_resources_with_generated_files(self, output_dir: Path, env: str):
+    def sync_resources_with_generated_files(self, output_dir: Path, env: str) -> int:
         """
         Conservatively sync bundle resource files with generated Python files.
         
@@ -93,93 +86,39 @@ class BundleManager(BaseActionGenerator):
         Decision Matrix:
         | Python Dir | Bundle File Type | Action |
         |------------|------------------|--------|
-        | ✅ Exists  | ✅ LHP file     | DON'T TOUCH (Scenario 1a) |
-        | ✅ Exists  | ✅ User file    | BACKUP + REPLACE (Scenario 1b) |
-        | ✅ Exists  | ❌ No file      | CREATE (Scenario 2) |
-        | ❌ Missing | ✅ Any file     | DELETE (Scenario 3) |
-        | Any        | 🔢 Multiple     | ERROR (Scenario 4) |
+        | Exists     | LHP file         | DON'T TOUCH (Scenario 1a) |
+        | Exists     | User file        | BACKUP + REPLACE (Scenario 1b) |
+        | Exists     | No file          | CREATE (Scenario 2) |
+        | Missing    | Any file         | DELETE (Scenario 3) |
+        | Any        | Multiple         | ERROR (Scenario 4) |
         
         Args:
             output_dir: Directory containing generated Python files
             env: Environment name for template processing
             
+        Returns:
+            Number of resource files updated or removed
+            
         Raises:
             BundleResourceError: If synchronization fails or multiple files detected
         """
-        self.logger.info(f"🔄 Syncing bundle resources for environment: {env}...")
+        self.logger.info("Syncing bundle resources for environment: %s", env)
         
-        # Set environment-specific resources directory
-        self.resources_dir = self._get_env_resources_dir(env)
+        # Setup: Prepare environment and gather current state
+        current_pipeline_dirs, current_pipeline_names, existing_resource_files = \
+            self._setup_sync_environment(env, output_dir)
         
-        # Ensure resources directory exists
-        self._ensure_resources_directory()
+        # Step 1: Process current pipelines using Conservative Approach
+        updated_count = self._process_current_pipelines(current_pipeline_dirs, env)
         
-        # Get current state
-        current_pipeline_dirs = self._get_pipeline_directories(output_dir)
-        current_pipeline_names = {pipeline_dir.name for pipeline_dir in current_pipeline_dirs}
-        existing_resource_files = self._get_existing_resource_files()
+        # Step 2: Clean up orphaned resources  
+        removed_count = self._cleanup_orphaned_resources(current_pipeline_names)
         
-        updated_count = 0
-        removed_count = 0
+        # Step 3: Update configuration files
+        self._update_configuration_files(output_dir, env)
         
-        # Step 1: Create/update resource files for current pipeline directories
-        for pipeline_dir in current_pipeline_dirs:
-            pipeline_name = pipeline_dir.name
-            
-            try:
-                if self._sync_pipeline_resource(pipeline_name, pipeline_dir, env):
-                    updated_count += 1
-                    self.logger.debug(f"Successfully synced pipeline: {pipeline_name}")
-                    
-            except YAMLParsingError as e:
-                error_msg = f"YAML processing failed for pipeline '{pipeline_name}': {e}"
-                self.logger.error(error_msg)
-                raise BundleResourceError(error_msg, e)
-                
-            except OSError as e:
-                error_msg = f"File system error for pipeline '{pipeline_name}': {e}"
-                self.logger.error(error_msg)
-                raise BundleResourceError(error_msg, e)
-                
-            except Exception as e:
-                error_msg = f"Unexpected error for pipeline '{pipeline_name}': {e}"
-                self.logger.error(error_msg)
-                raise BundleResourceError(error_msg, e)
-        
-        # Step 2: Backup resource files for pipeline directories that no longer exist
-        # Check ALL files in resources/lhp, not just LHP-generated ones
-        all_resource_files = self._get_all_resource_files_in_lhp_directory()
-        for resource_file_info in all_resource_files:
-            pipeline_name = resource_file_info["pipeline_name"]
-            resource_file = resource_file_info["path"]
-            
-            if pipeline_name not in current_pipeline_names:
-                try:
-                    self._delete_resource_file(resource_file, pipeline_name)
-                    removed_count += 1
-                    self.logger.debug(f"Successfully deleted resource file for removed pipeline: {pipeline_name}")
-                    
-                except Exception as e:
-                    self.logger.warning(f"Failed to delete resource file {resource_file}: {e}")
-        
-        # Step 3: NEW - Update databricks.yml with pipeline variables
-        try:
-            self._update_databricks_variables(output_dir, env)
-        except Exception as e:
-            self.logger.error(f"Failed to update databricks.yml variables: {e}")
-            raise BundleResourceError(f"Databricks YAML variable update failed: {e}", e)
-        
-        # Log summary with conservative approach context
-        if updated_count > 0 or removed_count > 0:
-            if updated_count > 0 and removed_count > 0:
-                self.logger.info(f"✅ Bundle sync completed: updated {updated_count}, deleted {removed_count} resource file(s)")
-            elif updated_count > 0:
-                self.logger.info(f"✅ Updated {updated_count} bundle resource file(s) (created new or replaced user files)")
-            else:
-                self.logger.info(f"✅ Deleted {removed_count} orphaned bundle resource file(s)")
-        else:
-            self.logger.info("✅ All bundle resources preserved (conservative approach - existing LHP files untouched)")
-        
+        # Step 4: Log results and return summary
+        self._log_sync_summary(updated_count, removed_count)
         return updated_count + removed_count
 
     def _sync_pipeline_resource(self, pipeline_name: str, pipeline_dir: Path, env: str) -> bool:
@@ -219,31 +158,27 @@ class BundleManager(BaseActionGenerator):
             
             # Scenario 1a: LHP file exists - DON'T TOUCH (conservative)
             if self._is_lhp_generated_file(existing_file):
-                self.logger.debug(f"⏭️  Scenario 1a: Skipping {existing_file.name} (LHP file preserved)")
+                self.logger.debug(f"Scenario 1a: Skipping {existing_file.name} (LHP file preserved)")
                 return False
             
             # Scenario 1b: User file exists - BACKUP + REPLACE  
             else:
-                self.logger.info(f"📦 Scenario 1b: Backing up user file {existing_file.name} and replacing with LHP version")
+                self.logger.info(f"Scenario 1b: Backing up user file {existing_file.name} and replacing with LHP version")
                 self._backup_single_file(existing_file, pipeline_name)
                 self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
                 return True
         
         # Step 4: Scenario 2 - No file exists, CREATE new
         else:
-            self.logger.info(f"📝 Scenario 2: Creating new resource file for pipeline '{pipeline_name}'")
+            self.logger.info(f"Scenario 2: Creating new resource file for pipeline '{pipeline_name}'")
             self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
             return True
 
-    def _ensure_resources_directory(self):
+    def ensure_resources_directory(self):
         """Create resources/lhp directory if it doesn't exist."""
-        try:
-            self.resources_dir.mkdir(parents=True, exist_ok=True)
-            self.logger.debug(f"Ensured LHP resources directory exists: {self.resources_dir}")
-        except OSError as e:
-            raise BundleResourceError(f"Failed to create resources directory: {e}", e)
+        self._safe_directory_create(self.resources_dir, "LHP resources directory")
 
-    def _get_pipeline_directories(self, output_dir: Path) -> List[Path]:
+    def get_pipeline_directories(self, output_dir: Path) -> List[Path]:
         """
         Get list of pipeline directories in the output directory.
         
@@ -256,11 +191,8 @@ class BundleManager(BaseActionGenerator):
         Raises:
             BundleResourceError: If directory access fails
         """
-        try:
-            if not output_dir.exists():
-                raise BundleResourceError(f"Output directory does not exist: {output_dir}")
-        except (OSError, PermissionError) as e:
-            raise BundleResourceError(f"Cannot access output directory {output_dir}: {e}", e)
+        # Validate directory access using utility
+        self._safe_directory_access(output_dir, "output directory")
         
         try:
             pipeline_dirs = []
@@ -268,16 +200,16 @@ class BundleManager(BaseActionGenerator):
             for item in sorted(output_dir.iterdir()):
                 if item.is_dir():
                     pipeline_dirs.append(item)
-                    self.logger.debug(f"Found pipeline directory: {item.name}")
+                    self.logger.debug("Found pipeline directory: %s", item.name)
             
             return pipeline_dirs
             
         except (OSError, PermissionError) as e:
-            raise BundleResourceError(f"Error scanning output directory {output_dir}: {e}", e)
+            raise BundleResourceError(f"Error scanning output directory {output_dir}: {e}", e) from e
 
 
 
-    def _get_resource_file_path(self, pipeline_name: str) -> Path:
+    def get_resource_file_path(self, pipeline_name: str) -> Path:
         """
         Find or generate resource file path for a pipeline.
         
@@ -308,13 +240,13 @@ class BundleManager(BaseActionGenerator):
 
 
 
-    def _generate_resource_file_content(self, pipeline_name: str, output_dir: Path, env: str = None) -> str:
+    def generate_resource_file_content(self, pipeline_name: str, output_dir: Path, env: str = None) -> str:
         """
         Generate content for a bundle resource file using Jinja2 template.
         
-        NEW BEHAVIOR: Template now uses static variables (${var.default_pipeline_catalog} 
-        and ${var.default_pipeline_schema}) instead of dynamic extraction from Python files.
-        The actual values are managed through databricks.yml variables.
+        The template uses static variables (${var.default_pipeline_catalog} and
+        ${var.default_pipeline_schema}) rather than extracting values from Python files.
+        Actual values are managed via databricks.yml variables.
         
         Args:
             pipeline_name: Name of the pipeline
@@ -324,14 +256,13 @@ class BundleManager(BaseActionGenerator):
         Returns:
             YAML content for the resource file with static variable references
         """
-        # NEW: No database extraction needed - template uses static variables
+        # No database extraction needed - template uses static variables
         context = {
             "pipeline_name": pipeline_name,
-            # NOTE: env, catalog and schema are no longer needed in context
-            # Template now uses: ${var.default_pipeline_catalog} and ${var.default_pipeline_schema}
+            # env, catalog and schema are not required in the context
         }
         
-        return self.render_template("bundle/pipeline_resource.yml.j2", context)
+        return self.template_renderer.render_template("bundle/pipeline_resource.yml.j2", context)
 
 
 
@@ -380,12 +311,14 @@ class BundleManager(BaseActionGenerator):
             return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
         
         # Find all pipeline directories (directories containing Python files)
-        pipeline_dirs = [d for d in output_dir.iterdir() if d.is_dir()]
+        # Sort for deterministic cross-platform behavior
+        pipeline_dirs = sorted([d for d in output_dir.iterdir() if d.is_dir()])
         self.logger.debug(f"Found {len(pipeline_dirs)} pipeline directories in {output_dir}")
         
         # Search through all Python files across all pipelines
         for pipeline_dir in pipeline_dirs:
-            python_files = list(pipeline_dir.glob("*.py"))
+            # Sort Python files for deterministic ordering within each directory
+            python_files = sorted(list(pipeline_dir.glob("*.py")))
             self.logger.debug(f"Searching {len(python_files)} Python files in {pipeline_dir.name}")
             
             for py_file in python_files:
@@ -469,8 +402,8 @@ class BundleManager(BaseActionGenerator):
             # Import yaml here to use PyYAML (not ruamel.yaml)
             import yaml
             
-            with open(substitution_file, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
+            from ..utils.yaml_loader import load_yaml_file
+            config = load_yaml_file(substitution_file, error_context="bundle substitution file")
             
             if not config:
                 self.logger.warning(f"Empty substitution file: {substitution_file}")
@@ -531,8 +464,11 @@ class BundleManager(BaseActionGenerator):
             # Import yaml here to use PyYAML (not ruamel.yaml)
             import yaml
             
-            with open(databricks_file, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f)
+            from ..utils.yaml_loader import load_yaml_file
+            try:
+                data = load_yaml_file(databricks_file, allow_empty=False, error_context="databricks.yml")
+            except ValueError as e:
+                raise BundleResourceError(f"Failed to load databricks.yml: {e}")
             
             if not data:
                 raise BundleResourceError(
@@ -591,7 +527,7 @@ class BundleManager(BaseActionGenerator):
             BundleResourceError: If the update process fails
             MissingDatabricksTargetError: If required targets are missing
         """
-        self.logger.info("🔧 Updating databricks.yml with pipeline variables...")
+        self.logger.info("Updating databricks.yml with pipeline variables...")
         
         # Step 1: Extract first global catalog.schema
         global_db_info = self._extract_first_global_catalog_schema(output_dir)
@@ -652,7 +588,7 @@ class BundleManager(BaseActionGenerator):
         databricks_manager = DatabricksYAMLManager(self.project_root)
         databricks_manager.bulk_update_all_targets(all_environments, environment_variables)
         
-        self.logger.info(f"✅ Updated databricks.yml variables for {len(all_environments)} targets: {all_environments}")
+        self.logger.info(f"Updated databricks.yml variables for {len(all_environments)} targets: {all_environments}")
 
     def _load_substitution_values_for_environment(self, env: str, catalog_var: str, schema_var: str) -> Dict[str, str]:
         """
@@ -673,10 +609,8 @@ class BundleManager(BaseActionGenerator):
             return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
         
         try:
-            import yaml
-            
-            with open(substitution_file, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
+            from ..utils.yaml_loader import load_yaml_file
+            config = load_yaml_file(substitution_file, error_context="bundle substitution file")
             
             env_config = config.get(env, {}) if config else {}
             
@@ -820,6 +754,219 @@ class BundleManager(BaseActionGenerator):
         self.logger.debug(f"Parsed resolved database string '{database_string}' to: {result}")
         return result
 
+    def _create_unique_backup_path(self, resource_file: Path) -> Path:
+        """
+        Create a unique backup file path with .bkup extension.
+        
+        This utility method supports the Conservative Approach by providing consistent
+        backup path generation with automatic collision handling for all backup scenarios.
+        
+        Args:
+            resource_file: Path to the resource file to backup
+            
+        Returns:
+            Path to a unique backup file (handles existing backups with counters)
+            
+        Example:
+            - First backup: file.yml → file.yml.bkup
+            - Second backup: file.yml → file.yml.bkup.1
+            - Third backup: file.yml → file.yml.bkup.2
+        """
+        backup_file = resource_file.with_suffix(resource_file.suffix + '.bkup')
+        
+        if not backup_file.exists():
+            return backup_file
+            
+        counter = 1
+        original_backup = backup_file
+        while backup_file.exists():
+            backup_file = original_backup.with_suffix(f'.bkup.{counter}')
+            counter += 1
+        
+        return backup_file
+
+    # === UTILITY METHODS ===
+    
+    def _safe_directory_create(self, directory: Path, error_context: str = "directory") -> None:
+        """
+        Safely create directory with consistent error handling.
+        
+        Args:
+            directory: Path to directory to create
+            error_context: Context for error messages
+            
+        Raises:
+            BundleResourceError: If directory creation fails
+        """
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            self.logger.debug("Ensured %s exists: %s", error_context, directory)
+        except OSError as e:
+            raise BundleResourceError(f"Failed to create {error_context}: {e}", e) from e
+    
+    def _safe_directory_access(self, directory: Path, error_context: str = "directory") -> None:
+        """
+        Safely validate directory access with consistent error handling.
+        
+        Args:
+            directory: Path to directory to validate
+            error_context: Context for error messages
+            
+        Raises:
+            BundleResourceError: If directory access fails
+        """
+        try:
+            if not directory.exists():
+                raise BundleResourceError(f"{error_context.capitalize()} does not exist: {directory}")
+        except (OSError, PermissionError) as e:
+            raise BundleResourceError(f"Cannot access {error_context} {directory}: {e}", e) from e
+
+    def _handle_pipeline_error(self, pipeline_name: str, error: Exception, operation: str) -> BundleResourceError:
+        """
+        Create consistent error messages for pipeline operations.
+        
+        Args:
+            pipeline_name: Name of the pipeline being processed
+            error: Original exception that occurred
+            operation: Description of the operation that failed
+            
+        Returns:
+            BundleResourceError with consistent formatting and context
+        """
+        if isinstance(error, YAMLParsingError):
+            error_msg = f"YAML processing failed for pipeline '{pipeline_name}': {error}"
+        elif isinstance(error, OSError):
+            error_msg = f"File system error for pipeline '{pipeline_name}': {error}"
+        else:
+            error_msg = f"{operation} failed for pipeline '{pipeline_name}': {error}"
+        
+        self.logger.error(error_msg)
+        return BundleResourceError(error_msg, error)
+
+    # === MAIN WORKFLOW METHODS ===
+
+    def _setup_sync_environment(self, env: str, output_dir: Path) -> tuple[List[Path], set[str], List[Dict[str, Any]]]:
+        """
+        Setup sync environment and gather current state.
+        
+        Args:
+            env: Environment name for template processing
+            output_dir: Directory containing generated Python files
+            
+        Returns:
+            Tuple of (current_pipeline_dirs, current_pipeline_names, existing_resource_files)
+        """
+        # Set environment-specific resources directory
+        self.resources_dir = self._get_env_resources_dir(env)
+        
+        # Ensure resources directory exists
+        self.ensure_resources_directory()
+        
+        # Get current state
+        current_pipeline_dirs = self.get_pipeline_directories(output_dir)
+        current_pipeline_names = {pipeline_dir.name for pipeline_dir in current_pipeline_dirs}
+        existing_resource_files = self._get_existing_resource_files()
+        
+        return current_pipeline_dirs, current_pipeline_names, existing_resource_files
+
+    def _process_current_pipelines(self, current_pipeline_dirs: List[Path], env: str) -> int:
+        """
+        Process current pipeline directories using Conservative Approach.
+        
+        Args:
+            current_pipeline_dirs: List of pipeline directories to process
+            env: Environment name for template processing
+            
+        Returns:
+            Number of pipelines that were updated
+            
+        Raises:
+            BundleResourceError: If pipeline processing fails
+        """
+        updated_count = 0
+        
+        # Step 1: Create/update resource files for current pipeline directories
+        for pipeline_dir in current_pipeline_dirs:
+            pipeline_name = pipeline_dir.name
+            
+            try:
+                if self._sync_pipeline_resource(pipeline_name, pipeline_dir, env):
+                    updated_count += 1
+                    self.logger.debug("Successfully synced pipeline: %s", pipeline_name)
+                    
+            except (YAMLParsingError, OSError, Exception) as e:
+                raise self._handle_pipeline_error(pipeline_name, e, "Pipeline sync")
+        
+        return updated_count
+
+    def _cleanup_orphaned_resources(self, current_pipeline_names: set[str]) -> int:
+        """
+        Clean up resource files for pipelines that no longer exist.
+        
+        Args:
+            current_pipeline_names: Set of currently existing pipeline names
+            
+        Returns:
+            Number of resource files that were removed
+        """
+        removed_count = 0
+        
+        # Step 2: Backup resource files for pipeline directories that no longer exist
+        # Check ALL files in resources/lhp, not just LHP-generated ones
+        all_resource_files = self._get_all_resource_files_in_lhp_directory()
+        for resource_file_info in all_resource_files:
+            pipeline_name = resource_file_info["pipeline_name"]
+            resource_file = resource_file_info["path"]
+            
+            if pipeline_name not in current_pipeline_names:
+                try:
+                    self._delete_resource_file(resource_file, pipeline_name)
+                    removed_count += 1
+                    self.logger.debug("Successfully deleted resource file for removed pipeline: %s", pipeline_name)
+                    
+                except Exception as e:
+                    self.logger.warning("Failed to delete resource file %s: %s", resource_file, e)
+        
+        return removed_count
+
+    def _update_configuration_files(self, output_dir: Path, env: str) -> None:
+        """
+        Update databricks.yml with pipeline variables.
+        
+        Args:
+            output_dir: Directory containing generated Python files
+            env: Environment name for template processing
+            
+        Raises:
+            BundleResourceError: If databricks.yml update fails
+        """
+        # Step 3: NEW - Update databricks.yml with pipeline variables
+        try:
+            self._update_databricks_variables(output_dir, env)
+        except Exception as e:
+            self.logger.error("Failed to update databricks.yml variables: %s", e)
+            raise BundleResourceError(f"Databricks YAML variable update failed: {e}", e)
+
+    def _log_sync_summary(self, updated_count: int, removed_count: int) -> None:
+        """
+        Log Conservative Approach sync results summary.
+        
+        Uses f-string formatting for user-facing messages that tests expect.
+        
+        Args:
+            updated_count: Number of pipelines updated
+            removed_count: Number of resource files removed
+        """
+        # Log summary with conservative approach context (user-facing messages)
+        if updated_count > 0 or removed_count > 0:
+            if updated_count > 0 and removed_count > 0:
+                self.logger.info(f"Bundle sync completed: updated {updated_count}, deleted {removed_count} resource file(s)")
+            elif updated_count > 0:
+                self.logger.info(f"Updated {updated_count} bundle resource file(s) (created new or replaced user files)")
+            else:
+                self.logger.info(f"Deleted {removed_count} orphaned bundle resource file(s)")
+        else:
+            self.logger.info("All bundle resources preserved (conservative approach - existing LHP files untouched)")
 
     def _create_new_resource_file(self, pipeline_name: str, output_dir: Path, env: str = None):
         """
@@ -831,12 +978,12 @@ class BundleManager(BaseActionGenerator):
             env: Environment name for template context
         """
         # Ensure resources directory exists
-        self._ensure_resources_directory()
+        self.ensure_resources_directory()
         
-        resource_file = self._get_resource_file_path(pipeline_name)
+        resource_file = self.get_resource_file_path(pipeline_name)
         
         # Generate resource file content from Python files
-        content = self._generate_resource_file_content(pipeline_name, output_dir, env)
+        content = self.generate_resource_file_content(pipeline_name, output_dir, env)
         
         try:
             resource_file.write_text(content, encoding='utf-8')
@@ -845,38 +992,7 @@ class BundleManager(BaseActionGenerator):
         except (OSError, PermissionError) as e:
             raise BundleResourceError(f"Failed to create resource file {resource_file}: {e}", e)
 
-    def _backup_and_recreate_resource_file(self, resource_file: Path, pipeline_name: str, output_dir: Path):
-        """
-        Backup existing resource file and create new LHP-managed file.
-        
-        Args:
-            resource_file: Path to existing resource file
-            pipeline_name: Name of the pipeline
-            output_dir: Output directory containing generated Python files
-            
-        Raises:
-            BundleResourceError: If backup or creation fails
-        """
-        try:
-            # Create backup with .bkup extension
-            backup_file = resource_file.with_suffix(resource_file.suffix + '.bkup')
-            
-            # If backup already exists, find a unique name
-            counter = 1
-            original_backup = backup_file
-            while backup_file.exists():
-                backup_file = original_backup.with_suffix(f'.bkup.{counter}')
-                counter += 1
-            
-            # Move original to backup
-            resource_file.rename(backup_file)
-            self.logger.info(f"📦 Backed up existing file: {resource_file.name} → {backup_file.name}")
-            
-            # Create new LHP-managed file from Python files
-            self._create_new_resource_file(pipeline_name, output_dir)
-            
-        except (OSError, PermissionError) as e:
-            raise BundleResourceError(f"Failed to backup and recreate resource file {resource_file}: {e}", e)
+    
 
     def _get_existing_resource_files(self) -> List[Dict[str, Any]]:
         """
@@ -934,26 +1050,7 @@ class BundleManager(BaseActionGenerator):
         
         return None
 
-    def _remove_resource_file(self, resource_file: Path, pipeline_name: str):
-        """
-        Remove a resource file for a pipeline that no longer exists.
-        
-        Args:
-            resource_file: Path to the resource file to remove
-            pipeline_name: Name of the pipeline (for logging)
-            
-        Raises:
-            BundleResourceError: If file removal fails
-        """
-        try:
-            if resource_file.exists():
-                resource_file.unlink()
-                self.logger.info(f"🗑️  Removed resource file: {resource_file.name} (pipeline '{pipeline_name}' no longer exists)")
-            else:
-                self.logger.debug(f"Resource file already removed: {resource_file}")
-                
-        except (OSError, PermissionError) as e:
-            raise BundleResourceError(f"Failed to remove resource file {resource_file}: {e}", e)
+    
 
     def _is_lhp_generated_file(self, resource_file: Path) -> bool:
         """
@@ -1038,37 +1135,7 @@ class BundleManager(BaseActionGenerator):
         
         return None
 
-    def _backup_resource_file(self, resource_file: Path, pipeline_name: str):
-        """
-        Backup a resource file for a pipeline that no longer exists.
-        
-        Args:
-            resource_file: Path to the resource file to backup
-            pipeline_name: Name of the pipeline (for logging)
-            
-        Raises:
-            BundleResourceError: If file backup fails
-        """
-        try:
-            if resource_file.exists():
-                # Create backup with .bkup extension
-                backup_file = resource_file.with_suffix(resource_file.suffix + '.bkup')
-                
-                # If backup already exists, find a unique name
-                counter = 1
-                original_backup = backup_file
-                while backup_file.exists():
-                    backup_file = original_backup.with_suffix(f'.bkup.{counter}')
-                    counter += 1
-                
-                # Move original to backup
-                resource_file.rename(backup_file)
-                self.logger.info(f"📦 Backed up resource file: {resource_file.name} → {backup_file.name} (pipeline '{pipeline_name}' no longer exists)")
-            else:
-                self.logger.debug(f"Resource file already removed: {resource_file}")
-                
-        except (OSError, PermissionError) as e:
-            raise BundleResourceError(f"Failed to backup resource file {resource_file}: {e}", e)
+    
 
     def _delete_resource_file(self, resource_file: Path, pipeline_name: str):
         """
@@ -1085,7 +1152,7 @@ class BundleManager(BaseActionGenerator):
             if resource_file.exists():
                 # Delete the file
                 resource_file.unlink()
-                self.logger.info(f"🗑️  Deleted resource file: {resource_file.name} (pipeline '{pipeline_name}' no longer exists)")
+                self.logger.info(f"Deleted resource file: {resource_file.name} (pipeline '{pipeline_name}' no longer exists)")
             else:
                 self.logger.debug(f"Resource file already removed: {resource_file}")
                 
@@ -1130,29 +1197,24 @@ class BundleManager(BaseActionGenerator):
 
     def _backup_single_file(self, resource_file: Path, pipeline_name: str):
         """
-        Backup a single resource file.
+        Backup a single resource file - Conservative Approach: Scenario 1b.
+        
+        ACTIVE METHOD - Used in user file backup+replace workflow.
+        This method implements the Conservative Approach for preserving user customizations
+        by backing up user-created files before replacing them with LHP versions.
         
         Args:
             resource_file: Path to the resource file to backup
-            pipeline_name: Name of the pipeline (for logging)
+            pipeline_name: Name of the pipeline (for logging) - kept for API compatibility
         """
         try:
             if resource_file.exists():
-                # Create backup with .bkup extension
-                backup_file = resource_file.with_suffix(resource_file.suffix + '.bkup')
-                
-                # If backup already exists, find a unique name
-                counter = 1
-                original_backup = backup_file
-                while backup_file.exists():
-                    backup_file = original_backup.with_suffix(f'.bkup.{counter}')
-                    counter += 1
-                
-                # Move original to backup
-                resource_file.rename(backup_file)
-                self.logger.info(f"📦 Backed up file: {resource_file.name} → {backup_file.name}")
+                backup_path = self._create_unique_backup_path(resource_file)
+                resource_file.rename(backup_path)
+                self.logger.info(f"Backed up file: {resource_file.name} -> {backup_path.name}")
             
         except (OSError, PermissionError) as e:
-            self.logger.warning(f"Failed to backup file {resource_file}: {e}") 
+            # Conservative Approach: Only warn on backup failure, don't stop processing
+            self.logger.warning("Failed to backup file %s: %s", resource_file, e) 
 
  

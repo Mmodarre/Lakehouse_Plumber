@@ -377,7 +377,7 @@ class TestGlobalDependencyTracking:
             state_manager = StateManager(project_root)
             
             # Track some files with current substitution checksum
-            original_checksum = state_manager._calculate_checksum(substitution_file)
+            original_checksum = state_manager.calculate_checksum(substitution_file)
             
             # NOTE: This test will be implemented with enhanced StateManager
             # For now, we're defining the expected behavior
