@@ -42,7 +42,7 @@ class TestBundleJinja2Templates:
         pipeline_name = "raw_ingestion"
         
         # Generate content using template
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+        content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         # Verify basic structure
         assert content is not None
@@ -64,7 +64,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["bronze_load", "silver_transformations", "gold_aggregations"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+            content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Verify pipeline_name is substituted in all expected locations
             assert f"Bundle Resource for {pipeline_name}" in content  # Header
@@ -83,7 +83,7 @@ class TestBundleJinja2Templates:
         pipeline_name = "data_quality_checks"
         
         # Template rendering should work regardless of file existence
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+        content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         # Verify template renders successfully
         assert content is not None
@@ -108,7 +108,7 @@ class TestBundleJinja2Templates:
         assert len(long_pipeline_name) <= 200
         
         # Template should handle long names without issues
-        content = self.manager._generate_resource_file_content(long_pipeline_name, self.generated_dir)
+        content = self.manager.generate_resource_file_content(long_pipeline_name, self.generated_dir)
         
         # Verify no truncation occurred
         assert f"Bundle Resource for {long_pipeline_name}" in content
@@ -129,7 +129,7 @@ class TestBundleJinja2Templates:
         for invalid_name in invalid_names:
             try:
                 # Should handle gracefully without crashing
-                content = self.manager._generate_resource_file_content(invalid_name, self.generated_dir)
+                content = self.manager.generate_resource_file_content(invalid_name, self.generated_dir)
                 
                 # If it succeeds, verify reasonable behavior
                 if content:
@@ -145,7 +145,7 @@ class TestBundleJinja2Templates:
             
         # Test with special characters that might cause issues
         special_chars_name = "test@#$%^&*()"
-        content = self.manager._generate_resource_file_content(special_chars_name, self.generated_dir)
+        content = self.manager.generate_resource_file_content(special_chars_name, self.generated_dir)
         
         # Should handle special characters
         assert content is not None
@@ -161,7 +161,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["raw_ingestion", "bronze_load", "silver_transforms", "gold_aggregations"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+            content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Should parse as valid YAML without errors
             try:
@@ -195,7 +195,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["raw_ingestion", "bronze_processing", "silver_analytics"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+            content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             parsed_yaml = yaml.safe_load(content)
             
             # Navigate to libraries section
@@ -227,7 +227,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["bronze_load", "silver_transforms", "gold_metrics"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+            content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             parsed_yaml = yaml.safe_load(content)
             
             # Navigate to pipeline configuration
@@ -252,7 +252,7 @@ class TestBundleJinja2Templates:
         
         # Test with realistic pipeline name
         pipeline_name = "bronze_data_processing"
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+        content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         parsed_yaml = yaml.safe_load(content)
         
         # Verify top-level structure
@@ -289,22 +289,23 @@ class TestBundleJinja2Templates:
     # Jinja2 Integration Tests (Scenarios 10-13)
     
     def test_template_engine_integration(self):
-        """Should integrate properly with bundle manager's Jinja2 environment."""
-        # Verify BundleManager inherits from BaseActionGenerator
-        from lhp.core.base_generator import BaseActionGenerator
-        assert isinstance(self.manager, BaseActionGenerator)
+        """Should integrate properly with bundle manager's Jinja2 environment via composition."""
+        # Verify BundleManager uses composition with TemplateRenderer
+        from lhp.utils.template_renderer import TemplateRenderer
+        assert hasattr(self.manager, 'template_renderer')
+        assert isinstance(self.manager.template_renderer, TemplateRenderer)
         
-        # Verify Jinja2 environment is available
-        assert hasattr(self.manager, 'env')
-        assert self.manager.env is not None
+        # Verify Jinja2 environment is available through template_renderer
+        assert hasattr(self.manager.template_renderer, 'env')
+        assert self.manager.template_renderer.env is not None
         
-        # Verify render_template method is available
-        assert hasattr(self.manager, 'render_template')
-        assert callable(self.manager.render_template)
+        # Verify render_template method is available on template_renderer
+        assert hasattr(self.manager.template_renderer, 'render_template')
+        assert callable(self.manager.template_renderer.render_template)
         
         # Test template rendering with direct call
         context = {"pipeline_name": "integration_test"}
-        content = self.manager.render_template("bundle/pipeline_resource.yml.j2", context)
+        content = self.manager.template_renderer.render_template("bundle/pipeline_resource.yml.j2", context)
         
         # Verify content was rendered
         assert content is not None
@@ -313,11 +314,11 @@ class TestBundleJinja2Templates:
         assert "integration_test_pipeline:" in content
         
         # Verify Jinja2 environment filters are available
-        assert 'tojson' in self.manager.env.filters
-        assert 'toyaml' in self.manager.env.filters
+        assert 'tojson' in self.manager.template_renderer.env.filters
+        assert 'toyaml' in self.manager.template_renderer.env.filters
         
         # Verify template directory is correctly set
-        template_paths = self.manager.env.loader.searchpath
+        template_paths = self.manager.template_renderer.env.loader.searchpath
         assert any("templates" in path for path in template_paths)
     
     def test_template_loading_from_package(self):
@@ -327,7 +328,7 @@ class TestBundleJinja2Templates:
         
         # Should be able to get template without errors
         try:
-            template = self.manager.env.get_template(template_name)
+            template = self.manager.template_renderer.env.get_template(template_name)
             assert template is not None
             
             # Template should have correct name
@@ -361,7 +362,7 @@ class TestBundleJinja2Templates:
         from unittest.mock import Mock
         
         # Store original method
-        original_render = self.manager.render_template
+        original_render = self.manager.template_renderer.render_template
         
         # Mock to capture context
         captured_contexts = []
@@ -369,14 +370,14 @@ class TestBundleJinja2Templates:
             captured_contexts.append((template_name, context))
             return original_render(template_name, context)
         
-        self.manager.render_template = mock_render
+        self.manager.template_renderer.render_template = mock_render
         
         try:
             # Test with various pipeline names
             pipeline_names = ["context_test", "bronze_processing", "silver_analytics"]
             
             for pipeline_name in pipeline_names:
-                self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+                self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Verify contexts were captured
             assert len(captured_contexts) == len(pipeline_names)
@@ -399,7 +400,7 @@ class TestBundleJinja2Templates:
                 
         finally:
             # Restore original method
-            self.manager.render_template = original_render
+            self.manager.template_renderer.render_template = original_render
     
     def test_template_rendering_error_handling(self):
         """Should handle Jinja2 errors gracefully (missing variables, etc.)"""
@@ -407,25 +408,25 @@ class TestBundleJinja2Templates:
         from jinja2 import TemplateNotFound, UndefinedError
         
         # Test 1: Missing template file
-        with patch.object(self.manager.env, 'get_template') as mock_get_template:
+        with patch.object(self.manager.template_renderer.env, 'get_template') as mock_get_template:
             mock_get_template.side_effect = TemplateNotFound("bundle/missing_template.yml.j2")
             
             # Should handle template not found gracefully
             try:
-                self.manager.render_template("bundle/missing_template.yml.j2", {"pipeline_name": "test"})
+                self.manager.template_renderer.render_template("bundle/missing_template.yml.j2", {"pipeline_name": "test"})
                 pytest.fail("Expected TemplateNotFound error")
             except TemplateNotFound:
                 pass  # Expected behavior
                 
         # Test 2: Test with missing context variables
         # Create a template that requires more variables than provided
-        with patch.object(self.manager.env, 'get_template') as mock_get_template:
+        with patch.object(self.manager.template_renderer.env, 'get_template') as mock_get_template:
             mock_template = mock_get_template.return_value
             mock_template.render.side_effect = UndefinedError("'missing_var' is undefined")
             
             # Should handle undefined variables gracefully
             try:
-                self.manager.render_template("bundle/pipeline_resource.yml.j2", {})
+                self.manager.template_renderer.render_template("bundle/pipeline_resource.yml.j2", {})
                 pytest.fail("Expected UndefinedError")
             except UndefinedError:
                 pass  # Expected behavior
@@ -433,7 +434,7 @@ class TestBundleJinja2Templates:
         # Test 3: Verify normal operation still works
         # This confirms our error handling doesn't break normal functionality
         pipeline_name = "error_handling_test"
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+        content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         assert content is not None
         assert pipeline_name in content
@@ -467,7 +468,7 @@ class TestBundleJinja2Templates:
         ]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+            content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Check for any Jinja2 syntax patterns
             for pattern in jinja2_patterns:
@@ -486,7 +487,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["header_test", "bronze_processing", "complex_data_transformation"]
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+            content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Split content into lines for easier analysis
             lines = content.split('\n')
@@ -522,7 +523,7 @@ class TestBundleJinja2Templates:
         pipeline_names = ["glob_test", "bronze_ingestion", "silver_transformation"] 
         
         for pipeline_name in pipeline_names:
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+            content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             parsed_yaml = yaml.safe_load(content)
             
             # Navigate to libraries section
@@ -591,7 +592,7 @@ class TestBundleJinja2Templates:
             
             # Generate content without any file system scanning
             pipeline_name = "no_iteration_test"
-            content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+            content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
             
             # Verify content was generated successfully
             assert content is not None
@@ -606,7 +607,7 @@ class TestBundleJinja2Templates:
             
         # Verify the method signature includes pipeline_name and env parameters
         import inspect
-        method_sig = inspect.signature(self.manager._generate_resource_file_content)
+        method_sig = inspect.signature(self.manager.generate_resource_file_content)
         param_names = list(method_sig.parameters.keys())
         
         # Should have pipeline_name, output_dir, and env parameters
@@ -631,38 +632,38 @@ class TestBundleJinja2Templates:
         
         # Test 1: Verify normal operation works
         pipeline_name = "corruption_test"
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+        content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         assert content is not None
         assert isinstance(content, str)
         assert pipeline_name in content
         
         # Test 2: Template corruption scenario (missing template file)
-        with patch.object(self.manager.env, 'get_template') as mock_get_template:
+        with patch.object(self.manager.template_renderer.env, 'get_template') as mock_get_template:
             from jinja2 import TemplateNotFound
             mock_get_template.side_effect = TemplateNotFound("bundle/pipeline_resource.yml.j2")
             
             # Should handle missing template gracefully
             try:
-                self.manager._generate_resource_file_content("test_pipeline", self.generated_dir)
+                self.manager.generate_resource_file_content("test_pipeline", self.generated_dir)
                 pytest.fail("Expected TemplateNotFound to be raised")
             except TemplateNotFound:
                 pass  # Expected behavior - let caller handle the error
                 
         # Test 3: Template rendering corruption (context issues)
-        with patch.object(self.manager, 'render_template') as mock_render:
+        with patch.object(self.manager.template_renderer, 'render_template') as mock_render:
             mock_render.side_effect = Exception("Template rendering failed")
             
             # Should propagate template rendering errors
             try:
-                self.manager._generate_resource_file_content("test_pipeline", self.generated_dir)
+                self.manager.generate_resource_file_content("test_pipeline", self.generated_dir)
                 pytest.fail("Expected template rendering error to be raised")
             except Exception as e:
                 assert "Template rendering failed" in str(e)
                 
         # Test 4: Verify system can recover after errors
         # (Normal operation should work again after patches are removed)
-        recovery_content = self.manager._generate_resource_file_content("recovery_test", self.generated_dir)
+        recovery_content = self.manager.generate_resource_file_content("recovery_test", self.generated_dir)
         assert recovery_content is not None
         assert "recovery_test" in recovery_content
     
@@ -673,7 +674,7 @@ class TestBundleJinja2Templates:
         
         # Test 1: Verify normal template produces valid YAML
         pipeline_name = "validation_test"
-        content = self.manager._generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
+        content = self.manager.generate_resource_file_content(pipeline_name, self.generated_dir, "dev")
         
         # Should parse without errors
         try:
@@ -684,7 +685,7 @@ class TestBundleJinja2Templates:
             pytest.fail("Normal template output should produce valid YAML")
             
         # Test 2: Test detection of invalid YAML output
-        with patch.object(self.manager, 'render_template') as mock_render:
+        with patch.object(self.manager.template_renderer, 'render_template') as mock_render:
             # Mock template that produces invalid YAML
             invalid_yaml_outputs = [
                 "resources:\n  pipelines:\n    - invalid: [unclosed",  # Syntax error
@@ -697,7 +698,7 @@ class TestBundleJinja2Templates:
                 mock_render.return_value = invalid_output
                 
                 # Get the generated content
-                result = self.manager._generate_resource_file_content("test", self.generated_dir)
+                result = self.manager.generate_resource_file_content("test", self.generated_dir)
                 
                 # Verify it returns the invalid content (detection happens at parse time)
                 assert result == invalid_output
@@ -711,7 +712,7 @@ class TestBundleJinja2Templates:
                     
         # Test 3: Verify recovery after invalid output
         # (Should work normally again when template is fixed)
-        recovery_content = self.manager._generate_resource_file_content("recovery_test", self.generated_dir)
+        recovery_content = self.manager.generate_resource_file_content("recovery_test", self.generated_dir)
         assert recovery_content is not None
         
         # Should produce valid YAML again
@@ -767,7 +768,7 @@ class TestBundleJinja2TemplateHelpers:
             
         # Verify Jinja2 environment can load the template
         try:
-            template = manager.env.get_template("bundle/pipeline_resource.yml.j2")
+            template = manager.template_renderer.env.get_template("bundle/pipeline_resource.yml.j2")
             assert template is not None, "Template should be loadable by Jinja2 environment"
             
         except Exception as e:
@@ -783,7 +784,7 @@ class TestBundleJinja2TemplateHelpers:
         manager = BundleManager(self.temp_dir)
         
         # Test 1: Verify template contains all required variables
-        template = manager.env.get_template("bundle/pipeline_resource.yml.j2")
+        template = manager.template_renderer.env.get_template("bundle/pipeline_resource.yml.j2")
         
         # Get template source by reading the file directly
         lhp_path = Path(lhp.__file__).parent

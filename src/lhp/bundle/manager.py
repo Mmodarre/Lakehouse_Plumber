@@ -11,13 +11,13 @@ from typing import List, Dict, Set, Optional, Union, Any
 import os
 
 from .exceptions import BundleResourceError, YAMLParsingError
-from ..core.base_generator import BaseActionGenerator
+from ..utils.template_renderer import TemplateRenderer
 
 
 logger = logging.getLogger(__name__)
 
 
-class BundleManager(BaseActionGenerator):
+class BundleManager:
     """
     Manages Databricks Asset Bundle resource files using a conservative approach.
     
@@ -46,9 +46,6 @@ class BundleManager(BaseActionGenerator):
         Raises:
             TypeError: If project_root is None
         """
-        # Initialize parent class for Jinja2 template support
-        super().__init__()
-        
         if project_root is None:
             raise TypeError("project_root cannot be None")
             
@@ -60,6 +57,10 @@ class BundleManager(BaseActionGenerator):
         self.resources_base_dir = project_root / "resources" / "lhp"
         self.resources_dir = self.resources_base_dir  # Default to base dir for compatibility
         self.logger = logging.getLogger(__name__)
+        
+        # Set up template rendering using composition
+        template_dir = Path(__file__).parent.parent / "templates"
+        self.template_renderer = TemplateRenderer(template_dir)
 
     def _get_env_resources_dir(self, env: str) -> Path:
         """Get root-level resources directory (no longer environment-specific).
@@ -72,13 +73,6 @@ class BundleManager(BaseActionGenerator):
         """
         return self.resources_base_dir
     
-    def generate(self, action, context: Dict[str, Any]) -> str:
-        """
-        Required implementation for BaseActionGenerator.
-        BundleManager uses template rendering for bundle resources, not actions.
-        """
-        raise NotImplementedError("BundleManager uses render_template() for bundle resources, not generate()")
-
     def sync_resources_with_generated_files(self, output_dir: Path, env: str):
         """
         Conservatively sync bundle resource files with generated Python files.
@@ -112,10 +106,10 @@ class BundleManager(BaseActionGenerator):
         self.resources_dir = self._get_env_resources_dir(env)
         
         # Ensure resources directory exists
-        self._ensure_resources_directory()
+        self.ensure_resources_directory()
         
         # Get current state
-        current_pipeline_dirs = self._get_pipeline_directories(output_dir)
+        current_pipeline_dirs = self.get_pipeline_directories(output_dir)
         current_pipeline_names = {pipeline_dir.name for pipeline_dir in current_pipeline_dirs}
         existing_resource_files = self._get_existing_resource_files()
         
@@ -235,7 +229,7 @@ class BundleManager(BaseActionGenerator):
             self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
             return True
 
-    def _ensure_resources_directory(self):
+    def ensure_resources_directory(self):
         """Create resources/lhp directory if it doesn't exist."""
         try:
             self.resources_dir.mkdir(parents=True, exist_ok=True)
@@ -243,7 +237,7 @@ class BundleManager(BaseActionGenerator):
         except OSError as e:
             raise BundleResourceError(f"Failed to create resources directory: {e}", e)
 
-    def _get_pipeline_directories(self, output_dir: Path) -> List[Path]:
+    def get_pipeline_directories(self, output_dir: Path) -> List[Path]:
         """
         Get list of pipeline directories in the output directory.
         
@@ -277,7 +271,7 @@ class BundleManager(BaseActionGenerator):
 
 
 
-    def _get_resource_file_path(self, pipeline_name: str) -> Path:
+    def get_resource_file_path(self, pipeline_name: str) -> Path:
         """
         Find or generate resource file path for a pipeline.
         
@@ -308,7 +302,7 @@ class BundleManager(BaseActionGenerator):
 
 
 
-    def _generate_resource_file_content(self, pipeline_name: str, output_dir: Path, env: str = None) -> str:
+    def generate_resource_file_content(self, pipeline_name: str, output_dir: Path, env: str = None) -> str:
         """
         Generate content for a bundle resource file using Jinja2 template.
         
@@ -331,7 +325,7 @@ class BundleManager(BaseActionGenerator):
             # Template now uses: ${var.default_pipeline_catalog} and ${var.default_pipeline_schema}
         }
         
-        return self.render_template("bundle/pipeline_resource.yml.j2", context)
+        return self.template_renderer.render_template("bundle/pipeline_resource.yml.j2", context)
 
 
 
@@ -832,12 +826,12 @@ class BundleManager(BaseActionGenerator):
             env: Environment name for template context
         """
         # Ensure resources directory exists
-        self._ensure_resources_directory()
+        self.ensure_resources_directory()
         
-        resource_file = self._get_resource_file_path(pipeline_name)
+        resource_file = self.get_resource_file_path(pipeline_name)
         
         # Generate resource file content from Python files
-        content = self._generate_resource_file_content(pipeline_name, output_dir, env)
+        content = self.generate_resource_file_content(pipeline_name, output_dir, env)
         
         try:
             resource_file.write_text(content, encoding='utf-8')
