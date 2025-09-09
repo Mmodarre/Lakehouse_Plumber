@@ -98,9 +98,9 @@ class BaseCommand:
     def echo_verbose_info(self, message: str) -> None:
         """Echo verbose information if verbose mode is enabled."""
         if self.verbose and self.log_file:
-            click.echo(f"📝 {message}")
+            click.echo(f"{message}")
             if "Detailed logs:" not in message:
-                click.echo(f"📝 Detailed logs: {self.log_file}")
+                click.echo(f"Detailed logs: {self.log_file}")
     
     def handle_error(self, error: Exception, context: str, exit_code: int = 1) -> None:
         """
@@ -112,10 +112,10 @@ class BaseCommand:
             exit_code: Exit code to use (default: 1)
         """
         if self.verbose:
-            click.echo(f"❌ {context}: {error}")
+            click.echo(f"{context}: {error}")
             if self.log_file:
-                click.echo(f"📝 See detailed logs: {self.log_file}")
+                click.echo(f"See detailed logs: {self.log_file}")
         else:
-            click.echo(f"❌ {context}")
+            click.echo(f"{context}")
             
         sys.exit(exit_code)

@@ -61,11 +61,10 @@ class StateCleanupService:
                 return False
             except ImportError:
                 self.logger.warning("file_pattern_matcher not available, assuming files match patterns")
-                return True  # Safe fallback during refactoring
+                return True  
             except Exception as e:
                 self.logger.warning(f"Error checking pattern match for {file_path}: {e}")
-                return True  # Safe fallback - don't delete if unsure
-        
+                return True  
         orphaned_files = []
         env_files = state.environments.get(environment, {})
         

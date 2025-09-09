@@ -9,6 +9,7 @@ import pytest
 import shutil
 import os
 import hashlib
+import yaml
 from pathlib import Path
 from click.testing import CliRunner
 
@@ -175,7 +176,7 @@ resources:
         assert not missing_dirs, f"Resource files exist but no directories: {missing_dirs}"
         assert not extra_dirs, f"Directories exist but no resource files: {extra_dirs}"
         
-        print(f"✅ Correspondence verified: {len(pipeline_dirs)} pipelines match")
+        print(f" Correspondence verified: {len(pipeline_dirs)} pipelines match")
     
     # ========================================================================
     # BM TEST SCENARIOS
@@ -210,7 +211,7 @@ resources:
         new_mtime = resource_file.stat().st_mtime
         assert abs(new_mtime - original_mtime) < 1, "Resource file should not be modified"
         
-        print("✅ BM-1: LHP-managed file preserved successfully")
+        print(" BM-1: LHP-managed file preserved successfully")
     
     def test_BM2_backup_and_replace_user_managed_file(self):
         """BM-2: Backup and replace user-managed file."""
@@ -244,7 +245,7 @@ resources:
         assert self.has_lhp_header(resource_file), "New resource file should have LHP header"
         assert "catalog: ${var.default_pipeline_catalog}" in resource_file.read_text(), "Should have LHP template content"
         
-        print("✅ BM-2: User file backed up and replaced with LHP-managed file")
+        print(" BM-2: User file backed up and replaced with LHP-managed file")
     
     def test_BM3_create_new_resource_file_when_missing(self):
         """BM-3: Create new resource file when missing."""
@@ -275,7 +276,7 @@ resources:
         assert "schema: ${var.default_pipeline_schema}" in content, "Should have template schema"
         assert f"generated/${{bundle.target}}/{pipeline_name}" in content, "Should have correct path"
         
-        print("✅ BM-3: New resource file created successfully")
+        print(" BM-3: New resource file created successfully")
     
     def test_BM4_delete_orphaned_resource_file(self):
         """BM-4: Delete orphaned resource file."""
@@ -300,9 +301,9 @@ resources:
         assert exit_code == 0, f"Generate should succeed: {output}"
         
         if not resource_file.exists():
-            print("✅ BM-4: Orphaned resource file deleted successfully")
+            print(" BM-4: Orphaned resource file deleted successfully")
         else:
-            print("⚠️ BM-4: Orphaned resource file NOT deleted - checking bundle sync logs")
+            print(" BM-4: Orphaned resource file NOT deleted - checking bundle sync logs")
             self.assert_log_contains(output, "Bundle resource files synchronized")
     
     def test_BM5_error_on_multiple_resource_files(self):
@@ -336,11 +337,11 @@ resources:
         # Expected: Error raised due to ambiguous configuration
         # The actual behavior: Warning issued but command succeeds (better UX)
         if "Multiple bundle resource files found" in output:
-            print("✅ BM-5: Multiple files correctly detected and reported")
+            print(" BM-5: Multiple files correctly detected and reported")
             self.assert_log_contains(output, "Multiple bundle resource files")
             self.assert_log_contains(output, "Bundle sync warning")
         else:
-            print("⚠️ BM-5: Multiple files not detected in bundle sync")
+            print(" BM-5: Multiple files not detected in bundle sync")
     
     def test_BM6_header_based_lhp_detection(self):
         """BM-6: Header-based LHP detection."""
@@ -385,7 +386,7 @@ resources:
         user_backups = self.get_backup_files(user_pipeline)
         assert len(user_backups) > 0, "User file should have backup"
         
-        print("✅ BM-6: Header-based detection working correctly")
+        print(" BM-6: Header-based detection working correctly")
     
     def test_BM7_output_directory_missing(self):
         """BM-7: Error when output directory missing."""
@@ -400,10 +401,10 @@ resources:
         # Expected: Error raised indicating output directory does not exist
         # Actual behavior: Generate command automatically creates missing directories (better UX!)
         if exit_code == 0 and self.generated_dir.exists():
-            print("✅ BM-7: Missing directory automatically created - excellent UX!")
+            print(" BM-7: Missing directory automatically created - excellent UX!")
             self.assert_log_contains(output, "Bundle resource files synchronized")
         else:
-            print("⚠️ BM-7: Unexpected behavior with missing directories")
+            print(" BM-7: Unexpected behavior with missing directories")
 
     # ========================================================================
     # NEW E2E TESTS - BASELINE AND STATE MANAGEMENT
@@ -426,12 +427,12 @@ resources:
         hash_differences = self._compare_directory_hashes(dev_generated_dir, baseline_dir)
         
         if hash_differences:
-            print(f"\n❌ BASELINE HASH COMPARISON FAILURES ({len(hash_differences)} differences):")
+            print(f"\n BASELINE HASH COMPARISON FAILURES ({len(hash_differences)} differences):")
             for i, diff in enumerate(hash_differences, 1):
                 print(f"  {i}. {diff}")
             assert False, f"Generated files differ from baseline: {len(hash_differences)} differences found"
         
-        print("✅ Generated files match baseline perfectly (hash comparison)")
+        print(" Generated files match baseline perfectly (hash comparison)")
 
     def test_include_directive_filtering(self):
         """Test that include directive filters pipelines correctly and matches baseline."""
@@ -470,7 +471,7 @@ resources:
             # Hash comparison for generated files
             hash_differences = self._compare_directory_hashes(generated_raw_dir, baseline_raw_dir)
             if hash_differences:
-                print(f"\n❌ INCLUDE FILTERING - GENERATED FILES HASH FAILURES ({len(hash_differences)} differences):")
+                print(f"\n INCLUDE FILTERING - GENERATED FILES HASH FAILURES ({len(hash_differences)} differences):")
                 for i, diff in enumerate(hash_differences, 1):
                     print(f"  {i}. {diff}")
                 assert False, f"Generated acmi_edw_raw files differ from baseline: {len(hash_differences)} differences"
@@ -485,10 +486,10 @@ resources:
             # Hash comparison for resource file
             resource_hash_diff = self._compare_file_hashes(generated_resource_file, baseline_resource_file)
             if resource_hash_diff:
-                print(f"\n❌ INCLUDE FILTERING - RESOURCE FILE HASH FAILURE: {resource_hash_diff}")
+                print(f"\n INCLUDE FILTERING - RESOURCE FILE HASH FAILURE: {resource_hash_diff}")
                 assert False, f"Generated acmi_edw_raw resource file differs from baseline: {resource_hash_diff}"
             
-            print("✅ Include directive filtering working correctly - generated files match baseline perfectly")
+            print(" Include directive filtering working correctly - generated files match baseline perfectly")
             
         finally:
             # Restore original working directory and lhp.yaml content
@@ -531,7 +532,7 @@ resources:
         # Report statistics
         total_files = len(dev_files)
         total_size = sum(file_structures["dev"].values())
-        print(f"✅ Multi-environment consistency verified:")
+        print(f" Multi-environment consistency verified:")
         print(f"   - {total_files} files consistent across {len(environments)} environments")
         print(f"   - All files have content (total size: {total_size} bytes)")
         print(f"   - Environments: {', '.join(environments)}")
@@ -575,7 +576,7 @@ resources:
             assert len(remaining_customer_bronze_files) == 0, \
                 f"Customer bronze generated files not cleaned up: {remaining_customer_bronze_files}"
             
-            print("✅ Flowgroup deletion cleanup working correctly")
+            print(" Flowgroup deletion cleanup working correctly")
             
         finally:
             # Restore the deleted file for other tests
@@ -601,8 +602,8 @@ resources:
         assert bronze_pipeline_dir.exists(), f"Bronze pipeline directory should exist: {bronze_pipeline_dir}"
         
         # Create backup for restoration
-        backup_dir = bronze_pipeline_dir.parent / "02_bronze_backup"
-        shutil.copytree(bronze_pipeline_dir, backup_dir)
+        #backup_dir = bronze_pipeline_dir.parent / "02_bronze_backup"
+        #shutil.copytree(bronze_pipeline_dir, backup_dir)
         
         try:
             # Delete the entire pipeline directory
@@ -616,13 +617,11 @@ resources:
             assert not bronze_generated_dir.exists(), \
                 f"Generated pipeline directory should be deleted: {bronze_generated_dir}"
             
-            print("✅ Pipeline directory deletion cleanup working correctly")
+            print(" Pipeline directory deletion cleanup working correctly")
             
         finally:
             # Restore the deleted pipeline directory for other tests
-            if backup_dir.exists():
-                shutil.copytree(backup_dir, bronze_pipeline_dir)
-                shutil.rmtree(backup_dir)
+            pass
 
     # ========================================================================
     # HELPER METHODS FOR NEW TESTS
@@ -743,7 +742,7 @@ resources:
         if missing_dirs:
             assert False, f"Expected pipeline directories missing: {missing_dirs}"
         
-        print(f"✅ Selective generation verified: only {expected_dirs} generated")
+        print(f" Selective generation verified: only {expected_dirs} generated")
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
         """Compare hashes of two files, return difference description or empty string if identical."""
@@ -763,4 +762,66 @@ resources:
             
         except (OSError, IOError, UnicodeDecodeError) as e:
             return f"Error comparing files: {e}"
+
+    def test_databricks_yml_variables_synchronization(self):
+        """Test that generate -e dev adds environment-specific variables to dev/tst targets in databricks.yml."""
+        # Step 1: Verify initial state of databricks.yml
+        databricks_yml_path = self.project_root / "databricks.yml"
+        assert databricks_yml_path.exists(), "databricks.yml should exist in test fixture"
+        
+        # Read and parse initial YAML
+        with open(databricks_yml_path, 'r') as f:
+            initial_config = yaml.safe_load(f)
+        
+        # Verify initial conditions
+        targets = initial_config.get('targets', {})
+        
+        # Prod should have variables
+        prod_target = targets.get('prod', {})
+        assert 'variables' in prod_target, "prod target should have variables section initially"
+        initial_prod_variables = prod_target['variables']
+        
+        # Verify specific variables exist in prod
+        assert 'default_pipeline_catalog' in initial_prod_variables, "prod should have default_pipeline_catalog"
+        assert 'default_pipeline_schema' in initial_prod_variables, "prod should have default_pipeline_schema"
+        assert initial_prod_variables['default_pipeline_catalog'] == 'acme_edw_prod', "prod catalog should be acme_edw_prod"
+        assert initial_prod_variables['default_pipeline_schema'] == 'edw_bronze', "prod schema should be edw_bronze"
+        
+        # Dev and tst should NOT have variables
+        dev_target = targets.get('dev', {})
+        tst_target = targets.get('tst', {})
+        assert 'variables' not in dev_target, "dev target should NOT have variables section initially"
+        assert 'variables' not in tst_target, "tst target should NOT have variables section initially"
+        
+        print(" Initial state verified: prod has variables, dev/tst don't")
+        
+        # Step 2: Run generate -e dev command
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Generate command should succeed: {output}"
+        print("Generate command executed successfully")
+        
+        # Step 3: Compare generated databricks.yml with expected baseline
+        baseline_path = Path(__file__).parent / "fixtures" / "testing_project" / "databricks_baseline.yml"
+        assert baseline_path.exists(), f"Baseline file should exist: {baseline_path}"
+        
+        # Use the existing _compare_file_hashes method for comparison
+        file_diff = self._compare_file_hashes(databricks_yml_path, baseline_path)
+        
+        if file_diff:
+            print(f" DATABRICKS.YML COMPARISON FAILURE: {file_diff}")
+            
+            # Show the actual vs expected content for debugging
+            actual_content = databricks_yml_path.read_text()
+            expected_content = baseline_path.read_text()
+            print(f"ACTUAL databricks.yml content:\n{actual_content}")
+            print(f"EXPECTED databricks_baseline.yml content:\n{expected_content}")
+            
+            assert False, f"Generated databricks.yml differs from baseline: {file_diff}"
+        
+        print(" TEST COMPLETE: databricks.yml matches baseline perfectly!")
+        print("  ✓ Initial state: prod had variables, dev/tst didn't")
+        print("  ✓ After generate: dev and tst now have environment-specific variables")  
+        print("  ✓ Generated file matches expected baseline exactly")
+        
+        # Test cleanup is handled by the setup_test_project fixture automatically
 

@@ -171,11 +171,11 @@ class GenerateCommand(BaseCommand):
         
         if orphaned_files:
             if dry_run:
-                click.echo(f"📋 Would clean up {len(orphaned_files)} orphaned file(s):")
+                click.echo(f"Would clean up {len(orphaned_files)} orphaned file(s):")
                 for file_state in orphaned_files:
                     click.echo(f"   • {file_state.generated_path} (from {file_state.source_yaml})")
             else:
-                click.echo(f"🗑️  Cleaning up {len(orphaned_files)} orphaned file(s):")
+                click.echo(f"Cleaning up {len(orphaned_files)} orphaned file(s):")
                 deleted_files = state_manager.cleanup_orphaned_files(env, dry_run=False)
                 for deleted_file in deleted_files:
                     click.echo(f"   • Deleted: {deleted_file}")
@@ -191,7 +191,7 @@ class GenerateCommand(BaseCommand):
         lhp_orphaned = [f for f in orphaned_files_fs if state_manager.is_lhp_generated_file(f)]
         
         if lhp_orphaned:
-            click.echo(f"📋 Fresh start cleanup would remove {len(lhp_orphaned)} orphaned file(s):")
+            click.echo(f"Fresh start cleanup would remove {len(lhp_orphaned)} orphaned file(s):")
             for file_path in sorted(lhp_orphaned):
                 try:
                     rel_path = file_path.relative_to(output_dir.parent.parent)  # project_root equivalent
@@ -199,7 +199,7 @@ class GenerateCommand(BaseCommand):
                 except ValueError:
                     click.echo(f"   • {file_path}")
         else:
-            click.echo("📋 Fresh start cleanup: no orphaned files would be removed")
+            click.echo("Fresh start cleanup: no orphaned files would be removed")
     
     def _analyze_generation_needs(self, pipelines_to_generate: List[str], env: str,
                                  state_manager: Optional[StateManager], no_cleanup: bool,
@@ -218,7 +218,7 @@ class GenerateCommand(BaseCommand):
                 click.echo("🌍 Global dependency changes detected:")
                 for change in staleness_info["global_changes"]:
                     click.echo(f"   • {change}")
-                click.echo("   → All files will be regenerated")
+                click.echo("   All files will be regenerated")
             
             for pipeline_name in pipelines_to_generate:
                 generation_info = state_manager.get_files_needing_generation(env, pipeline_name)
@@ -234,7 +234,7 @@ class GenerateCommand(BaseCommand):
                         status_parts.append(f"{new_count} new")
                     if stale_count > 0:
                         status_parts.append(f"{stale_count} stale")
-                    click.echo(f"   📁 {pipeline_name}: {', '.join(status_parts)} file(s)")
+                    click.echo(f"   {pipeline_name}: {', '.join(status_parts)} file(s)")
                     
                     # Show detailed dependency changes for verbose mode
                     if self.verbose and stale_count > 0:
@@ -324,22 +324,22 @@ class GenerateCommand(BaseCommand):
     
     def _show_dry_run_preview(self, generated_files: Dict[str, str]) -> None:
         """Show preview of what would be generated in dry-run mode."""
-        click.echo(f"📄 Would generate {len(generated_files)} file(s):")
+        click.echo(f"Would generate {len(generated_files)} file(s):")
         for filename in sorted(generated_files.keys()):
             click.echo(f"   • {filename}")
         
         # Show preview of first file if verbose
         if generated_files and logger.isEnabledFor(logging.DEBUG):
             first_file = next(iter(generated_files.values()))
-            click.echo("\n📄 Preview of generated code:")
-            click.echo("─" * 60)
+            click.echo("\nPreview of generated code:")
+            click.echo("-" * 60)
             # Show first 50 lines
             lines = first_file.split("\n")[:50]
             for line in lines:
                 click.echo(line)
             if len(first_file.split("\n")) > 50:
                 click.echo("... (truncated)")
-            click.echo("─" * 60)
+            click.echo("-" * 60)
     
     def _show_generation_results(self, generated_files: Dict[str, str], output_dir: Path,
                                 pipeline_name: str, project_root: Path) -> None:
@@ -353,7 +353,7 @@ class GenerateCommand(BaseCommand):
                                 state_manager: Optional[StateManager], dry_run: bool,
                                 project_root: Path) -> None:
         """Handle case where no flowgroups found in pipeline."""
-        click.echo(f"📭 No flowgroups found in pipeline: {pipeline_name}")
+        click.echo(f"No flowgroups found in pipeline: {pipeline_name}")
         
         # Still run cleanup if enabled
         if state_manager:
@@ -364,7 +364,7 @@ class GenerateCommand(BaseCommand):
             pipeline_orphaned = [f for f in all_orphaned if f.pipeline == pipeline_name]
             
             if pipeline_orphaned:
-                click.echo(f"🗑️  Found {len(pipeline_orphaned)} orphaned file(s) from {pipeline_name}")
+                click.echo(f"Found {len(pipeline_orphaned)} orphaned file(s) from {pipeline_name}")
                 if not dry_run:
                     # Clean up orphaned files for this pipeline
                     for file_state in pipeline_orphaned:
@@ -403,16 +403,16 @@ class GenerateCommand(BaseCommand):
                 else:
                     # In dry-run mode, just show what would happen
                     if self.verbose:
-                        click.echo("📋 Dry run: Bundle sync would be performed")
+                        click.echo("Dry run: Bundle sync would be performed")
             
         except BundleResourceError as e:
             click.echo(f"⚠️  Bundle sync warning: {e}")
             if self.verbose and self.log_file:
-                click.echo(f"📝 Bundle details in logs: {self.log_file}")
+                click.echo(f"Bundle details in logs: {self.log_file}")
         except Exception as e:
             click.echo(f"⚠️  Bundle sync failed: {e}")
             if self.verbose and self.log_file:
-                click.echo(f"📝 Bundle error details in logs: {self.log_file}")
+                click.echo(f"Bundle error details in logs: {self.log_file}")
     
     def _display_completion_message(self, total_files: int, output_dir: Path,
                                    project_root: Path, dry_run: bool, no_cleanup: bool,

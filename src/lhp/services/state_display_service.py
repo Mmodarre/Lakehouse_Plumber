@@ -4,7 +4,6 @@ This service separates the business logic of state management from CLI presentat
 providing a clean, testable interface for state operations.
 """
 
-import click
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 from collections import defaultdict

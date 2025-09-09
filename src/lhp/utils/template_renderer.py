@@ -16,8 +16,8 @@ class TemplateRenderer:
     """
     Template rendering utility using Jinja2.
     
-    Provides a clean composition-based approach to template rendering,
-    replacing inappropriate inheritance patterns.
+    Provides a composition-based approach to template rendering to promote
+    clear separation of concerns.
     """
     
     def __init__(self, template_dir: Path):

@@ -34,13 +34,13 @@ class ActionRegistry:
     """Registry for action generators."""
 
     def __init__(self):
-        # Step 4.1.1: Create the registry structure
+        # Create the registry structure
         self._load_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._transform_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._write_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._test_generators: Dict[str, Type[BaseActionGenerator]] = {}
 
-        # Step 4.1.2: Map action types to generators
+        # Map action types to generators
         self._initialize_generators()
 
     def _initialize_generators(self):
@@ -87,8 +87,8 @@ class ActionRegistry:
     def get_generator(
         self, action_type: ActionType, sub_type: str = None
     ) -> BaseActionGenerator:
-        """Step 4.1.3: Implement generator factory method."""
-        # Step 4.1.4: Add error handling and validation
+        """Implement generator factory method."""
+        # Add error handling and validation
         if not isinstance(action_type, ActionType):
             raise ValueError(
                 f"Invalid action type: {action_type}. Must be an ActionType enum."

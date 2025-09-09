@@ -1,4 +1,4 @@
-"""State management for LakehousePlumber generated files (Refactored)."""
+"""State management for LakehousePlumber generated files."""
 
 import json
 import hashlib
@@ -383,12 +383,3 @@ class StateManager:
         except Exception as e:
             self.logger.warning(f"Could not load project config for include patterns: {e}")
             return []
-
-
-if __name__ == "__main__":
-    # Basic test of the refactored state manager
-    state_manager = StateManager(Path.cwd())
-    print(f"✅ StateManager service composition initialized successfully")
-    print(f"   Services: persistence, analyzer, cleaner, tracker")
-    print(f"   State file: {state_manager.state_file}")
-    print(f"   Environments: {len(state_manager.state.environments)}")

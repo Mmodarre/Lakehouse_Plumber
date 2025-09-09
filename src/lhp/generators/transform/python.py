@@ -246,7 +246,7 @@ class PythonTransformGenerator(BaseActionGenerator):
                 return '\n'.join(lines[i+2:]) if i+2 < len(lines) else ""
         return content  # No header found, return as-is
 
-    def _extract_source_views(self, config) -> list:
-        """Legacy method - kept for backward compatibility during transition."""
-        # This method is deprecated but kept to avoid breaking during refactor
-        return self._extract_source_views_from_action_source(config.get("sources", []))
+    # def _extract_source_views(self, config) -> list:
+    #     """Legacy method - kept for backward compatibility during transition."""
+    #     # This method is deprecated but kept to avoid breaking during refactor
+    #     return self._extract_source_views_from_action_source(config.get("sources", []))

@@ -1,4 +1,4 @@
-"""Main orchestration for LakehousePlumber pipeline generation (Refactored)."""
+"""Main orchestration for LakehousePlumber pipeline generation."""
 
 import logging
 import os
@@ -199,7 +199,7 @@ class ActionOrchestrator:
         if not pipeline_dir.exists():
             raise ValueError(f"Pipeline directory not found: {pipeline_dir}")
 
-        # Step 4.5.2: Implement flowgroup discovery
+        # Implement flowgroup discovery
         all_flowgroups = self.discoverer.discover_flowgroups(pipeline_dir)
         if not all_flowgroups:
             raise ValueError(f"No flowgroups found in pipeline: {pipeline_name}")
@@ -277,7 +277,7 @@ class ActionOrchestrator:
             self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
 
             try:
-                # Step 4.5.3: Process flowgroup
+                # Process flowgroup
                 processed_flowgroup = self.process_flowgroup(
                     flowgroup, substitution_mgr
                 )
@@ -317,7 +317,7 @@ class ActionOrchestrator:
                     pipeline_dir, processed_flowgroup.flowgroup
                 )
                 
-                # Step 4.5.6: Generate code
+                # Generate code
                 code = self.generate_flowgroup_code(
                     processed_flowgroup, substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
                 )
@@ -336,7 +336,7 @@ class ActionOrchestrator:
                 # Store result (we know it's not empty at this point)
                 generated_files[filename] = formatted_code
 
-                # Step 4.5.7: Write to output directory if specified
+                # Write to output directory if specified
                 if output_dir:
                     output_file = output_dir / filename
                     smart_writer.write_if_changed(output_file, formatted_code)

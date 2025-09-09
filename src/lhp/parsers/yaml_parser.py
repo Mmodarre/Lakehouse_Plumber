@@ -9,7 +9,7 @@ class YAMLParser:
     """Parse and validate YAML configuration files."""
 
     def __init__(self):
-        self.loaded_configs = {}
+        pass
 
     def parse_file(self, file_path: Path) -> Dict[str, Any]:
         """Parse a single YAML file."""

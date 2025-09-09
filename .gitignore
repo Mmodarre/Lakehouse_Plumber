@@ -13,9 +13,6 @@ docs_old/
 src/lakehouse_plumber.egg-info/
 __pycache__/
 Sample_Projects/
-TEST_DOCUMENTATION.md
-ERROR_REFERENCE.md
-UNTESTED_LOGIC_ANALYSIS.md
 .readthedocs.yml
 publish.sh
 Example_Projects/acmi/generated/
@@ -33,4 +30,4 @@ Example_Projects/acmi/Data_Prep/__builtins__.pyi
 .kiro/steering/byterover-rules.md
 .qoder/rules/byterover-rules.md
 .augment/rules/byterover-rules.md
-BYTEROVER_MCP_HANDBOOK.md
+BYTEROVER*

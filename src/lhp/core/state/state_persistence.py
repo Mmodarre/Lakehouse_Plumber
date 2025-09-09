@@ -67,14 +67,11 @@ class StatePersistence:
                         
                         # Convert file_dependencies from dict to DependencyInfo objects
                         if file_state["file_dependencies"]:
-                            # Import at runtime to avoid circular imports
-                            # Already imported at top
                             file_deps = {}
                             for dep_path, dep_info in file_state["file_dependencies"].items():
                                 file_deps[dep_path] = DependencyInfo(**dep_info)
                             file_state["file_dependencies"] = file_deps
                         
-                        # Already imported at top
                         environments[env_name][file_path] = FileState(**file_state)
 
                 # Handle global dependencies
@@ -85,19 +82,15 @@ class StatePersistence:
                         project_config = None
                         
                         if "substitution_file" in global_deps and global_deps["substitution_file"]:
-                            # Already imported at top
                             substitution_file = DependencyInfo(**global_deps["substitution_file"])
                         if "project_config" in global_deps and global_deps["project_config"]:
-                            # Already imported at top
                             project_config = DependencyInfo(**global_deps["project_config"])
                         
-                        # Already imported at top
                         global_dependencies[env_name] = GlobalDependencies(
                             substitution_file=substitution_file,
                             project_config=project_config
                         )
 
-                # Already imported at top
                 loaded_state = ProjectState(
                     version=state_data.get("version", "1.0"),
                     last_updated=state_data.get("last_updated", ""),

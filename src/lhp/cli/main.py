@@ -1,4 +1,4 @@
-"""LakehousePlumber CLI - Main entry point (Refactored)."""
+"""LakehousePlumber CLI - Main entry point."""
 
 import sys
 import logging
@@ -10,8 +10,12 @@ import click
 try:
     from importlib.metadata import version
 except ImportError:
-    # Fallback for Python < 3.8
-    from importlib_metadata import version
+    # Fallback for older Python versions where importlib.metadata is not available
+    try:
+        from importlib_metadata import version  # type: ignore
+    except Exception:  # pragma: no cover - best-effort fallback
+        def version(package: str) -> str:  # type: ignore
+            return "0.0.0"
 
 
 def get_version():
@@ -169,7 +173,7 @@ def _discover_yaml_files_with_include(pipelines_dir: Path, include_patterns: Lis
 @click.version_option(version=get_version(), prog_name="lhp")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 def cli(verbose):
-    """LakehousePlumber - Generate Lakeflow Pipeliness pipelines from YAML configs."""
+    """LakehousePlumber - Generate Lakeflow pipelines from YAML configs."""
     # Try to find project root for better logging setup
     project_root = _find_project_root()
     log_file = configure_logging(verbose, project_root)
