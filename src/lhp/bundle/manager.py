@@ -311,12 +311,14 @@ class BundleManager:
             return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
         
         # Find all pipeline directories (directories containing Python files)
-        pipeline_dirs = [d for d in output_dir.iterdir() if d.is_dir()]
+        # Sort for deterministic cross-platform behavior
+        pipeline_dirs = sorted([d for d in output_dir.iterdir() if d.is_dir()])
         self.logger.debug(f"Found {len(pipeline_dirs)} pipeline directories in {output_dir}")
         
         # Search through all Python files across all pipelines
         for pipeline_dir in pipeline_dirs:
-            python_files = list(pipeline_dir.glob("*.py"))
+            # Sort Python files for deterministic ordering within each directory
+            python_files = sorted(list(pipeline_dir.glob("*.py")))
             self.logger.debug(f"Searching {len(python_files)} Python files in {pipeline_dir.name}")
             
             for py_file in python_files:
