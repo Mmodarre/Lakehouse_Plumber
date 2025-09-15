@@ -334,7 +334,7 @@ class TestStateCommandFileOperations:
             )
             
             # Save the state so the CLI command can see it
-            state_manager._save_state()
+            state_manager.save_state()
             
             result = runner.invoke(cli, ['state', '--env', 'dev', '--orphaned'])
             
@@ -598,7 +598,7 @@ class TestStateCommandOutputFormatting:
             )
             
             # Save the state so the CLI command can see it
-            state_manager._save_state()
+            state_manager.save_state()
             
             result = runner.invoke(cli, ['state', '--env', 'dev'])
             

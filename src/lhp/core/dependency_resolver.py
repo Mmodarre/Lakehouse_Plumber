@@ -25,10 +25,10 @@ class DependencyResolver:
         Raises:
             ValueError: If circular dependencies detected
         """
-        # Step 4.3.1: Build dependency graph
+        # Build dependency graph
         graph, targets = self._build_dependency_graph(actions)
 
-        # Step 4.3.2: Implement topological sort
+        # Implement topological sort
         return self._topological_sort(actions, graph, targets)
 
     def validate_relationships(self, actions: List[Action]) -> List[str]:
@@ -56,12 +56,12 @@ class DependencyResolver:
                             f"Action '{action.name}' depends on '{source}' which is not produced by any action"
                         )
 
-        # Step 4.3.3: Add cycle detection
+        # Add cycle detection
         cycle = self._detect_cycle(graph)
         if cycle:
             errors.append(f"Circular dependency detected: {' -> '.join(cycle)}")
 
-        # Step 4.3.4: Validate relationships
+        # Validate relationships
         # Validate action type constraints
         load_actions = [a for a in actions if a.type == ActionType.LOAD]
         write_actions = [a for a in actions if a.type == ActionType.WRITE]
@@ -144,7 +144,7 @@ Or reference it in another transform:
     def _build_dependency_graph(
         self, actions: List[Action]
     ) -> Tuple[Dict[str, List[str]], Dict[str, Action]]:
-        """Step 4.3.1: Build dependency graph from actions.
+        """Build dependency graph from actions.
 
         Returns:
             Tuple of (dependency graph, targets map)
@@ -273,7 +273,7 @@ Or reference it in another transform:
         graph: Dict[str, List[str]],
         targets: Dict[str, Action],
     ) -> List[Action]:
-        """Step 4.3.2: Perform topological sort of actions.
+        """Perform topological sort of actions.
 
         Uses Kahn's algorithm for topological sorting.
         """
@@ -312,7 +312,7 @@ Or reference it in another transform:
         return result
 
     def _detect_cycle(self, graph: Dict[str, List[str]]) -> Optional[List[str]]:
-        """Step 4.3.3: Detect cycles in dependency graph using DFS."""
+        """Detect cycles in dependency graph using DFS."""
         visited = set()
         rec_stack = set()
         path = []

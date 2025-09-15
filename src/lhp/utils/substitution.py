@@ -69,11 +69,14 @@ class EnhancedSubstitutionManager:
     def _load_config_from_file(self, file_path: Path, env: str):
         """Load tokens, secrets, and rules from YAML file."""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
+            from .yaml_loader import load_yaml_file
+            config = load_yaml_file(file_path, error_context="substitution file")
         except LHPError:
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
+        except ValueError as e:
+            # yaml_loader provides clear context, keep as ValueError for existing error handling
+            raise ValueError(str(e))
         except Exception as e:
             raise ValueError(f"Error loading substitution file {file_path}: {e}")
 

@@ -40,7 +40,7 @@ class TestBundleManagerCore:
         assert not (self.project_root / "resources" / "lhp").exists()
         
         # Initialize manager and call method that ensures directory exists
-        self.manager._ensure_resources_directory()
+        self.manager.ensure_resources_directory()
         
         # Resources/lhp directory should now exist
         assert (self.project_root / "resources" / "lhp").exists()
@@ -56,7 +56,7 @@ class TestBundleManagerCore:
         resources_lhp_dir.mkdir(parents=True)
         
         # Should not raise error
-        self.manager._ensure_resources_directory()
+        self.manager.ensure_resources_directory()
         
         # Directory should still exist
         assert (self.project_root / "resources" / "lhp").exists()
@@ -76,7 +76,7 @@ class TestBundleManagerCore:
         # Create some files to ignore
         (generated_dir / "readme.txt").write_text("not a directory")
         
-        pipeline_dirs = self.manager._get_pipeline_directories(generated_dir)
+        pipeline_dirs = self.manager.get_pipeline_directories(generated_dir)
         
         # Should return only directories
         assert len(pipeline_dirs) == 3
@@ -99,7 +99,7 @@ class TestBundleManagerCore:
         (generated_dir / "aaa_first").mkdir()
         (generated_dir / "zzz_last").mkdir()
         
-        pipeline_dirs = self.manager._get_pipeline_directories(generated_dir)
+        pipeline_dirs = self.manager.get_pipeline_directories(generated_dir)
         
         # Should return directories in sorted order
         assert len(pipeline_dirs) == 5
@@ -114,7 +114,7 @@ class TestBundleManagerCore:
         generated_dir = self.project_root / "generated"
         generated_dir.mkdir()
         
-        pipeline_dirs = self.manager._get_pipeline_directories(generated_dir)
+        pipeline_dirs = self.manager.get_pipeline_directories(generated_dir)
         
         assert pipeline_dirs == []
 
@@ -123,7 +123,7 @@ class TestBundleManagerCore:
         nonexistent_dir = self.project_root / "nonexistent"
         
         with pytest.raises(BundleResourceError) as exc_info:
-            self.manager._get_pipeline_directories(nonexistent_dir)
+            self.manager.get_pipeline_directories(nonexistent_dir)
         
         assert "Output directory does not exist" in str(exc_info.value)
 
@@ -136,7 +136,7 @@ class TestBundleManagerCore:
     def test_resource_file_path_generation(self):
         """Should generate correct resource file paths for pipelines."""
         # Test resource file path generation
-        resource_path = self.manager._get_resource_file_path("raw_ingestions")
+        resource_path = self.manager.get_resource_file_path("raw_ingestions")
         
         expected_path = self.project_root / "resources" / "lhp" / "raw_ingestions.pipeline.yml"
         assert resource_path == expected_path
@@ -144,7 +144,7 @@ class TestBundleManagerCore:
     def test_resource_file_path_generation_with_special_characters(self):
         """Should handle pipeline names with special characters."""
         # Test with pipeline name containing underscores and numbers
-        resource_path = self.manager._get_resource_file_path("bronze_layer_v2")
+        resource_path = self.manager.get_resource_file_path("bronze_layer_v2")
         
         expected_path = self.project_root / "resources" / "lhp" / "bronze_layer_v2.pipeline.yml"
         assert resource_path == expected_path
@@ -182,7 +182,7 @@ class TestBundleManagerFileOperations:
         
         try:
             # Should not raise exception
-            pipeline_dirs = self.manager._get_pipeline_directories(generated_dir)
+            pipeline_dirs = self.manager.get_pipeline_directories(generated_dir)
             
             # Should return only accessible directories (implementation dependent)
             assert isinstance(pipeline_dirs, list)
@@ -208,7 +208,7 @@ class TestBundleManagerFileOperations:
             link_pipeline = generated_dir / "link_pipeline"
             link_pipeline.symlink_to(real_pipeline)
             
-            pipeline_dirs = self.manager._get_pipeline_directories(generated_dir)
+            pipeline_dirs = self.manager.get_pipeline_directories(generated_dir)
             
             # Should include both real directory and symlink (both are directories)
             assert len(pipeline_dirs) == 2
@@ -233,7 +233,7 @@ class TestBundleManagerFileOperations:
             
             # Operations that require directory access should fail with proper error
             with pytest.raises(BundleResourceError) as exc_info:
-                readonly_manager._get_pipeline_directories(self.project_root / "nonexistent")
+                readonly_manager.get_pipeline_directories(self.project_root / "nonexistent")
             
             assert "Permission denied" in str(exc_info.value)
             
@@ -257,12 +257,12 @@ class TestBundleManagerFileOperations:
         
         def get_directories():
             time.sleep(0.01)  # Small delay to increase chance of race condition
-            dirs = self.manager._get_pipeline_directories(generated_dir)
+            dirs = self.manager.get_pipeline_directories(generated_dir)
             results.append(len(dirs))
         
         def test_template_rendering():
             time.sleep(0.01)
-            content = self.manager._generate_resource_file_content("test_pipeline", generated_dir)
+            content = self.manager.generate_resource_file_content("test_pipeline", generated_dir)
             results.append(len(content))
         
         # Run operations concurrently
@@ -297,7 +297,7 @@ class TestBundleManagerFileOperations:
         
         # Test template rendering instead of notebook path scanning (removed method)
         output_dir = self.project_root / "generated"
-        content = self.manager._generate_resource_file_content("large_pipeline", output_dir)
+        content = self.manager.generate_resource_file_content("large_pipeline", output_dir)
         
         # Should generate template efficiently
         assert "large_pipeline" in content

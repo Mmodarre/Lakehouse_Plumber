@@ -165,7 +165,7 @@ template_parameters:
             state_file.write_text("invalid json content")
             
             # Should handle gracefully and start with empty state
-            state_manager._load_state()
+            state_manager.load_state()
             assert len(state_manager.get_generated_files("dev")) == 0
     
     def test_state_file_with_missing_fields(self):
@@ -191,7 +191,7 @@ template_parameters:
             state_file.write_text(json.dumps(state_data))
             
             # Should handle gracefully and migrate/fix the state
-            state_manager._load_state()
+            state_manager.load_state()
             # Should not crash
             files = state_manager.get_generated_files("dev")
             # May have empty state or migrated state
@@ -413,7 +413,7 @@ actions:
             )
             
             # Load state with second state manager
-            state_manager2._load_state()
+            state_manager2.load_state()
             
             # Both should work without crashing
             files1 = state_manager1.get_generated_files("dev")

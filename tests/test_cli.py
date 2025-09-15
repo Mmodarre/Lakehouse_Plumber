@@ -188,7 +188,7 @@ bundle:
             result = runner.invoke(cli, ['--verbose', 'generate', '--env', 'dev', '--dry-run'])
             
             assert result.exit_code == 0
-            assert "Bundle support detected" in result.output
+            assert "Bundle sync would be performed" in result.output
 
     def test_load_project_config_malformed(self, runner, temp_project):
         """Test _load_project_config with malformed YAML returns defaults."""
@@ -214,7 +214,7 @@ bundle:
         result = runner.invoke(cli, ['--help'])
         assert result.exit_code == 0
         assert "LakehousePlumber" in result.output
-        assert "Generate Lakeflow Pipeliness pipelines from YAML configs" in result.output
+        assert "Generate Lakeflow pipelines from YAML configs" in result.output
     
     def test_validate_with_pipeline(self, runner, temp_project):
         """Test validate with a valid pipeline."""

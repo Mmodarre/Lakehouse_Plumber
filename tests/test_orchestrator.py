@@ -116,7 +116,7 @@ class TestActionOrchestrator:
             orchestrator = ActionOrchestrator(project_root)
             
             pipeline_dir = project_root / "pipelines" / "test_pipeline"
-            flowgroups = orchestrator._discover_flowgroups(pipeline_dir)
+            flowgroups = orchestrator.discover_flowgroups(pipeline_dir)
             
             assert len(flowgroups) == 1
             assert flowgroups[0].flowgroup == "test_flowgroup"
@@ -374,6 +374,158 @@ class TestActionOrchestrator:
             # Verify dependency order: loads before join
             assert pos_a < pos_ab
             assert pos_b < pos_ab
+
+
+class TestGenerationAnalysis:
+    """Test the new analyze_generation_requirements method."""
+    
+    def test_analyze_generation_requirements_force_mode(self):
+        """Test analysis with force mode enabled."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create minimal project structure
+            (project_root / "substitutions").mkdir()
+            (project_root / "pipelines" / "test_pipeline").mkdir(parents=True)
+            
+            orchestrator = ActionOrchestrator(project_root)
+            
+            # Test force mode
+            analysis = orchestrator.analyze_generation_requirements(
+                env="dev",
+                pipeline_names=["test_pipeline"],
+                include_tests=True,
+                force=True,
+                state_manager=None
+            )
+            
+            # Verify force mode results
+            assert analysis.has_work_to_do() == True
+            assert "test_pipeline" in analysis.pipelines_needing_generation
+            assert analysis.pipelines_needing_generation["test_pipeline"]["reason"] == "force"
+            assert analysis.has_global_changes == False
+            assert analysis.include_tests_context_applied == False
+    
+    def test_analyze_generation_requirements_no_state_manager(self):
+        """Test analysis without state manager."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create minimal project structure  
+            (project_root / "substitutions").mkdir()
+            (project_root / "pipelines" / "test_pipeline").mkdir(parents=True)
+            
+            orchestrator = ActionOrchestrator(project_root)
+            
+            # Test without state manager
+            analysis = orchestrator.analyze_generation_requirements(
+                env="dev",
+                pipeline_names=["test_pipeline"],
+                include_tests=False,
+                force=False,
+                state_manager=None
+            )
+            
+            # Verify no state tracking results
+            assert analysis.has_work_to_do() == True
+            assert "test_pipeline" in analysis.pipelines_needing_generation
+            assert analysis.pipelines_needing_generation["test_pipeline"]["reason"] == "no_state_tracking"
+            
+    def test_generation_analysis_convenience_methods(self):
+        """Test GenerationAnalysis convenience methods."""
+        from lhp.core.orchestrator import GenerationAnalysis
+        
+        # Test with work to do
+        analysis_with_work = GenerationAnalysis(
+            pipelines_needing_generation={"pipeline1": {"new": ["file1.py"]}},
+            pipelines_up_to_date={},
+            has_global_changes=False,
+            global_changes=[],
+            include_tests_context_applied=True,
+            total_new_files=1,
+            total_stale_files=0,
+            total_up_to_date_files=0,
+            detailed_staleness_info={}
+        )
+        
+        assert analysis_with_work.has_work_to_do() == True
+        assert analysis_with_work.get_generation_reason("pipeline1") == "1 new"
+        
+        # Test without work to do
+        analysis_up_to_date = GenerationAnalysis(
+            pipelines_needing_generation={},
+            pipelines_up_to_date={"pipeline1": 5},
+            has_global_changes=False,
+            global_changes=[],
+            include_tests_context_applied=False,
+            total_new_files=0,
+            total_stale_files=0,
+            total_up_to_date_files=5,
+            detailed_staleness_info={}
+        )
+        
+        assert analysis_up_to_date.has_work_to_do() == False
+        assert analysis_up_to_date.get_generation_reason("pipeline1") == "up-to-date"
+
+
+class TestOrchestratorDependencyInjection:
+    """Test orchestrator dependency injection functionality."""
+    
+    def test_orchestrator_with_default_dependencies(self):
+        """Test orchestrator initialization with default dependencies."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            (project_root / "substitutions").mkdir()
+            
+            # Should work with default dependencies
+            orchestrator = ActionOrchestrator(project_root)
+            
+            # Verify dependencies are set
+            assert orchestrator.dependencies is not None
+            assert hasattr(orchestrator.dependencies, 'substitution_factory')
+            assert hasattr(orchestrator.dependencies, 'file_writer_factory')
+    
+    def test_orchestrator_with_custom_dependencies(self):
+        """Test orchestrator initialization with custom dependencies."""
+        from lhp.core.factories import OrchestrationDependencies, DefaultSubstitutionFactory, DefaultFileWriterFactory
+        from unittest.mock import Mock
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            (project_root / "substitutions").mkdir()
+            
+            # Create custom dependencies  
+            mock_substitution_factory = Mock()
+            mock_file_writer_factory = Mock()
+            custom_deps = OrchestrationDependencies(
+                substitution_factory=mock_substitution_factory,
+                file_writer_factory=mock_file_writer_factory
+            )
+            
+            # Initialize with custom dependencies
+            orchestrator = ActionOrchestrator(project_root, dependencies=custom_deps)
+            
+            # Verify custom dependencies are used
+            assert orchestrator.dependencies.substitution_factory == mock_substitution_factory
+            assert orchestrator.dependencies.file_writer_factory == mock_file_writer_factory
+    
+    def test_dependency_factories_work(self):
+        """Test that dependency factories can create instances."""
+        from lhp.core.factories import DefaultSubstitutionFactory, DefaultFileWriterFactory
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            substitution_file = Path(tmpdir) / "test.yaml" 
+            substitution_file.write_text("test: value")
+            
+            # Test substitution factory
+            sub_factory = DefaultSubstitutionFactory()
+            sub_manager = sub_factory.create(substitution_file, "test")
+            assert sub_manager is not None
+            
+            # Test file writer factory
+            writer_factory = DefaultFileWriterFactory()
+            file_writer = writer_factory.create()
+            assert file_writer is not None
 
 
 if __name__ == "__main__":

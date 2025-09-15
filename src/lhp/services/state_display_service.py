@@ -4,7 +4,6 @@ This service separates the business logic of state management from CLI presentat
 providing a clean, testable interface for state operations.
 """
 
-import click
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 from collections import defaultdict
@@ -256,7 +255,7 @@ class StateDisplayService:
         # Check if source has changed (stale)
         change_status = ""
         if source_exists and file_state.source_yaml_checksum:
-            current_checksum = self.state_manager._calculate_checksum(source_path)
+            current_checksum = self.state_manager.calculate_checksum(source_path)
             if current_checksum != file_state.source_yaml_checksum:
                 change_status = " 🟡 (stale)"
             else:

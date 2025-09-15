@@ -227,7 +227,6 @@ class DatabricksYAMLManager:
             self.logger.info(f"Bulk updated variables in {len(environments)} targets: {environments}")
             
         except MissingDatabricksTargetError:
-            # Re-raise MissingDatabricksTargetError as-is (business logic error)
             raise
         except (OSError, PermissionError) as e:
             raise BundleResourceError(

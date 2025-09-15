@@ -16,7 +16,7 @@ class TestStateDisplayService:
     def mock_state_manager(self):
         """Create a mock StateManager for testing."""
         manager = Mock(spec=StateManager)
-        manager._calculate_checksum = Mock(return_value="mock_checksum")
+        manager.calculate_checksum = Mock(return_value="mock_checksum")
         return manager
     
     @pytest.fixture
@@ -226,7 +226,7 @@ class TestStateDisplayService:
         # Mock file existence and checksum
         with patch('pathlib.Path.exists') as mock_exists:
             mock_exists.return_value = True
-            mock_state_manager._calculate_checksum.return_value = "existing_checksum"
+            mock_state_manager.calculate_checksum.return_value = "existing_checksum"
             
             source_exists, generated_exists, change_status = service.calculate_file_status(file_state)
             
@@ -246,7 +246,7 @@ class TestStateDisplayService:
         
         with patch('pathlib.Path.exists') as mock_exists:
             mock_exists.return_value = True
-            mock_state_manager._calculate_checksum.return_value = "new_checksum"
+            mock_state_manager.calculate_checksum.return_value = "new_checksum"
             
             source_exists, generated_exists, change_status = service.calculate_file_status(file_state)
             

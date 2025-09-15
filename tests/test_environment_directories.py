@@ -80,7 +80,7 @@ dlt.create_streaming_table(name="staging_catalog.staging_schema.staging_table")
         
         # Generate resource file
         manager = BundleManager(project_root)
-        content = manager._generate_resource_file_content("data_pipeline", generated_dir, "staging")
+        content = manager.generate_resource_file_content("data_pipeline", generated_dir, "staging")
         
         # Parse YAML and verify paths
         parsed = yaml.safe_load(content)
@@ -227,7 +227,7 @@ dlt.create_streaming_table(name="prod_catalog.prod_schema.table3")
         manager = BundleManager(project_root)
         
         # Test with env=None (backward compatibility)
-        content = manager._generate_resource_file_content("test_pipeline", generated_dir, env=None)
+        content = manager.generate_resource_file_content("test_pipeline", generated_dir, env=None)
         
         # Parse YAML and verify it's valid
         parsed = yaml.safe_load(content)
