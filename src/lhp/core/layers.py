@@ -2,9 +2,13 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from dataclasses import dataclass
 import logging
+
+if TYPE_CHECKING:
+    from .services.generation_planning_service import GenerationPlan
+    from .state_manager import StateManager
 
 
 # ============================================================================
@@ -128,7 +132,7 @@ class BusinessLayer(ABC):
     
     @abstractmethod
     def create_generation_plan(self, env: str, pipeline_identifier: str, 
-                              include_tests: bool, **kwargs) -> 'GenerationPlan':
+                               include_tests: bool, **kwargs) -> 'GenerationPlan':
         """Create generation plan based on business rules."""
         pass
     
