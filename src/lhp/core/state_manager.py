@@ -24,8 +24,9 @@ class StateManager:
     """
     State management facade for LakehousePlumber generated files (Service-based architecture).
     
-    Coordinates specialized services for persistence, analysis, cleanup, and dependency tracking
-    while maintaining the same public API for backward compatibility.
+    Implements the data layer interface and coordinates specialized services for 
+    persistence, analysis, cleanup, and dependency tracking while maintaining 
+    the same public API for backward compatibility.
     """
 
     def __init__(self, project_root: Path, state_file_name: str = ".lhp_state.json", 
@@ -84,7 +85,8 @@ class StateManager:
         return self.persistence.state_file_exists()
 
     def track_generated_file(self, generated_path: Path, source_yaml: Path,
-                           environment: str, pipeline: str, flowgroup: str) -> None:
+                           environment: str, pipeline: str, flowgroup: str, 
+                           generation_context: str = "") -> None:
         """
         Track a generated file in the state with dependency resolution.
         
@@ -94,10 +96,47 @@ class StateManager:
             environment: Environment name
             pipeline: Pipeline name
             flowgroup: FlowGroup name
+            generation_context: Optional context string for parameter-sensitive hashing
         """
         self.tracker.track_generated_file(
-            self._state, generated_path, source_yaml, environment, pipeline, flowgroup
+            self._state, generated_path, source_yaml, environment, pipeline, flowgroup, generation_context
         )
+
+    def remove_generated_file(self, generated_path: Path, environment: str) -> bool:
+        """
+        Remove a generated file from state tracking with proper validation and logging.
+        
+        Args:
+            generated_path: Path to the generated file to remove
+            environment: Environment name
+            
+        Returns:
+            True if file was removed, False if file was not tracked
+        """
+        # Convert to relative path for consistent state storage
+        try:
+            rel_generated = generated_path.relative_to(self.project_root)
+        except ValueError:
+            # File is outside project root, use absolute path
+            rel_generated = generated_path
+        
+        file_path_str = str(rel_generated)
+        
+        # Validate environment exists
+        if environment not in self._state.environments:
+            self.logger.warning(f"Environment '{environment}' not found in state")
+            return False
+        
+        # Validate file is tracked
+        if file_path_str not in self._state.environments[environment]:
+            self.logger.debug(f"File not tracked in state: {file_path_str}")
+            return False
+        
+        # Remove from state with logging
+        del self._state.environments[environment][file_path_str]
+        self.logger.info(f"Removed file from state tracking: {file_path_str} (env: {environment})")
+        
+        return True
 
     def get_generated_files(self, environment: str) -> Dict[str, FileState]:
         """
@@ -149,20 +188,22 @@ class StateManager:
         """
         return self.analyzer.find_stale_files(self._state, environment, self.calculate_checksum)
 
-    def get_files_needing_generation(self, environment: str, pipeline: str = None) -> Dict[str, List]:
+    def get_files_needing_generation(self, environment: str, pipeline: str = None, 
+                                   generation_context: Optional[Dict] = None) -> Dict[str, List]:
         """
         Get all files that need generation (new, stale, or untracked).
         
         Args:
             environment: Environment name
             pipeline: Optional pipeline name to filter by
+            generation_context: Optional generation context for parameter-sensitive staleness
             
         Returns:
             Dictionary with 'new', 'stale', and 'up_to_date' lists
         """
         include_patterns = self.get_include_patterns()
         return self.analyzer.get_files_needing_generation(
-            self._state, environment, include_patterns, pipeline
+            self._state, environment, include_patterns, pipeline, generation_context
         )
 
     def cleanup_orphaned_files(self, environment: str, dry_run: bool = False) -> List[str]:
@@ -383,3 +424,30 @@ class StateManager:
         except Exception as e:
             self.logger.warning(f"Could not load project config for include patterns: {e}")
             return []
+
+    # ============================================================================
+    # DATA LAYER INTERFACE IMPLEMENTATION  
+    # ============================================================================
+    
+    def get_generation_state(self, env: str, pipeline: str = None) -> Dict[str, List]:
+        """Get current generation state from persistence."""
+        return self.get_files_needing_generation(env, pipeline)
+    
+    def track_generated_file_metadata(self, file_path: Path, metadata: Dict[str, Any]) -> None:
+        """Track generated file in persistent state using metadata dict."""
+        # Extract metadata for tracking
+        source_yaml = metadata.get('source_yaml')
+        environment = metadata.get('environment')
+        pipeline = metadata.get('pipeline')
+        flowgroup = metadata.get('flowgroup')
+        generation_context = metadata.get('generation_context', '')
+        
+        if all([source_yaml, environment, pipeline, flowgroup]):
+            self.track_generated_file(
+                generated_path=file_path,
+                source_yaml=source_yaml,
+                environment=environment,
+                pipeline=pipeline,
+                flowgroup=flowgroup,
+                generation_context=generation_context
+            )

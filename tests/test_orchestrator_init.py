@@ -521,6 +521,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
         # Mock discoverer to return flowgroups
         from lhp.models.config import FlowGroup
         mock_flowgroup = Mock(spec=FlowGroup, pipeline=pipeline_field, flowgroup="test_flowgroup")
+        mock_flowgroup.actions = []  # Strategy code expects actions attribute
         orchestrator_basic.mock_discoverer.discover_all_flowgroups.return_value = [mock_flowgroup]
         orchestrator_basic.config_validator.validate_duplicate_pipeline_flowgroup.return_value = []
         
@@ -539,6 +540,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
             else:
                 mock_fg = Mock()
                 mock_fg.flowgroup = "valid_flowgroup"
+                mock_fg.actions = []  # Strategy code expects actions attribute
                 return mock_fg
         
         orchestrator_basic.yaml_parser.parse_flowgroup.side_effect = parse_side_effect

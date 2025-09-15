@@ -1,4 +1,4 @@
-"""Tests for GenerateCommand CLI implementation."""
+"""Tests for LegacyGenerateCommand CLI implementation."""
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock, call
@@ -7,19 +7,19 @@ import click
 import sys
 import yaml
 
-from lhp.cli.commands.generate_command import GenerateCommand
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.cli.commands.legacy_generate_command import LegacyGenerateCommand
+from lhp.core.orchestrator import ActionOrchestrator, GenerationAnalysis
 from lhp.core.state_manager import StateManager
 from lhp.bundle.exceptions import BundleResourceError
 
 
 class TestGenerateCommandExecuteCoordination:
-    """Test GenerateCommand execute method coordination and flow."""
+    """Test LegacyGenerateCommand execute method coordination and flow."""
 
     @pytest.fixture
     def mock_generate_command(self):
         """Create a GenerateCommand instance with mocked dependencies."""
-        command = GenerateCommand()
+        command = LegacyGenerateCommand()
         
         # Mock base command methods
         command.setup_from_context = Mock()
@@ -56,9 +56,9 @@ class TestGenerateCommandExecuteCoordination:
         mock_orchestrator = Mock(spec=ActionOrchestrator)
         mock_state_manager = Mock(spec=StateManager)
         
-        with patch('lhp.cli.commands.generate_command.ActionOrchestrator', return_value=mock_orchestrator) as mock_orch_class, \
-             patch('lhp.cli.commands.generate_command.StateManager', return_value=mock_state_manager) as mock_state_class, \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.ActionOrchestrator', return_value=mock_orchestrator) as mock_orch_class, \
+             patch('lhp.cli.commands.legacy_generate_command.StateManager', return_value=mock_state_manager) as mock_state_class, \
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Act
             mock_generate_command.execute(
@@ -93,7 +93,7 @@ class TestGenerateCommandExecuteCoordination:
             
             # Should analyze generation needs
             mock_generate_command._analyze_generation_needs.assert_called_once_with(
-                ["test_pipeline"], env, mock_state_manager, False, False
+                ["test_pipeline"], env, mock_state_manager, False, False, False, mock_orchestrator
             )
             
             # Should generate pipelines
@@ -125,7 +125,7 @@ class TestGenerateCommandEnvironmentValidation:
     @pytest.fixture
     def mock_generate_command(self):
         """Create a GenerateCommand instance with mocked dependencies."""
-        command = GenerateCommand()
+        command = LegacyGenerateCommand()
         command.check_substitution_file = Mock()
         command.verbose = False
         return command
@@ -146,7 +146,7 @@ class TestGenerateCommandEnvironmentValidation:
         
         with patch('builtins.open', mock_open_yaml(databricks_yml_content)) as mock_file, \
              patch.object(Path, 'exists', return_value=True), \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Act - should complete without warnings
             mock_generate_command._validate_environment_setup(env, project_root)
@@ -191,7 +191,7 @@ class TestGenerateCommandEnvironmentValidation:
         
         with patch('builtins.open', mock_open_yaml(databricks_yml_content)) as mock_file, \
              patch.object(Path, 'exists', return_value=True), \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Act
             mock_generate_command._validate_environment_setup(env, project_root)
@@ -215,7 +215,7 @@ class TestGenerateCommandEnvironmentValidation:
         project_root = Path("/mock/project")
         
         with patch.object(Path, 'exists', return_value=False), \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Act - should complete successfully without warnings
             mock_generate_command._validate_environment_setup(env, project_root)
@@ -236,7 +236,7 @@ class TestGenerateCommandEnvironmentValidation:
         # Mock databricks.yml exists but contains invalid YAML
         with patch('builtins.open', side_effect=yaml.YAMLError("Invalid YAML syntax")) as mock_file, \
              patch.object(Path, 'exists', return_value=True), \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Act - should handle YAML parsing error gracefully
             mock_generate_command._validate_environment_setup(env, project_root)
@@ -256,7 +256,7 @@ class TestGenerateCommandPipelineDetermination:
     @pytest.fixture
     def mock_generate_command(self):
         """Create a GenerateCommand instance."""
-        return GenerateCommand()
+        return LegacyGenerateCommand()
 
     @pytest.fixture
     def mock_orchestrator(self):
@@ -300,7 +300,7 @@ class TestGenerateCommandPipelineDetermination:
         # Arrange
         invalid_pipeline = "nonexistent_pipeline"
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo, \
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo, \
              patch('lhp.cli.commands.generate_command.sys.exit') as mock_exit:
             
             # Act
@@ -345,7 +345,7 @@ class TestGenerateCommandPipelineDetermination:
         mock_orchestrator = Mock(spec=ActionOrchestrator)
         mock_orchestrator.discover_all_flowgroups.return_value = []  # No flowgroups
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo, \
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo, \
              patch('lhp.cli.commands.generate_command.sys.exit') as mock_exit:
             
             # Act
@@ -370,7 +370,7 @@ class TestGenerateCommandGenerationNeedsAnalysis:
     @pytest.fixture
     def mock_generate_command(self):
         """Create a GenerateCommand instance."""
-        return GenerateCommand()
+        return LegacyGenerateCommand()
 
     @pytest.fixture
     def mock_state_manager(self):
@@ -414,24 +414,49 @@ class TestGenerateCommandGenerationNeedsAnalysis:
         no_cleanup = False
         force = False
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
+            # Create mock orchestrator with proper GenerationAnalysis return
+            mock_orchestrator = Mock()
+            # Use the same mock objects that the state manager returns
+            state_return = mock_state_manager.get_files_needing_generation.return_value
+            mock_analysis = GenerationAnalysis(
+                pipelines_needing_generation={"test_pipeline": {
+                    "reason": "state_analysis", 
+                    "new": [state_return["new"][0]], 
+                    "stale": [state_return["stale"][0]], 
+                    "up_to_date": [state_return["up_to_date"][0]]
+                }},
+                pipelines_up_to_date={},
+                has_global_changes=False,
+                global_changes=[],
+                include_tests_context_applied=False,
+                total_new_files=1,
+                total_stale_files=0,
+                total_up_to_date_files=0,
+                detailed_staleness_info={"global_changes": [], "files": {}}
+            )
+            mock_orchestrator.analyze_generation_requirements.return_value = mock_analysis
+            
             result = mock_generate_command._analyze_generation_needs(
-                pipelines_to_generate, env, mock_state_manager, no_cleanup, force
+                pipelines_to_generate, env, mock_state_manager, no_cleanup, force, 
+                include_tests=False, orchestrator=mock_orchestrator
             )
             
             # Assert
             # Should return pipelines that need generation (those with new or stale files)
             assert "test_pipeline" in result  # Has generation info
             assert result["test_pipeline"] == {
+                "reason": "state_analysis",
                 "new": [mock_state_manager.get_files_needing_generation.return_value["new"][0]],
                 "stale": [mock_state_manager.get_files_needing_generation.return_value["stale"][0]],
                 "up_to_date": [mock_state_manager.get_files_needing_generation.return_value["up_to_date"][0]]
             }
             
-            # Should call state manager for each pipeline
-            assert mock_state_manager.get_files_needing_generation.call_count == 2
-            mock_state_manager.get_detailed_staleness_info.assert_called_once_with(env)
+            # Should call orchestrator for analysis (new architecture)
+            mock_orchestrator.analyze_generation_requirements.assert_called_once_with(
+                env=env, pipeline_names=pipelines_to_generate, include_tests=False, force=False, state_manager=mock_state_manager
+            )
             
             # Should echo analysis message
             echo_calls = [str(call) for call in mock_echo.call_args_list]
@@ -447,10 +472,29 @@ class TestGenerateCommandGenerationNeedsAnalysis:
         no_cleanup = False
         force = True  # Force mode
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
+            # Create mock orchestrator for force mode
+            mock_orchestrator = Mock()
+            mock_analysis = GenerationAnalysis(
+                pipelines_needing_generation={
+                    "pipeline1": {"reason": "force"},
+                    "pipeline2": {"reason": "force"}
+                },
+                pipelines_up_to_date={},
+                has_global_changes=False,
+                global_changes=[],
+                include_tests_context_applied=False,
+                total_new_files=2,
+                total_stale_files=0,
+                total_up_to_date_files=0,
+                detailed_staleness_info={"global_changes": [], "files": {}}
+            )
+            mock_orchestrator.analyze_generation_requirements.return_value = mock_analysis
+            
             result = mock_generate_command._analyze_generation_needs(
-                pipelines_to_generate, env, state_manager, no_cleanup, force
+                pipelines_to_generate, env, state_manager, no_cleanup, force,
+                include_tests=False, orchestrator=mock_orchestrator
             )
             
             # Assert
@@ -460,9 +504,9 @@ class TestGenerateCommandGenerationNeedsAnalysis:
                 "pipeline2": {"reason": "force"}
             }
             
-            # Should echo force mode message
+            # Should echo analysis with force reasons
             echo_calls = [str(call) for call in mock_echo.call_args_list]
-            force_found = any("Force mode: regenerating all files regardless of changes" in call for call in echo_calls)
+            force_found = any("force file(s)" in call for call in echo_calls)
             assert force_found
             
             # Should NOT call state manager methods in force mode
@@ -478,10 +522,29 @@ class TestGenerateCommandGenerationNeedsAnalysis:
         no_cleanup = True  # No cleanup mode
         force = False
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
+            # Create mock orchestrator for no_cleanup mode
+            mock_orchestrator = Mock()
+            mock_analysis = GenerationAnalysis(
+                pipelines_needing_generation={
+                    "pipeline1": {"reason": "no_state_tracking"},
+                    "pipeline2": {"reason": "no_state_tracking"}
+                },
+                pipelines_up_to_date={},
+                has_global_changes=False,
+                global_changes=[],
+                include_tests_context_applied=False,
+                total_new_files=2,
+                total_stale_files=0,
+                total_up_to_date_files=0,
+                detailed_staleness_info={"global_changes": [], "files": {}}
+            )
+            mock_orchestrator.analyze_generation_requirements.return_value = mock_analysis
+            
             result = mock_generate_command._analyze_generation_needs(
-                pipelines_to_generate, env, state_manager, no_cleanup, force
+                pipelines_to_generate, env, state_manager, no_cleanup, force,
+                include_tests=False, orchestrator=mock_orchestrator
             )
             
             # Assert
@@ -493,7 +556,7 @@ class TestGenerateCommandGenerationNeedsAnalysis:
             
             # Should echo state tracking disabled message
             echo_calls = [str(call) for call in mock_echo.call_args_list]
-            no_state_found = any("State tracking disabled: generating all files" in call for call in echo_calls)
+            no_state_found = any("no_state_tracking file(s)" in call for call in echo_calls)
             assert no_state_found
 
     def test_analyze_generation_needs_when_all_files_up_to_date(self, mock_generate_command):
@@ -513,10 +576,26 @@ class TestGenerateCommandGenerationNeedsAnalysis:
         }
         state_manager.get_detailed_staleness_info.return_value = {"global_changes": [], "files": {}}
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
+            # Create mock orchestrator for up-to-date scenario
+            mock_orchestrator = Mock()
+            mock_analysis = GenerationAnalysis(
+                pipelines_needing_generation={},  # No pipelines need generation
+                pipelines_up_to_date={"up_to_date_pipeline": 1},  # Pipeline is up to date
+                has_global_changes=False,
+                global_changes=[],
+                include_tests_context_applied=False,
+                total_new_files=0,
+                total_stale_files=0,
+                total_up_to_date_files=1,
+                detailed_staleness_info={"global_changes": [], "files": {}}
+            )
+            mock_orchestrator.analyze_generation_requirements.return_value = mock_analysis
+            
             result = mock_generate_command._analyze_generation_needs(
-                pipelines_to_generate, env, state_manager, no_cleanup, force
+                pipelines_to_generate, env, state_manager, no_cleanup, force,
+                include_tests=False, orchestrator=mock_orchestrator
             )
             
             # Assert
@@ -525,7 +604,7 @@ class TestGenerateCommandGenerationNeedsAnalysis:
             
             # Should echo up-to-date messages
             echo_calls = [str(call) for call in mock_echo.call_args_list]
-            up_to_date_found = any("All files are up-to-date! Nothing to generate." in call for call in echo_calls)
+            up_to_date_found = any("All files are up-to-date!" in call for call in echo_calls)
             assert up_to_date_found
             
             force_hint_found = any("Use --force flag to regenerate" in call for call in echo_calls)
@@ -538,7 +617,7 @@ class TestGenerateCommandBundleOperations:
     @pytest.fixture
     def mock_generate_command(self):
         """Create a GenerateCommand instance."""
-        command = GenerateCommand()
+        command = LegacyGenerateCommand()
         command.verbose = False
         command.log_file = None
         return command
@@ -554,9 +633,9 @@ class TestGenerateCommandBundleOperations:
         dry_run = False
         
         # Mock bundle support enabled
-        with patch('lhp.cli.commands.generate_command.should_enable_bundle_support', return_value=True) as mock_should_enable, \
-             patch('lhp.cli.commands.generate_command.BundleManager') as mock_bundle_manager_class, \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.should_enable_bundle_support', return_value=True) as mock_should_enable, \
+             patch('lhp.cli.commands.legacy_generate_command.BundleManager') as mock_bundle_manager_class, \
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Mock BundleManager instance
             mock_bundle_manager = Mock()
@@ -590,9 +669,9 @@ class TestGenerateCommandBundleOperations:
         dry_run = False
         
         # Mock bundle support disabled
-        with patch('lhp.cli.commands.generate_command.should_enable_bundle_support', return_value=False) as mock_should_enable, \
-             patch('lhp.cli.commands.generate_command.BundleManager') as mock_bundle_manager_class, \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.should_enable_bundle_support', return_value=False) as mock_should_enable, \
+             patch('lhp.cli.commands.legacy_generate_command.BundleManager') as mock_bundle_manager_class, \
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Act
             mock_generate_command._handle_bundle_operations(
@@ -622,9 +701,9 @@ class TestGenerateCommandBundleOperations:
         # Mock bundle support enabled but operations fail
         bundle_error = BundleResourceError("Bundle sync failed: workspace connection error")
         
-        with patch('lhp.cli.commands.generate_command.should_enable_bundle_support', return_value=True), \
-             patch('lhp.cli.commands.generate_command.BundleManager') as mock_bundle_manager_class, \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.should_enable_bundle_support', return_value=True), \
+             patch('lhp.cli.commands.legacy_generate_command.BundleManager') as mock_bundle_manager_class, \
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Mock BundleManager to raise error
             mock_bundle_manager = Mock()
@@ -658,9 +737,9 @@ class TestGenerateCommandBundleOperations:
         mock_generate_command.verbose = True  # Enable verbose to see dry-run message
         
         # Mock bundle support enabled
-        with patch('lhp.cli.commands.generate_command.should_enable_bundle_support', return_value=True), \
-             patch('lhp.cli.commands.generate_command.BundleManager') as mock_bundle_manager_class, \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.should_enable_bundle_support', return_value=True), \
+             patch('lhp.cli.commands.legacy_generate_command.BundleManager') as mock_bundle_manager_class, \
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Act
             mock_generate_command._handle_bundle_operations(
@@ -683,7 +762,7 @@ class TestGenerateCommandCompletionDisplay:
     @pytest.fixture
     def mock_generate_command(self):
         """Create a GenerateCommand instance."""
-        return GenerateCommand()
+        return LegacyGenerateCommand()
 
     def test_display_completion_message_successful_generation_with_files(self, mock_generate_command):
         """Test _display_completion_message for successful generation with files."""
@@ -695,7 +774,7 @@ class TestGenerateCommandCompletionDisplay:
         no_cleanup = False
         mock_state_manager = Mock(spec=StateManager)
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             mock_generate_command._display_completion_message(
                 total_files, output_dir, project_root, dry_run, no_cleanup, mock_state_manager
@@ -734,7 +813,7 @@ class TestGenerateCommandCompletionDisplay:
         no_cleanup = False
         mock_state_manager = Mock(spec=StateManager)
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             mock_generate_command._display_completion_message(
                 total_files, output_dir, project_root, dry_run, no_cleanup, mock_state_manager
@@ -765,7 +844,7 @@ class TestGenerateCommandCompletionDisplay:
         no_cleanup = False
         mock_state_manager = Mock(spec=StateManager)
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             mock_generate_command._display_completion_message(
                 total_files, output_dir, project_root, dry_run, no_cleanup, mock_state_manager
@@ -800,7 +879,7 @@ class TestGenerateCommandCompletionDisplay:
         no_cleanup = True  # No cleanup mode
         state_manager = None  # No state manager
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             mock_generate_command._display_completion_message(
                 total_files, output_dir, project_root, dry_run, no_cleanup, state_manager
@@ -832,7 +911,7 @@ class TestGenerateCommandCleanupOperations:
     @pytest.fixture
     def mock_generate_command(self):
         """Create a GenerateCommand instance."""
-        return GenerateCommand()
+        return LegacyGenerateCommand()
 
     def test_handle_cleanup_operations_fresh_start_scenario(self, mock_generate_command):
         """Test _handle_cleanup_operations for fresh start scenario."""
@@ -850,7 +929,7 @@ class TestGenerateCommandCleanupOperations:
             Path("/mock/project/generated/dev/unused_file.py")
         ]
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             mock_generate_command._handle_cleanup_operations(env, mock_state_manager, output_dir, dry_run)
             
@@ -897,7 +976,7 @@ class TestGenerateCommandCleanupOperations:
             orphaned_file2.generated_path
         ]
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             mock_generate_command._handle_cleanup_operations(env, mock_state_manager, output_dir, dry_run)
             
@@ -940,7 +1019,7 @@ class TestGenerateCommandCleanupOperations:
         # Mock fresh start preview method
         mock_generate_command._show_fresh_start_preview = Mock()
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             mock_generate_command._handle_cleanup_operations(env, mock_state_manager, output_dir, dry_run)
             
@@ -967,7 +1046,7 @@ class TestGenerateCommandPipelineGeneration:
     @pytest.fixture
     def mock_generate_command(self):
         """Create a GenerateCommand instance."""
-        command = GenerateCommand()
+        command = LegacyGenerateCommand()
         command.handle_error = Mock()
         return command
 
@@ -998,7 +1077,7 @@ class TestGenerateCommandPipelineGeneration:
         # Mock display methods
         mock_generate_command._show_generation_results = Mock()
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             total_files, all_generated_files = mock_generate_command._generate_pipelines(
                 pipelines_needing_generation, env, output_dir, dry_run, mock_orchestrator,
@@ -1053,7 +1132,7 @@ class TestGenerateCommandPipelineGeneration:
         # Mock missing pipeline handler
         mock_generate_command._handle_missing_pipeline = Mock()
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             total_files, all_generated_files = mock_generate_command._generate_pipelines(
                 pipelines_needing_generation, env, output_dir, dry_run, mock_orchestrator,
@@ -1097,7 +1176,7 @@ class TestGenerateCommandPipelineGeneration:
         unexpected_error = RuntimeError("Database connection failed during generation")
         mock_orchestrator.generate_pipeline_by_field.side_effect = unexpected_error
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             total_files, all_generated_files = mock_generate_command._generate_pipelines(
                 pipelines_needing_generation, env, output_dir, dry_run, mock_orchestrator,
@@ -1128,8 +1207,8 @@ class TestGenerateCommandPipelineGeneration:
         }
         
         # Mock logging level for code preview
-        with patch('lhp.cli.commands.generate_command.logger.isEnabledFor', return_value=True), \
-             patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.logger.isEnabledFor', return_value=True), \
+             patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             
             # Act
             mock_generate_command._show_dry_run_preview(generated_files)
@@ -1159,7 +1238,7 @@ class TestGenerateCommandPipelineGeneration:
         pipeline_name = "test_pipeline"
         project_root = Path("/mock/project")
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo:
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo:
             # Act
             mock_generate_command._show_generation_results(generated_files, output_dir, pipeline_name, project_root)
             
@@ -1195,7 +1274,7 @@ class TestGenerateCommandPipelineGeneration:
         mock_state_manager.state = Mock()
         mock_state_manager.state.environments = {"dev": {orphaned_file.generated_path: "some_state"}}
         
-        with patch('lhp.cli.commands.generate_command.click.echo') as mock_echo, \
+        with patch('lhp.cli.commands.legacy_generate_command.click.echo') as mock_echo, \
              patch.object(Path, 'exists', return_value=True), \
              patch.object(Path, 'unlink') as mock_unlink:  # Mock file deletion
             

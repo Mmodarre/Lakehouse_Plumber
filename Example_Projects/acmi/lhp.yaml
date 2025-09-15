@@ -42,6 +42,10 @@ include:
   # - "04_gold/customer_segmentation_mv.yaml"
   # - "04_gold/product_performance_mv.yaml"
   # - "04_Modelled/**"
+  - "04_gold/**"
+  - "05_tests/**"
+  - "09_test_python/**"
+  # - "10_test_python2/**"
 
   
 

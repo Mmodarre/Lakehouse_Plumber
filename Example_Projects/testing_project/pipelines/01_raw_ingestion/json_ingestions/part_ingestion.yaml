@@ -1,9 +1,0 @@
-# pipeline: acmi_edw_raw_ingestions
-pipeline: acmi_edw_raw
-flowgroup: part_ingestion
-
-use_template: json_ingestion_template
-template_parameters:
-  table_name: part_raw
-  landing_folder: part
-  schema_file: part_schema

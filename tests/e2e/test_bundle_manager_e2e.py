@@ -819,3 +819,746 @@ resources:
         
         # Test cleanup is handled by the setup_test_project fixture automatically
 
+    def test_BM8a_embedded_python_function_regeneration(self):
+        """
+        BM-8a: Embedded Python function changes trigger selective regeneration.
+        
+        Tests the embedded Python function pattern where:
+        - Python function code is embedded directly into the generated flowgroup file
+        - Source: py_functions/partsupp_snapshot_func.py → generated/dev/acmi_edw_silver/partsupp_silver_dim.py
+        - Uses snapshot_cdc configuration with source_function
+        - Expects exactly 1 file to be regenerated when the Python function changes
+        
+        Validates that:
+        1. Python function checksum changes when modified
+        2. Dependent generated file's CONTENT actually changes (file checksum changes)
+        3. Only the directly dependent file is regenerated (selective regeneration)
+        4. Regeneration happens without needing --force flag
+        """
+        # Based on analysis: partsupp_snapshot_func.py gets embedded directly into partsupp_silver_dim.py
+        
+        # Phase 1: Initial generation and baseline state capture
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        print("📊 Initial generation output:")
+        print(output)
+        
+        baseline_state = self._load_state_file()
+        assert baseline_state, "Baseline state file should exist after generation"
+        
+        print(" Phase 1: Baseline state captured")
+        
+        # Phase 2: Modify partsupp_snapshot_func.py to change its hash
+        py_function_path = "py_functions/partsupp_snapshot_func.py"
+        self._modify_python_function(py_function_path, "BM8a test modification - embedded pattern")
+        
+        print(" Phase 2: Modified partsupp_snapshot_func.py")
+        
+        # Phase 3: Regenerate and capture updated state
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Regeneration should succeed: {output}"
+        print("📊 Regeneration output:")
+        print(output)
+        
+        updated_state = self._load_state_file()
+        assert updated_state, "Updated state file should exist after regeneration"
+        
+        print(" Phase 3: Regeneration completed")
+        
+        # Phase 4: Validate selective regeneration occurred
+        expected_dependent_files = [
+            "acmi_edw_silver/partsupp_silver_dim.py"  # Only this file should be regenerated
+        ]
+        
+        regenerated_count = self._validate_python_dependency_regeneration(
+            baseline_state, updated_state, py_function_path, expected_dependent_files
+        )
+        
+        # Validate exactly 1 file was regenerated (embedded pattern) - STRICT ASSERTION
+        assert regenerated_count == 1, f"Expected exactly 1 file regenerated for embedded pattern, got {regenerated_count}"
+        
+        print(" ✅ BM-8a: Embedded Python function regeneration working correctly")
+
+    def test_BM8b_copied_python_function_regeneration(self):
+        """
+        BM-8b: Copied Python function changes trigger selective regeneration.
+        
+        Tests the copied Python function pattern where:
+        - Python function is copied to custom_python_functions/ directory
+        - Main flowgroup imports the function via import statement
+        - Source: py_functions/sample_func.py → generated/dev/sample_python_func_pipeline/
+        - Uses transform_type: python with module_path configuration
+        - SHOULD regenerate 2 files when the Python function changes:
+          1. Main flowgroup file (import logic may change)
+          2. Copied function file (should be re-copied to reflect source changes)
+        
+        **CURRENT BEHAVIOR** (Potential Bug):
+        - ✅ Main flowgroup regenerates correctly
+        - ❌ Copied function file is NOT re-copied (BUG - stays as old version)
+        
+        Validates that:
+        1. Python function checksum changes when modified
+        2. Main flowgroup file CONTENT actually changes (file checksum changes)  
+        3. Copied function file SHOULD be re-copied (currently appears to be a bug)
+        4. Regeneration happens without needing --force flag
+        """
+        # Based on analysis: sample_func.py gets copied to custom_python_functions/ and imported
+        
+        # Phase 1: Initial generation and baseline state capture  
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        baseline_state = self._load_state_file()
+        assert baseline_state, "Baseline state file should exist after generation"
+        
+        print(" Phase 1: Baseline state captured")
+        
+        # Phase 2: Modify sample_func.py to change its hash
+        py_function_path = "py_functions/sample_func.py"
+        self._modify_python_function(py_function_path, "BM8b test modification - copied pattern")
+        
+        print(" Phase 2: Modified sample_func.py")
+        
+        # Phase 3: Regenerate and capture updated state
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Regeneration should succeed: {output}"
+        
+        updated_state = self._load_state_file()
+        assert updated_state, "Updated state file should exist after regeneration"
+        
+        print(" Phase 3: Regeneration completed")
+        
+        # Phase 4: Validate selective regeneration occurred
+        # For copied pattern, we expect BOTH files to regenerate:
+        # 1. Main flowgroup (imports and references the function)
+        # 2. Copied function file (should be re-copied when source changes)
+        expected_dependent_files = [
+            "sample_python_func_pipeline/python_func_flowgroup.py",  # Main flowgroup file
+            "sample_python_func_pipeline/custom_python_functions/sample_func.py"  # Copied function file (SHOULD be re-copied)
+        ]
+        
+        regenerated_count = self._validate_python_dependency_regeneration(
+            baseline_state, updated_state, py_function_path, expected_dependent_files
+        )
+        
+        # Validate that the PRIMARY BUG is fixed (copied file regeneration)
+        # Check if the main copied function file was regenerated
+        copied_file_path = "generated/dev/sample_python_func_pipeline/custom_python_functions/sample_func.py"
+        
+        baseline_copied_checksum = baseline_state["environments"]["dev"].get(copied_file_path, {}).get("checksum")
+        updated_copied_checksum = updated_state["environments"]["dev"].get(copied_file_path, {}).get("checksum")
+        
+        if baseline_copied_checksum and updated_copied_checksum and baseline_copied_checksum != updated_copied_checksum:
+            print("🎉 PRIMARY BUG FIXED: Copied function file was successfully regenerated!")
+            print(f"   Copied file checksum changed: {baseline_copied_checksum[:12]}... → {updated_copied_checksum[:12]}...")
+            print("   ✅ Python functions now properly overwrite existing copied files")
+            print("   ✅ No more file accumulation - files are updated in place")
+        else:
+            print("❌ Primary bug still exists: Copied function file was NOT regenerated")
+            assert False, f"COPIED FILE BUG: The main issue is still present"
+        
+        print(" ✅ BM-8b: Primary Python function copying bug RESOLVED!")
+
+    def test_BM9_diagnostic_dependency_resolution(self):
+        """BM-9: Diagnostic test to investigate dependency resolution differences."""
+        # Phase 1: Initial generation
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        # Phase 2: Examine state file to understand how dependencies are tracked
+        state = self._load_state_file()
+        
+        print("🔍 DIAGNOSTIC: Analyzing dependency tracking for both patterns")
+        
+        # Find files related to our Python functions
+        python_func_files = []
+        partsupp_files = []
+        
+        env_files = state.get("environments", {}).get("dev", {})
+        for file_path, file_info in env_files.items():
+            file_deps = file_info.get("file_dependencies", {})
+            
+            # Check for sample_func.py dependency
+            if "py_functions/sample_func.py" in file_deps:
+                python_func_files.append({
+                    "file": file_path,
+                    "flowgroup": file_info.get("flowgroup"),
+                    "pipeline": file_info.get("pipeline"),
+                    "source_yaml": file_info.get("source_yaml")
+                })
+            
+            # Check for partsupp_snapshot_func.py dependency
+            if "py_functions/partsupp_snapshot_func.py" in file_deps:
+                partsupp_files.append({
+                    "file": file_path,
+                    "flowgroup": file_info.get("flowgroup"),  
+                    "pipeline": file_info.get("pipeline"),
+                    "source_yaml": file_info.get("source_yaml")
+                })
+        
+        print(f"\n📊 Files dependent on py_functions/sample_func.py: {len(python_func_files)}")
+        for info in python_func_files:
+            print(f"   - {info['file']}")
+            print(f"     Flowgroup: {info['flowgroup']}, Pipeline: {info['pipeline']}")
+            print(f"     Source YAML: {info['source_yaml']}")
+        
+        print(f"\n📊 Files dependent on py_functions/partsupp_snapshot_func.py: {len(partsupp_files)}")
+        for info in partsupp_files:
+            print(f"   - {info['file']}")
+            print(f"     Flowgroup: {info['flowgroup']}, Pipeline: {info['pipeline']}")
+            print(f"     Source YAML: {info['source_yaml']}")
+        
+        # Key insight: All dependent files should be from the SAME source YAML
+        # For copied pattern, BOTH python_func_flowgroup.py AND custom_python_functions/sample_func.py 
+        # should be tracked as dependent on the SAME source YAML (sample_python_func_flow.yaml)
+        
+        print("\n🎯 CRITICAL ANALYSIS:")
+        if len(python_func_files) >= 2:
+            print("✅ Multiple files correctly tracked as dependent on py_functions/sample_func.py")
+            
+            # Check if they share the same source YAML
+            source_yamls = set(info['source_yaml'] for info in python_func_files)
+            if len(source_yamls) == 1:
+                print("✅ All dependent files share same source YAML - dependency resolution correct")
+            else:
+                print("❌ Dependent files have different source YAMLs - potential tracking issue")
+                print(f"   Source YAMLs: {list(source_yamls)}")
+        else:
+            print("❌ Expected multiple files dependent on py_functions/sample_func.py")
+            print("   This suggests the dependency resolution is not finding all dependent files")
+        
+        print("\n✅ BM-9: Diagnostic completed")
+
+    def test_BM10_staleness_analysis_diagnostic(self):
+        """BM-10: Deep diagnostic of staleness analysis for Python function changes."""
+        # Phase 1: Initial generation
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        baseline_state = self._load_state_file()
+        
+        # Phase 2: Modify sample_func.py
+        py_function_path = "py_functions/sample_func.py"
+        self._modify_python_function(py_function_path, "BM10 staleness diagnostic")
+        
+        # Phase 3: Analyze what the state manager thinks needs generation
+        from lhp.core.state_manager import StateManager
+        state_manager = StateManager(self.project_root)
+        
+        # Check generation requirements for sample_python_func_pipeline specifically
+        generation_info = state_manager.get_files_needing_generation("dev", "sample_python_func_pipeline")
+        
+        print("🔍 STALENESS ANALYSIS DIAGNOSTIC:")
+        print(f"📊 New files: {len(generation_info.get('new', []))}")
+        for f in generation_info.get('new', []):
+            print(f"   - {f}")
+        
+        print(f"📊 Stale files: {len(generation_info.get('stale', []))}")
+        for f in generation_info.get('stale', []):
+            print(f"   - {f.generated_path if hasattr(f, 'generated_path') else f}")
+            if hasattr(f, 'file_dependencies'):
+                deps = f.file_dependencies or {}
+                for dep_path, dep_info in deps.items():
+                    if py_function_path in dep_path:
+                        print(f"     ⭐ Contains our modified Python function: {dep_path}")
+        
+        print(f"📊 Up-to-date files: {len(generation_info.get('up_to_date', []))}")
+        for f in generation_info.get('up_to_date', []):
+            file_path = f.generated_path if hasattr(f, 'generated_path') else f
+            print(f"   - {file_path}")
+            if hasattr(f, 'file_dependencies'):
+                deps = f.file_dependencies or {}
+                for dep_path, dep_info in deps.items():
+                    if py_function_path in dep_path:
+                        print(f"     🐛 BUG: Contains modified Python function but marked up-to-date: {dep_path}")
+        
+        # Phase 4: Also check what find_stale_files returns directly
+        stale_files = state_manager.find_stale_files("dev")
+        python_func_stale = [f for f in stale_files if f.pipeline == "sample_python_func_pipeline"]
+        
+        print(f"\n🔍 Direct staleness check for sample_python_func_pipeline:")
+        print(f"📊 Stale files found: {len(python_func_stale)}")
+        for f in python_func_stale:
+            print(f"   - {f.generated_path}")
+        
+        if len(python_func_stale) == 0:
+            print("🐛 BUG CONFIRMED: find_stale_files() not detecting Python function dependency changes")
+        
+        print("\n✅ BM-10: Staleness analysis diagnostic completed")
+
+    def test_BM11_embedded_pattern_staleness_diagnostic(self):
+        """BM-11: Diagnostic for embedded pattern staleness analysis."""
+        # Phase 1: Initial generation
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        # Phase 2: Modify partsupp_snapshot_func.py (embedded pattern)
+        py_function_path = "py_functions/partsupp_snapshot_func.py"
+        self._modify_python_function(py_function_path, "BM11 embedded diagnostic")
+        
+        # Phase 3: Analyze staleness for acmi_edw_silver pipeline
+        from lhp.core.state_manager import StateManager
+        state_manager = StateManager(self.project_root)
+        
+        generation_info = state_manager.get_files_needing_generation("dev", "acmi_edw_silver")
+        
+        print("🔍 EMBEDDED PATTERN STALENESS DIAGNOSTIC:")
+        print(f"📊 New files: {len(generation_info.get('new', []))}")
+        print(f"📊 Stale files: {len(generation_info.get('stale', []))}")
+        for f in generation_info.get('stale', []):
+            print(f"   - {f.generated_path if hasattr(f, 'generated_path') else f}")
+            if hasattr(f, 'file_dependencies'):
+                deps = f.file_dependencies or {}
+                for dep_path, dep_info in deps.items():
+                    if py_function_path in dep_path:
+                        print(f"     ⭐ Contains our modified Python function: {dep_path}")
+        
+        print(f"📊 Up-to-date files: {len(generation_info.get('up_to_date', []))}")
+        for f in generation_info.get('up_to_date', []):
+            file_path = f.generated_path if hasattr(f, 'generated_path') else f
+            print(f"   - {file_path}")
+            if hasattr(f, 'file_dependencies'):
+                deps = f.file_dependencies or {}
+                for dep_path, dep_info in deps.items():
+                    if py_function_path in dep_path:
+                        print(f"     🤔 EMBEDDED: Contains modified Python function but marked up-to-date: {dep_path}")
+        
+        # Check if embedded pattern also has dual classification
+        stale_count = len(generation_info.get('stale', []))
+        up_to_date_count = len(generation_info.get('up_to_date', []))
+        
+        print(f"\n🎯 COMPARISON WITH COPIED PATTERN:")
+        print(f"   Embedded pattern - Stale: {stale_count}, Up-to-date: {up_to_date_count}")
+        
+        if stale_count > 0 and up_to_date_count > 0:
+            print("🐛 EMBEDDED ALSO HAS DUAL CLASSIFICATION BUG")
+            print("   But somehow acmi_edw_silver still gets marked for generation...")
+        elif stale_count > 0 and up_to_date_count == 0:
+            print("✅ EMBEDDED PATTERN WORKS DIFFERENTLY - no dual classification")
+        else:
+            print("❓ UNEXPECTED STATE - needs further investigation")
+        
+        print("\n✅ BM-11: Embedded pattern diagnostic completed")
+
+    def test_BM12_pipeline_decision_logic_comparison(self):
+        """BM-12: Compare pipeline decision logic for both patterns."""
+        # Phase 1: Initial generation
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        # Phase 2: Modify BOTH Python functions
+        self._modify_python_function("py_functions/partsupp_snapshot_func.py", "BM12 embedded comparison")
+        self._modify_python_function("py_functions/sample_func.py", "BM12 copied comparison")
+        
+        # Phase 3: Use orchestrator's analysis (same logic as CLI)
+        from lhp.core.orchestrator import ActionOrchestrator
+        from lhp.core.state_manager import StateManager
+        
+        orchestrator = ActionOrchestrator(self.project_root)
+        state_manager = StateManager(self.project_root)
+        
+        # Analyze generation requirements like the CLI does
+        pipelines = ["acmi_edw_silver", "sample_python_func_pipeline"]
+        analysis = orchestrator.analyze_generation_requirements(
+            env="dev",
+            pipeline_names=pipelines, 
+            include_tests=False,
+            force=False,
+            state_manager=state_manager
+        )
+        
+        print("🔍 ORCHESTRATOR PIPELINE DECISION ANALYSIS:")
+        
+        print(f"\n📊 Pipelines needing generation: {len(analysis.pipelines_needing_generation)}")
+        for pipeline, info in analysis.pipelines_needing_generation.items():
+            print(f"   ✅ {pipeline}: {analysis.get_generation_reason(pipeline)}")
+            print(f"      New: {len(info.get('new', []))}, Stale: {len(info.get('stale', []))}")
+        
+        print(f"\n📊 Pipelines up-to-date: {len(analysis.pipelines_up_to_date)}")
+        for pipeline, count in analysis.pipelines_up_to_date.items():
+            print(f"   ❌ {pipeline}: {count} files up-to-date")
+        
+        # Key analysis: Why does embedded pattern get marked for generation but copied doesn't?
+        embedded_needs_gen = "acmi_edw_silver" in analysis.pipelines_needing_generation
+        copied_needs_gen = "sample_python_func_pipeline" in analysis.pipelines_needing_generation
+        
+        print(f"\n🎯 CRITICAL COMPARISON:")
+        print(f"   Embedded pattern (acmi_edw_silver) needs generation: {embedded_needs_gen}")
+        print(f"   Copied pattern (sample_python_func_pipeline) needs generation: {copied_needs_gen}")
+        
+        if embedded_needs_gen and not copied_needs_gen:
+            print("🐛 INCONSISTENT BEHAVIOR: Same dual classification bug affects patterns differently")
+            print("   This suggests there's additional logic or timing issues in the decision process")
+        elif embedded_needs_gen and copied_needs_gen:
+            print("✅ BOTH patterns correctly marked for generation")
+        else:
+            print("❓ UNEXPECTED: Neither or both patterns marked incorrectly")
+        
+        print("\n✅ BM-12: Pipeline decision comparison completed")
+
+    def test_BM13_cli_vs_orchestrator_analysis_comparison(self):
+        """BM-13: Compare CLI command behavior vs direct orchestrator analysis."""
+        # Phase 1: Initial generation
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        # Phase 2: Modify sample_func.py only
+        self._modify_python_function("py_functions/sample_func.py", "BM13 CLI vs orchestrator")
+        
+        # Phase 3: Direct orchestrator analysis
+        from lhp.core.orchestrator import ActionOrchestrator
+        from lhp.core.state_manager import StateManager
+        
+        orchestrator = ActionOrchestrator(self.project_root)
+        state_manager = StateManager(self.project_root)
+        
+        analysis = orchestrator.analyze_generation_requirements(
+            env="dev",
+            pipeline_names=["sample_python_func_pipeline"], 
+            include_tests=False,
+            force=False,
+            state_manager=state_manager
+        )
+        
+        print("🔍 DIRECT ORCHESTRATOR ANALYSIS:")
+        embedded_needs_gen = "sample_python_func_pipeline" in analysis.pipelines_needing_generation
+        print(f"   sample_python_func_pipeline needs generation: {embedded_needs_gen}")
+        if embedded_needs_gen:
+            info = analysis.pipelines_needing_generation["sample_python_func_pipeline"]
+            print(f"   Reason: {analysis.get_generation_reason('sample_python_func_pipeline')}")
+            print(f"   New: {len(info.get('new', []))}, Stale: {len(info.get('stale', []))}")
+        
+        # Phase 4: CLI command analysis (what we see in the actual output)
+        print("\n🔍 CLI COMMAND ANALYSIS:")
+        exit_code, cli_output = self.run_bundle_sync()
+        print("CLI Output:")
+        print(cli_output)
+        
+        # Parse CLI output to see what it decided
+        if "sample_python_func_pipeline: needs generation" in cli_output:
+            cli_says_needs_gen = True
+        elif "sample_python_func_pipeline: Up-to-date" in cli_output:
+            cli_says_needs_gen = False
+        else:
+            cli_says_needs_gen = None
+            print("❓ Could not determine CLI decision from output")
+        
+        print(f"\n🎯 CRITICAL DISCREPANCY CHECK:")
+        print(f"   Direct orchestrator analysis: {embedded_needs_gen}")
+        print(f"   CLI command behavior: {cli_says_needs_gen}")
+        
+        if embedded_needs_gen != cli_says_needs_gen:
+            print("🚨 MAJOR BUG: CLI command and orchestrator analysis give different results!")
+            print("   This indicates a severe inconsistency in the generation decision logic")
+        else:
+            print("✅ CLI and orchestrator analysis are consistent")
+        
+        print("\n✅ BM-13: CLI vs orchestrator comparison completed")
+
+    def test_BM14_python_function_overwrite_behavior(self):
+        """BM-14: Test that same source file changes overwrite existing copied file correctly."""
+        # Phase 1: Initial generation to create copied file
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        # Verify copied file exists with simple header
+        copied_file = self.generated_dir / "sample_python_func_pipeline" / "custom_python_functions" / "sample_func.py"
+        assert copied_file.exists(), f"Copied file should exist: {copied_file}"
+        
+        # Check header format
+        content = copied_file.read_text()
+        assert content.startswith("# LHP-SOURCE: py_functions/sample_func.py"), "Should have simple LHP-SOURCE header"
+        
+        print("✅ Phase 1: Initial copied file created with simple header")
+        
+        # Phase 2: Modify source file with substantial changes
+        original_source = self.project_root / "py_functions" / "sample_func.py"
+        original_content = original_source.read_text()
+        modified_content = original_content.replace(
+            'df_input: DataFrame',
+            'df_input_MODIFIED: DataFrame'
+        )
+        original_source.write_text(modified_content)
+        
+        print("✅ Phase 2: Modified source file with substantial changes")
+        
+        # Phase 3: Regenerate and verify overwrite behavior
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Regeneration should succeed: {output}"
+        
+        # Verify file was overwritten (not duplicated)
+        custom_functions_dir = self.generated_dir / "sample_python_func_pipeline" / "custom_python_functions"
+        python_files = list(custom_functions_dir.glob("*.py"))
+        python_file_names = [f.name for f in python_files if f.name != "__init__.py"]
+        
+        print(f"📊 Python files after regeneration: {python_file_names}")
+        
+        # Should have exactly 1 Python file (not 2 or more)
+        assert len(python_file_names) == 1, f"Expected exactly 1 Python file, got {len(python_file_names)}: {python_file_names}"
+        assert "sample_func.py" in python_file_names, "Should have sample_func.py"
+        
+        # Verify the file contains the modification
+        updated_content = copied_file.read_text()
+        assert "df_input_MODIFIED: DataFrame" in updated_content, "Copied file should contain source modifications"
+        assert updated_content.startswith("# LHP-SOURCE: py_functions/sample_func.py"), "Should maintain simple header"
+        
+        print("✅ Phase 3: File correctly overwritten with new content")
+        print("✅ BM-14: Python function overwrite behavior working correctly")
+
+    def test_BM15_python_function_conflict_failure(self):
+        """BM-15: Test that different source files with same name trigger clear failure."""
+        # Phase 1: Initial generation to create first copied file
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        print("✅ Phase 1: Initial generation completed")
+        
+        # Phase 2: Create a conflicting source file (different source, same destination name)
+        # Simulate another flowgroup trying to copy a function with the same name
+        conflict_source = self.project_root / "py_functions" / "conflict_func.py"
+        conflict_content = '''def transform_data(df):
+    """This is a different function with same potential destination name."""
+    return df.withColumn("conflict_marker", lit("CONFLICT"))
+'''
+        conflict_source.write_text(conflict_content)
+        
+        # Phase 3: Manually create a copied file that would conflict
+        # Simulate what would happen if two different sources tried to create same destination
+        custom_functions_dir = self.generated_dir / "sample_python_func_pipeline" / "custom_python_functions"
+        conflict_dest = custom_functions_dir / "conflict_func.py"
+        
+        # Create first version from one source
+        first_header = "# LHP-SOURCE: py_functions/first_source.py\n# Generated by LakehousePlumber - DO NOT EDIT\n\n"
+        conflict_dest.write_text(first_header + "def original_function(): pass")
+        
+        print("✅ Phase 2: Created simulated conflict scenario")
+        
+        # Phase 4: Try to copy from different source - should FAIL
+        from lhp.generators.transform.python import PythonTransformGenerator, PythonFunctionConflictError
+        
+        generator = PythonTransformGenerator()
+        
+        context = {
+            "output_dir": self.generated_dir / "sample_python_func_pipeline",
+            "spec_dir": self.project_root,
+            "flowgroup": type('MockFlowgroup', (), {
+                'pipeline': 'sample_python_func_pipeline',
+                'flowgroup': 'python_func_flowgroup'
+            })()
+        }
+        
+        # This should raise PythonFunctionConflictError
+        try:
+            generator._resolve_module_name_conflicts(
+                module_path="py_functions/conflict_func.py",  # Different source!
+                base_module_name="conflict_func",
+                context=context
+            )
+            assert False, "Expected PythonFunctionConflictError to be raised"
+        except PythonFunctionConflictError as e:
+            print(f"✅ Conflict correctly detected and failed with error:")
+            print(f"   {str(e)}")
+            
+            # Verify error message contains expected information
+            assert "py_functions/first_source.py" in str(e), "Should mention existing source"
+            assert "py_functions/conflict_func.py" in str(e), "Should mention new source"
+            assert "conflict_func.py" in str(e), "Should mention destination file"
+            
+        print("✅ Phase 4: Conflict detection working correctly")
+        print("✅ BM-15: Python function conflict failure working correctly")
+
+    # ========================================================================
+    # PYTHON DEPENDENCY REGENERATION HELPER METHODS
+    # ========================================================================
+    #
+    # These methods support testing Python function dependency tracking and
+    # selective regeneration in LakehousePlumber's state management system.
+    # 
+    # Key concepts tested:
+    # - Embedded Pattern: Python functions embedded directly in generated files
+    # - Copied Pattern: Python functions copied to custom directories with imports
+    # - Composite Checksum: Combines all dependency checksums for change detection
+    # - Selective Regeneration: Only dependent files are regenerated when dependencies change
+    #
+    # ========================================================================
+
+    def _load_state_file(self) -> dict:
+        """
+        Load and parse .lhp_state.json file.
+        
+        Returns:
+            dict: Parsed state file content, or empty dict if file doesn't exist
+        """
+        state_file = self.project_root / ".lhp_state.json"
+        if not state_file.exists():
+            return {}
+        
+        import json
+        with open(state_file, 'r') as f:
+            return json.load(f)
+
+    def _modify_python_function(self, function_path: str, comment: str):
+        """
+        Modify Python function by making substantial changes that will alter generated code.
+        
+        Args:
+            function_path: Relative path to Python function from project root
+            comment: Description of change (will make substantial modification)
+        """
+        py_file = self.project_root / function_path
+        assert py_file.exists(), f"Python function should exist: {function_path}"
+        
+        original_content = py_file.read_text()
+        
+        # Make substantial changes that will definitely change the generated code
+        if "partsupp_snapshot_func.py" in function_path:
+            # Change variable names and add a significant code change
+            modified_content = original_content.replace(
+                'min_snapshot_id = spark.sql("""',
+                'min_snapshot_id_modified = spark.sql("""'
+            ).replace(
+                'return (df, min_snapshot_id)',
+                'return (df, min_snapshot_id_modified)'
+            ).replace(
+                'SELECT * FROM {catalog}.{bronze_schema}.partsupp',
+                'SELECT * FROM {catalog}.{bronze_schema}.partsupp -- MODIFIED FOR TESTING'
+            )
+            change_description = "Modified variable names and added SQL comment"
+        elif "sample_func.py" in function_path:
+            # Change a string literal that would appear in generated code
+            modified_content = original_content.replace(
+                'STREAMING EQUIVALENT of the original transform_lrc_data function',
+                'STREAMING EQUIVALENT of the original transform_lrc_data function - MODIFIED FOR TESTING'
+            ).replace(
+                'df_input: DataFrame',
+                'df_input_modified: DataFrame'
+            )
+            change_description = "Modified docstring and parameter names"
+        else:
+            # Fallback: add comment for other files
+            modified_content = original_content + f"\n# {comment}\n"
+            change_description = f"Added comment '{comment}'"
+        
+        py_file.write_text(modified_content)
+        
+        print(f"✏️  Modified {function_path}: {change_description}")
+
+    def _extract_py_function_checksum(self, state: dict, py_function_path: str) -> str:
+        """Extract checksum for a Python function from state file."""
+        environments = state.get("environments", {}).get("dev", {})
+        
+        for generated_file, file_info in environments.items():
+            file_deps = file_info.get("file_dependencies", {})
+            if py_function_path in file_deps:
+                return file_deps[py_function_path]["checksum"]
+        
+        raise AssertionError(f"Python function not found in state: {py_function_path}")
+
+    def _get_dependent_generated_files(self, state: dict, py_function_path: str) -> list:
+        """Get list of generated files that depend on a specific Python function."""
+        environments = state.get("environments", {}).get("dev", {})
+        dependent_files = []
+        
+        for generated_file, file_info in environments.items():
+            file_deps = file_info.get("file_dependencies", {})
+            if py_function_path in file_deps:
+                dependent_files.append(generated_file)
+        
+        return dependent_files
+
+    def _validate_python_dependency_regeneration(self, baseline_state: dict, updated_state: dict, 
+                                               py_function_path: str, expected_dependent_files: list):
+        """
+        Validate that Python function change triggered regeneration of dependent files only.
+        
+        Uses file content checksum validation (actual regeneration) because:
+        - When Python function dependencies change, generated file content SHOULD change
+        - This validates that the system actually regenerates files, not just tracks dependencies
+        - Tests that regeneration works without needing --force flag
+        - Composite checksums are used for debugging but actual file content changes are required
+        
+        Args:
+            baseline_state: State before Python function modification
+            updated_state: State after Python function modification and regeneration
+            py_function_path: Path to the modified Python function
+            expected_dependent_files: List of files expected to be regenerated
+            
+        Returns:
+            int: Number of files that were actually regenerated
+        """
+        
+        # 1. Validate Python function checksum changed
+        baseline_py_checksum = self._extract_py_function_checksum(baseline_state, py_function_path)
+        updated_py_checksum = self._extract_py_function_checksum(updated_state, py_function_path)
+        
+        assert baseline_py_checksum != updated_py_checksum, \
+            f"Python function checksum should change: {py_function_path}"
+        
+        print(f"✅ Python function checksum changed: {py_function_path}")
+        print(f"   Baseline: {baseline_py_checksum[:12]}...")
+        print(f"   Updated:  {updated_py_checksum[:12]}...")
+        
+        # 2. Validate dependent generated files were regenerated
+        dependent_files = self._get_dependent_generated_files(updated_state, py_function_path)
+        
+        for expected_file in expected_dependent_files:
+            matching_files = [f for f in dependent_files if expected_file in f]
+            assert len(matching_files) > 0, \
+                f"Expected dependent file not found: {expected_file}"
+        
+        # 3. Validate generated files have ACTUALLY been regenerated (file content must change)
+        environments_baseline = baseline_state.get("environments", {}).get("dev", {})
+        environments_updated = updated_state.get("environments", {}).get("dev", {})
+        
+        regenerated_count = 0
+        for file_path in dependent_files:
+            if file_path in environments_baseline and file_path in environments_updated:
+                baseline_info = environments_baseline[file_path]
+                updated_info = environments_updated[file_path]
+                
+                # Check file content checksum - THIS MUST CHANGE for actual regeneration
+                baseline_checksum = baseline_info["checksum"]
+                updated_checksum = updated_info["checksum"]
+                
+                # Check composite checksum for debugging
+                baseline_composite = baseline_info.get("file_composite_checksum", "")
+                updated_composite = updated_info.get("file_composite_checksum", "")
+                
+                print(f"🔍 Analyzing: {file_path}")
+                print(f"   File checksum - Baseline: {baseline_checksum[:12]}... Updated: {updated_checksum[:12]}...")
+                print(f"   Composite checksum - Baseline: {baseline_composite[:12]}... Updated: {updated_composite[:12]}...")
+                
+                # File content checksum MUST change for actual regeneration
+                file_content_changed = baseline_checksum != updated_checksum
+                composite_changed = baseline_composite != updated_composite
+                
+                if file_content_changed:
+                    regenerated_count += 1
+                    print(f"✅ ACTUALLY Regenerated: {file_path}")
+                    print(f"   ✅ File content changed (new checksum)")
+                    if composite_changed:
+                        print(f"   ✅ Composite checksum also changed")
+                else:
+                    print(f"❌ NOT Actually Regenerated: {file_path}")
+                    print(f"   ❌ File content checksum unchanged: {baseline_checksum == updated_checksum}")  
+                    if composite_changed:
+                        print(f"   ⚠️  Composite checksum changed but file content didn't - indicates dependency tracking but no actual regeneration")
+                    
+                    # Show dependency details for debugging
+                    print(f"🔍 Dependency analysis:")
+                    baseline_deps = baseline_info.get("file_dependencies", {})
+                    updated_deps = updated_info.get("file_dependencies", {})
+                    
+                    for dep_path, dep_info in updated_deps.items():
+                        if dep_path == py_function_path:
+                            baseline_dep_info = baseline_deps.get(dep_path, {})
+                            baseline_dep_checksum = baseline_dep_info.get("checksum", "MISSING")
+                            updated_dep_checksum = dep_info.get("checksum", "MISSING")
+                            print(f"   Python function {dep_path}:")
+                            print(f"     Baseline: {baseline_dep_checksum}")
+                            print(f"     Updated:  {updated_dep_checksum}")
+                            print(f"     Changed:  {baseline_dep_checksum != updated_dep_checksum}")
+        
+        print(f"✅ Total files with ACTUAL content changes: {regenerated_count}")
+        return regenerated_count
+

@@ -1,6 +1,6 @@
 # This pipeline is used to create a daily sales summary materialized view
 # Pipeline variable puts the generate files in the same folder for the pipeline to pick up
-pipeline: gold_load
+pipeline: acmi_edw_gold
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: sales_summary_daily_mv

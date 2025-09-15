@@ -33,7 +33,7 @@ class DependencyTracker:
         self.dependency_resolver = StateDependencyResolver(project_root)
     
     def track_generated_file(self, state: ProjectState, generated_path: Path, source_yaml: Path,
-                           environment: str, pipeline: str, flowgroup: str) -> None:
+                           environment: str, pipeline: str, flowgroup: str, generation_context: str = "") -> None:
         """
         Track a generated file in the state with dependency resolution.
         
@@ -71,6 +71,9 @@ class DependencyTracker:
         
         # Calculate composite checksum for all dependencies
         dep_paths = [str(rel_source)] + list(file_dependencies.keys())
+        # Include generation context for parameter-sensitive hashing
+        if generation_context:
+            dep_paths.append(generation_context)
         composite_checksum = self.dependency_resolver.calculate_composite_checksum(dep_paths)
 
         # Create file state

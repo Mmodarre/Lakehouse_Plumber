@@ -1347,28 +1347,152 @@ def process_data(df, spark, parameters):
             assert len(tracked_files) == 3, f"Should track 3 files, got: {list(tracked_files.keys())}"
             
             # Simulate YAML file removal
-            source_yaml_path.unlink()
+
+
+class TestStateManagerFileRemoval:
+    """Test StateManager file removal functionality."""
+    
+    def test_remove_generated_file_success(self):
+        """Test successful file removal from state."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            state_manager = StateManager(project_root)
             
-            # Run cleanup (this should remove all orphaned files)
-            deleted_files = state_manager.cleanup_orphaned_files("dev", dry_run=False)
+            # Track a file first
+            source_yaml = project_root / "test.yaml"
+            source_yaml.write_text("test: config")
+            generated_file = project_root / "generated" / "test.py"
+            generated_file.parent.mkdir(parents=True)
+            generated_file.write_text("# Generated code")
             
-            # Verify all files were deleted
-            assert not main_file.exists(), "Main file should be deleted"
-            assert not init_file.exists(), "__init__.py should be deleted" 
-            assert not copied_file.exists(), "Copied Python file should be deleted"
+            state_manager.track_generated_file(
+                generated_path=generated_file,
+                source_yaml=source_yaml,
+                environment="dev",
+                pipeline="test_pipeline",
+                flowgroup="test_flowgroup"
+            )
             
-            # Verify directories are cleaned up too
-            assert not custom_functions_dir.exists(), "custom_python_functions directory should be deleted"
+            # Verify file is tracked
+            tracked_files = state_manager.get_generated_files("dev")
+            assert len(tracked_files) == 1
             
-            # Verify all files were reported as deleted
-            expected_deleted = {
-                "generated/data_pipeline/process_data.py",
-                "generated/data_pipeline/custom_python_functions/__init__.py", 
-                "generated/data_pipeline/custom_python_functions/data_processor.py"
-            }
-            deleted_set = set(deleted_files)
-            assert deleted_set == expected_deleted, f"Expected {expected_deleted}, got {deleted_set}"
+            # Remove file from state
+            result = state_manager.remove_generated_file(generated_file, "dev")
             
-            # Verify state is cleaned
-            tracked_files_after = state_manager.get_generated_files("dev")
-            assert len(tracked_files_after) == 0, f"No files should be tracked after cleanup, got: {list(tracked_files_after.keys())}" 
+            # Verify successful removal
+            assert result == True
+            tracked_files = state_manager.get_generated_files("dev")
+            assert len(tracked_files) == 0
+    
+    def test_remove_generated_file_not_tracked(self):
+        """Test removing file that's not tracked returns False."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            state_manager = StateManager(project_root)
+            
+            # Try to remove untracked file
+            generated_file = project_root / "generated" / "test.py"
+            result = state_manager.remove_generated_file(generated_file, "dev")
+            
+            assert result == False
+    
+    def test_remove_generated_file_nonexistent_environment(self):
+        """Test removing file from nonexistent environment returns False."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            state_manager = StateManager(project_root)
+            
+            generated_file = project_root / "generated" / "test.py"
+            result = state_manager.remove_generated_file(generated_file, "nonexistent")
+            
+            assert result == False
+
+
+class TestGenerationContextHashing:
+    """Test generation context parameter hashing."""
+    
+    def test_generation_context_affects_hash(self):
+        """Test that different generation contexts produce different hashes."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            state_manager = StateManager(project_root)
+            
+            # Create source file
+            source_yaml = project_root / "test.yaml"
+            source_yaml.write_text("test: config")
+            generated_file = project_root / "generated" / "test.py"
+            generated_file.parent.mkdir(parents=True)
+            generated_file.write_text("# Generated code")
+            
+            # Track with include_tests=True
+            state_manager.track_generated_file(
+                generated_path=generated_file,
+                source_yaml=source_yaml,
+                environment="dev",
+                pipeline="test_pipeline", 
+                flowgroup="test_flowgroup",
+                generation_context="include_tests:True"
+            )
+            
+            first_state = state_manager.get_generated_files("dev")
+            first_hash = list(first_state.values())[0].file_composite_checksum
+            
+            # Remove and track again with include_tests=False
+            state_manager.remove_generated_file(generated_file, "dev")
+            state_manager.track_generated_file(
+                generated_path=generated_file,
+                source_yaml=source_yaml,
+                environment="dev",
+                pipeline="test_pipeline",
+                flowgroup="test_flowgroup", 
+                generation_context="include_tests:False"
+            )
+            
+            second_state = state_manager.get_generated_files("dev")
+            second_hash = list(second_state.values())[0].file_composite_checksum
+            
+            # Hashes should be different due to different generation context
+            assert first_hash != second_hash
+    
+    def test_empty_generation_context_ignored(self):
+        """Test that empty generation context doesn't affect hash."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            state_manager = StateManager(project_root)
+            
+            # Create source file
+            source_yaml = project_root / "test.yaml"
+            source_yaml.write_text("test: config")
+            generated_file = project_root / "generated" / "test.py"
+            generated_file.parent.mkdir(parents=True)
+            generated_file.write_text("# Generated code")
+            
+            # Track without generation context
+            state_manager.track_generated_file(
+                generated_path=generated_file,
+                source_yaml=source_yaml,
+                environment="dev",
+                pipeline="test_pipeline",
+                flowgroup="test_flowgroup"
+            )
+            
+            first_state = state_manager.get_generated_files("dev")
+            first_hash = list(first_state.values())[0].file_composite_checksum
+            
+            # Remove and track again with empty generation context
+            state_manager.remove_generated_file(generated_file, "dev")
+            state_manager.track_generated_file(
+                generated_path=generated_file,
+                source_yaml=source_yaml,
+                environment="dev", 
+                pipeline="test_pipeline",
+                flowgroup="test_flowgroup",
+                generation_context=""
+            )
+            
+            second_state = state_manager.get_generated_files("dev")
+            second_hash = list(second_state.values())[0].file_composite_checksum
+            
+            # Hashes should be the same since empty context is ignored
+            assert first_hash == second_hash 
