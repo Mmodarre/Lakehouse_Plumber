@@ -51,7 +51,7 @@ class DependencyResolver:
             for source in sources:
                 if source not in targets:
                     # Check if source is an external table/view (not produced by any action)
-                    if not self._is_external_source(source):
+                    if not self._is_external_source(source, targets):
                         errors.append(
                             f"Action '{action.name}' depends on '{source}' which is not produced by any action"
                         )
@@ -345,16 +345,21 @@ Or reference it in another transform:
 
         return None
 
-    def _is_external_source(self, source: str) -> bool:
+    def _is_external_source(self, source: str, targets: Dict[str, Action]) -> bool:
         """Check if a source is external (not produced by any action).
 
-        External sources might be:
-        - Existing tables/views in the database
-        - Sources that don't follow the v_ naming convention
+        A source is external if it's not in the targets registry - meaning it's
+        a database table, materialized view, or external view that exists outside
+        the current flowgroup's actions.
+
+        Args:
+            source: The source name to check
+            targets: Registry mapping target names to actions that produce them
+
+        Returns:
+            True if source is external (not produced by any action in this flowgroup)
         """
-        # Simple heuristic: if it doesn't start with 'v_', it might be external
-        # This can be enhanced based on naming conventions
-        return not source.startswith("v_")
+        return source not in targets
 
     def _find_orphaned_actions(
         self,

@@ -4,7 +4,7 @@ version: "1.0"
 description: "acme Delta Lakehouse Project - TPC-H"
 author: "Mehdi Modarressi"
 created_date: "2025-07-11"
-required_lhp_version: ">=0.5.0,<=0.6.0"
+required_lhp_version: ">=0.5.0,<=0.7.0"
 
 # include:
 #   - "01_raw_ingestion/**"

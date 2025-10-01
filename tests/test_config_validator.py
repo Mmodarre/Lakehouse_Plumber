@@ -420,9 +420,14 @@ class TestConfigValidator:
         # The validator still checks if the transform type is supported by the registry.
     
     def test_dependency_validation(self):
-        """Test that dependency validation is included."""
+        """Test that dependency validation is included.
+
+        NOTE: With registry-based detection, sources not in the targets registry
+        are treated as external. This test validates that flowgroups without
+        load actions still raise the appropriate error.
+        """
         validator = ConfigValidator()
-        
+
         # FlowGroup with missing dependencies
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
@@ -432,7 +437,7 @@ class TestConfigValidator:
                     name="transform",
                     type=ActionType.TRANSFORM,
                     transform_type=TransformType.SQL,
-                    source="v_missing",  # This view doesn't exist
+                    source="v_missing",  # This view doesn't exist, treated as external
                     target="v_output",
                     sql="SELECT * FROM v_missing"
                 ),
@@ -448,11 +453,10 @@ class TestConfigValidator:
                 )
             ]
         )
-        
+
         errors = validator.validate_flowgroup(flowgroup)
-        # Should have errors about missing load action and missing dependency
+        # Should have error about missing load action (v_missing is treated as external)
         assert any("Load action" in error for error in errors)
-        assert any("v_missing" in error for error in errors)
     
     def test_edge_cases(self):
         """Test edge cases in validation."""

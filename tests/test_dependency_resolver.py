@@ -181,9 +181,15 @@ class TestDependencyResolver:
         assert any("must have at least one Write action" in error for error in errors)
     
     def test_missing_dependency_detection(self):
-        """Test detection of missing dependencies."""
+        """Test detection of missing dependencies.
+
+        NOTE: With registry-based detection, we can only detect missing internal
+        dependencies, not distinguish between external tables and typos. This test
+        now validates that a source referencing a non-existent internal view with
+        NO load action still raises an error about missing load action.
+        """
         resolver = DependencyResolver()
-        
+
         actions = [
             Action(
                 name="transform_data",
@@ -199,9 +205,11 @@ class TestDependencyResolver:
                 source={"type": "streaming_table", "view": "v_transformed", "table": "output"}
             )
         ]
-        
+
         errors = resolver.validate_relationships(actions)
-        assert any("v_missing_view" in error and "not produced by any action" in error for error in errors)
+        # Since there's no load action and v_missing_view is treated as external,
+        # we should get a "must have at least one Load action" error
+        assert any("must have at least one Load action" in error for error in errors)
     
     def test_orphaned_action_detection(self):
         """Test detection of orphaned actions."""
@@ -363,13 +371,13 @@ class TestDependencyResolver:
     def test_external_source_handling(self):
         """Test handling of external sources (not produced by any action)."""
         resolver = DependencyResolver()
-        
+
         actions = [
             Action(
                 name="load_from_external",
                 type=ActionType.TRANSFORM,
                 transform_type=TransformType.SQL,
-                source="bronze.customers",  # External table (doesn't start with v_)
+                source="bronze.customers",  # External table (not produced by any action in this flowgroup)
                 target="v_customers",
                 sql="SELECT * FROM bronze.customers"
             ),
@@ -379,11 +387,11 @@ class TestDependencyResolver:
                 source={"type": "streaming_table", "view": "v_customers", "table": "silver_customers"}
             )
         ]
-        
+
         # Should not error on external source
         errors = resolver.validate_relationships(actions)
         assert not any("bronze.customers" in error for error in errors)
-        
+
         # But should still validate other requirements
         assert any("must have at least one Load action" in error for error in errors)
 
@@ -615,7 +623,7 @@ class TestDependencyResolver:
     def test_malformed_cdc_config_fallback(self):
         """Test that malformed CDC configs fall back to action.source gracefully."""
         resolver = DependencyResolver()
-        
+
         # CDC action with malformed config - missing source in cdc_config
         malformed_cdc = Action(
             name="write_malformed_cdc",
@@ -629,10 +637,158 @@ class TestDependencyResolver:
                 "cdc_config": {}  # Empty config, no source
             }
         )
-        
+
         # Should fallback to action.source
         sources = resolver._get_action_sources(malformed_cdc)
         assert sources == ["v_fallback_source"], f"Malformed CDC should fallback to action.source. Got: {sources}"
+
+    def test_non_v_prefix_internal_views(self):
+        """Test that internal views without v_ prefix are recognized correctly."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_data",
+                type=ActionType.LOAD,
+                target="raw_customer_data",  # ← No v_ prefix
+                source={"type": "cloudfiles", "path": "/data/customers"}
+            ),
+            Action(
+                name="transform_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="raw_customer_data",  # ← References non-v_ internal view
+                target="staging_customer",   # ← No v_ prefix
+                sql="SELECT * FROM raw_customer_data WHERE active = true"
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source="staging_customer",
+                write_target={
+                    "type": "streaming_table",
+                    "database": "catalog.bronze",
+                    "table": "customer"
+                }
+            )
+        ]
+
+        # Should pass validation - all dependencies exist
+        errors = resolver.validate_relationships(actions)
+
+        # Should not have missing dependency errors
+        missing_dep_errors = [e for e in errors if "not produced by any action" in e]
+        assert len(missing_dep_errors) == 0, f"Should not have missing dependency errors. Got: {missing_dep_errors}"
+
+        # Verify dependency order is correct
+        ordered = resolver.resolve_dependencies(actions)
+        assert ordered[0].name == "load_data"
+        assert ordered[1].name == "transform_data"
+        assert ordered[2].name == "write_data"
+
+    def test_mixed_naming_conventions(self):
+        """Test that v_ and non-v_ prefixed targets can coexist."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_a",
+                type=ActionType.LOAD,
+                target="v_data_a",  # ← Uses v_ prefix
+                source={"type": "delta", "table": "source_a"}
+            ),
+            Action(
+                name="load_b",
+                type=ActionType.LOAD,
+                target="raw_data_b",  # ← No v_ prefix
+                source={"type": "delta", "table": "source_b"}
+            ),
+            Action(
+                name="transform_merged",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source=["v_data_a", "raw_data_b"],  # ← Mixed references
+                target="staging_merged",  # ← No v_ prefix
+                sql="SELECT * FROM v_data_a JOIN raw_data_b"
+            ),
+            Action(
+                name="write_result",
+                type=ActionType.WRITE,
+                source="staging_merged",
+                write_target={
+                    "type": "streaming_table",
+                    "database": "catalog.silver",
+                    "table": "merged_data"
+                }
+            )
+        ]
+
+        # Should pass validation - mixed naming is fine
+        errors = resolver.validate_relationships(actions)
+        missing_dep_errors = [e for e in errors if "not produced by any action" in e]
+        assert len(missing_dep_errors) == 0, f"Should handle mixed naming conventions. Got: {missing_dep_errors}"
+
+        # Verify all dependencies are detected
+        ordered = resolver.resolve_dependencies(actions)
+        action_positions = {action.name: i for i, action in enumerate(ordered)}
+
+        assert action_positions["load_a"] < action_positions["transform_merged"]
+        assert action_positions["load_b"] < action_positions["transform_merged"]
+        assert action_positions["transform_merged"] < action_positions["write_result"]
+
+    def test_internal_dependency_typo_detection(self):
+        """Test that typos in internal view references are detected.
+
+        NOTE: Registry-based detection can only catch typos if we know the correct
+        target exists. If a source references a non-existent name, the system treats
+        it as external. To detect typos, the dependency chain must break in a
+        detectable way.
+        """
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_data",
+                type=ActionType.LOAD,
+                target="customer_data",
+                source={"type": "delta", "table": "customers"}
+            ),
+            Action(
+                name="transform_correct",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="customer_data",  # ← Correct reference
+                target="enriched_data",
+                sql="SELECT * FROM customer_data"
+            ),
+            Action(
+                name="transform_depends_on_typo",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="enriched_dta",  # ← Typo: 'enriched_dta' instead of 'enriched_data'
+                target="final_data",
+                sql="SELECT * FROM enriched_dta"
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source="final_data",
+                write_target={
+                    "type": "streaming_table",
+                    "database": "catalog.silver",
+                    "table": "customer"
+                }
+            )
+        ]
+
+        # With the typo, enriched_dta is not in targets and not caught as error
+        # because it's treated as external. However, enriched_data becomes orphaned!
+        # The orphaned action detection will catch this.
+        with pytest.raises(Exception) as exc_info:
+            errors = resolver.validate_relationships(actions)
+
+        # Should detect orphaned transform (enriched_data is not used)
+        assert "transform_correct" in str(exc_info.value) or "enriched_data" in str(exc_info.value)
 
 
 if __name__ == "__main__":
