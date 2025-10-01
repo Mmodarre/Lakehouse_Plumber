@@ -12,9 +12,9 @@ SELECT
     AVG(l.discount) as avg_discount_rate,
     DATE_TRUNC('month', o.order_date) as month
 FROM
-    { catalog }.{ silver_schema }.lineitem_fct l
-    JOIN { catalog }.{ silver_schema }.orders_fct o ON l.order_id = o.order_id
-    JOIN { catalog }.{ silver_schema }.part_dim p ON l.part_id = p.part_id
+    {catalog}.{silver_schema}.lineitem_fct l
+    JOIN {catalog}.{silver_schema}.orders_fct o ON l.order_id = o.order_id
+    JOIN {catalog}.{silver_schema}.part_dim p ON l.part_id = p.part_id
     AND o.order_date >= p.__start_at
     AND (
         o.order_date < p.__end_at

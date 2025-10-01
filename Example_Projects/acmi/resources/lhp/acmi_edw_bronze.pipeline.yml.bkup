@@ -1,4 +1,0 @@
-# User managed file
-resources:
-  pipelines:
-    test: value

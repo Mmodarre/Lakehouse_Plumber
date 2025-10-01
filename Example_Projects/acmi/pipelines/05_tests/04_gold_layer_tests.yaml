@@ -7,7 +7,7 @@ actions:
   - name: test_customer_ltv_calculations
     type: test
     test_type: custom_sql
-    source: "{catalog}.{gold_schema}.customer_lifetime_value"
+    source: "{catalog}.{gold_schema}.customer_lifetime_value_mv"
     sql: |
       SELECT 
         customer_id,
@@ -16,7 +16,7 @@ actions:
         avg_order_value,
         first_order_date,
         last_order_date
-      FROM {catalog}.{gold_schema}.customer_lifetime_value
+      FROM {catalog}.{gold_schema}.customer_lifetime_value_mv
       WHERE total_orders > 0
     expectations:
       - name: valid_avg_order_value
@@ -100,7 +100,7 @@ actions:
   - name: test_mv_referential_integrity
     type: test
     test_type: referential_integrity
-    source: "{catalog}.{gold_schema}.customer_lifetime_value"
+    source: "{catalog}.{gold_schema}.customer_lifetime_value_mv"
     reference: "{catalog}.{silver_schema}.customer_dim"
     source_columns: [customer_id]
     reference_columns: [c_custkey]

@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from ...models.config import FlowGroup
 from ...parsers.yaml_parser import YAMLParser
@@ -205,3 +205,41 @@ class FlowgroupDiscoverer:
             "unique_flowgroup_names": len(flowgroup_names),
             "pipeline_fields": sorted(pipeline_fields),
         }
+
+    def discover_all_flowgroups_with_paths(self) -> List[Tuple[FlowGroup, Path]]:
+        """
+        Discover all flowgroups across all directories with their source file paths.
+
+        Returns:
+            List of tuples containing (flowgroup, yaml_file_path)
+        """
+        flowgroups_with_paths = []
+        pipelines_dir = self.project_root / "pipelines"
+
+        if not pipelines_dir.exists():
+            return flowgroups_with_paths
+
+        # Get include patterns from project configuration
+        include_patterns = self.get_include_patterns()
+
+        if include_patterns:
+            # Use include filtering
+            from ...utils.file_pattern_matcher import discover_files_with_patterns
+            yaml_files = discover_files_with_patterns(pipelines_dir, include_patterns)
+        else:
+            # No include patterns, discover all YAML files (backwards compatibility)
+            yaml_files = []
+            yaml_files.extend(pipelines_dir.rglob("*.yaml"))
+            yaml_files.extend(pipelines_dir.rglob("*.yml"))
+
+        for yaml_file in yaml_files:
+            try:
+                flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
+                flowgroups_with_paths.append((flowgroup, yaml_file))
+                self.logger.debug(
+                    f"Discovered flowgroup: {flowgroup.flowgroup} (pipeline: {flowgroup.pipeline}) in {yaml_file}"
+                )
+            except Exception as e:
+                self.logger.warning(f"Could not parse flowgroup {yaml_file}: {e}")
+
+        return flowgroups_with_paths

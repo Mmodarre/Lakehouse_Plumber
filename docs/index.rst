@@ -170,6 +170,7 @@ Features at a Glance
 * **Append Flows** – append data to existing streaming tables.(multi source write to single target table)
 * **Data-Quality** – declarative expectations integrated into transforms.
 * **Operational Metadata** – custom audit columns and metadata.
+* **Dependency Analysis** – automatic pipeline dependency detection and orchestration job generation (see :doc:`dependency_analysis`).
 * **Smart State Management** – regenerate only what changed; cleanup orphaned code. (Terraform-like state management)
 * **IntelliSense** – VS Code schema hints & YAML completion (automatically configured).
 * **Seeding** – seed data from existing tables using Lakeflow native features. 
@@ -279,6 +280,7 @@ Next Steps
 
    getting_started
    concepts
+   dependency_analysis
    templates_reference
    databricks_bundles
    cicd_reference

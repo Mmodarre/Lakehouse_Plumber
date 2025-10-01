@@ -1,0 +1,265 @@
+"""Dependencies command implementation for LakehousePlumber CLI."""
+
+import logging
+from pathlib import Path
+from typing import Optional, List
+import click
+
+from .base_command import BaseCommand
+from ...core.services.dependency_analyzer import DependencyAnalyzer
+from ...core.services.dependency_output_manager import DependencyOutputManager
+from ...core.project_config_loader import ProjectConfigLoader
+from ...utils.error_formatter import LHPError, ErrorCategory
+
+logger = logging.getLogger(__name__)
+
+
+class DependenciesCommand(BaseCommand):
+    """
+    Handles pipeline dependency analysis and visualization command.
+
+    Analyzes flowgroup and pipeline dependencies to enable orchestration
+    planning and execution order determination using NetworkX graphs.
+    """
+
+    def execute(self, output_format: str = "all", output_dir: Optional[str] = None,
+                pipeline: Optional[str] = None, job_name: Optional[str] = None,
+                verbose: bool = False) -> None:
+        """
+        Execute the dependencies command.
+
+        Args:
+            output_format: Output format(s) to generate ("dot", "json", "text", "job", "all")
+            output_dir: Output directory path (optional)
+            pipeline: Specific pipeline to analyze (optional)
+            job_name: Custom name for orchestration job (optional, only used with job format)
+            verbose: Enable verbose output
+        """
+        try:
+            self.setup_from_context()
+            project_root = self.ensure_project_root()
+
+            if verbose:
+                self._setup_verbose_logging()
+
+            click.echo("🔍 Analyzing Pipeline Dependencies")
+            click.echo("=" * 60)
+
+            # Initialize services
+            config_loader = ProjectConfigLoader(project_root)
+            analyzer = DependencyAnalyzer(project_root, config_loader)
+            output_manager = DependencyOutputManager()
+
+            # Validate pipeline if specified
+            if pipeline:
+                self._validate_pipeline_exists(analyzer, pipeline)
+
+            # Perform dependency analysis
+            click.echo("📊 Building dependency graphs...")
+            result = analyzer.analyze_dependencies(pipeline_filter=pipeline)
+
+            # Display analysis summary
+            self._display_analysis_summary(result, pipeline)
+
+            # Handle output generation
+            output_formats = self._parse_output_formats(output_format)
+            output_path = self._resolve_output_path(output_dir, project_root)
+
+            click.echo(f"\n💾 Generating output files in {output_path}...")
+            generated_files = output_manager.save_outputs(
+                analyzer, result, output_formats, output_path, job_name
+            )
+
+            # Display generated files
+            self._display_generated_files(generated_files)
+
+            # Show execution order if pipelines found
+            if result.execution_stages:
+                self._display_execution_order(result)
+
+            # Show warnings if any issues detected
+            self._display_warnings(result)
+
+            click.echo("\n✅ Dependency analysis complete!")
+
+        except LHPError:
+            # LHPError is already formatted, just re-raise
+            raise
+        except Exception as e:
+            logger.error(f"Dependency analysis failed: {e}")
+            raise LHPError(
+                category=ErrorCategory.DEPENDENCY,
+                code_number="001",
+                title="Dependency analysis failed",
+                details=f"An error occurred during dependency analysis: {str(e)}",
+                suggestions=[
+                    "Check that you're in a valid LakehousePlumber project directory",
+                    "Ensure all YAML files are valid and parseable",
+                    "Verify project configuration (lhp.yaml) is correct",
+                    "Check file permissions for the output directory"
+                ],
+                context={
+                    "Error Type": type(e).__name__,
+                    "Error Message": str(e),
+                    "Pipeline Filter": pipeline,
+                    "Output Format": output_format
+                }
+            ) from e
+
+    def _setup_verbose_logging(self) -> None:
+        """Enable verbose logging for detailed analysis output."""
+        # Get the dependency analyzer logger
+        dep_logger = logging.getLogger("lhp.core.services.dependency_analyzer")
+        dep_logger.setLevel(logging.DEBUG)
+
+        # Get the output manager logger
+        out_logger = logging.getLogger("lhp.core.services.dependency_output_manager")
+        out_logger.setLevel(logging.DEBUG)
+
+    def _validate_pipeline_exists(self, analyzer: DependencyAnalyzer, pipeline: str) -> None:
+        """Validate that the specified pipeline exists."""
+        # Get available pipelines
+        available_pipelines = set()
+        try:
+            flowgroups = analyzer._get_flowgroups()
+            available_pipelines = set(fg.pipeline for fg in flowgroups)
+        except Exception as e:
+            logger.warning(f"Could not validate pipeline existence: {e}")
+            return  # Continue anyway
+
+        if available_pipelines and pipeline not in available_pipelines:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="002",
+                title=f"Pipeline '{pipeline}' not found",
+                details=f"The specified pipeline '{pipeline}' does not exist in the project.",
+                suggestions=[
+                    f"Use one of the available pipelines: {', '.join(sorted(available_pipelines))}",
+                    "Check the 'pipeline' field in your flowgroup YAML files",
+                    "Verify that flowgroup YAML files are in the correct location",
+                    "Run 'lhp stats' to see all available pipelines"
+                ],
+                context={
+                    "Requested Pipeline": pipeline,
+                    "Available Pipelines": sorted(available_pipelines),
+                    "Total Available": len(available_pipelines)
+                }
+            )
+
+    def _parse_output_formats(self, output_format: str) -> List[str]:
+        """Parse and validate output format specification."""
+        valid_formats = {"dot", "json", "text", "job", "all"}
+        formats = [fmt.strip().lower() for fmt in output_format.split(",")]
+
+        # Validate formats
+        invalid_formats = set(formats) - valid_formats
+        if invalid_formats:
+            raise click.BadParameter(
+                f"Invalid output format(s): {', '.join(invalid_formats)}. "
+                f"Valid formats: {', '.join(valid_formats)}"
+            )
+
+        return formats
+
+    def _resolve_output_path(self, output_dir: Optional[str], project_root: Path) -> Path:
+        """Resolve the output directory path."""
+        if output_dir:
+            return Path(output_dir).resolve()
+        else:
+            return project_root / ".lhp" / "dependencies"
+
+    def _display_analysis_summary(self, result, pipeline_filter: Optional[str]) -> None:
+        """Display summary of dependency analysis results."""
+        click.echo(f"\n📈 Analysis Summary:")
+
+        if pipeline_filter:
+            click.echo(f"   Pipeline: {pipeline_filter}")
+        else:
+            click.echo(f"   Total pipelines analyzed: {result.total_pipelines}")
+
+        click.echo(f"   Execution stages: {len(result.execution_stages)}")
+        click.echo(f"   External sources: {result.total_external_sources}")
+
+        if result.circular_dependencies:
+            click.echo(f"   ⚠️  Circular dependencies: {len(result.circular_dependencies)}")
+
+    def _display_generated_files(self, generated_files: dict) -> None:
+        """Display information about generated output files."""
+        for format_name, file_path in generated_files.items():
+            file_size = file_path.stat().st_size if file_path.exists() else 0
+            click.echo(f"   {format_name.upper()}: {file_path} ({file_size:,} bytes)")
+
+    def _display_execution_order(self, result) -> None:
+        """Display pipeline execution order."""
+        click.echo(f"\n🔄 Execution Order:")
+
+        if not result.execution_stages:
+            click.echo("   No pipelines found or circular dependencies prevent execution order.")
+            return
+
+        for stage_idx, stage_pipelines in enumerate(result.execution_stages, 1):
+            if len(stage_pipelines) == 1:
+                click.echo(f"   Stage {stage_idx}: {stage_pipelines[0]}")
+            else:
+                click.echo(f"   Stage {stage_idx}: {', '.join(stage_pipelines)} (can run in parallel)")
+
+    def _display_warnings(self, result) -> None:
+        """Display warnings about dependency analysis results."""
+        if result.circular_dependencies:
+            click.echo(f"\n⚠️  Warnings:")
+            click.echo("   Circular dependencies detected! These must be resolved:")
+            for cycle in result.circular_dependencies:
+                for cycle_description in cycle:
+                    click.echo(f"     {cycle_description}")
+            click.echo("   Pipeline execution order may be affected.")
+
+        if not result.execution_stages:
+            click.echo(f"\n⚠️  Warning:")
+            click.echo("   No execution order could be determined.")
+            click.echo("   This may indicate circular dependencies or missing pipelines.")
+
+        if result.total_external_sources > 0:
+            click.echo(f"\n💡 Info:")
+            click.echo(f"   {result.total_external_sources} external sources detected.")
+            click.echo("   These are dependencies outside of LHP-managed pipelines.")
+            if result.total_external_sources <= 5:
+                click.echo("   External sources:")
+                for source in result.external_sources:
+                    click.echo(f"     {source}")
+            else:
+                click.echo("   Use generated files to see complete list of external sources.")
+
+
+# Command function for CLI registration
+def create_dependencies_command():
+    """Create and return the dependencies command function for CLI registration."""
+
+    @click.command()
+    @click.option(
+        "--format", "-f",
+        "output_format",
+        type=click.Choice(["dot", "json", "text", "all"], case_sensitive=False),
+        default="all",
+        help="Output format(s) to generate"
+    )
+    @click.option(
+        "--output", "-o",
+        "output_dir",
+        type=click.Path(),
+        help="Output directory (defaults to .lhp/dependencies/)"
+    )
+    @click.option(
+        "--pipeline", "-p",
+        help="Analyze specific pipeline only"
+    )
+    @click.option(
+        "--verbose", "-v",
+        is_flag=True,
+        help="Enable verbose output"
+    )
+    def deps(output_format, output_dir, pipeline, verbose):
+        """Analyze and visualize pipeline dependencies for orchestration planning."""
+        command = DependenciesCommand()
+        command.execute(output_format, output_dir, pipeline, verbose)
+
+    return deps

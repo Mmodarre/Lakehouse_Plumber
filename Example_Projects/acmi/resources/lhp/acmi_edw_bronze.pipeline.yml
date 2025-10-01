@@ -19,6 +19,11 @@ resources:
       
       configuration:
         bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
+     
+      event_log:
+        name: event_log_bronze
+        schema: _logs
+        catalog: acme_edw_dev
 
 
       # Additional pipeline configuration options (uncomment and modify as needed):

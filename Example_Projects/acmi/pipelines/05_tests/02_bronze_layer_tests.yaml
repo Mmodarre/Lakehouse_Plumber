@@ -44,8 +44,8 @@ actions:
   - name: lineitem_orders_fk_referential_integrity
     type: test
     test_type: referential_integrity
-    source: "{catalog}.{bronze_schema}.lineitem_africa"
-    reference: "{catalog}.{bronze_schema}.orders"
+    source: '{catalog}.{bronze_schema}.lineitem'
+    reference: '{catalog}.{bronze_schema}.orders'
     source_columns: [l_orderkey]
     reference_columns: [o_orderkey]
     on_violation: fail
@@ -55,7 +55,7 @@ actions:
   - name: lineitem_part_fk_referential_integrity
     type: test
     test_type: referential_integrity
-    source: "{catalog}.{bronze_schema}.lineitem_africa"
+    source: "{catalog}.{bronze_schema}.lineitem"
     reference: "{catalog}.{bronze_schema}.part"
     source_columns: [l_partkey]
     reference_columns: [p_partkey]
@@ -83,7 +83,7 @@ actions:
   - name: lineitem_composite_key_uniqueness
     type: test
     test_type: uniqueness
-    source: "{catalog}.{bronze_schema}.lineitem_africa"
+    source: "{catalog}.{bronze_schema}.lineitem"
     columns: [l_orderkey, l_linenumber]
     on_violation: fail
     description: "Validate lineitem composite key uniqueness"

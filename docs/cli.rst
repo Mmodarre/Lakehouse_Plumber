@@ -8,8 +8,11 @@ usual ``--help`` flags.
 
 .. click:: lhp.cli.main:cli
    :prog: lhp
-   :nested: full 
+   :nested: full
 
+.. seealso::
+
+   For detailed information about dependency analysis and orchestration job generation, see :doc:`dependency_analysis`.
 
 Test Generation Workflow
 ========================

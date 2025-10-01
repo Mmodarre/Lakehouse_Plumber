@@ -718,6 +718,17 @@ Usage Patterns
 
 
 .. danger::
-   - When you add operational metadata columns to an upstream action, 
+   - When you add operational metadata columns to an upstream action,
      if your downstream action is a transformation, for example SQL transform,
      you need to make sure they are included in the SQL query.
+
+What's Next?
+============
+
+Now that you understand the core building blocks of Lakehouse Plumber, explore these advanced features:
+
+* **Dependency Analysis** - Understand how your pipelines depend on each other and generate orchestration jobs automatically. See :doc:`dependency_analysis`.
+* **Templates & Presets** - Reuse common patterns across your pipelines. See :doc:`templates_reference`.
+* **Databricks Bundles** - Deploy and manage your pipelines as code. See :doc:`databricks_bundles`.
+
+For hands-on examples and complete workflows, check out :doc:`getting_started`.

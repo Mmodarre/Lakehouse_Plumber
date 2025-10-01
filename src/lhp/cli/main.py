@@ -276,6 +276,20 @@ def info():
     ShowCommand().show_project_info()
 
 
+@cli.command()
+@click.option("--format", "-f", type=click.Choice(["dot", "json", "text", "job", "all"], case_sensitive=False),
+              default="all", help="Output format(s) to generate (dot=GraphViz, json=structured data, text=readable report, job=orchestration job)")
+@click.option("--output", "-o", type=click.Path(),
+              help="Output directory (defaults to .lhp/dependencies/)")
+@click.option("--pipeline", "-p", help="Analyze specific pipeline only")
+@click.option("--job-name", "-j", help="Custom name for generated orchestration job (only used with job format)")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+def deps(format, output, pipeline, job_name, verbose):
+    """Analyze and visualize pipeline dependencies for orchestration planning."""
+    from .commands.dependencies_command import DependenciesCommand
+    DependenciesCommand().execute(format, output, pipeline, job_name, verbose)
+
+
 # ============================================================================
 # Entry Point
 # ============================================================================

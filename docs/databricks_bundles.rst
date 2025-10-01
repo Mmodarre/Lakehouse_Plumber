@@ -555,5 +555,6 @@ Obsolete resources not cleaned up     Run ``lhp generate --force`` to trigger fu
 **Related Documentation**
 
 * :doc:`getting_started` – Basic LHP setup and usage
-* :doc:`concepts` – Understanding pipelines and flowgroups  
+* :doc:`concepts` – Understanding pipelines and flowgroups
+* :doc:`dependency_analysis` – Generate orchestration jobs for pipeline coordination
 * :doc:`cli` – Complete CLI command reference

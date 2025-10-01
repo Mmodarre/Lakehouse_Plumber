@@ -6,20 +6,20 @@ SELECT
     COUNT(DISTINCT o.order_id) as region_orders,
     COUNT(DISTINCT c.customer_id) as region_customers
 FROM
-    { catalog }.{ silver_schema }.orders_fct o
-    JOIN { catalog }.{ silver_schema }.customer_dim c ON o.customer_id = c.customer_id
+    {catalog}.{silver_schema}.orders_fct o
+    JOIN {catalog}.{silver_schema}.customer_dim c ON o.customer_id = c.customer_id
     AND o.order_date >= c.__start_at
     AND (
         o.order_date < c.__end_at
         OR c.__end_at IS NULL
     )
-    JOIN { catalog }.{ silver_schema }.nation_dim n ON c.nation_id = n.nation_id
+    JOIN {catalog}.{silver_schema}.nation_dim n ON c.nation_id = n.nation_id
     AND o.order_date >= n.__start_at
     AND (
         o.order_date < n.__end_at
         OR n.__end_at IS NULL
     )
-    JOIN { catalog }.{ silver_schema }.region_dim r ON n.region_id = r.region_id
+    JOIN {catalog}.{silver_schema}.region_dim r ON n.region_id = r.region_id
     AND o.order_date >= r.__start_at
     AND (
         o.order_date < r.__end_at

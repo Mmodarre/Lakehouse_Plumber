@@ -33,7 +33,7 @@ WITH customer_scores AS (
             ELSE 1
         END as monetary_score
     FROM
-        { catalog }.{ gold_schema }.customer_lifetime_value_mv
+        {catalog}.{gold_schema}.customer_lifetime_value_mv
 )
 SELECT
     customer_id,

@@ -33,3 +33,4 @@ Example_Projects/acmi/Data_Prep/__builtins__.pyi
 BYTEROVER*
 tests/e2e/test_bundle_manager_e2e.py
 coverage.xml
+CLAUDE.md

@@ -1,0 +1,333 @@
+# Lakehouse Plumber Codebase Summary for LLMs
+
+*This document provides a comprehensive overview of the Lakehouse Plumber codebase based on source code analysis.*
+
+## 1. Project Overview
+
+**Package Information** (from pyproject.toml:6-8)
+- Name: `lakehouse-plumber`
+- Version: `0.5.9`
+- Description: "A framework for building and managing enterprise Lakeflow Declaritive Pipelines"
+
+**Key Dependencies** (from pyproject.toml:26-37)
+- `click>=8.0.0` - CLI framework
+- `pyyaml>=6.0.0`, `ruamel.yaml>=0.17.0` - YAML processing
+- `jinja2>=3.0.0` - Template engine
+- `rich>=12.0.0` - Terminal formatting
+- `pydantic>=2.0.0` - Data validation
+- `jsonschema>=4.0.0` - Schema validation
+- `black>=23.0.0` - Code formatting
+
+**CLI Entry Point** (from pyproject.toml:61)
+- Command: `lhp = "lhp.cli.main:cli"`
+
+## 2. Architecture & Design Patterns
+
+**Service-Based Architecture** (from orchestrator.py:79-100)
+- Main orchestration through `ActionOrchestrator` class
+- Service composition via `OrchestrationDependencies`
+- Dependency injection pattern for testability
+- Separation of concerns across specialized services
+
+**Core Workflow Pattern** (from orchestrator.py)
+```python
+# Load → Transform → Write pattern
+FlowgroupDiscoverer → FlowgroupProcessor → CodeGenerator → PipelineValidator
+```
+
+## 3. Module Organization
+
+### `/src/lhp/` Structure Analysis
+
+#### Core Business Logic (`/core/`)
+- `orchestrator.py:79` - Main `ActionOrchestrator` class coordinates all operations
+- `state_manager.py` - Manages file state and change detection
+- `template_engine.py` - Jinja2-based template rendering
+- `validator.py` - Configuration validation logic
+- `action_registry.py` - Registry pattern for action types
+- `dependency_resolver.py` - Resolves action dependencies
+- `factories.py` - Dependency injection container
+
+#### CLI Interface (`/cli/`)
+- `main.py:172` - Main CLI group with click framework
+- `commands/` - Individual command implementations
+
+#### Data Models (`/models/`)
+- `config.py:6` - Core enums: `ActionType`, `LoadSourceType`, `TransformType`, `WriteTargetType`
+- `config.py:136` - `Action` model with source/target configuration
+- `config.py:89` - `ProjectConfig` model for lhp.yaml
+
+#### Code Generation (`/generators/`)
+- `load/` - Generators for data loading (cloudfiles, delta, sql, python, jdbc)
+- `transform/` - Transform generators (sql, python, data_quality)
+- `write/` - Write target generators (streaming_table, materialized_view)
+
+#### Utilities (`/utils/`)
+- `substitution.py` - Environment variable and token substitution
+- `formatter.py` - Code formatting with Black integration
+- `error_handler.py` - Comprehensive error handling framework
+- `operational_metadata.py` - Metadata column management
+- `smart_file_writer.py` - Change-aware file writing
+
+## 4. Core Data Models
+
+### Action Types (from config.py:6-11)
+```python
+class ActionType(str, Enum):
+    LOAD = "load"
+    TRANSFORM = "transform"
+    WRITE = "write"
+    TEST = "test"
+```
+
+### Load Source Types (from config.py:32-38)
+```python
+class LoadSourceType(str, Enum):
+    CLOUDFILES = "cloudfiles"
+    DELTA = "delta"
+    SQL = "sql"
+    PYTHON = "python"
+    JDBC = "jdbc"
+    CUSTOM_DATASOURCE = "custom_datasource"
+```
+
+### Transform Types (from config.py:41-47)
+```python
+class TransformType(str, Enum):
+    SQL = "sql"
+    PYTHON = "python"
+    DATA_QUALITY = "data_quality"
+    TEMP_TABLE = "temp_table"
+    SCHEMA = "schema"
+```
+
+### Action Model (from config.py:136-150)
+```python
+class Action(BaseModel):
+    name: str
+    type: ActionType
+    source: Optional[Union[str, List[Union[str, Dict[str, Any]]], Dict[str, Any]]]
+    target: Optional[str]
+    description: Optional[str]
+    readMode: Optional[str]  # 'batch' or 'stream'
+    write_target: Optional[Union[WriteTarget, Dict[str, Any]]]
+```
+
+### Project Configuration (from config.py:89-100)
+```python
+class ProjectConfig(BaseModel):
+    name: str
+    version: str = "1.0"
+    description: Optional[str]
+    author: Optional[str]
+    include: Optional[List[str]]  # File inclusion patterns
+    operational_metadata: Optional[ProjectOperationalMetadataConfig]
+    required_lhp_version: Optional[str]
+```
+
+## 5. CLI Commands Reference
+
+### Main CLI Group (from main.py:172-186)
+```python
+@click.group()
+@click.version_option(version=get_version(), prog_name="lhp")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
+def cli(verbose):
+    """LakehousePlumber - Generate Lakeflow pipelines from YAML configs."""
+```
+
+### Available Commands (from main.py:192-277)
+
+#### `init` (main.py:192-198)
+- Initialize new LakehousePlumber project
+- Options: `--bundle` for Databricks Asset Bundle support
+
+#### `generate` (main.py:201-213)
+- Generate DLT pipeline code from YAML configs
+- Options: `--env`, `--pipeline`, `--output`, `--dry-run`, `--no-cleanup`, `--force`, `--no-bundle`, `--include-tests`
+
+#### `validate` (main.py:216-223)
+- Validate pipeline configurations
+- Options: `--env`, `--pipeline`, `--verbose`
+
+#### `state` (main.py:226-238)
+- Show/manage generated file state
+- Options: `--env`, `--pipeline`, `--orphaned`, `--stale`, `--new`, `--dry-run`, `--cleanup`, `--regen`
+
+#### `stats` (main.py:241-246)
+- Display pipeline statistics and complexity metrics
+
+#### `show` (main.py:263-269)
+- Show resolved configuration for flowgroup
+
+## 6. Code Generation Pipeline
+
+### Template Engine (from template_engine.py)
+- Jinja2-based template rendering
+- Environment-aware substitutions
+- Template inheritance support
+
+### Generator Pattern (from generators/)
+Each generator follows consistent pattern:
+1. **Load Generators** (`/load/`) - Handle data ingestion
+   - `cloudfiles.py` - Cloud file ingestion with schema evolution
+   - `delta.py` - Delta table reading
+   - `sql.py` - SQL-based data loading
+   - `python.py` - Custom Python loading logic
+
+2. **Transform Generators** (`/transform/`) - Data transformation
+   - SQL transformations with DLT integration
+   - Python-based transformations
+   - Data quality expectations
+   - Schema enforcement
+
+3. **Write Generators** (`/write/`) - Data persistence
+   - Streaming tables
+   - Materialized views
+
+### State Management (from state_manager.py)
+- Tracks generated file checksums
+- Detects configuration changes
+- Manages orphaned file cleanup
+- Terraform-like state persistence in `.lhp/state/`
+
+## 7. Key Services Architecture
+
+### Service Layer (from core/services/)
+
+#### FlowgroupDiscoverer
+- Discovers YAML configuration files
+- Applies include/exclude patterns from project config
+- Handles file pattern matching
+
+#### FlowgroupProcessor
+- Processes YAML configurations
+- Applies presets and templates
+- Performs substitutions
+- Validates configurations
+
+#### CodeGenerator
+- Orchestrates code generation process
+- Manages template rendering
+- Handles file writing with change detection
+
+#### PipelineValidator
+- Validates pipeline configurations
+- Checks action dependencies
+- Enforces business rules
+
+### Orchestration Dependencies (from factories.py)
+Dependency injection container providing:
+- YAML parser
+- Preset manager
+- Template engine
+- Validators
+- State manager
+
+## 8. Error Handling & Validation
+
+### Error Framework (from utils/error_handler.py)
+- Custom `LHPError` exception hierarchy
+- Error categories and context
+- Rich terminal error formatting
+- Validation error aggregation
+
+### Validation Layers
+1. **Schema Validation** - JSON schema validation
+2. **Business Logic Validation** - Custom validators
+3. **Cross-action Validation** - Dependency checking
+4. **Configuration Validation** - Project-level validation
+
+## 9. Utility Functions
+
+### Substitution Engine (from utils/substitution.py)
+- Environment variable substitution: `{ENV_VAR}`
+- Secret references: `{secrets.SECRET_NAME}`
+- Project configuration references
+- Template parameter substitution
+
+### Code Formatting (from utils/formatter.py)
+- Black integration for Python code formatting
+- Configurable formatting options
+- Import statement management
+
+### Smart File Writer (from utils/smart_file_writer.py)
+- Change detection via checksums
+- Atomic file operations
+- Backup and rollback capabilities
+
+### Operational Metadata (from utils/operational_metadata.py)
+- Automatic metadata column injection
+- Configurable metadata presets
+- Audit trail generation
+
+## 10. Configuration & File Structure
+
+### Project Root Structure
+```
+project_root/
+├── lhp.yaml              # Project configuration
+├── pipelines/            # YAML pipeline definitions
+├── generated/            # Generated Python code
+├── .lhp/
+│   ├── state/           # State tracking files
+│   └── logs/            # Log files
+└── databricks.yml       # Optional: Databricks bundle config
+```
+
+### Configuration Discovery (from main.py:99-108)
+```python
+def _find_project_root() -> Optional[Path]:
+    """Find the project root by looking for lhp.yaml."""
+    current = Path.cwd().resolve()
+    for path in [current] + list(current.parents):
+        if (path / "lhp.yaml").exists():
+            return path
+    return None
+```
+
+## 11. Technical Implementation Details
+
+### Version Management (from main.py:21-50)
+- Dynamic version detection from package metadata
+- Fallback to pyproject.toml parsing
+- Version compatibility checking
+
+### Logging Configuration (from main.py:52-88)
+- Configurable logging levels
+- Console and file handlers
+- Project-aware log file placement
+
+### Bundle Integration (from utils/bundle_detection.py)
+- Databricks Asset Bundle detection
+- Bundle-aware file generation
+- Integration with databricks.yml
+
+### Testing Infrastructure (from tests/)
+- Comprehensive test suite covering:
+  - State management and staleness detection
+  - Template processing and smart detection
+  - Configuration validation
+  - Error handling and integration flows
+  - Generation planning and strategies
+
+## 12. Extension Points
+
+### Custom Generators
+- Plugin architecture for new generator types
+- Template-based extensibility
+- Action type registration system
+
+### Custom Validators
+- Pluggable validation framework
+- Business rule enforcement
+- Cross-action validation
+
+### Template System
+- Jinja2 template inheritance
+- Custom filters and functions
+- Environment-specific templates
+
+---
+
+*This summary is based on source code analysis as of version 0.5.9. File references included for verification and deeper exploration.*
