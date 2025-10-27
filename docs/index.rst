@@ -274,6 +274,7 @@ Next Steps
 * :doc:`databricks_bundles` – integrate with Databricks Asset Bundles for production deployments.
 * :doc:`cicd_reference` – comprehensive CI/CD patterns, deployment strategies, and DataOps best practices.
 * :doc:`cli` – command-line reference.
+* :doc:`telemetry` – understand what usage metrics we collect and how to opt out.
 
 .. toctree::
    :maxdepth: 2
@@ -289,4 +290,5 @@ Next Steps
    advanced
    cli
    examples
-   api 
+   api
+   telemetry 
