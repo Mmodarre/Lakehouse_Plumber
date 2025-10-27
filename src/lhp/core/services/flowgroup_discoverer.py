@@ -61,10 +61,11 @@ class FlowgroupDiscoverer:
         
         for yaml_file in yaml_files:
             try:
-                flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
-                flowgroups.append(flowgroup)
+                # Use parse_flowgroups_from_file() to support multi-flowgroup files
+                file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+                flowgroups.extend(file_flowgroups)
                 self.logger.debug(
-                    f"Discovered flowgroup: {flowgroup.flowgroup} in {yaml_file}"
+                    f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
                 )
             except Exception as e:
                 self.logger.warning(f"Could not parse flowgroup {yaml_file}: {e}")
@@ -99,10 +100,11 @@ class FlowgroupDiscoverer:
         
         for yaml_file in yaml_files:
             try:
-                flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
-                flowgroups.append(flowgroup)
+                # Use parse_flowgroups_from_file() to support multi-flowgroup files
+                file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+                flowgroups.extend(file_flowgroups)
                 self.logger.debug(
-                    f"Discovered flowgroup: {flowgroup.flowgroup} (pipeline: {flowgroup.pipeline}) in {yaml_file}"
+                    f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
                 )
             except Exception as e:
                 self.logger.warning(f"Could not parse flowgroup {yaml_file}: {e}")
@@ -234,10 +236,13 @@ class FlowgroupDiscoverer:
 
         for yaml_file in yaml_files:
             try:
-                flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
-                flowgroups_with_paths.append((flowgroup, yaml_file))
+                # Use parse_flowgroups_from_file() to support multi-flowgroup files
+                file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+                # Add each flowgroup with the same file path
+                for flowgroup in file_flowgroups:
+                    flowgroups_with_paths.append((flowgroup, yaml_file))
                 self.logger.debug(
-                    f"Discovered flowgroup: {flowgroup.flowgroup} (pipeline: {flowgroup.pipeline}) in {yaml_file}"
+                    f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
                 )
             except Exception as e:
                 self.logger.warning(f"Could not parse flowgroup {yaml_file}: {e}")

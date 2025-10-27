@@ -13,10 +13,10 @@ This page explains the key building blocks you will interact with.
 FlowGroups
 ----------
 A **FlowGroup** represents a logical slice of your pipeline often a single
-source table or business entity.  Each YAML file contains exactly one
-FlowGroup.
+source table or business entity. YAML files can contain one or multiple
+FlowGroups (see :doc:`multi_flowgroup_guide` for details on multi-flowgroup files).
 
-Required keys in the FlowGroup YAML file
+Required keys in a FlowGroup YAML file
 
 .. code-block:: yaml
 
@@ -27,12 +27,13 @@ Required keys in the FlowGroup YAML file
 
 .. note::
    **FlowGroup vs Pipeline:**
-   - A **FlowGroup** represents a logical slice of your pipeline often a single source table or business entity.  Each YAML file contains exactly one
-   FlowGroup.
+   - A **FlowGroup** represents a logical slice of your pipeline often a single source table or business entity.
 
    - A **Pipeline** is a logical grouping of FlowGroups. It is used to group the generated python files in the same folder.
 
    - Lakeflow Declarative Pipelines are **declarative** (as the name suggests) hence the order of the actions is determind at runtime by the Lakeflow engine based on the dependencies between the tables/views.
+
+   - **YAML files** can contain one flowgroup (traditional) or multiple flowgroups (see :doc:`multi_flowgroup_guide`).
 
 Actions
 -------
