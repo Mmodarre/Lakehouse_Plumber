@@ -106,6 +106,25 @@ Create a file named ``.lhp_do_not_track`` in your project root (alongside ``lhp.
 
 This disables tracking for that specific project. You can add this file to your ``.gitignore`` if you want each developer to make their own choice, or commit it to enforce opt-out for the entire team.
 
+Environment Variable Opt-Out
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can also disable analytics using an environment variable:
+
+.. code-block:: bash
+
+   export LHP_DISABLE_ANALYTICS=1
+   lhp generate --env dev
+
+This is useful for:
+
+- **CI/CD pipelines** - Set the environment variable in your CI configuration
+- **Testing** - Analytics are automatically disabled when running under pytest
+- **Temporary opt-out** - Disable without creating a file
+
+.. note::
+   Analytics are automatically disabled during test runs (when ``PYTEST_CURRENT_TEST`` is set).
+
 Verify Opt-Out
 ~~~~~~~~~~~~~~
 

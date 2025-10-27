@@ -5,7 +5,7 @@ import tempfile
 import os
 import sys
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, call
+from unittest.mock import Mock, MagicMock, patch, call, patch as mock_patch
 from click.testing import CliRunner
 
 from lhp.cli.commands.generate_command import GenerateCommand
@@ -28,8 +28,11 @@ class TestAnalyticsHelperMethods:
     
     def test_should_track_analytics_no_opt_out_file(self, generate_command, temp_project_root):
         """Test tracking is enabled when .lhp_do_not_track doesn't exist."""
-        result = generate_command._should_track_analytics(temp_project_root)
-        assert result is True
+        # Temporarily clear pytest environment variable to test normal behavior
+        with patch.dict(os.environ, {'PYTEST_CURRENT_TEST': ''}, clear=False):
+            del os.environ['PYTEST_CURRENT_TEST']
+            result = generate_command._should_track_analytics(temp_project_root)
+            assert result is True
     
     def test_should_track_analytics_with_opt_out_file(self, generate_command, temp_project_root):
         """Test tracking is disabled when .lhp_do_not_track exists."""
@@ -41,9 +44,25 @@ class TestAnalyticsHelperMethods:
     
     def test_should_track_analytics_exception_handling(self, generate_command):
         """Test that exceptions in opt-out check default to allowing tracking."""
-        # Pass a non-existent path that will cause an error
-        result = generate_command._should_track_analytics(Path("/nonexistent/path"))
-        assert result is True
+        # Temporarily clear pytest environment variable to test normal behavior
+        with patch.dict(os.environ, {'PYTEST_CURRENT_TEST': ''}, clear=False):
+            del os.environ['PYTEST_CURRENT_TEST']
+            # Pass a non-existent path that will cause an error
+            result = generate_command._should_track_analytics(Path("/nonexistent/path"))
+            assert result is True
+    
+    def test_should_track_analytics_disabled_in_tests(self, generate_command, temp_project_root):
+        """Test that analytics are automatically disabled during pytest runs."""
+        # PYTEST_CURRENT_TEST is set by pytest automatically
+        result = generate_command._should_track_analytics(temp_project_root)
+        # Should be False because we're running in pytest
+        assert result is False
+    
+    def test_should_track_analytics_with_env_var(self, generate_command, temp_project_root):
+        """Test that LHP_DISABLE_ANALYTICS environment variable disables tracking."""
+        with patch.dict(os.environ, {'LHP_DISABLE_ANALYTICS': '1'}, clear=False):
+            result = generate_command._should_track_analytics(temp_project_root)
+            assert result is False
     
     def test_get_project_identifier_with_config(self, generate_command):
         """Test project identifier generation with valid config."""
@@ -285,14 +304,18 @@ class TestAnalyticsIntegration:
         
         command = GenerateCommand()
         
-        # Without opt-out file
-        result = command._should_track_analytics(project_root)
-        assert result is True
-        
-        # With opt-out file
-        (project_root / ".lhp_do_not_track").touch()
-        result = command._should_track_analytics(project_root)
-        assert result is False
+        # Temporarily clear pytest environment variable to test opt-out behavior
+        with patch.dict(os.environ, {'PYTEST_CURRENT_TEST': ''}, clear=False):
+            del os.environ['PYTEST_CURRENT_TEST']
+            
+            # Without opt-out file
+            result = command._should_track_analytics(project_root)
+            assert result is True
+            
+            # With opt-out file
+            (project_root / ".lhp_do_not_track").touch()
+            result = command._should_track_analytics(project_root)
+            assert result is False
 
 
 class TestMetricCollection:

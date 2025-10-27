@@ -384,6 +384,12 @@ class GenerateCommand(BaseCommand):
     
     def _should_track_analytics(self, project_root: Path) -> bool:
         """Check if user has opted out of analytics tracking."""
+        import os
+        
+        # Check for test environment variable (disable in tests)
+        if os.environ.get('LHP_DISABLE_ANALYTICS') or os.environ.get('PYTEST_CURRENT_TEST'):
+            return False
+        
         try:
             opt_out_file = project_root / ".lhp_do_not_track"
             return not opt_out_file.exists()
