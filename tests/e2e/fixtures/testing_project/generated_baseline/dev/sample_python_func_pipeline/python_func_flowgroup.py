@@ -81,9 +81,9 @@ dlt.create_streaming_table(
     name="acme_edw_dev.edw_bronze.customer",
     comment="Streaming table: customer",
     table_properties={
-        "delta.enableRowTracking": "true",
         "tag_name1": "tag_value1",
         "tag_name2": "tag_value2",
+        "delta.enableRowTracking": "true",
     },
 )
 

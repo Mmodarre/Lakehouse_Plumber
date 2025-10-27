@@ -33,9 +33,23 @@ class PresetManager:
         return resolved
 
     def _resolve_preset_inheritance(self, preset_name: str) -> Dict[str, Any]:
+        """Resolve preset inheritance chain.
         
+        Args:
+            preset_name: Name of the preset to resolve
+            
+        Returns:
+            Merged preset configuration
+            
+        Raises:
+            ValueError: If preset is not found
+        """
         if preset_name not in self.presets:
-            return {}
+            available = ', '.join(sorted(self.presets.keys())) if self.presets else 'none'
+            raise ValueError(
+                f"Preset '{preset_name}' not found. "
+                f"Available presets: {available}"
+            )
 
         preset = self.presets[preset_name]
         result = preset.defaults or {}
