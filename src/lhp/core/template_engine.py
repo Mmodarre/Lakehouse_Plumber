@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set
 from jinja2 import Environment
 
 from ..models.config import Template as TemplateModel, Action
@@ -13,7 +13,7 @@ class TemplateEngine:
     """Engine for handling YAML templates with parameter expansion."""
 
     def __init__(self, templates_dir: Path = None):
-        """Initialize template engine.
+        """Initialize template engine with lazy loading.
 
         Args:
             templates_dir: Directory containing template YAML files
@@ -26,28 +26,30 @@ class TemplateEngine:
         # Create Jinja2 environment for parameter expansion
         self.jinja_env = Environment()
 
-        # Load templates if directory provided
+        # Discover available template files (but don't parse them yet - lazy loading)
+        self._available_templates: Set[str] = set()
         if templates_dir and templates_dir.exists():
-            self._load_templates()
+            self._discover_template_files()
 
-    def _load_templates(self):
-        """Load all templates from templates directory."""
+    def _discover_template_files(self):
+        """Discover available template files without parsing them (lazy loading optimization).
+        
+        This replaces eager loading in __init__ to avoid parsing all templates upfront.
+        Templates are parsed on-demand when get_template() is called.
+        """
         if not self.templates_dir:
             return
 
         template_files = list(self.templates_dir.glob("*.yaml"))
-        self.logger.info(
-            f"Loading {len(template_files)} templates from {self.templates_dir}"
-        )
-
+        
+        # Extract template names from filenames
         for template_file in template_files:
-            try:
-                # Use raw parsing to avoid validation of template syntax like {{ table_properties }}
-                template = self.yaml_parser.parse_template_raw(template_file)
-                self._template_cache[template.name] = template
-                self.logger.debug(f"Loaded template: {template.name}")
-            except Exception as e:
-                self.logger.warning(f"Failed to load template {template_file}: {e}")
+            template_name = template_file.stem  # filename without extension
+            self._available_templates.add(template_name)
+        
+        self.logger.debug(
+            f"Discovered {len(self._available_templates)} template files in {self.templates_dir} (lazy loading enabled)"
+        )
 
     def get_template(self, template_name: str) -> Optional[TemplateModel]:
         """Get a template by name.
@@ -300,7 +302,7 @@ class TemplateEngine:
 
     def list_templates(self) -> List[str]:
         """List all available template names."""
-        return list(self._template_cache.keys())
+        return list(self._available_templates)
 
     def get_template_info(self, template_name: str) -> Dict[str, Any]:
         """Get information about a template including parameters."""

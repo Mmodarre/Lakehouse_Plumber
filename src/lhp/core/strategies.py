@@ -111,8 +111,14 @@ class BaseGenerationStrategy:
                                        context: GenerationContext) -> bool:
         """Check if composite checksum would change with current generation context."""
         try:
-            from .state_dependency_resolver import StateDependencyResolver
-            dependency_resolver = StateDependencyResolver(context.project_root)
+            # Reuse dependency resolver from state_manager's analyzer to avoid creating new instances
+            if context.state_manager and hasattr(context.state_manager, 'analyzer'):
+                dependency_resolver = context.state_manager.analyzer.dependency_resolver
+            else:
+                # Fallback: create new instance if state_manager not available
+                from .state_dependency_resolver import StateDependencyResolver
+                dependency_resolver = StateDependencyResolver(context.project_root)
+            
             source_path = Path(file_state.source_yaml)
             
             if not (context.project_root / source_path).exists():

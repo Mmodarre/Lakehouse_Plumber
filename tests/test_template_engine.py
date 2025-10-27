@@ -72,8 +72,8 @@ actions:
             
             engine = TemplateEngine(templates_dir)
             
-            # Check template was loaded
-            assert "bronze_ingestion" in engine._template_cache
+            # Check template was discovered (lazy loading - not loaded until accessed)
+            assert "bronze_ingestion" in engine._available_templates
             template = engine.get_template("bronze_ingestion")
             assert template is not None
             assert template.name == "bronze_ingestion"

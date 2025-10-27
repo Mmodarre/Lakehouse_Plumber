@@ -88,18 +88,27 @@ class StateCleanupService:
                     )
                     continue
                     
-            # Check if pipeline field in source YAML has changed
+            # Check if pipeline or flowgroup field in source YAML has changed
             try:
                 from ...parsers.yaml_parser import YAMLParser
                 yaml_parser = YAMLParser()
                 current_content = yaml_parser.parse_file(source_path)
                 current_pipeline = current_content.get('pipeline')
+                current_flowgroup = current_content.get('flowgroup')
                 
                 # If pipeline field changed, consider file orphaned
                 if current_pipeline and current_pipeline != file_state.pipeline:
                     orphaned_files.append(file_state)
                     self.logger.info(
                         f"Found orphaned file (pipeline changed from '{file_state.pipeline}' to '{current_pipeline}'): {file_state.generated_path}"
+                    )
+                    continue
+                
+                # If flowgroup field changed, consider file orphaned
+                if current_flowgroup and current_flowgroup != file_state.flowgroup:
+                    orphaned_files.append(file_state)
+                    self.logger.info(
+                        f"Found orphaned file (flowgroup changed from '{file_state.flowgroup}' to '{current_flowgroup}'): {file_state.generated_path}"
                     )
                     continue
                     

@@ -119,7 +119,7 @@ class ListCommand(BaseCommand):
         
         for template_file in sorted(template_files):
             try:
-                template = parser.parse_template(template_file)
+                template = parser.parse_template_raw(template_file)
                 # Count parameters
                 required_params = sum(1 for p in template.parameters if p.get("required", False))
                 total_params = len(template.parameters)
@@ -228,7 +228,7 @@ class ListCommand(BaseCommand):
         click.echo("\n📝 Template Details:")
         for template_file in sorted(template_files):
             try:
-                template = parser.parse_template(template_file)
+                template = parser.parse_template_raw(template_file)
                 click.echo(f"\n{template.name}:")
                 if template.description:
                     click.echo(f"   Description: {template.description}")
