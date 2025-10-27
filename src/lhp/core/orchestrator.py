@@ -796,6 +796,8 @@ class ActionOrchestrator:
         self, pipeline_dir: Path, flowgroup_name: str
     ) -> Optional[Path]:
         """Find the source YAML file for a given flowgroup name.
+        
+        Supports multi-document (---) and flowgroups array syntax.
 
         Args:
             pipeline_dir: Directory containing flowgroup YAML files
@@ -808,9 +810,11 @@ class ActionOrchestrator:
         for extension in ["*.yaml", "*.yml"]:
             for yaml_file in pipeline_dir.rglob(extension):
                 try:
-                    flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
-                    if flowgroup.flowgroup == flowgroup_name:
-                        return yaml_file
+                    # Use parse_flowgroups_from_file to support multi-flowgroup files
+                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+                    for flowgroup in flowgroups:
+                        if flowgroup.flowgroup == flowgroup_name:
+                            return yaml_file
                 except Exception as e:
                     self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
 
@@ -818,6 +822,8 @@ class ActionOrchestrator:
 
     def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
         """Find the source YAML file for a given flowgroup.
+        
+        Supports multi-document (---) and flowgroups array syntax.
 
         Args:
             flowgroup: The flowgroup to find the source YAML for
@@ -834,10 +840,12 @@ class ActionOrchestrator:
         for extension in ["*.yaml", "*.yml"]:
             for yaml_file in pipelines_dir.rglob(extension):
                 try:
-                    parsed_flowgroup = self.yaml_parser.parse_flowgroup(yaml_file)
-                    if (parsed_flowgroup.pipeline == flowgroup.pipeline and 
-                        parsed_flowgroup.flowgroup == flowgroup.flowgroup):
-                        return yaml_file
+                    # Use parse_flowgroups_from_file to support multi-flowgroup files
+                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+                    for parsed_flowgroup in flowgroups:
+                        if (parsed_flowgroup.pipeline == flowgroup.pipeline and 
+                            parsed_flowgroup.flowgroup == flowgroup.flowgroup):
+                            return yaml_file
                 except Exception as e:
                     self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
 
