@@ -1,0 +1,27 @@
+# This pipeline is used to load the lineitem table from the raw schema into the bronze schema
+# Pipeline variable puts the generate files in the same folder for the pipeline to pick up
+pipeline: acme_edw_silver
+# Flowgroup are conceptual artifacts and has no functional purpose
+# there are used to group actions together in the generated files
+flowgroup: partsupp_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  # Load is not neceseary here as everything is in the same pipeline
+  # but it kept in case we decide to split the pipelines
+  - name: write_partsupp_silver_snapshot
+    type: write
+    source: v_partsupp_bronze_snapshot
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{silver_schema}"
+      table: "partsupp_dim"
+      mode: "snapshot_cdc"
+      snapshot_cdc_config:
+        source_function:
+          file: "py_functions/partsupp_snapshot_func.py"
+          function: "next_snapshot_and_version"
+        keys: ["part_id", "supplier_id"]
+        stored_as_scd_type: 2
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp","snapshot_id","partsupp_key","last_modified_dt"]
+        

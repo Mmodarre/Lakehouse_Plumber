@@ -255,18 +255,143 @@ Key Features
 **Configurable Options**
     Includes commented examples for timeouts, notifications, schedules, and permissions
 
+Customizing Job Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can customize job-level configuration (like concurrency limits, notifications, schedules) by providing a custom configuration file.
+
+**Creating a Custom Config File**
+
+Create a YAML file at ``templates/bundle/job_config.yaml`` in your project:
+
+.. code-block:: yaml
+   :caption: templates/bundle/job_config.yaml
+
+   max_concurrent_runs: 2
+   performance_target: PERFORMANCE_OPTIMIZED
+   timeout_seconds: 7200
+   
+   queue:
+     enabled: true
+   
+   tags:
+     environment: production
+     team: data-platform
+     cost_center: analytics
+   
+   email_notifications:
+     on_start:
+       - admin@example.com
+     on_success:
+       - team@example.com
+     on_failure:
+       - oncall@example.com
+       - alerts@example.com
+   
+   webhook_notifications:
+     on_failure:
+       - id: pagerduty-webhook
+   
+   permissions:
+     - level: CAN_MANAGE
+       user_name: admin@company.com
+     - level: CAN_VIEW
+       group_name: data-team
+   
+   schedule:
+     quartz_cron_expression: "0 0 8 * * ?"
+     timezone_id: America/New_York
+     pause_status: UNPAUSED
+
+**Using Custom Config**
+
+.. code-block:: bash
+
+   # Use default config location (templates/bundle/job_config.yaml)
+   lhp deps --format job --job-name my_etl
+
+   # Use custom config file path
+   lhp deps --format job --job-config custom_job_config.yaml
+
+**Available Configuration Options**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 20 50
+
+   * - Option
+     - Default
+     - Description
+   * - ``max_concurrent_runs``
+     - ``1``
+     - Maximum number of concurrent job runs
+   * - ``performance_target``
+     - ``STANDARD``
+     - ``STANDARD`` or ``PERFORMANCE_OPTIMIZED``
+   * - ``queue.enabled``
+     - ``true``
+     - Enable job queueing
+   * - ``timeout_seconds``
+     - None
+     - Job-level timeout in seconds
+   * - ``tags``
+     - None
+     - Key-value pairs for job tags
+   * - ``email_notifications``
+     - None
+     - Email alerts (on_start, on_success, on_failure)
+   * - ``webhook_notifications``
+     - None
+     - Webhook alerts (on_start, on_success, on_failure)
+   * - ``permissions``
+     - None
+     - Job access permissions
+   * - ``schedule``
+     - None
+     - Cron schedule configuration
+
+**Merge Behavior**
+
+- User config values **override** defaults
+- If a key is not specified, the **default value** is used
+- You can add optional fields (like notifications) not in defaults
+
 Integration with Databricks Bundles
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The generated job works seamlessly with Databricks Asset Bundles:
 
-1. **Place the job file** in your bundle's resources directory
-2. **Deploy with bundle commands**:
+**Option 1: Manual Placement**
+
+1. **Generate the job** in the default location
+2. **Manually copy** to bundle resources directory
 
    .. code-block:: bash
 
-      databricks bundle deploy --target dev
-      databricks bundle run data_warehouse_etl --target dev
+      lhp deps --format job --job-name my_etl
+      # Job created in .lhp/dependencies/my_etl.job.yml
+      # Manually copy to resources/
+
+**Option 2: Direct Bundle Output** (Recommended)
+
+Use the ``--bundle-output`` flag to save directly to the ``resources/`` directory:
+
+.. code-block:: bash
+
+   # Save job file directly to resources/ directory
+   lhp deps --format job --job-name my_etl --bundle-output
+
+   # With custom config
+   lhp deps --format job --job-name my_etl --job-config my_config.yaml --bundle-output
+
+This creates ``resources/my_etl.job.yml`` ready for bundle deployment.
+
+**Deploy with bundle commands**:
+
+.. code-block:: bash
+
+   databricks bundle deploy --target dev
+   databricks bundle run my_etl --target dev
 
 3. **Monitor in Databricks UI** - The job appears in your workspace with proper task dependencies
 

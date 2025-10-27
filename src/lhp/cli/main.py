@@ -283,11 +283,13 @@ def info():
               help="Output directory (defaults to .lhp/dependencies/)")
 @click.option("--pipeline", "-p", help="Analyze specific pipeline only")
 @click.option("--job-name", "-j", help="Custom name for generated orchestration job (only used with job format)")
+@click.option("--job-config", "-jc", help="Custom job config file path (relative to project root, defaults to templates/bundle/job_config.yaml)")
+@click.option("--bundle-output", "-b", is_flag=True, help="Save job file to resources/ directory for Databricks bundle integration")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-def deps(format, output, pipeline, job_name, verbose):
+def deps(format, output, pipeline, job_name, job_config, bundle_output, verbose):
     """Analyze and visualize pipeline dependencies for orchestration planning."""
     from .commands.dependencies_command import DependenciesCommand
-    DependenciesCommand().execute(format, output, pipeline, job_name, verbose)
+    DependenciesCommand().execute(format, output, pipeline, job_name, job_config, bundle_output, verbose)
 
 
 # ============================================================================

@@ -16,6 +16,12 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.acmi_edw_bronze_pipeline.id}
             full_refresh: false
+        - task_key: acme_edw_silver_pipeline
+          depends_on:
+            - task_key: acmi_edw_bronze_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.acme_edw_silver_pipeline.id}
+            full_refresh: false
         - task_key: acmi_edw_silver_pipeline
           depends_on:
             - task_key: acmi_edw_bronze_pipeline

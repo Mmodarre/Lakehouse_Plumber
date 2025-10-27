@@ -4,7 +4,7 @@ resources:
   jobs:
     {{ job_name }}:
       name: {{ job_name }}
-      max_concurrent_runs: 1
+      max_concurrent_runs: {{ job_config.max_concurrent_runs }}
       tasks:
 {%- for stage in execution_stages %}
 {%- for pipeline in stage.pipelines %}
@@ -20,12 +20,82 @@ resources:
             full_refresh: false
 {%- endfor %}
 {%- endfor %}
+{%- if job_config.queue %}
       queue:
-        enabled: true
-      performance_target: STANDARD # Disabling performance optimization gives you startup times similar to Classic infrastructure and reduces your cost.
-    
+        enabled: {{ job_config.queue.enabled | lower }}
+{%- endif %}
+      performance_target: {{ job_config.performance_target }}
+{%- if job_config.get('timeout_seconds') %}
+      timeout_seconds: {{ job_config.timeout_seconds }}
+{%- endif %}
+{%- if job_config.get('tags') %}
+      tags:
+{%- for key, value in job_config.tags.items() %}
+        {{ key }}: "{{ value }}"
+{%- endfor %}
+{%- endif %}
+{%- if job_config.get('email_notifications') %}
+      email_notifications:
+{%- if job_config.email_notifications.get('on_start') %}
+        on_start:
+{%- for email in job_config.email_notifications.on_start %}
+          - {{ email }}
+{%- endfor %}
+{%- endif %}
+{%- if job_config.email_notifications.get('on_success') %}
+        on_success:
+{%- for email in job_config.email_notifications.on_success %}
+          - {{ email }}
+{%- endfor %}
+{%- endif %}
+{%- if job_config.email_notifications.get('on_failure') %}
+        on_failure:
+{%- for email in job_config.email_notifications.on_failure %}
+          - {{ email }}
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+{%- if job_config.get('webhook_notifications') %}
+      webhook_notifications:
+{%- if job_config.webhook_notifications.get('on_start') %}
+        on_start:
+{%- for webhook in job_config.webhook_notifications.on_start %}
+          - id: {{ webhook.id }}
+{%- endfor %}
+{%- endif %}
+{%- if job_config.webhook_notifications.get('on_success') %}
+        on_success:
+{%- for webhook in job_config.webhook_notifications.on_success %}
+          - id: {{ webhook.id }}
+{%- endfor %}
+{%- endif %}
+{%- if job_config.webhook_notifications.get('on_failure') %}
+        on_failure:
+{%- for webhook in job_config.webhook_notifications.on_failure %}
+          - id: {{ webhook.id }}
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+{%- if job_config.get('permissions') %}
+      permissions:
+{%- for permission in job_config.permissions %}
+        - level: {{ permission.level }}
+{%- if permission.get('user_name') %}
+          user_name: {{ permission.user_name }}
+{%- endif %}
+{%- if permission.get('group_name') %}
+          group_name: {{ permission.group_name }}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+{%- if job_config.get('schedule') %}
+      schedule:
+        quartz_cron_expression: "{{ job_config.schedule.quartz_cron_expression }}"
+        timezone_id: {{ job_config.schedule.timezone_id }}
+        pause_status: {{ job_config.schedule.pause_status }}
+{%- endif %}
 
-      # Additional job configuration options (uncomment and modify as needed):
+      # Additional job configuration options (add to you job_config.yaml as needed):
 
       # performance_target: PERFORMANCE_OPTIMIZED # Fast, performant compute startup and execution speed.
 
