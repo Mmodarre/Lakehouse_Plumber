@@ -5,7 +5,7 @@ from pathlib import Path
 from click.testing import CliRunner
 import yaml
 
-from src.lhp.cli.main import cli
+from lhp.cli.main import cli
 
 
 def test_deps_command_with_default_config(tmp_path):

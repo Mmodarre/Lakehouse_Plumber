@@ -87,6 +87,7 @@ class TestDependencyOutputManager:
         mock_analyzer = Mock()
         mock_analyzer.export_to_dot.return_value = "digraph test { a -> b; }"
         mock_analyzer.export_to_json.return_value = {"test": "data"}
+        mock_analyzer.project_root = self.temp_dir  # Add project_root for JobGenerator
 
         result = self.create_mock_analysis_result()
         output_formats = ["all"]

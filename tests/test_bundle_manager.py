@@ -313,4 +313,147 @@ class TestBundleManagerFileOperations:
         # Test with non-Path object
         string_path = str(self.project_root)
         manager = BundleManager(string_path)
-        assert manager.project_root == Path(string_path) 
+        assert manager.project_root == Path(string_path)
+
+
+class TestBundleManagerWithPipelineConfig:
+    """Test BundleManager with custom pipeline config."""
+    
+    def setup_method(self):
+        """Set up test environment for each test."""
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.project_root = self.temp_dir / "test_project"
+        self.project_root.mkdir()
+    
+    def teardown_method(self):
+        """Clean up test environment after each test."""
+        shutil.rmtree(self.temp_dir)
+    
+    def test_init_without_config_path(self):
+        """BundleManager works without config (backward compatible)."""
+        manager = BundleManager(self.project_root)
+        
+        # Should initialize successfully
+        assert manager.project_root == self.project_root
+        assert hasattr(manager, 'config_loader')
+        
+        # Config loader should use defaults
+        config = manager.config_loader.get_pipeline_config("test_pipeline")
+        assert config["serverless"] is True
+        assert config["edition"] == "ADVANCED"
+    
+    def test_init_with_config_path_loads_config(self):
+        """BundleManager loads config when path provided."""
+        # Create a config file
+        config_content = """
+project_defaults:
+  serverless: false
+  edition: PRO
+"""
+        config_file = self.project_root / "custom_config.yaml"
+        config_file.write_text(config_content)
+        
+        manager = BundleManager(self.project_root, pipeline_config_path=str(config_file))
+        
+        # Config should be loaded
+        config = manager.config_loader.get_pipeline_config("test_pipeline")
+        assert config["serverless"] is False
+        assert config["edition"] == "PRO"
+    
+    def test_generate_resource_uses_pipeline_config(self):
+        """Generated resource includes config values."""
+        # Create a config file
+        config_content = """
+project_defaults:
+  serverless: false
+  edition: CORE
+  continuous: true
+"""
+        config_file = self.project_root / "test_config.yaml"
+        config_file.write_text(config_content)
+        
+        manager = BundleManager(self.project_root, pipeline_config_path=str(config_file))
+        
+        # Generate resource
+        generated_dir = self.project_root / "generated"
+        generated_dir.mkdir()
+        content = manager.generate_resource_file_content("test_pipeline", generated_dir, env="dev")
+        
+        # Should include config values in content
+        assert "serverless: false" in content
+        assert "edition: CORE" in content
+        assert "continuous: true" in content
+    
+    def test_generate_resource_without_config_uses_defaults(self):
+        """Without config, uses DEFAULT_PIPELINE_CONFIG."""
+        manager = BundleManager(self.project_root)
+        
+        # Generate resource without config
+        generated_dir = self.project_root / "generated"
+        generated_dir.mkdir()
+        content = manager.generate_resource_file_content("test_pipeline", generated_dir, env="dev")
+        
+        # Should use default values
+        assert "serverless: true" in content
+        assert "edition: ADVANCED" in content
+    
+    def test_different_pipelines_different_configs(self):
+        """Multiple pipelines get their specific configs."""
+        # Create a multi-document config file
+        config_content = """
+project_defaults:
+  serverless: true
+  edition: ADVANCED
+
+---
+pipeline: bronze_pipeline
+serverless: false
+continuous: true
+
+---
+pipeline: silver_pipeline
+serverless: false
+edition: PRO
+"""
+        config_file = self.project_root / "multi_config.yaml"
+        config_file.write_text(config_content)
+        
+        manager = BundleManager(self.project_root, pipeline_config_path=str(config_file))
+        
+        generated_dir = self.project_root / "generated"
+        generated_dir.mkdir()
+        
+        # Generate for bronze pipeline
+        bronze_content = manager.generate_resource_file_content("bronze_pipeline", generated_dir, env="dev")
+        assert "serverless: false" in bronze_content
+        assert "continuous: true" in bronze_content
+        
+        # Generate for silver pipeline (non-serverless with custom edition)
+        silver_content = manager.generate_resource_file_content("silver_pipeline", generated_dir, env="dev")
+        assert "edition: PRO" in silver_content
+        # Should override serverless from project defaults
+        assert "serverless: false" in silver_content
+    
+    def test_config_loaded_once_used_many_times(self):
+        """Config loaded once in init, used for all pipelines (efficiency)."""
+        # Create a config file
+        config_content = """
+project_defaults:
+  serverless: false
+"""
+        config_file = self.project_root / "config.yaml"
+        config_file.write_text(config_content)
+        
+        manager = BundleManager(self.project_root, pipeline_config_path=str(config_file))
+        
+        generated_dir = self.project_root / "generated"
+        generated_dir.mkdir()
+        
+        # Generate multiple times - config should be reused
+        for i in range(10):
+            content = manager.generate_resource_file_content(f"pipeline_{i}", generated_dir, env="dev")
+            assert "serverless: false" in content
+        
+        # Config loader instance should be the same (loaded once)
+        assert hasattr(manager, 'config_loader')
+        assert manager.config_loader is not None 

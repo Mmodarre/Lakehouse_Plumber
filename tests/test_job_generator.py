@@ -3,8 +3,8 @@
 import pytest
 from pathlib import Path
 import yaml
-from src.lhp.core.services.job_generator import JobGenerator
-from src.lhp.models.dependencies import (
+from lhp.core.services.job_generator import JobGenerator
+from lhp.models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,
     PipelineDependency,

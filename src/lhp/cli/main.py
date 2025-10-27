@@ -207,10 +207,11 @@ def init(project_name, bundle):
 @click.option("--force", "-f", is_flag=True, help="Force regeneration of all files, even if unchanged")
 @click.option("--no-bundle", is_flag=True, help="Disable bundle support even if databricks.yml exists")
 @click.option("--include-tests", is_flag=True, default=False, help="Include test actions in generation (skipped by default for faster builds)")
-def generate(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests):
+@click.option("--pipeline-config", "-pc", help="Custom pipeline config file path (relative to project root)")
+def generate(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests, pipeline_config):
     """Generate DLT pipeline code"""
     from .commands.generate_command import GenerateCommand
-    GenerateCommand().execute(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests)
+    GenerateCommand().execute(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests, pipeline_config)
 
 
 @cli.command()

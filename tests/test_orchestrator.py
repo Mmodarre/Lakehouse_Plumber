@@ -528,5 +528,104 @@ class TestOrchestratorDependencyInjection:
             assert file_writer is not None
 
 
+class TestOrchestratorWithPipelineConfig:
+    """Test ActionOrchestrator accepts and uses pipeline config."""
+    
+    def test_orchestrator_init_without_pipeline_config(self):
+        """Orchestrator works without config (backward compatible)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create minimal project structure
+            (project_root / "lhp.yaml").write_text("name: test\nversion: '1.0'")
+            (project_root / "pipelines").mkdir()
+            
+            # Initialize without pipeline config
+            orchestrator = ActionOrchestrator(project_root, enforce_version=False)
+            
+            # Should initialize successfully
+            assert orchestrator.project_root == project_root
+            # pipeline_config_path should be None by default
+            assert hasattr(orchestrator, 'pipeline_config_path')
+            assert orchestrator.pipeline_config_path is None
+    
+    def test_orchestrator_init_with_pipeline_config(self):
+        """Orchestrator accepts pipeline_config_path parameter."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create minimal project structure
+            (project_root / "lhp.yaml").write_text("name: test\nversion: '1.0'")
+            (project_root / "pipelines").mkdir()
+            
+            config_path = "templates/bundle/pipeline_config.yaml"
+            
+            # Initialize with pipeline config
+            orchestrator = ActionOrchestrator(
+                project_root, 
+                enforce_version=False,
+                pipeline_config_path=config_path
+            )
+            
+            # Config path should be stored
+            assert orchestrator.pipeline_config_path == config_path
+    
+    def test_orchestrator_stores_config_path(self):
+        """Orchestrator stores config_path as instance variable."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create minimal project structure
+            (project_root / "lhp.yaml").write_text("name: test\nversion: '1.0'")
+            (project_root / "pipelines").mkdir()
+            
+            config_path = "custom/path/config.yaml"
+            orchestrator = ActionOrchestrator(
+                project_root, 
+                enforce_version=False,
+                pipeline_config_path=config_path
+            )
+            
+            # Should be accessible as instance attribute
+            assert hasattr(orchestrator, 'pipeline_config_path')
+            assert orchestrator.pipeline_config_path == config_path
+    
+    def test_sync_bundle_resources_uses_config(self):
+        """_sync_bundle_resources passes config to BundleManager."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create full project structure for bundle support
+            (project_root / "lhp.yaml").write_text("name: test\nversion: '1.0'")
+            (project_root / "pipelines").mkdir()
+            (project_root / "databricks.yml").write_text("workspace:\n  host: https://test")
+            
+            output_dir = project_root / "generated"
+            output_dir.mkdir()
+            
+            config_path = "test_config.yaml"
+            orchestrator = ActionOrchestrator(
+                project_root,
+                enforce_version=False,
+                pipeline_config_path=config_path
+            )
+            
+            # Mock the BundleManager to verify config is passed
+            from unittest.mock import patch, MagicMock
+            
+            with patch('lhp.bundle.manager.BundleManager') as mock_bundle_manager_class:
+                mock_manager_instance = MagicMock()
+                mock_bundle_manager_class.return_value = mock_manager_instance
+                
+                # Call sync method
+                orchestrator._sync_bundle_resources(output_dir, "dev")
+                
+                # Verify BundleManager was created with config path
+                mock_bundle_manager_class.assert_called_once_with(
+                    project_root,
+                    config_path
+                )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"]) 

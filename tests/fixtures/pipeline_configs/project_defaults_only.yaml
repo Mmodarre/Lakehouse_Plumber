@@ -1,0 +1,5 @@
+project_defaults:
+  serverless: true
+  edition: PRO
+  photon: false
+

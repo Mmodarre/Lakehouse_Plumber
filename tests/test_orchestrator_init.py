@@ -992,8 +992,11 @@ class TestActionOrchestratorBundleSynchronization:
             # Assert
             mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
             
-            # Should create BundleManager with project root
-            mock_bundle_manager_class.assert_called_once_with(orchestrator_bundle.project_root)
+            # Should create BundleManager with project root and pipeline_config_path
+            mock_bundle_manager_class.assert_called_once_with(
+                orchestrator_bundle.project_root,
+                orchestrator_bundle.pipeline_config_path
+            )
             
             # Should call sync_resources_with_generated_files
             mock_bundle_manager.sync_resources_with_generated_files.assert_called_once_with(output_dir, environment)
@@ -1068,7 +1071,10 @@ class TestActionOrchestratorBundleSynchronization:
             
             # Assert
             mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-            mock_bundle_manager_class.assert_called_once_with(orchestrator_bundle.project_root)
+            mock_bundle_manager_class.assert_called_once_with(
+                orchestrator_bundle.project_root,
+                orchestrator_bundle.pipeline_config_path
+            )
             mock_bundle_manager.sync_resources_with_generated_files.assert_called_once_with(output_dir, environment)
             
             # Should log both debug start message and info success message
@@ -1104,7 +1110,10 @@ class TestActionOrchestratorBundleSynchronization:
             
             # Assert
             mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-            mock_bundle_manager_class.assert_called_once_with(orchestrator_bundle.project_root)
+            mock_bundle_manager_class.assert_called_once_with(
+                orchestrator_bundle.project_root,
+                orchestrator_bundle.pipeline_config_path
+            )
             mock_bundle_manager.sync_resources_with_generated_files.assert_called_once_with(output_dir, environment)
             
             # Should log warning about bundle sync failure
@@ -1174,7 +1183,10 @@ class TestActionOrchestratorBundleSynchronization:
             
             # Assert
             mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-            mock_bundle_manager_class.assert_called_once_with(orchestrator_bundle.project_root)
+            mock_bundle_manager_class.assert_called_once_with(
+                orchestrator_bundle.project_root,
+                orchestrator_bundle.pipeline_config_path
+            )
             
             # Should log warning about bundle sync failure
             warning_calls = [str(call) for call in mock_logger.warning.call_args_list]

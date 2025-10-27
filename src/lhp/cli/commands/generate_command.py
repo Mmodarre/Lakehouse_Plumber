@@ -33,7 +33,7 @@ class GenerateCommand(BaseCommand):
     
     def execute(self, env: str, pipeline: Optional[str] = None, output: Optional[str] = None,
                 dry_run: bool = False, no_cleanup: bool = False, force: bool = False, 
-                no_bundle: bool = False, include_tests: bool = False) -> None:
+                no_bundle: bool = False, include_tests: bool = False, pipeline_config: Optional[str] = None) -> None:
         """
         Execute the generate command using clean architecture.
         
@@ -49,6 +49,7 @@ class GenerateCommand(BaseCommand):
             force: Force regeneration of all files
             no_bundle: Disable bundle support
             include_tests: Include test actions in generation
+            pipeline_config: Custom pipeline config file path (relative to project root)
         """
         # ========================================================================
         # PRESENTATION LAYER RESPONSIBILITIES ONLY
@@ -69,7 +70,7 @@ class GenerateCommand(BaseCommand):
         self.check_substitution_file(env)
         
         # 4. Initialize application layer facade
-        application_facade = self._create_application_facade(project_root, no_cleanup)
+        application_facade = self._create_application_facade(project_root, no_cleanup, pipeline_config)
         
         # 5. Discover pipelines to generate (coordinate with application layer)
         pipelines_to_generate = self._discover_pipelines_for_generation(
@@ -94,7 +95,7 @@ class GenerateCommand(BaseCommand):
         for pipeline_identifier in pipelines_to_generate:
             response = self._execute_pipeline_generation(
                 application_facade, pipeline_identifier, env, output_dir,
-                dry_run, force, include_tests, no_cleanup
+                dry_run, force, include_tests, no_cleanup, pipeline_config
             )
             
             # Display results (presentation)
@@ -107,23 +108,23 @@ class GenerateCommand(BaseCommand):
         # 9. Handle bundle operations (coordinate)
         if not no_bundle:
             self._handle_bundle_operations(
-                project_root, output_dir, env, no_bundle, dry_run
+                project_root, output_dir, env, no_bundle, dry_run, pipeline_config
             )
         
         # 10. Display completion message (presentation)
         self._display_completion_message(total_files, output_dir, dry_run)
     
     def _create_application_facade(self, project_root: Path, 
-                                 no_cleanup: bool) -> LakehousePlumberApplicationFacade:
+                                 no_cleanup: bool, pipeline_config_path: Optional[str] = None) -> LakehousePlumberApplicationFacade:
         """Create application facade for business layer access."""
-        orchestrator = ActionOrchestrator(project_root)
+        orchestrator = ActionOrchestrator(project_root, pipeline_config_path=pipeline_config_path)
         state_manager = StateManager(project_root) if not no_cleanup else None
         return LakehousePlumberApplicationFacade(orchestrator, state_manager)
     
     def _execute_pipeline_generation(self, application_facade: LakehousePlumberApplicationFacade,
                                    pipeline_identifier: str, env: str, output_dir: Path,
                                    dry_run: bool, force: bool, include_tests: bool, 
-                                   no_cleanup: bool) -> GenerationResponse:
+                                   no_cleanup: bool, pipeline_config_path: Optional[str] = None) -> GenerationResponse:
         """Execute generation for single pipeline using application facade."""
         # Create request DTO
         request = PipelineGenerationRequest(
@@ -134,7 +135,8 @@ class GenerateCommand(BaseCommand):
             specific_flowgroups=None,
             output_directory=output_dir,
             dry_run=dry_run,
-            no_cleanup=no_cleanup
+            no_cleanup=no_cleanup,
+            pipeline_config_path=pipeline_config_path
         )
         
         # Delegate to application layer
@@ -291,7 +293,7 @@ class GenerateCommand(BaseCommand):
                 click.echo("✅ No orphaned files found")
     
     def _handle_bundle_operations(self, project_root: Path, output_dir: Path, env: str,
-                                no_bundle: bool, dry_run: bool) -> None:
+                                no_bundle: bool, dry_run: bool, pipeline_config_path: Optional[str] = None) -> None:
         """Handle bundle operations - coordinate with bundle management."""
         try:
             # Check if bundle support should be enabled
@@ -303,7 +305,7 @@ class GenerateCommand(BaseCommand):
                 
                 # Only actually sync if not dry-run
                 if not dry_run:
-                    bundle_manager = BundleManager(project_root)
+                    bundle_manager = BundleManager(project_root, pipeline_config_path)
                     bundle_manager.sync_resources_with_generated_files(output_dir, env)
                     click.echo("📦 Bundle resource files synchronized")
                     

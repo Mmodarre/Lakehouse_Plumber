@@ -80,6 +80,7 @@ class InitCommand(BaseCommand):
             "schemas",
             "expectations",
             "generated",
+            "config",
         ]
         
         for dir_name in directories:
@@ -111,7 +112,7 @@ class InitCommand(BaseCommand):
         """
         directories = [
             "presets", "templates", "pipelines", "substitutions", 
-            "schemas", "expectations", "generated"
+            "schemas", "expectations", "generated", "config"
         ]
         
         if bundle:

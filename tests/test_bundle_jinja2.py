@@ -303,8 +303,11 @@ class TestBundleJinja2Templates:
         assert hasattr(self.manager.template_renderer, 'render_template')
         assert callable(self.manager.template_renderer.render_template)
         
-        # Test template rendering with direct call
-        context = {"pipeline_name": "integration_test"}
+        # Test template rendering with direct call (updated for pipeline config feature)
+        context = {
+            "pipeline_name": "integration_test",
+            "pipeline_config": {"serverless": True, "edition": "ADVANCED", "channel": "CURRENT", "continuous": False}
+        }
         content = self.manager.template_renderer.render_template("bundle/pipeline_resource.yml.j2", context)
         
         # Verify content was rendered
@@ -334,8 +337,11 @@ class TestBundleJinja2Templates:
             # Template should have correct name
             assert template.name == template_name
             
-            # Template should be renderable
-            context = {"pipeline_name": "package_test"}
+            # Template should be renderable (updated for pipeline config feature)
+            context = {
+                "pipeline_name": "package_test",
+                "pipeline_config": {"serverless": True, "edition": "ADVANCED", "channel": "CURRENT", "continuous": False}
+            }
             rendered = template.render(**context)
             
             assert rendered is not None
@@ -386,17 +392,18 @@ class TestBundleJinja2Templates:
                 # Verify correct template was used
                 assert template_name == "bundle/pipeline_resource.yml.j2"
                 
-                # Verify context structure (new behavior - only pipeline_name)
+                # Verify context structure (updated for pipeline config feature)
                 assert isinstance(context, dict)
                 assert "pipeline_name" in context
+                assert "pipeline_config" in context
                 # Note: catalog and schema are no longer in context (now use variables)
                 
                 # Verify correct pipeline_name value
                 expected_name = pipeline_names[i]
                 assert context["pipeline_name"] == expected_name
                 
-                # Context should contain only pipeline_name (new behavior)
-                assert len(context) == 1, f"Context should contain only pipeline_name, got: {context.keys()}"
+                # Context should contain pipeline_name and pipeline_config
+                assert len(context) == 2, f"Context should contain pipeline_name and pipeline_config, got: {context.keys()}"
                 
         finally:
             # Restore original method
@@ -800,11 +807,12 @@ class TestBundleJinja2TemplateHelpers:
             var_pattern = f"{{{{ {var} }}}}"
             assert var_pattern in template_source, f"Template missing required variable: {var}"
             
-        # Test 2: Verify template validation with valid context
+        # Test 2: Verify template validation with valid context (updated for pipeline config feature)
+        default_pipeline_config = {"serverless": True, "edition": "ADVANCED", "channel": "CURRENT", "continuous": False}
         valid_contexts = [
-            {"pipeline_name": "test_pipeline"},
-            {"pipeline_name": "bronze_ingestion"}, 
-            {"pipeline_name": "complex_data_transformation"},
+            {"pipeline_name": "test_pipeline", "pipeline_config": default_pipeline_config},
+            {"pipeline_name": "bronze_ingestion", "pipeline_config": default_pipeline_config}, 
+            {"pipeline_name": "complex_data_transformation", "pipeline_config": default_pipeline_config},
         ]
         
         for context in valid_contexts:
@@ -835,18 +843,18 @@ class TestBundleJinja2TemplateHelpers:
             except Exception:
                 pass  # Expected for invalid contexts
                 
-        # Test 4: Verify template variables are properly escaped/safe
+        # Test 4: Verify template variables are properly escaped/safe (updated for pipeline config feature)
         special_contexts = [
-            {"pipeline_name": "test<script>alert('xss')</script>"},
-            {"pipeline_name": "test&special&chars"},
-            {"pipeline_name": "test\"quotes\""},
+            {"pipeline_name": "test<script>alert('xss')</script>", "pipeline_config": default_pipeline_config},
+            {"pipeline_name": "test&special&chars", "pipeline_config": default_pipeline_config},
+            {"pipeline_name": "test\"quotes\"", "pipeline_config": default_pipeline_config},
         ]
-        
+
         for context in special_contexts:
             try:
                 result = template.render(**context)
                 # Should render without errors and include the content
                 assert context["pipeline_name"] in result
-                
+
             except Exception as e:
-                pytest.fail(f"Template failed with special characters context {context}: {e}") 
+                pytest.fail(f"Template failed with special characters context {context}: {e}")

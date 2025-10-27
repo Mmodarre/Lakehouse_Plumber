@@ -35,12 +35,13 @@ class BundleManager:
     file changes while maintaining LHP's ability to manage bundle resources.
     """
     
-    def __init__(self, project_root: Union[Path, str]):
+    def __init__(self, project_root: Union[Path, str], pipeline_config_path: Optional[str] = None):
         """
         Initialize the bundle manager.
         
         Args:
             project_root: Path to the project root directory
+            pipeline_config_path: Optional path to custom pipeline config file (relative to project_root)
             
         Raises:
             TypeError: If project_root is None
@@ -60,6 +61,10 @@ class BundleManager:
         # Set up template rendering using composition
         template_dir = Path(__file__).parent.parent / "templates"
         self.template_renderer = TemplateRenderer(template_dir)
+        
+        # Load pipeline config once at initialization for efficiency
+        from ..core.services.pipeline_config_loader import PipelineConfigLoader
+        self.config_loader = PipelineConfigLoader(self.project_root, pipeline_config_path)
 
     def _get_env_resources_dir(self, env: str) -> Path:
         """Get root-level resources directory (no longer environment-specific).
@@ -256,9 +261,13 @@ class BundleManager:
         Returns:
             YAML content for the resource file with static variable references
         """
-        # No database extraction needed - template uses static variables
+        # Get pipeline-specific configuration
+        pipeline_config = self.config_loader.get_pipeline_config(pipeline_name)
+        
+        # Build template context with pipeline config
         context = {
             "pipeline_name": pipeline_name,
+            "pipeline_config": pipeline_config
             # env, catalog and schema are not required in the context
         }
         

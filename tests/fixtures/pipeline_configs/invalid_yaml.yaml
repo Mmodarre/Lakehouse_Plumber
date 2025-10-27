@@ -1,0 +1,4 @@
+project_defaults:
+  serverless: true
+  invalid: [unclosed
+

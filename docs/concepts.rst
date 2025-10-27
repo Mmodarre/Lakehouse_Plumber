@@ -168,6 +168,482 @@ arguments
    landing_folder: customer
 
 
+Configuration Management
+------------------------
+
+LakehousePlumber provides two types of configuration files to customize how your pipelines and orchestration jobs are deployed to Databricks: **Pipeline Configuration** for DLT pipeline settings and **Job Configuration** for orchestration job settings.
+
+Pipeline Configuration
+~~~~~~~~~~~~~~~~~~~~~~
+
+**Pipeline Configuration** controls Delta Live Tables (DLT) pipeline-level settings such as compute resources, runtime environment, processing mode, and monitoring. These settings are applied when generating Databricks Asset Bundle resource files.
+
+**Key configuration options:**
+
+- **Compute**: Serverless vs. classic clusters with custom sizing
+- **DLT Edition**: CORE, PRO, or ADVANCED feature sets
+- **Runtime Channel**: CURRENT (stable) or PREVIEW (latest features)
+- **Processing Mode**: Continuous streaming vs. triggered batch
+- **Monitoring**: Email notifications, tags, and event logging
+
+**Configuration file structure:**
+
+Pipeline configuration uses multi-document YAML with three levels of precedence:
+
+1. **System defaults** - Built into LakehousePlumber
+2. **Project defaults** - Apply to all pipelines in your project
+3. **Pipeline-specific** - Override defaults for individual pipelines
+
+.. code-block:: yaml
+   :caption: templates/bundle/pipeline_config.yaml
+   :linenos:
+
+   # Project-level defaults (applies to all pipelines)
+   project_defaults:
+     serverless: true
+     edition: ADVANCED
+     channel: CURRENT
+     continuous: false
+   
+   ---
+   # Pipeline-specific override
+   pipeline: bronze_ingestion
+   serverless: false
+   continuous: true
+   clusters:
+     - label: default
+       node_type_id: Standard_D16ds_v5
+       autoscale:
+         min_workers: 2
+         max_workers: 10
+
+**Usage patterns:**
+
+.. code-block:: bash
+
+   # Auto-loaded from default location
+   lhp generate -e dev
+   
+   # Explicit configuration file
+   lhp generate -e dev --pipeline-config config/pipeline_config.yaml
+
+.. seealso::
+   For complete pipeline configuration options and validation rules, see :doc:`databricks_bundles`.
+
+Job Configuration
+~~~~~~~~~~~~~~~~~
+
+**Job Configuration** controls Databricks orchestration job settings for dependency-based pipeline execution. These settings are applied when generating job resource files with the ``lhp deps`` command.
+
+**Key configuration options:**
+
+- **Execution Control**: Concurrent runs, timeouts, performance targets
+- **Queue Management**: Job queuing behavior when at capacity
+- **Notifications**: Email and webhook alerts for job events
+- **Scheduling**: Quartz cron expressions for automated execution
+- **Access Control**: Permissions and ownership settings
+
+**Configuration file structure:**
+
+Job configuration uses a single YAML document with flat key-value structure:
+
+.. code-block:: yaml
+   :caption: config/job_config.yaml
+   :linenos:
+
+   # Core job settings
+   max_concurrent_runs: 2
+   performance_target: PERFORMANCE_OPTIMIZED
+   timeout_seconds: 7200
+   
+   # Queue configuration
+   queue:
+     enabled: true
+   
+   # Notifications
+   email_notifications:
+     on_failure:
+       - data-engineering@company.com
+       - data-ops@company.com
+   
+   # Scheduling
+   schedule:
+     quartz_cron_expression: "0 0 2 * * ?"
+     timezone_id: "America/New_York"
+   
+   # Tags for cost tracking
+   tags:
+     environment: production
+     cost_center: analytics
+     team: data-engineering
+
+**Usage patterns:**
+
+.. code-block:: bash
+
+   # Generate job file with custom configuration
+   lhp deps --job-config config/job_config.yaml
+   
+   # Output directly to bundle resources directory
+   lhp deps --job-config config/job_config.yaml --bundle-output
+
+.. seealso::
+   For complete job configuration options and dependency analysis features, see :doc:`databricks_bundles`.
+
+Configuration Templates
+~~~~~~~~~~~~~~~~~~~~~~~
+
+When you initialize a new LakehousePlumber project, configuration template files are automatically created in the ``config/`` directory:
+
+- ``config/job_config.yaml.tmpl`` - Job configuration template
+- ``config/pipeline_config.yaml.tmpl`` - Pipeline configuration template
+
+These ``.tmpl`` files serve as comprehensive references with:
+
+- Detailed comments explaining each option
+- Example configurations for common scenarios
+- Validation rules and allowed values
+- Links to relevant documentation
+
+**Getting started:**
+
+.. code-block:: bash
+
+   # 1. Initialize project with templates
+   lhp init my_project --bundle
+   
+   # 2. Copy and customize templates
+   cd my_project
+   cp config/job_config.yaml.tmpl config/job_config.yaml
+   cp config/pipeline_config.yaml.tmpl templates/bundle/pipeline_config.yaml
+   
+   # 3. Edit configuration files with your settings
+   # (Remove .tmpl extension to activate)
+   
+   # 4. Use in generation commands
+   lhp generate -e dev --pipeline-config templates/bundle/pipeline_config.yaml
+   lhp deps --job-config config/job_config.yaml --bundle-output
+
+Best Practices
+~~~~~~~~~~~~~~
+
+Environment-Specific Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Different environments (dev, test, prod) typically have different requirements for compute resources, alerting, permissions, and operational settings. **It is strongly recommended to maintain separate configuration files for each environment** rather than using a single configuration for all environments.
+
+**Recommended file structure:**
+
+.. code-block:: text
+
+   my_project/
+   ├── config/
+   │   ├── job_config-dev.yaml      # Development job settings
+   │   ├── job_config-test.yaml     # Test/staging job settings
+   │   ├── job_config-prod.yaml     # Production job settings
+   │   ├── pipeline_config-dev.yaml # Development pipeline settings
+   │   ├── pipeline_config-test.yaml
+   │   └── pipeline_config-prod.yaml
+   └── ...
+
+**Common environment-specific differences:**
+
+Development (dev):
+  - Smaller cluster sizes for cost efficiency
+  - Fewer concurrent runs
+  - Minimal or no email notifications
+  - Relaxed timeouts for debugging
+  - Lower performance targets (STANDARD)
+
+Test/Staging:
+  - Medium cluster sizes
+  - Moderate concurrency limits
+  - Notifications to QA/testing teams
+  - Realistic production-like settings
+  - Standard performance targets
+
+Production:
+  - Production-grade cluster sizes
+  - Higher concurrency for throughput
+  - Critical alerting to ops teams
+  - Strict timeouts and SLAs
+  - Performance-optimized targets (PERFORMANCE_OPTIMIZED)
+  - Comprehensive tags for cost tracking
+  - Formal permissions and access controls
+
+**Example: Environment-specific pipeline configuration**
+
+.. code-block:: yaml
+   :caption: config/pipeline_config-dev.yaml (Development)
+   :linenos:
+
+   project_defaults:
+     serverless: true
+     edition: ADVANCED
+     continuous: false
+     development: true  # Enable development mode features
+   
+   ---
+   pipeline: bronze_ingestion
+   # Dev: Use smaller serverless for faster iteration
+   serverless: true
+
+.. code-block:: yaml
+   :caption: config/pipeline_config-prod.yaml (Production)
+   :linenos:
+
+   project_defaults:
+     serverless: false  # Production uses dedicated clusters
+     edition: ADVANCED
+     continuous: true   # 24/7 streaming
+     clusters:
+       - label: default
+         node_type_id: Standard_D32ds_v5  # Larger nodes
+         autoscale:
+           min_workers: 5
+           max_workers: 20
+     notifications:
+       email_recipients:
+         - data-ops@company.com
+         - platform-alerts@company.com
+     tags:
+       environment: production
+       cost_center: data-platform
+       sla: critical
+   
+   ---
+   pipeline: bronze_ingestion
+   # Production-specific overrides
+   clusters:
+     - label: default
+       node_type_id: Standard_D64ds_v5  # Critical pipeline needs more power
+       autoscale:
+         min_workers: 10
+         max_workers: 50
+
+**Example: Environment-specific job configuration**
+
+.. code-block:: yaml
+   :caption: config/job_config-dev.yaml (Development)
+   :linenos:
+
+   max_concurrent_runs: 1
+   performance_target: STANDARD
+   timeout_seconds: 14400  # 4 hours for debugging
+   
+   queue:
+     enabled: true
+   
+   tags:
+     environment: dev
+     cost_center: engineering
+
+.. code-block:: yaml
+   :caption: config/job_config-prod.yaml (Production)
+   :linenos:
+
+   max_concurrent_runs: 3  # Higher throughput
+   performance_target: PERFORMANCE_OPTIMIZED
+   timeout_seconds: 7200   # Strict 2-hour SLA
+   
+   queue:
+     enabled: true
+   
+   email_notifications:
+     on_failure:
+       - data-ops@company.com
+       - platform-oncall@company.com
+     on_success:
+       - data-metrics@company.com
+   
+   webhook_notifications:
+     on_failure:
+       - id: pagerduty-webhook
+         url: "https://events.pagerduty.com/v2/enqueue"
+   
+   schedule:
+     quartz_cron_expression: "0 0 2 * * ?"  # 2 AM daily
+     timezone_id: "America/New_York"
+   
+   tags:
+     environment: production
+     cost_center: data-platform
+     sla: critical
+     on_call_team: data-ops
+
+CI/CD Integration
+^^^^^^^^^^^^^^^^^
+
+Use environment-specific configuration files in your CI/CD pipelines by dynamically selecting the config file based on the target environment.
+
+**GitHub Actions example:**
+
+.. code-block:: yaml
+   :caption: .github/workflows/deploy.yml
+   :linenos:
+   :emphasize-lines: 16-17, 25-26
+
+   name: Deploy LHP Pipelines
+   
+   on:
+     push:
+       branches:
+         - main
+         - develop
+   
+   jobs:
+     deploy:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v3
+         
+         - name: Set environment
+           id: set-env
+           run: |
+             if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+               echo "ENV=prod" >> $GITHUB_OUTPUT
+             else
+               echo "ENV=dev" >> $GITHUB_OUTPUT
+             fi
+         
+         - name: Generate pipelines
+           run: |
+             lhp generate -e ${{ steps.set-env.outputs.ENV }} \
+               --pipeline-config config/pipeline_config-${{ steps.set-env.outputs.ENV }}.yaml \
+               --force
+         
+         - name: Generate orchestration job
+           run: |
+             lhp deps \
+               --job-config config/job_config-${{ steps.set-env.outputs.ENV }}.yaml \
+               --bundle-output
+
+**Azure DevOps example:**
+
+.. code-block:: yaml
+   :caption: azure-pipelines.yml
+   :linenos:
+   :emphasize-lines: 16-20
+
+   trigger:
+     branches:
+       include:
+         - main
+         - develop
+   
+   pool:
+     vmImage: 'ubuntu-latest'
+   
+   variables:
+     - name: lhp_env
+       ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+         value: 'prod'
+       ${{ else }}:
+         value: 'dev'
+   
+   steps:
+     - script: |
+         lhp generate -e $(lhp_env) \
+           --pipeline-config config/pipeline_config-$(lhp_env).yaml \
+           --force
+       displayName: 'Generate LHP pipelines'
+     
+     - script: |
+         lhp deps \
+           --job-config config/job_config-$(lhp_env).yaml \
+           --bundle-output
+       displayName: 'Generate orchestration job'
+
+**Makefile example:**
+
+.. code-block:: makefile
+   :caption: Makefile
+   :linenos:
+
+   .PHONY: deploy-dev deploy-test deploy-prod
+   
+   deploy-dev:
+   	lhp generate -e dev \
+   		--pipeline-config config/pipeline_config-dev.yaml \
+   		--force
+   	lhp deps \
+   		--job-config config/job_config-dev.yaml \
+   		--bundle-output
+   
+   deploy-test:
+   	lhp generate -e test \
+   		--pipeline-config config/pipeline_config-test.yaml \
+   		--force
+   	lhp deps \
+   		--job-config config/job_config-test.yaml \
+   		--bundle-output
+   
+   deploy-prod:
+   	lhp generate -e prod \
+   		--pipeline-config config/pipeline_config-prod.yaml \
+   		--force
+   	lhp deps \
+   		--job-config config/job_config-prod.yaml \
+   		--bundle-output
+
+**Shell script example:**
+
+.. code-block:: bash
+   :caption: scripts/deploy.sh
+   :linenos:
+
+   #!/bin/bash
+   set -euo pipefail
+   
+   ENV=${1:-dev}  # Default to dev if not specified
+   
+   echo "Deploying to environment: $ENV"
+   
+   # Validate environment
+   if [[ ! "$ENV" =~ ^(dev|test|prod)$ ]]; then
+       echo "Error: Invalid environment. Must be dev, test, or prod"
+       exit 1
+   fi
+   
+   # Generate pipelines with environment-specific config
+   lhp generate -e "$ENV" \
+       --pipeline-config "config/pipeline_config-${ENV}.yaml" \
+       --force
+   
+   # Generate orchestration job with environment-specific config
+   lhp deps \
+       --job-config "config/job_config-${ENV}.yaml" \
+       --bundle-output
+   
+   echo "Deployment to $ENV completed successfully"
+
+**Usage:**
+
+.. code-block:: bash
+
+   # Deploy to development
+   ./scripts/deploy.sh dev
+   
+   # Deploy to production
+   ./scripts/deploy.sh prod
+
+.. tip::
+   **Version Control Best Practices**:
+   
+   - Commit all environment-specific configuration files to version control
+   - Use code review for production configuration changes
+   - Document environment-specific settings in comments
+   - Keep sensitive values (credentials, API keys) in Databricks secrets, not in config files
+   - Use tags consistently across environments for cost tracking and resource management
+
+.. warning::
+   Never hardcode environment-specific secrets or credentials in configuration files. Always use Databricks secret references (``${secret:scope/key}``) in your substitution files and reference them through substitution tokens in configuration files when needed.
+
+.. note::
+   Configuration files are **optional**. LakehousePlumber uses sensible defaults for all settings. Use configuration files when you need to customize deployment behavior beyond the defaults.
+
+.. seealso::
+   For project initialization and directory structure details, see :doc:`cli`.
 
 Substitutions & Secrets
 -----------------------
@@ -265,7 +741,7 @@ File Type          Where Used
 
 **Example SQL File with Substitutions:**
 
-.. code-block:: sql
+.. code-block:: text
    :caption: sql/customer_metrics.sql
    :linenos:
    :emphasize-lines: 4-6
@@ -723,11 +1199,11 @@ Usage Patterns
      you need to make sure they are included in the SQL query.
 
 What's Next?
-============
+------------
 
 Now that you understand the core building blocks of Lakehouse Plumber, explore these advanced features:
 
-* **Dependency Analysis** - Understand how your pipelines depend on each other and generate orchestration jobs automatically. See :doc:`dependency_analysis`.
+* **Dependency Analysis** - Understand how your pipelines depend on each other and generate orchestration jobs automatically. See :doc:`databricks_bundles`.
 * **Templates & Presets** - Reuse common patterns across your pipelines. See :doc:`templates_reference`.
 * **Databricks Bundles** - Deploy and manage your pipelines as code. See :doc:`databricks_bundles`.
 

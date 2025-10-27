@@ -86,7 +86,8 @@ class ActionOrchestrator:
     """
 
     def __init__(self, project_root: Path, enforce_version: bool = True, 
-                 dependencies: OrchestrationDependencies = None):
+                 dependencies: OrchestrationDependencies = None,
+                 pipeline_config_path: Optional[str] = None):
         """
         Initialize orchestrator with service composition and dependency injection.
 
@@ -94,10 +95,12 @@ class ActionOrchestrator:
             project_root: Root directory of the LakehousePlumber project
             enforce_version: Whether to enforce version requirements (default: True)
             dependencies: Optional dependency container for injection (uses defaults if None)
+            pipeline_config_path: Optional path to custom pipeline config file (relative to project_root)
         """
         self.project_root = project_root
         self.enforce_version = enforce_version
         self.dependencies = dependencies or OrchestrationDependencies()
+        self.pipeline_config_path = pipeline_config_path
         self.logger = logging.getLogger(__name__)
 
         # Initialize core components (still needed for services)
@@ -1032,7 +1035,7 @@ class ActionOrchestrator:
             # Import and create bundle manager
             from ..bundle.manager import BundleManager
             
-            bundle_manager = BundleManager(self.project_root)
+            bundle_manager = BundleManager(self.project_root, self.pipeline_config_path)
             
             # Perform synchronization 
             self.logger.debug(f"Starting bundle resource synchronization for environment: {environment}")
