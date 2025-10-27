@@ -37,6 +37,10 @@ class FlowgroupProcessor:
         """
         Process flowgroup: expand templates, apply presets, apply substitutions.
         
+        Template presets are applied first, then flowgroup presets can override them.
+        This allows templates to define sensible defaults while flowgroups can
+        customize as needed.
+        
         Args:
             flowgroup: FlowGroup to process
             substitution_mgr: Substitution manager for the environment
@@ -46,13 +50,20 @@ class FlowgroupProcessor:
         """
         # Step 1: Expand templates first
         if flowgroup.use_template:
+            template = self.template_engine.get_template(flowgroup.use_template)
             template_actions = self.template_engine.render_template(
                 flowgroup.use_template, flowgroup.template_parameters or {}
             )
             # Add template actions to existing actions
             flowgroup.actions.extend(template_actions)
+            
+            # Step 1.5: Apply template-level presets to template-generated actions
+            if template and template.presets:
+                self.logger.debug(f"Applying template presets: {template.presets}")
+                template_preset_config = self.preset_manager.resolve_preset_chain(template.presets)
+                flowgroup = self.apply_preset_config(flowgroup, template_preset_config)
         
-        # Step 2: Apply presets after template expansion
+        # Step 2: Apply flowgroup-level presets (may override template presets)
         if flowgroup.presets:
             preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
             flowgroup = self.apply_preset_config(flowgroup, preset_config)
@@ -98,9 +109,10 @@ class FlowgroupProcessor:
                 source_type = action.get("source", {}).get("type")
                 if source_type and source_type in preset_config["load_actions"]:
                     # Merge preset defaults with action source
+                    # Preset overrides existing values (preset is applied on top)
                     preset_defaults = preset_config["load_actions"][source_type]
                     action["source"] = self.deep_merge(
-                        preset_defaults, action.get("source", {})
+                        action.get("source", {}), preset_defaults
                     )
             
             elif action_type == "transform" and "transform_actions" in preset_config:
@@ -118,9 +130,10 @@ class FlowgroupProcessor:
                     target_type = action["write_target"].get("type")
                     if target_type and target_type in preset_config["write_actions"]:
                         # Merge preset defaults with write_target configuration
+                        # Preset overrides existing values (preset is applied on top)
                         preset_defaults = preset_config["write_actions"][target_type]
                         action["write_target"] = self.deep_merge(
-                            preset_defaults, action.get("write_target", {})
+                            action.get("write_target", {}), preset_defaults
                         )
                         
                         # Handle special cases like database_suffix
@@ -133,9 +146,10 @@ class FlowgroupProcessor:
                     target_type = action["source"].get("type")
                     if target_type and target_type in preset_config["write_actions"]:
                         # Merge preset defaults with write configuration
+                        # Preset overrides existing values (preset is applied on top)
                         preset_defaults = preset_config["write_actions"][target_type]
                         action["source"] = self.deep_merge(
-                            preset_defaults, action.get("source", {})
+                            action.get("source", {}), preset_defaults
                         )
                         
                         # Handle special cases like database_suffix

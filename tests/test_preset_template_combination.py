@@ -355,4 +355,250 @@ class TestPresetTemplateCombination:
         
         substitution_file = project_root / "substitutions" / "dev.yaml"
         with open(substitution_file, "w") as f:
-            yaml.dump(substitutions, f) 
+            yaml.dump(substitutions, f)
+
+    def test_template_preset_applies_to_template_actions(self):
+        """Test that presets defined IN the template are applied to template actions.
+        
+        This test validates that when a template declares presets, those presets
+        are applied to all actions generated from that template, even when the
+        flowgroup using the template does not declare any presets.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            self._create_project_directories(project_root)
+            
+            # Create preset with template marker
+            preset = {
+                'name': 'template_test_preset',
+                'version': '1.0',
+                'defaults': {
+                    'write_actions': {
+                        'streaming_table': {
+                            'table_properties': {
+                                'template.preset.applied': 'true',
+                                'delta.enableRowTracking': 'true'
+                            }
+                        }
+                    }
+                }
+            }
+            with open(project_root / 'presets' / 'template_test_preset.yaml', 'w') as f:
+                yaml.dump(preset, f)
+            
+            # Create template WITH presets field
+            template = {
+                'name': 'template_with_preset',
+                'version': '1.0',
+                'presets': ['template_test_preset'],
+                'parameters': [{'name': 'table_name', 'type': 'string', 'required': True}],
+                'actions': [
+                    {
+                        'name': 'load_{{ table_name }}',
+                        'type': 'load',
+                        'source': {'type': 'sql', 'sql': 'SELECT 1 as id'},
+                        'target': 'v_{{ table_name }}'
+                    },
+                    {
+                        'name': 'write_{{ table_name }}',
+                        'type': 'write',
+                        'source': 'v_{{ table_name }}',
+                        'write_target': {
+                            'type': 'streaming_table',
+                            'database': 'test_db',
+                            'table': '{{ table_name }}'
+                        }
+                    }
+                ]
+            }
+            with open(project_root / 'templates' / 'template_with_preset.yaml', 'w') as f:
+                yaml.dump(template, f)
+            
+            # Create flowgroup using template (NO flowgroup presets)
+            flowgroup = {
+                'pipeline': 'test_pipeline',
+                'flowgroup': 'template_preset_test',
+                'use_template': 'template_with_preset',
+                'template_parameters': {'table_name': 'test_table'}
+            }
+            with open(project_root / 'pipelines' / 'test_pipeline' / 'template_preset_test.yaml', 'w') as f:
+                yaml.dump(flowgroup, f)
+            
+            self._create_substitutions(project_root)
+            
+            # Create lhp.yaml
+            lhp_config = {'name': 'test_project', 'version': '1.0'}
+            with open(project_root / 'lhp.yaml', 'w') as f:
+                yaml.dump(lhp_config, f)
+            
+            orchestrator = ActionOrchestrator(project_root, enforce_version=False)
+            result = orchestrator.generate_pipeline('test_pipeline', 'dev')
+            generated_code = result.get('template_preset_test.py', '')
+            
+            assert 'template.preset.applied' in generated_code, \
+                "Template preset property should be applied to generated actions"
+            assert 'delta.enableRowTracking' in generated_code, \
+                "Template preset property should be applied to generated actions"
+
+    def test_template_and_flowgroup_presets_both_apply(self):
+        """Test that both template and flowgroup presets apply, with flowgroup precedence.
+        
+        When both template and flowgroup declare presets, both should be applied
+        with flowgroup presets taking precedence (more specific overrides general).
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            self._create_project_directories(project_root)
+            
+            # Create template preset
+            template_preset = {
+                'name': 'template_preset',
+                'version': '1.0',
+                'defaults': {
+                    'write_actions': {
+                        'streaming_table': {
+                            'table_properties': {
+                                'from.template': 'true',
+                                'shared.property': 'template_value'
+                            }
+                        }
+                    }
+                }
+            }
+            with open(project_root / 'presets' / 'template_preset.yaml', 'w') as f:
+                yaml.dump(template_preset, f)
+            
+            # Create flowgroup preset
+            flowgroup_preset = {
+                'name': 'flowgroup_preset',
+                'version': '1.0',
+                'defaults': {
+                    'write_actions': {
+                        'streaming_table': {
+                            'table_properties': {
+                                'from.flowgroup': 'true',
+                                'shared.property': 'flowgroup_value'
+                            }
+                        }
+                    }
+                }
+            }
+            with open(project_root / 'presets' / 'flowgroup_preset.yaml', 'w') as f:
+                yaml.dump(flowgroup_preset, f)
+            
+            # Create template with preset
+            template = {
+                'name': 'template_with_preset',
+                'version': '1.0',
+                'presets': ['template_preset'],
+                'parameters': [{'name': 'table_name', 'type': 'string', 'required': True}],
+                'actions': [
+                    {
+                        'name': 'load_{{ table_name }}',
+                        'type': 'load',
+                        'source': {'type': 'sql', 'sql': 'SELECT 1 as id'},
+                        'target': 'v_{{ table_name }}'
+                    },
+                    {
+                        'name': 'write_{{ table_name }}',
+                        'type': 'write',
+                        'source': 'v_{{ table_name }}',
+                        'write_target': {
+                            'type': 'streaming_table',
+                            'database': 'test_db',
+                            'table': '{{ table_name }}'
+                        }
+                    }
+                ]
+            }
+            with open(project_root / 'templates' / 'template_with_preset.yaml', 'w') as f:
+                yaml.dump(template, f)
+            
+            # Create flowgroup with preset
+            flowgroup = {
+                'pipeline': 'test_pipeline',
+                'flowgroup': 'combined_preset_test',
+                'presets': ['flowgroup_preset'],
+                'use_template': 'template_with_preset',
+                'template_parameters': {'table_name': 'test_table'}
+            }
+            with open(project_root / 'pipelines' / 'test_pipeline' / 'combined_preset_test.yaml', 'w') as f:
+                yaml.dump(flowgroup, f)
+            
+            self._create_substitutions(project_root)
+            
+            # Create lhp.yaml
+            lhp_config = {'name': 'test_project', 'version': '1.0'}
+            with open(project_root / 'lhp.yaml', 'w') as f:
+                yaml.dump(lhp_config, f)
+            
+            orchestrator = ActionOrchestrator(project_root, enforce_version=False)
+            result = orchestrator.generate_pipeline('test_pipeline', 'dev')
+            generated_code = result.get('combined_preset_test.py', '')
+            
+            # Both presets should be applied
+            assert 'from.template' in generated_code, \
+                "Template preset properties should be applied"
+            assert 'from.flowgroup' in generated_code, \
+                "Flowgroup preset properties should be applied"
+            # Flowgroup preset should override shared property
+            assert 'flowgroup_value' in generated_code, \
+                "Flowgroup preset should override template preset for shared properties"
+
+    def test_template_with_missing_preset_raises_error(self):
+        """Test that referencing a non-existent preset raises a clear error."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            self._create_project_directories(project_root)
+            
+            # Create template referencing non-existent preset
+            template = {
+                'name': 'template_with_missing_preset',
+                'version': '1.0',
+                'presets': ['non_existent_preset'],
+                'parameters': [{'name': 'table_name', 'type': 'string', 'required': True}],
+                'actions': [
+                    {
+                        'name': 'load_{{ table_name }}',
+                        'type': 'load',
+                        'source': {'type': 'sql', 'sql': 'SELECT 1'},
+                        'target': 'v_{{ table_name }}'
+                    },
+                    {
+                        'name': 'write_{{ table_name }}',
+                        'type': 'write',
+                        'source': 'v_{{ table_name }}',
+                        'write_target': {
+                            'type': 'streaming_table',
+                            'database': 'test_db',
+                            'table': '{{ table_name }}'
+                        }
+                    }
+                ]
+            }
+            with open(project_root / 'templates' / 'template_with_missing_preset.yaml', 'w') as f:
+                yaml.dump(template, f)
+            
+            flowgroup = {
+                'pipeline': 'test_pipeline',
+                'flowgroup': 'missing_preset_test',
+                'use_template': 'template_with_missing_preset',
+                'template_parameters': {'table_name': 'test_table'}
+            }
+            with open(project_root / 'pipelines' / 'test_pipeline' / 'missing_preset_test.yaml', 'w') as f:
+                yaml.dump(flowgroup, f)
+            
+            self._create_substitutions(project_root)
+            
+            # Create lhp.yaml
+            lhp_config = {'name': 'test_project', 'version': '1.0'}
+            with open(project_root / 'lhp.yaml', 'w') as f:
+                yaml.dump(lhp_config, f)
+            
+            orchestrator = ActionOrchestrator(project_root, enforce_version=False)
+            
+            with pytest.raises(ValueError) as exc_info:
+                orchestrator.generate_pipeline('test_pipeline', 'dev')
+            
+            assert 'non_existent_preset' in str(exc_info.value)
+            assert 'not found' in str(exc_info.value).lower() 
