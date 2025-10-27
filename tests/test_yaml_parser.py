@@ -240,7 +240,7 @@ class TestYAMLParserFlowgroupMethods:
             yaml_file = Path(f.name)
         
         try:
-            result = parser.parse_template(yaml_file)
+            result = parser.parse_template_raw(yaml_file)
             assert result.name == "test_template"
             assert result.version == "1.0"
             assert len(result.parameters) == 1

@@ -98,6 +98,8 @@ class TestCliDepsIntegration:
             None,   # no output dir specified
             None,   # no pipeline filter
             None,   # no job name
+            None,   # no job config
+            False,  # bundle_output=False
             False   # verbose=False
         )
 
@@ -119,6 +121,8 @@ class TestCliDepsIntegration:
             str(self.temp_dir),  # output dir
             'test_pipeline',  # pipeline filter
             'custom_job',  # job name
+            None,   # no job config
+            False,  # bundle_output=False
             True  # verbose=True
         )
 
@@ -140,6 +144,8 @@ class TestCliDepsIntegration:
             str(self.temp_dir),  # output dir
             'specific_pipeline',  # pipeline filter
             'my_job',  # job name
+            None,   # no job config
+            False,  # bundle_output=False
             True  # verbose=True
         )
 
@@ -231,7 +237,7 @@ class TestCliDepsIntegration:
             for pipeline_name in pipeline_names:
                 result = self.runner.invoke(cli, ['deps', '--pipeline', pipeline_name])
                 assert result.exit_code == 0
-                mock_execute.assert_called_with('all', None, pipeline_name, None, False)
+                mock_execute.assert_called_with('all', None, pipeline_name, None, None, False, False)
 
     def test_deps_command_job_name_option(self):
         """Test job name option functionality."""
@@ -250,12 +256,12 @@ class TestCliDepsIntegration:
             # Test without verbose
             result = self.runner.invoke(cli, ['deps'])
             assert result.exit_code == 0
-            assert mock_execute.call_args[0][4] is False  # verbose=False
+            assert mock_execute.call_args[0][6] is False  # verbose=False (now 7th argument, index 6)
 
             # Test with verbose
             result = self.runner.invoke(cli, ['deps', '--verbose'])
             assert result.exit_code == 0
-            assert mock_execute.call_args[0][4] is True  # verbose=True
+            assert mock_execute.call_args[0][6] is True  # verbose=True (now 7th argument, index 6)
 
     def test_deps_command_multiple_format_handling(self):
         """Test that format option handles single values correctly."""
@@ -287,6 +293,8 @@ class TestCliDepsIntegration:
             str(test_output_dir),
             None,
             None,
+            None,
+            False,
             False
         )
 
@@ -296,13 +304,15 @@ class TestCliDepsIntegration:
             result = self.runner.invoke(cli, ['deps'])
 
             assert result.exit_code == 0
-            # Check default values
+            # Check default values (updated for new signature)
             call_args = mock_execute.call_args[0]
             assert call_args[0] == 'all'  # default format
             assert call_args[1] is None   # default output (None)
             assert call_args[2] is None   # default pipeline (None)
             assert call_args[3] is None   # default job_name (None)
-            assert call_args[4] is False  # default verbose (False)
+            assert call_args[4] is None   # default job_config_path (None)
+            assert call_args[5] is False  # default bundle_output (False)
+            assert call_args[6] is False  # default verbose (False)
 
     @patch('lhp.cli.commands.dependencies_command.DependenciesCommand.execute')
     def test_deps_command_option_order_independence(self, mock_execute):
@@ -318,11 +328,11 @@ class TestCliDepsIntegration:
             result = self.runner.invoke(cli, ['deps'] + options)
             assert result.exit_code == 0
 
-            # All should result in the same call
+            # All should result in the same call (updated for new signature)
             call_args = mock_execute.call_args[0]
             assert call_args[0] == 'json'  # format
             assert call_args[2] == 'test'  # pipeline
-            assert call_args[4] is True    # verbose
+            assert call_args[6] is True    # verbose (now 7th argument, index 6)
 
     def test_deps_command_in_main_cli_registration(self):
         """Test that deps command is properly registered in main CLI."""

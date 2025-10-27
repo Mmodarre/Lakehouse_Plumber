@@ -434,11 +434,14 @@ class TestCreateDependenciesCommand:
         # Should not have errors in Click processing
         assert result.exit_code == 0
 
-        # Verify execute was called with correct parameters
+        # Verify execute was called with correct parameters (updated for new signature)
         mock_execute.assert_called_once_with(
             'json',  # output_format
             '/tmp/test',  # output_dir
             'test_pipeline',  # pipeline
+            None,  # job_name (not provided in test)
+            None,  # job_config_path (not provided in test)
+            False,  # bundle_output (default)
             True  # verbose
         )
 

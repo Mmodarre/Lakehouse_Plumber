@@ -1,0 +1,4 @@
+pipeline: solo_pipeline
+serverless: false
+edition: CORE
+

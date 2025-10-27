@@ -27,6 +27,7 @@ class PipelineGenerationRequest:
     output_directory: Optional[Path] = None
     dry_run: bool = False
     no_cleanup: bool = False
+    pipeline_config_path: Optional[str] = None
 
 
 @dataclass

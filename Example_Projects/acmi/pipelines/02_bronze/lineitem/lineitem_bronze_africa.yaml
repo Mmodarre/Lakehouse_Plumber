@@ -11,7 +11,7 @@ presets:
 actions:
   # Load is not neceseary here as everything is in the same pipeline
   # but it kept in case we decide to split the pipelines
-  - name: lineitem_africa_raw_load
+  - name: lineitem_africa_raw_load2
     type: load
     operational_metadata: ["_processing_timestamp"]
     readMode: stream

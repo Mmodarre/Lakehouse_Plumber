@@ -10,7 +10,6 @@ resources:
       schema: ${var.default_pipeline_schema}
       
       serverless: true
-
       libraries:
         - glob:
             include: ${workspace.file_path}/generated/${bundle.target}/sample_python_func_pipeline/**
@@ -18,11 +17,11 @@ resources:
       root_path: ${workspace.file_path}/generated/${bundle.target}/sample_python_func_pipeline
       
       configuration:
-        bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
-
-
-      # Additional pipeline configuration options (uncomment and modify as needed):
-        
+        bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}      
+      channel: CURRENT
+      # Additional pipeline configuration options 
+      add to your pipeline_config.yaml as needed and pass the file path through the --pipeline-config flag:
+ 
       # Compute clusters configuration (alternative to serverless)
       # clusters:
       #   - label: default

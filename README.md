@@ -24,6 +24,12 @@
 
 - The only Metadata framework that generates production ready Pyspark code for Lakeflow Declarative Pipelines
 
+## 🆕 What's New
+
+- **Customizable Pipeline Configuration**: Configure DLT pipeline settings (compute, runtime, notifications) via YAML files with support for project-level defaults and pipeline-specific overrides. Perfect for managing different requirements across dev/test/prod environments.
+
+- **Customizable Job Configuration**: Generate orchestration jobs with custom configuration for concurrency, performance targets, notifications, schedules, and permissions. Use environment-specific configs (e.g., `job_config-dev.yaml`, `job_config-prod.yaml`) to maintain appropriate settings across your SDLC.
+
 ## 📚 Documentation 
 Full [documentation](https://lakehouse-plumber.readthedocs.io/) is available on ReadTheDocs.
 

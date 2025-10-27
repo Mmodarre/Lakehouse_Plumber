@@ -1,0 +1,32 @@
+max_concurrent_runs: 5
+performance_target: PERFORMANCE_OPTIMIZED
+queue:
+  enabled: false
+timeout_seconds: 10800
+tags:
+  environment: production
+  team: data-platform
+  project: lakehouse
+email_notifications:
+  on_start:
+    - admin@example.com
+  on_success:
+    - team@example.com
+  on_failure:
+    - oncall@example.com
+    - alerts@example.com
+webhook_notifications:
+  on_success:
+    - id: success-webhook
+  on_failure:
+    - id: failure-webhook
+permissions:
+  - level: CAN_MANAGE
+    user_name: admin@company.com
+  - level: CAN_VIEW
+    group_name: data-team
+schedule:
+  quartz_cron_expression: "0 0 8 * * ?"
+  timezone_id: America/New_York
+  pause_status: UNPAUSED
+

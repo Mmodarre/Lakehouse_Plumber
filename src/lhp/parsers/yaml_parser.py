@@ -41,7 +41,18 @@ class YAMLParser:
         return FlowGroup(**content)
 
     def parse_template(self, file_path: Path) -> Template:
-        """Parse a Template YAML file."""
+        """Parse a Template YAML file.
+        
+        .. deprecated:: 0.6.3
+            Use :func:`parse_template_raw` instead. This method will be removed in v0.7.0.
+        """
+        import warnings
+        warnings.warn(
+            "parse_template() is deprecated and will be removed in v0.7.0. "
+            "Use parse_template_raw() instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         content = self.parse_file(file_path)
         return Template(**content)
     
@@ -97,7 +108,17 @@ class YAMLParser:
         return flowgroups
 
     def discover_templates(self, templates_dir: Path) -> List[Template]:
-        """Discover all Template files."""
+        """Discover all Template files.
+        
+        .. deprecated:: 0.6.3
+            This method is unused and will be removed in v0.7.0.
+        """
+        import warnings
+        warnings.warn(
+            "discover_templates() is deprecated and will be removed in v0.7.0.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         templates = []
         for yaml_file in templates_dir.glob("*.yaml"):
             if yaml_file.is_file():

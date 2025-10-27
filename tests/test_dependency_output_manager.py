@@ -87,6 +87,7 @@ class TestDependencyOutputManager:
         mock_analyzer = Mock()
         mock_analyzer.export_to_dot.return_value = "digraph test { a -> b; }"
         mock_analyzer.export_to_json.return_value = {"test": "data"}
+        mock_analyzer.project_root = self.temp_dir  # Add project_root for JobGenerator
 
         result = self.create_mock_analysis_result()
         output_formats = ["all"]
@@ -419,3 +420,159 @@ class TestDependencyOutputManager:
         # Should not raise UnicodeEncodeError
         result_path = self.output_manager.save_text_format(result, output_path)
         assert result_path == output_path
+
+
+# ============================================================================
+# Tests for Custom Job Config and Bundle Output
+# ============================================================================
+
+
+def test_save_job_to_default_location(tmp_path):
+    """Job saves to .lhp/dependencies/ by default."""
+    output_manager = DependencyOutputManager()
+    
+    # Create mock analyzer and result
+    analyzer = Mock()
+    analyzer.project_root = tmp_path / "project"
+    analyzer.export_to_dot = Mock(return_value="digraph {}")
+    analyzer.export_to_json = Mock(return_value={})
+    
+    result = create_test_dependency_result()
+    
+    # Save with default location
+    output_dir = tmp_path / ".lhp" / "dependencies"
+    generated_files = output_manager.save_outputs(
+        analyzer, result, ["job"], output_dir
+    )
+    
+    # Check that job file was created in default location
+    assert "job" in generated_files
+    assert str(generated_files["job"]).endswith(".job.yml")
+    assert generated_files["job"].parent == output_dir
+
+
+def test_save_job_to_resources_with_bundle_flag(tmp_path):
+    """Job saves to resources/ when bundle_output=True."""
+    output_manager = DependencyOutputManager()
+    
+    # Create mock analyzer and result
+    analyzer = Mock()
+    analyzer.project_root = tmp_path / "project"
+    analyzer.project_root.mkdir(parents=True)
+    analyzer.export_to_dot = Mock(return_value="digraph {}")
+    analyzer.export_to_json = Mock(return_value={})
+    
+    result = create_test_dependency_result()
+    
+    # Save with bundle_output flag
+    output_dir = tmp_path / ".lhp" / "dependencies"
+    generated_files = output_manager.save_outputs(
+        analyzer, result, ["job"], output_dir, 
+        bundle_output=True, job_name="test_job"
+    )
+    
+    # Check that job file was created in resources/ directory
+    assert "job" in generated_files
+    expected_path = analyzer.project_root / "resources" / "test_job.job.yml"
+    assert generated_files["job"] == expected_path
+
+
+def test_save_job_passes_config_path_to_generator(tmp_path):
+    """Config file path is passed to JobGenerator."""
+    output_manager = DependencyOutputManager()
+    
+    # Create project with custom config
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    custom_config = project_root / "custom_config.yaml"
+    custom_config.write_text("max_concurrent_runs: 10\n")
+    
+    # Create mock analyzer
+    analyzer = Mock()
+    analyzer.project_root = project_root
+    analyzer.export_to_dot = Mock(return_value="digraph {}")
+    analyzer.export_to_json = Mock(return_value={})
+    
+    result = create_test_dependency_result()
+    
+    # Save with custom config path
+    output_dir = tmp_path / ".lhp" / "dependencies"
+    output_manager.save_outputs(
+        analyzer, result, ["job"], output_dir,
+        job_config_path="custom_config.yaml"
+    )
+    
+    # Verify the job file was created
+    job_files = list(output_dir.glob("*.job.yml"))
+    assert len(job_files) == 1
+    
+    # Verify custom config was used (check for max_concurrent_runs: 10)
+    with open(job_files[0]) as f:
+        content = f.read()
+        assert "max_concurrent_runs: 10" in content
+
+
+def test_save_job_creates_resources_directory_if_not_exists(tmp_path):
+    """Resources directory is created if it doesn't exist."""
+    output_manager = DependencyOutputManager()
+    
+    # Create project without resources directory
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    
+    # Create mock analyzer
+    analyzer = Mock()
+    analyzer.project_root = project_root
+    analyzer.export_to_dot = Mock(return_value="digraph {}")
+    analyzer.export_to_json = Mock(return_value={})
+    
+    result = create_test_dependency_result()
+    
+    # Resources directory shouldn't exist yet
+    resources_dir = project_root / "resources"
+    assert not resources_dir.exists()
+    
+    # Save with bundle_output flag
+    output_dir = tmp_path / ".lhp" / "dependencies"
+    generated_files = output_manager.save_outputs(
+        analyzer, result, ["job"], output_dir,
+        bundle_output=True, job_name="test_job"
+    )
+    
+    # Resources directory should now exist
+    assert resources_dir.exists()
+    assert generated_files["job"].exists()
+
+
+def create_test_dependency_result():
+    """Helper to create a minimal DependencyAnalysisResult for testing."""
+    # Create minimal graphs
+    action_graph = nx.DiGraph()
+    flowgroup_graph = nx.DiGraph()
+    pipeline_graph = nx.DiGraph()
+    pipeline_graph.add_node("test_pipeline")
+    
+    graphs = DependencyGraphs(
+        action_graph=action_graph,
+        flowgroup_graph=flowgroup_graph,
+        pipeline_graph=pipeline_graph,
+        metadata={}
+    )
+    
+    # Create pipeline dependency
+    pipeline_dep = PipelineDependency(
+        pipeline="test_pipeline",
+        depends_on=[],
+        flowgroup_count=1,
+        action_count=1,
+        external_sources=[],
+        stage=1
+    )
+    
+    return DependencyAnalysisResult(
+        graphs=graphs,
+        pipeline_dependencies={"test_pipeline": pipeline_dep},
+        execution_stages=[["test_pipeline"]],
+        circular_dependencies=[],
+        external_sources=[]
+    )

@@ -1,0 +1,7 @@
+max_concurrent_runs: 2
+performance_target: PERFORMANCE_OPTIMIZED
+  invalid_indentation: true
+tags:
+  - this should be a dict
+  - not a list
+

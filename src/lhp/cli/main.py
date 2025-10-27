@@ -207,10 +207,11 @@ def init(project_name, bundle):
 @click.option("--force", "-f", is_flag=True, help="Force regeneration of all files, even if unchanged")
 @click.option("--no-bundle", is_flag=True, help="Disable bundle support even if databricks.yml exists")
 @click.option("--include-tests", is_flag=True, default=False, help="Include test actions in generation (skipped by default for faster builds)")
-def generate(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests):
+@click.option("--pipeline-config", "-pc", help="Custom pipeline config file path (relative to project root)")
+def generate(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests, pipeline_config):
     """Generate DLT pipeline code"""
     from .commands.generate_command import GenerateCommand
-    GenerateCommand().execute(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests)
+    GenerateCommand().execute(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests, pipeline_config)
 
 
 @cli.command()
@@ -283,11 +284,13 @@ def info():
               help="Output directory (defaults to .lhp/dependencies/)")
 @click.option("--pipeline", "-p", help="Analyze specific pipeline only")
 @click.option("--job-name", "-j", help="Custom name for generated orchestration job (only used with job format)")
+@click.option("--job-config", "-jc", help="Custom job config file path (relative to project root, defaults to templates/bundle/job_config.yaml)")
+@click.option("--bundle-output", "-b", is_flag=True, help="Save job file to resources/ directory for Databricks bundle integration")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-def deps(format, output, pipeline, job_name, verbose):
+def deps(format, output, pipeline, job_name, job_config, bundle_output, verbose):
     """Analyze and visualize pipeline dependencies for orchestration planning."""
     from .commands.dependencies_command import DependenciesCommand
-    DependenciesCommand().execute(format, output, pipeline, job_name, verbose)
+    DependenciesCommand().execute(format, output, pipeline, job_name, job_config, bundle_output, verbose)
 
 
 # ============================================================================

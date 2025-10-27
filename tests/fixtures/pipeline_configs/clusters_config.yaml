@@ -1,0 +1,14 @@
+project_defaults:
+  serverless: false
+
+---
+pipeline: cluster_pipeline
+clusters:
+  - label: default
+    node_type_id: Standard_D16ds_v5
+    driver_node_type_id: Standard_D32ds_v5
+    autoscale:
+      min_workers: 2
+      max_workers: 10
+      mode: ENHANCED
+

@@ -1,0 +1,9 @@
+max_concurrent_runs: 2
+performance_target: PERFORMANCE_OPTIMIZED
+queue:
+  enabled: true
+timeout_seconds: 7200
+tags:
+  environment: production
+  team: data-platform
+

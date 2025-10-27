@@ -27,9 +27,13 @@ class StateAnalyzer:
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
         
-        # Initialize dependency resolver
+        # Initialize dependency resolver (reused across all operations)
         from ..state_dependency_resolver import StateDependencyResolver
         self.dependency_resolver = StateDependencyResolver(project_root)
+        
+        # Initialize dependency tracker (reused across all operations)
+        from .dependency_tracker import DependencyTracker
+        self.tracker = DependencyTracker(project_root)
     
     def find_stale_files(self, state: ProjectState, environment: str,
                         checksum_calculator) -> List[FileState]:
@@ -223,10 +227,8 @@ class StateAnalyzer:
         # Find new YAML files (not tracked)
         new_files = self.find_new_yaml_files(state, environment, include_patterns, pipeline)
 
-        # Find up-to-date files
-        from .dependency_tracker import DependencyTracker
-        tracker = DependencyTracker(self.project_root)
-        all_tracked = tracker.get_generated_files(state, environment)
+        # Find up-to-date files (reuse shared tracker instance)
+        all_tracked = self.tracker.get_generated_files(state, environment)
         if pipeline:
             all_tracked = {
                 path: file_state
@@ -240,7 +242,7 @@ class StateAnalyzer:
             if (
                 source_path.exists()
                 and file_state.source_yaml_checksum
-                and tracker.calculate_checksum(source_path) == file_state.source_yaml_checksum
+                and self.tracker.calculate_checksum(source_path) == file_state.source_yaml_checksum
             ):
                 up_to_date.append(file_state)
 
@@ -577,9 +579,8 @@ class StateAnalyzer:
             # Check source YAML file change
             source_path = self.project_root / file_state.source_yaml
             if source_path.exists():
-                from .dependency_tracker import DependencyTracker
-                tracker = DependencyTracker(self.project_root)
-                current_checksum = tracker.calculate_checksum(source_path)
+                # Reuse shared tracker instance
+                current_checksum = self.tracker.calculate_checksum(source_path)
                 
                 if not file_state.source_yaml_checksum:
                     changes.append(f"Source YAML checksum missing: {file_state.source_yaml}")
@@ -616,7 +617,5 @@ class StateAnalyzer:
         return changes
 
     def _calculate_checksum_via_tracker(self, file_path: Path) -> str:
-        """Helper to calculate checksum via DependencyTracker."""
-        from .dependency_tracker import DependencyTracker
-        tracker = DependencyTracker(self.project_root)
-        return tracker.calculate_checksum(file_path)
+        """Helper to calculate checksum via DependencyTracker (reuses shared instance)."""
+        return self.tracker.calculate_checksum(file_path)

@@ -12,7 +12,100 @@ usual ``--help`` flags.
 
 .. seealso::
 
-   For detailed information about dependency analysis and orchestration job generation, see :doc:`dependency_analysis`.
+   For detailed information about dependency analysis and orchestration job generation, see :doc:`databricks_bundles`.
+
+Project Initialization
+======================
+
+The ``lhp init`` command creates a new LakehousePlumber project with the complete directory structure and configuration templates.
+
+Basic Usage
+-----------
+
+.. code-block:: bash
+
+   # Create a standard project
+   lhp init my_project
+
+   # Create a Databricks Asset Bundle project
+   lhp init my_project --bundle
+
+**Created Directory Structure:**
+
+.. code-block:: text
+
+   my_project/
+   ├── config/                    # Configuration templates
+   │   ├── job_config.yaml.tmpl
+   │   └── pipeline_config.yaml.tmpl
+   ├── pipelines/                 # Pipeline flowgroups
+   ├── templates/                 # Reusable action templates
+   ├── presets/                   # Configuration presets
+   ├── substitutions/            # Environment-specific values
+   ├── schemas/                  # Table schema definitions
+   ├── expectations/             # Data quality expectations
+   ├── generated/                # Generated Python code (gitignored)
+   └── resources/                # Bundle resources (--bundle only)
+
+Configuration Templates
+-----------------------
+
+The ``config/`` directory contains template files for customizing Databricks job and pipeline settings:
+
+**job_config.yaml.tmpl**
+
+Template for customizing orchestration job configuration used with ``lhp deps`` command:
+
+- Job execution settings (max_concurrent_runs, timeout, performance_target)
+- Queue configuration
+- Email and webhook notifications
+- Scheduling (Quartz cron expressions)
+- Tags and permissions
+
+**Usage:**
+
+.. code-block:: bash
+
+   # 1. Copy and customize the template
+   cd my_project
+   cp config/job_config.yaml.tmpl config/job_config.yaml
+   # Edit config/job_config.yaml with your settings
+
+   # 2. Use with lhp deps command
+   lhp deps --job-config config/job_config.yaml --bundle-output
+
+See :doc:`databricks_bundles` for detailed job configuration options.
+
+**pipeline_config.yaml.tmpl**
+
+Template for customizing Delta Live Tables (DLT) pipeline settings used with ``lhp generate`` command:
+
+- Compute configuration (serverless vs. classic clusters)
+- DLT edition and runtime channel
+- Processing mode (continuous vs. triggered)
+- Notifications and tags
+- Event logging
+
+**Usage:**
+
+.. code-block:: bash
+
+   # 1. Copy and customize the template
+   cp config/pipeline_config.yaml.tmpl templates/bundle/pipeline_config.yaml
+   # Edit templates/bundle/pipeline_config.yaml with your settings
+
+   # 2. Auto-loaded when generating (if at default location)
+   lhp generate -e dev
+
+   # 3. Or specify custom path
+   lhp generate -e dev --pipeline-config config/my_pipeline_config.yaml
+
+See :doc:`databricks_bundles` for detailed pipeline configuration options.
+
+.. note::
+   Template files (\*.tmpl) are provided as starting points. Copy and remove the
+   ``.tmpl`` extension to activate them. This allows you to keep the original
+   templates as reference while customizing your own versions.
 
 Test Generation Workflow
 ========================

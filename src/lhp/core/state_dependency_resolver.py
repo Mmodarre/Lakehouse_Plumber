@@ -1,8 +1,9 @@
 """State dependency resolver for LakehousePlumber dependency tracking."""
 
 import logging
+import hashlib
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Any
+from typing import Dict, List, Set, Optional, Any, Tuple
 from ..models.config import FlowGroup
 from ..parsers.yaml_parser import YAMLParser
 from ..presets.preset_manager import PresetManager
@@ -11,7 +12,11 @@ from .state_manager import DependencyInfo
 
 
 class StateDependencyResolver:
-    """Resolves dependencies for YAML files including presets, templates, and transitive dependencies."""
+    """Resolves dependencies for YAML files including presets, templates, and transitive dependencies.
+    
+    Implements safe caching: caches which files are referenced (expensive discovery)
+    while always recalculating checksums (cheap validation) to preserve change detection.
+    """
 
     def __init__(self, project_root: Path):
         """Initialize dependency resolver.
@@ -24,16 +29,24 @@ class StateDependencyResolver:
         self.yaml_parser = YAMLParser()
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
+        
+        # Cache for dependency paths (not checksums!)
+        # Key: (yaml_file, source_checksum, environment)
+        # Value: Dict[str, Tuple[type, last_modified]] - paths with metadata but no checksums
+        self._dependency_paths_cache: Dict[Tuple[str, str, str], Dict[str, Tuple[str, str]]] = {}
 
     def resolve_file_dependencies(self, yaml_file: Path, environment: str) -> Dict[str, DependencyInfo]:
-        """Resolve all dependencies for a YAML file.
+        """Resolve all dependencies for a YAML file with safe caching.
+        
+        Caches dependency discovery (which files are referenced) but always recalculates
+        checksums to preserve change detection accuracy.
         
         Args:
             yaml_file: Path to the YAML file (relative to project_root)
             environment: Environment name for dependency resolution
             
         Returns:
-            Dictionary mapping dependency paths to DependencyInfo objects
+            Dictionary mapping dependency paths to DependencyInfo objects with CURRENT checksums
         """
         dependencies = {}
         
@@ -41,31 +54,98 @@ class StateDependencyResolver:
             # Resolve yaml_file path relative to project_root
             resolved_yaml_file = self.project_root / yaml_file if not yaml_file.is_absolute() else yaml_file
             
-            # Parse the flowgroup
-            flowgroup = self.yaml_parser.parse_flowgroup(resolved_yaml_file)
+            # Calculate source YAML checksum for cache key
+            source_checksum = self._calculate_checksum(resolved_yaml_file)
+            yaml_file_str = str(yaml_file)
+            cache_key = (yaml_file_str, source_checksum, environment)
             
-            # Resolve preset dependencies
-            preset_deps = self._resolve_preset_dependencies(flowgroup)
-            dependencies.update(preset_deps)
-            
-            # Resolve template dependencies
-            template_deps = self._resolve_template_dependencies(flowgroup)
-            dependencies.update(template_deps)
-            
-            # Resolve custom data source dependencies
-            custom_datasource_deps = self._resolve_custom_datasource_dependencies(flowgroup)
-            dependencies.update(custom_datasource_deps)
-            
-            # Resolve external file dependencies (Python, SQL, etc.)
-            external_file_deps = self._resolve_external_file_dependencies(flowgroup)
-            dependencies.update(external_file_deps)
-            
-            self.logger.debug(f"Resolved {len(dependencies)} dependencies for {yaml_file}")
+            # Check cache for dependency paths
+            if cache_key in self._dependency_paths_cache:
+                # Cache hit: reuse discovered paths but recalculate checksums
+                cached_paths = self._dependency_paths_cache[cache_key]
+                dependencies = self._recalculate_dependency_checksums(cached_paths)
+                self.logger.debug(f"Cache hit: Reused {len(dependencies)} dependency paths for {yaml_file}")
+            else:
+                # Cache miss: full discovery and resolution
+                flowgroup = self.yaml_parser.parse_flowgroup(resolved_yaml_file)
+                
+                # Resolve preset dependencies
+                preset_deps = self._resolve_preset_dependencies(flowgroup)
+                dependencies.update(preset_deps)
+                
+                # Resolve template dependencies
+                template_deps = self._resolve_template_dependencies(flowgroup)
+                dependencies.update(template_deps)
+                
+                # Resolve custom data source dependencies
+                custom_datasource_deps = self._resolve_custom_datasource_dependencies(flowgroup)
+                dependencies.update(custom_datasource_deps)
+                
+                # Resolve external file dependencies (Python, SQL, etc.)
+                external_file_deps = self._resolve_external_file_dependencies(flowgroup)
+                dependencies.update(external_file_deps)
+                
+                # Cache the dependency paths (without checksums)
+                self._cache_dependency_paths(cache_key, dependencies)
+                
+                self.logger.debug(f"Cache miss: Discovered {len(dependencies)} dependencies for {yaml_file}")
             
         except Exception as e:
             self.logger.warning(f"Failed to resolve dependencies for {yaml_file}: {e}")
             
         return dependencies
+    
+    def _cache_dependency_paths(self, cache_key: Tuple[str, str, str], 
+                                dependencies: Dict[str, DependencyInfo]) -> None:
+        """Cache dependency paths and metadata (but not checksums).
+        
+        Args:
+            cache_key: Cache key tuple (yaml_file, source_checksum, environment)
+            dependencies: Full dependency info with checksums
+        """
+        # Store only paths, types, and last_modified (not checksums)
+        cached_paths = {
+            path: (dep_info.type, dep_info.last_modified)
+            for path, dep_info in dependencies.items()
+        }
+        self._dependency_paths_cache[cache_key] = cached_paths
+    
+    def _recalculate_dependency_checksums(self, cached_paths: Dict[str, Tuple[str, str]]) -> Dict[str, DependencyInfo]:
+        """Recalculate current checksums for cached dependency paths.
+        
+        Args:
+            cached_paths: Dict mapping paths to (type, last_modified) tuples
+            
+        Returns:
+            Dict mapping paths to DependencyInfo with CURRENT checksums
+        """
+        dependencies = {}
+        for path, (dep_type, _) in cached_paths.items():
+            file_path = self.project_root / path
+            if file_path.exists():
+                # Always recalculate current checksum and modification time
+                current_checksum = self._calculate_checksum(file_path)
+                current_modified = self._get_file_modification_time(file_path)
+                dependencies[path] = DependencyInfo(
+                    path=path,
+                    checksum=current_checksum,  # ALWAYS FRESH
+                    type=dep_type,
+                    last_modified=current_modified  # ALWAYS FRESH
+                )
+            else:
+                # File no longer exists - include with empty checksum
+                dependencies[path] = DependencyInfo(
+                    path=path,
+                    checksum="",
+                    type=dep_type,
+                    last_modified=""
+                )
+        return dependencies
+    
+    def clear_cache(self) -> None:
+        """Clear the dependency paths cache."""
+        self._dependency_paths_cache.clear()
+        self.logger.debug("Dependency paths cache cleared")
 
     def _resolve_preset_dependencies(self, flowgroup: FlowGroup) -> Dict[str, DependencyInfo]:
         """Resolve preset dependencies including transitive dependencies.
@@ -184,17 +264,76 @@ class StateDependencyResolver:
             last_modified=last_modified
         )
         
-        # Resolve transitive preset dependencies (if template uses presets)
+        # Resolve transitive preset dependencies AND external files from template
         try:
             template = self.template_engine.get_template(template_name)
-            if template and hasattr(template, 'presets') and template.presets:
-                for preset_name in template.presets:
-                    preset_deps = self._resolve_preset_chain(preset_name, set())
-                    dependencies.update(preset_deps)
+            if template:
+                # Resolve preset dependencies
+                if hasattr(template, 'presets') and template.presets:
+                    for preset_name in template.presets:
+                        preset_deps = self._resolve_preset_chain(preset_name, set())
+                        dependencies.update(preset_deps)
+                
+                # Resolve external files from template actions
+                if hasattr(template, 'actions') and template.actions:
+                    template_external_files = self._extract_external_files_from_template_actions(template.actions)
+                    
+                    # Track each external file as a dependency
+                    for file_path in template_external_files:
+                        external_dep = self._create_external_file_dependency(file_path)
+                        if external_dep:
+                            dependencies[file_path] = external_dep
+                            self.logger.debug(f"Tracked external file from template {template_name}: {file_path}")
+                            
         except Exception as e:
             self.logger.warning(f"Failed to resolve transitive dependencies for template {template_name}: {e}")
             
         return dependencies
+
+    def _extract_external_files_from_template_actions(self, template_actions: List[Dict[str, Any]]) -> Set[str]:
+        """Extract external file references from template actions (raw dictionary format).
+        
+        Args:
+            template_actions: List of action dictionaries from template
+            
+        Returns:
+            Set of external file paths found in template actions
+        """
+        files = set()
+        
+        for action in template_actions:
+            # Expectations files (data quality)
+            if action.get('expectations_file'):
+                files.add(action['expectations_file'])
+            
+            # Python transform files
+            if action.get('type') == 'transform' and action.get('transform_type') == 'python':
+                if action.get('module_path'):
+                    files.add(action['module_path'])
+            
+            # Python load files
+            if action.get('type') == 'load':
+                source = action.get('source', {})
+                if isinstance(source, dict):
+                    if source.get('type') == 'python' and source.get('module_path'):
+                        files.add(source['module_path'])
+                    if source.get('sql_path'):
+                        files.add(source['sql_path'])
+            
+            # SQL files (load and transform)
+            if action.get('sql_path'):
+                files.add(action['sql_path'])
+            
+            # Snapshot CDC source function files
+            if action.get('type') == 'write':
+                write_target = action.get('write_target', {})
+                if isinstance(write_target, dict) and write_target.get('mode') == 'snapshot_cdc':
+                    snapshot_config = write_target.get('snapshot_cdc_config', {})
+                    source_function = snapshot_config.get('source_function', {})
+                    if source_function.get('file'):
+                        files.add(source_function['file'])
+        
+        return files
 
     def resolve_global_dependencies(self, environment: str) -> Dict[str, DependencyInfo]:
         """Resolve global dependencies for an environment.

@@ -12,6 +12,7 @@ dev:
   gold_schema: edw_gold
   modelled_schema: edw_gold
   
+  
 secrets:
   default_scope: dev_secrets
   scopes:

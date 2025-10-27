@@ -32,7 +32,8 @@ class DependencyOutputManager:
 
     def save_outputs(self, analyzer: DependencyAnalyzer, result: DependencyAnalysisResult,
                     output_formats: List[str], output_dir: Optional[Path] = None,
-                    job_name: Optional[str] = None) -> Dict[str, Path]:
+                    job_name: Optional[str] = None, job_config_path: Optional[str] = None,
+                    bundle_output: bool = False) -> Dict[str, Path]:
         """
         Save dependency analysis results in specified formats.
 
@@ -42,6 +43,8 @@ class DependencyOutputManager:
             output_formats: List of formats to generate ("dot", "json", "text", "job", "all")
             output_dir: Specific output directory (overrides base_output_dir)
             job_name: Custom name for orchestration job (only used with job format)
+            job_config_path: Custom job config file path (relative to project root)
+            bundle_output: If True, save job file to resources/ directory for bundle integration
 
         Returns:
             Dictionary mapping format names to generated file paths
@@ -82,7 +85,8 @@ class DependencyOutputManager:
                 generated_files["text"] = text_file
 
             if "job" in output_formats:
-                job_file = self._save_job_format(analyzer, result, target_dir, job_name)
+                job_file = self._save_job_format(analyzer, result, target_dir, job_name, 
+                                                 job_config_path, bundle_output)
                 generated_files["job"] = job_file
 
 
@@ -346,17 +350,42 @@ class DependencyOutputManager:
         return lines
 
     def _save_job_format(self, analyzer: DependencyAnalyzer, result: DependencyAnalysisResult,
-                        target_dir: Path, job_name: Optional[str] = None) -> Path:
-        """Save job format to standard filename."""
-        job_generator = JobGenerator()
+                        target_dir: Path, job_name: Optional[str] = None,
+                        job_config_path: Optional[str] = None, bundle_output: bool = False) -> Path:
+        """
+        Save job format to standard filename.
+        
+        Args:
+            analyzer: DependencyAnalyzer instance
+            result: Dependency analysis result
+            target_dir: Target directory for output (used when bundle_output=False)
+            job_name: Custom job name
+            job_config_path: Custom job config file path
+            bundle_output: If True, save to resources/ directory
+            
+        Returns:
+            Path to generated job file
+        """
+        # Create JobGenerator with project root and config path
+        job_generator = JobGenerator(
+            project_root=analyzer.project_root,
+            config_file_path=job_config_path
+        )
 
-        # Extract project name from target directory or use default
-        project_name = target_dir.parent.parent.name if target_dir.parent.parent.name != "." else "lhp_project"
+        # Extract project name from analyzer's project root or use default
+        project_name = analyzer.project_root.name if analyzer.project_root else "lhp_project"
 
         # Use provided job name or generate default
         if not job_name:
             job_name = f"{project_name}_orchestration"
 
-        job_file = target_dir / f"{job_name}.job.yml"
+        # Determine output path based on bundle_output flag
+        if bundle_output:
+            # Save to resources/ directory for Databricks bundle integration
+            job_file = analyzer.project_root / "resources" / f"{job_name}.job.yml"
+        else:
+            # Save to specified target directory (usually .lhp/dependencies/)
+            job_file = target_dir / f"{job_name}.job.yml"
+        
         return job_generator.save_job_to_file(result, job_file, job_name, project_name)
 

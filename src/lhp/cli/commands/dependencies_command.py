@@ -24,6 +24,7 @@ class DependenciesCommand(BaseCommand):
 
     def execute(self, output_format: str = "all", output_dir: Optional[str] = None,
                 pipeline: Optional[str] = None, job_name: Optional[str] = None,
+                job_config_path: Optional[str] = None, bundle_output: bool = False,
                 verbose: bool = False) -> None:
         """
         Execute the dependencies command.
@@ -33,6 +34,8 @@ class DependenciesCommand(BaseCommand):
             output_dir: Output directory path (optional)
             pipeline: Specific pipeline to analyze (optional)
             job_name: Custom name for orchestration job (optional, only used with job format)
+            job_config_path: Custom job config file path (relative to project root)
+            bundle_output: If True, save job file to resources/ directory
             verbose: Enable verbose output
         """
         try:
@@ -65,9 +68,16 @@ class DependenciesCommand(BaseCommand):
             output_formats = self._parse_output_formats(output_format)
             output_path = self._resolve_output_path(output_dir, project_root)
 
-            click.echo(f"\n💾 Generating output files in {output_path}...")
+            # Adjust message if using bundle output
+            if bundle_output:
+                click.echo(f"\n💾 Generating output files...")
+                click.echo(f"   Job file will be saved to resources/ directory for bundle integration")
+            else:
+                click.echo(f"\n💾 Generating output files in {output_path}...")
+            
             generated_files = output_manager.save_outputs(
-                analyzer, result, output_formats, output_path, job_name
+                analyzer, result, output_formats, output_path, job_name,
+                job_config_path, bundle_output
             )
 
             # Display generated files
@@ -102,7 +112,9 @@ class DependenciesCommand(BaseCommand):
                     "Error Type": type(e).__name__,
                     "Error Message": str(e),
                     "Pipeline Filter": pipeline,
-                    "Output Format": output_format
+                    "Output Format": output_format,
+                    "Job Config Path": job_config_path,
+                    "Bundle Output": bundle_output
                 }
             ) from e
 
@@ -253,13 +265,27 @@ def create_dependencies_command():
         help="Analyze specific pipeline only"
     )
     @click.option(
+        "--job-name", "-j",
+        help="Custom name for orchestration job"
+    )
+    @click.option(
+        "--job-config", "-jc",
+        "job_config_path",
+        help="Custom job config file path"
+    )
+    @click.option(
+        "--bundle-output", "-b",
+        is_flag=True,
+        help="Save job file to resources/ directory"
+    )
+    @click.option(
         "--verbose", "-v",
         is_flag=True,
         help="Enable verbose output"
     )
-    def deps(output_format, output_dir, pipeline, verbose):
+    def deps(output_format, output_dir, pipeline, job_name, job_config_path, bundle_output, verbose):
         """Analyze and visualize pipeline dependencies for orchestration planning."""
         command = DependenciesCommand()
-        command.execute(output_format, output_dir, pipeline, verbose)
+        command.execute(output_format, output_dir, pipeline, job_name, job_config_path, bundle_output, verbose)
 
     return deps

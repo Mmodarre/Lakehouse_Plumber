@@ -14,8 +14,8 @@ FLOWGROUP_ID = "partsupp_silver_dim"
 # ============================================================================
 
 # Snapshot function embedded directly in generated code
-from pyspark.sql import DataFrame
 from typing import Optional, Tuple
+from pyspark.sql import DataFrame
 
 
 def next_snapshot_and_version(

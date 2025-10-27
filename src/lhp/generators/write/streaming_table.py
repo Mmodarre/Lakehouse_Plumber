@@ -486,20 +486,22 @@ def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, 
         # Combine imports and function
         result = []
 
-        # Add necessary imports (filter out duplicates and common ones)
+        # Add necessary imports (filter out duplicates and imports truly available in DLT context)
         unique_imports = []
         for imp in imports:
-            # Skip imports that are usually already available in DLT context
-            if not any(skip in imp for skip in ["pyspark", "spark"]):
-                if imp not in unique_imports:
-                    unique_imports.append(imp)
-
-        # Add DataFrame import if it's referenced in type hints
-        function_text = "\n".join(function_lines)
-        if "DataFrame" in function_text and not any(
-            "DataFrame" in imp for imp in unique_imports
-        ):
-            unique_imports.insert(0, "from pyspark.sql import DataFrame")
+            # Skip ONLY the imports that are truly available in DLT context
+            # Keep pyspark.sql.functions, pyspark.sql.types, pyspark.sql, and other specific imports
+            skip_import = False
+            
+            # Skip base pyspark session imports (these are redundant in DLT)
+            if imp.startswith("from pyspark import") or imp.startswith("import pyspark"):
+                skip_import = True
+            # Skip spark session imports (spark is available in DLT)
+            elif "SparkSession" in imp or "getOrCreate" in imp:
+                skip_import = True
+            
+            if not skip_import and imp not in unique_imports:
+                unique_imports.append(imp)
 
         if unique_imports:
             result.extend(unique_imports)

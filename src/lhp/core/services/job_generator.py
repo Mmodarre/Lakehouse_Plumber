@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
+import yaml
 
 from ...models.dependencies import DependencyAnalysisResult
 from ...utils.template_renderer import TemplateRenderer
@@ -41,12 +42,24 @@ class JobGenerator:
     job configurations with proper task ordering and dependency management.
     """
 
-    def __init__(self, template_dir: Optional[Path] = None):
+    # Default job configuration values
+    DEFAULT_JOB_CONFIG = {
+        "max_concurrent_runs": 1,
+        "queue": {"enabled": True},
+        "performance_target": "STANDARD"
+    }
+
+    def __init__(self, 
+                 template_dir: Optional[Path] = None,
+                 project_root: Optional[Path] = None,
+                 config_file_path: Optional[str] = None):
         """
         Initialize the job generator.
 
         Args:
             template_dir: Directory containing Jinja2 templates. If None, uses default.
+            project_root: Root directory of the project for loading custom config.
+            config_file_path: Custom config file path (relative to project_root).
         """
         if template_dir is None:
             # Default to the templates directory in the package
@@ -61,6 +74,70 @@ class JobGenerator:
             keep_trailing_newline=True
         )
         self.logger = logger
+        
+        # Load and merge job configuration
+        self.job_config = self._load_job_config(project_root, config_file_path)
+
+    def _load_job_config(self, 
+                         project_root: Optional[Path] = None,
+                         config_file_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Load user's custom job config and merge with defaults.
+        
+        Args:
+            project_root: Root directory of the project
+            config_file_path: Custom config file path (relative to project_root)
+            
+        Returns:
+            Merged job configuration dictionary
+            
+        Raises:
+            FileNotFoundError: If specified config file doesn't exist
+            yaml.YAMLError: If config file has invalid YAML syntax
+        """
+        # Start with defaults
+        config = self.DEFAULT_JOB_CONFIG.copy()
+        
+        # If no project root, return defaults only
+        if project_root is None:
+            return config
+        
+        # Determine config file path
+        if config_file_path:
+            # Custom path specified
+            full_config_path = project_root / config_file_path
+            if not full_config_path.exists():
+                raise FileNotFoundError(
+                    f"Job config file not found: {config_file_path} "
+                    f"(looking in {project_root})"
+                )
+        else:
+            # Default path
+            full_config_path = project_root / "templates" / "bundle" / "job_config.yaml"
+            if not full_config_path.exists():
+                # No custom config, return defaults
+                self.logger.debug(f"No custom job config found at {full_config_path}, using defaults")
+                return config
+        
+        # Load user config
+        try:
+            with open(full_config_path, 'r', encoding='utf-8') as f:
+                user_config = yaml.safe_load(f)
+            
+            # If file is empty or only comments, return defaults
+            if user_config is None:
+                self.logger.debug(f"Empty config file at {full_config_path}, using defaults")
+                return config
+            
+            # Merge user config with defaults (user values override)
+            config.update(user_config)
+            self.logger.info(f"Loaded custom job config from {full_config_path}")
+            
+            return config
+            
+        except yaml.YAMLError as e:
+            self.logger.error(f"Invalid YAML in job config file {full_config_path}: {e}")
+            raise
 
     def generate_job(self,
                     dependency_result: DependencyAnalysisResult,
@@ -99,7 +176,8 @@ class JobGenerator:
             "job_name": job_name,
             "execution_stages": job_stages,
             "total_pipelines": len(dependency_result.pipeline_dependencies),
-            "total_stages": len(dependency_result.execution_stages)
+            "total_stages": len(dependency_result.execution_stages),
+            "job_config": self.job_config
         }
 
         # Render template

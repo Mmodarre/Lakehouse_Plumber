@@ -1,0 +1,15 @@
+project_defaults:
+  notifications:
+    - email_recipients:
+        - admin@company.com
+      alerts:
+        - on-update-failure
+
+---
+pipeline: override_pipeline
+notifications:
+  - email_recipients:
+      - team@company.com
+    alerts:
+      - on-update-success
+
