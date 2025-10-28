@@ -1,0 +1,35 @@
+# Pipeline configuration for E2E testing
+# Tests non-serverless cluster configuration
+
+project_defaults:
+  serverless: true
+
+
+---
+pipeline: acmi_edw_raw
+serverless: false 
+clusters:
+  - label: default
+    node_type_id: Standard_D16ds_v5
+    driver_node_type_id: Standard_D32ds_v5
+    autoscale:
+      min_workers: 2
+      max_workers: 10
+      mode: ENHANCED
+photon: true
+edition: ADVANCED
+channel: PREVIEW
+continuous: true
+
+---
+pipeline: acmi_edw_bronze
+serverless: false
+clusters:
+  - label: default
+    node_type_id: Standard_D8ds_v5
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+      mode: ENHANCED
+
+

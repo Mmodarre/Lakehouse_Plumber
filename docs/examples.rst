@@ -50,6 +50,49 @@ Customising the Example
 2. Tweak presets under ``presets/`` (e.g., change table properties).  
 3. Adjust schema hints or expectations JSON to enforce your data contract.
 
+Multi-Flowgroup Files
+---------------------
+
+For projects with many similar flowgroups, you can combine multiple flowgroups
+into a single YAML file to reduce file proliferation and improve organization.
+
+Example: SAP Master Data (3 files → 1 file)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Instead of:
+
+* ``brand_ingestion.yaml``
+* ``category_ingestion.yaml``
+* ``carrier_ingestion.yaml``
+
+Use one file ``sap_master_data.yaml``:
+
+.. code-block:: yaml
+
+   pipeline: raw_ingestions_sap
+   use_template: TMPL003_parquet_ingestion_template
+   
+   flowgroups:
+     - flowgroup: sap_brand_ingestion
+       template_parameters:
+         table_name: raw_sap_brand
+         landing_folder: brand
+     
+     - flowgroup: sap_cat_ingestion
+       template_parameters:
+         table_name: raw_sap_cat
+         landing_folder: category
+     
+     - flowgroup: sap_carrier_ingestion
+       template_parameters:
+         table_name: raw_sap_carrier
+         landing_folder: carrier
+
+**Result:** 67% file reduction with identical functionality.
+
+See :doc:`multi_flowgroup_guide` for complete documentation with inheritance rules,
+syntax options, migration guides, and real-world examples.
+
 More Examples (Coming Soon)
 ---------------------------
 

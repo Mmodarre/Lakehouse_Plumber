@@ -110,6 +110,14 @@ Create a new pipeline configuration in the ``pipelines/`` folder.
       • **Implements medallion architecture** by writing to the bronze schema for downstream processing
       • **Enables streaming** with ``readMode: stream`` for incremental read from Delta Change Data Feed (CDF)
 
+.. tip::
+   **Multi-Flowgroup Files:**
+   
+   You can define multiple flowgroups in a single YAML file to reduce file proliferation.
+   This is useful when you have many similar flowgroups (e.g., SAP master data tables).
+   
+   See :doc:`multi_flowgroup_guide` for detailed examples and syntax options.
+
 .. code-block:: yaml
    :caption: pipelines/customer_sample.yaml
    :linenos:

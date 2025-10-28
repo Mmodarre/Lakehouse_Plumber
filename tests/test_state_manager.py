@@ -1495,4 +1495,56 @@ class TestGenerationContextHashing:
             second_hash = list(second_state.values())[0].file_composite_checksum
             
             # Hashes should be the same since empty context is ignored
-            assert first_hash == second_hash 
+            assert first_hash == second_hash
+
+
+class TestStateManagerMultiFlowgroup:
+    """Test StateManager handling of multi-flowgroup files."""
+    
+    def test_get_current_yaml_files_with_multi_document_file(self, tmp_path):
+        """StateManager should handle multi-document flowgroup files."""
+        # Create multi-document file with two flowgroups for same pipeline
+        pipelines_dir = tmp_path / "pipelines" / "raw"
+        pipelines_dir.mkdir(parents=True)
+        
+        multi_fg = pipelines_dir / "multi.yaml"
+        multi_fg.write_text("""
+pipeline: raw_pipeline
+flowgroup: fg1
+actions: []
+---
+pipeline: raw_pipeline
+flowgroup: fg2
+actions: []
+""")
+        
+        state_manager = StateManager(tmp_path)
+        yaml_files = state_manager.get_current_yaml_files(pipeline="raw_pipeline")
+        
+        assert multi_fg in yaml_files
+    
+    def test_get_current_yaml_files_filters_by_any_flowgroup_in_file(self, tmp_path):
+        """File should match if ANY flowgroup matches pipeline filter."""
+        pipelines_dir = tmp_path / "pipelines"
+        pipelines_dir.mkdir(parents=True)
+        
+        # File with mixed pipelines
+        mixed = pipelines_dir / "mixed.yaml"
+        mixed.write_text("""
+pipeline: pipeline_a
+flowgroup: fg1
+actions: []
+---
+pipeline: pipeline_b
+flowgroup: fg2
+actions: []
+""")
+        
+        state_manager = StateManager(tmp_path)
+        
+        # Should find file when filtering by either pipeline
+        files_a = state_manager.get_current_yaml_files(pipeline="pipeline_a")
+        files_b = state_manager.get_current_yaml_files(pipeline="pipeline_b")
+        
+        assert mixed in files_a
+        assert mixed in files_b 

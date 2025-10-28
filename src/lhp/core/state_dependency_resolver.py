@@ -31,12 +31,16 @@ class StateDependencyResolver:
         self.template_engine = TemplateEngine(project_root / "templates")
         
         # Cache for dependency paths (not checksums!)
-        # Key: (yaml_file, source_checksum, environment)
+        # Key: (yaml_file, source_checksum, environment, pipeline, flowgroup)
         # Value: Dict[str, Tuple[type, last_modified]] - paths with metadata but no checksums
-        self._dependency_paths_cache: Dict[Tuple[str, str, str], Dict[str, Tuple[str, str]]] = {}
+        self._dependency_paths_cache: Dict[Tuple[str, str, str, str, str], Dict[str, Tuple[str, str]]] = {}
 
-    def resolve_file_dependencies(self, yaml_file: Path, environment: str) -> Dict[str, DependencyInfo]:
+    def resolve_file_dependencies(self, yaml_file: Path, environment: str, 
+                                  pipeline: str = None, flowgroup_name: str = None) -> Dict[str, DependencyInfo]:
         """Resolve all dependencies for a YAML file with safe caching.
+        
+        Supports multi-flowgroup files. If pipeline and flowgroup_name are provided,
+        resolves dependencies for that specific flowgroup only.
         
         Caches dependency discovery (which files are referenced) but always recalculates
         checksums to preserve change detection accuracy.
@@ -44,6 +48,8 @@ class StateDependencyResolver:
         Args:
             yaml_file: Path to the YAML file (relative to project_root)
             environment: Environment name for dependency resolution
+            pipeline: Optional pipeline name to identify specific flowgroup in multi-flowgroup files
+            flowgroup_name: Optional flowgroup name to identify specific flowgroup in multi-flowgroup files
             
         Returns:
             Dictionary mapping dependency paths to DependencyInfo objects with CURRENT checksums
@@ -57,7 +63,8 @@ class StateDependencyResolver:
             # Calculate source YAML checksum for cache key
             source_checksum = self._calculate_checksum(resolved_yaml_file)
             yaml_file_str = str(yaml_file)
-            cache_key = (yaml_file_str, source_checksum, environment)
+            # Include pipeline and flowgroup in cache key for multi-flowgroup files
+            cache_key = (yaml_file_str, source_checksum, environment, pipeline or '', flowgroup_name or '')
             
             # Check cache for dependency paths
             if cache_key in self._dependency_paths_cache:
@@ -67,22 +74,40 @@ class StateDependencyResolver:
                 self.logger.debug(f"Cache hit: Reused {len(dependencies)} dependency paths for {yaml_file}")
             else:
                 # Cache miss: full discovery and resolution
-                flowgroup = self.yaml_parser.parse_flowgroup(resolved_yaml_file)
+                # Parse all flowgroups from file (supports multi-document and array syntax)
+                flowgroups = self.yaml_parser.parse_flowgroups_from_file(resolved_yaml_file)
+                
+                # Find the specific flowgroup if pipeline and flowgroup_name provided
+                target_flowgroup = None
+                if pipeline and flowgroup_name:
+                    for fg in flowgroups:
+                        if fg.pipeline == pipeline and fg.flowgroup == flowgroup_name:
+                            target_flowgroup = fg
+                            break
+                    if not target_flowgroup:
+                        self.logger.warning(f"Flowgroup {flowgroup_name} not found in {yaml_file}")
+                        return dependencies
+                else:
+                    # If no specific flowgroup specified, use first one (backward compat)
+                    target_flowgroup = flowgroups[0] if flowgroups else None
+                
+                if not target_flowgroup:
+                    return dependencies
                 
                 # Resolve preset dependencies
-                preset_deps = self._resolve_preset_dependencies(flowgroup)
+                preset_deps = self._resolve_preset_dependencies(target_flowgroup)
                 dependencies.update(preset_deps)
                 
                 # Resolve template dependencies
-                template_deps = self._resolve_template_dependencies(flowgroup)
+                template_deps = self._resolve_template_dependencies(target_flowgroup)
                 dependencies.update(template_deps)
                 
                 # Resolve custom data source dependencies
-                custom_datasource_deps = self._resolve_custom_datasource_dependencies(flowgroup)
+                custom_datasource_deps = self._resolve_custom_datasource_dependencies(target_flowgroup)
                 dependencies.update(custom_datasource_deps)
                 
                 # Resolve external file dependencies (Python, SQL, etc.)
-                external_file_deps = self._resolve_external_file_dependencies(flowgroup)
+                external_file_deps = self._resolve_external_file_dependencies(target_flowgroup)
                 dependencies.update(external_file_deps)
                 
                 # Cache the dependency paths (without checksums)
@@ -95,12 +120,12 @@ class StateDependencyResolver:
             
         return dependencies
     
-    def _cache_dependency_paths(self, cache_key: Tuple[str, str, str], 
+    def _cache_dependency_paths(self, cache_key: Tuple[str, str, str, str, str], 
                                 dependencies: Dict[str, DependencyInfo]) -> None:
         """Cache dependency paths and metadata (but not checksums).
         
         Args:
-            cache_key: Cache key tuple (yaml_file, source_checksum, environment)
+            cache_key: Cache key tuple (yaml_file, source_checksum, environment, pipeline, flowgroup)
             dependencies: Full dependency info with checksums
         """
         # Store only paths, types, and last_modified (not checksums)

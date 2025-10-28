@@ -1,0 +1,26 @@
+pipeline: acmi_edw_raw
+
+flowgroup: lineitem_ingestion_middle_east
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: lineitem_middle_east_raw
+  landing_folder: lineitem/region_MIDDLE_EAST
+
+---
+pipeline: acmi_edw_raw
+flowgroup: orders_ingestion_middle_east
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: orders_middle_east_raw
+  landing_folder: orders/region_MIDDLE_EAST
+
+---
+pipeline: acmi_edw_raw
+flowgroup: supplier_ingestion_incremental
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: supplier_raw
+  landing_folder: supplier
+

@@ -77,7 +77,9 @@ class BundleManager:
         """
         return self.resources_base_dir
     
-    def sync_resources_with_generated_files(self, output_dir: Path, env: str) -> int:
+    def sync_resources_with_generated_files(self, output_dir: Path, env: str, 
+                                           force: bool = False, 
+                                           has_pipeline_config: bool = False) -> int:
         """
         Conservatively sync bundle resource files with generated Python files.
         
@@ -92,6 +94,7 @@ class BundleManager:
         | Python Dir | Bundle File Type | Action |
         |------------|------------------|--------|
         | Exists     | LHP file         | DON'T TOUCH (Scenario 1a) |
+        | Exists     | LHP file + force + pc | REGENERATE (Scenario 1a override) |
         | Exists     | User file        | BACKUP + REPLACE (Scenario 1b) |
         | Exists     | No file          | CREATE (Scenario 2) |
         | Missing    | Any file         | DELETE (Scenario 3) |
@@ -100,6 +103,8 @@ class BundleManager:
         Args:
             output_dir: Directory containing generated Python files
             env: Environment name for template processing
+            force: Force regeneration even for LHP-generated files
+            has_pipeline_config: Whether a custom pipeline config was provided
             
         Returns:
             Number of resource files updated or removed
@@ -114,7 +119,7 @@ class BundleManager:
             self._setup_sync_environment(env, output_dir)
         
         # Step 1: Process current pipelines using Conservative Approach
-        updated_count = self._process_current_pipelines(current_pipeline_dirs, env)
+        updated_count = self._process_current_pipelines(current_pipeline_dirs, env, force, has_pipeline_config)
         
         # Step 2: Clean up orphaned resources  
         removed_count = self._cleanup_orphaned_resources(current_pipeline_names)
@@ -126,12 +131,14 @@ class BundleManager:
         self._log_sync_summary(updated_count, removed_count)
         return updated_count + removed_count
 
-    def _sync_pipeline_resource(self, pipeline_name: str, pipeline_dir: Path, env: str) -> bool:
+    def _sync_pipeline_resource(self, pipeline_name: str, pipeline_dir: Path, env: str,
+                               force: bool = False, has_pipeline_config: bool = False) -> bool:
         """
         Sync a single pipeline resource file using conservative approach.
         
         Decision Logic:
         - Scenario 1a: Python exists + LHP file exists → DON'T TOUCH (preserve existing)
+        - Scenario 1a override: Python exists + LHP file + force + pipeline config → REGENERATE
         - Scenario 1b: Python exists + User file exists → BACKUP + REPLACE  
         - Scenario 2:  Python exists + No file exists → CREATE
         - Scenario 4:  Multiple files exist → ERROR (configuration error)
@@ -140,6 +147,8 @@ class BundleManager:
             pipeline_name: Name of the pipeline
             pipeline_dir: Directory containing pipeline Python files  
             env: Environment name
+            force: Force regeneration even for LHP-generated files
+            has_pipeline_config: Whether a custom pipeline config was provided
             
         Returns:
             True if resource file was created or updated, False if no changes needed
@@ -161,10 +170,15 @@ class BundleManager:
         if related_files:
             existing_file = related_files[0]
             
-            # Scenario 1a: LHP file exists - DON'T TOUCH (conservative)
+            # Scenario 1a: LHP file exists - regenerate only with force + pipeline-config
             if self._is_lhp_generated_file(existing_file):
-                self.logger.debug(f"Scenario 1a: Skipping {existing_file.name} (LHP file preserved)")
-                return False
+                if force and has_pipeline_config:
+                    self.logger.info(f"Scenario 1a override: Force regenerating {existing_file.name} with pipeline config")
+                    self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
+                    return True
+                else:
+                    self.logger.debug(f"Scenario 1a: Skipping {existing_file.name} (LHP file preserved)")
+                    return False
             
             # Scenario 1b: User file exists - BACKUP + REPLACE  
             else:
@@ -878,13 +892,16 @@ class BundleManager:
         
         return current_pipeline_dirs, current_pipeline_names, existing_resource_files
 
-    def _process_current_pipelines(self, current_pipeline_dirs: List[Path], env: str) -> int:
+    def _process_current_pipelines(self, current_pipeline_dirs: List[Path], env: str,
+                                  force: bool = False, has_pipeline_config: bool = False) -> int:
         """
         Process current pipeline directories using Conservative Approach.
         
         Args:
             current_pipeline_dirs: List of pipeline directories to process
             env: Environment name for template processing
+            force: Force regeneration even for LHP-generated files
+            has_pipeline_config: Whether a custom pipeline config was provided
             
         Returns:
             Number of pipelines that were updated
@@ -899,7 +916,7 @@ class BundleManager:
             pipeline_name = pipeline_dir.name
             
             try:
-                if self._sync_pipeline_resource(pipeline_name, pipeline_dir, env):
+                if self._sync_pipeline_resource(pipeline_name, pipeline_dir, env, force, has_pipeline_config):
                     updated_count += 1
                     self.logger.debug("Successfully synced pipeline: %s", pipeline_name)
                     

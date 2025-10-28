@@ -66,7 +66,7 @@ class DependencyTracker:
         # Ensure rel_source is a Path object
         rel_source_path = Path(rel_source) if isinstance(rel_source, str) else rel_source
         file_dependencies = self.dependency_resolver.resolve_file_dependencies(
-            rel_source_path, environment
+            rel_source_path, environment, pipeline, flowgroup
         )
         
         # Calculate composite checksum for all dependencies

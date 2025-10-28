@@ -534,6 +534,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
         mock_state_manager.get_files_needing_generation.return_value = generation_info
         
         # Mock YAML parser to fail on first file, succeed on second
+        # Note: parse_flowgroups_from_file returns a LIST of flowgroups
         def parse_side_effect(yaml_path):
             if "invalid.yaml" in str(yaml_path):
                 raise Exception("YAML parsing failed")
@@ -541,9 +542,9 @@ class TestActionOrchestratorFlowgroupDiscovery:
                 mock_fg = Mock()
                 mock_fg.flowgroup = "valid_flowgroup"
                 mock_fg.actions = []  # Strategy code expects actions attribute
-                return mock_fg
+                return [mock_fg]  # Return list of flowgroups
         
-        orchestrator_basic.yaml_parser.parse_flowgroup.side_effect = parse_side_effect
+        orchestrator_basic.yaml_parser.parse_flowgroups_from_file.side_effect = parse_side_effect
         
         with patch.object(orchestrator_basic, 'logger') as mock_logger:
             # Act

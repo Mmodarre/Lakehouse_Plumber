@@ -18,40 +18,40 @@ actions:
     source:
       type: delta
       database: "{catalog}.{raw_schema}"
-      table: customer
-    target: v_customer_raw
+      table: customers
+    target: v_customer_raws
     description: "Load customer table from raw schema" 
 
   - name: customer_bronze_cleanse
     type: transform
     transform_type: python
-    source: v_customer_raw
+    source: v_customer_raws
     module_path: "py_functions/sample_func.py"
     function_name: "transform_lrc_data_streaming"
     readMode: stream
     parameters:
       spark: spark
       parameters: {}
-    target: v_customer_bronze_cleaned
+    target: v_customer_bronze_cleaneds
     operational_metadata: ["_processing_timestamp"]
 
 
   - name: customer_bronze_DQE
     type: transform
     transform_type: data_quality
-    source: v_customer_bronze_cleaned
-    target: v_customer_bronze_DQE
+    source: v_customer_bronze_cleaneds
+    target: v_customer_bronze_DQEs
     readMode: stream  
     expectations_file: "expectations/customer_quality.json"
     description: "Apply data quality checks to customer"
 
   - name: write_customer_bronze
     type: write
-    source: v_customer_bronze_DQE
+    source: v_customer_bronze_DQEs
     write_target:
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
-      table: "customer"
+      table: "customers"
       table_properties:
         tag_name1: tag_value1
         tag_name2: tag_value2
