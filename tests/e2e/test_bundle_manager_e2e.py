@@ -124,7 +124,16 @@ resources:
     def run_bundle_sync(self) -> tuple:
         """Run bundle sync via lhp generate and return (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ['--verbose', 'generate', '--env', 'dev'])
+        # Use pipeline config if it exists
+        pipeline_config = self.project_root / "config" / "pipeline_config.yaml"
+        if pipeline_config.exists():
+            result = runner.invoke(cli, [
+                '--verbose', 'generate', '--env', 'dev',
+                '--pipeline-config', 'config/pipeline_config.yaml',
+                '--force'
+            ])
+        else:
+            result = runner.invoke(cli, ['--verbose', 'generate', '--env', 'dev'])
         return result.exit_code, result.output
     
     def assert_log_contains(self, output: str, expected: str):
@@ -449,8 +458,17 @@ resources:
             
             # Run generate command for dev environment with include filtering
             runner = CliRunner()
-            result = runner.invoke(cli, ['--verbose', 'generate', '--env', 'dev'], 
-                                 catch_exceptions=False)
+            # Use pipeline config if it exists (same logic as run_bundle_sync)
+            pipeline_config = self.project_root / "config" / "pipeline_config.yaml"
+            if pipeline_config.exists():
+                result = runner.invoke(cli, [
+                    '--verbose', 'generate', '--env', 'dev',
+                    '--pipeline-config', 'config/pipeline_config.yaml',
+                    '--force'
+                ], catch_exceptions=False)
+            else:
+                result = runner.invoke(cli, ['--verbose', 'generate', '--env', 'dev'], 
+                                     catch_exceptions=False)
             exit_code, output = result.exit_code, result.output
             
             assert exit_code == 0, f"Generate with include filtering should succeed: {output}"

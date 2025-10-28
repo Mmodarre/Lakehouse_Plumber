@@ -17,9 +17,9 @@ FLOWGROUP_ID = "python_func_flowgroup"
 
 
 @dlt.view()
-def v_customer_raw():
+def v_customer_raws():
     """Load customer table from raw schema"""
-    df = spark.readStream.table("acme_edw_dev.edw_raw.customer")
+    df = spark.readStream.table("acme_edw_dev.edw_raw.customers")
 
     # Add operational metadata columns
     df = df.withColumn("_processing_timestamp", F.current_timestamp())
@@ -33,14 +33,14 @@ def v_customer_raw():
 
 
 @dlt.view()
-def v_customer_bronze_cleaned():
+def v_customer_bronze_cleaneds():
     """Python transform: sample_func.transform_lrc_data_streaming"""
     # Load source view(s)
-    v_customer_raw_df = spark.readStream.table("v_customer_raw")
+    v_customer_raws_df = spark.readStream.table("v_customer_raws")
 
     # Apply Python transformation
     parameters = {"spark": "spark", "parameters": {}}
-    df = transform_lrc_data_streaming(v_customer_raw_df, spark, parameters)
+    df = transform_lrc_data_streaming(v_customer_raws_df, spark, parameters)
 
     # Add operational metadata columns
     df = df.withColumn("_processing_timestamp", F.current_timestamp())
@@ -65,9 +65,9 @@ def v_customer_bronze_cleaned():
         "valid_market_segment": "market_segment IS NULL OR market_segment IN ('BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY')",
     }
 )
-def v_customer_bronze_DQE():
+def v_customer_bronze_DQEs():
     """Apply data quality checks to customer"""
-    df = spark.readStream.table("v_customer_bronze_cleaned")
+    df = spark.readStream.table("v_customer_bronze_cleaneds")
 
     return df
 
@@ -78,8 +78,8 @@ def v_customer_bronze_DQE():
 
 # Create the streaming table
 dlt.create_streaming_table(
-    name="acme_edw_dev.edw_bronze.customer",
-    comment="Streaming table: customer",
+    name="acme_edw_dev.edw_bronze.customers",
+    comment="Streaming table: customers",
     table_properties={
         "tag_name1": "tag_value1",
         "tag_name2": "tag_value2",
@@ -90,13 +90,13 @@ dlt.create_streaming_table(
 
 # Define append flow(s)
 @dlt.append_flow(
-    target="acme_edw_dev.edw_bronze.customer",
+    target="acme_edw_dev.edw_bronze.customers",
     name="f_customer_bronze",
-    comment="Append flow to acme_edw_dev.edw_bronze.customer",
+    comment="Append flow to acme_edw_dev.edw_bronze.customers",
 )
 def f_customer_bronze():
-    """Append flow to acme_edw_dev.edw_bronze.customer"""
+    """Append flow to acme_edw_dev.edw_bronze.customers"""
     # Streaming flow
-    df = spark.readStream.table("v_customer_bronze_DQE")
+    df = spark.readStream.table("v_customer_bronze_DQEs")
 
     return df

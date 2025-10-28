@@ -11,3 +11,4 @@ defaults:
         delta.autoOptimize.autoCompact: "true"
         delta.enableChangeDataFeed: "true"
 
+
