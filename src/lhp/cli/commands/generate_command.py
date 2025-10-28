@@ -131,7 +131,7 @@ class GenerateCommand(BaseCommand):
         # 9. Handle bundle operations (coordinate)
         if not no_bundle:
             self._handle_bundle_operations(
-                project_root, output_dir, env, no_bundle, dry_run, pipeline_config
+                project_root, output_dir, env, no_bundle, dry_run, force, pipeline_config
             )
         
         # 10. Display completion message (presentation)
@@ -349,20 +349,30 @@ class GenerateCommand(BaseCommand):
                 click.echo("✅ No orphaned files found")
     
     def _handle_bundle_operations(self, project_root: Path, output_dir: Path, env: str,
-                                no_bundle: bool, dry_run: bool, pipeline_config_path: Optional[str] = None) -> None:
+                                no_bundle: bool, dry_run: bool, force: bool = False,
+                                pipeline_config_path: Optional[str] = None) -> None:
         """Handle bundle operations - coordinate with bundle management."""
         try:
             # Check if bundle support should be enabled
             bundle_enabled = should_enable_bundle_support(project_root, no_bundle)
             if bundle_enabled:
                 click.echo("Bundle support detected")
+                
+                # Display force regeneration message when both flags are present
+                if force and pipeline_config_path is not None:
+                    click.echo("🔄 Force regenerating pipeline YAML files with pipeline config changes")
+                
                 if self.verbose:
                     click.echo("🔗 Bundle support detected - syncing resource files...")
                 
                 # Only actually sync if not dry-run
                 if not dry_run:
                     bundle_manager = BundleManager(project_root, pipeline_config_path)
-                    bundle_manager.sync_resources_with_generated_files(output_dir, env)
+                    bundle_manager.sync_resources_with_generated_files(
+                        output_dir, env,
+                        force=force,
+                        has_pipeline_config=(pipeline_config_path is not None)
+                    )
                     click.echo("📦 Bundle resource files synchronized")
                     
                     if self.verbose:

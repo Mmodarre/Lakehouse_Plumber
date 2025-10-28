@@ -225,8 +225,8 @@ actions: []
                 source_yaml_checksum=current_yaml_checksum,
                 timestamp=datetime.now().isoformat(),
                 environment="dev",
-                pipeline="test_pipeline",
-                flowgroup="test_flowgroup",
+                pipeline="test",
+                flowgroup="test",
                 file_dependencies={"presets/bronze_layer.yaml": current_preset_info}
             )
             

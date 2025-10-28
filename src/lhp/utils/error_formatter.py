@@ -1,7 +1,8 @@
 """Error formatter for user-friendly error messages."""
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from enum import Enum
+from pathlib import Path
 import textwrap
 from difflib import get_close_matches
 
@@ -85,6 +86,52 @@ class LHPError(Exception):
         lines.append("=" * 70)
 
         return "\n".join(lines)
+
+
+class MultiDocumentError(LHPError):
+    """Error raised when a single-document loader encounters wrong number of documents."""
+    
+    def __init__(
+        self, 
+        file_path: Union[Path, str], 
+        num_documents: int, 
+        error_context: Optional[str] = None
+    ):
+        """
+        Initialize MultiDocumentError.
+        
+        Args:
+            file_path: Path to the YAML file
+            num_documents: Number of documents found (0 for empty, 2+ for multi-document)
+            error_context: Optional context for error message
+        """
+        # Normalize to Path for consistent handling
+        file_path = Path(file_path)
+        context_str = error_context or f"YAML file {file_path}"
+        
+        if num_documents == 0:
+            details = f"The file '{file_path}' is empty or contains no valid YAML documents."
+            suggestions = [
+                "Ensure the file contains valid YAML content",
+                "Check that the file is not empty",
+                "Verify the file encoding is UTF-8"
+            ]
+        else:
+            details = f"The {context_str} contains {num_documents} documents (separated by '---'), but expected exactly 1."
+            suggestions = [
+                "Use load_yaml_documents_all() for multi-document YAML files",
+                "Remove extra '---' separators if you intended a single document",
+                "Split the file into separate files, one per document"
+            ]
+        
+        super().__init__(
+            category=ErrorCategory.IO,
+            code_number="003",
+            title=f"Invalid Document Count: Expected 1, Found {num_documents}",
+            details=details,
+            suggestions=suggestions,
+            context={"file_path": str(file_path), "num_documents": num_documents}
+        )
 
 
 class ErrorFormatter:

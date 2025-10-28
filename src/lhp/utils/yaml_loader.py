@@ -11,46 +11,51 @@ import yaml
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List
 
+from .error_formatter import MultiDocumentError
+
 
 def load_yaml_file(file_path: Union[Path, str], 
                   allow_empty: bool = True, 
                   error_context: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    Standard PyYAML loading with consistent error handling.
+    Standard PyYAML loading with single-document validation and consistent error handling.
     
-    Consolidates the repeated pattern:
-    ```python
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = yaml.safe_load(f)
-        return content or {}
-    except yaml.YAMLError as e:
-        raise ValueError(f"Invalid YAML in {file_path}: {e}")
-    ```
+    This function validates that the YAML file contains EXACTLY ONE document.
+    Empty files (zero documents) or files with multiple documents (--- separators) 
+    will raise MultiDocumentError. For multi-document files, use load_yaml_documents_all().
     
     Args:
         file_path: Path to YAML file to load
-        allow_empty: If True, return {} for empty/None content; if False, return None
+        allow_empty: If True, return {} for null document; if False, return None for null document
         error_context: Custom context string for error messages (e.g., "substitution file")
         
     Returns:
-        Parsed YAML content as dict, {} if empty and allow_empty=True, or None if empty and allow_empty=False
+        Parsed YAML content as dict, {} if document is null and allow_empty=True, 
+        or None if document is null and allow_empty=False
         
     Raises:
+        MultiDocumentError: If file contains 0 documents or more than 1 document (LHP-IO-003)
         ValueError: If YAML is malformed or file cannot be read
         
     Examples:
         >>> config = load_yaml_file("config.yaml")
+        >>> # Raises MultiDocumentError if config.yaml has multiple documents
         >>> substitutions = load_yaml_file(sub_file, error_context="substitution file") 
-        >>> data = load_yaml_file("data.yaml", allow_empty=False)  # Returns None if empty
+        >>> data = load_yaml_file("data.yaml", allow_empty=False)  # Returns None if null document
     """
     file_path = Path(file_path)
     
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            content = yaml.safe_load(f)
+            documents = list(yaml.safe_load_all(f))
         
-        # Handle empty/None content based on allow_empty flag
+        # Validate exactly one document exists
+        if len(documents) != 1:
+            raise MultiDocumentError(file_path, len(documents), error_context)
+        
+        content = documents[0]
+        
+        # Handle None content (empty document with just '---')
         if content is None:
             return {} if allow_empty else None
         

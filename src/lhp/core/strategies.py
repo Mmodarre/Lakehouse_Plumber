@@ -124,7 +124,9 @@ class BaseGenerationStrategy:
             if not (context.project_root / source_path).exists():
                 return False
                 
-            file_dependencies = dependency_resolver.resolve_file_dependencies(source_path, context.env)
+            file_dependencies = dependency_resolver.resolve_file_dependencies(
+                source_path, context.env, file_state.pipeline, file_state.flowgroup
+            )
             
             # Calculate current composite checksum with current generation context
             dep_paths = [file_state.source_yaml] + list(file_dependencies.keys())
@@ -170,8 +172,10 @@ class SmartGenerationStrategy(BaseGenerationStrategy):
             try:
                 from ...parsers.yaml_parser import YAMLParser
                 parser = YAMLParser()
-                fg = parser.parse_flowgroup(yaml_path)
-                new_flowgroup_names.add(fg.flowgroup)
+                # Parse all flowgroups from file (supports multi-document and array syntax)
+                flowgroups = parser.parse_flowgroups_from_file(yaml_path)
+                for fg in flowgroups:
+                    new_flowgroup_names.add(fg.flowgroup)
             except Exception as e:
                 self.logger.warning(f"Could not parse new flowgroup {yaml_path}: {e}")
         

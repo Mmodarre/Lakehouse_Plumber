@@ -1,19 +1,99 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "LakehousePlumber FlowGroup",
-    "description": "Schema for LakehousePlumber pipeline configuration files. For Python transforms: use module_path/function_name at action level, source as string/array for input views. For custom_datasource loads: use module_path/custom_datasource_class/options under source object.",
-    "type": "object",
-    "required": ["pipeline", "flowgroup"],
-    "properties": {
-        "pipeline": {
-            "type": "string",
-            "description": "Name of the pipeline this flowgroup belongs to"
+    "description": "Schema for LakehousePlumber pipeline configuration files. Supports single flowgroup, multi-document (---), and array syntax (flowgroups: []). For Python transforms: use module_path/function_name at action level, source as string/array for input views. For custom_datasource loads: use module_path/custom_datasource_class/options under source object.",
+    "oneOf": [
+        {
+            "$ref": "#/definitions/SingleFlowGroup"
         },
-        "flowgroup": {
-            "type": "string",
-            "description": "Name of the flowgroup"
+        {
+            "$ref": "#/definitions/MultiFlowGroupArray"
+        }
+    ],
+    "definitions": {
+        "SingleFlowGroup": {
+            "type": "object",
+            "required": ["pipeline", "flowgroup"],
+            "properties": {
+                "pipeline": {
+                    "type": "string",
+                    "description": "Name of the pipeline this flowgroup belongs to"
+                },
+                "flowgroup": {
+                    "type": "string",
+                    "description": "Name of the flowgroup"
+                },
+                "presets": {
+                    "$ref": "#/definitions/Presets"
+                },
+                "use_template": {
+                    "$ref": "#/definitions/UseTemplate"
+                },
+                "template_parameters": {
+                    "$ref": "#/definitions/TemplateParameters"
+                },
+                "actions": {
+                    "$ref": "#/definitions/Actions"
+                },
+                "operational_metadata": {
+                    "$ref": "#/definitions/OperationalMetadata"
+                }
+            }
         },
-        "presets": {
+        "MultiFlowGroupArray": {
+            "type": "object",
+            "required": ["pipeline", "flowgroups"],
+            "properties": {
+                "pipeline": {
+                    "type": "string",
+                    "description": "Name of the pipeline (inherited by all flowgroups in array)"
+                },
+                "use_template": {
+                    "$ref": "#/definitions/UseTemplate"
+                },
+                "presets": {
+                    "$ref": "#/definitions/Presets"
+                },
+                "operational_metadata": {
+                    "$ref": "#/definitions/OperationalMetadata"
+                },
+                "flowgroups": {
+                    "type": "array",
+                    "description": "Array of flowgroup definitions. Each inherits document-level fields unless explicitly overridden.",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "required": ["flowgroup"],
+                        "properties": {
+                            "flowgroup": {
+                                "type": "string",
+                                "description": "Name of the flowgroup"
+                            },
+                            "pipeline": {
+                                "type": "string",
+                                "description": "Override pipeline name for this flowgroup (optional, inherits from document level)"
+                            },
+                            "use_template": {
+                                "$ref": "#/definitions/UseTemplate"
+                            },
+                            "template_parameters": {
+                                "$ref": "#/definitions/TemplateParameters"
+                            },
+                            "presets": {
+                                "$ref": "#/definitions/Presets"
+                            },
+                            "actions": {
+                                "$ref": "#/definitions/Actions"
+                            },
+                            "operational_metadata": {
+                                "$ref": "#/definitions/OperationalMetadata"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "Presets": {
             "type": "array",
             "description": "List of preset names to apply",
             "items": {
@@ -21,16 +101,16 @@
             },
             "default": []
         },
-        "use_template": {
+        "UseTemplate": {
             "type": "string",
             "description": "Name of the template to use"
         },
-        "template_parameters": {
+        "TemplateParameters": {
             "type": "object",
             "description": "Parameters to pass to the template",
             "additionalProperties": true
         },
-        "actions": {
+        "Actions": {
             "type": "array",
             "description": "List of actions to perform",
             "items": {
@@ -38,7 +118,7 @@
             },
             "default": []
         },
-        "operational_metadata": {
+        "OperationalMetadata": {
             "oneOf": [
                 {
                     "type": "boolean"
@@ -51,9 +131,7 @@
                 }
             ],
             "description": "Operational metadata configuration"
-        }
-    },
-    "definitions": {
+        },
         "Action": {
             "type": "object",
             "required": ["name", "type"],
@@ -301,7 +379,6 @@
                     "description": "Parameters dictionary passed to Python function. Optional for Python transforms and loads.",
                     "additionalProperties": true
                 },
-
                 "schema_file": {
                     "type": "string",
                     "description": "Path to schema file for schema transforms"
@@ -504,4 +581,4 @@
             }
         }
     }
-} 
+}
