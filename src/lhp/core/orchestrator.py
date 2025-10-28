@@ -986,8 +986,10 @@ class ActionOrchestrator:
         new_flowgroups = set()
         for yaml_path in generation_info["new"]:
             try:
-                fg = self.yaml_parser.parse_flowgroup(yaml_path)
-                new_flowgroups.add(fg.flowgroup)
+                # Parse all flowgroups from file (supports multi-document and array syntax)
+                flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_path)
+                for fg in flowgroups:
+                    new_flowgroups.add(fg.flowgroup)
             except Exception as e:
                 self.logger.warning(f"Could not parse new flowgroup {yaml_path}: {e}")
         

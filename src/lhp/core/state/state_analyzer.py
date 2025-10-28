@@ -156,7 +156,9 @@ class StateAnalyzer:
         try:
             # Get current file dependencies
             source_path = Path(file_state.source_yaml)
-            current_deps = self.dependency_resolver.resolve_file_dependencies(source_path, environment)
+            current_deps = self.dependency_resolver.resolve_file_dependencies(
+                source_path, environment, file_state.pipeline, file_state.flowgroup
+            )
             
             # Compare with stored dependencies
             stored_deps = file_state.file_dependencies or {}
@@ -301,18 +303,20 @@ class StateAnalyzer:
         if pipeline:
             pipeline_filtered_files = set()
             
-            # Parse each YAML file to check its pipeline field
+            # Parse each YAML file to check its pipeline field (supports multi-flowgroup files)
             for yaml_file in current_yamls:
                 try:
                     from ...parsers.yaml_parser import YAMLParser
                     yaml_parser = YAMLParser()
-                    content = yaml_parser.parse_file(yaml_file)
+                    # Parse all flowgroups from file (supports multi-document and array syntax)
+                    flowgroups = yaml_parser.parse_flowgroups_from_file(yaml_file)
                     
-                    # Check if this file's pipeline field matches the requested pipeline
-                    file_pipeline = content.get('pipeline')
-                    if file_pipeline == pipeline:
-                        pipeline_filtered_files.add(yaml_file)
-                        self.logger.debug(f"Found YAML file for pipeline '{pipeline}': {yaml_file}")
+                    # Check if ANY flowgroup in this file matches the requested pipeline
+                    for fg in flowgroups:
+                        if fg.pipeline == pipeline:
+                            pipeline_filtered_files.add(yaml_file)
+                            self.logger.debug(f"Found YAML file for pipeline '{pipeline}': {yaml_file}")
+                            break  # File matches, no need to check other flowgroups
                 
                 except Exception as e:
                     self.logger.warning(f"Could not parse YAML file {yaml_file}: {e}")
@@ -366,18 +370,20 @@ class StateAnalyzer:
         if pipeline:
             pipeline_filtered_files = set()
             
-            # Parse each YAML file to check its pipeline field
+            # Parse each YAML file to check its pipeline field (supports multi-flowgroup files)
             for yaml_file in current_yamls:
                 try:
                     from ...parsers.yaml_parser import YAMLParser
                     yaml_parser = YAMLParser()
-                    content = yaml_parser.parse_file(yaml_file)
+                    # Parse all flowgroups from file (supports multi-document and array syntax)
+                    flowgroups = yaml_parser.parse_flowgroups_from_file(yaml_file)
                     
-                    # Check if this file's pipeline field matches the requested pipeline
-                    file_pipeline = content.get('pipeline')
-                    if file_pipeline == pipeline:
-                        pipeline_filtered_files.add(yaml_file)
-                        self.logger.debug(f"Found YAML file for pipeline '{pipeline}': {yaml_file}")
+                    # Check if ANY flowgroup in this file matches the requested pipeline
+                    for fg in flowgroups:
+                        if fg.pipeline == pipeline:
+                            pipeline_filtered_files.add(yaml_file)
+                            self.logger.debug(f"Found YAML file for pipeline '{pipeline}': {yaml_file}")
+                            break  # File matches, no need to check other flowgroups
                 
                 except Exception as e:
                     self.logger.warning(f"Could not parse YAML file {yaml_file}: {e}")
@@ -591,7 +597,9 @@ class StateAnalyzer:
             
             # Check file-specific dependencies
             source_yaml_path = Path(file_state.source_yaml)
-            current_deps = self.dependency_resolver.resolve_file_dependencies(source_yaml_path, environment)
+            current_deps = self.dependency_resolver.resolve_file_dependencies(
+                source_yaml_path, environment, file_state.pipeline, file_state.flowgroup
+            )
             stored_deps = file_state.file_dependencies or {}
             
             # Check for added dependencies

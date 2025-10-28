@@ -107,6 +107,33 @@ See :doc:`databricks_bundles` for detailed pipeline configuration options.
    ``.tmpl`` extension to activate them. This allows you to keep the original
    templates as reference while customizing your own versions.
 
+Force Regeneration of Pipeline Resources
+-----------------------------------------
+
+The ``--force`` flag combined with ``--pipeline-config`` allows you to regenerate bundle pipeline resource YAML files even when they haven't changed.
+
+**Behavior:**
+
+- ``--force`` alone: Regenerates Python code but preserves LHP-generated bundle YAML files
+- ``--force`` with ``-pc``: Regenerates both Python code AND LHP-generated bundle YAML files
+- User-created bundle YAML files are always backed up and replaced (regardless of flags)
+
+**When to Use:**
+
+Use this when you've modified your pipeline configuration and need to update the Databricks Asset Bundle resource files:
+
+.. code-block:: bash
+
+   # Update bundle resources after changing pipeline config
+   lhp generate -e dev --force --pipeline-config config/my_pipeline_config.yaml
+
+   # Or with short flags
+   lhp generate -e dev -f -pc config/my_pipeline_config.yaml
+
+.. note::
+   LHP-generated files are overwritten directly without backup when using ``--force`` with ``-pc``. 
+   This is safe because LHP can always regenerate them. User-created files are backed up for safety.
+
 Test Generation Workflow
 ========================
 

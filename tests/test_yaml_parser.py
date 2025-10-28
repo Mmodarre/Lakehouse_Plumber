@@ -45,9 +45,9 @@ class TestYAMLParserErrorHandling:
             details="This is a test LHP error"
         )
         
-        # Mock yaml.safe_load to raise LHPError
-        with patch('yaml.safe_load') as mock_yaml_load:
-            mock_yaml_load.side_effect = lhp_error
+        # Mock yaml.safe_load_all to raise LHPError
+        with patch('yaml.safe_load_all') as mock_yaml_load_all:
+            mock_yaml_load_all.side_effect = lhp_error
             
             # Mock file open
             with patch('builtins.open', mock_open(read_data="test: data")):
@@ -87,8 +87,10 @@ class TestYAMLParserErrorHandling:
             assert "Permission denied" in str(exc_info.value)
     
     def test_parse_file_success_with_empty_file(self):
-        """Test successful parsing of empty YAML file."""
+        """Test that empty files raise MultiDocumentError (new behavior with single-doc validation)."""
         parser = YAMLParser()
+        
+        from lhp.utils.error_formatter import MultiDocumentError
         
         # Create temporary empty file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
@@ -97,9 +99,11 @@ class TestYAMLParserErrorHandling:
             yaml_file = Path(f.name)
         
         try:
-            # Should return empty dict for empty file
-            result = parser.parse_file(yaml_file)
-            assert result == {}
+            # Empty files (0 documents) should raise MultiDocumentError
+            with pytest.raises(MultiDocumentError) as exc_info:
+                result = parser.parse_file(yaml_file)
+            
+            assert "Expected 1, Found 0" in str(exc_info.value)
         finally:
             yaml_file.unlink()
     

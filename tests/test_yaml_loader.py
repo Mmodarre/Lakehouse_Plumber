@@ -8,6 +8,7 @@ from lhp.utils.yaml_loader import (
     load_yaml_file,
     load_yaml_documents_all,
 )
+from lhp.utils.error_formatter import MultiDocumentError
 
 
 class TestLoadYAMLDocumentsAll:
@@ -207,4 +208,65 @@ flowgroup: test_flowgroup
             assert content['flowgroup'] == 'test_flowgroup'
         finally:
             yaml_file.unlink()
+
+
+class TestLoadYAMLFileValidation:
+    """Test load_yaml_file() validation behavior with single-document constraint."""
+    
+    def test_load_yaml_file_rejects_multi_document(self, tmp_path):
+        """load_yaml_file should reject multi-document files with clear error."""
+        multi_doc_file = tmp_path / "multi.yaml"
+        multi_doc_file.write_text("a: 1\n---\nb: 2")
+        
+        with pytest.raises(MultiDocumentError) as exc_info:
+            load_yaml_file(multi_doc_file)
+        
+        error = exc_info.value
+        assert "Expected 1, Found 2" in str(error)
+        assert "load_yaml_documents_all" in str(error)
+    
+    def test_load_yaml_file_rejects_empty_file(self, tmp_path):
+        """load_yaml_file should reject empty files."""
+        empty_file = tmp_path / "empty.yaml"
+        empty_file.write_text("")
+        
+        with pytest.raises(MultiDocumentError) as exc_info:
+            load_yaml_file(empty_file)
+        
+        error = exc_info.value
+        assert "Expected 1, Found 0" in str(error)
+    
+    def test_load_yaml_file_accepts_single_document(self, tmp_path):
+        """load_yaml_file should accept single-document files."""
+        single_doc = tmp_path / "single.yaml"
+        single_doc.write_text("key: value")
+        
+        result = load_yaml_file(single_doc)
+        assert result == {"key": "value"}
+    
+    def test_load_yaml_file_null_document_with_allow_empty_true(self, tmp_path):
+        """Single null document should return {} when allow_empty=True."""
+        null_doc = tmp_path / "null.yaml"
+        null_doc.write_text("---\n")  # Single document with null content
+        
+        result = load_yaml_file(null_doc, allow_empty=True)
+        assert result == {}
+    
+    def test_load_yaml_file_null_document_with_allow_empty_false(self, tmp_path):
+        """Single null document should return None when allow_empty=False."""
+        null_doc = tmp_path / "null.yaml"
+        null_doc.write_text("---\n")
+        
+        result = load_yaml_file(null_doc, allow_empty=False)
+        assert result is None
+    
+    def test_error_has_lhp_error_code(self, tmp_path):
+        """MultiDocumentError should have proper LHP error code."""
+        multi_doc = tmp_path / "multi.yaml"
+        multi_doc.write_text("a: 1\n---\nb: 2")
+        
+        with pytest.raises(MultiDocumentError) as exc_info:
+            load_yaml_file(multi_doc)
+        
+        assert exc_info.value.code == "LHP-IO-003"
 
