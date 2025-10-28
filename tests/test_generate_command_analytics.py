@@ -28,9 +28,11 @@ class TestAnalyticsHelperMethods:
     
     def test_should_track_analytics_no_opt_out_file(self, generate_command, temp_project_root):
         """Test tracking is enabled when .lhp_do_not_track doesn't exist."""
-        # Temporarily clear pytest environment variable to test normal behavior
-        with patch.dict(os.environ, {'PYTEST_CURRENT_TEST': ''}, clear=False):
-            del os.environ['PYTEST_CURRENT_TEST']
+        # Temporarily clear environment variables to test normal behavior
+        with patch.dict(os.environ, {}, clear=False):
+            # Remove both test-related env vars to test production behavior
+            os.environ.pop('PYTEST_CURRENT_TEST', None)
+            os.environ.pop('LHP_DISABLE_ANALYTICS', None)
             result = generate_command._should_track_analytics(temp_project_root)
             assert result is True
     
@@ -44,9 +46,11 @@ class TestAnalyticsHelperMethods:
     
     def test_should_track_analytics_exception_handling(self, generate_command):
         """Test that exceptions in opt-out check default to allowing tracking."""
-        # Temporarily clear pytest environment variable to test normal behavior
-        with patch.dict(os.environ, {'PYTEST_CURRENT_TEST': ''}, clear=False):
-            del os.environ['PYTEST_CURRENT_TEST']
+        # Temporarily clear environment variables to test normal behavior
+        with patch.dict(os.environ, {}, clear=False):
+            # Remove both test-related env vars to test production behavior
+            os.environ.pop('PYTEST_CURRENT_TEST', None)
+            os.environ.pop('LHP_DISABLE_ANALYTICS', None)
             # Pass a non-existent path that will cause an error
             result = generate_command._should_track_analytics(Path("/nonexistent/path"))
             assert result is True
@@ -304,9 +308,11 @@ class TestAnalyticsIntegration:
         
         command = GenerateCommand()
         
-        # Temporarily clear pytest environment variable to test opt-out behavior
-        with patch.dict(os.environ, {'PYTEST_CURRENT_TEST': ''}, clear=False):
-            del os.environ['PYTEST_CURRENT_TEST']
+        # Temporarily clear environment variables to test opt-out behavior
+        with patch.dict(os.environ, {}, clear=False):
+            # Remove both test-related env vars to test production behavior
+            os.environ.pop('PYTEST_CURRENT_TEST', None)
+            os.environ.pop('LHP_DISABLE_ANALYTICS', None)
             
             # Without opt-out file
             result = command._should_track_analytics(project_root)
