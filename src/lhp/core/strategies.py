@@ -7,6 +7,8 @@ import logging
 
 from .state_manager import StateManager
 from ..models.config import FlowGroup, ActionType
+from .state_dependency_resolver import StateDependencyResolver
+from ..parsers.yaml_parser import YAMLParser
 
 
 class GenerationStrategy(Protocol):
@@ -116,7 +118,6 @@ class BaseGenerationStrategy:
                 dependency_resolver = context.state_manager.analyzer.dependency_resolver
             else:
                 # Fallback: create new instance if state_manager not available
-                from .state_dependency_resolver import StateDependencyResolver
                 dependency_resolver = StateDependencyResolver(context.project_root)
             
             source_path = Path(file_state.source_yaml)
@@ -170,7 +171,6 @@ class SmartGenerationStrategy(BaseGenerationStrategy):
         new_flowgroup_names = set()
         for yaml_path in generation_info["new"]:
             try:
-                from ...parsers.yaml_parser import YAMLParser
                 parser = YAMLParser()
                 # Parse all flowgroups from file (supports multi-document and array syntax)
                 flowgroups = parser.parse_flowgroups_from_file(yaml_path)

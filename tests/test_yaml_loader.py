@@ -7,8 +7,10 @@ from pathlib import Path
 from lhp.utils.yaml_loader import (
     load_yaml_file,
     load_yaml_documents_all,
+    load_yaml_if_exists,
+    safe_load_yaml_with_fallback,
 )
-from lhp.utils.error_formatter import MultiDocumentError
+from lhp.utils.error_formatter import MultiDocumentError, LHPError, ErrorCategory
 
 
 class TestLoadYAMLDocumentsAll:
@@ -269,4 +271,181 @@ class TestLoadYAMLFileValidation:
             load_yaml_file(multi_doc)
         
         assert exc_info.value.code == "LHP-IO-003"
+
+
+class TestLoadYAMLIfExists:
+    """Test load_yaml_if_exists() function for optional file loading."""
+    
+    def test_load_existing_file(self, tmp_path):
+        """Test loading file that exists."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("key: value\nnum: 42")
+        
+        result = load_yaml_if_exists(config_file)
+        assert result == {"key": "value", "num": 42}
+    
+    def test_load_missing_file_returns_default_none(self, tmp_path):
+        """Test loading missing file returns None by default."""
+        missing_file = tmp_path / "missing.yaml"
+        
+        result = load_yaml_if_exists(missing_file)
+        assert result is None
+    
+    def test_load_missing_file_returns_custom_default(self, tmp_path):
+        """Test loading missing file returns custom default value."""
+        missing_file = tmp_path / "missing.yaml"
+        
+        result = load_yaml_if_exists(missing_file, default_value={})
+        assert result == {}
+        
+        result = load_yaml_if_exists(missing_file, default_value={"default": "config"})
+        assert result == {"default": "config"}
+    
+    def test_load_with_error_context(self, tmp_path):
+        """Test that error_context is passed through to load_yaml_file."""
+        bad_file = tmp_path / "bad.yaml"
+        bad_file.write_text("a: 1\n---\nb: 2")  # Multi-document
+        
+        with pytest.raises(MultiDocumentError) as exc_info:
+            load_yaml_if_exists(bad_file, error_context="test config")
+        
+        assert "test config" in str(exc_info.value)
+    
+    def test_load_empty_file_with_allow_empty(self, tmp_path):
+        """Test loading empty file with allow_empty parameter."""
+        empty_file = tmp_path / "empty.yaml"
+        empty_file.write_text("---\n")  # Single null document
+        
+        result = load_yaml_if_exists(empty_file, allow_empty=True)
+        assert result == {}
+        
+        result = load_yaml_if_exists(empty_file, allow_empty=False)
+        assert result is None
+
+
+class TestSafeLoadYAMLWithFallback:
+    """Test safe_load_yaml_with_fallback() function for error-tolerant loading."""
+    
+    def test_load_valid_file(self, tmp_path):
+        """Test loading valid file returns content."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("key: value\nnum: 42")
+        
+        result = safe_load_yaml_with_fallback(config_file)
+        assert result == {"key": "value", "num": 42}
+    
+    def test_load_missing_file_returns_fallback(self, tmp_path):
+        """Test loading missing file returns fallback value."""
+        missing_file = tmp_path / "missing.yaml"
+        
+        result = safe_load_yaml_with_fallback(missing_file)
+        assert result == {}  # Default fallback
+        
+        result = safe_load_yaml_with_fallback(missing_file, fallback_value={"default": "value"})
+        assert result == {"default": "value"}
+    
+    def test_load_invalid_yaml_returns_fallback(self, tmp_path):
+        """Test loading invalid YAML returns fallback value."""
+        bad_file = tmp_path / "bad.yaml"
+        bad_file.write_text("invalid: yaml: [")
+        
+        result = safe_load_yaml_with_fallback(bad_file)
+        assert result == {}
+        
+        result = safe_load_yaml_with_fallback(bad_file, fallback_value={"fallback": True})
+        assert result == {"fallback": True}
+    
+    def test_multi_document_file_returns_fallback(self, tmp_path):
+        """Test loading multi-document file returns fallback value."""
+        multi_doc = tmp_path / "multi.yaml"
+        multi_doc.write_text("a: 1\n---\nb: 2")
+        
+        result = safe_load_yaml_with_fallback(multi_doc)
+        assert result == {}
+    
+    def test_with_logging_enabled(self, tmp_path, caplog):
+        """Test that errors are logged when log_errors=True."""
+        import logging
+        
+        bad_file = tmp_path / "bad.yaml"
+        bad_file.write_text("invalid: yaml: [")
+        
+        with caplog.at_level(logging.WARNING):
+            result = safe_load_yaml_with_fallback(bad_file, log_errors=True)
+        
+        assert result == {}
+        # Check that warning was logged
+        assert any("Could not load" in record.message for record in caplog.records)
+    
+    def test_with_logging_disabled(self, tmp_path, caplog):
+        """Test that errors are not logged when log_errors=False."""
+        import logging
+        
+        bad_file = tmp_path / "bad.yaml"
+        bad_file.write_text("invalid: yaml: [")
+        
+        with caplog.at_level(logging.WARNING):
+            result = safe_load_yaml_with_fallback(bad_file, log_errors=False)
+        
+        assert result == {}
+        # Check that no warning was logged
+        assert not any("Could not load" in record.message for record in caplog.records)
+    
+    def test_with_error_context(self, tmp_path, caplog):
+        """Test that error_context is used in log messages."""
+        import logging
+        
+        bad_file = tmp_path / "bad.yaml"
+        bad_file.write_text("invalid: yaml: [")
+        
+        with caplog.at_level(logging.WARNING):
+            result = safe_load_yaml_with_fallback(
+                bad_file, 
+                error_context="test config file",
+                log_errors=True
+            )
+        
+        assert result == {}
+        assert any("test config file" in record.message for record in caplog.records)
+
+
+class TestLoadYAMLDocumentsAllLHPError:
+    """Test LHPError re-raising in load_yaml_documents_all."""
+    
+    def test_lhp_error_reraise(self, tmp_path):
+        """Test that LHPError is re-raised as-is without wrapping."""
+        from unittest.mock import patch, mock_open
+        
+        # Create a mock LHPError
+        lhp_error = LHPError(
+            category=ErrorCategory.CONFIG,
+            code_number="001",
+            title="Test LHP Error",
+            details="This is a test LHP error"
+        )
+        
+        # Mock yaml.safe_load_all to raise LHPError
+        import yaml
+        with patch.object(yaml, 'safe_load_all') as mock_yaml_load_all:
+            mock_yaml_load_all.side_effect = lhp_error
+            
+            # Mock file open
+            with patch('builtins.open', mock_open(read_data="test: data")):
+                # Should re-raise LHPError without modification
+                with pytest.raises(LHPError) as exc_info:
+                    load_yaml_documents_all(Path("test.yaml"))
+                
+                # Verify it's the exact same error object
+                assert exc_info.value is lhp_error
+                assert exc_info.value.title == "Test LHP Error"
+    
+    def test_other_exceptions_wrapped_as_valueerror(self, tmp_path):
+        """Test that non-LHPError exceptions are wrapped as ValueError."""
+        bad_file = tmp_path / "bad.yaml"
+        bad_file.write_text("invalid: yaml: [")
+        
+        with pytest.raises(ValueError) as exc_info:
+            load_yaml_documents_all(bad_file)
+        
+        assert "Invalid YAML" in str(exc_info.value)
 

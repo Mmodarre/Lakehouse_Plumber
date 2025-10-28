@@ -34,7 +34,6 @@ dependencies = [
     "packaging>=23.2",
     "black>=23.0.0",
     "networkx>=3.0.0",
-    "klyne",
     "importlib_resources>=1.3.0;python_version<'3.9'",
 ]
 

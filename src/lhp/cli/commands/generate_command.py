@@ -2,13 +2,8 @@
 
 import sys
 import logging
-import time
-import hashlib
-import platform
-import uuid
-import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 import click
 
 from .base_command import BaseCommand
@@ -60,9 +55,6 @@ class GenerateCommand(BaseCommand):
         # PRESENTATION LAYER RESPONSIBILITIES ONLY
         # ========================================================================
         
-        # Start timing for analytics
-        generation_start_time = time.time()
-        
         # 1. Setup and validation (presentation concerns)
         self.setup_from_context()
         project_root = self.ensure_project_root()
@@ -100,22 +92,7 @@ class GenerateCommand(BaseCommand):
         total_files = 0
         all_generated_files = {}
         
-        # Initialize metrics collection for analytics
-        total_flowgroups = 0
-        unique_templates: Set[str] = set()
-        flowgroups_with_templates = 0
-        
         for pipeline_identifier in pipelines_to_generate:
-            # Collect metrics for this pipeline
-            pipeline_flowgroups = application_facade.orchestrator.discover_flowgroups_by_pipeline_field(pipeline_identifier)
-            total_flowgroups += len(pipeline_flowgroups)
-            
-            # Track template usage
-            for fg in pipeline_flowgroups:
-                if hasattr(fg, 'use_template') and fg.use_template:
-                    unique_templates.add(fg.use_template)
-                    flowgroups_with_templates += 1
-            
             response = self._execute_pipeline_generation(
                 application_facade, pipeline_identifier, env, output_dir,
                 dry_run, force, include_tests, no_cleanup, pipeline_config
@@ -136,39 +113,6 @@ class GenerateCommand(BaseCommand):
         
         # 10. Display completion message (presentation)
         self._display_completion_message(total_files, output_dir, dry_run)
-        
-        # 11. Track generation metrics (only on successful completion)
-        if self._should_track_analytics(project_root):
-            try:
-                import klyne
-                from ...utils.version import get_version
-                
-                # Collect identifiers and metrics
-                project_id = self._get_project_identifier(application_facade)
-                machine_id = self._get_machine_identifier()
-                is_ci = self._is_ci_environment()
-                generation_end_time = time.time()
-                lhp_version = get_version()
-                
-                # Track metrics
-                klyne.track('lhp_generate', {
-                    'project_id': project_id,
-                    'machine_id': machine_id,
-                    'is_ci': is_ci,
-                    'flowgroups_count': total_flowgroups,
-                    'templates_count': len(unique_templates),
-                    'flowgroups_using_templates': flowgroups_with_templates,
-                    'pipelines_count': len(pipelines_to_generate),
-                    'files_generated': total_files,
-                    'environment': env,
-                    'dry_run': dry_run,
-                    'bundle_enabled': not no_bundle,
-                    'lhp_version': lhp_version,
-                    'python_version': f"{sys.version_info.major}.{sys.version_info.minor}",
-                    'generation_time_seconds': round(generation_end_time - generation_start_time, 2)
-                })
-            except Exception as e:
-                self.logger.debug(f"Analytics tracking failed: {e}")
     
     def _create_application_facade(self, project_root: Path, 
                                  no_cleanup: bool, pipeline_config_path: Optional[str] = None) -> LakehousePlumberApplicationFacade:
@@ -387,88 +331,3 @@ class GenerateCommand(BaseCommand):
             click.echo(f"⚠️ Bundle sync warning: {e}")
         except Exception as e:
             click.echo(f"⚠️ Unexpected bundle error: {e}")
-    
-    # ========================================================================
-    # ANALYTICS HELPER METHODS
-    # ========================================================================
-    
-    def _should_track_analytics(self, project_root: Path) -> bool:
-        """Check if user has opted out of analytics tracking."""
-        import os
-        
-        # Check for test environment variable (disable in tests)
-        if os.environ.get('LHP_DISABLE_ANALYTICS') or os.environ.get('PYTEST_CURRENT_TEST'):
-            return False
-        
-        try:
-            opt_out_file = project_root / ".lhp_do_not_track"
-            return not opt_out_file.exists()
-        except Exception:
-            return True
-    
-    def _get_project_identifier(self, application_facade: LakehousePlumberApplicationFacade) -> str:
-        """Get hashed project identifier for analytics."""
-        project_name = "unknown_project"
-        if application_facade.orchestrator.project_config:
-            project_name = getattr(application_facade.orchestrator.project_config, 'name', 'unknown_project')
-        return hashlib.sha256(project_name.encode()).hexdigest()
-    
-    def _get_machine_identifier(self) -> str:
-        """Get hashed machine identifier (silently fails if unavailable)."""
-        try:
-            system = platform.system()
-            
-            if system == 'Linux':
-                for path in ['/etc/machine-id', '/var/lib/dbus/machine-id']:
-                    try:
-                        with open(path, 'r') as f:
-                            machine_id = f.read().strip()
-                            if machine_id:
-                                return hashlib.sha256(machine_id.encode()).hexdigest()
-                    except Exception:
-                        continue
-            
-            elif system == 'Darwin':  # macOS
-                try:
-                    result = subprocess.run(
-                        ['ioreg', '-rd1', '-c', 'IOPlatformExpertDevice'],
-                        capture_output=True, text=True, timeout=2
-                    )
-                    if result.returncode == 0:
-                        for line in result.stdout.split('\n'):
-                            if 'IOPlatformUUID' in line:
-                                parts = line.split('"')
-                                if len(parts) > 3:
-                                    machine_id = parts[3]
-                                    return hashlib.sha256(machine_id.encode()).hexdigest()
-                except Exception:
-                    pass
-            
-            elif system == 'Windows':
-                try:
-                    result = subprocess.run(
-                        ['wmic', 'csproduct', 'get', 'UUID'],
-                        capture_output=True, text=True, timeout=2
-                    )
-                    if result.returncode == 0:
-                        lines = result.stdout.strip().split('\n')
-                        if len(lines) > 1:
-                            machine_id = lines[1].strip()
-                            return hashlib.sha256(machine_id.encode()).hexdigest()
-                except Exception:
-                    pass
-            
-            # Fallback: Use MAC address-based UUID
-            machine_id = str(uuid.getnode())
-            return hashlib.sha256(machine_id.encode()).hexdigest()
-        except Exception:
-            return hashlib.sha256(b"unknown_machine").hexdigest()
-    
-    def _is_ci_environment(self) -> bool:
-        """Detect if running in a CI/CD environment."""
-        import os
-        ci_indicators = [
-            'CI', 'GITHUB_ACTIONS', 'GITLAB_CI', 'JENKINS_HOME',
-            'TRAVIS', 'CIRCLECI', 'BITBUCKET_BUILD_NUMBER', 'AZURE_PIPELINES'
-        ]
-        return any(os.environ.get(var) for var in ci_indicators)
