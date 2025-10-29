@@ -168,7 +168,7 @@
                             "properties": {
                                 "type": {
                                     "type": "string",
-                                    "enum": ["cloudfiles", "delta", "sql", "jdbc", "python", "custom_datasource"]
+                                    "enum": ["cloudfiles", "delta", "sql", "jdbc", "python", "custom_datasource", "kafka"]
                                 },
                                 "path": {
                                     "type": "string",

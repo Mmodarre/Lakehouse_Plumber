@@ -13,6 +13,7 @@ from ..generators.load import (
     JDBCLoadGenerator,
     PythonLoadGenerator,
     CustomDataSourceLoadGenerator,
+    KafkaLoadGenerator,
 )
 from ..generators.transform import (
     SQLTransformGenerator,
@@ -53,6 +54,7 @@ class ActionRegistry:
             LoadSourceType.JDBC: JDBCLoadGenerator,
             LoadSourceType.PYTHON: PythonLoadGenerator,
             LoadSourceType.CUSTOM_DATASOURCE: CustomDataSourceLoadGenerator,
+            LoadSourceType.KAFKA: KafkaLoadGenerator,
         }
 
         # Transform generators

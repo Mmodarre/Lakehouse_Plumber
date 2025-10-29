@@ -36,6 +36,7 @@ class LoadSourceType(str, Enum):
     PYTHON = "python"
     JDBC = "jdbc"
     CUSTOM_DATASOURCE = "custom_datasource"
+    KAFKA = "kafka"
 
 
 class TransformType(str, Enum):

@@ -59,6 +59,11 @@
                             "type": "object",
                             "description": "Default custom data source settings",
                             "additionalProperties": true
+                        },
+                        "kafka": {
+                            "type": "object",
+                            "description": "Default Kafka settings",
+                            "additionalProperties": true
                         }
                     }
                 },

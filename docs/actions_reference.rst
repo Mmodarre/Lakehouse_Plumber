@@ -218,6 +218,131 @@ delta
       
       return df
 
+kafka
+~~~~~
+.. code-block:: yaml
+
+  actions:
+    - name: load_kafka_events
+      type: load
+      readMode: stream
+      operational_metadata: ["_processing_timestamp"]
+      source:
+        type: kafka
+        bootstrap_servers: "kafka1.example.com:9092,kafka2.example.com:9092"
+        subscribe: "events,logs,metrics"
+        options:
+          startingOffsets: "latest"
+          failOnDataLoss: false
+          kafka.group.id: "lhp-consumer-group"
+          kafka.session.timeout.ms: 30000
+          kafka.ssl.truststore.location: "/path/to/truststore.jks"
+          kafka.ssl.truststore.password: "${secret:scope/truststore-password}"
+      target: v_kafka_events_raw
+      description: "Load events from Kafka topics"
+
+**Anatomy of a Kafka load action**
+
+- **name**: Unique name for this action within the FlowGroup
+- **type**: Action type - brings data into a temporary view
+- **readMode**: Must be *stream* - Kafka is always streaming
+- **operational_metadata**: Add custom metadata columns (e.g., processing timestamp)
+- **source**:
+      - **type**: Use Apache Kafka as source
+      - **bootstrap_servers**: Comma-separated list of Kafka broker addresses (host:port)
+      - **subscribe**: Comma-separated list of topics to subscribe to (choose ONE subscription method)
+      - **subscribePattern**: Java regex pattern for topic subscription (alternative to subscribe)
+      - **assign**: JSON string specifying specific topic partitions (alternative to subscribe)
+      - **options**: 
+            - **startingOffsets**: Starting offset position (earliest/latest/JSON)
+            - **failOnDataLoss**: Whether to fail on potential data loss (default: true)
+            - **kafka.group.id**: Consumer group ID (use with caution)
+            - **kafka.session.timeout.ms**: Session timeout in milliseconds
+            - **kafka.ssl.***: SSL/TLS configuration options for secure connections
+            - **kafka.sasl.***: SASL authentication options
+            - All other kafka.* options from Databricks Kafka connector
+- **target**: Name of the temporary view created
+- **description**: Optional documentation for the action
+
+.. seealso::
+  - For full list of Kafka options see the `Databricks Kafka documentation <https://docs.databricks.com/aws/en/connect/streaming/kafka.html>`_.
+  - Operational metadata: :doc:`concepts`
+
+.. Important::
+  Kafka always returns a fixed 7-column schema with binary key/value columns:
+  ``key``, ``value``, ``topic``, ``partition``, ``offset``, ``timestamp``, ``timestampType``.
+  You must explicitly deserialize the key and value columns using transform actions.
+
+.. Warning::
+  **Subscription Methods**: You must specify exactly ONE of:
+  
+  - ``subscribe``: Comma-separated list of specific topics
+  - ``subscribePattern``: Java regex pattern for topic names
+  - ``assign``: JSON with specific topic partitions
+  
+  Using multiple subscription methods will result in an error.
+
+**The above YAML translates to the following PySpark code**
+
+.. code-block:: python
+  :linenos:
+
+  import dlt
+  from pyspark.sql.functions import current_timestamp
+
+  @dlt.view()
+  def v_kafka_events_raw():
+      """Load events from Kafka topics"""
+      df = spark.readStream \
+          .format("kafka") \
+          .option("kafka.bootstrap.servers", "kafka1.example.com:9092,kafka2.example.com:9092") \
+          .option("subscribe", "events,logs,metrics") \
+          .option("startingOffsets", "latest") \
+          .option("failOnDataLoss", False) \
+          .option("kafka.group.id", "lhp-consumer-group") \
+          .option("kafka.session.timeout.ms", 30000) \
+          .option("kafka.ssl.truststore.location", "/path/to/truststore.jks") \
+          .option("kafka.ssl.truststore.password", dbutils.secrets.get("scope", "truststore-password")) \
+          .load()
+      
+      # Add operational metadata columns
+      df = df.withColumn('_processing_timestamp', current_timestamp())
+      
+      return df
+
+**Example: Deserializing Kafka Data**
+
+Since Kafka returns binary data, you typically need a transform action to deserialize:
+
+.. code-block:: yaml
+
+  actions:
+    # Load from Kafka (returns binary key/value)
+    - name: load_kafka_events
+      type: load
+      readMode: stream
+      source:
+        type: kafka
+        bootstrap_servers: "localhost:9092"
+        subscribe: "events"
+      target: v_kafka_events_raw
+      
+    # Deserialize and parse JSON
+    - name: parse_kafka_events
+      type: transform
+      transform_type: sql
+      source: v_kafka_events_raw
+      target: v_kafka_events_parsed
+      sql: |
+        SELECT 
+          CAST(key AS STRING) as message_key,
+          from_json(CAST(value AS STRING), 'event_type STRING, timestamp BIGINT, data STRING') as parsed_value,
+          topic,
+          partition,
+          offset,
+          timestamp as kafka_timestamp
+        FROM $source
+
 sql
 ~~~
 SQL load actions support both **inline SQL** and **external SQL files**.

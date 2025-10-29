@@ -97,6 +97,8 @@ class LoadActionValidator(BaseActionValidator):
                 errors.extend(self._validate_jdbc_source(action, prefix))
             elif load_type == LoadSourceType.PYTHON:
                 errors.extend(self._validate_python_source(action, prefix))
+            elif load_type == LoadSourceType.KAFKA:
+                errors.extend(self._validate_kafka_source(action, prefix))
 
         except ValueError:
             pass  # Already handled above
@@ -138,6 +140,34 @@ class LoadActionValidator(BaseActionValidator):
         errors = []
         if not action.source.get("module_path"):
             errors.append(f"{prefix}: Python source must have 'module_path'")
+        return errors
+
+    def _validate_kafka_source(self, action: Action, prefix: str) -> List[str]:
+        """Validate Kafka source configuration."""
+        errors = []
+        
+        # Must have bootstrap_servers
+        if not action.source.get("bootstrap_servers"):
+            errors.append(f"{prefix}: Kafka source must have 'bootstrap_servers'")
+        
+        # Must have exactly one subscription method
+        subscription_methods = [
+            action.source.get("subscribe"),
+            action.source.get("subscribePattern"),
+            action.source.get("assign")
+        ]
+        
+        provided_methods = [m for m in subscription_methods if m is not None]
+        
+        if len(provided_methods) == 0:
+            errors.append(
+                f"{prefix}: Kafka source must have one of: 'subscribe', 'subscribePattern', or 'assign'"
+            )
+        elif len(provided_methods) > 1:
+            errors.append(
+                f"{prefix}: Kafka source can only have ONE of: 'subscribe', 'subscribePattern', or 'assign'"
+            )
+        
         return errors
 
 
