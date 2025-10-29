@@ -23,7 +23,7 @@ def {{ target_view }}():
     {%- elif value is number %} \
         .option("{{ key }}", {{ value }})
     {%- else %} \
-        .option("{{ key }}", "{{ value }}")
+        .option("{{ key }}", "{{ value|replace('\\', '\\\\')|replace('"', '\\"') }}")
     {%- endif %}
     {%- endfor %}
     {%- if schema_hints_variable %} \
@@ -35,7 +35,7 @@ def {{ target_view }}():
     df = spark.read \
         .format("{{ format }}")
     {%- for key, value in reader_options.items() %} \
-        .option("{{ key }}", "{{ value }}")
+        .option("{{ key }}", "{{ value|replace('\\', '\\\\')|replace('"', '\\"') }}")
     {%- endfor %} \
         .load("{{ path }}")
     {% endif %}

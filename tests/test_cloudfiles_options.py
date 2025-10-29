@@ -344,6 +344,106 @@ class TestCloudFilesOptions:
         assert "spark.readStream" in result
         assert ".format(\"cloudFiles\")" in result
         assert ".load(\"/data/landing/customers\")" in result
+    
+    def test_values_with_quotes_escaped(self):
+        """Test that values containing quotes are properly escaped."""
+        action = Action(
+            name="test_quotes",
+            type="load",
+            source={
+                "type": "cloudfiles",
+                "path": "/data/test",
+                "format": "csv",
+                "options": {
+                    "cloudFiles.format": "csv",
+                    # Value with embedded quotes
+                    "cloudFiles.someFilter": 'field="value"',
+                }
+            },
+            target="test_quotes_table",
+            readMode="stream"
+        )
+        
+        result = self.generator.generate(action, {})
+        
+        # Check that quotes are escaped with backslashes
+        assert '\\"value\\"' in result or 'field=\\"value\\"' in result
+        
+        # Verify it's valid Python by compiling
+        try:
+            compile(result, '<string>', 'exec')
+            assert True
+        except SyntaxError as e:
+            pytest.fail(f"Generated code with quotes is not valid Python syntax: {e}")
+    
+    def test_values_with_backslashes_escaped(self):
+        """Test that values containing backslashes are properly escaped."""
+        action = Action(
+            name="test_backslashes",
+            type="load",
+            source={
+                "type": "cloudfiles",
+                "path": "/data/test",
+                "format": "csv",
+                "options": {
+                    "cloudFiles.format": "csv",
+                    # Value with backslashes (Windows path)
+                    "cloudFiles.somePath": r"C:\path\to\file",
+                }
+            },
+            target="test_backslashes_table",
+            readMode="stream"
+        )
+        
+        result = self.generator.generate(action, {})
+        
+        # Check that backslashes are escaped
+        assert '\\\\path\\\\to\\\\file' in result or r'C:\\path\\to\\file' in result
+        
+        # Verify no SyntaxWarning by compiling with warnings as errors
+        import warnings
+        warnings.simplefilter('error', SyntaxWarning)
+        try:
+            compile(result, '<string>', 'exec')
+            assert True
+        except SyntaxWarning as e:
+            pytest.fail(f"Generated code has invalid escape sequences: {e}")
+        except SyntaxError as e:
+            pytest.fail(f"Generated code is not valid Python syntax: {e}")
+        finally:
+            warnings.simplefilter('default', SyntaxWarning)
+    
+    def test_values_with_quotes_and_backslashes(self):
+        """Test that values with both quotes and backslashes are properly escaped."""
+        action = Action(
+            name="test_complex",
+            type="load",
+            source={
+                "type": "cloudfiles",
+                "path": "/data/test",
+                "format": "json",
+                "options": {
+                    "cloudFiles.format": "json",
+                    # Value with both backslashes and quotes
+                    "cloudFiles.complexOption": r'path="C:\data\files"',
+                }
+            },
+            target="test_complex_table",
+            readMode="stream"
+        )
+        
+        result = self.generator.generate(action, {})
+        
+        # Verify valid Python
+        import warnings
+        warnings.simplefilter('error', SyntaxWarning)
+        try:
+            compile(result, '<string>', 'exec')
+            assert True
+        except (SyntaxWarning, SyntaxError) as e:
+            pytest.fail(f"Generated code is not valid Python: {e}")
+        finally:
+            warnings.simplefilter('default', SyntaxWarning)
 
 
 class TestSchemaParser:

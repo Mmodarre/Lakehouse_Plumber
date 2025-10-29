@@ -1,0 +1,25 @@
+@dlt.view()
+def {{ target_view }}():
+    """{{ description }}"""
+    df = spark.readStream \
+        .format("kafka")
+    {%- for key, value in reader_options.items() %}
+    {%- if value is boolean %} \
+        .option("{{ key }}", {{ value|string|title }})
+    {%- elif value is number %} \
+        .option("{{ key }}", {{ value }})
+    {%- else %} \
+        .option("{{ key }}", "{{ value|replace('\\', '\\\\')|replace('"', '\\"') }}")
+    {%- endif %}
+    {%- endfor %} \
+        .load()
+    
+    {% if add_operational_metadata %}
+    # Add operational metadata columns
+    {% for col_name, expression in metadata_columns.items()|sort %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
+    {% endif %}
+    
+    return df
+

@@ -105,7 +105,7 @@
                             "properties": {
                                 "type": {
                                     "type": "string",
-                                    "enum": ["cloudfiles", "delta", "sql", "python", "jdbc", "custom_datasource"]
+                                    "enum": ["cloudfiles", "delta", "sql", "python", "jdbc", "custom_datasource", "kafka"]
                                 },
                                 "path": {
                                     "type": "string",

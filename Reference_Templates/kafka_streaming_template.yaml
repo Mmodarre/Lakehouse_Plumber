@@ -1,0 +1,243 @@
+name: kafka_streaming_comprehensive
+version: "1.0"
+description: "Comprehensive Kafka streaming template with all configuration options"
+
+parameters:
+  - name: kafka_brokers
+    required: true
+    description: "Comma-separated list of Kafka bootstrap servers (host:port)"
+  - name: kafka_topics
+    required: true
+    description: "Comma-separated list of Kafka topics to subscribe to"
+  - name: target_view
+    required: true
+    description: "Target view name for the loaded data"
+  - name: consumer_group_id
+    required: false
+    default: "lhp-consumer-group"
+    description: "Kafka consumer group ID"
+
+actions:
+  - name: load_kafka_{{ target_view }}
+    type: load
+    readMode: stream
+    operational_metadata: ["_processing_timestamp"]
+    source:
+      type: kafka
+      bootstrap_servers: "{{ kafka_brokers }}"
+      
+      # =============================================================================
+      # SUBSCRIPTION METHOD (Choose ONE)
+      # =============================================================================
+      
+      # OPTION 1: Subscribe to specific topics (comma-separated list)
+      subscribe: "{{ kafka_topics }}"
+      
+      # OPTION 2: Subscribe using pattern (Java regex) - COMMENT OUT 'subscribe' ABOVE
+      # subscribePattern: "events.*"
+      
+      # OPTION 3: Assign specific topic partitions - COMMENT OUT 'subscribe' ABOVE
+      # assign: '{"topic1":[0,1],"topic2":[2,4]}'
+      
+      options:
+        # =============================================================================
+        # OFFSET MANAGEMENT
+        # =============================================================================
+        
+        # Starting offset position: "earliest", "latest", or JSON string with specific offsets
+        # Default: "latest"
+        startingOffsets: "latest"
+        
+        # Whether to fail the query when data might have been lost
+        # Default: true
+        failOnDataLoss: false
+        
+        # =============================================================================
+        # CONSUMER GROUP CONFIGURATION
+        # =============================================================================
+        
+        # Kafka consumer group ID (use with caution - see Databricks docs)
+        # Default: auto-generated unique ID per query
+        kafka.group.id: "{{ consumer_group_id }}"
+        
+        # Session timeout in milliseconds
+        # Default: 10000
+        kafka.session.timeout.ms: 30000
+        
+        # Heartbeat interval in milliseconds
+        # Default: 3000
+        kafka.heartbeat.interval.ms: 3000
+        
+        # =============================================================================
+        # PERFORMANCE TUNING
+        # =============================================================================
+        
+        # Minimum number of Spark partitions to read from Kafka
+        # Default: 0 (disabled)
+        minPartitions: 0
+        
+        # Maximum number of records to fetch per poll
+        # Default: 500
+        kafka.max.poll.records: 500
+        
+        # Maximum time between polls in milliseconds
+        # Default: 300000
+        kafka.max.poll.interval.ms: 300000
+        
+        # Maximum number of offsets processed per trigger
+        # Default: None (no limit)
+        # maxOffsetsPerTrigger: 10000
+        
+        # =============================================================================
+        # NETWORK & CONNECTION SETTINGS
+        # =============================================================================
+        
+        # Request timeout in milliseconds
+        # Default: 30000
+        kafka.request.timeout.ms: 30000
+        
+        # Maximum idle time for connections in milliseconds
+        # Default: 540000
+        kafka.connections.max.idle.ms: 540000
+        
+        # Reconnect backoff in milliseconds
+        # Default: 50
+        kafka.reconnect.backoff.ms: 50
+        
+        # Maximum reconnect backoff in milliseconds
+        # Default: 1000
+        kafka.reconnect.backoff.max.ms: 1000
+        
+        # =============================================================================
+        # SSL CONFIGURATION (uncomment to enable)
+        # =============================================================================
+        
+        # Security protocol: PLAINTEXT, SSL, SASL_PLAINTEXT, SASL_SSL
+        # Default: PLAINTEXT
+        # kafka.security.protocol: "SSL"
+        
+        # SSL truststore location
+        # kafka.ssl.truststore.location: "/path/to/truststore.jks"
+        
+        # SSL truststore password (use secrets management)
+        # kafka.ssl.truststore.password: "${secret:scope/truststore-password}"
+        
+        # SSL truststore type
+        # Default: JKS
+        # kafka.ssl.truststore.type: "JKS"
+        
+        # SSL keystore location (for client authentication)
+        # kafka.ssl.keystore.location: "/path/to/keystore.jks"
+        
+        # SSL keystore password (use secrets management)
+        # kafka.ssl.keystore.password: "${secret:scope/keystore-password}"
+        
+        # SSL keystore type
+        # Default: JKS
+        # kafka.ssl.keystore.type: "JKS"
+        
+        # SSL key password (use secrets management)
+        # kafka.ssl.key.password: "${secret:scope/key-password}"
+        
+        # =============================================================================
+        # SASL AUTHENTICATION (uncomment to enable)
+        # =============================================================================
+        
+        # SASL mechanism: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI, OAUTHBEARER
+        # kafka.sasl.mechanism: "PLAIN"
+        
+        # SASL JAAS configuration
+        # kafka.sasl.jaas.config: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="user" password="password";'
+        
+        # =============================================================================
+        # FETCH SETTINGS
+        # =============================================================================
+        
+        # Minimum bytes to fetch in a request
+        # Default: 1
+        kafka.fetch.min.bytes: 1
+        
+        # Maximum wait time for fetch request in milliseconds
+        # Default: 500
+        kafka.fetch.max.wait.ms: 500
+        
+        # Maximum bytes to fetch per request
+        # Default: 52428800 (50 MB)
+        kafka.fetch.max.bytes: 52428800
+        
+        # Maximum bytes per partition
+        # Default: 1048576 (1 MB)
+        kafka.max.partition.fetch.bytes: 1048576
+        
+        # =============================================================================
+        # ADVANCED OPTIONS
+        # =============================================================================
+        
+        # Whether to include Kafka message headers
+        # Default: false
+        includeHeaders: false
+        
+        # Client ID for identifying requests
+        # kafka.client.id: "lhp-kafka-client"
+        
+        # Metadata refresh interval in milliseconds
+        # Default: 300000
+        kafka.metadata.max.age.ms: 300000
+        
+        # Whether to enable auto commit
+        # Default: true
+        kafka.enable.auto.commit: true
+        
+        # Auto commit interval in milliseconds
+        # Default: 5000
+        kafka.auto.commit.interval.ms: 5000
+        
+    target: v_{{ target_view }}
+    description: "Load {{ target_view }} from Kafka topics: {{ kafka_topics }}"
+
+  # =============================================================================
+  # EXAMPLE: TRANSFORM TO DESERIALIZE KAFKA DATA
+  # =============================================================================
+  # Kafka returns binary key/value columns. Use a transform to deserialize.
+  
+  - name: deserialize_{{ target_view }}
+    type: transform
+    transform_type: sql
+    source: v_{{ target_view }}
+    target: v_{{ target_view }}_parsed
+    sql: |
+      SELECT 
+        -- Deserialize key and value as strings
+        CAST(key AS STRING) as message_key,
+        CAST(value AS STRING) as message_value,
+        
+        -- Parse JSON value (if applicable)
+        -- from_json(CAST(value AS STRING), schema_of_json('{"field1":"value1"}')) as parsed_data,
+        
+        -- Kafka metadata columns
+        topic,
+        partition,
+        offset,
+        timestamp,
+        timestampType
+        
+      FROM $source
+    description: "Deserialize Kafka binary data to string"
+
+  # =============================================================================
+  # EXAMPLE: WRITE TO STREAMING TABLE
+  # =============================================================================
+  
+  - name: write_{{ target_view }}
+    type: write
+    source: v_{{ target_view }}_parsed
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${schema}"
+      table: "{{ target_view }}"
+      comment: "Streaming table for {{ target_view }} from Kafka"
+      table_properties:
+        "delta.autoOptimize.optimizeWrite": "true"
+        "delta.enableChangeDataFeed": "true"
+    description: "Write {{ target_view }} to streaming table"
+

@@ -45,6 +45,15 @@ class ConfigFieldValidator:
             "sql": {"type", "sql", "sql_path"},
             "jdbc": {"type", "url", "user", "password", "driver", "query", "table"},
             "python": {"type", "module_path", "function_name", "parameters"},
+            "kafka": {
+                "type",
+                "bootstrap_servers",
+                "subscribe",
+                "subscribePattern",
+                "assign",
+                "options",
+                "readMode",
+            },
         }
 
         # Transform type field definitions

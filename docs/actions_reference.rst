@@ -218,6 +218,281 @@ delta
       
       return df
 
+kafka
+~~~~~
+.. code-block:: yaml
+
+  actions:
+    - name: load_kafka_events
+      type: load
+      readMode: stream
+      operational_metadata: ["_processing_timestamp"]
+      source:
+        type: kafka
+        bootstrap_servers: "kafka1.example.com:9092,kafka2.example.com:9092"
+        subscribe: "events,logs,metrics"
+        options:
+          startingOffsets: "latest"
+          failOnDataLoss: false
+          kafka.group.id: "lhp-consumer-group"
+          kafka.session.timeout.ms: 30000
+          kafka.ssl.truststore.location: "/path/to/truststore.jks"
+          kafka.ssl.truststore.password: "${secret:scope/truststore-password}"
+      target: v_kafka_events_raw
+      description: "Load events from Kafka topics"
+
+**Anatomy of a Kafka load action**
+
+- **name**: Unique name for this action within the FlowGroup
+- **type**: Action type - brings data into a temporary view
+- **readMode**: Must be *stream* - Kafka is always streaming
+- **operational_metadata**: Add custom metadata columns (e.g., processing timestamp)
+- **source**:
+      - **type**: Use Apache Kafka as source
+      - **bootstrap_servers**: Comma-separated list of Kafka broker addresses (host:port)
+      - **subscribe**: Comma-separated list of topics to subscribe to (choose ONE subscription method)
+      - **subscribePattern**: Java regex pattern for topic subscription (alternative to subscribe)
+      - **assign**: JSON string specifying specific topic partitions (alternative to subscribe)
+      - **options**: 
+            - **startingOffsets**: Starting offset position (earliest/latest/JSON)
+            - **failOnDataLoss**: Whether to fail on potential data loss (default: true)
+            - **kafka.group.id**: Consumer group ID (use with caution)
+            - **kafka.session.timeout.ms**: Session timeout in milliseconds
+            - **kafka.ssl.***: SSL/TLS configuration options for secure connections
+            - **kafka.sasl.***: SASL authentication options
+            - All other kafka.* options from Databricks Kafka connector
+- **target**: Name of the temporary view created
+- **description**: Optional documentation for the action
+
+.. seealso::
+  - For full list of Kafka options see the `Databricks Kafka documentation <https://docs.databricks.com/aws/en/connect/streaming/kafka.html>`_.
+  - Operational metadata: :doc:`concepts`
+
+.. Important::
+  Kafka always returns a fixed 7-column schema with binary key/value columns:
+  ``key``, ``value``, ``topic``, ``partition``, ``offset``, ``timestamp``, ``timestampType``.
+  You must explicitly deserialize the key and value columns using transform actions.
+
+.. Warning::
+  **Subscription Methods**: You must specify exactly ONE of:
+  
+  - ``subscribe``: Comma-separated list of specific topics
+  - ``subscribePattern``: Java regex pattern for topic names
+  - ``assign``: JSON with specific topic partitions
+  
+  Using multiple subscription methods will result in an error.
+
+**The above YAML translates to the following PySpark code**
+
+.. code-block:: python
+  :linenos:
+
+  import dlt
+  from pyspark.sql.functions import current_timestamp
+
+  @dlt.view()
+  def v_kafka_events_raw():
+      """Load events from Kafka topics"""
+      df = spark.readStream \
+          .format("kafka") \
+          .option("kafka.bootstrap.servers", "kafka1.example.com:9092,kafka2.example.com:9092") \
+          .option("subscribe", "events,logs,metrics") \
+          .option("startingOffsets", "latest") \
+          .option("failOnDataLoss", False) \
+          .option("kafka.group.id", "lhp-consumer-group") \
+          .option("kafka.session.timeout.ms", 30000) \
+          .option("kafka.ssl.truststore.location", "/path/to/truststore.jks") \
+          .option("kafka.ssl.truststore.password", dbutils.secrets.get("scope", "truststore-password")) \
+          .load()
+      
+      # Add operational metadata columns
+      df = df.withColumn('_processing_timestamp', current_timestamp())
+      
+      return df
+
+**Example: Deserializing Kafka Data**
+
+Since Kafka returns binary data, you typically need a transform action to deserialize:
+
+.. code-block:: yaml
+
+  actions:
+    # Load from Kafka (returns binary key/value)
+    - name: load_kafka_events
+      type: load
+      readMode: stream
+      source:
+        type: kafka
+        bootstrap_servers: "localhost:9092"
+        subscribe: "events"
+      target: v_kafka_events_raw
+      
+    # Deserialize and parse JSON
+    - name: parse_kafka_events
+      type: transform
+      transform_type: sql
+      source: v_kafka_events_raw
+      target: v_kafka_events_parsed
+      sql: |
+        SELECT 
+          CAST(key AS STRING) as message_key,
+          from_json(CAST(value AS STRING), 'event_type STRING, timestamp BIGINT, data STRING') as parsed_value,
+          topic,
+          partition,
+          offset,
+          timestamp as kafka_timestamp
+        FROM $source
+
+**Advanced Authentication: AWS MSK IAM**
+
+AWS Managed Streaming for Apache Kafka (MSK) supports IAM authentication for secure, credential-free access.
+
+**Prerequisites:**
+
+1. AWS MSK cluster configured with IAM authentication enabled
+2. Databricks cluster with IAM role/instance profile with MSK permissions
+3. IAM policy granting ``kafka-cluster:Connect``, ``kafka-cluster:DescribeCluster``, and topic/group permissions
+
+**YAML Configuration:**
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_msk_orders
+      type: load
+      readMode: stream
+      source:
+        type: kafka
+        bootstrap_servers: "b-1.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098"
+        subscribe: "orders"
+        options:
+          kafka.security.protocol: "SASL_SSL"
+          kafka.sasl.mechanism: "AWS_MSK_IAM"
+          kafka.sasl.jaas.config: "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;"
+          kafka.sasl.client.callback.handler.class: "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+          startingOffsets: "earliest"
+          failOnDataLoss: "false"
+      target: v_msk_orders_raw
+      description: "Load orders from MSK using IAM authentication"
+
+**With Specific IAM Role:**
+
+.. code-block:: yaml
+
+  options:
+    kafka.security.protocol: "SASL_SSL"
+    kafka.sasl.mechanism: "AWS_MSK_IAM"
+    kafka.sasl.jaas.config: 'shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="${msk_role_arn}";'
+    kafka.sasl.client.callback.handler.class: "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+
+**Generated PySpark Code:**
+
+.. code-block:: python
+  :linenos:
+
+  import dlt
+
+  @dlt.view()
+  def v_msk_orders_raw():
+      """Load orders from MSK using IAM authentication"""
+      df = spark.readStream \
+          .format("kafka") \
+          .option("kafka.bootstrap.servers", "b-1.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098") \
+          .option("subscribe", "orders") \
+          .option("kafka.security.protocol", "SASL_SSL") \
+          .option("kafka.sasl.mechanism", "AWS_MSK_IAM") \
+          .option("kafka.sasl.jaas.config", "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;") \
+          .option("kafka.sasl.client.callback.handler.class", "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler") \
+          .option("startingOffsets", "earliest") \
+          .option("failOnDataLoss", "false") \
+          .load()
+      
+      return df
+
+.. seealso::
+  For complete MSK IAM documentation see `AWS MSK IAM Access Control <https://docs.aws.amazon.com/msk/latest/developerguide/iam-access-control.html>`_.
+
+.. Important::
+  **MSK IAM Requirements:**
+  
+  - Port 9098 is used for IAM authentication (not the standard 9092)
+  - All three options are required: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, ``kafka.sasl.client.callback.handler.class``
+  - IAM role must have appropriate kafka-cluster:* permissions
+  - No credentials are stored - authentication is via IAM
+  - Ensure Databricks cluster has network access to MSK cluster
+
+**Advanced Authentication: Azure Event Hubs OAuth**
+
+Azure Event Hubs provides Kafka protocol support with OAuth 2.0 authentication using Azure Active Directory.
+
+**Prerequisites:**
+
+1. Azure Event Hubs namespace (Premium or Standard tier)
+2. Azure AD App Registration (Service Principal) with appropriate permissions
+3. Service Principal granted "Azure Event Hubs Data Receiver" role on the namespace
+4. Databricks secrets configured for client credentials
+
+**YAML Configuration:**
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_event_hubs_data
+      type: load
+      readMode: stream
+      source:
+        type: kafka
+        bootstrap_servers: "my-namespace.servicebus.windows.net:9093"
+        subscribe: "my-event-hub"
+        options:
+          kafka.security.protocol: "SASL_SSL"
+          kafka.sasl.mechanism: "OAUTHBEARER"
+          kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
+          kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
+          kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+          startingOffsets: "earliest"
+      target: v_event_hubs_data_raw
+      description: "Load data from Azure Event Hubs using OAuth"
+
+**Generated PySpark Code:**
+
+.. code-block:: python
+  :linenos:
+
+  import dlt
+
+  @dlt.view()
+  def v_event_hubs_data_raw():
+      """Load data from Azure Event Hubs using OAuth"""
+      df = spark.readStream \
+          .format("kafka") \
+          .option("kafka.bootstrap.servers", "my-namespace.servicebus.windows.net:9093") \
+          .option("subscribe", "my-event-hub") \
+          .option("kafka.security.protocol", "SASL_SSL") \
+          .option("kafka.sasl.mechanism", "OAUTHBEARER") \
+          .option("kafka.sasl.jaas.config", 
+                  f'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="{dbutils.secrets.get(scope="azure-secrets", key="client_id")}" clientSecret="{dbutils.secrets.get(scope="azure-secrets", key="client_secret")}" scope="https://my-namespace.servicebus.windows.net/.default" ssl.protocol="SSL";') \
+          .option("kafka.sasl.oauthbearer.token.endpoint.url", "https://login.microsoft.com/12345678-1234-1234-1234-123456789012/oauth2/v2.0/token") \
+          .option("kafka.sasl.login.callback.handler.class", "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler") \
+          .option("startingOffsets", "earliest") \
+          .load()
+      
+      return df
+
+.. seealso::
+  For complete Event Hubs Kafka documentation see `Azure Event Hubs for Apache Kafka <https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-for-kafka-ecosystem-overview>`_.
+
+.. Important::
+  **Event Hubs OAuth Requirements:**
+  
+  - Port 9093 is always used for Kafka protocol with Event Hubs
+  - Event Hubs namespace must be in format: ``<namespace>.servicebus.windows.net``
+  - The scope in JAAS config must match: ``https://<namespace>.servicebus.windows.net/.default``
+  - All four options are required: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, ``kafka.sasl.oauthbearer.token.endpoint.url``, ``kafka.sasl.login.callback.handler.class``
+  - Service Principal needs "Azure Event Hubs Data Receiver" role assignment
+  - OAuth token refresh is handled automatically by the callback handler
+  - Always use secrets for client credentials - never hardcode in YAML
+
 sql
 ~~~
 SQL load actions support both **inline SQL** and **external SQL files**.

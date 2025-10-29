@@ -203,4 +203,145 @@ class APIDataSource(DataSource):
         with pytest.raises(FileNotFoundError) as exc_info:
             generator.generate(action, context)
         
-        assert "Custom data source file not found" in str(exc_info.value) 
+        assert "Custom data source file not found" in str(exc_info.value)
+
+    def test_values_with_quotes_escaped(self, tmp_path):
+        """Test that option values containing quotes are properly escaped."""
+        custom_source_file = tmp_path / "test_source.py"
+        custom_source_file.write_text("""
+class TestDataSource(DataSource):
+    @classmethod
+    def name(cls):
+        return "test_datasource"
+""")
+
+        action = Action(
+            name="test_quotes",
+            type=ActionType.LOAD,
+            target="v_test_quotes",
+            readMode="stream"
+        )
+        action.source = {
+            "type": "custom_datasource",
+            "module_path": str(custom_source_file.relative_to(tmp_path)),
+            "custom_datasource_class": "TestDataSource",
+            "options": {
+                # Value with embedded quotes
+                "authConfig": 'token="secret123"',
+            }
+        }
+
+        generator = CustomDataSourceLoadGenerator()
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": None,
+            "preset_config": {},
+            "project_config": None
+        }
+
+        result = generator.generate(action, context)
+
+        # Check that quotes are escaped
+        assert '\\"secret123\\"' in result or 'token=\\"secret123\\"' in result
+        
+        # Verify it's valid Python by compiling
+        try:
+            compile(result, '<string>', 'exec')
+            assert True
+        except SyntaxError as e:
+            pytest.fail(f"Generated code with quotes is not valid Python syntax: {e}")
+
+    def test_values_with_backslashes_escaped(self, tmp_path):
+        """Test that option values containing backslashes are properly escaped."""
+        custom_source_file = tmp_path / "test_source.py"
+        custom_source_file.write_text("""
+class TestDataSource(DataSource):
+    @classmethod
+    def name(cls):
+        return "test_datasource"
+""")
+
+        action = Action(
+            name="test_backslashes",
+            type=ActionType.LOAD,
+            target="v_test_backslashes",
+            readMode="batch"
+        )
+        action.source = {
+            "type": "custom_datasource",
+            "module_path": str(custom_source_file.relative_to(tmp_path)),
+            "custom_datasource_class": "TestDataSource",
+            "options": {
+                # Value with backslashes (Windows path)
+                "dataPath": r"C:\data\files",
+            }
+        }
+
+        generator = CustomDataSourceLoadGenerator()
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": None,
+            "preset_config": {},
+            "project_config": None
+        }
+
+        result = generator.generate(action, context)
+
+        # Check that backslashes are escaped
+        assert '\\\\data\\\\files' in result or r'C:\\data\\files' in result
+        
+        # Verify no SyntaxWarning
+        import warnings
+        warnings.simplefilter('error', SyntaxWarning)
+        try:
+            compile(result, '<string>', 'exec')
+            assert True
+        except SyntaxWarning as e:
+            pytest.fail(f"Generated code has invalid escape sequences: {e}")
+        except SyntaxError as e:
+            pytest.fail(f"Generated code is not valid Python syntax: {e}")
+        finally:
+            warnings.simplefilter('default', SyntaxWarning)
+
+    def test_json_config_with_quotes(self, tmp_path):
+        """Test JSON configuration strings with quotes."""
+        custom_source_file = tmp_path / "api_source.py"
+        custom_source_file.write_text("""
+class APIDataSource(DataSource):
+    @classmethod
+    def name(cls):
+        return "api_datasource"
+""")
+
+        action = Action(
+            name="test_json",
+            type=ActionType.LOAD,
+            target="v_api_json",
+            readMode="stream"
+        )
+        action.source = {
+            "type": "custom_datasource",
+            "module_path": str(custom_source_file.relative_to(tmp_path)),
+            "custom_datasource_class": "APIDataSource",
+            "options": {
+                # JSON-like configuration
+                "config": '{"key": "value", "nested": {"field": "data"}}',
+            }
+        }
+
+        generator = CustomDataSourceLoadGenerator()
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": None,
+            "preset_config": {},
+            "project_config": None
+        }
+
+        result = generator.generate(action, context)
+
+        # Verify valid Python (quotes should be escaped)
+        try:
+            compile(result, '<string>', 'exec')
+            assert True
+        except SyntaxError as e:
+            pytest.fail(f"Generated code with JSON config is not valid Python syntax: {e}") 
