@@ -496,6 +496,137 @@ class TestKafkaLoadGenerator:
         finally:
             warnings.simplefilter('default', SyntaxWarning)
 
+    def test_msk_iam_authentication(self):
+        """Test AWS MSK IAM authentication with instance profile."""
+        action = Action(
+            name="test_msk_iam",
+            type="load",
+            source={
+                "type": "kafka",
+                "bootstrap_servers": "b-1.msk-cluster.amazonaws.com:9098",
+                "subscribe": "test_topic",
+                "options": {
+                    "kafka.security.protocol": "SASL_SSL",
+                    "kafka.sasl.mechanism": "AWS_MSK_IAM",
+                    "kafka.sasl.jaas.config": "software.amazon.msk.auth.iam.IAMLoginModule required;",
+                    "kafka.sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+                }
+            },
+            target="v_msk_data",
+            readMode="stream"
+        )
+        result = self.generator.generate(action, {})
+        assert "software.amazon.msk.auth.iam.IAMLoginModule" in result
+        assert "software.amazon.msk.auth.iam.IAMClientCallbackHandler" in result
+
+    def test_msk_iam_with_role_arn(self):
+        """Test MSK IAM with specific role ARN in JAAS config."""
+        action = Action(
+            name="test_msk_role",
+            type="load",
+            source={
+                "type": "kafka",
+                "bootstrap_servers": "b-1.msk-cluster.amazonaws.com:9098",
+                "subscribe": "test_topic",
+                "options": {
+                    "kafka.security.protocol": "SASL_SSL",
+                    "kafka.sasl.mechanism": "AWS_MSK_IAM",
+                    "kafka.sasl.jaas.config": 'software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="arn:aws:iam::123456789012:role/MyRole";',
+                    "kafka.sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+                }
+            },
+            target="v_msk_role",
+            readMode="stream"
+        )
+        result = self.generator.generate(action, {})
+        assert '\\"arn:aws:iam::123456789012:role/MyRole\\"' in result or 'arn:aws:iam::123456789012:role/MyRole' in result
+
+    def test_msk_iam_validation_missing_options(self):
+        """Test MSK IAM validation fails when required options missing."""
+        action = Action(
+            name="test_msk_invalid",
+            type="load",
+            source={
+                "type": "kafka",
+                "bootstrap_servers": "b-1.msk-cluster.amazonaws.com:9098",
+                "subscribe": "test_topic",
+                "options": {
+                    "kafka.sasl.mechanism": "AWS_MSK_IAM"
+                }
+            },
+            target="v_msk_invalid",
+            readMode="stream"
+        )
+        with pytest.raises(ValueError, match="AWS MSK IAM authentication requires"):
+            self.generator.generate(action, {})
+
+    def test_event_hubs_oauth_authentication(self):
+        """Test Azure Event Hubs OAuth authentication."""
+        action = Action(
+            name="test_event_hubs",
+            type="load",
+            source={
+                "type": "kafka",
+                "bootstrap_servers": "my-namespace.servicebus.windows.net:9093",
+                "subscribe": "my-event-hub",
+                "options": {
+                    "kafka.security.protocol": "SASL_SSL",
+                    "kafka.sasl.mechanism": "OAUTHBEARER",
+                    "kafka.sasl.jaas.config": 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="abc123" clientSecret="secret" scope="https://my-namespace.servicebus.windows.net/.default" ssl.protocol="SSL";',
+                    "kafka.sasl.oauthbearer.token.endpoint.url": "https://login.microsoft.com/tenant-id/oauth2/v2.0/token",
+                    "kafka.sasl.login.callback.handler.class": "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+                }
+            },
+            target="v_event_hubs_data",
+            readMode="stream"
+        )
+        result = self.generator.generate(action, {})
+        assert "kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule" in result
+        assert "OAuthBearerLoginCallbackHandler" in result
+
+    def test_event_hubs_with_secrets(self):
+        """Test Event Hubs OAuth with secret placeholders."""
+        action = Action(
+            name="test_event_hubs_secrets",
+            type="load",
+            source={
+                "type": "kafka",
+                "bootstrap_servers": "my-namespace.servicebus.windows.net:9093",
+                "subscribe": "my-event-hub",
+                "options": {
+                    "kafka.security.protocol": "SASL_SSL",
+                    "kafka.sasl.mechanism": "OAUTHBEARER",
+                    "kafka.sasl.jaas.config": 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://my-namespace.servicebus.windows.net/.default" ssl.protocol="SSL";',
+                    "kafka.sasl.oauthbearer.token.endpoint.url": "https://login.microsoft.com/${tenant_id}/oauth2/v2.0/token",
+                    "kafka.sasl.login.callback.handler.class": "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+                }
+            },
+            target="v_event_hubs_secrets",
+            readMode="stream"
+        )
+        result = self.generator.generate(action, {})
+        assert "clientId=" in result
+        assert "clientSecret=" in result
+
+    def test_event_hubs_oauth_validation_missing_options(self):
+        """Test Event Hubs OAuth validation fails when options missing."""
+        action = Action(
+            name="test_oauth_invalid",
+            type="load",
+            source={
+                "type": "kafka",
+                "bootstrap_servers": "my-namespace.servicebus.windows.net:9093",
+                "subscribe": "test",
+                "options": {
+                    "kafka.sasl.mechanism": "OAUTHBEARER"
+                }
+            },
+            target="v_oauth_invalid",
+            readMode="stream"
+        )
+        with pytest.raises(ValueError, match="OAuth authentication requires"):
+            self.generator.generate(action, {})
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

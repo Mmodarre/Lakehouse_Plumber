@@ -210,6 +210,35 @@ class KafkaLoadGenerator(BaseActionGenerator):
         elif source_config.get("assign"):
             reader_options["assign"] = source_config["assign"]
 
+    def _validate_msk_iam_auth(self, options: Dict[str, Any], action_name: str) -> None:
+        """Validate AWS MSK IAM authentication configuration."""
+        if options.get("kafka.sasl.mechanism") == "AWS_MSK_IAM":
+            required_msk_options = {
+                "kafka.sasl.jaas.config",
+                "kafka.security.protocol",
+                "kafka.sasl.client.callback.handler.class"
+            }
+            missing = required_msk_options - set(options.keys())
+            if missing:
+                raise ValueError(
+                    f"Kafka action '{action_name}': AWS MSK IAM authentication requires: {', '.join(sorted(missing))}"
+                )
+
+    def _validate_event_hubs_oauth(self, options: Dict[str, Any], action_name: str) -> None:
+        """Validate Azure Event Hubs OAuth configuration."""
+        if options.get("kafka.sasl.mechanism") == "OAUTHBEARER":
+            required_oauth_options = {
+                "kafka.sasl.jaas.config",
+                "kafka.sasl.oauthbearer.token.endpoint.url",
+                "kafka.security.protocol",
+                "kafka.sasl.login.callback.handler.class"
+            }
+            missing = required_oauth_options - set(options.keys())
+            if missing:
+                raise ValueError(
+                    f"Kafka action '{action_name}': OAuth authentication requires: {', '.join(sorted(missing))}"
+                )
+
     def _process_options(
         self, options: Dict[str, Any], action_name: str
     ) -> Dict[str, Any]:
@@ -243,6 +272,14 @@ class KafkaLoadGenerator(BaseActionGenerator):
 
             # Preserve original type for all options
             processed_options[key] = value
+
+        # Validate MSK IAM if configured
+        if processed_options.get("kafka.sasl.mechanism") == "AWS_MSK_IAM":
+            self._validate_msk_iam_auth(processed_options, action_name)
+
+        # Validate Event Hubs OAuth if configured
+        if processed_options.get("kafka.sasl.mechanism") == "OAUTHBEARER":
+            self._validate_event_hubs_oauth(processed_options, action_name)
 
         return processed_options
 

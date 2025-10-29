@@ -1,0 +1,188 @@
+# ===============================================================================
+# Azure Event Hubs OAuth Authentication Reference Template
+# ===============================================================================
+# This template demonstrates Azure Event Hubs OAuth (SASL OAUTHBEARER)
+# authentication patterns for Kafka load actions.
+#
+# Prerequisites:
+# 1. Azure Event Hubs namespace (Premium or Standard tier)
+# 2. Azure AD App Registration (Service Principal) with appropriate permissions
+# 3. Service Principal granted "Azure Event Hubs Data Receiver" role
+# 4. Databricks secrets configured for client credentials
+#
+# Documentation:
+# - Event Hubs Kafka: https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-for-kafka-ecosystem-overview
+# - OAuth with Kafka: https://learn.microsoft.com/en-us/azure/event-hubs/authenticate-application
+# - Databricks Kafka: https://docs.databricks.com/aws/en/connect/streaming/kafka.html
+# ===============================================================================
+
+actions:
+  # =========================================================================
+  # Pattern 1: Event Hubs OAuth with Service Principal (recommended)
+  # =========================================================================
+  # Uses Azure AD Service Principal for authentication via OAuth 2.0
+  - name: load_event_hubs_oauth
+    type: load
+    readMode: stream
+    operational_metadata: ["_processing_timestamp"]
+    source:
+      type: kafka
+      # Event Hubs namespace endpoint (always port 9093 for Kafka)
+      bootstrap_servers: "${event_hubs_namespace}:9093"
+      subscribe: "${event_hubs_topic}"
+      options:
+        # Required OAuth authentication settings
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "OAUTHBEARER"
+        
+        # JAAS config with Service Principal credentials
+        # The scope must match your Event Hubs namespace
+        kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
+        
+        # OAuth token endpoint for Azure AD
+        kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
+        
+        # Callback handler for OAuth token management
+        kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+        
+        # Standard Kafka options
+        startingOffsets: "earliest"
+        failOnDataLoss: false
+        kafka.client.id: "databricks-event-hubs-pipeline"
+        kafka.session.timeout.ms: 30000
+    target: v_event_hubs_data_raw
+    description: "Load data from Azure Event Hubs using OAuth authentication"
+
+  # =========================================================================
+  # Pattern 2: Event Hubs with Multiple Topics
+  # =========================================================================
+  # Subscribe to multiple Event Hubs (topics) in the same namespace
+  - name: load_event_hubs_multi_topic
+    type: load
+    readMode: stream
+    source:
+      type: kafka
+      bootstrap_servers: "${event_hubs_namespace}:9093"
+      # Comma-separated list of Event Hubs
+      subscribe: "events-hub,logs-hub,metrics-hub"
+      options:
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "OAUTHBEARER"
+        kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
+        kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
+        kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+        
+        startingOffsets: "earliest"
+        kafka.client.id: "databricks-multi-hub-pipeline"
+    target: v_event_hubs_multi_raw
+    description: "Load data from multiple Event Hubs"
+
+  # =========================================================================
+  # Pattern 3: Event Hubs with Pattern Subscription
+  # =========================================================================
+  # Subscribe to Event Hubs matching a pattern
+  - name: load_event_hubs_pattern
+    type: load
+    readMode: stream
+    source:
+      type: kafka
+      bootstrap_servers: "${event_hubs_namespace}:9093"
+      # Regex pattern to match Event Hub names
+      subscribePattern: "telemetry-.*"
+      options:
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "OAUTHBEARER"
+        kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
+        kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
+        kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+        
+        startingOffsets: "latest"
+        kafka.client.id: "databricks-telemetry-pipeline"
+    target: v_event_hubs_telemetry_raw
+    description: "Load telemetry data from Event Hubs matching pattern"
+
+  # =========================================================================
+  # Pattern 4: Event Hubs with Advanced Options
+  # =========================================================================
+  # Demonstrates additional performance and reliability options
+  - name: load_event_hubs_advanced
+    type: load
+    readMode: stream
+    operational_metadata: ["_processing_timestamp", "_kafka_partition"]
+    source:
+      type: kafka
+      bootstrap_servers: "${event_hubs_namespace}:9093"
+      subscribe: "${event_hubs_high_volume_topic}"
+      options:
+        # Authentication
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "OAUTHBEARER"
+        kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
+        kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
+        kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+        
+        # Performance tuning
+        maxOffsetsPerTrigger: 50000
+        minPartitions: 8
+        kafka.fetch.min.bytes: 524288
+        kafka.fetch.max.wait.ms: 500
+        kafka.max.poll.records: 500
+        
+        # Reliability
+        startingOffsets: "earliest"
+        failOnDataLoss: false
+        kafka.session.timeout.ms: 45000
+        kafka.heartbeat.interval.ms: 3000
+        
+        # Event Hubs specific
+        kafka.client.id: "databricks-high-volume-eh-pipeline"
+        kafka.request.timeout.ms: 60000
+        kafka.connections.max.idle.ms: 540000
+    target: v_event_hubs_high_volume_raw
+    description: "Load high-volume data from Event Hubs with performance tuning"
+
+  # =========================================================================
+  # Pattern 5: Event Hubs with Consumer Group
+  # =========================================================================
+  # Uses specific consumer group for Event Hubs partitioning
+  - name: load_event_hubs_consumer_group
+    type: load
+    readMode: stream
+    source:
+      type: kafka
+      bootstrap_servers: "${event_hubs_namespace}:9093"
+      subscribe: "${event_hubs_topic}"
+      options:
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "OAUTHBEARER"
+        kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
+        kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
+        kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+        
+        # Specify consumer group for partition management
+        kafka.group.id: "databricks-consumer-group"
+        startingOffsets: "earliest"
+        kafka.client.id: "databricks-grouped-pipeline"
+    target: v_event_hubs_grouped_raw
+    description: "Load data from Event Hubs with consumer group"
+
+# Substitution Variables (examples for substitutions/dev.yaml):
+# event_hubs_namespace: "my-namespace.servicebus.windows.net"
+# azure_tenant_id: "12345678-1234-1234-1234-123456789012"
+# event_hubs_topic: "my-event-hub"
+# event_hubs_high_volume_topic: "high-volume-hub"
+#
+# Secret Scope Configuration (azure_secrets):
+# client_id: Application (client) ID from Azure AD App Registration
+# client_secret: Client secret value from Azure AD App Registration
+
+# Important Notes:
+# 1. Event Hubs namespace must be in format: <namespace>.servicebus.windows.net
+# 2. Port 9093 is always used for Kafka protocol with Event Hubs
+# 3. The scope in JAAS config must match: https://<namespace>.servicebus.windows.net/.default
+# 4. Service Principal needs "Azure Event Hubs Data Receiver" role assignment
+# 5. OAuth token refresh is handled automatically by the callback handler
+# 6. Consumer groups in Event Hubs are different from Kafka consumer groups
+# 7. Event Hubs supports up to 32 partitions per hub (Standard tier)
+# 8. Always use secrets for client credentials - never hardcode in YAML
+

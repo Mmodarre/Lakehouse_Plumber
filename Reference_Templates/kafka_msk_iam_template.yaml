@@ -1,0 +1,142 @@
+# ===============================================================================
+# AWS MSK IAM Authentication Reference Template
+# ===============================================================================
+# This template demonstrates AWS MSK (Managed Streaming for Apache Kafka)
+# IAM authentication patterns for Kafka load actions.
+#
+# Prerequisites:
+# 1. AWS MSK cluster configured with IAM authentication
+# 2. Databricks cluster with IAM role/instance profile with MSK permissions
+# 3. IAM policy granting kafka-cluster:Connect, kafka-cluster:DescribeCluster,
+#    and topic/group permissions
+#
+# Documentation:
+# - AWS MSK IAM: https://docs.aws.amazon.com/msk/latest/developerguide/iam-access-control.html
+# - Databricks Kafka: https://docs.databricks.com/aws/en/connect/streaming/kafka.html
+# ===============================================================================
+
+actions:
+  # =========================================================================
+  # Pattern 1: MSK IAM with Instance Profile (recommended for production)
+  # =========================================================================
+  # Uses the IAM role attached to the Databricks cluster's instance profile.
+  # This is the most secure approach as no credentials are stored.
+  - name: load_msk_instance_profile
+    type: load
+    readMode: stream
+    operational_metadata: ["_processing_timestamp"]
+    source:
+      type: kafka
+      bootstrap_servers: "${msk_bootstrap_servers}"
+      subscribe: "orders"
+      options:
+        # Required for MSK IAM authentication
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "AWS_MSK_IAM"
+        kafka.sasl.jaas.config: "software.amazon.msk.auth.iam.IAMLoginModule required;"
+        kafka.sasl.client.callback.handler.class: "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+        
+        # Standard Kafka options
+        startingOffsets: "earliest"
+        failOnDataLoss: false
+        kafka.client.id: "databricks-orders-pipeline"
+        kafka.session.timeout.ms: 30000
+    target: v_msk_orders_raw
+    description: "Load orders from MSK using instance profile IAM authentication"
+
+  # =========================================================================
+  # Pattern 2: MSK IAM with Specific Role ARN
+  # =========================================================================
+  # Assumes a specific IAM role for Kafka access. Useful when the cluster's
+  # instance profile doesn't have direct MSK permissions but can assume a role.
+  - name: load_msk_with_role
+    type: load
+    readMode: stream
+    source:
+      type: kafka
+      bootstrap_servers: "${msk_bootstrap_servers}"
+      subscribe: "transactions"
+      options:
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "AWS_MSK_IAM"
+        # Specify the role ARN to assume for MSK access
+        kafka.sasl.jaas.config: 'software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="${msk_role_arn}";'
+        kafka.sasl.client.callback.handler.class: "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+        
+        startingOffsets: "earliest"
+        kafka.client.id: "databricks-transactions-pipeline"
+    target: v_msk_transactions_raw
+    description: "Load transactions from MSK using specific IAM role"
+
+  # =========================================================================
+  # Pattern 3: MSK IAM with Pattern Subscription
+  # =========================================================================
+  # Subscribe to multiple topics using regex pattern matching
+  - name: load_msk_pattern
+    type: load
+    readMode: stream
+    source:
+      type: kafka
+      bootstrap_servers: "${msk_bootstrap_servers}"
+      # Regex pattern to match topic names
+      subscribePattern: "events\\..*\\.v1"
+      options:
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "AWS_MSK_IAM"
+        kafka.sasl.jaas.config: "software.amazon.msk.auth.iam.IAMLoginModule required;"
+        kafka.sasl.client.callback.handler.class: "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+        
+        startingOffsets: "latest"
+        kafka.client.id: "databricks-events-pipeline"
+    target: v_msk_events_raw
+    description: "Load events from MSK topics matching pattern"
+
+  # =========================================================================
+  # Pattern 4: MSK IAM with Advanced Options
+  # =========================================================================
+  # Demonstrates additional performance and reliability options
+  - name: load_msk_advanced
+    type: load
+    readMode: stream
+    operational_metadata: ["_processing_timestamp", "_kafka_offset"]
+    source:
+      type: kafka
+      bootstrap_servers: "${msk_bootstrap_servers}"
+      subscribe: "high-volume-topic"
+      options:
+        # Authentication
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "AWS_MSK_IAM"
+        kafka.sasl.jaas.config: "software.amazon.msk.auth.iam.IAMLoginModule required;"
+        kafka.sasl.client.callback.handler.class: "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+        
+        # Performance tuning
+        maxOffsetsPerTrigger: 100000
+        minPartitions: 10
+        kafka.fetch.min.bytes: 1048576
+        kafka.fetch.max.wait.ms: 500
+        kafka.max.poll.records: 1000
+        
+        # Reliability
+        startingOffsets: "earliest"
+        failOnDataLoss: false
+        kafka.session.timeout.ms: 45000
+        kafka.heartbeat.interval.ms: 3000
+        kafka.max.poll.interval.ms: 600000
+        
+        # Identification
+        kafka.client.id: "databricks-high-volume-pipeline"
+    target: v_msk_high_volume_raw
+    description: "Load high-volume data from MSK with performance tuning"
+
+# Substitution Variables (examples for substitutions/dev.yaml):
+# msk_bootstrap_servers: "b-1.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098,b-2.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098"
+# msk_role_arn: "arn:aws:iam::123456789012:role/DatabricksMSKAccessRole"
+
+# Important Notes:
+# 1. Port 9098 is used for IAM authentication (vs 9092 for plaintext)
+# 2. The IAM role must have appropriate kafka-cluster:* permissions
+# 3. Topic and consumer group ARNs must be included in IAM policy
+# 4. No secrets or passwords are stored - all auth via IAM
+# 5. Ensure Databricks cluster has network access to MSK cluster
+
