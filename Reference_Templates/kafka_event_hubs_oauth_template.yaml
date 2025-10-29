@@ -36,7 +36,7 @@ actions:
         kafka.sasl.mechanism: "OAUTHBEARER"
         
         # JAAS config with Service Principal credentials
-        # The scope must match your Event Hubs namespace
+        # The scope must match your Event Hubs namespace: https://<namespace>.servicebus.windows.net/.default
         kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
         
         # OAuth token endpoint for Azure AD
@@ -47,7 +47,7 @@ actions:
         
         # Standard Kafka options
         startingOffsets: "earliest"
-        failOnDataLoss: false
+        failOnDataLoss: "false"
         kafka.client.id: "databricks-event-hubs-pipeline"
         kafka.session.timeout.ms: 30000
     target: v_event_hubs_data_raw
@@ -130,7 +130,7 @@ actions:
         
         # Reliability
         startingOffsets: "earliest"
-        failOnDataLoss: false
+        failOnDataLoss: "false"
         kafka.session.timeout.ms: 45000
         kafka.heartbeat.interval.ms: 3000
         

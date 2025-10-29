@@ -508,16 +508,16 @@ class TestKafkaLoadGenerator:
                 "options": {
                     "kafka.security.protocol": "SASL_SSL",
                     "kafka.sasl.mechanism": "AWS_MSK_IAM",
-                    "kafka.sasl.jaas.config": "software.amazon.msk.auth.iam.IAMLoginModule required;",
-                    "kafka.sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+                    "kafka.sasl.jaas.config": "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;",
+                    "kafka.sasl.client.callback.handler.class": "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
                 }
             },
             target="v_msk_data",
             readMode="stream"
         )
         result = self.generator.generate(action, {})
-        assert "software.amazon.msk.auth.iam.IAMLoginModule" in result
-        assert "software.amazon.msk.auth.iam.IAMClientCallbackHandler" in result
+        assert "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule" in result
+        assert "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler" in result
 
     def test_msk_iam_with_role_arn(self):
         """Test MSK IAM with specific role ARN in JAAS config."""
@@ -531,8 +531,8 @@ class TestKafkaLoadGenerator:
                 "options": {
                     "kafka.security.protocol": "SASL_SSL",
                     "kafka.sasl.mechanism": "AWS_MSK_IAM",
-                    "kafka.sasl.jaas.config": 'software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="arn:aws:iam::123456789012:role/MyRole";',
-                    "kafka.sasl.client.callback.handler.class": "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+                    "kafka.sasl.jaas.config": 'shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="arn:aws:iam::123456789012:role/MyRole";',
+                    "kafka.sasl.client.callback.handler.class": "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
                 }
             },
             target="v_msk_role",

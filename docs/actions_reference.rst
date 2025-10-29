@@ -368,10 +368,10 @@ AWS Managed Streaming for Apache Kafka (MSK) supports IAM authentication for sec
         options:
           kafka.security.protocol: "SASL_SSL"
           kafka.sasl.mechanism: "AWS_MSK_IAM"
-          kafka.sasl.jaas.config: "software.amazon.msk.auth.iam.IAMLoginModule required;"
-          kafka.sasl.client.callback.handler.class: "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+          kafka.sasl.jaas.config: "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;"
+          kafka.sasl.client.callback.handler.class: "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
           startingOffsets: "earliest"
-          failOnDataLoss: false
+          failOnDataLoss: "false"
       target: v_msk_orders_raw
       description: "Load orders from MSK using IAM authentication"
 
@@ -382,8 +382,8 @@ AWS Managed Streaming for Apache Kafka (MSK) supports IAM authentication for sec
   options:
     kafka.security.protocol: "SASL_SSL"
     kafka.sasl.mechanism: "AWS_MSK_IAM"
-    kafka.sasl.jaas.config: 'software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="${msk_role_arn}";'
-    kafka.sasl.client.callback.handler.class: "software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+    kafka.sasl.jaas.config: 'shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="${msk_role_arn}";'
+    kafka.sasl.client.callback.handler.class: "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
 
 **Generated PySpark Code:**
 
@@ -401,10 +401,10 @@ AWS Managed Streaming for Apache Kafka (MSK) supports IAM authentication for sec
           .option("subscribe", "orders") \
           .option("kafka.security.protocol", "SASL_SSL") \
           .option("kafka.sasl.mechanism", "AWS_MSK_IAM") \
-          .option("kafka.sasl.jaas.config", "software.amazon.msk.auth.iam.IAMLoginModule required;") \
-          .option("kafka.sasl.client.callback.handler.class", "software.amazon.msk.auth.iam.IAMClientCallbackHandler") \
+          .option("kafka.sasl.jaas.config", "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;") \
+          .option("kafka.sasl.client.callback.handler.class", "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler") \
           .option("startingOffsets", "earliest") \
-          .option("failOnDataLoss", False) \
+          .option("failOnDataLoss", "false") \
           .load()
       
       return df
@@ -447,7 +447,7 @@ Azure Event Hubs provides Kafka protocol support with OAuth 2.0 authentication u
         options:
           kafka.security.protocol: "SASL_SSL"
           kafka.sasl.mechanism: "OAUTHBEARER"
-          kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://my-namespace.servicebus.windows.net/.default" ssl.protocol="SSL";'
+          kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
           kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
           kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
           startingOffsets: "earliest"
