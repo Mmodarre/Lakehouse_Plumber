@@ -12,7 +12,7 @@
 [![codecov](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber/branch/main/graph/badge.svg?token=80IBHIFAQY)](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber)
 [![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://lakehouse-plumber.readthedocs.io/)
 [![Databricks](https://img.shields.io/badge/Databricks-Lakeflow-%23FF3621?logo=databricks)](https://www.databricks.com/product/data-engineering)
-[![PyPI Downloads](https://static.pepy.tech/badge/lakehouse-plumber/month)](https://pepy.tech/projects/lakehouse-plumber)
+<!-- [![PyPI Downloads](https://static.pepy.tech/badge/lakehouse-plumber/month)](https://pepy.tech/projects/lakehouse-plumber) -->
 
 </div>
 
@@ -25,6 +25,8 @@
 - The only Metadata framework that generates production ready Pyspark code for Lakeflow Declarative Pipelines
 
 ## 🆕 What's New
+
+- **Multi-FlowGroup Support**: Organize your data pipelines with multiple flowgroup YAML files within a single pipeline. (e.g., `customers.yaml`, `orders.yaml`, `products.yaml`) Perfect for when multiple flows are usign the same template to further avoide boilerplate config and reduce file count.
 
 - **Customizable Pipeline Configuration**: Configure DLT pipeline settings (compute, runtime, notifications) via YAML files with support for project-level defaults and pipeline-specific overrides. Perfect for managing different requirements across dev/test/prod environments.
 
