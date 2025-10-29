@@ -626,6 +626,26 @@ class TestKafkaLoadGenerator:
         )
         with pytest.raises(ValueError, match="OAuth authentication requires"):
             self.generator.generate(action, {})
+    
+    def test_missing_bootstrap_servers_in_options(self):
+        """Test that missing bootstrap_servers raises error."""
+        action = Action(
+            name="test_no_bootstrap",
+            type="load",
+            source={
+                "type": "kafka",
+                # bootstrap_servers not in source level
+                "subscribe": "test_topic",
+                "options": {
+                    # and not in options either
+                    "startingOffsets": "earliest"
+                }
+            },
+            target="v_test",
+            readMode="stream"
+        )
+        with pytest.raises(ValueError, match="must have 'bootstrap_servers'"):
+            self.generator.generate(action, {})
 
 
 if __name__ == "__main__":
