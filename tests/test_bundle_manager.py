@@ -456,4 +456,80 @@ project_defaults:
         
         # Config loader instance should be the same (loaded once)
         assert hasattr(manager, 'config_loader')
-        assert manager.config_loader is not None 
+        assert manager.config_loader is not None
+    
+    def test_cluster_config_generates_valid_yaml(self):
+        """Cluster configuration renders as valid, properly formatted YAML."""
+        import yaml
+        import re
+        
+        # Load fixture with full cluster configuration
+        fixture_path = Path(__file__).parent / "fixtures/pipeline_configs/full_cluster_config.yaml"
+        
+        manager = BundleManager(self.project_root, pipeline_config_path=str(fixture_path))
+        
+        generated_dir = self.project_root / "generated"
+        generated_dir.mkdir()
+        
+        # Generate resource content
+        content = manager.generate_resource_file_content("cluster_test_pipeline", generated_dir, env="dev")
+        
+        # Test 1: Must be valid YAML (no syntax errors)
+        try:
+            parsed_yaml = yaml.safe_load(content)
+            assert parsed_yaml is not None
+            assert isinstance(parsed_yaml, dict)
+        except yaml.YAMLError as e:
+            pytest.fail(f"Generated YAML is invalid: {e}\nContent:\n{content}")
+        
+        # Test 2: Verify NO line concatenation (the original bug)
+        # Should NOT have patterns like "clusters:        - label:" on SAME line
+        # Use [ \t]+ to match spaces/tabs but NOT newlines
+        assert not re.search(r'clusters:[ \t]+- label:', content), \
+            "Cluster list item should NOT be on same line as 'clusters:'"
+        assert not re.search(r'node_type_id:[ \t]+\S+[ \t]+driver_node_type_id:', content), \
+            "Fields should not be concatenated on same line"
+        assert not re.search(r'max_workers:[ \t]+\d+[ \t]+mode:', content), \
+            "Fields should not be concatenated on same line"
+        
+        # Test 3: Verify proper multi-line structure
+        # Check that key YAML structures are on separate lines
+        assert re.search(r'clusters:\s*\n\s+- label:', content), \
+            "Cluster list should start on new line after 'clusters:'"
+        assert re.search(r'- label: default\s*\n\s+node_type_id:', content), \
+            "node_type_id should be on new line after label"
+        assert re.search(r'autoscale:\s*\n\s+min_workers:', content), \
+            "Autoscale fields should be on new lines"
+        
+        # Test 4: Verify all cluster fields are present in parsed YAML
+        pipeline_config = parsed_yaml['resources']['pipelines']['cluster_test_pipeline_pipeline']
+        assert pipeline_config['serverless'] is False
+        assert 'clusters' in pipeline_config
+        assert len(pipeline_config['clusters']) == 1
+        
+        cluster = pipeline_config['clusters'][0]
+        assert cluster['label'] == 'default'
+        assert cluster['node_type_id'] == 'Standard_D4ds_v5'
+        assert cluster['driver_node_type_id'] == 'Standard_D32ds_v5'
+        assert 'autoscale' in cluster
+        assert cluster['autoscale']['min_workers'] == 1
+        assert cluster['autoscale']['max_workers'] == 5
+        assert cluster['autoscale']['mode'] == 'ENHANCED'
+        
+        # Test 5: Verify proper indentation (2 spaces per level)
+        # Check indentation for clusters block
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            if 'clusters:' in line and not line.strip().startswith('#'):
+                # Next non-empty line should be list item with proper indent
+                for j in range(i+1, len(lines)):
+                    if lines[j].strip() and not lines[j].strip().startswith('#'):
+                        assert lines[j].startswith('        - label:'), \
+                            f"Cluster list item has incorrect indentation: {lines[j]}"
+                        break
+                break
+        
+        # Test 6: Verify other config options are present
+        assert pipeline_config.get('photon') is True
+        assert pipeline_config.get('edition') == 'ADVANCED'
+        assert pipeline_config.get('channel') == 'CURRENT' 

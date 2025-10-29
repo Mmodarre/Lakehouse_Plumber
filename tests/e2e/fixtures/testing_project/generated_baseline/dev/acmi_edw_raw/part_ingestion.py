@@ -58,7 +58,14 @@ def v_part_raw_cloudfiles():
 
 # Create the streaming table
 dlt.create_streaming_table(
-    name="acme_edw_dev.edw_raw.part_raw", comment="Streaming table: part_raw"
+    name="acme_edw_dev.edw_raw.part_raw",
+    comment="Streaming table: part_raw",
+    table_properties={
+        "delta.enableRowTracking": "true",
+        "delta.autoOptimize.optimizeWrite": "true",
+        "delta.autoOptimize.autoCompact": "true",
+        "delta.enableChangeDataFeed": "true",
+    },
 )
 
 

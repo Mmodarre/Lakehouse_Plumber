@@ -14,24 +14,24 @@ resources:
 
       # Compute clusters configuration
       clusters:
-{%- for cluster in pipeline_config.clusters %}
+{% for cluster in pipeline_config.clusters %}
         - label: {{ cluster.label }}
           node_type_id: {{ cluster.node_type_id }}
-{%- if cluster.get('driver_node_type_id') %}
+{% if cluster.get('driver_node_type_id') %}
           driver_node_type_id: {{ cluster.driver_node_type_id }}
-{%- endif %}
-{%- if cluster.get('policy_id') %}
+{% endif %}
+{% if cluster.get('policy_id') %}
           policy_id: {{ cluster.policy_id }}
-{%- endif %}
-{%- if cluster.get('autoscale') %}
+{% endif %}
+{% if cluster.get('autoscale') %}
           autoscale:
             min_workers: {{ cluster.autoscale.min_workers }}
             max_workers: {{ cluster.autoscale.max_workers }}
-{%- if cluster.autoscale.get('mode') %}
+{% if cluster.autoscale.get('mode') %}
             mode: {{ cluster.autoscale.mode }}
-{%- endif %}
-{%- endif %}
-{%- endfor %}
+{% endif %}
+{% endif %}
+{% endfor %}
 {%- endif %}
 
       libraries:
@@ -61,23 +61,23 @@ resources:
 {%- if pipeline_config.get('notifications') %}
       
       notifications:
-{%- for notification in pipeline_config.notifications %}
+{% for notification in pipeline_config.notifications %}
         - email_recipients:
-{%- for email in notification.email_recipients %}
+{% for email in notification.email_recipients %}
             - {{ email }}
-{%- endfor %}
+{% endfor %}
           alerts:
-{%- for alert in notification.alerts %}
+{% for alert in notification.alerts %}
             - {{ alert }}
-{%- endfor %}
-{%- endfor %}
+{% endfor %}
+{% endfor %}
 {%- endif %}
 {%- if pipeline_config.get('tags') %}
       
       tags:
-{%- for key, value in pipeline_config.tags.items() %}
+{% for key, value in pipeline_config.tags.items() %}
         {{ key }}: {{ value }}
-{%- endfor %}
+{% endfor %}
 {%- endif %}
 {%- if pipeline_config.get('event_log') %}
       

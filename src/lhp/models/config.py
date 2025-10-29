@@ -198,6 +198,7 @@ class Template(BaseModel):
     name: str
     version: str = "1.0"
     description: Optional[str] = None
+    presets: List[str] = []  # List of preset names to apply to template actions
     parameters: List[Dict[str, Any]] = []
     actions: Union[List[Action], List[Dict[str, Any]]] = []
     _raw_actions: bool = False  # Internal flag to track if actions are raw dictionaries

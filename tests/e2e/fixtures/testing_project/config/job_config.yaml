@@ -1,0 +1,131 @@
+# Job Configuration for LHP Orchestration Job
+# This config controls settings for the Databricks orchestration job
+# that runs all pipelines in dependency order
+
+# ==============================================================================
+# BASIC SETTINGS
+# ==============================================================================
+
+# Maximum number of concurrent runs of this job
+# Recommended: 1 for sequential execution, 2+ for parallel with different data
+max_concurrent_runs: 1
+
+# Performance target for job execution
+# Options: STANDARD (balanced), PERFORMANCE_OPTIMIZED (faster startup)
+performance_target: PERFORMANCE_OPTIMIZED
+
+# ==============================================================================
+# QUEUE SETTINGS
+# ==============================================================================
+
+# Enable job queueing when max concurrent runs is reached
+queue:
+  enabled: false
+
+# ==============================================================================
+# TIMEOUT SETTINGS
+# ==============================================================================
+
+# Maximum time (in seconds) for job to run before timeout
+# Example: 7200 = 2 hours, 28800 = 8 hours
+# Uncomment to enable:
+# timeout_seconds: 7200
+
+# ==============================================================================
+# TAGS (for cost tracking and organization)
+# ==============================================================================
+
+# Custom tags for the orchestration job
+# Useful for cost allocation, environment tracking, etc.
+tags:
+  environment: dev
+  project: acmi_edw
+  team: data_engineering
+  managed_by: lakehouse_plumber
+
+# ==============================================================================
+# EMAIL NOTIFICATIONS
+# ==============================================================================
+
+# Email notifications for job lifecycle events
+# Uncomment and customize as needed:
+
+# email_notifications:
+#   on_start:
+#     - data-eng-team@company.com
+#   on_success:
+#     - data-eng-team@company.com
+#   on_failure:
+#     - data-eng-team@company.com
+#     - oncall@company.com
+
+# ==============================================================================
+# WEBHOOK NOTIFICATIONS
+# ==============================================================================
+
+# Webhook notifications for integration with external systems
+# (Slack, PagerDuty, custom monitoring, etc.)
+# Uncomment and add your webhook IDs:
+
+# webhook_notifications:
+#   on_start:
+#     - id: "slack_webhook_id_123"
+#   on_success:
+#     - id: "slack_webhook_id_123"
+#   on_failure:
+#     - id: "pagerduty_webhook_id_456"
+#     - id: "slack_webhook_id_123"
+
+# ==============================================================================
+# PERMISSIONS
+# ==============================================================================
+
+# Job-level permissions for access control
+# Levels: CAN_VIEW, CAN_MANAGE_RUN, CAN_MANAGE
+# Uncomment and customize:
+
+# permissions:
+#   - level: CAN_MANAGE
+#     user_name: admin@company.com
+#   - level: CAN_MANAGE_RUN
+#     group_name: data-engineering
+#   - level: CAN_VIEW
+#     group_name: data-analysts
+
+# ==============================================================================
+# SCHEDULE
+# ==============================================================================
+
+# Schedule for automatic job runs
+# Uses Quartz cron expression format
+# Uncomment to enable scheduled runs:
+
+schedule:
+  quartz_cron_expression: "0 0 8 * * ?"  # Daily at 8 AM
+  timezone_id: "America/New_York"
+  pause_status: UNPAUSED  # or PAUSED to create disabled schedule
+
+# Common cron expressions:
+# - "0 0 8 * * ?"     - Daily at 8 AM
+# - "0 0 */4 * * ?"   - Every 4 hours
+# - "0 0 8 * * MON"   - Every Monday at 8 AM
+# - "0 0 8 1 * ?"     - First day of month at 8 AM
+
+# ==============================================================================
+# NOTES
+# ==============================================================================
+#
+# Usage:
+#   lhp deps --job-config config/job_config.yaml --bundle-output
+#
+# This will generate: resources/lhp/<project_name>_orchestration.job.yml
+#
+# All settings above are optional except max_concurrent_runs and performance_target
+# which have defaults if not specified.
+#
+# For more information:
+#   - See docs/databricks_bundles.rst
+#   - Databricks Jobs API: https://docs.databricks.com/workflows/jobs/
+#
+# ==============================================================================
+

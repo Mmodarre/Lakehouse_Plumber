@@ -380,17 +380,19 @@ class StateManager:
         if pipeline:
             pipeline_filtered = set()
             
-            # Parse each YAML file to check its pipeline field
+            # Parse each YAML file to check its pipeline field (supports multi-flowgroup files)
             for yaml_file in current_files:
                 try:
                     from ..parsers.yaml_parser import YAMLParser
                     yaml_parser = YAMLParser()
-                    content = yaml_parser.parse_file(yaml_file)
+                    # Parse all flowgroups from file (supports multi-document and array syntax)
+                    flowgroups = yaml_parser.parse_flowgroups_from_file(yaml_file)
                     
-                    # Check if this file's pipeline field matches the requested pipeline
-                    file_pipeline = content.get('pipeline')
-                    if file_pipeline == pipeline:
-                        pipeline_filtered.add(yaml_file)
+                    # Check if ANY flowgroup in this file matches the requested pipeline
+                    for fg in flowgroups:
+                        if fg.pipeline == pipeline:
+                            pipeline_filtered.add(yaml_file)
+                            break  # File matches, no need to check other flowgroups
                 
                 except Exception:
                     # Skip files that can't be parsed

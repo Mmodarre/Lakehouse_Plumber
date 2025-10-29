@@ -269,6 +269,7 @@ Next Steps
 
 * :doc:`getting_started` – a hands-on walk-through using the ACMI demo project.
 * :doc:`concepts` – deep-dive into FlowGroups, Actions, presets, templates and more.
+* :doc:`multi_flowgroup_guide` – reduce file proliferation with multiple flowgroups per YAML file.
 * :doc:`templates_reference` – comprehensive guide to creating and using templates with natural YAML syntax.
 * :doc:`databricks_bundles` – integrate with Databricks Asset Bundles for production deployments.
 * :doc:`cicd_reference` – comprehensive CI/CD patterns, deployment strategies, and DataOps best practices.
@@ -280,6 +281,7 @@ Next Steps
 
    getting_started
    concepts
+   multi_flowgroup_guide
    actions_reference
    templates_reference
    databricks_bundles

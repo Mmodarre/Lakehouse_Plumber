@@ -1,0 +1,18 @@
+project_defaults:
+  serverless: false
+  edition: ADVANCED
+  channel: CURRENT
+  photon: true
+
+---
+pipeline: cluster_test_pipeline
+clusters:
+  - label: default
+    node_type_id: Standard_D4ds_v5
+    driver_node_type_id: Standard_D32ds_v5
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+      mode: ENHANCED
+
+

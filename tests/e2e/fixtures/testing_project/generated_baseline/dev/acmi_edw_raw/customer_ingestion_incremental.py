@@ -61,7 +61,7 @@ def v_customer_raw_cloudfiles():
 dlt.create_streaming_table(
     name="acme_edw_dev.edw_raw.customer_raw",
     comment="Streaming table: customer_raw",
-    table_properties={"delta.enableRowTracking": "true", "PII": "true"},
+    table_properties={"PII": "true", "delta.enableRowTracking": "true"},
     cluster_by=["c_name"],
 )
 

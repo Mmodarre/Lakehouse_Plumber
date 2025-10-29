@@ -7,6 +7,8 @@ import logging
 
 from .state_manager import StateManager
 from ..models.config import FlowGroup, ActionType
+from .state_dependency_resolver import StateDependencyResolver
+from ..parsers.yaml_parser import YAMLParser
 
 
 class GenerationStrategy(Protocol):
@@ -116,7 +118,6 @@ class BaseGenerationStrategy:
                 dependency_resolver = context.state_manager.analyzer.dependency_resolver
             else:
                 # Fallback: create new instance if state_manager not available
-                from .state_dependency_resolver import StateDependencyResolver
                 dependency_resolver = StateDependencyResolver(context.project_root)
             
             source_path = Path(file_state.source_yaml)
@@ -124,7 +125,9 @@ class BaseGenerationStrategy:
             if not (context.project_root / source_path).exists():
                 return False
                 
-            file_dependencies = dependency_resolver.resolve_file_dependencies(source_path, context.env)
+            file_dependencies = dependency_resolver.resolve_file_dependencies(
+                source_path, context.env, file_state.pipeline, file_state.flowgroup
+            )
             
             # Calculate current composite checksum with current generation context
             dep_paths = [file_state.source_yaml] + list(file_dependencies.keys())
@@ -168,10 +171,11 @@ class SmartGenerationStrategy(BaseGenerationStrategy):
         new_flowgroup_names = set()
         for yaml_path in generation_info["new"]:
             try:
-                from ...parsers.yaml_parser import YAMLParser
                 parser = YAMLParser()
-                fg = parser.parse_flowgroup(yaml_path)
-                new_flowgroup_names.add(fg.flowgroup)
+                # Parse all flowgroups from file (supports multi-document and array syntax)
+                flowgroups = parser.parse_flowgroups_from_file(yaml_path)
+                for fg in flowgroups:
+                    new_flowgroup_names.add(fg.flowgroup)
             except Exception as e:
                 self.logger.warning(f"Could not parse new flowgroup {yaml_path}: {e}")
         

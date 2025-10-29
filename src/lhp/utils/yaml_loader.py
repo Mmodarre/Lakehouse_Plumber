@@ -9,48 +9,53 @@ for databricks.yml structure preservation where needed.
 
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
+
+from .error_formatter import MultiDocumentError
 
 
 def load_yaml_file(file_path: Union[Path, str], 
                   allow_empty: bool = True, 
                   error_context: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
-    Standard PyYAML loading with consistent error handling.
+    Standard PyYAML loading with single-document validation and consistent error handling.
     
-    Consolidates the repeated pattern:
-    ```python
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = yaml.safe_load(f)
-        return content or {}
-    except yaml.YAMLError as e:
-        raise ValueError(f"Invalid YAML in {file_path}: {e}")
-    ```
+    This function validates that the YAML file contains EXACTLY ONE document.
+    Empty files (zero documents) or files with multiple documents (--- separators) 
+    will raise MultiDocumentError. For multi-document files, use load_yaml_documents_all().
     
     Args:
         file_path: Path to YAML file to load
-        allow_empty: If True, return {} for empty/None content; if False, return None
+        allow_empty: If True, return {} for null document; if False, return None for null document
         error_context: Custom context string for error messages (e.g., "substitution file")
         
     Returns:
-        Parsed YAML content as dict, {} if empty and allow_empty=True, or None if empty and allow_empty=False
+        Parsed YAML content as dict, {} if document is null and allow_empty=True, 
+        or None if document is null and allow_empty=False
         
     Raises:
+        MultiDocumentError: If file contains 0 documents or more than 1 document (LHP-IO-003)
         ValueError: If YAML is malformed or file cannot be read
         
     Examples:
         >>> config = load_yaml_file("config.yaml")
+        >>> # Raises MultiDocumentError if config.yaml has multiple documents
         >>> substitutions = load_yaml_file(sub_file, error_context="substitution file") 
-        >>> data = load_yaml_file("data.yaml", allow_empty=False)  # Returns None if empty
+        >>> data = load_yaml_file("data.yaml", allow_empty=False)  # Returns None if null document
     """
     file_path = Path(file_path)
     
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            content = yaml.safe_load(f)
+            documents = list(yaml.safe_load_all(f))
         
-        # Handle empty/None content based on allow_empty flag
+        # Validate exactly one document exists
+        if len(documents) != 1:
+            raise MultiDocumentError(file_path, len(documents), error_context)
+        
+        content = documents[0]
+        
+        # Handle None content (empty document with just '---')
         if content is None:
             return {} if allow_empty else None
         
@@ -155,3 +160,58 @@ def safe_load_yaml_with_fallback(file_path: Union[Path, str],
             context = error_context or f"YAML file {file_path}"
             logger.warning(f"Could not load {context}: {e}")
         return fallback_value
+
+
+def load_yaml_documents_all(file_path: Union[Path, str],
+                            error_context: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Load all YAML documents from a multi-document YAML file.
+    
+    Supports YAML files with multiple documents separated by '---'.
+    Filters out None/empty documents automatically.
+    
+    Args:
+        file_path: Path to YAML file to load
+        error_context: Custom context string for error messages
+        
+    Returns:
+        List of parsed YAML documents as dictionaries (empty documents filtered out)
+        
+    Raises:
+        ValueError: If YAML is malformed or file cannot be read
+        
+    Examples:
+        >>> documents = load_yaml_documents_all("multi_flowgroup.yaml")
+        >>> # Returns [doc1_dict, doc2_dict, doc3_dict]
+        >>> single_doc = load_yaml_documents_all("single_flowgroup.yaml")  
+        >>> # Returns [doc_dict] - single document in a list
+    """
+    file_path = Path(file_path)
+    
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            # Load all documents using yaml.safe_load_all()
+            documents = list(yaml.safe_load_all(f))
+        
+        # Filter out None/empty documents (can occur with empty --- separators)
+        documents = [doc for doc in documents if doc is not None]
+        
+        return documents
+        
+    except yaml.YAMLError as e:
+        context = error_context or f"YAML file {file_path}"
+        raise ValueError(f"Invalid YAML in {context}: {e}")
+    except FileNotFoundError as e:
+        context = error_context or f"file {file_path}"
+        raise ValueError(f"File not found: {context}")
+    except Exception as e:
+        # Check if it's an LHPError that should be re-raised
+        try:
+            from ..utils.error_formatter import LHPError
+            if isinstance(e, LHPError):
+                raise  # Re-raise LHPError as-is
+        except ImportError:
+            pass  # LHPError not available, continue with ValueError
+        
+        context = error_context or f"file {file_path}"
+        raise ValueError(f"Error reading {context}: {e}")

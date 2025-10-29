@@ -89,26 +89,26 @@ class StateCleanupService:
                     continue
                     
             # Check if pipeline or flowgroup field in source YAML has changed
+            # Support multi-flowgroup files
             try:
                 from ...parsers.yaml_parser import YAMLParser
                 yaml_parser = YAMLParser()
-                current_content = yaml_parser.parse_file(source_path)
-                current_pipeline = current_content.get('pipeline')
-                current_flowgroup = current_content.get('flowgroup')
                 
-                # If pipeline field changed, consider file orphaned
-                if current_pipeline and current_pipeline != file_state.pipeline:
+                # Parse all flowgroups from file (supports multi-document and array syntax)
+                flowgroups_in_file = yaml_parser.parse_flowgroups_from_file(source_path)
+                
+                # Check if the flowgroup still exists in the file
+                flowgroup_found = False
+                for fg in flowgroups_in_file:
+                    if fg.pipeline == file_state.pipeline and fg.flowgroup == file_state.flowgroup:
+                        flowgroup_found = True
+                        break
+                
+                # If flowgroup not found in file, consider it orphaned
+                if not flowgroup_found:
                     orphaned_files.append(file_state)
                     self.logger.info(
-                        f"Found orphaned file (pipeline changed from '{file_state.pipeline}' to '{current_pipeline}'): {file_state.generated_path}"
-                    )
-                    continue
-                
-                # If flowgroup field changed, consider file orphaned
-                if current_flowgroup and current_flowgroup != file_state.flowgroup:
-                    orphaned_files.append(file_state)
-                    self.logger.info(
-                        f"Found orphaned file (flowgroup changed from '{file_state.flowgroup}' to '{current_flowgroup}'): {file_state.generated_path}"
+                        f"Found orphaned file (flowgroup '{file_state.flowgroup}' no longer in source): {file_state.generated_path}"
                     )
                     continue
                     

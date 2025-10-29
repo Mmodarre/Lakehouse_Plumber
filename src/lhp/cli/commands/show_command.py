@@ -81,7 +81,10 @@ class ShowCommand(BaseCommand):
         self._display_recent_activity(project_root)
     
     def _find_flowgroup_file(self, flowgroup: str, project_root: Path) -> Optional[Path]:
-        """Find the YAML file containing the specified flowgroup."""
+        """Find the YAML file containing the specified flowgroup.
+        
+        Supports multi-document (---) and flowgroups array syntax.
+        """
         pipelines_dir = project_root / "pipelines"
         
         # Get include patterns and discover files
@@ -90,10 +93,24 @@ class ShowCommand(BaseCommand):
         
         for yaml_file in yaml_files:
             try:
-                with open(yaml_file, "r") as f:
-                    content = yaml.safe_load(f)
-                if content.get("flowgroup") == flowgroup:
-                    return yaml_file
+                with open(yaml_file, "r", encoding="utf-8") as f:
+                    # Load all documents to support multi-document files
+                    documents = list(yaml.safe_load_all(f))
+                
+                # Check each document
+                for doc in documents:
+                    if doc is None:
+                        continue
+                    
+                    # Check regular syntax (flowgroup field at document level)
+                    if doc.get("flowgroup") == flowgroup:
+                        return yaml_file
+                    
+                    # Check array syntax (flowgroups list)
+                    if "flowgroups" in doc:
+                        for fg_config in doc["flowgroups"]:
+                            if fg_config.get("flowgroup") == flowgroup:
+                                return yaml_file
             except Exception:
                 continue
         

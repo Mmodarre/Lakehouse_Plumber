@@ -1,0 +1,14 @@
+name: "bronze_layer"
+version: "1.0"
+description: "Standard preset for Bronze layer tables with optimized Delta Lake properties"
+
+defaults:
+  write_actions:
+    streaming_table:
+      table_properties:
+        delta.enableRowTracking: "true"
+        delta.autoOptimize.optimizeWrite: "true"
+        delta.autoOptimize.autoCompact: "true"
+        delta.enableChangeDataFeed: "true"
+
+
