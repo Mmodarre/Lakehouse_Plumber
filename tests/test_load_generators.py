@@ -132,6 +132,132 @@ class TestLoadGenerators:
         except SyntaxError as e:
             pytest.fail(f"Generated code with secrets is not valid Python syntax: {e}")
     
+    def test_jdbc_url_with_quotes_escaped(self):
+        """Test JDBC generator with URLs containing quotes."""
+        generator = JDBCLoadGenerator()
+        
+        action = Action(
+            name="load_sqlserver",
+            type=ActionType.LOAD,
+            target="v_sqlserver_data",
+            source={
+                "type": "jdbc",
+                # JDBC URL with embedded quotes (common in SQL Server)
+                "url": 'jdbc:sqlserver://host:1433;database=mydb;encrypt="true"',
+                "user": "admin",
+                "password": "pass123",
+                "driver": "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+                "table": "customers"
+            }
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Check that quotes in URL are escaped
+        assert '\\"true\\"' in code or 'encrypt=\\"true\\"' in code
+        
+        # Verify generated code is syntactically valid
+        try:
+            compile(code, '<string>', 'exec')
+            assert True
+        except SyntaxError as e:
+            pytest.fail(f"Generated JDBC code with quotes is not valid Python syntax: {e}")
+    
+    def test_jdbc_values_with_backslashes_escaped(self):
+        """Test JDBC generator with values containing backslashes."""
+        generator = JDBCLoadGenerator()
+        
+        action = Action(
+            name="load_windows_path",
+            type=ActionType.LOAD,
+            target="v_windows_data",
+            source={
+                "type": "jdbc",
+                "url": "jdbc:h2:file:C:\\data\\database",
+                "user": "admin",
+                "password": "pass123",
+                "driver": "org.h2.Driver",
+                "table": "customers"
+            }
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Check that backslashes are escaped
+        assert '\\\\data\\\\database' in code or r'C:\\data\\database' in code
+        
+        # Verify no SyntaxWarning
+        import warnings
+        warnings.simplefilter('error', SyntaxWarning)
+        try:
+            compile(code, '<string>', 'exec')
+            assert True
+        except SyntaxWarning as e:
+            pytest.fail(f"Generated code has invalid escape sequences: {e}")
+        except SyntaxError as e:
+            pytest.fail(f"Generated code is not valid Python syntax: {e}")
+        finally:
+            warnings.simplefilter('default', SyntaxWarning)
+    
+    def test_jdbc_complex_url_with_parameters(self):
+        """Test JDBC generator with complex URL containing multiple parameters."""
+        generator = JDBCLoadGenerator()
+        
+        action = Action(
+            name="load_complex",
+            type=ActionType.LOAD,
+            target="v_complex_data",
+            source={
+                "type": "jdbc",
+                # Complex URL with semicolons and parameters
+                "url": 'jdbc:postgresql://host:5432/db?user="admin"&password="secret"&ssl=true',
+                "user": "admin",
+                "password": "secret",
+                "driver": "org.postgresql.Driver",
+                "table": "users"
+            }
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Verify valid Python syntax
+        try:
+            compile(code, '<string>', 'exec')
+            assert True
+        except SyntaxError as e:
+            pytest.fail(f"Generated code with complex JDBC URL is not valid Python syntax: {e}")
+    
+    def test_jdbc_table_name_with_special_chars(self):
+        """Test JDBC generator with table name containing special characters."""
+        generator = JDBCLoadGenerator()
+        
+        action = Action(
+            name="load_special_table",
+            type=ActionType.LOAD,
+            target="v_special_data",
+            source={
+                "type": "jdbc",
+                "url": "jdbc:postgresql://host:5432/mydb",
+                "user": "admin",
+                "password": "pass123",
+                "driver": "org.postgresql.Driver",
+                # Table name with quotes (schema-qualified)
+                "table": '"schema"."table_name"'
+            }
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Check that quotes in table name are escaped
+        assert '\\"schema\\"' in code and '\\"table_name\\"' in code
+        
+        # Verify valid Python
+        try:
+            compile(code, '<string>', 'exec')
+            assert True
+        except SyntaxError as e:
+            pytest.fail(f"Generated code with quoted table name is not valid Python syntax: {e}")
+    
     def test_python_generator(self):
         """Test Python load generator."""
         generator = PythonLoadGenerator()
