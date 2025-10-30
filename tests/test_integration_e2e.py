@@ -174,7 +174,7 @@ actions:
     type: load
     source:
       type: delta
-      database: "{{{{catalog}}}}.raw"
+      database: "{{catalog}}.raw"
       table: table_{i}
     target: v_table_{i}
   - name: write_{i}
@@ -182,7 +182,7 @@ actions:
     source: v_table_{i}
     write_target:
       type: streaming_table
-      database: "{{{{catalog}}}}.bronze"
+      database: "{{catalog}}.bronze"
       table: table_{i}
 """)
         
@@ -414,6 +414,18 @@ dev:
   raw_schema: raw
   bronze_schema: bronze
 """)
+        (subs_dir / "test.yaml").write_text("""
+test:
+  catalog: test_catalog
+  raw_schema: raw
+  bronze_schema: bronze
+""")
+        (subs_dir / "prod.yaml").write_text("""
+prod:
+  catalog: prod_catalog
+  raw_schema: raw
+  bronze_schema: bronze
+""")
         
         # Basic pipeline
         pipes_dir = project_root / "pipelines"
@@ -611,7 +623,7 @@ actions:
         # Create substitutions
         subs_dir = project_root / "substitutions"
         subs_dir.mkdir()
-        (subs_dir / "dev.yaml").write_text("catalog: test")
+        (subs_dir / "dev.yaml").write_text("dev:\n  catalog: test")
         
         # Create many small pipelines to stress test
         pipes_dir = project_root / "pipelines"

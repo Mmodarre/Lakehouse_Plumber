@@ -252,6 +252,7 @@ dev:
   env: dev
   bronze_schema: bronze
   silver_schema: silver
+  source: v_customer_changes
 """)
         
         # Create CDC flowgroup as per requirements example
@@ -367,7 +368,7 @@ actions:
         *,
         current_timestamp() as _ingestion_timestamp,
         input_file_name() as _source_file
-      FROM {% raw %}{{ source }}{% endraw %}
+      FROM v_{{ table_name }}_raw
 
   - name: save_{{ table_name }}_bronze
     type: write

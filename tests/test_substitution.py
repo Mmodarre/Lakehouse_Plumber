@@ -106,5 +106,131 @@ secrets:
         assert result == expected
 
 
+class TestUnresolvedTokenValidation:
+    """Test validation of unresolved tokens."""
+    
+    def test_validation_detects_simple_unresolved_token(self):
+        """Detect simple unresolved token like {missing_token}."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"existing": "value"}
+        
+        data = {"path": "s3://bucket/{missing_token}/data"}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert len(errors) == 1
+        assert "missing_token" in errors[0]
+        assert "config.path" in errors[0]
+    
+    def test_validation_detects_map_lookup_unresolved(self):
+        """Detect unresolved map lookup like {map[key]}."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"existing": "value"}
+        
+        data = {"path": "s3://bucket/{raw_paths[customers]}/data"}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert len(errors) == 1
+        assert "raw_paths[customers]" in errors[0]
+    
+    def test_validation_ignores_dbutils_expressions(self):
+        """Don't flag dbutils.secrets.get() as unresolved."""
+        mgr = EnhancedSubstitutionManager()
+        
+        # After secret substitution, these are valid Python code
+        data = {"password": "f\"{dbutils.secrets.get(scope='scope', key='key')}\""}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert len(errors) == 0
+    
+    def test_validation_in_nested_structures(self):
+        """Detect unresolved tokens in nested dicts and lists."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {}
+        
+        data = {
+            "config": {
+                "paths": [
+                    "s3://{bucket1}/data",
+                    "s3://{bucket2}/logs"
+                ],
+                "settings": {
+                    "host": "{db_host}",
+                    "port": 5432
+                }
+            }
+        }
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert len(errors) == 3
+        assert any("bucket1" in e for e in errors)
+        assert any("bucket2" in e for e in errors)
+        assert any("db_host" in e for e in errors)
+    
+    def test_validation_error_includes_path(self):
+        """Error messages include the config path for debugging."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {}
+        
+        data = {"database": {"connection": {"host": "{db_host}"}}}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert "config.database.connection.host" in errors[0]
+    
+    def test_validation_with_multiple_tokens_in_one_string(self):
+        """Detect multiple unresolved tokens in single string."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {}
+        
+        data = {"url": "jdbc://{host}:{port}/{database}"}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        # Should find all three tokens
+        assert len(errors) == 1  # One error for the path
+        assert "host" in errors[0]
+        assert "port" in errors[0]
+        assert "database" in errors[0]
+    
+    def test_circular_reference_detection(self):
+        """Detect circular references in token expansion."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            config = """
+dev:
+  token_a: "{token_b}"
+  token_b: "{token_c}"
+  token_c: "{token_a}"
+"""
+            f.write(config)
+            f.flush()
+            
+            try:
+                # Should complete without infinite loop
+                mgr = EnhancedSubstitutionManager(Path(f.name), env="dev")
+                
+                # Tokens should still be unresolved after max iterations
+                assert "{token_b}" in mgr.mappings["token_a"] or \
+                       "{token_c}" in mgr.mappings["token_a"]
+            finally:
+                Path(f.name).unlink()
+    
+    def test_circular_reference_caught_by_validation(self):
+        """Circular references should be caught by unresolved token validation."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "a": "{b}",
+            "b": "{a}"
+        }
+        
+        # Run recursive expansion
+        mgr._expand_recursive_tokens()
+        
+        # Tokens should still be unresolved
+        data = {"value": "{a}"}
+        substituted = mgr.substitute_yaml(data)
+        errors = mgr.validate_no_unresolved_tokens(substituted)
+        
+        assert len(errors) > 0
+        assert "a" in errors[0] or "b" in errors[0]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"]) 

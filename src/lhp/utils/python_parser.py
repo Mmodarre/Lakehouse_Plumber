@@ -180,11 +180,9 @@ class PythonParser:
 
         arg = node.args[arg_index]
 
-        # Handle string literals
+        # Handle string literals (ast.Constant available since Python 3.8)
         if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
             return arg.value
-        elif isinstance(arg, ast.Str):  # For older Python versions
-            return arg.s
 
         # Handle f-strings (JoinedStr)
         elif isinstance(arg, ast.JoinedStr):
@@ -207,10 +205,9 @@ class PythonParser:
         parts = []
 
         for value in node.values:
+            # Handle string constants (ast.Constant available since Python 3.8)
             if isinstance(value, ast.Constant) and isinstance(value.value, str):
                 parts.append(value.value)
-            elif isinstance(value, ast.Str):  # For older Python versions
-                parts.append(value.s)
             elif isinstance(value, ast.FormattedValue):
                 # For formatted values, try to preserve substitution tokens
                 if (isinstance(value.value, ast.Name) and

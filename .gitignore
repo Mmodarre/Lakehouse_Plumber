@@ -35,3 +35,4 @@ BYTEROVER*
 tests/e2e/test_bundle_manager_e2e.py
 coverage.xml
 CLAUDE.md
+wip.md

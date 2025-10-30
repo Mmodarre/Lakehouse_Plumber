@@ -34,6 +34,9 @@ version: "1.0"
 dev:
   env: dev
   catalog: dev_catalog
+  source: v_raw_data
+  bronze_schema: bronze
+  silver_schema: silver
 """)
             
             yield root

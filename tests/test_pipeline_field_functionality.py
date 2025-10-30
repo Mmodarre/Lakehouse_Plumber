@@ -42,19 +42,17 @@ description: "Test project for pipeline field functionality"
             
             # Create substitution files
             (project_root / "substitutions" / "dev.yaml").write_text("""
-environment:
-  dev:
-    catalog: dev_catalog
-    bronze_schema: bronze
-    silver_schema: silver
+dev:
+  catalog: dev_catalog
+  bronze_schema: bronze
+  silver_schema: silver
 """)
             
             (project_root / "substitutions" / "prod.yaml").write_text("""
-environment:
-  prod:
-    catalog: prod_catalog
-    bronze_schema: bronze
-    silver_schema: silver
+prod:
+  catalog: prod_catalog
+  bronze_schema: bronze
+  silver_schema: silver
 """)
             
             # Create pipeline directories
@@ -83,7 +81,7 @@ environment:
                         "source": "v_customers",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{{ catalog }}.{{ bronze_schema }}",
+                            "database": "{catalog}.{bronze_schema}",
                             "table": "customers",
                             "create_table": True
                         }
@@ -111,7 +109,7 @@ environment:
                         "source": "v_orders",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{{ catalog }}.{{ bronze_schema }}",
+                            "database": "{catalog}.{bronze_schema}",
                             "table": "orders",
                             "create_table": True
                         }
@@ -129,7 +127,7 @@ environment:
                         "target": "v_customers_bronze",
                         "source": {
                             "type": "delta",
-                            "table": "{{ catalog }}.{{ bronze_schema }}.customers"
+                            "table": "{catalog}.{bronze_schema}.customers"
                         }
                     },
                     {
@@ -146,7 +144,7 @@ environment:
                         "source": "v_customers_silver",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{{ catalog }}.{{ silver_schema }}",
+                            "database": "{catalog}.{silver_schema}",
                             "table": "customers",
                             "create_table": True
                         }
@@ -172,8 +170,9 @@ environment:
     
     def test_cli_pipeline_flag_finds_by_field(self, runner, temp_project_with_pipeline_field_test):
         """Test that CLI --pipeline flag finds all YAML files with matching pipeline field (not directory name)."""
-        with runner.isolated_filesystem():
-            import os
+        import os
+        original_cwd = os.getcwd()
+        try:
             os.chdir(str(temp_project_with_pipeline_field_test))
             
             # Test the fixed behavior where --pipeline flag uses pipeline field
@@ -191,11 +190,14 @@ environment:
             # Should NOT generate file for customer_transforms (different pipeline field)
             transforms_dir = temp_project_with_pipeline_field_test / "generated" / "dev" / "silver_transforms"
             assert not (transforms_dir / "customer_transforms.py").exists()
+        finally:
+            os.chdir(original_cwd)
     
     def test_cli_pipeline_flag_different_pipeline_fields(self, runner, temp_project_with_pipeline_field_test):
         """Test CLI --pipeline flag behavior with different pipeline fields."""
-        with runner.isolated_filesystem():
-            import os
+        import os
+        original_cwd = os.getcwd()
+        try:
             os.chdir(str(temp_project_with_pipeline_field_test))
             
             # Test the fixed behavior
@@ -212,11 +214,14 @@ environment:
             raw_dir = temp_project_with_pipeline_field_test / "generated" / "dev" / "raw_ingestions"
             assert not (raw_dir / "customer_ingestion.py").exists()
             assert not (raw_dir / "orders_ingestion.py").exists()
+        finally:
+            os.chdir(original_cwd)
             
     def test_validate_pipeline_flag_by_field(self, runner, temp_project_with_pipeline_field_test):
         """Test that validate --pipeline flag finds flowgroups by pipeline field."""
-        with runner.isolated_filesystem():
-            import os
+        import os
+        original_cwd = os.getcwd()
+        try:
             os.chdir(str(temp_project_with_pipeline_field_test))
             
             # Test the fixed behavior
@@ -230,6 +235,8 @@ environment:
             # Check for successful validation indicators in the output
             assert "Pipeline 'raw_ingestions' is valid" in result.output
             assert "Total errors: 0" in result.output
+        finally:
+            os.chdir(original_cwd)
             
     def test_orchestrator_discovers_flowgroups_by_pipeline_field(self):
         """Test that orchestrator discovers flowgroups by pipeline field across multiple directories."""
@@ -311,7 +318,7 @@ environment:
             # Create substitution file
             sub_file = project_root / "substitutions" / "dev.yaml"
             with open(sub_file, 'w') as f:
-                yaml.dump({"environment": {"dev": {}}}, f)
+                yaml.dump({"dev": {}}, f)
             
             # This test expects the fixed behavior where orchestrator discovers by pipeline field
             # TODO: When implementation is fixed, this should work:
@@ -341,58 +348,66 @@ environment:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             
-            # Create project structure
-            (project_root / "pipelines" / "test").mkdir(parents=True)
-            (project_root / "substitutions").mkdir()
-            (project_root / "templates").mkdir()
-            (project_root / "presets").mkdir()
-            
-            # Create flowgroup
-            flowgroup_dict = {
-                "pipeline": "raw_ingestions",
-                "flowgroup": "customer_ingestion",
-                "actions": [
-                    {
-                        "name": "load_customers",
-                        "type": "load",
-                        "target": "v_customers",
-                        "source": {
-                            "type": "sql",
-                            "sql": "SELECT * FROM customers"
+            # Change to project directory (required for Path.cwd() calls in code_generator)
+            import os
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(str(project_root))
+                
+                # Create project structure
+                (project_root / "pipelines" / "test").mkdir(parents=True)
+                (project_root / "substitutions").mkdir()
+                (project_root / "templates").mkdir()
+                (project_root / "presets").mkdir()
+                
+                # Create flowgroup
+                flowgroup_dict = {
+                    "pipeline": "raw_ingestions",
+                    "flowgroup": "customer_ingestion",
+                    "actions": [
+                        {
+                            "name": "load_customers",
+                            "type": "load",
+                            "target": "v_customers",
+                            "source": {
+                                "type": "sql",
+                                "sql": "SELECT * FROM customers"
+                            }
+                        },
+                        {
+                            "name": "write_customers",
+                            "type": "write",
+                            "source": "v_customers",
+                            "write_target": {
+                                "type": "streaming_table",
+                                "database": "bronze",
+                                "table": "customers",
+                                "create_table": True
+                            }
                         }
-                    },
-                    {
-                        "name": "write_customers",
-                        "type": "write",
-                        "source": "v_customers",
-                        "write_target": {
-                            "type": "streaming_table",
-                            "database": "bronze",
-                            "table": "customers",
-                            "create_table": True
-                        }
-                    }
-                ]
-            }
-            
-            # Save flowgroup
-            flowgroup_file = project_root / "pipelines" / "test" / "customer_ingestion.yaml"
-            with open(flowgroup_file, 'w') as f:
-                yaml.dump(flowgroup_dict, f)
-            
-            # Create substitution file
-            sub_file = project_root / "substitutions" / "dev.yaml"
-            with open(sub_file, 'w') as f:
-                yaml.dump({"environment": {"dev": {}}}, f)
-            
-            # Generate code
-            orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test", "dev")
-            
-            # Get generated code
-            assert len(generated_files) == 1
-            code = list(generated_files.values())[0]
-            
-            # Verify the fixed behavior where constants have correct values
-            assert 'PIPELINE_ID = "raw_ingestions"' in code  # Should be pipeline field
-            assert 'FLOWGROUP_ID = "customer_ingestion"' in code  # Should be flowgroup field 
+                    ]
+                }
+                
+                # Save flowgroup
+                flowgroup_file = project_root / "pipelines" / "test" / "customer_ingestion.yaml"
+                with open(flowgroup_file, 'w') as f:
+                    yaml.dump(flowgroup_dict, f)
+                
+                # Create substitution file
+                sub_file = project_root / "substitutions" / "dev.yaml"
+                with open(sub_file, 'w') as f:
+                    yaml.dump({"dev": {}}, f)
+                
+                # Generate code
+                orchestrator = ActionOrchestrator(project_root)
+                generated_files = orchestrator.generate_pipeline("test", "dev")
+                
+                # Get generated code
+                assert len(generated_files) == 1
+                code = list(generated_files.values())[0]
+                
+                # Verify the fixed behavior where constants have correct values
+                assert 'PIPELINE_ID = "raw_ingestions"' in code  # Should be pipeline field
+                assert 'FLOWGROUP_ID = "customer_ingestion"' in code
+            finally:
+                os.chdir(original_cwd)  # Should be flowgroup field 

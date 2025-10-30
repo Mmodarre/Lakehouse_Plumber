@@ -366,3 +366,72 @@ class ShowCommand(BaseCommand):
             time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(most_recent[1]))
             rel_path = most_recent[0].relative_to(project_root)
             click.echo(f"   Last modified: {rel_path} ({time_str})")
+    
+    def show_substitutions(self, env: str = "dev") -> None:
+        """
+        Show available substitution tokens for an environment.
+        
+        Args:
+            env: Environment to show substitutions for
+        """
+        self.setup_from_context()
+        project_root = self.ensure_project_root()
+        
+        # Load substitutions
+        sub_file = project_root / "substitutions" / f"{env}.yaml"
+        if not sub_file.exists():
+            click.echo(f"❌ Substitution file not found: {sub_file}")
+            sys.exit(1)
+        
+        mgr = EnhancedSubstitutionManager(sub_file, env=env)
+        
+        # Display
+        click.echo(f"\n📋 Available Substitutions for Environment: {env}")
+        click.echo("═" * 60)
+        
+        # Separate simple tokens and maps
+        simple_tokens = {}
+        maps = {}
+        reserved = {}
+        
+        for key, value in mgr.mappings.items():
+            if key in ["workspace_env", "logical_env"]:
+                reserved[key] = value
+            elif isinstance(value, dict):
+                maps[key] = value
+            else:
+                simple_tokens[key] = value
+        
+        # Display simple tokens
+        if simple_tokens:
+            click.echo("\n✨ Simple Tokens:")
+            for key, value in sorted(simple_tokens.items()):
+                click.echo(f"  {{<KEY>}}: \"{value}\"".replace("<KEY>", key))
+        
+        # Display maps (with tree structure)
+        if maps:
+            click.echo("\n📦 Maps:")
+            for map_name, map_value in sorted(maps.items()):
+                click.echo(f"  {map_name}:")
+                self._display_dict_tree(map_value, indent=4)
+        
+        # Display reserved
+        if reserved:
+            click.echo("\n🔒 Reserved Tokens:")
+            for key, value in sorted(reserved.items()):
+                click.echo(f"  {{<KEY>}}: \"{value}\"".replace("<KEY>", key))
+        
+        click.echo("")
+    
+    def _display_dict_tree(self, data: dict, indent: int = 0, is_last: bool = True) -> None:
+        """Display dict as tree structure."""
+        items = list(data.items())
+        for i, (key, value) in enumerate(items):
+            is_last_item = (i == len(items) - 1)
+            prefix = " " * indent + ("└─ " if is_last_item else "├─ ")
+            
+            if isinstance(value, dict):
+                click.echo(f"{prefix}{key}:")
+                self._display_dict_tree(value, indent + 2, is_last_item)
+            else:
+                click.echo(f"{prefix}{key}: \"{value}\"")

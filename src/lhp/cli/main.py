@@ -271,6 +271,14 @@ def show(flowgroup, env):
 
 
 @cli.command()
+@click.option("--env", "-e", default="dev", help="Environment")
+def substitutions(env):
+    """Show available substitution tokens for an environment"""
+    from .commands.show_command import ShowCommand
+    ShowCommand().show_substitutions(env)
+
+
+@cli.command()
 def info():
     """Display project information and statistics."""
     from .commands.show_command import ShowCommand

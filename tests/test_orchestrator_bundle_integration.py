@@ -43,9 +43,10 @@ version: "1.0"
         # Create substitutions
         sub_dir = self.project_root / "substitutions"
         sub_dir.mkdir()
-        (sub_dir / "dev.yaml").write_text("""catalog: test_catalog
-raw_schema: raw
-bronze_schema: bronze
+        (sub_dir / "dev.yaml").write_text("""dev:
+  catalog: test_catalog
+  raw_schema: raw
+  bronze_schema: bronze
 """)
         
         # Create pipelines directory with test flowgroup
