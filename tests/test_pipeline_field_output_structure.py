@@ -85,7 +85,7 @@ dev:
                         "source": "v_customers",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{{ catalog }}.{{ bronze_schema }}",
+                            "database": "{catalog}.{bronze_schema}",
                             "table": "customers",
                             "create_table": True
                         }
@@ -113,7 +113,7 @@ dev:
                         "source": "v_orders",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{{ catalog }}.{{ bronze_schema }}",
+                            "database": "{catalog}.{bronze_schema}",
                             "table": "orders",
                             "create_table": True
                         }
@@ -142,7 +142,7 @@ dev:
                         "source": "v_lineitem",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{{ catalog }}.{{ bronze_schema }}",
+                            "database": "{catalog}.{bronze_schema}",
                             "table": "lineitem",
                             "create_table": True
                         }
@@ -161,7 +161,7 @@ dev:
                         "target": "v_customers_bronze",
                         "source": {
                             "type": "delta",
-                            "table": "{{ catalog }}.{{ bronze_schema }}.customers"
+                            "table": "{catalog}.{bronze_schema}.customers"
                         }
                     },
                     {
@@ -178,7 +178,7 @@ dev:
                         "source": "v_customers_silver",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{{ catalog }}.{{ silver_schema }}",
+                            "database": "{catalog}.{silver_schema}",
                             "table": "customers",
                             "create_table": True
                         }

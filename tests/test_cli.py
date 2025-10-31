@@ -410,7 +410,11 @@ bundle:
             runner.invoke(cli, ['init', 'test_project'])
             
             import os
+            import shutil
             os.chdir('test_project')
+            
+            # Copy template to actual substitution file
+            shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
             
             # Create a pipeline with flowgroup
             pipeline_dir = Path("pipelines/test_pipeline")

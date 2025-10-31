@@ -4,7 +4,7 @@ import os
 import re
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional, Set
+from typing import Dict, Any, Optional, Set, List
 from .error_formatter import LHPError
 
 
@@ -36,6 +36,7 @@ class EnhancedSubstitutionManager:
     DOLLAR_TOKEN_PATTERN = re.compile(r"\$\{(\w+)\}")
     DOLLAR_TOKEN_SIMPLE_PATTERN = re.compile(r"\$(\w+)")
     SECRET_PATTERN = re.compile(r"\$\{secret:([^}]+)\}")
+    UNRESOLVED_TOKEN_PATTERN = re.compile(r'\{(?!dbutils\.)([^}]+)\}')
 
     def __init__(self, substitution_file: Path = None, env: str = "dev"):
         self.env = env
@@ -109,8 +110,11 @@ class EnhancedSubstitutionManager:
 
     def _expand_recursive_tokens(self):
         """Recursively expand tokens that reference other tokens."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         max_iterations = 10
-        for _ in range(max_iterations):
+        for iteration in range(max_iterations):
             changed = False
             for token, value in self.mappings.items():
                 if isinstance(value, str):
@@ -120,6 +124,14 @@ class EnhancedSubstitutionManager:
                         changed = True
             if not changed:
                 break
+        else:
+            # Reached max iterations - likely circular reference
+            # Log warning but don't fail here - validation will catch it
+            logger.warning(
+                f"Token expansion reached maximum iterations ({max_iterations}). "
+                f"Possible circular reference in substitutions/{self.env}.yaml. "
+                f"Unresolved tokens will be caught by validation."
+            )
 
     def substitute_yaml(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Recursively substitute tokens and collect secret references."""
@@ -186,3 +198,46 @@ class EnhancedSubstitutionManager:
     def get_secret_references(self) -> Set[SecretReference]:
         """Get all secret references found during substitution."""
         return self.secret_references
+
+    def validate_no_unresolved_tokens(self, data: Any, path: str = "config") -> List[str]:
+        """Detect unresolved tokens after substitution.
+        
+        Scans configuration for any remaining {token} patterns that weren't
+        resolved during substitution, indicating missing values in substitutions file.
+        
+        Args:
+            data: Configuration data to validate (dict, list, str, or other)
+            path: Current path in config tree for error reporting
+            
+        Returns:
+            List of error messages describing unresolved tokens with their locations
+            
+        Examples:
+            >>> mgr = EnhancedSubstitutionManager()
+            >>> mgr.mappings = {"catalog": "main"}
+            >>> data = {"path": "s3://{bucket}/{missing}/data"}
+            >>> errors = mgr.validate_no_unresolved_tokens(data)
+            >>> print(errors[0])
+            "Unresolved token '{missing}' found at config.path. Check substitutions/dev.yaml"
+        """
+        errors = []
+        
+        if isinstance(data, str):
+            # Find all unresolved tokens except dbutils expressions
+            matches = self.UNRESOLVED_TOKEN_PATTERN.findall(data)
+            if matches:
+                # Format all unresolved tokens in this string
+                token_list = ", ".join(f"{{{m}}}" for m in matches)
+                errors.append(
+                    f"Unresolved token(s) {token_list} found at {path}. "
+                    f"Check substitutions/{self.env}.yaml for missing value(s)."
+                )
+        elif isinstance(data, dict):
+            for key, value in data.items():
+                errors.extend(self.validate_no_unresolved_tokens(value, f"{path}.{key}"))
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                errors.extend(self.validate_no_unresolved_tokens(item, f"{path}[{i}]"))
+        # For other types (int, bool, None, etc.), nothing to validate
+        
+        return errors
