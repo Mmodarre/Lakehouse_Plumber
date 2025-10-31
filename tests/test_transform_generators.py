@@ -72,6 +72,14 @@ class TestTransformGenerators:
         assert "@dlt.expect_all_or_drop" in code
         assert "@dlt.expect_all" in code
         
+        # Verify variable format
+        assert "rules_fail = " in code
+        assert "rules_drop = " in code
+        assert "rules_warn = " in code
+        assert "@dlt.expect_all_or_fail(rules_fail)" in code
+        assert "@dlt.expect_all_or_drop(rules_drop)" in code
+        assert "@dlt.expect_all(rules_warn)" in code
+        
         # Clean up
         Path(expectations_file).unlink()
     

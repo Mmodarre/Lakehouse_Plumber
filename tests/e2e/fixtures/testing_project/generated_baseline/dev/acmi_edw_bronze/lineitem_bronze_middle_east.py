@@ -60,31 +60,31 @@ FROM stream(v_lineitem_middle_east_raw)"""
     return df
 
 
+rules_fail = {
+    "valid_order_id": "order_id IS NOT NULL AND order_id > 0",
+    "valid_part_id": "part_id IS NOT NULL AND part_id > 0",
+    "valid_supplier_id": "supplier_id IS NOT NULL AND supplier_id > 0",
+    "valid_linenumber": "line_number IS NOT NULL AND line_number > 0",
+    "valid_quantity": "quantity IS NOT NULL AND quantity > 0",
+    "valid_extendedprice": "extended_price IS NOT NULL AND extended_price > 0",
+}
+rules_warn = {
+    "valid_discount": "discount IS NOT NULL AND discount > 0",
+    "valid_tax": "tax IS NOT NULL AND tax > 0",
+    "valid_return_flag": "return_flag IS NULL OR return_flag IN ('R', 'N')",
+    "valid_line_status": "line_status IS NULL OR line_status IN ('F', 'O')",
+    "valid_ship_date": "(ship_date IS NOT NULL AND ship_date >= '1900-01-01') or ship_date is null",
+    "valid_commit_date": "commit_date IS NOT NULL AND commit_date >= '1900-01-01'",
+    "valid_receipt_date": "(receipt_date IS NOT NULL AND receipt_date >= '1900-01-01') or receipt_date is null",
+    "valid_ship_mode": "ship_mode IS NOT NULL AND ship_mode IN ('RAIL','REG AIR','TRUCK','MAIL','SHIP','FOB')",
+}
+
+
 @dlt.view()
 # These expectations will fail the pipeline if violated
-@dlt.expect_all_or_fail(
-    {
-        "valid_order_id": "order_id IS NOT NULL AND order_id > 0",
-        "valid_part_id": "part_id IS NOT NULL AND part_id > 0",
-        "valid_supplier_id": "supplier_id IS NOT NULL AND supplier_id > 0",
-        "valid_linenumber": "line_number IS NOT NULL AND line_number > 0",
-        "valid_quantity": "quantity IS NOT NULL AND quantity > 0",
-        "valid_extendedprice": "extended_price IS NOT NULL AND extended_price > 0",
-    }
-)
+@dlt.expect_all_or_fail(rules_fail)
 # These expectations will log warnings but not drop rows
-@dlt.expect_all(
-    {
-        "valid_discount": "discount IS NOT NULL AND discount > 0",
-        "valid_tax": "tax IS NOT NULL AND tax > 0",
-        "valid_return_flag": "return_flag IS NULL OR return_flag IN ('R', 'N')",
-        "valid_line_status": "line_status IS NULL OR line_status IN ('F', 'O')",
-        "valid_ship_date": "(ship_date IS NOT NULL AND ship_date >= '1900-01-01') or ship_date is null",
-        "valid_commit_date": "commit_date IS NOT NULL AND commit_date >= '1900-01-01'",
-        "valid_receipt_date": "(receipt_date IS NOT NULL AND receipt_date >= '1900-01-01') or receipt_date is null",
-        "valid_ship_mode": "ship_mode IS NOT NULL AND ship_mode IN ('RAIL','REG AIR','TRUCK','MAIL','SHIP','FOB')",
-    }
-)
+@dlt.expect_all(rules_warn)
 def v_lineitem_middle_east_bronze_DQE():
     """Apply data quality checks to lineitem"""
     df = spark.readStream.table("v_lineitem_middle_east_bronze_cleaned")

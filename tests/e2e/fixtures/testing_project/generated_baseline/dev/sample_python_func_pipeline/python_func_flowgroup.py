@@ -48,23 +48,23 @@ def v_customer_bronze_cleaneds():
     return df
 
 
+rules_fail = {
+    "valid_custkey": "customer_id IS NOT NULL AND customer_id > 0",
+    "valid_customer_name": "name IS NOT NULL AND LENGTH(TRIM(name)) > 0",
+    "valid_nation_key": "nation_id IS NOT NULL AND nation_id >= 0",
+}
+rules_warn = {
+    "valid_phone_format": "phone IS NULL OR LENGTH(phone) >= 10",
+    "valid_account_balance": "account_balance IS NULL OR account_balance >= -10000",
+    "valid_market_segment": "market_segment IS NULL OR market_segment IN ('BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY')",
+}
+
+
 @dlt.view()
 # These expectations will fail the pipeline if violated
-@dlt.expect_all_or_fail(
-    {
-        "valid_custkey": "customer_id IS NOT NULL AND customer_id > 0",
-        "valid_customer_name": "name IS NOT NULL AND LENGTH(TRIM(name)) > 0",
-        "valid_nation_key": "nation_id IS NOT NULL AND nation_id >= 0",
-    }
-)
+@dlt.expect_all_or_fail(rules_fail)
 # These expectations will log warnings but not drop rows
-@dlt.expect_all(
-    {
-        "valid_phone_format": "phone IS NULL OR LENGTH(phone) >= 10",
-        "valid_account_balance": "account_balance IS NULL OR account_balance >= -10000",
-        "valid_market_segment": "market_segment IS NULL OR market_segment IN ('BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY')",
-    }
-)
+@dlt.expect_all(rules_warn)
 def v_customer_bronze_DQEs():
     """Apply data quality checks to customer"""
     df = spark.readStream.table("v_customer_bronze_cleaneds")
