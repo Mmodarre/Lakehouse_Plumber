@@ -5,7 +5,7 @@ from pyspark.sql import functions as F
 from pyspark.sql.functions import *  # Should take precedence
 from pyspark.sql.types import StructType
 from pyspark.sql.types import *  # Should take precedence
-import dlt
+from pyspark import pipelines as dp
 from datetime import datetime, timedelta
 
 def sample_with_conflicts():

@@ -79,7 +79,7 @@ class TestActionGenerator(BaseActionGenerator):
         self.context = context or {}
         
         # Add basic imports
-        self.add_import("import dlt")
+        self.add_import("from pyspark import pipelines as dp")
         self.add_import("from pyspark.sql.functions import *")
     
     def generate(self, action: Action = None, context: Dict[str, Any] = None) -> str:
@@ -121,7 +121,7 @@ class TestActionGenerator(BaseActionGenerator):
         # (orchestrator adds imports at file level)
         if not context or 'flowgroup' not in context:
             # Standalone mode - add imports
-            code_parts.append("import dlt")
+            code_parts.append("from pyspark import pipelines as dp")
             code_parts.append("from pyspark.sql.functions import *")
             code_parts.append("")
         
@@ -145,17 +145,17 @@ class TestActionGenerator(BaseActionGenerator):
         # Add decorators
         if fail_expectations:
             exp_str = ", ".join([f'"{k}": "{v}"' for k, v in fail_expectations.items()])
-            code_parts.append(f"@dlt.expect_all_or_fail({{{exp_str}}})")
+            code_parts.append(f"@dp.expect_all_or_fail({{{exp_str}}})")
         if drop_expectations:
             exp_str = ", ".join([f'"{k}": "{v}"' for k, v in drop_expectations.items()])
-            code_parts.append(f"@dlt.expect_all_or_drop({{{exp_str}}})")
+            code_parts.append(f"@dp.expect_all_or_drop({{{exp_str}}})")
         if warn_expectations:
             exp_str = ", ".join([f'"{k}": "{v}"' for k, v in warn_expectations.items()])
-            code_parts.append(f"@dlt.expect_all({{{exp_str}}})")
+            code_parts.append(f"@dp.expect_all({{{exp_str}}})")
         
         # Add temporary table decorator
         description = self.config.get('description', f'Test: {test_type}')
-        code_parts.append(f'@dlt.table(name="{target}", comment="{description}", temporary=True)')
+        code_parts.append(f'@dp.table(name="{target}", comment="{description}", temporary=True)')
         
         # Add function definition
         code_parts.append(f"def {target}():")

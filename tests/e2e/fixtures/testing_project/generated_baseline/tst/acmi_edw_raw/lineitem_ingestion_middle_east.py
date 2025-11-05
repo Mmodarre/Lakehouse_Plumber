@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_raw
 # FlowGroup: lineitem_ingestion_middle_east
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_raw"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "lineitem_ingestion_middle_east"
 # ============================================================================
 
 
-@dlt.view()
+@dp.view()
 def v_lineitem_middle_east_raw_cloudfiles():
     """Load lineitem_middle_east_raw Parquet files from landing volume"""
     df = (
@@ -42,7 +42,7 @@ def v_lineitem_middle_east_raw_cloudfiles():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_tst.edw_raw.lineitem_middle_east_raw",
     comment="Streaming table: lineitem_middle_east_raw",
     table_properties={"delta.enableRowTracking": "true"},
@@ -50,7 +50,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_raw.lineitem_middle_east_raw",
     name="f_lineitem_middle_east_raw_cloudfiles",
     comment="Append flow to acme_edw_tst.edw_raw.lineitem_middle_east_raw",

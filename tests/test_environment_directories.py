@@ -41,9 +41,9 @@ class TestEnvironmentDirectories:
         pipeline_dir = generated_dir / "test_pipeline"
         pipeline_dir.mkdir(parents=True)
         (pipeline_dir / "test.py").write_text("""
-import dlt
+from pyspark import pipelines as dp
 
-@dlt.table(name="test_catalog.test_schema.test_table")
+@dp.table(name="test_catalog.test_schema.test_table")
 def test_table():
     pass
 """)
@@ -73,7 +73,7 @@ def test_table():
         pipeline_dir = generated_dir / "data_pipeline"
         pipeline_dir.mkdir(parents=True)
         (pipeline_dir / "transform.py").write_text("""
-import dlt
+from pyspark import pipelines as dp
 
 dlt.create_streaming_table(name="staging_catalog.staging_schema.staging_table")
 """)
@@ -117,15 +117,15 @@ dlt.create_streaming_table(name="staging_catalog.staging_schema.staging_table")
         pipeline1_dir = dev_dir / "pipeline1"
         pipeline1_dir.mkdir(parents=True)
         (pipeline1_dir / "flow1.py").write_text("""
-import dlt
+from pyspark import pipelines as dp
 dlt.create_streaming_table(name="dev_catalog.dev_schema.table1")
 """)
         
         pipeline2_dir = dev_dir / "pipeline2"
         pipeline2_dir.mkdir(parents=True)
         (pipeline2_dir / "flow2.py").write_text("""
-import dlt
-@dlt.table(name="dev_catalog.dev_schema.table2")
+from pyspark import pipelines as dp
+@dp.table(name="dev_catalog.dev_schema.table2")
 def table2():
     pass
 """)
@@ -135,7 +135,7 @@ def table2():
         pipeline3_dir = prod_dir / "pipeline3"
         pipeline3_dir.mkdir(parents=True)
         (pipeline3_dir / "flow3.py").write_text("""
-import dlt
+from pyspark import pipelines as dp
 dlt.create_streaming_table(name="prod_catalog.prod_schema.table3")
 """)
         

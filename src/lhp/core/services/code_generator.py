@@ -102,7 +102,7 @@ class CodeGenerator:
         custom_source_sections = []
         
         # Add base imports
-        all_imports.add("import dlt")
+        all_imports.add("from pyspark import pipelines as dp")
         
         # Define section headers
         section_headers = {

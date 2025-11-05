@@ -3,7 +3,7 @@
 # FlowGroup: orders_ingestion_middle_east
 
 from pyspark.sql import functions as F
-import dlt
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_raw_ingestions"
@@ -13,7 +13,7 @@ FLOWGROUP_ID = "orders_ingestion_middle_east"
 # SOURCE VIEWS
 # ============================================================================
 
-@dlt.view()
+@dp.view()
 def v_orders_middle_east_raw_cloudfiles():
     """Load orders_middle_east_raw Parquet files from landing volume"""
     df = spark.readStream \
@@ -44,7 +44,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acmi_edw_dev.edw_raw.orders_middle_east_raw",
     name="f_orders_middle_east_raw_cloudfiles",
     comment="Append flow to acmi_edw_dev.edw_raw.orders_middle_east_raw"

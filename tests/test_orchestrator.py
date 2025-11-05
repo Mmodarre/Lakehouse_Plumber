@@ -145,10 +145,10 @@ class TestActionOrchestrator:
             assert "# FlowGroup: test_flowgroup" in code
             
             # Check imports
-            assert "import dlt" in code
+            assert "from pyspark import pipelines as dp" in code
             
             # Check generated functions
-            assert "@dlt.view()" in code
+            assert "@dp.view()" in code
             assert "def v_customers_raw():" in code
             assert "def v_customers_clean():" in code
             

@@ -15,7 +15,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
     def __init__(self):
         # Enable ImportManager for advanced import handling
         super().__init__(use_import_manager=True)
-        self.add_import("import dlt")
+        self.add_import("from pyspark import pipelines as dp")
         self.logger = logging.getLogger(__name__)
         self.custom_source_code = None  # Store for later appending by orchestrator
         self.source_file_path = None    # Track source file

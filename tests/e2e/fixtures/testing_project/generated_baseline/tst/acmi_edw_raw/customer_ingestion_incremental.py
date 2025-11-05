@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_raw
 # FlowGroup: customer_ingestion_incremental
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_raw"
@@ -30,7 +30,7 @@ customer_cloudfiles_schema_hints = """
 )
 
 
-@dlt.view()
+@dp.view()
 def v_customer_raw_cloudfiles():
     """Load customer_raw CSV files from landing volume"""
     df = (
@@ -58,16 +58,16 @@ def v_customer_raw_cloudfiles():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_tst.edw_raw.customer_raw",
     comment="Streaming table: customer_raw",
-    table_properties={"delta.enableRowTracking": "true", "PII": "true"},
+    table_properties={"PII": "true", "delta.enableRowTracking": "true"},
     cluster_by=["c_name"],
 )
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_raw.customer_raw",
     name="f_customer_raw_cloudfiles",
     comment="Append flow to acme_edw_tst.edw_raw.customer_raw",

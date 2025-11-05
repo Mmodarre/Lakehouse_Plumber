@@ -56,7 +56,7 @@ class TestPresetTemplateCombination:
                 "Template should be expanded with parameters"
             
             # Verify this is a streaming table write action from template
-            assert "dlt.create_streaming_table" in generated_code, \
+            assert "dp.create_streaming_table" in generated_code, \
                 "Template should generate streaming table write action"
 
     def test_preset_only_flowgroup_still_works(self):

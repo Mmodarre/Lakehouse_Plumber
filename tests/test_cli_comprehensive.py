@@ -232,8 +232,8 @@ actions: []
             
             # Verify generated code content
             code = generated_file.read_text()
-            assert "import dlt" in code
-            assert "@dlt.view()" in code
+            assert "from pyspark import pipelines as dp" in code
+            assert "@dp.view()" in code
             assert "dev_catalog.bronze.test_table" in code
     
     def test_generate_dry_run(self, runner, temp_project):

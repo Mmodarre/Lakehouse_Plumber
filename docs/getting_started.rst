@@ -203,7 +203,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
    # Pipeline: tpch_sample_ingestion
    # FlowGroup: customer_ingestion
 
-   import dlt
+   from pyspark import pipelines as dp
 
    # Pipeline Configuration
    PIPELINE_ID = "tpch_sample_ingestion"
@@ -213,7 +213,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
    # SOURCE VIEWS
    # ============================================================================
 
-   @dlt.view()
+   @dp.view()
    def v_customer_sample_raw():
       """Load customer sample table from Databricks samples catalog"""
       df = spark.readStream \
@@ -226,7 +226,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
    # TRANSFORMATION VIEWS
    # ============================================================================
 
-   @dlt.view(comment="Transform customer sample table")
+   @dp.view(comment="Transform customer sample table")
    def v_customer_sample_cleaned():
       """Transform customer sample table"""
       return spark.sql("""SELECT
@@ -253,7 +253,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
 
 
    # Define append flow(s)
-   @dlt.append_flow(
+   @dp.append_flow(
       target="acmi_edw_dev.edw_bronze.tpch_sample_customer",
       name="f_customer_sample_bronze",
       comment="Write customer sample table to bronze schema"

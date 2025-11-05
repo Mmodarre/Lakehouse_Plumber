@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_bronze
 # FlowGroup: lineitem_bronze_middle_east
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "lineitem_bronze_middle_east"
 # ============================================================================
 
 
-@dlt.view()
+@dp.view()
 def v_lineitem_middle_east_raw():
     """Load lineitem table from raw schema"""
     df = spark.readStream.table("acme_edw_tst.edw_raw.lineitem_middle_east_raw")
@@ -31,7 +31,7 @@ def v_lineitem_middle_east_raw():
 # ============================================================================
 
 
-@dlt.view(comment="SQL transform: lineitem_bronze_cleanse")
+@dp.view(comment="SQL transform: lineitem_bronze_cleanse")
 def v_lineitem_middle_east_bronze_cleaned():
     """SQL transform: lineitem_bronze_cleanse"""
     df = spark.sql(
@@ -60,9 +60,9 @@ FROM stream(v_lineitem_middle_east_raw)"""
     return df
 
 
-@dlt.view()
+@dp.view()
 # These expectations will fail the pipeline if violated
-@dlt.expect_all_or_fail(
+@dp.expect_all_or_fail(
     {
         "valid_order_id": "order_id IS NOT NULL AND order_id > 0",
         "valid_part_id": "part_id IS NOT NULL AND part_id > 0",
@@ -73,7 +73,7 @@ FROM stream(v_lineitem_middle_east_raw)"""
     }
 )
 # These expectations will log warnings but not drop rows
-@dlt.expect_all(
+@dp.expect_all(
     {
         "valid_discount": "discount IS NOT NULL AND discount > 0",
         "valid_tax": "tax IS NOT NULL AND tax > 0",
@@ -98,7 +98,7 @@ def v_lineitem_middle_east_bronze_DQE():
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.lineitem",
     name="f_lineitem_middle_east_bronze",
     comment="Append flow to acme_edw_tst.edw_bronze.lineitem",

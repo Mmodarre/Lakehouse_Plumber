@@ -145,7 +145,7 @@ class TestTestActionErrorHandling:
         
         code = generator.generate(action=action)
         # Should default to 'fail' or handle gracefully
-        assert '@dlt.expect' in code  # Some expectation should be present
+        assert '@dp.expect' in code  # Some expectation should be present
     
     def test_missing_required_fields_graceful_handling(self):
         """Test that generator handles missing required fields gracefully."""

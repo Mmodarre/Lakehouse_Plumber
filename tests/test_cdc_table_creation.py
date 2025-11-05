@@ -49,17 +49,17 @@ def test_cdc_mode_creates_table_and_flow():
     code = generator.generate(action, context)
     
     # Verify both table creation and CDC flow are present
-    assert "dlt.create_streaming_table(" in code
+    assert "dp.create_streaming_table(" in code
     assert 'name="catalog.schema.dim_customer"' in code
-    assert "dlt.create_auto_cdc_flow(" in code
+    assert "dp.create_auto_cdc_flow(" in code
     assert 'target="catalog.schema.dim_customer"' in code
     assert 'keys=["customer_id"]' in code
     assert "stored_as_scd_type=2" in code
     assert 'track_history_column_list=["name", "address", "phone"]' in code
     
     # Ensure table is created before CDC flow
-    table_pos = code.find("dlt.create_streaming_table(")
-    cdc_pos = code.find("dlt.create_auto_cdc_flow(")
+    table_pos = code.find("dp.create_streaming_table(")
+    cdc_pos = code.find("dp.create_auto_cdc_flow(")
     assert table_pos < cdc_pos, "Table must be created before CDC flow"
 
 def test_cdc_mode_with_all_parameters():
@@ -94,8 +94,8 @@ def test_cdc_mode_with_all_parameters():
     code = generator.generate(action, context)
     
     # Verify all parameters are present
-    assert "dlt.create_streaming_table(" in code
-    assert "dlt.create_auto_cdc_flow(" in code
+    assert "dp.create_streaming_table(" in code
+    assert "dp.create_auto_cdc_flow(" in code
     assert 'keys=["id", "partition_key"]' in code
     assert 'sequence_by="_commit_timestamp"' in code
     assert "stored_as_scd_type=1" in code
@@ -133,7 +133,7 @@ def test_cdc_mode_with_except_column_list():
     code = generator.generate(action, context)
     
     # Verify except_column_list is properly generated
-    assert "dlt.create_auto_cdc_flow(" in code
+    assert "dp.create_auto_cdc_flow(" in code
     assert 'except_column_list=["internal_field1", "internal_field2", "_metadata"]' in code
 
 def test_cdc_mode_with_struct_sequence_by():
@@ -166,7 +166,7 @@ def test_cdc_mode_with_struct_sequence_by():
     
     # Verify struct() is properly generated and import is added
     assert "from pyspark.sql.functions import struct" in generator.imports
-    assert "dlt.create_auto_cdc_flow(" in code
+    assert "dp.create_auto_cdc_flow(" in code
     assert 'sequence_by=struct("event_timestamp", "sequence_number")' in code
     assert 'keys=["event_id", "user_id"]' in code
 
@@ -198,7 +198,7 @@ def test_cdc_mode_string_sequence_by_still_works():
     code = generator.generate(action, context)
     
     # Verify string sequence_by is properly generated
-    assert "dlt.create_auto_cdc_flow(" in code
+    assert "dp.create_auto_cdc_flow(" in code
     assert 'sequence_by="_timestamp"' in code
     # Should not have struct import for string sequence_by
     assert "from pyspark.sql.functions import struct" not in generator.imports 
