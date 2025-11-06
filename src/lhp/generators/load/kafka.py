@@ -15,7 +15,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
 
     def __init__(self):
         super().__init__()
-        self.add_import("import dlt")
+        self.add_import("from pyspark import pipelines as dp")
         self.logger = logging.getLogger(__name__)
         self.kafka_validator = KafkaOptionsValidator()
 

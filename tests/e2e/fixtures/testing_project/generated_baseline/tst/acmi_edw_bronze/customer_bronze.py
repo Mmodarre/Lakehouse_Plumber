@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_bronze
 # FlowGroup: customer_bronze
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "customer_bronze"
 # ============================================================================
 
 
-@dlt.view()
+@dp.view()
 def v_customer_raw():
     """Load customer table from raw schema"""
     df = spark.readStream.table("acme_edw_tst.edw_raw.customer_raw")
@@ -26,7 +26,7 @@ def v_customer_raw():
     return df
 
 
-@dlt.view()
+@dp.view()
 def v_customer_migration():
     """Load customer table from migration schema"""
     df = spark.read.table("acme_edw_tst.edw_old.customer")
@@ -42,7 +42,7 @@ def v_customer_migration():
 # ============================================================================
 
 
-@dlt.view(comment="SQL transform: customer_bronze_incremental_cleanse")
+@dp.view(comment="SQL transform: customer_bronze_incremental_cleanse")
 def v_customer_bronze_cleaned():
     """SQL transform: customer_bronze_incremental_cleanse"""
     df = spark.sql(
@@ -64,7 +64,7 @@ FROM stream(v_customer_raw)"""
     return df
 
 
-@dlt.view(comment="SQL transform: customer_migration_cleanse")
+@dp.view(comment="SQL transform: customer_migration_cleanse")
 def v_customer_migration_cleaned():
     """SQL transform: customer_migration_cleanse"""
     df = spark.sql(
@@ -87,9 +87,9 @@ FROM v_customer_migration"""
     return df
 
 
-@dlt.view()
+@dp.view()
 # These expectations will fail the pipeline if violated
-@dlt.expect_all_or_fail(
+@dp.expect_all_or_fail(
     {
         "valid_custkey": "customer_id IS NOT NULL AND customer_id > 0",
         "valid_customer_name": "name IS NOT NULL AND LENGTH(TRIM(name)) > 0",
@@ -97,7 +97,7 @@ FROM v_customer_migration"""
     }
 )
 # These expectations will log warnings but not drop rows
-@dlt.expect_all(
+@dp.expect_all(
     {
         "valid_phone_format": "phone IS NULL OR LENGTH(phone) >= 10",
         "valid_account_balance": "account_balance IS NULL OR account_balance >= -10000",
@@ -116,7 +116,7 @@ def v_customer_bronze_DQE():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_tst.edw_bronze.customer",
     comment="Streaming table: customer",
     table_properties={"delta.enableRowTracking": "true"},
@@ -124,7 +124,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.customer",
     name="f_customer_migration",
     once=True,
@@ -138,7 +138,7 @@ def f_customer_migration():
     return df
 
 
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.customer",
     name="f_customer_bronze_incremental",
     comment="Append flow to acme_edw_tst.edw_bronze.customer",

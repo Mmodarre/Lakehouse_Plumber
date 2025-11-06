@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_raw
 # FlowGroup: supplier_ingestion_incremental
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_raw"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "supplier_ingestion_incremental"
 # ============================================================================
 
 
-@dlt.view()
+@dp.view()
 def v_supplier_raw_cloudfiles():
     """Load supplier_raw Parquet files from landing volume"""
     df = (
@@ -40,13 +40,13 @@ def v_supplier_raw_cloudfiles():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_tst.edw_raw.supplier_raw", comment="Streaming table: supplier_raw"
 )
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_raw.supplier_raw",
     name="f_supplier_raw_cloudfiles",
     comment="Append flow to acme_edw_tst.edw_raw.supplier_raw",

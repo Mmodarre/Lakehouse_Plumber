@@ -21,7 +21,7 @@ from pyspark.sql.types import StructType, StringType
 import pyspark.sql.functions as psf
 
 # DLT imports
-import dlt
+from pyspark import pipelines as dp
 from dlt import view, table
 
 # Custom/relative imports

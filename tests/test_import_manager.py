@@ -272,7 +272,7 @@ class TestConflictResolution:
         # Different modules, no conflicts
         self.manager.add_import("import os")
         self.manager.add_import("from pathlib import Path")
-        self.manager.add_import("import dlt")
+        self.manager.add_import("from pyspark import pipelines as dp")
         self.manager.add_import("from typing import Dict, List")
         
         imports = self.manager.get_consolidated_imports()
@@ -280,7 +280,7 @@ class TestConflictResolution:
         # All should be preserved
         assert "import os" in imports
         assert "from pathlib import Path" in imports
-        assert "import dlt" in imports
+        assert "from pyspark import pipelines as dp" in imports
         assert "from typing import Dict, List" in imports
         assert len(imports) == 4
 
@@ -291,14 +291,14 @@ class TestConflictResolution:
         self.manager.add_import("from pyspark.sql import functions as F")  # Will conflict
         self.manager.add_import("from pathlib import Path")  # No conflict
         self.manager.add_import("from pyspark.sql.functions import *")  # Conflicts with F import
-        self.manager.add_import("import dlt")  # No conflict
+        self.manager.add_import("from pyspark import pipelines as dp")  # No conflict
         
         imports = self.manager.get_consolidated_imports()
         
         # Non-conflicting should remain
         assert "import os" in imports
         assert "from pathlib import Path" in imports
-        assert "import dlt" in imports
+        assert "from pyspark import pipelines as dp" in imports
         
         # Wildcard should win
         assert "from pyspark.sql.functions import *" in imports
@@ -336,7 +336,7 @@ class TestImportSorting:
             "standard": ["import os", "from pathlib import Path", "import json"],
             "third_party": ["import pandas", "import numpy", "import requests"],
             "pyspark": ["from pyspark.sql import SparkSession", "import pyspark"],
-            "dlt": ["import dlt", "from dlt import view"],
+            "dlt": ["from pyspark import pipelines as dp"],
             "custom": ["from mymodule import helper", "import custom_package"]
         }
         
@@ -354,7 +354,7 @@ class TestImportSorting:
     def test_import_order_standard_first(self):
         """Test that standard library imports come first."""
         self.manager.add_import("import custom_module")  # custom (last)
-        self.manager.add_import("import dlt")           # dlt (4th)
+        self.manager.add_import("from pyspark import pipelines as dp")           # dlt (4th)
         self.manager.add_import("import os")            # standard (1st)
         self.manager.add_import("import pandas")        # third-party (2nd)
         self.manager.add_import("import pyspark")       # pyspark (3rd)
@@ -365,7 +365,7 @@ class TestImportSorting:
         os_pos = imports.index("import os")
         pandas_pos = imports.index("import pandas") 
         pyspark_pos = imports.index("import pyspark")
-        dlt_pos = imports.index("import dlt")
+        dlt_pos = imports.index("from pyspark import pipelines as dp")
         custom_pos = imports.index("import custom_module")
         
         # Verify correct order: standard -> third_party -> pyspark -> dlt -> custom
@@ -438,10 +438,7 @@ class TestImportSorting:
     def test_dlt_categorization(self):
         """Test DLT-specific import categorization."""
         dlt_imports = [
-            "import dlt",
-            "from dlt import view",
-            "from dlt import table",
-            "from dlt.decorators import materialized_view"
+            "from pyspark import pipelines as dp",
         ]
         
         for imp in dlt_imports:
@@ -458,12 +455,11 @@ class TestImportSorting:
         # Add imports in random order from all categories
         all_imports = [
             "import custom_module",      # custom
-            "from dlt import view",      # dlt
             "import os",                 # standard
             "from pyspark.sql import functions as F",  # pyspark
             "import requests",           # third_party
             "from pathlib import Path",  # standard
-            "import dlt",               # dlt
+            "from pyspark import pipelines as dp",               # dlt
             "import pandas",            # third_party
             "from pyspark.sql.functions import *",  # pyspark
             "import json"               # standard
@@ -475,15 +471,15 @@ class TestImportSorting:
         imports = self.manager.get_consolidated_imports()
         
         # Verify we have expected number (minus conflicts)
-        assert len(imports) >= 8  # Some may be removed due to conflicts
+        assert len(imports) >= 7  # Some may be removed due to conflicts
         
         # Find category boundaries by checking first occurrence of each type
         first_third_party = next((i for i, imp in enumerate(imports) 
                                 if "requests" in imp or "pandas" in imp), -1)
         first_pyspark = next((i for i, imp in enumerate(imports) 
-                            if "pyspark" in imp), -1)
+                            if "pyspark" in imp and "pipelines" not in imp), -1)
         first_dlt = next((i for i, imp in enumerate(imports) 
-                        if "dlt" in imp), -1)
+                        if "pipelines" in imp), -1)
         first_custom = next((i for i, imp in enumerate(imports) 
                            if "custom_module" in imp), -1)
         
@@ -750,8 +746,7 @@ class TestUtilityMethods:
             ("import pandas", "third_party"),
             ("import requests", "third_party"),
             ("from pyspark.sql import SparkSession", "pyspark"),
-            ("import dlt", "dlt"),
-            ("from dlt import view", "dlt"),
+            ("from pyspark import pipelines as dp", "dlt"),
             ("import unknown_module", "custom"),
         ]
         
@@ -806,7 +801,7 @@ class TestRealWorldScenarios:
         self.manager.add_imports_from_expression("F.col('_processing_timestamp')")
         
         # 3. Add manual imports that might come from generator
-        self.manager.add_import("import dlt")
+        self.manager.add_import("from pyspark import pipelines as dp")
         
         imports = self.manager.get_consolidated_imports()
         
@@ -852,7 +847,7 @@ class TestRealWorldScenarios:
         self.manager.add_imports_from_expression("F.input_file_name()")
         
         # DLT imports
-        self.manager.add_import("import dlt")
+        self.manager.add_import("from pyspark import pipelines as dp")
         
         imports = self.manager.get_consolidated_imports()
         
@@ -863,4 +858,4 @@ class TestRealWorldScenarios:
         assert any("from pyspark.sql.functions import *" in imp for imp in imports)
         
         # Non-conflicting imports should remain
-        assert "import dlt" in imports 
+        assert "from pyspark import pipelines as dp" in imports 

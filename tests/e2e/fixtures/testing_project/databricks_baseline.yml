@@ -53,7 +53,7 @@ targets:
 
     variables:
       default_pipeline_catalog: acme_edw_dev
-      default_pipeline_schema: edw_bronze
+      default_pipeline_schema: edw_gold
   tst:
     # This is the CI/CD TST target for deployment of the bundle to the tst workspace
     # for the CI/CD actions to test deployment of the bundle
@@ -71,7 +71,7 @@ targets:
 
     variables:
       default_pipeline_catalog: acme_edw_tst
-      default_pipeline_schema: edw_bronze
+      default_pipeline_schema: edw_gold
   prod:
     # This is the CI/CD Prod target for deployment of the bundle to the prod workspace
     # for the CI/CD actions to test deployment of the bundle
@@ -86,4 +86,4 @@ targets:
       service_principal_name: e398c2e1-01a6-4a29-b2e9-970681433f09
     variables:
       default_pipeline_catalog: acme_edw_prod
-      default_pipeline_schema: edw_bronze
+      default_pipeline_schema: edw_gold

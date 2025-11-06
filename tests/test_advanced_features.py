@@ -99,7 +99,7 @@ def enrich_customers(df, spark, parameters):
         assert "from custom_python_functions.enrich_customers import" in code
         
         # Check for DLT decorators
-        assert "@dlt.view()" in code
+        assert "@dp.view()" in code
         
         # Python sources should still be wrapped in DLT views
         assert "def v_customers_python" in code
@@ -165,15 +165,15 @@ actions:
         code = generated_files["temp_processing.py"]
         
         # Check for correct temporary table implementation
-        assert "@dlt.table(" in code
+        assert "@dp.table(" in code
         assert "temporary=True" in code
         assert "def temp_daily_aggregates():" in code
         # Verify it does NOT use the old incorrect temp table pattern
         assert "temp_daily_aggregates_temp" not in code
-        # Verify the temp table section uses @dlt.table, not dlt.create_streaming_table for temp
+        # Verify the temp table section uses @dp.table, not dlt.create_streaming_table for temp
         temp_table_section = code.split("# TRANSFORMATION VIEWS")[1].split("# TARGET TABLES")[0]
-        assert "@dlt.table(" in temp_table_section
-        assert "dlt.create_streaming_table" not in temp_table_section
+        assert "@dp.table(" in temp_table_section
+        assert "dp.create_streaming_table" not in temp_table_section
         
         # Check for SQL with multiple sources
         assert "v_raw_data r" in code
@@ -242,7 +242,7 @@ actions:
         assert '"customer_id"' in code
         
         # Check for materialized view with refresh schedule
-        assert "@dlt.table(" in code
+        assert "@dp.table(" in code
         assert 'refresh_schedule="CRON \'0 0 * * *\'"' in code
     
     def test_many_to_many_relationships(self, project_root):

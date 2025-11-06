@@ -3,7 +3,7 @@
 # FlowGroup: customer_ingestion_incremental
 
 from pyspark.sql import functions as F
-import dlt
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_raw_ingestions"
@@ -26,7 +26,7 @@ customer_cloudfiles_schema_hints = """
 """.strip().replace("\n", " ")
 
 
-@dlt.view()
+@dp.view()
 def v_customer_raw_cloudfiles():
     """Load customer_raw CSV files from landing volume"""
     df = spark.readStream \
@@ -63,7 +63,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acmi_edw_dev.edw_raw.customer_raw",
     name="f_customer_raw_cloudfiles",
     comment="Append flow to acmi_edw_dev.edw_raw.customer_raw"

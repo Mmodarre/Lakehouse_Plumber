@@ -130,11 +130,11 @@ actions:
         code = generated_files["customer_ingestion.py"]
         
         # Check for required elements from requirements
-        assert "@dlt.view()" in code
+        assert "@dp.view()" in code
         assert "spark.readStream" in code
         assert "cloudFiles" in code
         assert "/mnt/dev/landing/customer/*.json" in code
-        assert "dlt.create_streaming_table(" in code  # Using append flow API
+        assert "dp.create_streaming_table(" in code  # Using append flow API
         assert "dev_catalog.bronze.customer_raw" in code
         
         # Check for operational metadata (enabled in preset)
@@ -322,9 +322,9 @@ actions:
         assert "LOWER(TRIM(email))" in code
         
         # Check for CDC write (auto_cdc)
-        assert "dlt.create_streaming_table" in code  # Table must be created first
+        assert "dp.create_streaming_table" in code  # Table must be created first
         assert 'name="dev_silver_sales.dim_customer"' in code
-        assert "dlt.create_auto_cdc_flow" in code
+        assert "dp.create_auto_cdc_flow" in code
         assert 'keys=["customer_id"]' in code
         assert 'sequence_by="_commit_timestamp"' in code
         assert "scd_type=2" in code
@@ -486,11 +486,11 @@ actions:
         code = generated_files["customer_validation.py"]
         
         # Check for DLT expectations
-        assert "@dlt.expect_all_or_fail" in code
+        assert "@dp.expect_all_or_fail" in code
         assert '"customer_id IS NOT NULL"' in code
         
-        assert "@dlt.expect_all_or_drop" in code
+        assert "@dp.expect_all_or_drop" in code
         assert "email RLIKE" in code
         
-        assert "@dlt.expect_all" in code
+        assert "@dp.expect_all" in code
         assert "amount >= 0" in code 

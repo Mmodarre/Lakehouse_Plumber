@@ -147,6 +147,6 @@ bundle:
         assert len(code) > 0
         
         # Verify file structure
-        assert "import dlt" in code
+        assert "from pyspark import pipelines as dp" in code
         assert "test_pipeline" in code
         assert "test_flowgroup" in code 

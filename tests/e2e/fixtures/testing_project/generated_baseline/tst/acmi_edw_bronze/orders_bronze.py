@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_bronze
 # FlowGroup: orders_bronze
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "orders_bronze"
 # ============================================================================
 
 
-@dlt.view()
+@dp.view()
 def v_orders_africa_raw():
     """Load orders Africa table from raw schema"""
     df = spark.readStream.table("acme_edw_tst.edw_raw.orders_africa_raw")
@@ -26,7 +26,7 @@ def v_orders_africa_raw():
     return df
 
 
-@dlt.view()
+@dp.view()
 def v_orders_america_raw():
     """Load orders America table from raw schema"""
     df = spark.readStream.table("acme_edw_tst.edw_raw.orders_america_raw")
@@ -37,7 +37,7 @@ def v_orders_america_raw():
     return df
 
 
-@dlt.view()
+@dp.view()
 def v_orders_asia_raw():
     """Load orders Asia table from raw schema"""
     df = spark.readStream.table("acme_edw_tst.edw_raw.orders_asia_raw")
@@ -48,7 +48,7 @@ def v_orders_asia_raw():
     return df
 
 
-@dlt.view()
+@dp.view()
 def v_orders_europe_raw():
     """Load orders Europe table from raw schema"""
     df = spark.readStream.table("acme_edw_tst.edw_raw.orders_europe_raw")
@@ -59,7 +59,7 @@ def v_orders_europe_raw():
     return df
 
 
-@dlt.view()
+@dp.view()
 def v_orders_middle_east_raw():
     """Load orders Middle East table from raw schema"""
     df = spark.readStream.table("acme_edw_tst.edw_raw.orders_middle_east_raw")
@@ -70,7 +70,7 @@ def v_orders_middle_east_raw():
     return df
 
 
-@dlt.view()
+@dp.view()
 def v_orders_migration():
     """Load orders table from migration schema"""
     df = spark.read.table("acme_edw_tst.edw_old.orders")
@@ -86,7 +86,7 @@ def v_orders_migration():
 # ============================================================================
 
 
-@dlt.view(comment="SQL transform: orders_africa_bronze_cleanse")
+@dp.view(comment="SQL transform: orders_africa_bronze_cleanse")
 def v_orders_africa_bronze_cleaned():
     """SQL transform: orders_africa_bronze_cleanse"""
     df = spark.sql(
@@ -108,7 +108,7 @@ FROM stream(v_orders_africa_raw)"""
     return df
 
 
-@dlt.view(comment="SQL transform: orders_america_bronze_cleanse")
+@dp.view(comment="SQL transform: orders_america_bronze_cleanse")
 def v_orders_america_bronze_cleaned():
     """SQL transform: orders_america_bronze_cleanse"""
     df = spark.sql(
@@ -130,7 +130,7 @@ FROM stream(v_orders_america_raw)"""
     return df
 
 
-@dlt.view(comment="SQL transform: orders_asia_bronze_cleanse")
+@dp.view(comment="SQL transform: orders_asia_bronze_cleanse")
 def v_orders_asia_bronze_cleaned():
     """SQL transform: orders_asia_bronze_cleanse"""
     df = spark.sql(
@@ -152,7 +152,7 @@ FROM stream(v_orders_asia_raw)"""
     return df
 
 
-@dlt.view(comment="SQL transform: orders_europe_bronze_cleanse")
+@dp.view(comment="SQL transform: orders_europe_bronze_cleanse")
 def v_orders_europe_bronze_cleaned():
     """SQL transform: orders_europe_bronze_cleanse"""
     df = spark.sql(
@@ -174,7 +174,7 @@ FROM stream(v_orders_europe_raw)"""
     return df
 
 
-@dlt.view(comment="SQL transform: orders_middle_east_bronze_cleanse")
+@dp.view(comment="SQL transform: orders_middle_east_bronze_cleanse")
 def v_orders_middle_east_bronze_cleaned():
     """SQL transform: orders_middle_east_bronze_cleanse"""
     df = spark.sql(
@@ -196,7 +196,7 @@ FROM stream(v_orders_middle_east_raw)"""
     return df
 
 
-@dlt.view(comment="SQL transform: orders_migration_cleanse")
+@dp.view(comment="SQL transform: orders_migration_cleanse")
 def v_orders_migration_cleaned():
     """SQL transform: orders_migration_cleanse"""
     df = spark.sql(
@@ -224,7 +224,7 @@ FROM v_orders_migration"""
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_tst.edw_bronze.orders",
     comment="Streaming table: orders",
     table_properties={"delta.enableRowTracking": "true"},
@@ -232,7 +232,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.orders",
     name="f_orders_africa_bronze",
     comment="Append flow to acme_edw_tst.edw_bronze.orders",
@@ -245,7 +245,7 @@ def f_orders_africa_bronze():
     return df
 
 
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.orders",
     name="f_orders_america_bronze",
     comment="Append flow to acme_edw_tst.edw_bronze.orders",
@@ -258,7 +258,7 @@ def f_orders_america_bronze():
     return df
 
 
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.orders",
     name="f_orders_asia_bronze",
     comment="Append flow to acme_edw_tst.edw_bronze.orders",
@@ -271,7 +271,7 @@ def f_orders_asia_bronze():
     return df
 
 
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.orders",
     name="f_orders_europe_bronze",
     comment="Append flow to acme_edw_tst.edw_bronze.orders",
@@ -284,7 +284,7 @@ def f_orders_europe_bronze():
     return df
 
 
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.orders",
     name="f_orders_middle_east_bronze",
     comment="Append flow to acme_edw_tst.edw_bronze.orders",
@@ -297,7 +297,7 @@ def f_orders_middle_east_bronze():
     return df
 
 
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.orders",
     name="f_orders_migration",
     once=True,

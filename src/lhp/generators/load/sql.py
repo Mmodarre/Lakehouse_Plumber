@@ -12,7 +12,7 @@ class SQLLoadGenerator(BaseActionGenerator):
 
     def __init__(self):
         super().__init__()
-        self.add_import("import dlt")
+        self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: dict) -> str:
         """Generate SQL load code."""

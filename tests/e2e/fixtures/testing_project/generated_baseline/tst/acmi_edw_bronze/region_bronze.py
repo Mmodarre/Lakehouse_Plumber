@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_bronze
 # FlowGroup: region_bronze
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "region_bronze"
 # ============================================================================
 
 
-@dlt.view()
+@dp.view()
 def v_region_raw():
     """Load region table from raw schema"""
     df = spark.readStream.table("acme_edw_tst.edw_raw.region_raw")
@@ -31,7 +31,7 @@ def v_region_raw():
 # ============================================================================
 
 
-@dlt.view(comment="SQL transform: region_bronze_incremental_cleanse")
+@dp.view(comment="SQL transform: region_bronze_incremental_cleanse")
 def v_region_bronze_cleaned():
     """SQL transform: region_bronze_incremental_cleanse"""
     df = spark.sql(
@@ -52,7 +52,7 @@ FROM stream(v_region_raw)"""
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_tst.edw_bronze.region",
     comment="Streaming table: region",
     table_properties={"delta.enableRowTracking": "true"},
@@ -60,7 +60,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_bronze.region",
     name="f_region_bronze_incremental",
     comment="Append flow to acme_edw_tst.edw_bronze.region",

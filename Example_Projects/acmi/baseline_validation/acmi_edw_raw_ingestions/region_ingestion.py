@@ -3,7 +3,7 @@
 # FlowGroup: region_ingestion
 
 from pyspark.sql import functions as F
-import dlt
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_raw_ingestions"
@@ -13,7 +13,7 @@ FLOWGROUP_ID = "region_ingestion"
 # SOURCE VIEWS
 # ============================================================================
 
-@dlt.view()
+@dp.view()
 def v_region_raw_cloudfiles():
     """Load region_raw Parquet files from landing volume"""
     df = spark.readStream \
@@ -44,7 +44,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acmi_edw_dev.edw_raw.region_raw",
     name="f_region_raw_cloudfiles",
     comment="Append flow to acmi_edw_dev.edw_raw.region_raw"

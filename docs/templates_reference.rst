@@ -422,7 +422,7 @@ A basic template for standardized CSV ingestion with schema hints:
    # FlowGroup: customer_ingestion
 
    from pyspark.sql import functions as F
-   import dlt
+   from pyspark import pipelines as dp
 
    # Schema hints for customer_cloudfiles table
    customer_cloudfiles_schema_hints = """
@@ -433,7 +433,7 @@ A basic template for standardized CSV ingestion with schema hints:
        registration_date DATE
    """.strip().replace("\n", " ")
 
-   @dlt.view()
+   @dp.view()
    def v_customer_cloudfiles():
        """Load customer CSV files from landing volume"""
        df = spark.readStream \
@@ -465,7 +465,7 @@ A basic template for standardized CSV ingestion with schema hints:
        cluster_by=["customer_id", "region"]
    )
 
-   @dlt.append_flow(
+   @dp.append_flow(
        target="dev_catalog.bronze.customer",
        name="f_customer_bronze"
    )
@@ -856,7 +856,7 @@ Templates can include environment and secret substitutions alongside template pa
    :caption: Generated customer_data_load.py
    :linenos:
 
-   @dlt.view()
+   @dp.view()
    def v_customers_raw():
        """Load customers from external database"""
        df = spark.read \
@@ -883,7 +883,7 @@ Templates can include environment and secret substitutions alongside template pa
        }
    )
 
-   @dlt.append_flow(target="dev_catalog.bronze.customers", name="f_customers_bronze")
+   @dp.append_flow(target="dev_catalog.bronze.customers", name="f_customers_bronze")
    def f_customers_bronze():
        """Write customers to bronze layer"""
        return spark.readStream.table("v_customers_raw")

@@ -124,7 +124,7 @@ cloudFiles
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
   from pyspark.sql.functions import F
 
   customer_cloudfiles_schema_hints = """
@@ -139,7 +139,7 @@ cloudFiles
   """.strip().replace("\n", " ")
 
 
-  @dlt.view()
+  @dp.view()
   def v_customer_cloudfiles():
       """Load customer CSV files from landing volume"""
       df = spark.readStream \
@@ -205,10 +205,10 @@ delta
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
   from pyspark.sql.functions import current_timestamp
 
-  @dlt.view()
+  @dp.view()
   def v_customer_raw():
       """Load customer table from raw schema"""
       df = spark.readStream.table("acmi_edw_dev.edw_raw.customer")
@@ -287,10 +287,10 @@ kafka
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
   from pyspark.sql.functions import current_timestamp
 
-  @dlt.view()
+  @dp.view()
   def v_kafka_events_raw():
       """Load events from Kafka topics"""
       df = spark.readStream \
@@ -390,9 +390,9 @@ AWS Managed Streaming for Apache Kafka (MSK) supports IAM authentication for sec
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.view()
+  @dp.view()
   def v_msk_orders_raw():
       """Load orders from MSK using IAM authentication"""
       df = spark.readStream \
@@ -459,9 +459,9 @@ Azure Event Hubs provides Kafka protocol support with OAuth 2.0 authentication u
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.view()
+  @dp.view()
   def v_event_hubs_data_raw():
       """Load data from Azure Event Hubs using OAuth"""
       df = spark.readStream \
@@ -572,9 +572,9 @@ SQL load actions support both **inline SQL** and **external SQL files**.
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.view()
+  @dp.view()
   def v_customer_summary():
       """Load customer summary with order statistics"""
       return spark.sql("""
@@ -595,9 +595,9 @@ SQL load actions support both **inline SQL** and **external SQL files**.
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.view()
+  @dp.view()
   def v_customer_metrics():
       """Load customer metrics from external SQL file"""
       return spark.sql("""
@@ -699,10 +699,10 @@ JDBC load actions connect to external relational databases using JDBC drivers. T
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
   from pyspark.sql.functions import current_timestamp
 
-  @dlt.view()
+  @dp.view()
   def v_external_customers():
       """Load active customers from external PostgreSQL database"""
       df = spark.read \
@@ -735,9 +735,9 @@ JDBC load actions connect to external relational databases using JDBC drivers. T
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.view()
+  @dp.view()
   def v_external_products():
       """Load products table from external MySQL database"""
       df = spark.read \
@@ -855,11 +855,11 @@ Python load actions call custom Python functions that return DataFrames. This al
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
   from pyspark.sql.functions import current_timestamp
   from extractors.api_extractor import extract_customer_data
 
-  @dlt.view()
+  @dp.view()
   def v_api_customers():
       """Load customer data from external API"""
       # Call the external Python function with spark and parameters
@@ -1035,7 +1035,7 @@ Custom data source load actions use PySpark's DataSource API to implement specia
   from pyspark.sql.functions import *
   from pyspark.sql.types import *
   from typing import Iterator, Tuple
-  import dlt
+  from pyspark import pipelines as dp
   import json
   import os
   import requests
@@ -1095,7 +1095,7 @@ Custom data source load actions use PySpark's DataSource API to implement specia
   except Exception:
       pass  # Ignore if already registered
 
-  @dlt.view()
+  @dp.view()
   def v_currency_bronze():
       """Load live currency exchange rates from external API"""
       df = spark.readStream \
@@ -1214,9 +1214,9 @@ SQL transform actions execute SQL queries to transform data between views. They 
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.view(comment="Cleanse and standardize customer data for bronze layer")
+  @dp.view(comment="Cleanse and standardize customer data for bronze layer")
   def v_customer_bronze_cleaned():
       """Cleanse and standardize customer data for bronze layer"""
       return spark.sql("""
@@ -1242,9 +1242,9 @@ SQL transform actions execute SQL queries to transform data between views. They 
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.view(comment="Enrich customer data with additional attributes")
+  @dp.view(comment="Enrich customer data with additional attributes")
   def v_customer_enriched():
       """Enrich customer data with additional attributes"""
       return spark.sql("""
@@ -1512,11 +1512,11 @@ After generation, your Python functions appear in the pipeline output with warni
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
   from pyspark.sql.functions import current_timestamp
   from custom_python_functions.customer_transforms import enrich_customer_data
 
-  @dlt.view()
+  @dp.view()
   def v_customer_enriched():
       """Apply advanced customer enrichment using external APIs"""
       # Load source view(s)
@@ -1540,10 +1540,10 @@ After generation, your Python functions appear in the pipeline output with warni
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
   from custom_python_functions.customer_analysis import analyze_customer_orders
 
-  @dlt.view()
+  @dp.view()
   def v_customer_order_insights():
       """Analyze customer order patterns from multiple sources"""
       # Load source views
@@ -1646,20 +1646,20 @@ Data quality transform actions apply data validation rules using Databricks DLT 
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.view()
+  @dp.view()
   # These expectations will fail the pipeline if violated
-  @dlt.expect_all_or_fail({
+  @dp.expect_all_or_fail({
       "valid_custkey": "customer_id IS NOT NULL AND customer_id > 0",
       "valid_customer_name": "name IS NOT NULL AND LENGTH(TRIM(name)) > 0"
   })
   # These expectations will drop rows that violate them
-  @dlt.expect_all_or_drop({
+  @dp.expect_all_or_drop({
       "suspicious_balance": "account_balance IS NULL OR account_balance < 50000"
   })
   # These expectations will log warnings but not drop rows
-  @dlt.expect_all({
+  @dp.expect_all({
       "valid_phone_format": "phone IS NULL OR LENGTH(phone) >= 10",
       "valid_account_balance": "account_balance IS NULL OR account_balance >= -10000"
   })
@@ -1724,11 +1724,11 @@ Schema transform actions apply column mapping, type casting, and schema enforcem
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
   from pyspark.sql import functions as F
   from pyspark.sql.types import StructType
 
-  @dlt.view()
+  @dp.view()
   def v_customer_standardized():
       """Standardize customer schema and data types"""
       df = spark.read.table("v_customer_raw")
@@ -1787,9 +1787,9 @@ Temp table transform actions create temporary streaming tables for intermediate 
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.table(
+  @dp.table(
       temporary=True,
   )
   def customer_intermediate():
@@ -1872,7 +1872,7 @@ Append Streaming Table Write
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
   # Create the streaming table
   dlt.create_streaming_table(
@@ -1899,7 +1899,7 @@ Append Streaming Table Write
   )
 
   # Define append flow
-  @dlt.append_flow(
+  @dp.append_flow(
       target="catalog.bronze.customer",
       name="f_customer_bronze",
       comment="Append flow to catalog.bronze.customer from v_customer_cleansed"
@@ -1946,7 +1946,7 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
   # Create the streaming table for CDC
   dlt.create_streaming_table(
@@ -2131,7 +2131,7 @@ Create file `py_functions/part_snapshot_func.py`:
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
   # Create the streaming table for snapshot CDC
   dlt.create_streaming_table(
@@ -2159,7 +2159,7 @@ Create file `py_functions/part_snapshot_func.py`:
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
   from typing import Optional, Tuple
   from pyspark.sql import DataFrame
 
@@ -2226,7 +2226,7 @@ Create file `py_functions/part_snapshot_func.py`:
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
   # Create the streaming table for snapshot CDC
   dlt.create_streaming_table(
@@ -2374,9 +2374,9 @@ for pre-computed analytics tables based on the output of a query.
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.table(
+  @dp.table(
       name="catalog.gold.customer_summary",
       comment="Daily customer summary materialized view",
       table_properties={
@@ -2399,9 +2399,9 @@ for pre-computed analytics tables based on the output of a query.
 .. code-block:: python
   :linenos:
 
-  import dlt
+  from pyspark import pipelines as dp
 
-  @dlt.table(
+  @dp.table(
       name="catalog.gold.daily_sales_summary",
       comment="Daily sales summary by region and category",
       table_properties={
@@ -2526,7 +2526,7 @@ Test actions come in the following types:
 .. note::
    - Default target naming: ``tmp_test_<action_name>`` (temporary tables)
    - Default execution: batch (sufficient for aggregate checks); use streaming only when testing streaming sources explicitly
-   - Expectation decorators use aggregated style: ``@dlt.expect_all_or_fail``, ``@dlt.expect_all`` (warn), ``@dlt.expect_all_or_drop``
+   - Expectation decorators use aggregated style: ``@dp.expect_all_or_fail``, ``@dp.expect_all`` (warn), ``@dp.expect_all_or_drop``
    - ``on_violation`` supports ``fail`` and ``warn``. Using ``drop`` is possible but generally discouraged for tests
 
 
@@ -2551,8 +2551,8 @@ Compare record counts between two sources, with optional tolerance.
 .. code-block:: python
   :linenos:
 
-  @dlt.expect_all_or_fail({"row_count_match": "abs(source_count - target_count) <= 0"})
-  @dlt.table(
+  @dp.expect_all_or_fail({"row_count_match": "abs(source_count - target_count) <= 0"})
+  @dp.table(
       name="tmp_test_test_raw_to_bronze_count", 
       comment="Ensure no data loss from raw to bronze",
       temporary=True
@@ -2626,8 +2626,8 @@ Ensure that foreign keys in a fact/reference align.
 
 .. code-block:: python
 
-  @dlt.expect_all_or_fail({"valid_fk": "ref_customer_id IS NOT NULL"})
-  @dlt.table(name="tmp_test_orders_customer_fk", comment="Test description", temporary=True)
+  @dp.expect_all_or_fail({"valid_fk": "ref_customer_id IS NOT NULL"})
+  @dp.table(name="tmp_test_orders_customer_fk", comment="Test description", temporary=True)
 
 
 Completeness
@@ -2653,10 +2653,10 @@ Ensure required columns are populated. The generator selects only required colum
 
 .. code-block:: python
 
-  @dlt.expect_all_or_fail({
+  @dp.expect_all_or_fail({
       "required_fields_complete": "customer_key IS NOT NULL AND customer_id IS NOT NULL AND name IS NOT NULL AND nation_id IS NOT NULL"
   })
-  @dlt.table(name="tmp_test_customer_required_fields", comment="Test description", temporary=True)
+  @dp.table(name="tmp_test_customer_required_fields", comment="Test description", temporary=True)
 
 
 Range
@@ -2704,8 +2704,8 @@ Validate that dimension lookups succeed (e.g., surrogate keys are present after 
 
 .. code-block:: python
 
-  @dlt.expect_all_or_fail({"all_lookups_found": "lookup_date_key IS NOT NULL"})
-  @dlt.table(name="tmp_test_order_date_lookup", comment="Test description", temporary=True)
+  @dp.expect_all_or_fail({"all_lookups_found": "lookup_date_key IS NOT NULL"})
+  @dp.table(name="tmp_test_order_date_lookup", comment="Test description", temporary=True)
 
 
 Schema Match
@@ -2737,8 +2737,8 @@ Compare schemas between two tables using ``information_schema.columns``.
 
 .. code-block:: python
 
-  @dlt.expect_all_or_fail({"schemas_match": "diff_count = 0"})
-  @dlt.table(name="tmp_test_orders_schema_match", comment="Test description", temporary=True)
+  @dp.expect_all_or_fail({"schemas_match": "diff_count = 0"})
+  @dp.table(name="tmp_test_orders_schema_match", comment="Test description", temporary=True)
 
 
 Custom SQL

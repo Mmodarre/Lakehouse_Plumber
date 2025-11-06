@@ -100,7 +100,7 @@ project:
         
         # Generated code should NOT contain test-related content
         assert "DATA QUALITY TESTS" not in result
-        assert "@dlt.table(" not in result or "tmp_test_" not in result
+        assert "@dp.table(" not in result or "tmp_test_" not in result
     
     def test_generate_flowgroup_code_includes_tests_when_true(self):
         """Test that _generate_flowgroup_code includes TEST actions when include_tests=True."""
@@ -142,7 +142,7 @@ project:
         
         # Generated code should contain test-related content
         assert "DATA QUALITY TESTS" in result
-        assert ("@dlt.table(" in result and "tmp_test_" in result) or "@dlt.expect" in result
+        assert ("@dp.table(" in result and "tmp_test_" in result) or "@dp.expect" in result
     
     def test_mixed_flowgroup_filtering(self):
         """Test flowgroup with both TEST and non-TEST actions respects include_tests flag."""
@@ -249,7 +249,7 @@ project:
         )
         assert result_with != "", "Test-only flowgroup should generate content when flag is set"
         assert "DATA QUALITY TESTS" in result_with
-        assert "@dlt.table(" in result_with
+        assert "@dp.table(" in result_with
 
 
 class TestEmptyContentCleanup:

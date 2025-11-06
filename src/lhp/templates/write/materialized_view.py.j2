@@ -1,4 +1,4 @@
-@dlt.table(
+@dp.table(
     name="{{ full_table_name }}",
     comment="{{ comment }}",
     table_properties={{ properties | tojson }}
@@ -28,13 +28,13 @@
     {%- endif %}
 )
 {% if expect_all %}
-@dlt.expect_all({{ expect_all | tojson }})
+@dp.expect_all({{ expect_all | tojson }})
 {% endif %}
 {% if expect_all_or_drop %}
-@dlt.expect_all_or_drop({{ expect_all_or_drop | tojson }})
+@dp.expect_all_or_drop({{ expect_all_or_drop | tojson }})
 {% endif %}
 {% if expect_all_or_fail %}
-@dlt.expect_all_or_fail({{ expect_all_or_fail | tojson }})
+@dp.expect_all_or_fail({{ expect_all_or_fail | tojson }})
 {% endif %}
 def {{ table_name }}():
     """{{ description }}"""

@@ -1,5 +1,5 @@
 {% if mode == "append_flow" %}
-@dlt.table(
+@dp.table(
     name="{{ full_table_name }}",
     comment="{{ comment }}"
     {%- if properties %},
@@ -28,17 +28,17 @@
     {%- endif %}
 )
 {% if expect_all %}
-@dlt.expect_all({{ expect_all | tojson }})
+@dp.expect_all({{ expect_all | tojson }})
 {% endif %}
 {% if expect_all_or_drop %}
-@dlt.expect_all_or_drop({{ expect_all_or_drop | tojson }})
+@dp.expect_all_or_drop({{ expect_all_or_drop | tojson }})
 {% endif %}
 {% if expect_all_or_fail %}
-@dlt.expect_all_or_fail({{ expect_all_or_fail | tojson }})
+@dp.expect_all_or_fail({{ expect_all_or_fail | tojson }})
 {% endif %}
 def {{ table_name }}():
     """{{ description }}"""
-    df = dlt.read_stream("{{ source_view }}")
+    df = dp.read_stream("{{ source_view }}")
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
@@ -55,7 +55,7 @@ def {{ table_name }}():
    CDC flows require their own dedicated table
 #}
 # Create the streaming table for CDC
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="{{ full_table_name }}",
     comment="{{ comment }}"
     {%- if properties %},
@@ -85,7 +85,7 @@ dlt.create_streaming_table(
 )
 
 # CDC mode using auto_cdc
-dlt.create_auto_cdc_flow(
+dp.create_auto_cdc_flow(
     target="{{ full_table_name }}",
     source="{{ source_view }}",
     keys={{ cdc_config['keys'] | tojson }},
@@ -123,7 +123,7 @@ dlt.create_auto_cdc_flow(
 
 {% endif %}
 # Create the streaming table for snapshot CDC
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="{{ full_table_name }}",
     comment="{{ comment }}"
     {%- if properties %},
@@ -153,7 +153,7 @@ dlt.create_streaming_table(
 )
 
 # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
-dlt.create_auto_cdc_from_snapshot_flow(
+dp.create_auto_cdc_from_snapshot_flow(
     target="{{ full_table_name }}",
     {% if source_function_name %}source={{ source_function_name }},
     {% else %}source="{{ snapshot_cdc_config['source'] }}",
@@ -173,7 +173,7 @@ dlt.create_auto_cdc_from_snapshot_flow(
 #}
 {% if create_table %}
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="{{ full_table_name }}",
     comment="{{ comment }}"
     {%- if properties %},
@@ -207,20 +207,20 @@ dlt.create_streaming_table(
 # Define append flow(s)
 {% if action_metadata %}
 {% for action_meta in action_metadata %}
-@dlt.append_flow(
+@dp.append_flow(
     target="{{ full_table_name }}",
     name="{{ action_meta.flow_name }}",
     {% if action_meta.once %}once=True,{% endif %}
     comment="{{ action_meta.description }}"
 )
 {% if expect_all %}
-@dlt.expect_all({{ expect_all | tojson }})
+@dp.expect_all({{ expect_all | tojson }})
 {% endif %}
 {% if expect_all_or_drop %}
-@dlt.expect_all_or_drop({{ expect_all_or_drop | tojson }})
+@dp.expect_all_or_drop({{ expect_all_or_drop | tojson }})
 {% endif %}
 {% if expect_all_or_fail %}
-@dlt.expect_all_or_fail({{ expect_all_or_fail | tojson }})
+@dp.expect_all_or_fail({{ expect_all_or_fail | tojson }})
 {% endif %}
 def {{ action_meta.flow_name }}():
     """{{ action_meta.description }}"""
@@ -244,20 +244,20 @@ def {{ action_meta.flow_name }}():
 {% elif source_views %}
 {# Backward compatibility: use legacy source_views structure #}
 {% for source_view in source_views %}
-@dlt.append_flow(
+@dp.append_flow(
     target="{{ full_table_name }}",
     name="{{ flow_name }}{% if source_views|length > 1 %}_{{ loop.index }}{% endif %}",
     {% if once %}once=True,{% endif %}
     comment="{{ description }} from {{ source_view }}"
 )
 {% if expect_all %}
-@dlt.expect_all({{ expect_all | tojson }})
+@dp.expect_all({{ expect_all | tojson }})
 {% endif %}
 {% if expect_all_or_drop %}
-@dlt.expect_all_or_drop({{ expect_all_or_drop | tojson }})
+@dp.expect_all_or_drop({{ expect_all_or_drop | tojson }})
 {% endif %}
 {% if expect_all_or_fail %}
-@dlt.expect_all_or_fail({{ expect_all_or_fail | tojson }})
+@dp.expect_all_or_fail({{ expect_all_or_fail | tojson }})
 {% endif %}
 def {{ flow_name }}{% if source_views|length > 1 %}_{{ loop.index }}{% endif %}():
     """{{ description }} from {{ source_view }}"""

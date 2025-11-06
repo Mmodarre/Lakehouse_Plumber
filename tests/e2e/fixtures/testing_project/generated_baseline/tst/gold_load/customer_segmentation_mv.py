@@ -2,8 +2,8 @@
 # Pipeline: gold_load
 # FlowGroup: customer_segmentation_mv
 
+from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "gold_load"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "customer_segmentation_mv"
 # ============================================================================
 
 
-@dlt.view()
+@dp.view()
 def v_customer_segmentation_mv_sql():
     """SQL source: customer_segmentation_mv_sql"""
     df = spark.sql(
@@ -116,7 +116,7 @@ ORDER BY segment_priority, lifetime_value DESC
 # ============================================================================
 
 
-@dlt.table(
+@dp.table(
     name="acme_edw_tst.edw_gold.customer_segmentation_mv",
     comment="Materialized view: customer_segmentation_mv",
     table_properties={},

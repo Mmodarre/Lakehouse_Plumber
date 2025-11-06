@@ -19,12 +19,12 @@ class TestBaseGenerator:
                 return f"Generated code for {action.name}"
         
         generator = TestGenerator()
-        generator.add_import("import dlt")
+        generator.add_import("from pyspark import pipelines as dp")
         generator.add_import("import pyspark")
         
-        assert "import dlt" in generator.imports
+        assert "from pyspark import pipelines as dp" in generator.imports
         assert "import pyspark" in generator.imports
-        assert generator.imports == ["import dlt", "import pyspark"]  # Should be sorted
+        assert generator.imports == ["from pyspark import pipelines as dp", "import pyspark"]  # Should be sorted
 
 
 if __name__ == "__main__":

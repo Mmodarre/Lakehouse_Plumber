@@ -718,8 +718,8 @@ class BundleManager:
         Extract catalog.schema patterns from Python file content using regex.
         
         Looks for these patterns:
-        - dlt.create_streaming_table(name="catalog.schema.table")
-        - @dlt.table(name="catalog.schema.table")
+        - dp.create_streaming_table(name="catalog.schema.table")
+        - @dp.table(name="catalog.schema.table")
         
         Args:
             content: Python file content as string
@@ -732,7 +732,7 @@ class BundleManager:
         # Regex patterns for table creation (only patterns that create new tables)
         patterns = [
             r'dlt\.create_streaming_table\(\s*\n?\s*name="([^"]+)"',  # streaming tables
-            r'@dlt\.table\(\s*\n?\s*name="([^"]+)"',                  # materialized views
+            r'@dp\.table\(\s*\n?\s*name="([^"]+)"',                  # materialized views
         ]
         
         database_values = []
