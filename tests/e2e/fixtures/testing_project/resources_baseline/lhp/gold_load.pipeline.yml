@@ -20,7 +20,7 @@ resources:
         bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}      
       channel: CURRENT
       # Additional pipeline configuration options 
-      add to your pipeline_config.yaml as needed and pass the file path through the --pipeline-config flag:
+      # Add to your pipeline_config.yaml as needed and pass the file path through the --pipeline-config flag:
  
       # Compute clusters configuration (alternative to serverless)
       # clusters:

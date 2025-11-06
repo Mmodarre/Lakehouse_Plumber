@@ -50,6 +50,7 @@ class TransformType(str, Enum):
 class WriteTargetType(str, Enum):
     STREAMING_TABLE = "streaming_table"
     MATERIALIZED_VIEW = "materialized_view"
+    SINK = "sink"
 
 
 class MetadataColumnConfig(BaseModel):
@@ -101,11 +102,13 @@ class ProjectConfig(BaseModel):
 
 
 class WriteTarget(BaseModel):
-    """Write target configuration for streaming tables and materialized views."""
+    """Write target configuration for streaming tables, materialized views, and sinks."""
 
     type: WriteTargetType
-    database: str
-    table: str
+    
+    # Streaming table and materialized view fields
+    database: Optional[str] = None
+    table: Optional[str] = None
     create_table: bool = (
         True  # Default to True - optional, only set to False when needed
     )
@@ -121,6 +124,21 @@ class WriteTarget(BaseModel):
     # Materialized view specific
     refresh_schedule: Optional[str] = None
     sql: Optional[str] = None
+    
+    # Sink-specific fields
+    sink_type: Optional[str] = None  # delta, kafka, custom
+    sink_name: Optional[str] = None
+    
+    # Kafka/Event Hubs sink fields
+    bootstrap_servers: Optional[str] = None
+    topic: Optional[str] = None
+    
+    # Custom sink fields
+    module_path: Optional[str] = None
+    custom_sink_class: Optional[str] = None
+    
+    # Common sink options
+    options: Optional[Dict[str, Any]] = None
 
     # Backward compatibility property for 'schema' field
     @property

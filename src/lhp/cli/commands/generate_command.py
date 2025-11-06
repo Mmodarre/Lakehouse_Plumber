@@ -328,6 +328,8 @@ class GenerateCommand(BaseCommand):
                         click.echo("Dry run: Bundle sync would be performed")
             
         except BundleResourceError as e:
-            click.echo(f"⚠️ Bundle sync warning: {e}")
+            click.echo(f"❌ Bundle sync failed: {e}")
+            sys.exit(1)
         except Exception as e:
-            click.echo(f"⚠️ Unexpected bundle error: {e}")
+            click.echo(f"❌ Unexpected bundle error: {e}")
+            sys.exit(1)

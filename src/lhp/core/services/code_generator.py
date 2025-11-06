@@ -266,6 +266,14 @@ class CodeGenerator:
                 'action_name': generator.action_name if hasattr(generator, 'action_name') else 'unknown'
             })
         
+        # Collect custom sink code if available
+        if hasattr(generator, 'custom_sink_code') and generator.custom_sink_code:
+            custom_sources.append({
+                'content': generator.custom_sink_code,
+                'source_file': generator.sink_file_path,
+                'action_name': generator.action_name if hasattr(generator, 'action_name') else 'unknown'
+            })
+        
         return imports, custom_sources
     
     def _apply_secret_substitutions(self, generated_sections: List[str], 

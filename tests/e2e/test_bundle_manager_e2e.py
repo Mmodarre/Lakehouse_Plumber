@@ -304,10 +304,9 @@ resources:
         assert (self.generated_dir /
                 pipeline_name).exists(), "Pipeline directory should exist"
 
-        # Create user-managed file (without LHP header)
-        resource_file = self.resources_dir / f"{pipeline_name}.pipeline.yml"
-        user_content = "# User managed file\nresources:\n  pipelines:\n    test: value"
-        resource_file.write_text(user_content)
+        # Create user-managed file (without LHP header) using helper
+        resource_file = self.create_user_resource_file(pipeline_name)
+        user_content = resource_file.read_text()
         assert not self.has_lhp_header(
             resource_file), "Should not have LHP header initially"
 
@@ -447,16 +446,29 @@ resources:
         self.create_pipeline_directory(lhp_pipeline)
         self.create_pipeline_directory(user_pipeline)
 
-        # Create LHP-managed file
+        # Create LHP-managed file with valid YAML and correct pipeline key
         lhp_file = self.resources_dir / f"{lhp_pipeline}.pipeline.yml"
-        lhp_content = "# Some LHP content"
+        lhp_content = f"""resources:
+  pipelines:
+    {lhp_pipeline}_pipeline:
+      name: {lhp_pipeline}_pipeline
+      catalog: test_catalog
+      schema: test_schema
+"""
         lhp_file.write_text(lhp_content)
         self.create_lhp_header(lhp_file)
         assert self.has_lhp_header(lhp_file), "LHP file should have header"
 
-        # Create user-managed file
+        # Create user-managed file with valid YAML and correct pipeline key
         user_file = self.resources_dir / f"{user_pipeline}.pipeline.yml"
-        user_content = "# User managed content"
+        user_content = f"""# User managed content
+resources:
+  pipelines:
+    {user_pipeline}_pipeline:
+      name: {user_pipeline}_pipeline
+      catalog: user_catalog
+      schema: user_schema
+"""
         user_file.write_text(user_content)
         assert not self.has_lhp_header(
             user_file), "User file should not have header"

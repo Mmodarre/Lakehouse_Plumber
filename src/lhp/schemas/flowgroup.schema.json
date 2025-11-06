@@ -391,11 +391,11 @@
         },
         "WriteTarget": {
             "type": "object",
-            "required": ["type", "database", "table"],
+            "required": ["type"],
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": ["streaming_table", "materialized_view"],
+                    "enum": ["streaming_table", "materialized_view", "sink"],
                     "description": "Type of write target"
                 },
                 "database": {
@@ -467,6 +467,36 @@
                 "sql": {
                     "type": "string",
                     "description": "SQL query for materialized views"
+                },
+                "sink_type": {
+                    "type": "string",
+                    "enum": ["delta", "kafka", "custom"],
+                    "description": "Type of sink (delta, kafka, custom)"
+                },
+                "sink_name": {
+                    "type": "string",
+                    "description": "Name of the sink"
+                },
+                "bootstrap_servers": {
+                    "type": "string",
+                    "description": "Kafka bootstrap servers (for Kafka/Event Hubs sinks)"
+                },
+                "topic": {
+                    "type": "string",
+                    "description": "Kafka topic (for Kafka/Event Hubs sinks)"
+                },
+                "module_path": {
+                    "type": "string",
+                    "description": "Path to custom sink module (for custom sinks)"
+                },
+                "custom_sink_class": {
+                    "type": "string",
+                    "description": "Custom sink class name (for custom sinks)"
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Additional sink options"
                 },
                 "mode": {
                     "type": "string",
