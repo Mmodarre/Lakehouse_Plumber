@@ -25,6 +25,8 @@
 - The only Metadata framework that generates production ready Pyspark code for Lakeflow Declarative Pipelines
 
 ## 🆕 What's New
+- **Spark Declarative Pipelines Sink Support**: Write data to external systems (JDBC, REST APIs, Kafka) and Delta tables. Perfect for integrating your lakehouse with downstream systems.
+
 
 - **Multi-FlowGroup Support**: Organize your data pipelines with multiple flowgroup YAML files within a single pipeline. (e.g., `customers.yaml`, `orders.yaml`, `products.yaml`) Perfect for when multiple flows are usign the same template to further avoide boilerplate config and reduce file count.
 
