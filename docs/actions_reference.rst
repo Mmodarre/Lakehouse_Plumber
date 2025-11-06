@@ -1772,7 +1772,7 @@ Temp table transform actions create temporary streaming tables for intermediate 
 - **description**: Optional documentation for the action
 
 .. seealso::
-  - For DLT table types see the `Databricks DLT table types documentation <https://docs.databricks.com/aws/en/dlt-ref/dlt-python-ref-table>`_.
+  - For DLT table types see the `Databricks DLT table types documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-table>`_.
   - Intermediate processing: :doc:`concepts`
 
 .. Important::
@@ -1875,7 +1875,7 @@ Append Streaming Table Write
   from pyspark import pipelines as dp
 
   # Create the streaming table
-  dlt.create_streaming_table(
+  dp.create_streaming_table(
       name="catalog.bronze.customer",
       comment="Write customer data to bronze streaming table",
       table_properties={
@@ -1949,7 +1949,7 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
   from pyspark import pipelines as dp
 
   # Create the streaming table for CDC
-  dlt.create_streaming_table(
+  dp.create_streaming_table(
       name="catalog.silver.dim_customer",
       comment="Track customer changes with CDC and SCD Type 2",
       table_properties={
@@ -1960,7 +1960,7 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
   )
 
   # CDC mode using auto_cdc
-  dlt.create_auto_cdc_flow(
+  dp.create_auto_cdc_flow(
       target="catalog.silver.dim_customer",
       source="v_customer_changes",
       keys=["customer_id"],
@@ -1971,7 +1971,7 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
   )
 
 .. seealso::
-  - For more information on ``create_auto_cdc_flow`` see the `Databricks CDC documentation <https://docs.databricks.com/en/delta-live-tables/dlt-python-ref-apply-changes.html>`_
+  - For more information on ``create_auto_cdc_flow`` see the `Databricks CDC documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-apply-changes-from-snapshot>`_
 
 **Snapshot CDC**
 
@@ -2134,7 +2134,7 @@ Create file `py_functions/part_snapshot_func.py`:
   from pyspark import pipelines as dp
 
   # Create the streaming table for snapshot CDC
-  dlt.create_streaming_table(
+  dp.create_streaming_table(
       name="catalog.silver.dim_customer_simple",
       comment="Create customer dimension from snapshot table",
       table_properties={
@@ -2147,7 +2147,7 @@ Create file `py_functions/part_snapshot_func.py`:
   )
 
   # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
-  dlt.create_auto_cdc_from_snapshot_flow(
+  dp.create_auto_cdc_from_snapshot_flow(
       target="catalog.silver.dim_customer_simple",
       source="catalog.bronze.customer_snapshots",
       keys=["customer_id"],
@@ -2207,13 +2207,13 @@ Create file `py_functions/part_snapshot_func.py`:
           return (df, next_snapshot_id)
 
   # Create the streaming table for snapshot CDC
-  dlt.create_streaming_table(
+  dp.create_streaming_table(
       name="catalog.silver.part_dim",
       comment="Create part dimension with function-based snapshots"
   )
 
   # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
-  dlt.create_auto_cdc_from_snapshot_flow(
+  dp.create_auto_cdc_from_snapshot_flow(
       target="catalog.silver.part_dim",
       source=next_snapshot_and_version,
       keys=["part_id"],
@@ -2229,13 +2229,13 @@ Create file `py_functions/part_snapshot_func.py`:
   from pyspark import pipelines as dp
 
   # Create the streaming table for snapshot CDC
-  dlt.create_streaming_table(
+  dp.create_streaming_table(
       name="catalog.silver.dim_product",
       comment="Product dimension excluding audit columns from history"
   )
 
   # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
-  dlt.create_auto_cdc_from_snapshot_flow(
+  dp.create_auto_cdc_from_snapshot_flow(
       target="catalog.silver.dim_product",
       source="catalog.bronze.product_snapshots",
       keys=["product_id"],
@@ -2433,6 +2433,573 @@ for pre-computed analytics tables based on the output of a query.
   Use `refresh_schedule` to control when the view refreshes. 
   Materialized views can either read from source views or execute custom SQL queries.
 
+sink
+~~~~
+Sink write actions enable streaming data to external destinations beyond traditional 
+DLT-managed streaming tables. Sinks provide flexible output for real-time data 
+distribution to external systems, Unity Catalog external tables, and event streaming 
+services.
+
+**Supported Sink Types:**
+
++---------------+------------------------------------------------------------+
+| Sink Type     | Purpose                                                    |
++===============+============================================================+
+|| delta        || Write to Unity Catalog external tables or external Delta |
++---------------+------------------------------------------------------------+
+|| kafka        || Stream to Apache Kafka or Azure Event Hubs topics        |
++---------------+------------------------------------------------------------+
+|| custom       || Write to custom destinations via Python DataSink class   |
++---------------+------------------------------------------------------------+
+
+**When to Use Sinks:**
+
+* **Operational use cases** - Fraud detection, real-time analytics, customer recommendations with low-latency requirements
+* **External Delta tables** - Write to Unity Catalog external tables or Delta instances managed outside DLT
+* **Reverse ETL** - Export processed data to external systems like Kafka for downstream consumption
+* **Custom formats** - Use Python custom data sources to write to any destination not directly supported by Databricks
+
+Delta Sink
+++++++++++
+
+Write processed data to Delta tables in external Unity Catalog locations or shared 
+analytics databases managed outside of DLT pipelines.
+
+**Use Cases:**
+- Export aggregated metrics to shared analytics catalog
+- Sync data to external reporting systems
+- Write to tables managed outside DLT pipelines
+
+.. code-block:: yaml
+
+  # Example: Export to external analytics catalog
+  actions:
+    # Read processed silver data
+    - name: load_silver_sales_metrics
+      type: load
+      source:
+        type: delta
+        table: acme_catalog.silver.fact_sales_order_line
+      target: v_sales_metrics
+      readMode: stream
+
+    # Aggregate for external reporting
+    - name: aggregate_daily_sales
+      type: transform
+      transform_type: sql
+      source: v_sales_metrics
+      target: v_daily_sales_summary
+      sql: |
+        SELECT 
+          DATE(order_date) as sales_date,
+          store_id,
+          product_id,
+          SUM(quantity) as total_quantity,
+          SUM(net_amount) as total_revenue,
+          COUNT(DISTINCT order_id) as order_count,
+          AVG(unit_price) as avg_unit_price,
+          current_timestamp() as export_timestamp
+        FROM v_sales_metrics
+        GROUP BY DATE(order_date), store_id, product_id
+
+    # Write to external Delta sink
+    - name: export_to_analytics_catalog
+      type: write
+      source: v_daily_sales_summary
+      write_target:
+        type: sink
+        sink_type: delta
+        sink_name: analytics_catalog_export
+        comment: "Export daily sales summary to shared analytics catalog"
+        options:
+          tableName: "analytics_shared_catalog.reporting.daily_sales_summary"
+          checkpointLocation: "/tmp/checkpoints/analytics_export"
+          mergeSchema: "true"
+          optimizeWrite: "true"
+
+**Anatomy of a Delta sink write action:**
+
+- **write_target.type**: Must be ``sink``
+- **write_target.sink_type**: Must be ``delta``
+- **write_target.sink_name**: Unique identifier for this sink
+- **write_target.comment**: Description of the sink's purpose
+- **write_target.options**:
+  
+  - **tableName**: Fully qualified table name (``catalog.schema.table``) - Required (use this OR path)
+  - **path**: File system path (``/mnt/delta/table``) - Required (use this OR tableName)
+  - Other options can be specified and will be passed to DLT (currently not all options are supported by DLT)
+
+.. Important::
+  Delta sinks require EITHER ``tableName`` OR ``path`` (not both).
+  
+  - Use ``tableName`` for Unity Catalog tables (``catalog.schema.table``) or Hive metastore (``schema.table``)
+  - Use ``path`` for file-based Delta tables
+  
+  Additional options like ``checkpointLocation`` can be included in YAML for future compatibility, 
+  but verify current DLT support before relying on them.
+
+**The above YAML translates to the following PySpark code:**
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark import pipelines as dp
+  
+  # Create the Delta sink
+  dp.create_sink(
+      name="analytics_catalog_export",
+      format="delta",
+      options={
+          "tableName": "analytics_shared_catalog.reporting.daily_sales_summary",
+          "checkpointLocation": "/tmp/checkpoints/analytics_export",
+          "mergeSchema": "true",
+          "optimizeWrite": "true"
+      }
+  )
+  
+  # Write to the sink using append flow
+  @dp.append_flow(
+      name="export_to_analytics_catalog",
+      target="analytics_catalog_export",
+      comment="Export daily sales summary to shared analytics catalog"
+  )
+  def export_to_analytics_catalog():
+      df = spark.readStream.table("v_daily_sales_summary")
+      return df
+
+**Path-based Delta Sink Example:**
+
+.. code-block:: yaml
+
+  # Example: Delta sink with path
+  - name: export_to_delta_path
+    type: write
+    source: v_processed_data
+    write_target:
+      type: sink
+      sink_type: delta
+      sink_name: delta_path_export
+      comment: "Export to file-based Delta table"
+      options:
+        path: "/mnt/delta_exports/my_table"
+
+Kafka Sink
+++++++++++
+
+Stream data to Apache Kafka topics for real-time consumption by downstream applications,
+microservices, or event-driven architectures.
+
+**Use Cases:**
+- Stream events to microservices
+- Feed real-time dashboards and monitoring systems
+- Integrate with event-driven architectures
+
+.. Important::
+  **Kafka sinks require explicit ``key`` and ``value`` columns.** You must create these 
+  columns in a transform action before writing to Kafka. The ``value`` column is mandatory, 
+  while ``key``, ``partition``, and ``headers`` are optional.
+
+.. code-block:: yaml
+
+  # Example: Stream order events to Kafka
+  actions:
+    # Load order data
+    - name: load_order_fulfillment_data
+      type: load
+      source:
+        type: delta
+        table: acme_catalog.silver.fact_sales_order_header
+      target: v_order_data
+      readMode: stream
+
+    # Transform to Kafka format with key/value columns
+    - name: prepare_kafka_message
+      type: transform
+      transform_type: sql
+      source: v_order_data
+      target: v_kafka_ready
+      sql: |
+        SELECT 
+          -- Kafka key: use order_id for partitioning
+          CAST(order_id AS STRING) as key,
+          
+          -- Kafka value: JSON structure with order details
+          to_json(struct(
+            order_id,
+            customer_id,
+            store_id,
+            order_date,
+            order_status,
+            total_amount,
+            current_timestamp() as event_timestamp,
+            'order_fulfillment' as event_type
+          )) as value,
+          
+          -- Optional: Kafka headers (as map)
+          map(
+            'source', 'acme_lakehouse',
+            'event_version', '1.0'
+          ) as headers
+        FROM v_order_data
+        WHERE order_status IN ('PENDING', 'PROCESSING', 'SHIPPED')
+
+    # Write to Kafka sink
+    - name: stream_to_kafka
+      type: write
+      source: v_kafka_ready
+      write_target:
+        type: sink
+        sink_type: kafka
+        sink_name: order_events_kafka
+        bootstrap_servers: "${KAFKA_BOOTSTRAP_SERVERS}"
+        topic: "acme.orders.fulfillment"
+        comment: "Stream order fulfillment events to Kafka"
+        options:
+          # Security settings
+          kafka.security.protocol: "${KAFKA_SECURITY_PROTOCOL}"
+          kafka.sasl.mechanism: "${KAFKA_SASL_MECHANISM}"
+          kafka.sasl.jaas.config: "${KAFKA_JAAS_CONFIG}"
+          
+          # Performance tuning
+          kafka.batch.size: "16384"
+          kafka.compression.type: "snappy"
+          kafka.acks: "1"
+          
+          # Checkpointing
+          checkpointLocation: "/tmp/checkpoints/kafka_orders"
+
+**Anatomy of a Kafka sink write action:**
+
+- **write_target.type**: Must be ``sink``
+- **write_target.sink_type**: Must be ``kafka``
+- **write_target.sink_name**: Unique identifier for this sink
+- **write_target.bootstrap_servers**: Kafka broker addresses (comma-separated)
+- **write_target.topic**: Target Kafka topic name
+- **write_target.comment**: Description of the sink's purpose
+- **write_target.options**: Kafka producer settings
+
+  - **kafka.security.protocol**: Security protocol (e.g., ``SASL_SSL``, ``PLAINTEXT``)
+  - **kafka.sasl.mechanism**: SASL mechanism (e.g., ``PLAIN``, ``SCRAM-SHA-256``)
+  - **kafka.sasl.jaas.config**: JAAS configuration for authentication
+  - **kafka.batch.size**: Batch size in bytes for producer
+  - **kafka.compression.type**: Compression type (``none``, ``gzip``, ``snappy``, ``lz4``)
+  - **kafka.acks**: Acknowledgment mode (``0``, ``1``, ``all``)
+  - **checkpointLocation**: Required checkpoint location for streaming
+
+**Required Columns in Source Data:**
+
++------------+----------+------------------------------------------------------------+
+| Column     | Type     | Purpose                                                    |
++============+==========+============================================================+
+| value      | STRING   | Message payload (mandatory) - typically JSON               |
++------------+----------+------------------------------------------------------------+
+| key        | STRING   | Message key for partitioning (optional)                    |
++------------+----------+------------------------------------------------------------+
+| headers    | MAP      | Message headers as MAP<STRING,STRING> (optional)           |
++------------+----------+------------------------------------------------------------+
+| partition  | INT      | Explicit partition assignment (optional)                   |
++------------+----------+------------------------------------------------------------+
+
+**The above YAML translates to the following PySpark code:**
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark import pipelines as dp
+  
+  # Create the Kafka sink
+  dp.create_sink(
+      name="order_events_kafka",
+      format="kafka",
+      options={
+          "kafka.bootstrap.servers": "kafka-broker.example.com:9092",
+          "topic": "acme.orders.fulfillment",
+          "kafka.security.protocol": "SASL_SSL",
+          "kafka.sasl.mechanism": "PLAIN",
+          "kafka.sasl.jaas.config": "...",
+          "kafka.batch.size": "16384",
+          "kafka.compression.type": "snappy",
+          "kafka.acks": "1",
+          "checkpointLocation": "/tmp/checkpoints/kafka_orders"
+      }
+  )
+  
+  # Write to the sink using append flow
+  @dp.append_flow(
+      name="stream_to_kafka",
+      target="order_events_kafka",
+      comment="Stream order fulfillment events to Kafka"
+  )
+  def stream_to_kafka():
+      df = spark.readStream.table("v_kafka_ready")
+      return df
+
+Azure Event Hubs Sink
+++++++++++++++++++++++
+
+Azure Event Hubs is Kafka-compatible, so you use ``sink_type: kafka`` with OAuth 
+configuration for authentication.
+
+**Key Configuration:**
+
+- Use ``kafka.sasl.mechanism: "OAUTHBEARER"`` for Event Hubs OAuth authentication
+- Use Unity Catalog service credentials for secure authentication
+- Bootstrap servers format: ``{namespace}.servicebus.windows.net:9093``
+
+.. code-block:: yaml
+
+  # Example: Stream to Azure Event Hubs
+  actions:
+    - name: prepare_event_hubs_message
+      type: transform
+      transform_type: sql
+      source: v_alerts
+      target: v_event_hubs_ready
+      sql: |
+        SELECT 
+          CONCAT(store_id, '-', product_id) as key,
+          to_json(struct(
+            store_id,
+            product_id,
+            alert_type,
+            alert_timestamp
+          )) as value
+        FROM v_alerts
+
+    - name: stream_to_event_hubs
+      type: write
+      source: v_event_hubs_ready
+      write_target:
+        type: sink
+        sink_type: kafka
+        sink_name: alerts_eventhubs
+        bootstrap_servers: "${EVENT_HUBS_NAMESPACE}:9093"
+        topic: "${EVENT_HUBS_TOPIC}"
+        options:
+          # OAuth for Event Hubs
+          kafka.sasl.mechanism: "OAUTHBEARER"
+          kafka.security.protocol: "SASL_SSL"
+          kafka.sasl.jaas.config: "${EVENT_HUBS_JAAS_CONFIG}"
+          checkpointLocation: "/tmp/checkpoints/eventhubs_alerts"
+
+For more details on Event Hubs authentication, see the 
+`Databricks Event Hubs documentation <https://docs.databricks.com/structured-streaming/streaming-event-hubs.html>`_.
+
+Custom Sink
++++++++++++
+
+Implement custom Python DataSink classes to write data to any destination not directly 
+supported by Databricks, including REST APIs, databases, file systems, or proprietary 
+data stores.
+
+**Use Cases:**
+- Push updates to external REST APIs or webhooks
+- Write to non-Spark data stores
+- Implement custom retry/error handling logic
+- Interface with proprietary systems
+
+.. code-block:: yaml
+
+  # Example: Push customer updates to external CRM API
+  actions:
+    # Prepare customer data for API
+    - name: prepare_api_payload
+      type: transform
+      transform_type: sql
+      source: v_customer_changes
+      target: v_api_ready_customers
+      sql: |
+        SELECT 
+          customer_id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          loyalty_tier,
+          total_lifetime_value,
+          customer_status,
+          current_timestamp() as sync_timestamp
+        FROM v_customer_changes
+        WHERE customer_status = 'ACTIVE'
+          AND email IS NOT NULL
+
+    # Write to custom API sink
+    - name: push_to_crm_api
+      type: write
+      source: v_api_ready_customers
+      write_target:
+        type: sink
+        sink_type: custom
+        sink_name: customer_crm_api
+        module_path: "sinks/customer_api_sink.py"
+        custom_sink_class: "CustomerAPIDataSource"
+        comment: "Push customer updates to external CRM API"
+        options:
+          endpoint: "${CRM_API_ENDPOINT}"
+          apiKey: "${CRM_API_KEY}"
+          batchSize: "100"
+          timeout: "30"
+          maxRetries: "3"
+          checkpointLocation: "/tmp/checkpoints/crm_api_sink"
+
+**Anatomy of a custom sink write action:**
+
+- **write_target.type**: Must be ``sink``
+- **write_target.sink_type**: Must be ``custom``
+- **write_target.sink_name**: Unique identifier for this sink
+- **write_target.module_path**: Path to Python file containing the DataSink class
+- **write_target.custom_sink_class**: Name of the DataSink class to use
+- **write_target.comment**: Description of the sink's purpose
+- **write_target.options**: Custom options passed to your sink implementation
+
+**DataSink Interface Requirements:**
+
+Your custom sink class must implement the PySpark DataSink interface:
+
+.. code-block:: python
+
+  # Example custom DataSink implementation
+  from pyspark.sql.datasource import DataSink, DataSource, InputPartition
+  import requests
+  import json
+  
+  class CustomerAPIDataSource(DataSource):
+      """Custom DataSource for streaming to external API."""
+      
+      @classmethod
+      def name(cls):
+          """Return the format name for this sink."""
+          return "customer_api_sink"
+      
+      def writer(self, schema, overwrite):
+          """Return a DataSink writer instance."""
+          return CustomerAPIDataSink(self.options)
+  
+  
+  class CustomerAPIDataSink(DataSink):
+      """DataSink implementation for external API."""
+      
+      def __init__(self, options):
+          self.endpoint = options.get("endpoint")
+          self.api_key = options.get("apiKey")
+          self.batch_size = int(options.get("batchSize", 100))
+          self.timeout = int(options.get("timeout", 30))
+          self.max_retries = int(options.get("maxRetries", 3))
+      
+      def write(self, iterator):
+          """Write data to external API with batching and retry logic."""
+          batch = []
+          
+          for row in iterator:
+              batch.append(row.asDict())
+              
+              if len(batch) >= self.batch_size:
+                  self._send_batch(batch)
+                  batch = []
+          
+          # Send remaining records
+          if batch:
+              self._send_batch(batch)
+      
+      def _send_batch(self, batch):
+          """Send batch to API with retry logic."""
+          headers = {
+              "Authorization": f"Bearer {self.api_key}",
+              "Content-Type": "application/json"
+          }
+          
+          for attempt in range(self.max_retries):
+              try:
+                  response = requests.post(
+                      self.endpoint,
+                      json=batch,
+                      headers=headers,
+                      timeout=self.timeout
+                  )
+                  response.raise_for_status()
+                  return
+              except Exception as e:
+                  if attempt == self.max_retries - 1:
+                      raise
+                  # Exponential backoff
+                  time.sleep(2 ** attempt)
+
+**The above YAML translates to the following PySpark code:**
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark import pipelines as dp
+  
+  # Create the custom sink
+  dp.create_sink(
+      name="customer_crm_api",
+      format="customer_api_sink",  # Uses the name() from DataSource
+      options={
+          "endpoint": "https://crm.example.com/api/customers",
+          "apiKey": "secret-api-key",
+          "batchSize": "100",
+          "timeout": "30",
+          "maxRetries": "3",
+          "checkpointLocation": "/tmp/checkpoints/crm_api_sink"
+      }
+  )
+  
+  # Write to the sink using append flow
+  @dp.append_flow(
+      name="push_to_crm_api",
+      target="customer_crm_api",
+      comment="Push customer updates to external CRM API"
+  )
+  def push_to_crm_api():
+      df = spark.readStream.table("v_api_ready_customers")
+      return df
+
+**Best Practices for Custom Sinks:**
+
+* **Error Handling**: Implement comprehensive try/catch blocks and logging
+* **Retry Logic**: Use exponential backoff for transient failures
+* **Dead Letter Queue**: Write failed records to a DLQ for manual review
+* **Batch Size Tuning**: Balance throughput vs API rate limits
+* **Monitoring**: Log metrics for tracking success/failure rates
+* **Authentication**: Use Unity Catalog secrets for API keys and credentials
+
+For more details on implementing custom data sources, see the 
+`PySpark Custom Data Sources documentation <https://spark.apache.org/docs/latest/api/python/user_guide/sql/python_data_source.html>`_.
+
+Operational Metadata with Sinks
+++++++++++++++++++++++++++++++++
+
+Operational metadata columns can be added to your data before writing to sinks. 
+Use a transform action to add metadata columns such as processing timestamps, 
+source identifiers, or record hashes.
+
+.. code-block:: yaml
+
+  # Example: Adding operational metadata before sink
+  actions:
+    - name: add_metadata
+      type: transform
+      transform_type: sql
+      source: v_source_data
+      target: v_with_metadata
+      sql: |
+        SELECT 
+          *,
+          current_timestamp() as _processing_timestamp,
+          'acme_lakehouse' as _source_system,
+          md5(concat_ws('|', *)) as _record_hash
+        FROM v_source_data
+    
+    - name: write_to_sink
+      type: write
+      source: v_with_metadata
+      write_target:
+        type: sink
+        sink_type: kafka
+        sink_name: enriched_data_kafka
+        # ... sink configuration
+
 Row-Level Security with row_filter
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2477,7 +3044,7 @@ The row filter format is: ``"ROW FILTER function_name ON (column_names)"``
 - **column_names**: Comma-separated list of columns to pass to the function
 
 .. seealso::
-  - For complete row filter documentation see the `Databricks Row Filters and Column Masks documentation <https://docs.databricks.com/aws/en/dlt/unity-catalog#row-filters-and-column-masks>`_.
+  - For complete row filter documentation see the `Databricks Row Filters and Column Masks documentation <https://docs.databricks.com/aws/en/ldp/unity-catalog#publish-tables-with-row-filters-and-column-masks>`_.
 
 
 Test Actions (Data Quality Unit Tests)

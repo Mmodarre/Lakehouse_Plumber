@@ -46,7 +46,7 @@ def test_sql_transform_generates_clean_code():
     assert "FROM v_customers c" in code
     assert "JOIN v_orders o" in code
 
-    # Should not have dlt.read() calls for reading views
+    
     assert "spark.read.table(" not in code  # SQL transforms don't need to read tables explicitly
     assert "spark.readStream.table(" not in code
 

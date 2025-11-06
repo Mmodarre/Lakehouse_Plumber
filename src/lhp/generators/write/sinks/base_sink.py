@@ -12,7 +12,7 @@ class BaseSinkWriteGenerator(BaseActionGenerator):
     
     def __init__(self):
         super().__init__(use_import_manager=True)
-        self.add_import("import dlt")
+        self.add_import("from pyspark import pipelines as dp")
         self.add_import("from pyspark.sql import functions as F")
     
     @abstractmethod

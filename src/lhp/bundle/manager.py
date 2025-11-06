@@ -731,7 +731,7 @@ class BundleManager:
         
         # Regex patterns for table creation (only patterns that create new tables)
         patterns = [
-            r'dlt\.create_streaming_table\(\s*\n?\s*name="([^"]+)"',  # streaming tables
+            r'dp\.create_streaming_table\(\s*\n?\s*name="([^"]+)"',  # streaming tables
             r'@dp\.table\(\s*\n?\s*name="([^"]+)"',                  # materialized views
         ]
         

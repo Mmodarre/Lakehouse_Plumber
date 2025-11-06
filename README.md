@@ -237,7 +237,7 @@ As such, the output of LHP is a set of Python files that can be used to create D
    # ============================================================================
 
    # Create the streaming table
-   dlt.create_streaming_table(
+   dp.create_streaming_table(
       name="acmi_edw_dev.edw_raw.customer",
       comment="Streaming table: customer",
       table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
@@ -499,7 +499,7 @@ Simply open your project in VS Code and start editing YAML files!
 
 ```python
 # Single table creation
-dlt.create_streaming_table(name="orders", ...)
+dp.create_streaming_table(name="orders", ...)
 
 # Multiple append flows (high performance)
 @dp.append_flow(target="orders", name="f_orders_primary")

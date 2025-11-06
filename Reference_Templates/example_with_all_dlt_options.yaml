@@ -1,7 +1,7 @@
-# Example YAML configuration showing all new DLT table options
+# Example YAML configuration showing all new SDP table options
 # This demonstrates the complete feature set for all load types, transforms, and write targets
 
-pipeline: "comprehensive_dlt_example"
+pipeline: "comprehensive_spd_example"
 flowgroup: "comprehensive_pipeline"
 operational_metadata: true
 
@@ -237,7 +237,7 @@ actions:
     description: "Enforce final schema for sales data"
   
   # ==================================================================================
-  # WRITE ACTIONS - Examples with all DLT table options
+  # WRITE ACTIONS - Examples with all SDP table options
   # ==================================================================================
   
   # Streaming table with comprehensive configuration
@@ -298,7 +298,7 @@ actions:
       # Table comment
       comment: "Validated sales transactions with customer and product enrichment"
     
-    description: "Write enriched sales data to streaming table with full DLT options"
+    description: "Write enriched sales data to streaming table with full SDP options"
   
   # Materialized view with comprehensive configuration
   - name: "create_daily_sales_summary"
@@ -375,7 +375,7 @@ actions:
       
       comment: "Daily sales summary by region and product category (90-day rolling window)"
     
-    description: "Create daily sales summary materialized view with comprehensive DLT options"
+    description: "Create daily sales summary materialized view with comprehensive SDP options"
   
   # Streaming table with CDC configuration
   - name: "write_customer_changes"

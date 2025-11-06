@@ -49,8 +49,9 @@ Actions come in three top-level types:
 || **Transform** || Manipulate data in one or more steps (SQL, Python,      |
 ||               || schema adjustments, data-quality checks, temp tables…). |
 +----------------+----------------------------------------------------------+
-|| **Write**     || Persist the final dataset to a *streaming_table* or     |
-||               || *materialized_view*.                                    |
+|| **Write**     || Persist the final dataset to a *streaming_table*,      |
+||               || *materialized_view*, or external *sink* (Kafka,        |
+||               || Delta, custom API).                                     |
 +----------------+----------------------------------------------------------+
 
 

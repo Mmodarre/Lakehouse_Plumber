@@ -496,7 +496,7 @@
                 "options": {
                     "type": "object",
                     "additionalProperties": true,
-                    "description": "Additional sink options"
+                    "description": "Sink-specific options. For delta sinks: must contain either 'tableName' OR 'path' (not both). For kafka sinks: can include kafka.* prefixed options. Additional options pass through for forward compatibility."
                 },
                 "mode": {
                     "type": "string",

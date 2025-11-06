@@ -22,7 +22,6 @@ import pyspark.sql.functions as psf
 
 # DLT imports
 from pyspark import pipelines as dp
-from dlt import view, table
 
 # Custom/relative imports
 from .utils import helper_function
