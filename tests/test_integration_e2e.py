@@ -504,7 +504,7 @@ class TestEndToEndACMIIntegration:
                     # Verify content quality
                     for filename, content in generated_files.items():
                         assert len(content) > 100  # Should have substantial content
-                        assert "dlt" in content
+                        assert "from pyspark import pipelines as dp" in content
                         assert not content.count("ERROR") > 0  # No error markers
                         
             except Exception as e:

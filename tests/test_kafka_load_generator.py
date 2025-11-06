@@ -427,7 +427,7 @@ class TestKafkaLoadGenerator:
 
         self.generator.generate(action, {})
 
-        # Check that dlt import was added
+        # Check that pipeline as dp import was added
         assert "from pyspark import pipelines as dp" in self.generator.imports
 
     def test_quoted_values_escaped(self):

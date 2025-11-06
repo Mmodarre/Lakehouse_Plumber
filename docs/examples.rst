@@ -93,6 +93,107 @@ Use one file ``sap_master_data.yaml``:
 See :doc:`multi_flowgroup_guide` for complete documentation with inheritance rules,
 syntax options, migration guides, and real-world examples.
 
+Sink Examples
+-------------
+
+The ACME Supermarkets project includes comprehensive sink examples demonstrating 
+data export to external systems. These examples showcase Delta, Kafka, and custom 
+API sinks for streaming data to destinations beyond traditional DLT-managed tables.
+
+Location: ``Example_Projects/acme_supermarkets_lhp/pipelines/06_sink_examples/``
+
+Delta Sink Example
+~~~~~~~~~~~~~~~~~~
+
+Export aggregated sales metrics to external Unity Catalog for cross-workspace analytics.
+
+File: ``01_delta_sink_external_catalog.yaml``
+
+.. code-block:: bash
+
+   cd Example_Projects/acme_supermarkets_lhp
+   lhp generate --env dev --pipeline acme_supermarkets_sinks_pipeline
+   cat generated/acme_supermarkets_sinks_pipeline/delta_sink_example.py
+
+Key features:
+
+* Aggregates silver layer data
+* Writes to external catalog table
+* Schema evolution enabled
+* Optimized writes for performance
+
+Kafka Sink Example
+~~~~~~~~~~~~~~~~~~
+
+Stream order fulfillment events to Kafka for real-time processing by downstream systems.
+
+File: ``02_kafka_sink_order_events.yaml``
+
+Key features:
+
+* Transforms data to Kafka key/value format using ``to_json()``
+* JSON serialization of order events
+* Kafka headers for event metadata
+* Security and performance tuning configuration
+
+.. Important::
+   Kafka sinks require explicit ``key`` and ``value`` columns created in a 
+   transform action before writing.
+
+Azure Event Hubs Example
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Stream inventory alerts to Azure Event Hubs using OAuth authentication.
+
+File: ``03_event_hubs_sink_inventory_alerts.yaml``
+
+Key features:
+
+* OAuth authentication with Azure Event Hubs
+* Kafka-compatible interface (``sink_type: kafka``)
+* Priority-based alert routing
+* Unity Catalog service credentials
+
+Custom API Sink Example
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Push customer profile updates to external CRM via REST API.
+
+File: ``04_custom_api_sink_customer_updates.yaml``
+
+Custom implementation: ``sinks/customer_api_sink.py``
+
+Key features:
+
+* HTTP POST with bearer token authentication
+* Batch processing with configurable batch size
+* Retry logic with exponential backoff
+* Dead letter queue for failed records
+* Comprehensive error logging
+
+Walk-through
+~~~~~~~~~~~~
+
+.. code-block:: bash
+
+   cd Example_Projects/acme_supermarkets_lhp
+   
+   # Validate sink configurations
+   lhp validate --env dev
+   
+   # Generate all sink examples
+   lhp generate --env dev --pipeline acme_supermarkets_sinks_pipeline
+   
+   # Inspect generated Python code
+   cat generated/acme_supermarkets_sinks_pipeline/delta_sink_example.py
+   cat generated/acme_supermarkets_sinks_pipeline/kafka_sink_example.py
+   cat generated/acme_supermarkets_sinks_pipeline/custom_api_sink_example.py
+   
+   # Deploy with Databricks bundles
+   databricks bundle deploy -t dev
+
+For more details on sink configuration and options, see :doc:`actions_reference`.
+
 More Examples (Coming Soon)
 ---------------------------
 

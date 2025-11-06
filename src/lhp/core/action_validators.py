@@ -484,19 +484,37 @@ class WriteActionValidator(BaseActionValidator):
         return errors
     
     def _validate_delta_sink(self, action: Action, prefix: str) -> List[str]:
-        """Validate Delta sink configuration."""
+        """Validate Delta sink configuration.
+        
+        Delta sinks require either 'tableName' OR 'path' (not both).
+        Other options are passed through for future DLT support.
+        """
         errors = []
         sink_config = action.write_target
         
-        # Delta sinks should have options with tableName
+        # Delta sinks must have options
         if not sink_config.get("options"):
             errors.append(
-                f"{prefix}: Delta sink should have 'options' with 'tableName'"
+                f"{prefix}: Delta sink requires 'options' with either 'tableName' or 'path'"
             )
-        elif not sink_config["options"].get("tableName"):
-            self.logger.warning(
-                f"{prefix}: Delta sink typically requires 'tableName' in options"
+            return errors
+        
+        options = sink_config["options"]
+        has_table_name = "tableName" in options
+        has_path = "path" in options
+        
+        # Must have exactly one: tableName or path
+        if not has_table_name and not has_path:
+            errors.append(
+                f"{prefix}: Delta sink options must include either 'tableName' or 'path'"
             )
+        elif has_table_name and has_path:
+            errors.append(
+                f"{prefix}: Delta sink options cannot have both 'tableName' and 'path'. Use one or the other."
+            )
+        
+        # Note: Other options are allowed and passed through silently
+        # for future DLT support (e.g., checkpointLocation, mergeSchema, etc.)
         
         return errors
     

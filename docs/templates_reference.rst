@@ -455,7 +455,7 @@ A basic template for standardized CSV ingestion with schema hints:
        return df
 
    # Create the streaming table
-   dlt.create_streaming_table(
+   dp.create_streaming_table(
        name="dev_catalog.bronze.customer",
        comment="Write customer to bronze layer",
        table_properties={
@@ -873,7 +873,7 @@ Templates can include environment and secret substitutions alongside template pa
        return df
 
    # Create the streaming table
-   dlt.create_streaming_table(
+   dp.create_streaming_table(
        name="dev_catalog.bronze.customers",
        comment="Write customers to bronze layer",
        table_properties={

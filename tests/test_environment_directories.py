@@ -75,7 +75,7 @@ def test_table():
         (pipeline_dir / "transform.py").write_text("""
 from pyspark import pipelines as dp
 
-dlt.create_streaming_table(name="staging_catalog.staging_schema.staging_table")
+dp.create_streaming_table(name="staging_catalog.staging_schema.staging_table")
 """)
         
         # Generate resource file
@@ -118,7 +118,7 @@ dlt.create_streaming_table(name="staging_catalog.staging_schema.staging_table")
         pipeline1_dir.mkdir(parents=True)
         (pipeline1_dir / "flow1.py").write_text("""
 from pyspark import pipelines as dp
-dlt.create_streaming_table(name="dev_catalog.dev_schema.table1")
+dp.create_streaming_table(name="dev_catalog.dev_schema.table1")
 """)
         
         pipeline2_dir = dev_dir / "pipeline2"
@@ -136,7 +136,7 @@ def table2():
         pipeline3_dir.mkdir(parents=True)
         (pipeline3_dir / "flow3.py").write_text("""
 from pyspark import pipelines as dp
-dlt.create_streaming_table(name="prod_catalog.prod_schema.table3")
+dp.create_streaming_table(name="prod_catalog.prod_schema.table3")
 """)
         
         # Run sync for dev

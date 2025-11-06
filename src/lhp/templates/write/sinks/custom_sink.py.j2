@@ -7,7 +7,7 @@ except Exception:
     pass  # Already registered
 
 # Create custom sink
-dlt.create_sink(
+dp.create_sink(
     name="{{ sink_name }}",
     format="{{ datasink_format_name }}",
     options={{ options | tojson }}
@@ -15,7 +15,7 @@ dlt.create_sink(
 
 # Define append flow(s)
 {% for source_view in source_views %}
-@dlt.append_flow(
+@dp.append_flow(
     target="{{ sink_name }}",
     name="f_{{ sink_name }}_{{ loop.index }}",
     comment="""{{ description }}"""

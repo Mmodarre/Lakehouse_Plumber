@@ -170,7 +170,7 @@ actions:
         assert "def temp_daily_aggregates():" in code
         # Verify it does NOT use the old incorrect temp table pattern
         assert "temp_daily_aggregates_temp" not in code
-        # Verify the temp table section uses @dp.table, not dlt.create_streaming_table for temp
+        # Verify the temp table section uses @dp.table, not dp.create_streaming_table for temp
         temp_table_section = code.split("# TRANSFORMATION VIEWS")[1].split("# TARGET TABLES")[0]
         assert "@dp.table(" in temp_table_section
         assert "dp.create_streaming_table" not in temp_table_section

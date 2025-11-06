@@ -164,6 +164,7 @@ Features at a Glance
 ====================
 
 * **Actions** – Load | Transform | Write with many sub-types (see :doc:`actions_reference`).
+* **Sinks** – Stream to external destinations: Delta tables, Kafka, Event Hubs, custom APIs.
 * **Presets & Templates** – reuse patterns without copy-paste.
 * **Substitutions** – environment-aware tokens & secret references.
 * **CDC & SCD** – change-data capture SCD type 1 and 2 and snapshot ingestion.
@@ -243,7 +244,7 @@ Lakehouse Plumber generates Python files that can be used to create Databricks L
    # ============================================================================
 
    # Create the streaming table
-   dlt.create_streaming_table(
+   dp.create_streaming_table(
       name="acmi_edw_dev.edw_raw.customer",
       comment="Streaming table: customer",
       table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
