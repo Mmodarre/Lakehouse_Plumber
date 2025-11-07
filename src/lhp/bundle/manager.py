@@ -719,7 +719,7 @@ class BundleManager:
         
         Looks for these patterns:
         - dp.create_streaming_table(name="catalog.schema.table")
-        - @dp.table(name="catalog.schema.table")
+        - @dp.materialized_view(name="catalog.schema.table")
         
         Args:
             content: Python file content as string

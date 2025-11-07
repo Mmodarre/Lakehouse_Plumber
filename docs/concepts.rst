@@ -963,7 +963,7 @@ pipeline configurations. This is a defensive design pattern that prevents common
 **Target types:**
 
 - **``view``** - Source views created by load actions (``@dp.temporary_view()``)
-- **``streaming_table``** - Live tables with streaming updates (``@dp.table()``)  
+- **``streaming_table``** - Live tables with streaming updates (``@dp.materialized_view()``)  
 - **``materialized_view``** - Batch-computed views for analytics (``@dp.temporary_view()``)
 
 **Source-specific metadata limitations:**

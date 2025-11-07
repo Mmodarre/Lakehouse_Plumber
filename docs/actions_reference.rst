@@ -1789,7 +1789,7 @@ Temp table transform actions create temporary streaming tables for intermediate 
 
   from pyspark import pipelines as dp
 
-  @dp.table(
+  @dp.materialized_view(
       temporary=True,
   )
   def customer_intermediate():
@@ -2376,7 +2376,7 @@ for pre-computed analytics tables based on the output of a query.
 
   from pyspark import pipelines as dp
 
-  @dp.table(
+  @dp.materialized_view(
       name="catalog.gold.customer_summary",
       comment="Daily customer summary materialized view",
       table_properties={
@@ -2401,7 +2401,7 @@ for pre-computed analytics tables based on the output of a query.
 
   from pyspark import pipelines as dp
 
-  @dp.table(
+  @dp.materialized_view(
       name="catalog.gold.daily_sales_summary",
       comment="Daily sales summary by region and category",
       table_properties={
@@ -3119,7 +3119,7 @@ Compare record counts between two sources, with optional tolerance.
   :linenos:
 
   @dp.expect_all_or_fail({"row_count_match": "abs(source_count - target_count) <= 0"})
-  @dp.table(
+  @dp.materialized_view(
       name="tmp_test_test_raw_to_bronze_count", 
       comment="Ensure no data loss from raw to bronze",
       temporary=True
@@ -3194,7 +3194,7 @@ Ensure that foreign keys in a fact/reference align.
 .. code-block:: python
 
   @dp.expect_all_or_fail({"valid_fk": "ref_customer_id IS NOT NULL"})
-  @dp.table(name="tmp_test_orders_customer_fk", comment="Test description", temporary=True)
+  @dp.materialized_view(name="tmp_test_orders_customer_fk", comment="Test description", temporary=True)
 
 
 Completeness
@@ -3223,7 +3223,7 @@ Ensure required columns are populated. The generator selects only required colum
   @dp.expect_all_or_fail({
       "required_fields_complete": "customer_key IS NOT NULL AND customer_id IS NOT NULL AND name IS NOT NULL AND nation_id IS NOT NULL"
   })
-  @dp.table(name="tmp_test_customer_required_fields", comment="Test description", temporary=True)
+  @dp.materialized_view(name="tmp_test_customer_required_fields", comment="Test description", temporary=True)
 
 
 Range
@@ -3272,7 +3272,7 @@ Validate that dimension lookups succeed (e.g., surrogate keys are present after 
 .. code-block:: python
 
   @dp.expect_all_or_fail({"all_lookups_found": "lookup_date_key IS NOT NULL"})
-  @dp.table(name="tmp_test_order_date_lookup", comment="Test description", temporary=True)
+  @dp.materialized_view(name="tmp_test_order_date_lookup", comment="Test description", temporary=True)
 
 
 Schema Match
@@ -3305,7 +3305,7 @@ Compare schemas between two tables using ``information_schema.columns``.
 .. code-block:: python
 
   @dp.expect_all_or_fail({"schemas_match": "diff_count = 0"})
-  @dp.table(name="tmp_test_orders_schema_match", comment="Test description", temporary=True)
+  @dp.materialized_view(name="tmp_test_orders_schema_match", comment="Test description", temporary=True)
 
 
 Custom SQL

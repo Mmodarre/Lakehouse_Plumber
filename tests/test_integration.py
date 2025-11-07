@@ -375,7 +375,7 @@ actions:
     source: v_{{ table_name }}_with_metadata
     write_target:
       type: streaming_table
-      mode: append_flow
+      # mode defaults to "standard"
       database: "{env}_bronze_{{ schema }}"
       table: "{{ table_name }}_raw"
       create_table: true
