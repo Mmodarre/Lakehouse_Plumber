@@ -31,7 +31,7 @@ def test_sql_transform_generates_clean_code():
     code = generator.generate(action, context)
     
     # Verify the generated code
-    assert "@dp.view(comment=" in code
+    assert "@dp.temporary_view(comment=" in code
     assert "Calculate customer metrics" in code
     assert "df = spark.sql(" in code
     assert "return df" in code
@@ -68,7 +68,7 @@ def test_sql_transform_with_default_description():
     code = generator.generate(action, context)
     
     # Should have a default description
-    assert '@dp.view(comment="SQL transform: simple_transform")' in code
+    assert '@dp.temporary_view(comment="SQL transform: simple_transform")' in code
 
 
 def test_sql_transform_with_sql_file(tmp_path):

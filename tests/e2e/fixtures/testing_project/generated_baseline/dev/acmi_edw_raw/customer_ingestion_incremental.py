@@ -30,7 +30,7 @@ customer_cloudfiles_schema_hints = """
 )
 
 
-@dp.view()
+@dp.temporary_view()
 def v_customer_raw_cloudfiles():
     """Load customer_raw CSV files from landing volume"""
     df = (

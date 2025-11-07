@@ -15,7 +15,7 @@ FLOWGROUP_ID = "nation_silver_dim"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_nation_bronze():
     """Load nation table from silver schema"""
     df = spark.readStream.table("acme_edw_prod.edw_bronze.nation")

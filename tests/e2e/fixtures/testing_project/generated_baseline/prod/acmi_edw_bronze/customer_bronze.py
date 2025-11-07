@@ -15,7 +15,7 @@ FLOWGROUP_ID = "customer_bronze"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_customer_raw():
     """Load customer table from raw schema"""
     df = spark.readStream.table("acme_edw_prod.edw_raw.customer_raw")
@@ -26,7 +26,7 @@ def v_customer_raw():
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_customer_migration():
     """Load customer table from migration schema"""
     df = spark.read.table("acme_edw_prod.edw_old.customer")
@@ -42,7 +42,7 @@ def v_customer_migration():
 # ============================================================================
 
 
-@dp.view(comment="SQL transform: customer_bronze_incremental_cleanse")
+@dp.temporary_view(comment="SQL transform: customer_bronze_incremental_cleanse")
 def v_customer_bronze_cleaned():
     """SQL transform: customer_bronze_incremental_cleanse"""
     df = spark.sql(
@@ -64,7 +64,7 @@ FROM stream(v_customer_raw)"""
     return df
 
 
-@dp.view(comment="SQL transform: customer_migration_cleanse")
+@dp.temporary_view(comment="SQL transform: customer_migration_cleanse")
 def v_customer_migration_cleaned():
     """SQL transform: customer_migration_cleanse"""
     df = spark.sql(
@@ -87,7 +87,7 @@ FROM v_customer_migration"""
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 # These expectations will fail the pipeline if violated
 @dp.expect_all_or_fail(
     {

@@ -380,7 +380,7 @@ class TestSQLFileSubstitution:
             assert "{start_date}" not in code, f"Unsubstituted {{start_date}} found in: {code}"
             
             # Verify structure is preserved
-            assert "@dp.view()" in code
+            assert "@dp.temporary_view()" in code
             assert "def v_customers_filtered():" in code
             assert "spark.sql" in code
             
@@ -447,7 +447,7 @@ class TestSQLFileSubstitution:
             assert "{cutoff_date}" not in code, f"Unsubstituted {{cutoff_date}} found in: {code}"
             
             # Verify structure is preserved
-            assert "@dp.view(" in code  # Allow for comment parameter
+            assert "@dp.temporary_view(" in code  # Allow for comment parameter
             assert "def v_customers_clean():" in code
             assert "spark.sql" in code
             
@@ -572,7 +572,7 @@ class TestSQLFileSubstitution:
             assert ">= '2024-01-01'" in code, f"Expected original date in: {code}"
             
             # Verify structure is preserved
-            assert "@dp.view()" in code
+            assert "@dp.temporary_view()" in code
             assert "def v_customers_plain():" in code
             assert "spark.sql" in code
             
@@ -752,7 +752,7 @@ class APIDataSource:
             code = generator.generate(action, context)
             
             # The main generated code should have the view function
-            assert "@dp.view()" in code
+            assert "@dp.temporary_view()" in code
             assert "def v_api_customers():" in code
             
             # The substituted code should be in the custom_source_code attribute

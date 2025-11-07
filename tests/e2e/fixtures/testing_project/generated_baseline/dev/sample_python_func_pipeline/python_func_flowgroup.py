@@ -16,7 +16,7 @@ FLOWGROUP_ID = "python_func_flowgroup"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_customer_raws():
     """Load customer table from raw schema"""
     df = spark.readStream.table("acme_edw_dev.edw_raw.customers")
@@ -32,7 +32,7 @@ def v_customer_raws():
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_customer_bronze_cleaneds():
     """Python transform: sample_func.transform_lrc_data_streaming"""
     # Load source view(s)
@@ -48,7 +48,7 @@ def v_customer_bronze_cleaneds():
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 # These expectations will fail the pipeline if violated
 @dp.expect_all_or_fail(
     {

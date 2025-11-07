@@ -122,7 +122,7 @@ def project_with_state(sample_project):
     
     for gen_path, source_path, pipeline, flowgroup in generated_files:
         file_path = project_root / gen_path
-        file_path.write_text(f"# Generated code for {flowgroup}\nfrom pyspark import pipelines as dp\n@dp.view()\ndef {flowgroup}():\n    pass")
+        file_path.write_text(f"# Generated code for {flowgroup}\nfrom pyspark import pipelines as dp\n@dp.temporary_view()\ndef {flowgroup}():\n    pass")
     
     # Create state file
     now = datetime.now().isoformat()

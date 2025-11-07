@@ -148,7 +148,7 @@ class TestActionOrchestrator:
             assert "from pyspark import pipelines as dp" in code
             
             # Check generated functions
-            assert "@dp.view()" in code
+            assert "@dp.temporary_view()" in code
             assert "def v_customers_raw():" in code
             assert "def v_customers_clean():" in code
             

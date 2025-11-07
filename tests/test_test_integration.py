@@ -32,7 +32,7 @@ class TestTestActionIntegration:
         
         # Verify code contains expected elements
         assert 'from pyspark import pipelines as dp' in code
-        assert '@dp.view(' in code or '@dp.table(' in code
+        assert '@dp.temporary_view(' in code or '@dp.table(' in code
         assert 'tmp_test_no_data_loss' in code
         assert 'SELECT * FROM' in code
         assert 'COUNT(*)' in code
@@ -376,7 +376,7 @@ class TestTestActionIntegration:
         # Should generate temporary table, not view
         assert '@dp.table(' in code
         assert 'temporary=True' in code
-        assert '@dp.view(' not in code
+        assert '@dp.temporary_view(' not in code
         
         # Should still have expectations and function
         assert '@dp.expect_all_or_fail' in code

@@ -15,7 +15,7 @@ FLOWGROUP_ID = "orders_bronze"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_orders_africa_raw():
     """Load orders Africa table from raw schema"""
     df = spark.readStream.table("acme_edw_dev.edw_raw.orders_africa_raw")
@@ -26,7 +26,7 @@ def v_orders_africa_raw():
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_orders_america_raw():
     """Load orders America table from raw schema"""
     df = spark.readStream.table("acme_edw_dev.edw_raw.orders_america_raw")
@@ -37,7 +37,7 @@ def v_orders_america_raw():
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_orders_asia_raw():
     """Load orders Asia table from raw schema"""
     df = spark.readStream.table("acme_edw_dev.edw_raw.orders_asia_raw")
@@ -48,7 +48,7 @@ def v_orders_asia_raw():
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_orders_europe_raw():
     """Load orders Europe table from raw schema"""
     df = spark.readStream.table("acme_edw_dev.edw_raw.orders_europe_raw")
@@ -59,7 +59,7 @@ def v_orders_europe_raw():
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_orders_middle_east_raw():
     """Load orders Middle East table from raw schema"""
     df = spark.readStream.table("acme_edw_dev.edw_raw.orders_middle_east_raw")
@@ -70,7 +70,7 @@ def v_orders_middle_east_raw():
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_orders_migration():
     """Load orders table from migration schema"""
     df = spark.read.table("acme_edw_dev.edw_old.orders")
@@ -86,7 +86,7 @@ def v_orders_migration():
 # ============================================================================
 
 
-@dp.view(comment="SQL transform: orders_africa_bronze_cleanse")
+@dp.temporary_view(comment="SQL transform: orders_africa_bronze_cleanse")
 def v_orders_africa_bronze_cleaned():
     """SQL transform: orders_africa_bronze_cleanse"""
     df = spark.sql(
@@ -108,7 +108,7 @@ FROM stream(v_orders_africa_raw)"""
     return df
 
 
-@dp.view(comment="SQL transform: orders_america_bronze_cleanse")
+@dp.temporary_view(comment="SQL transform: orders_america_bronze_cleanse")
 def v_orders_america_bronze_cleaned():
     """SQL transform: orders_america_bronze_cleanse"""
     df = spark.sql(
@@ -130,7 +130,7 @@ FROM stream(v_orders_america_raw)"""
     return df
 
 
-@dp.view(comment="SQL transform: orders_asia_bronze_cleanse")
+@dp.temporary_view(comment="SQL transform: orders_asia_bronze_cleanse")
 def v_orders_asia_bronze_cleaned():
     """SQL transform: orders_asia_bronze_cleanse"""
     df = spark.sql(
@@ -152,7 +152,7 @@ FROM stream(v_orders_asia_raw)"""
     return df
 
 
-@dp.view(comment="SQL transform: orders_europe_bronze_cleanse")
+@dp.temporary_view(comment="SQL transform: orders_europe_bronze_cleanse")
 def v_orders_europe_bronze_cleaned():
     """SQL transform: orders_europe_bronze_cleanse"""
     df = spark.sql(
@@ -174,7 +174,7 @@ FROM stream(v_orders_europe_raw)"""
     return df
 
 
-@dp.view(comment="SQL transform: orders_middle_east_bronze_cleanse")
+@dp.temporary_view(comment="SQL transform: orders_middle_east_bronze_cleanse")
 def v_orders_middle_east_bronze_cleaned():
     """SQL transform: orders_middle_east_bronze_cleanse"""
     df = spark.sql(
@@ -196,7 +196,7 @@ FROM stream(v_orders_middle_east_raw)"""
     return df
 
 
-@dp.view(comment="SQL transform: orders_migration_cleanse")
+@dp.temporary_view(comment="SQL transform: orders_migration_cleanse")
 def v_orders_migration_cleaned():
     """SQL transform: orders_migration_cleanse"""
     df = spark.sql(

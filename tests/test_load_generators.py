@@ -38,7 +38,7 @@ class TestLoadGenerators:
         code = generator.generate(action, {})
         
         # Verify generated code
-        assert "@dp.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_raw_files" in code
         assert "spark.readStream" in code
         assert 'cloudFiles.format", "json"' in code
@@ -66,7 +66,7 @@ class TestLoadGenerators:
         code = generator.generate(action, {})
         
         # Verify generated code
-        assert "@dp.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_customers" in code
         assert "spark.readStream" in code
         assert "readChangeFeed" in code
@@ -87,7 +87,7 @@ class TestLoadGenerators:
         code = generator.generate(action, {})
         
         # Verify generated code
-        assert "@dp.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_metrics" in code
         assert "spark.sql" in code
         assert "SELECT * FROM metrics" in code
@@ -279,7 +279,7 @@ class TestLoadGenerators:
         code = generator.generate(action, {})
         
         # Verify generated code
-        assert "@dp.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_custom_data" in code
         assert "load_custom_data(spark, parameters)" in code
         assert '"start_date": "2024-01-01"' in code

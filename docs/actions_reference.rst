@@ -139,7 +139,7 @@ cloudFiles
   """.strip().replace("\n", " ")
 
 
-  @dp.view()
+  @dp.temporary_view()
   def v_customer_cloudfiles():
       """Load customer CSV files from landing volume"""
       df = spark.readStream \
@@ -208,7 +208,7 @@ delta
   from pyspark import pipelines as dp
   from pyspark.sql.functions import current_timestamp
 
-  @dp.view()
+  @dp.temporary_view()
   def v_customer_raw():
       """Load customer table from raw schema"""
       df = spark.readStream.table("acmi_edw_dev.edw_raw.customer")
@@ -290,7 +290,7 @@ kafka
   from pyspark import pipelines as dp
   from pyspark.sql.functions import current_timestamp
 
-  @dp.view()
+  @dp.temporary_view()
   def v_kafka_events_raw():
       """Load events from Kafka topics"""
       df = spark.readStream \
@@ -392,7 +392,7 @@ AWS Managed Streaming for Apache Kafka (MSK) supports IAM authentication for sec
 
   from pyspark import pipelines as dp
 
-  @dp.view()
+  @dp.temporary_view()
   def v_msk_orders_raw():
       """Load orders from MSK using IAM authentication"""
       df = spark.readStream \
@@ -461,7 +461,7 @@ Azure Event Hubs provides Kafka protocol support with OAuth 2.0 authentication u
 
   from pyspark import pipelines as dp
 
-  @dp.view()
+  @dp.temporary_view()
   def v_event_hubs_data_raw():
       """Load data from Azure Event Hubs using OAuth"""
       df = spark.readStream \
@@ -574,7 +574,7 @@ SQL load actions support both **inline SQL** and **external SQL files**.
 
   from pyspark import pipelines as dp
 
-  @dp.view()
+  @dp.temporary_view()
   def v_customer_summary():
       """Load customer summary with order statistics"""
       return spark.sql("""
@@ -597,7 +597,7 @@ SQL load actions support both **inline SQL** and **external SQL files**.
 
   from pyspark import pipelines as dp
 
-  @dp.view()
+  @dp.temporary_view()
   def v_customer_metrics():
       """Load customer metrics from external SQL file"""
       return spark.sql("""
@@ -702,7 +702,7 @@ JDBC load actions connect to external relational databases using JDBC drivers. T
   from pyspark import pipelines as dp
   from pyspark.sql.functions import current_timestamp
 
-  @dp.view()
+  @dp.temporary_view()
   def v_external_customers():
       """Load active customers from external PostgreSQL database"""
       df = spark.read \
@@ -737,7 +737,7 @@ JDBC load actions connect to external relational databases using JDBC drivers. T
 
   from pyspark import pipelines as dp
 
-  @dp.view()
+  @dp.temporary_view()
   def v_external_products():
       """Load products table from external MySQL database"""
       df = spark.read \
@@ -859,7 +859,7 @@ Python load actions call custom Python functions that return DataFrames. This al
   from pyspark.sql.functions import current_timestamp
   from extractors.api_extractor import extract_customer_data
 
-  @dp.view()
+  @dp.temporary_view()
   def v_api_customers():
       """Load customer data from external API"""
       # Call the external Python function with spark and parameters
@@ -1095,7 +1095,7 @@ Custom data source load actions use PySpark's DataSource API to implement specia
   except Exception:
       pass  # Ignore if already registered
 
-  @dp.view()
+  @dp.temporary_view()
   def v_currency_bronze():
       """Load live currency exchange rates from external API"""
       df = spark.readStream \
@@ -1216,7 +1216,7 @@ SQL transform actions execute SQL queries to transform data between views. They 
 
   from pyspark import pipelines as dp
 
-  @dp.view(comment="Cleanse and standardize customer data for bronze layer")
+  @dp.temporary_view(comment="Cleanse and standardize customer data for bronze layer")
   def v_customer_bronze_cleaned():
       """Cleanse and standardize customer data for bronze layer"""
       return spark.sql("""
@@ -1244,7 +1244,7 @@ SQL transform actions execute SQL queries to transform data between views. They 
 
   from pyspark import pipelines as dp
 
-  @dp.view(comment="Enrich customer data with additional attributes")
+  @dp.temporary_view(comment="Enrich customer data with additional attributes")
   def v_customer_enriched():
       """Enrich customer data with additional attributes"""
       return spark.sql("""
@@ -1516,7 +1516,7 @@ After generation, your Python functions appear in the pipeline output with warni
   from pyspark.sql.functions import current_timestamp
   from custom_python_functions.customer_transforms import enrich_customer_data
 
-  @dp.view()
+  @dp.temporary_view()
   def v_customer_enriched():
       """Apply advanced customer enrichment using external APIs"""
       # Load source view(s)
@@ -1543,7 +1543,7 @@ After generation, your Python functions appear in the pipeline output with warni
   from pyspark import pipelines as dp
   from custom_python_functions.customer_analysis import analyze_customer_orders
 
-  @dp.view()
+  @dp.temporary_view()
   def v_customer_order_insights():
       """Analyze customer order patterns from multiple sources"""
       # Load source views
@@ -1648,7 +1648,7 @@ Data quality transform actions apply data validation rules using Databricks DLT 
 
   from pyspark import pipelines as dp
 
-  @dp.view()
+  @dp.temporary_view()
   # These expectations will fail the pipeline if violated
   @dp.expect_all_or_fail({
       "valid_custkey": "customer_id IS NOT NULL AND customer_id > 0",
@@ -1728,7 +1728,7 @@ Schema transform actions apply column mapping, type casting, and schema enforcem
   from pyspark.sql import functions as F
   from pyspark.sql.types import StructType
 
-  @dp.view()
+  @dp.temporary_view()
   def v_customer_standardized():
       """Standardize customer schema and data types"""
       df = spark.read.table("v_customer_raw")

@@ -15,7 +15,7 @@ FLOWGROUP_ID = "supplier_ingestion_incremental"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_supplier_raw_cloudfiles():
     """Load supplier_raw Parquet files from landing volume"""
     df = (

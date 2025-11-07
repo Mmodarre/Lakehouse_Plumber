@@ -15,7 +15,7 @@ FLOWGROUP_ID = "region_bronze"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_region_raw():
     """Load region table from raw schema"""
     df = spark.readStream.table("acme_edw_prod.edw_raw.region_raw")
@@ -31,7 +31,7 @@ def v_region_raw():
 # ============================================================================
 
 
-@dp.view(comment="SQL transform: region_bronze_incremental_cleanse")
+@dp.temporary_view(comment="SQL transform: region_bronze_incremental_cleanse")
 def v_region_bronze_cleaned():
     """SQL transform: region_bronze_incremental_cleanse"""
     df = spark.sql(

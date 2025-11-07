@@ -56,7 +56,7 @@ Instead of repeating load code like this **50 times for 50 tables**:
    from pyspark.sql import functions as F
    from pyspark import pipelines as dp
    
-   @dp.view()
+   @dp.temporary_view()
    def v_customer_raw():
        """Load customer table from raw schema"""
        df = spark.readStream \
@@ -64,7 +64,7 @@ Instead of repeating load code like this **50 times for 50 tables**:
        df = df.withColumn('_processing_timestamp', F.current_timestamp())
        return df
    
-   @dp.view(comment="SQL transform: customer_bronze_cleanse")
+   @dp.temporary_view(comment="SQL transform: customer_bronze_cleanse")
    def v_customer_bronze_cleaned():
        """SQL transform: customer_bronze_cleanse"""
        return spark.sql("""SELECT
@@ -214,7 +214,7 @@ Lakehouse Plumber generates Python files that can be used to create Databricks L
       """.strip().replace("\n", " ")
 
 
-   @dp.view()
+   @dp.temporary_view()
    def v_customer_cloudfiles():
     """Load customer CSV files from landing volume"""
     df = spark.readStream \

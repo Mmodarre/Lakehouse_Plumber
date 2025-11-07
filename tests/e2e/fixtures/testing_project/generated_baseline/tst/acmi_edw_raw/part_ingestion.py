@@ -31,7 +31,7 @@ part_cloudfiles_schema_hints = """
 )
 
 
-@dp.view()
+@dp.temporary_view()
 def v_part_raw_cloudfiles():
     """Load part_raw JSON files from landing volume"""
     df = (

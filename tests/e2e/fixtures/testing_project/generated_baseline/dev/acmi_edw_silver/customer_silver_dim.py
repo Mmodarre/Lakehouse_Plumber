@@ -15,7 +15,7 @@ FLOWGROUP_ID = "customer_silver_dim"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_customer_bronze():
     """Load customer table from silver schema"""
     df = spark.readStream.table("acme_edw_dev.edw_bronze.customer")

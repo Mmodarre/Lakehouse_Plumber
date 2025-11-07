@@ -68,7 +68,7 @@ class TestTransformOperationalMetadata:
         code = generator.generate(action, context)
         
         # Verify basic structure
-        assert "@dp.view(" in code
+        assert "@dp.temporary_view(" in code
         assert "v_test_output" in code
         assert "df = spark.sql(" in code
         assert "return df" in code
@@ -119,7 +119,7 @@ class TestTransformOperationalMetadata:
             code = generator.generate(action, context)
             
             # Verify basic structure
-            assert "@dp.view()" in code
+            assert "@dp.temporary_view()" in code
             assert "v_test_quality" in code
             assert "spark.readStream.table" in code  # stream mode
             assert "return df" in code
@@ -223,7 +223,7 @@ class TestTransformOperationalMetadata:
         code = generator.generate(action, context)
         
         # Verify basic structure works
-        assert "@dp.view(" in code
+        assert "@dp.temporary_view(" in code
         assert "v_no_metadata" in code
         assert "df = spark.sql(" in code
         assert "return df" in code

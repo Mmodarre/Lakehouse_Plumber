@@ -29,7 +29,7 @@ class TestKafkaLoadGenerator:
         result = self.generator.generate(action, {})
 
         # Check basic structure
-        assert "@dp.view()" in result
+        assert "@dp.temporary_view()" in result
         assert "def v_kafka_data():" in result
         assert "spark.readStream" in result
         assert '.format("kafka")' in result
@@ -371,7 +371,7 @@ class TestKafkaLoadGenerator:
         result = self.generator.generate(action, {})
 
         # Check basic structure
-        assert "@dp.view()" in result
+        assert "@dp.temporary_view()" in result
         assert "def v_kafka_comprehensive():" in result
         assert "Comprehensive Kafka load with SSL and custom options" in result
         assert "spark.readStream" in result

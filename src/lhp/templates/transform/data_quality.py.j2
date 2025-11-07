@@ -1,4 +1,4 @@
-@dp.view()
+@dp.temporary_view()
 {% if fail_expectations %}
 # These expectations will fail the pipeline if violated
 @dp.expect_all_or_fail({{ fail_expectations | tojson }})

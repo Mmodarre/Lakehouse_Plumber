@@ -15,7 +15,7 @@ FLOWGROUP_ID = "executive_dashboard_mv"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_monthly_sales_sql():
     """SQL source: monthly_sales_sql"""
     df = spark.sql(
@@ -35,7 +35,7 @@ FROM acme_edw_tst.edw_gold.sales_summary_monthly_mv
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_regional_performance_sql():
     """SQL source: regional_performance_sql"""
     df = spark.sql(
@@ -54,7 +54,7 @@ GROUP BY month
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_customer_metrics_sql():
     """SQL source: customer_metrics_sql"""
     df = spark.sql(
@@ -72,7 +72,7 @@ FROM acme_edw_tst.edw_gold.customer_lifetime_value_mv
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_top_products_sql():
     """SQL source: top_products_sql"""
     df = spark.sql(
@@ -90,7 +90,7 @@ GROUP BY month
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 def v_executive_dashboard_mv_sql():
     """SQL source: executive_dashboard_mv_sql"""
     df = spark.sql(

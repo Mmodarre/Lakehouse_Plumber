@@ -15,7 +15,7 @@ FLOWGROUP_ID = "customer_segmentation_mv"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_customer_segmentation_mv_sql():
     """SQL source: customer_segmentation_mv_sql"""
     df = spark.sql(

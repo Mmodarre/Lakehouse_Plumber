@@ -213,7 +213,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
    # SOURCE VIEWS
    # ============================================================================
 
-   @dp.view()
+   @dp.temporary_view()
    def v_customer_sample_raw():
       """Load customer sample table from Databricks samples catalog"""
       df = spark.readStream \
@@ -226,7 +226,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
    # TRANSFORMATION VIEWS
    # ============================================================================
 
-   @dp.view(comment="Transform customer sample table")
+   @dp.temporary_view(comment="Transform customer sample table")
    def v_customer_sample_cleaned():
       """Transform customer sample table"""
       return spark.sql("""SELECT

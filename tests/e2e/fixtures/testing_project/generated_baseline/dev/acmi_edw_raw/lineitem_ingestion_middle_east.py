@@ -15,7 +15,7 @@ FLOWGROUP_ID = "lineitem_ingestion_middle_east"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_lineitem_middle_east_raw_cloudfiles():
     """Load lineitem_middle_east_raw Parquet files from landing volume"""
     df = (

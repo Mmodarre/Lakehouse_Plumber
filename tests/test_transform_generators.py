@@ -33,7 +33,7 @@ class TestTransformGenerators:
         code = generator.generate(action, {})
         
         # Verify generated code
-        assert "@dp.view(comment=" in code
+        assert "@dp.temporary_view(comment=" in code
         assert "v_customers_clean" in code
         assert "df = spark.sql(" in code
         assert "return df" in code
@@ -66,7 +66,7 @@ class TestTransformGenerators:
         code = generator.generate(action, {"spec_dir": Path(expectations_file).parent})
         
         # Verify generated code
-        assert "@dp.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_customers_validated" in code
         assert "@dp.expect_all_or_fail" in code
         assert "@dp.expect_all_or_drop" in code
@@ -116,7 +116,7 @@ def enrich_customers(df, spark, parameters):
             })
         
         # Verify generated code
-        assert "@dp.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_customers_enriched" in code
         assert "enrich_customers" in code
         assert 'spark.read.table("v_customers_validated")' in code
@@ -1236,7 +1236,7 @@ def transform_customers(df, spark, parameters):
         code = generator.generate(action, {})
         
         # Verify generated code structure
-        assert "@dp.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_customer_standardized" in code
         assert "spark.read.table(\"v_customer_raw\")" in code
         assert "return df" in code

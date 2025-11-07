@@ -433,7 +433,7 @@ A basic template for standardized CSV ingestion with schema hints:
        registration_date DATE
    """.strip().replace("\n", " ")
 
-   @dp.view()
+   @dp.temporary_view()
    def v_customer_cloudfiles():
        """Load customer CSV files from landing volume"""
        df = spark.readStream \
@@ -856,7 +856,7 @@ Templates can include environment and secret substitutions alongside template pa
    :caption: Generated customer_data_load.py
    :linenos:
 
-   @dp.view()
+   @dp.temporary_view()
    def v_customers_raw():
        """Load customers from external database"""
        df = spark.read \

@@ -15,7 +15,7 @@ FLOWGROUP_ID = "partsupp_modelled_fct"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_partsupp_modelled_fct():
     """Load partsupp table with surrogate keys"""
     df = spark.sql(

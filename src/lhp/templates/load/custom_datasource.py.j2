@@ -4,7 +4,7 @@ try:
 except Exception:
     pass  # Ignore if already registered
 
-@dp.view()
+@dp.temporary_view()
 def {{ target_view }}():
     """{{ description }}"""
     {% if readMode == "stream" %}

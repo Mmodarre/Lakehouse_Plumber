@@ -15,7 +15,7 @@ FLOWGROUP_ID = "customer_lifetime_value"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_customer_lifetime_value_sql():
     """SQL source: customer_lifetime_value_sql"""
     df = spark.sql(

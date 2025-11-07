@@ -15,7 +15,7 @@ FLOWGROUP_ID = "lineitem_bronze_middle_east"
 # ============================================================================
 
 
-@dp.view()
+@dp.temporary_view()
 def v_lineitem_middle_east_raw():
     """Load lineitem table from raw schema"""
     df = spark.readStream.table("acme_edw_dev.edw_raw.lineitem_middle_east_raw")
@@ -31,7 +31,7 @@ def v_lineitem_middle_east_raw():
 # ============================================================================
 
 
-@dp.view(comment="SQL transform: lineitem_bronze_cleanse")
+@dp.temporary_view(comment="SQL transform: lineitem_bronze_cleanse")
 def v_lineitem_middle_east_bronze_cleaned():
     """SQL transform: lineitem_bronze_cleanse"""
     df = spark.sql(
@@ -60,7 +60,7 @@ FROM stream(v_lineitem_middle_east_raw)"""
     return df
 
 
-@dp.view()
+@dp.temporary_view()
 # These expectations will fail the pipeline if violated
 @dp.expect_all_or_fail(
     {

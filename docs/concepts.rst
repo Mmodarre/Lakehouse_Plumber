@@ -806,7 +806,7 @@ Both Python and SQL files support secret substitutions with the same syntax as Y
    :linenos:
    :emphasize-lines: 6-8
 
-   @dp.view()
+   @dp.temporary_view()
    def v_customers_raw():
        """Load from external database"""
        df = spark.read \
@@ -962,9 +962,9 @@ pipeline configurations. This is a defensive design pattern that prevents common
 
 **Target types:**
 
-- **``view``** - Source views created by load actions (``@dp.view()``)
+- **``view``** - Source views created by load actions (``@dp.temporary_view()``)
 - **``streaming_table``** - Live tables with streaming updates (``@dp.table()``)  
-- **``materialized_view``** - Batch-computed views for analytics (``@dp.view()``)
+- **``materialized_view``** - Batch-computed views for analytics (``@dp.temporary_view()``)
 
 **Source-specific metadata limitations:**
 
@@ -1179,7 +1179,7 @@ Usage Patterns
    :linenos:
    :emphasize-lines: 8-11
 
-   @dp.view()
+   @dp.temporary_view()
    def v_customers_raw():
        """Load customer files from landing zone"""
        df = spark.readStream \

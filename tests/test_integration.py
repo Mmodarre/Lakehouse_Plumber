@@ -130,7 +130,7 @@ actions:
         code = generated_files["customer_ingestion.py"]
         
         # Check for required elements from requirements
-        assert "@dp.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "spark.readStream" in code
         assert "cloudFiles" in code
         assert "/mnt/dev/landing/customer/*.json" in code

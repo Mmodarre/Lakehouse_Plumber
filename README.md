@@ -12,7 +12,7 @@
 [![codecov](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber/branch/main/graph/badge.svg?token=80IBHIFAQY)](https://codecov.io/gh/Mmodarre/Lakehouse_Plumber)
 [![Documentation](https://img.shields.io/badge/docs-available-brightgreen.svg)](https://lakehouse-plumber.readthedocs.io/)
 [![Databricks](https://img.shields.io/badge/Databricks-Lakeflow-%23FF3621?logo=databricks)](https://www.databricks.com/product/data-engineering)
-<!-- [![PyPI Downloads](https://static.pepy.tech/badge/lakehouse-plumber/month)](https://pepy.tech/projects/lakehouse-plumber) -->
+[![PyPI Downloads](https://static.pepy.tech/badge/lakehouse-plumber/month)](https://pepy.tech/projects/lakehouse-plumber)
 
 </div>
 
@@ -25,6 +25,8 @@
 - The only Metadata framework that generates production ready Pyspark code for Lakeflow Declarative Pipelines
 
 ## 🆕 What's New
+
+- **Long live Spark Declarative Pipelines!**: LHP now fully refactored to use Spark Declarative Pipelines (SDP) instead of Lakeflow Declarative Pipelines (LDP) API, as per Databricks latest update to unify the API for both Lakeflow and Spark Declarative Pipelines.
 
 - **Spark Declarative Pipelines Sink Support**: Write data to external systems (JDBC, REST APIs, Kafka) and Delta tables. Perfect for integrating your lakehouse with downstream systems.
 
@@ -77,7 +79,7 @@ Instead of repeating load code like this **50 times for 50 tables**:
    from pyspark.sql import functions as F
    from pyspark import pipelines as dp
    
-   @dp.view()
+   @dp.temporary_view()
    def v_customer_raw():
        """Load customer table from raw schema"""
        df = spark.readStream \
@@ -85,7 +87,7 @@ Instead of repeating load code like this **50 times for 50 tables**:
        df = df.withColumn('_processing_timestamp', F.current_timestamp())
        return df
    
-   @dp.view(comment="SQL transform: customer_bronze_cleanse")
+   @dp.temporary_view(comment="SQL transform: customer_bronze_cleanse")
    def v_customer_bronze_cleaned():
        """SQL transform: customer_bronze_cleanse"""
        return spark.sql("""SELECT
@@ -209,7 +211,7 @@ As such, the output of LHP is a set of Python files that can be used to create D
       """.strip().replace("\n", " ")
 
 
-   @dp.view()
+   @dp.temporary_view()
    def v_customer_cloudfiles():
     """Load customer CSV files from landing volume"""
     df = spark.readStream \

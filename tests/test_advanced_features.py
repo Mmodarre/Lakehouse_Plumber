@@ -99,7 +99,7 @@ def enrich_customers(df, spark, parameters):
         assert "from custom_python_functions.enrich_customers import" in code
         
         # Check for DLT decorators
-        assert "@dp.view()" in code
+        assert "@dp.temporary_view()" in code
         
         # Python sources should still be wrapped in DLT views
         assert "def v_customers_python" in code
