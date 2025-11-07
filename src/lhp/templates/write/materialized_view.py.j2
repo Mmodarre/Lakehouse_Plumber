@@ -1,4 +1,4 @@
-@dp.table(
+@dp.materialized_view(
     name="{{ full_table_name }}",
     comment="{{ comment }}",
     table_properties={{ properties | tojson }}

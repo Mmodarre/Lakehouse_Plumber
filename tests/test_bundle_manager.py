@@ -797,7 +797,7 @@ dev:
     
     def test_extract_database_patterns_materialized_view(self):
         """Test extracting database patterns from materialized view."""
-        content = '@dp.table(\n    name="catalog.schema.table"\n)'
+        content = '@dp.materialized_view(\n    name="catalog.schema.table"\n)'
         result = self.manager._extract_database_patterns(content)
         assert "catalog.schema" in result
     
@@ -805,7 +805,7 @@ dev:
         """Test extracting database patterns with multiple matches."""
         content = '''
 dp.create_streaming_table(name="catalog1.schema1.table1")
-@dp.table(name="catalog2.schema2.table2")
+@dp.materialized_view(name="catalog2.schema2.table2")
 '''
         result = self.manager._extract_database_patterns(content)
         assert "catalog1.schema1" in result

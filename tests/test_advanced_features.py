@@ -241,9 +241,9 @@ actions:
         assert '"cust_id"' in code
         assert '"customer_id"' in code
         
-        # Check for materialized view with refresh schedule
-        assert "@dp.table(" in code
-        assert 'refresh_schedule="CRON \'0 0 * * *\'"' in code
+        # Check for materialized view
+        assert "@dp.materialized_view(" in code
+        # Note: refresh_schedule no longer supported in @dp.materialized_view
     
     def test_many_to_many_relationships(self, project_root):
         """Test many-to-many action relationships."""

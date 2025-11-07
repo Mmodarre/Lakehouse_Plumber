@@ -2313,7 +2313,6 @@ for pre-computed analytics tables based on the output of a query.
           custom.refresh.frequency: "daily"
         partition_columns: ["region"]
         cluster_columns: ["customer_segment"]
-        refresh_schedule: "0 2 * * *"
         row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
         comment: "Daily customer summary materialized view"
       description: "Create daily customer summary for analytics"
@@ -2344,7 +2343,6 @@ for pre-computed analytics tables based on the output of a query.
           delta.autoOptimize.optimizeWrite: "true"
           custom.business.domain: "sales_analytics"
         partition_columns: ["sales_date"]
-        refresh_schedule: "0 1 * * *"
         row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
       description: "Daily sales summary by region and category"
 
@@ -2361,7 +2359,6 @@ for pre-computed analytics tables based on the output of a query.
       - **table_properties**: Delta table properties for optimization
       - **partition_columns**: Columns to partition the view by
       - **cluster_columns**: Columns to cluster/z-order the view by
-      - **refresh_schedule**: Cron expression for refresh schedule
       - **table_schema**: DDL schema definition for the view
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
@@ -2385,7 +2382,6 @@ for pre-computed analytics tables based on the output of a query.
       },
       partition_cols=["region"],
       cluster_by=["customer_segment"],
-      refresh_schedule="0 2 * * *",
       row_filter="ROW FILTER catalog.schema.region_access_filter ON (region)"
   )
   def customer_summary():
@@ -2409,7 +2405,6 @@ for pre-computed analytics tables based on the output of a query.
           "custom.business.domain": "sales_analytics"
       },
       partition_cols=["sales_date"],
-      refresh_schedule="0 1 * * *",
       row_filter="ROW FILTER catalog.schema.region_access_filter ON (region)"
   )
   def daily_sales_summary():
@@ -2430,8 +2425,12 @@ for pre-computed analytics tables based on the output of a query.
 
 .. Important::
   Materialized views are designed for analytics workloads and always use batch processing.
-  Use `refresh_schedule` to control when the view refreshes. 
+  Materialized views in Databricks refresh automatically based on source data changes.
   Materialized views can either read from source views or execute custom SQL queries.
+
+.. Note::
+  The `refresh_schedule` parameter is no longer supported by `@dp.materialized_view`.
+  If present in YAML configurations, it will be accepted for backward compatibility but ignored during code generation.
 
 sink
 ~~~~

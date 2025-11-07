@@ -354,7 +354,7 @@ class ConfigValidator:
         if not action.write_target:
             return False
 
-        # MaterializedView uses @dp.table() decorator, so it always creates its own table
+        # MaterializedView uses @dp.materialized_view() decorator, so it always creates its own table
         if isinstance(action.write_target, dict):
             write_type = action.write_target.get("type")
             if write_type == "materialized_view":

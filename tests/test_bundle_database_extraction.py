@@ -47,7 +47,7 @@ dp.create_streaming_table(
     def test_extract_database_patterns_materialized_view(self):
         """Should extract database patterns from materialized view creation."""
         python_content = '''
-@dp.table(
+@dp.materialized_view(
     name="analytics_prod.gold.customer_summary",
     comment="Customer summary materialized view",
     table_properties={})
@@ -65,7 +65,7 @@ dp.create_streaming_table(
     name="dev_catalog.bronze.orders",
     comment="Orders table")
 
-@dp.table(
+@dp.materialized_view(
     name="dev_catalog.gold.daily_summary",
     comment="Daily summary view")
 def daily_summary():
@@ -96,7 +96,7 @@ dp.create_streaming_table(
     name="acmi_edw_prod.edw_bronze.customer",
     comment="Customer bronze table")
 
-@dp.table(
+@dp.materialized_view(
     name="acmi_edw_prod.edw_bronze.customer_summary",
     comment="Customer summary")
 def customer_summary():
@@ -153,7 +153,7 @@ dp.create_streaming_table(
     comment="Customer bronze table",
     table_properties={"delta.autoOptimize.optimizeWrite": "true"})
 
-@dp.table(
+@dp.materialized_view(
     name="analytics_prod.bronze_layer.customer_summary",
     comment="Customer summary")
 def customer_summary():
@@ -199,7 +199,7 @@ def regular_function():
     return "not a table"
 
 # This should also be extracted  
-@dp.table(
+@dp.materialized_view(
     name="another_catalog.another_schema.table2",
     comment="Another table")
 def another_table():

@@ -43,7 +43,7 @@ class TestEnvironmentDirectories:
         (pipeline_dir / "test.py").write_text("""
 from pyspark import pipelines as dp
 
-@dp.table(name="test_catalog.test_schema.test_table")
+@dp.materialized_view(name="test_catalog.test_schema.test_table")
 def test_table():
     pass
 """)
@@ -125,7 +125,7 @@ dp.create_streaming_table(name="dev_catalog.dev_schema.table1")
         pipeline2_dir.mkdir(parents=True)
         (pipeline2_dir / "flow2.py").write_text("""
 from pyspark import pipelines as dp
-@dp.table(name="dev_catalog.dev_schema.table2")
+@dp.materialized_view(name="dev_catalog.dev_schema.table2")
 def table2():
     pass
 """)

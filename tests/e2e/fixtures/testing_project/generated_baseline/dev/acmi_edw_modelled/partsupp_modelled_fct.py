@@ -66,7 +66,7 @@ from
 # ============================================================================
 
 
-@dp.table(
+@dp.materialized_view(
     name="acme_edw_dev.edw_gold.partsupp_modelled_fct",
     comment="Materialized view: partsupp_modelled_fct",
     table_properties={},

@@ -49,7 +49,7 @@ GROUP BY c.customer_id, c.name, c.market_segment, n.name
 # ============================================================================
 
 
-@dp.table(
+@dp.materialized_view(
     name="acme_edw_dev.edw_gold.customer_lifetime_value_mv",
     comment="Materialized view: customer_lifetime_value_mv",
     table_properties={},

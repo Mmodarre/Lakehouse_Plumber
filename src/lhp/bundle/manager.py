@@ -732,7 +732,7 @@ class BundleManager:
         # Regex patterns for table creation (only patterns that create new tables)
         patterns = [
             r'dp\.create_streaming_table\(\s*\n?\s*name="([^"]+)"',  # streaming tables
-            r'@dp\.table\(\s*\n?\s*name="([^"]+)"',                  # materialized views
+            r'@dp\.materialized_view\(\s*\n?\s*name="([^"]+)"',                  # materialized views
         ]
         
         database_values = []

@@ -116,7 +116,7 @@ ORDER BY segment_priority, lifetime_value DESC
 # ============================================================================
 
 
-@dp.table(
+@dp.materialized_view(
     name="acme_edw_tst.edw_gold.customer_segmentation_mv",
     comment="Materialized view: customer_segmentation_mv",
     table_properties={},

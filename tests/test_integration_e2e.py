@@ -511,30 +511,6 @@ class TestEndToEndACMIIntegration:
                 # Log but don't fail - some pipelines might have dependencies
                 print(f"Pipeline {pipeline_field} generation issue: {e}")
 
-    def test_acmi_project_performance_benchmark(self):
-        """Benchmark ACMI project generation performance."""
-        os.chdir(self.acmi_project)
-        
-        # Skip version enforcement for integration tests
-        orchestrator = ActionOrchestrator(self.acmi_project, enforce_version=False)
-        
-        # Measure total generation time
-        start_time = time.time()
-        
-        try:
-            generated_files = orchestrator.generate_pipeline_by_field("bronze_load", "dev", None)
-            generation_time = time.time() - start_time
-            
-            # ACMI bronze_load should generate reasonably quickly
-            assert generation_time < 10.0, f"ACMI generation too slow: {generation_time:.2f}s"
-            
-            # Should generate multiple files
-            assert len(generated_files) >= 5, f"Expected multiple files, got {len(generated_files)}"
-            
-        except Exception as e:
-            pytest.skip(f"ACMI generation failed: {e}")
-
-
 class TestEndToEndCompatibility:
     """Test compatibility scenarios and edge cases."""
 

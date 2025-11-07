@@ -5,7 +5,7 @@ from ...models.config import Action
 
 
 class MaterializedViewWriteGenerator(BaseActionGenerator):
-    """Generate materialized view write actions."""
+    """Generate materialized view write actions using @dp.materialized_view decorator."""
 
     def __init__(self):
         super().__init__()

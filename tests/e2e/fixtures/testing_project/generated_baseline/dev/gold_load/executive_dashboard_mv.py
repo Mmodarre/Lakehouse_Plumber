@@ -162,7 +162,7 @@ ORDER BY ms.year, ms.month
 # ============================================================================
 
 
-@dp.table(
+@dp.materialized_view(
     name="acme_edw_dev.edw_gold.executive_dashboard_mv",
     comment="Materialized view: executive_dashboard_mv",
     table_properties={},
