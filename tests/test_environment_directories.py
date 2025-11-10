@@ -215,9 +215,9 @@ dp.create_streaming_table(name="prod_catalog.prod_schema.table3")
         staging_files = state_data["environments"]["staging"]
         assert "generated/staging/pipeline1/flow1.py" in staging_files
     
-    # Test 9: Template Conditional Rendering
-    def test_template_handles_missing_env_gracefully(self):
-        """Verify templates work when env is None (backward compat)."""
+    # Test 9: Template Requires Env Parameter
+    def test_template_requires_env_parameter(self):
+        """Verify templates require env parameter (breaking change)."""
         project_root = self.temp_dir / "template_test"
         project_root.mkdir()
         
@@ -226,19 +226,18 @@ dp.create_streaming_table(name="prod_catalog.prod_schema.table3")
         
         manager = BundleManager(project_root)
         
-        # Test with env=None (backward compatibility)
-        content = manager.generate_resource_file_content("test_pipeline", generated_dir, env=None)
+        # Test that env is required (should raise TypeError if missing)
+        import pytest
+        with pytest.raises(TypeError):
+            content = manager.generate_resource_file_content("test_pipeline", generated_dir)
+        
+        # Test with valid env value works correctly
+        content = manager.generate_resource_file_content("test_pipeline", generated_dir, "dev")
         
         # Parse YAML and verify it's valid
         parsed = yaml.safe_load(content)
         assert parsed is not None
         assert "resources" in parsed
-        
-        # Check that paths don't have None in them
-        pipeline_config = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
-        glob_include = pipeline_config["libraries"][0]["glob"]["include"]
-        assert "None" not in glob_include
-        assert glob_include == "${workspace.file_path}/generated/${bundle.target}/test_pipeline/**"  # Uses bundle.target variable
         
         # Check header doesn't have (None)
         lines = content.split('\n')

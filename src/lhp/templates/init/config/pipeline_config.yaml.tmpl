@@ -83,6 +83,14 @@ project_defaults:
 # ==============================================================================
 # Uncomment and customize for pipelines requiring dedicated compute
 # pipeline: raw_customer_ingestions
+# 
+# # Catalog/Schema Configuration (optional - uses LHP substitution tokens)
+# # When defined: Values are directly embedded in bundle resource file
+# # When omitted: Uses databricks.yml variables (extracted from Python files)
+# # Supports: LHP tokens like "{catalog}" or literal values like "my_catalog"
+# catalog: "{catalog}"                # From substitutions/{env}.yaml
+# schema: "{raw_schema}"              # Environment-specific schema
+# 
 # serverless: false
 # edition: PRO
 # continuous: true
@@ -110,6 +118,11 @@ project_defaults:
 # EXAMPLE: Bronze Layer Pipeline - Continuous streaming with serverless
 # ==============================================================================
 # pipeline: bronze_load
+# 
+# # Catalog/Schema: Token-based (environment-specific)
+# catalog: "{catalog}"
+# schema: "{bronze_schema}"
+# 
 # serverless: true
 # continuous: true
 # edition: ADVANCED
@@ -133,6 +146,11 @@ project_defaults:
 # EXAMPLE: Silver Layer Pipeline - Batch processing with advanced features
 # ==============================================================================
 # pipeline: silver_transformations
+# 
+# # Catalog/Schema: Environment-specific
+# catalog: "{catalog}"
+# schema: "{silver_schema}"
+# 
 # serverless: true
 # continuous: false
 # edition: ADVANCED
@@ -167,6 +185,13 @@ project_defaults:
 # EXAMPLE: Gold Layer Pipeline - Production-ready with strict monitoring
 # ==============================================================================
 # pipeline: gold_aggregations
+# 
+# # Catalog/Schema: EXAMPLE - Mix of literal and token
+# # Literal catalog: Fixed value across all environments  
+# # Token schema: Varies by environment (dev/staging/prod)
+# catalog: "analytics_prod"           # Literal - always analytics_prod
+# schema: "{gold_schema}"              # Token - from substitutions file
+# 
 # serverless: true
 # continuous: false
 # edition: ADVANCED
@@ -196,19 +221,108 @@ project_defaults:
 #   schema: _meta
 #   catalog: ${var.default_pipeline_catalog}
 
+---
+# ==============================================================================
+# EXAMPLE: Full Substitution - ALL Fields Support Tokens
+# ==============================================================================
+# LHP token substitution works for ALL fields, not just catalog/schema!
+# This enables complete environment-specific configuration.
+#
+# pipeline: production_ingestion
+# 
+# # Catalog/schema with tokens
+# catalog: "{catalog}"
+# schema: "{raw_schema}"
+# serverless: false
+# 
+# # Environment-specific node types and policies
+# clusters:
+#   - label: default
+#     node_type_id: "{pipeline_node_type}"    # ← Dev: smaller, Prod: larger
+#     policy_id: "{pipeline_policy_id}"        # ← Different policies per env
+#     autoscale:
+#       min_workers: 2
+#       max_workers: 10
+# 
+# # Environment-specific notification emails
+# notifications:
+#   - email_recipients:
+#       - "{ops_team_email}"                   # ← Resolves to dev-ops@ or ops@
+#       - "{data_eng_email}"                   # ← Resolves to team email per env
+#     alerts:
+#       - on-update-failure
+#       - on-update-fatal-failure
+# 
+# # Dynamic tagging based on environment
+# tags:
+#   environment: "{environment_name}"          # ← development, staging, production
+#   cost_center: "{cost_center_code}"          # ← Different codes per env
+#   team: data-engineering                     # ← Literal value
+# 
+# # Event logging with tokens
+# event_log:
+#   name: pipeline_events
+#   schema: _meta
+#   catalog: "{event_log_catalog}"             # ← dev_meta, prod_meta, etc.
+#
+# Corresponding substitutions/dev.yaml:
+#   dev:
+#     catalog: acme_dev
+#     raw_schema: raw_dev
+#     pipeline_node_type: Standard_D8ds_v5     # Smaller for dev
+#     pipeline_policy_id: dev-policy-123
+#     ops_team_email: dev-ops@company.com
+#     data_eng_email: dev-team@company.com
+#     environment_name: development
+#     cost_center_code: CC-DEV-001
+#     event_log_catalog: dev_meta
+#
+# Corresponding substitutions/prod.yaml:
+#   prod:
+#     catalog: acme_prod
+#     raw_schema: raw_prod
+#     pipeline_node_type: Standard_D32ds_v5    # Larger for prod
+#     pipeline_policy_id: prod-policy-456
+#     ops_team_email: ops@company.com
+#     data_eng_email: data-eng@company.com
+#     environment_name: production
+#     cost_center_code: CC-PROD-001
+#     event_log_catalog: prod_meta
+#
 # ==============================================================================
 # Configuration Notes
 # ==============================================================================
+#
+# Full Substitution Support (NEW):
+#   - ALL fields in pipeline_config.yaml support LHP token substitution
+#   - Use tokens for: node_type_id, policy_id, email_recipients, tags, etc.
+#   - Enables complete environment-specific configuration
+#   - Tokens are resolved from substitutions/{env}.yaml files
+#   - Unresolved tokens pass through unchanged (not an error)
+#   - Missing substitution file: uses raw config without substitution
+#
+# Catalog/Schema Configuration:
+#   - Define catalog and schema at pipeline level to override default behavior
+#   - Must define BOTH catalog AND schema (defining only one raises an error)
+#   - Supports LHP substitution tokens: "{catalog}", "{schema}", etc.
+#   - Supports literal values: "my_catalog", "my_schema"
+#   - Values are resolved from substitutions/{env}.yaml files
+#   - When defined: Values embedded directly in bundle resource file
+#   - When omitted: Uses ${var.default_pipeline_catalog} from databricks.yml
 #
 # Key Constraints:
 #   - edition parameter only works when serverless: false
 #   - photon parameter only works when serverless: false
 #   - clusters configuration required when serverless: false
 #   - tags only work for non-serverless pipelines (serverless uses compute policy)
+#   - catalog and schema: Must define both or neither (not just one)
 #
 # Validation Rules:
 #   - edition: Must be CORE, PRO, or ADVANCED
 #   - channel: Must be CURRENT or PREVIEW
+#   - catalog/schema: Both required if either is defined
+#   - Empty catalog/schema values raise errors
+#   - Unresolved tokens raise errors
 #   - Lists (notifications, clusters, tags) are REPLACED during merge, not appended
 #
 # Best Practices:
@@ -216,6 +330,7 @@ project_defaults:
 #   - Use dedicated clusters for large-scale continuous ingestion
 #   - Set appropriate notifications based on pipeline criticality
 #   - Use tags for cost tracking and organization (non-serverless only)
+#   - Use catalog/schema config when pipelines target different Unity Catalog locations
 #   - Test configurations in dev before deploying to production
 #
 # For more information:

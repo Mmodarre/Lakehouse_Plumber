@@ -5,9 +5,9 @@ resources:
     acmi_edw_bronze_pipeline:
       name: acmi_edw_bronze_pipeline
       
-      # Default Catalog and Schema for the pipeline (managed via databricks.yml variables and LHP)
-      catalog: ${var.default_pipeline_catalog}
-      schema: ${var.default_pipeline_schema}
+      # Catalog and Schema for the pipeline
+      catalog: acme_edw_dev
+      schema: edw_bronze
       
       serverless: false
       # Compute clusters configuration
@@ -16,7 +16,7 @@ resources:
           node_type_id: Standard_D8ds_v5
           autoscale:
             min_workers: 1
-            max_workers: 5
+            max_workers: 2
             mode: ENHANCED
 
       libraries:
@@ -30,7 +30,9 @@ resources:
       edition: ADVANCED      
       channel: CURRENT
       # Additional pipeline configuration options 
-      # Add to your pipeline_config.yaml as needed and pass the file path through the --pipeline-config flag:
+      # Add to your pipeline_config-<env>.yaml as needed and pass the file path through the --pipeline-config flag:
+      # You can use substitutions file to define the values for the pipeline configuration using the following syntax:
+      # {variable_name}
  
       # Compute clusters configuration (alternative to serverless)
       # clusters:
@@ -75,3 +77,15 @@ resources:
       #   name: pipeline_evenlog
       #   schema: _meta
       #   catalog: acmi_edw_dev
+
+      # permissions:
+      #   - service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d
+      #     level: CAN_MANAGE
+      #   - user_name: user@example.com
+      #     level: CAN_RUN
+      #   - group_name: data-engineers 
+      #     level: CAN_VIEW
+      
+      # # Pipeline-level run_as
+      # run_as:
+      #   service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d OR "{SP_NAME}" (if using substitutions file)

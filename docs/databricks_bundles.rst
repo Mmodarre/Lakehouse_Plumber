@@ -583,6 +583,8 @@ Create a multi-document YAML file with project-level defaults and per-pipeline o
 ======================= =================== =====================================================
 Option                  Type                Description
 ======================= =================== =====================================================
+``catalog``             string              Unity Catalog name (supports LHP tokens)
+``schema``              string              Schema/database name (supports LHP tokens)
 ``serverless``          boolean             Use serverless compute (default: ``true``)
 ``edition``             string              DLT edition: ``CORE``, ``PRO``, or ``ADVANCED``
 ``channel``             string              Runtime channel: ``CURRENT`` or ``PREVIEW``
@@ -593,6 +595,12 @@ Option                  Type                Description
 ``tags``                dict                Custom tags for the pipeline
 ``event_log``           dict                Event logging configuration
 ======================= =================== =====================================================
+
+.. note::
+   **Catalog & Schema Configuration**: When ``catalog`` and ``schema`` are defined in 
+   ``pipeline_config.yaml``, they override the default behavior and are directly embedded 
+   in the bundle resource file. Both must be defined together (defining only one raises 
+   an error). See `Catalog and Schema Configuration`_ for details.
 
 *Usage*
 
@@ -689,6 +697,405 @@ Other configuration structures (clusters, notifications, etc.) are passed throug
 * **Non-serverless for streaming** when you need dedicated resources or specific node types
 * **Environment-specific configs** can be managed by having different config files (e.g., ``pipeline_config_dev.yaml``, ``pipeline_config_prod.yaml``)
 * **Version control** your config files alongside your pipeline definitions
+* **Use catalog/schema config** when pipelines target different Unity Catalog locations
+
+Catalog and Schema Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Overview**
+
+You can now define ``catalog`` and ``schema`` directly in ``pipeline_config.yaml`` to control
+where each pipeline writes its data in Unity Catalog. This provides fine-grained control over
+data organization and supports environment-specific configurations.
+
+**Key Features**
+
+* **Pipeline-Level Control**: Define catalog/schema per pipeline
+* **LHP Token Support**: Use substitution tokens like ``{catalog}``, ``{schema}`` from ``substitutions/{env}.yaml``
+* **Literal Values**: Use fixed strings like ``"analytics_prod"``
+* **Mixed Mode**: Combine tokens and literals (e.g., literal catalog, token schema)
+* **Automatic Resolution**: Tokens are resolved from environment-specific substitution files
+* **Validation**: Both catalog and schema must be defined together (partial definition raises errors)
+
+**When to Use**
+
+Use catalog/schema configuration when:
+
+* Pipelines write to different Unity Catalog locations
+* You need environment-specific catalog/schema values
+* You want to override the global default catalog/schema
+* Different pipelines have different data governance requirements
+
+**Basic Example**
+
+.. code-block:: yaml
+
+   # config/pipeline_config.yaml
+   ---
+   pipeline: bronze_load
+   catalog: "{catalog}"          # Resolved from substitutions/dev.yaml
+   schema: "{bronze_schema}"     # Resolved from substitutions/dev.yaml
+   serverless: true
+   
+   ---
+   pipeline: gold_analytics
+   catalog: "analytics_prod"     # Literal value - same across environments
+   schema: "{gold_schema}"        # Token - varies by environment
+   serverless: true
+
+**Substitution File Example**
+
+.. code-block:: yaml
+
+   # substitutions/dev.yaml
+   dev:
+     catalog: acme_dev
+     bronze_schema: bronze_dev
+     gold_schema: gold_dev
+
+.. code-block:: yaml
+
+   # substitutions/prod.yaml
+   prod:
+     catalog: acme_prod
+     bronze_schema: bronze_prod
+     gold_schema: gold_prod
+
+**Result**
+
+With the above configuration:
+
+* **bronze_load in dev**: Uses ``acme_dev.bronze_dev``
+* **bronze_load in prod**: Uses ``acme_prod.bronze_prod``
+* **gold_analytics in dev**: Uses ``analytics_prod.gold_dev``
+* **gold_analytics in prod**: Uses ``analytics_prod.gold_prod``
+
+**Behavior Without Catalog/Schema Config**
+
+If you don't define ``catalog`` and ``schema`` in ``pipeline_config.yaml``:
+
+1. LHP extracts catalog/schema from generated Python DLT files
+2. Creates ``databricks.yml`` variables: ``default_pipeline_catalog`` and ``default_pipeline_schema``
+3. Resource files reference these variables: ``${var.default_pipeline_catalog}``
+
+**Validation Rules**
+
+========================== ====================================================================
+Rule                       Description
+========================== ====================================================================
+**Both Required**          Must define both ``catalog`` AND ``schema`` (not just one)
+**Non-Empty**              Values must not resolve to empty strings
+**Token Resolution**       Tokens must exist in substitution file for the environment
+**Substitution File**      ``substitutions/{env}.yaml`` must exist when using tokens
+========================== ====================================================================
+
+**Error Examples**
+
+.. code-block:: yaml
+
+   # ❌ ERROR: Only catalog defined (must define both)
+   pipeline: my_pipeline
+   catalog: "{catalog}"
+   # Missing schema - raises ValueError
+
+.. code-block:: yaml
+
+   # ❌ ERROR: Empty value after resolution
+   pipeline: my_pipeline
+   catalog: "{empty_var}"    # Resolves to empty string
+   schema: "{schema}"        # Raises ValueError
+
+.. code-block:: yaml
+
+   # ❌ ERROR: Token not found in substitution file
+   pipeline: my_pipeline
+   catalog: "{nonexistent}"  # Token doesn't exist
+   schema: "{schema}"        # Raises ValueError
+
+.. code-block:: yaml
+
+   # ✅ CORRECT: Both defined with tokens
+   pipeline: my_pipeline
+   catalog: "{catalog}"
+   schema: "{schema}"
+
+.. code-block:: yaml
+
+   # ✅ CORRECT: Both defined with literals
+   pipeline: my_pipeline
+   catalog: "my_catalog"
+   schema: "my_schema"
+
+.. code-block:: yaml
+
+   # ✅ CORRECT: Mixed tokens and literals
+   pipeline: my_pipeline
+   catalog: "analytics"      # Literal
+   schema: "{gold_schema}"   # Token
+
+.. code-block:: yaml
+
+   # ✅ CORRECT: Neither defined (uses default behavior)
+   pipeline: my_pipeline
+   serverless: true
+   # catalog/schema omitted - extracted from Python files
+
+**Advanced Example: Multi-Layer Architecture**
+
+.. code-block:: yaml
+
+   # config/pipeline_config.yaml
+   project_defaults:
+     serverless: true
+     edition: ADVANCED
+   
+   ---
+   pipeline: raw_ingestions
+   catalog: "{catalog}"
+   schema: "{raw_schema}"
+   continuous: true
+   
+   ---
+   pipeline: bronze_transformations
+   catalog: "{catalog}"
+   schema: "{bronze_schema}"
+   continuous: true
+   
+   ---
+   pipeline: silver_quality
+   catalog: "{catalog}"
+   schema: "{silver_schema}"
+   
+   ---
+   pipeline: gold_analytics
+   catalog: "analytics_prod"     # Fixed catalog across environments
+   schema: "{gold_schema}"        # Environment-specific schema
+   
+   ---
+   pipeline: gold_ml_features
+   catalog: "ml_platform"         # Separate catalog for ML
+   schema: "{ml_features_schema}"
+
+**databricks.yml Impact**
+
+When pipelines define ``catalog`` and ``schema`` in ``pipeline_config.yaml``:
+
+* **Resource File**: Contains literal values (not ``${var.*}`` references)
+* **databricks.yml**: Variables are NOT added for these pipelines
+* **Mixed Pipelines**: Pipelines without config still use ``databricks.yml`` variables
+
+**Example Resource File Output**
+
+.. code-block:: yaml
+
+   # resources/lhp/bronze_load.pipeline.yml
+   # (with catalog/schema in pipeline_config.yaml)
+   resources:
+     pipelines:
+       bronze_load_pipeline:
+         name: bronze_load_pipeline
+         catalog: acme_dev              # ← Literal value (not ${var.*})
+         schema: bronze_dev             # ← Literal value
+         serverless: true
+
+.. code-block:: yaml
+
+   # resources/lhp/other_pipeline.pipeline.yml
+   # (without catalog/schema in pipeline_config.yaml)
+   resources:
+     pipelines:
+       other_pipeline_pipeline:
+         name: other_pipeline_pipeline
+         catalog: ${var.default_pipeline_catalog}  # ← Variable reference
+         schema: ${var.default_pipeline_schema}    # ← Variable reference
+         serverless: true
+
+**Best Practices**
+
+* **Environment-Specific**: Use tokens for values that change per environment
+* **Fixed Values**: Use literals for values that are constant across environments
+* **Consistent Naming**: Align token names with your substitution file structure
+* **Validation**: Test in dev environment before deploying to production
+* **Documentation**: Document which pipelines use custom catalog/schema configurations
+* **Mixed Mode**: Combine approaches - some pipelines with config, some without
+
+Full Configuration Substitution
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Overview**
+
+LHP token substitution applies to **ALL fields** in ``pipeline_config.yaml``, not just ``catalog`` and ``schema``.
+This enables complete environment-specific configuration for node types, cluster policies, notification emails,
+tags, and all other pipeline settings using LHP substitution tokens.
+
+**What Gets Substituted**
+
+All fields in ``pipeline_config.yaml`` support token substitution, including:
+
+* ``node_type_id`` - Environment-specific compute sizing
+* ``policy_id`` - Different cluster policies per environment
+* ``email_recipients`` - Environment-specific notification recipients
+* ``tags`` - Dynamic tagging based on environment
+* ``event_log.catalog`` - Event logging catalog configuration
+* Any other field that accepts string values
+
+**How It Works**
+
+1. LHP loads your raw ``pipeline_config.yaml``
+2. Applies ``EnhancedSubstitutionManager`` to the entire configuration
+3. Resolves all tokens from ``substitutions/{env}.yaml``
+4. Passes fully-resolved config to templates
+5. Generates bundle resource files with actual values
+
+**Comprehensive Example**
+
+.. code-block:: yaml
+
+   # config/pipeline_config.yaml
+   ---
+   pipeline: production_ingestion
+   catalog: "{catalog}"
+   schema: "{raw_schema}"
+   serverless: false
+   
+   # Environment-specific node types and policies
+   clusters:
+     - label: default
+       node_type_id: "{pipeline_node_type}"    # ← Token for sizing
+       policy_id: "{pipeline_policy_id}"        # ← Token for policy
+   
+   # Environment-specific notifications
+   notifications:
+     - email_recipients:
+         - "{ops_team_email}"                   # ← Token for email
+         - "{data_eng_email}"                   # ← Token for email
+       alerts:
+         - on-update-failure
+         - on-update-fatal-failure
+   
+   # Dynamic tagging
+   tags:
+     environment: "{environment_name}"          # ← Token for env tag
+     cost_center: "{cost_center_code}"          # ← Token for cost center
+     team: data-engineering                     # ← Literal value
+   
+   # Event logging with tokens
+   event_log:
+     name: pipeline_events
+     schema: _meta
+     catalog: "{event_log_catalog}"             # ← Token for catalog
+
+**Substitution Files**
+
+.. code-block:: yaml
+
+   # substitutions/dev.yaml
+   dev:
+     catalog: acme_dev
+     raw_schema: raw_dev
+     pipeline_node_type: Standard_D8ds_v5        # ← Smaller nodes for dev
+     pipeline_policy_id: dev-policy-123
+     ops_team_email: dev-ops@company.com
+     data_eng_email: dev-data-eng@company.com
+     environment_name: development
+     cost_center_code: CC-DEV-001
+     event_log_catalog: dev_meta
+
+.. code-block:: yaml
+
+   # substitutions/prod.yaml
+   prod:
+     catalog: acme_prod
+     raw_schema: raw_prod
+     pipeline_node_type: Standard_D32ds_v5       # ← Larger nodes for prod
+     pipeline_policy_id: prod-policy-456
+     ops_team_email: ops-team@company.com
+     data_eng_email: data-eng@company.com
+     environment_name: production
+     cost_center_code: CC-PROD-001
+     event_log_catalog: prod_meta
+
+**Result**
+
+The same ``pipeline_config.yaml`` produces environment-specific configurations:
+
+* **Dev**: Smaller nodes (D8ds_v5), dev emails, dev policy, dev cost center
+* **Prod**: Larger nodes (D32ds_v5), prod emails, prod policy, prod cost center
+
+**Benefits**
+
+========================== ====================================================================
+Benefit                    Description
+========================== ====================================================================
+**Environment Sizing**     Different node types for dev (smaller) vs prod (larger)
+**Policy Management**      Apply different cluster policies per environment
+**Notification Routing**   Send alerts to environment-specific teams
+**Tag Standardization**    Consistent tagging using centralized token values
+**DRY Principle**          Single config, multiple environments via tokens
+**Centralized Config**     All environment-specific values in ``substitutions/``
+========================== ====================================================================
+
+**Unresolved Tokens**
+
+Unresolved tokens pass through unchanged (not an error). This allows for:
+
+* Partial substitution scenarios
+* Optional tokens
+* Databricks-native variables (e.g., ``${var.workspace_id}``)
+
+.. code-block:: yaml
+
+   # Token doesn't exist in substitutions/dev.yaml
+   tags:
+     unknown: "{nonexistent_token}"  # ← Passes through as "{nonexistent_token}"
+     known: "{environment_name}"      # ← Resolves to "development"
+
+**Missing Substitution File**
+
+If ``substitutions/{env}.yaml`` doesn't exist:
+
+* Raw config is used without substitution
+* Tokens remain as literal strings
+* No error is raised
+* Useful for simple deployments without environment variants
+
+**Substitution Behavior**
+
+* **Strings**: Tokens are resolved (``{catalog}`` → ``acme_dev``)
+* **Numbers**: Converted to strings in substitution mappings, types restored by YAML parsing
+* **Booleans**: Converted to lowercase strings (``true``/``false``) for YAML compatibility
+* **Lists**: Each string element is checked for tokens
+* **Dicts**: Each value is recursively checked for tokens
+* **Nested Structures**: Full recursive substitution
+
+**Type Conversion Details**
+
+LHP converts all substitution values to strings for text-based token replacement:
+
+* ``true`` (YAML boolean) → ``"true"`` (string) → ``true`` (boolean in final YAML)
+* ``false`` (YAML boolean) → ``"false"`` (string) → ``false`` (boolean in final YAML)
+* ``42`` (YAML integer) → ``"42"`` (string) → ``42`` (integer in final YAML)
+* ``3.14`` (YAML float) → ``"3.14"`` (string) → ``3.14`` (float in final YAML)
+
+**Why This Works**
+
+1. Tokens in ``pipeline_config.yaml`` are string placeholders (e.g., ``serverless: "{use_serverless}"``)
+2. Substitution replaces with string values (``serverless: "true"``)
+3. Jinja2 template renders unquoted values (``serverless: true``)
+4. Databricks YAML parser restores correct types (``serverless: true`` as boolean)
+
+Booleans are specifically converted to lowercase (``"true"``/``"false"``) to ensure YAML recognizes
+them as booleans when rendered unquoted. Uppercase ``"True"``/``"False"`` may not be recognized
+consistently across YAML parsers.
+
+**Best Practices**
+
+* **Centralize Tokens**: Keep all environment-specific values in ``substitutions/``
+* **Naming Convention**: Use descriptive token names (``{prod_node_type}`` not ``{nt}``)
+* **Document Tokens**: Comment your substitution files for clarity
+* **Test Tokens**: Verify resolution in dev before promoting to prod
+* **Mixed Values**: Combine tokens and literals as needed
+* **Validation**: Review generated resource files to confirm correct substitution
 
 **Troubleshooting Guide**
 

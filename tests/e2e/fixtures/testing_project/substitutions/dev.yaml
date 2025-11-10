@@ -11,6 +11,15 @@ dev:
   silver_schema: edw_silver
   gold_schema: edw_gold
   modelled_schema: edw_gold
+
+
+  cluster_node_type_id: Standard_D4ds_v5
+  cluster_driver_node_type_id: Standard_D8ds_v5
+  cluster_autoscale_min_workers: 1
+  cluster_autoscale_max_workers: 2
+  cluster_autoscale_mode: ENHANCED
+  photon: false
+  continuous: true
   
 secrets:
   default_scope: dev_secrets
