@@ -219,3 +219,4 @@ class TestSinkModelValidation:
         assert write_target.sink_type == "kafka"
         assert write_target.sink_name == "test_sink"
 
+

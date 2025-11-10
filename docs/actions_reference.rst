@@ -1750,6 +1750,8 @@ Temporary Tables
 ~~~~~~~~~~~~~~~~
 Temp table transform actions create temporary streaming tables for intermediate processing and reuse across multiple downstream actions.
 
+**Option 1: Simple Passthrough**
+
 .. code-block:: yaml
 
   actions:
@@ -1761,6 +1763,26 @@ Temp table transform actions create temporary streaming tables for intermediate 
       readMode: stream
       description: "Create temporary table for customer intermediate processing"
 
+**Option 2: With SQL Transformation**
+
+.. code-block:: yaml
+
+  actions:
+    - name: create_temp_aggregate
+      type: transform
+      transform_type: temp_table
+      source: v_customer_raw
+      target: temp_daily_summary
+      readMode: stream
+      sql: |
+        SELECT 
+          DATE(order_date) as date,
+          COUNT(*) as order_count,
+          SUM(total_amount) as total_amount
+        FROM stream({source})
+        GROUP BY DATE(order_date)
+      description: "Create temporary aggregate table with daily summaries"
+
 **Anatomy of a temp table transform action**
 
 - **name**: Unique name for this action within the FlowGroup
@@ -1769,10 +1791,11 @@ Temp table transform actions create temporary streaming tables for intermediate 
 - **source**: Name of the input view to materialize as temporary table
 - **target**: Name of the temporary table to create
 - **readMode**: Either *batch* or *stream* - determines table type
+- **sql**: Optional SQL transformation to apply (inline option)
 - **description**: Optional documentation for the action
 
 .. seealso::
-  - For DLT table types see the `Databricks DLT table types documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-table>`_.
+  - For SDP table types see the `Databricks SDP table types documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-table>`_.
   - Intermediate processing: :doc:`concepts`
 
 .. Important::
@@ -1782,19 +1805,49 @@ Temp table transform actions create temporary streaming tables for intermediate 
   For instance, if you have a complex transformation that will be used by several downstream actions,
   you can create a temporary table to prevent the transformation from being recomputed each time.
 
-**The above YAML translates to the following PySpark code**
+.. Warning::
+  When using the ``sql`` property with streaming tables (``readMode: stream``), you must use the 
+  ``stream()`` function in your SQL query to maintain streaming semantics. Without it, the query 
+  will process data in batch mode.
+
+**The above YAML examples translate to the following PySpark code**
+
+**For simple passthrough:**
 
 .. code-block:: python
   :linenos:
 
   from pyspark import pipelines as dp
 
-  @dp.materialized_view(
+  @dp.table(
       temporary=True,
   )
   def customer_intermediate():
       """Create temporary table for customer intermediate processing"""
       df = spark.readStream.table("v_customer_processed")
+      
+      return df
+
+**For SQL transformation:**
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark import pipelines as dp
+
+  @dp.table(
+      temporary=True,
+  )
+  def temp_daily_summary():
+      """Create temporary aggregate table with daily summaries"""
+      df = spark.sql("""
+          SELECT 
+            DATE(order_date) as date,
+            COUNT(*) as order_count,
+            SUM(total_amount) as total_amount
+          FROM stream(v_customer_raw)
+          GROUP BY DATE(order_date)
+      """)
       
       return df
 
