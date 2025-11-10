@@ -37,8 +37,8 @@ class TestWriteGenerators:
         code = generator.generate(action, {})
         
         # Check generated code - standard mode creates table and append flow
-        assert "dlt.create_streaming_table" in code
-        assert "@dlt.append_flow(" in code
+        assert "dp.create_streaming_table" in code
+        assert "@dp.append_flow(" in code
         assert "silver.customers" in code
         assert "spark.readStream.table" in code
     
@@ -60,9 +60,8 @@ class TestWriteGenerators:
         code = generator.generate(action, {})
         
         # Verify generated code
-        assert "@dlt.table(" in code
+        assert "@dp.materialized_view(" in code
         assert 'name="gold.customer_summary"' in code
-        assert 'refresh_schedule="@daily"' in code
         assert "spark.sql" in code
         assert "GROUP BY region" in code
     
@@ -97,13 +96,13 @@ class TestWriteGenerators:
         code = generator.generate(action, {})
         
         # Verify all options are included
-        assert "@dlt.table(" in code
+        # Note: temporary parameter is accepted in config for backward compat but not passed to decorator
+        assert "@dp.materialized_view(" in code
         assert 'name="gold.advanced_table"' in code
         assert 'spark_conf={"spark.sql.adaptive.enabled": "true"' in code
         assert 'table_properties={"delta.autoOptimize.optimizeWrite": "true"' in code
         assert 'schema="id BIGINT, name STRING, amount DECIMAL(18,2)"' in code
         assert 'row_filter="ROW FILTER catalog.schema.filter_fn ON (region)"' in code
-        assert 'temporary=True' in code
         assert 'partition_cols=["region"]' in code
         assert 'cluster_by=["id"]' in code
         assert 'path="/mnt/data/gold/advanced_table"' in code
@@ -139,9 +138,9 @@ class TestWriteGenerators:
         
         code = generator.generate(action, {})
         
-        # Verify all options are included in both create_streaming_table and @dlt.append_flow
-        assert "dlt.create_streaming_table(" in code
-        assert '@dlt.append_flow(' in code
+        # Verify all options are included in both create_streaming_table and @dp.append_flow
+        assert "dp.create_streaming_table(" in code
+        assert '@dp.append_flow(' in code
         assert 'name="silver.advanced_streaming"' in code
         assert 'spark_conf={"spark.sql.streaming.checkpointLocation": "/checkpoints/advanced"' in code
         assert 'table_properties=' in code and '"delta.enableChangeDataFeed": "true"' in code
@@ -175,9 +174,9 @@ class TestWriteGenerators:
         code = generator.generate(action, {})
         
         # Verify snapshot CDC structure
-        assert "dlt.create_streaming_table(" in code
+        assert "dp.create_streaming_table(" in code
         assert 'name="silver.customers"' in code
-        assert "dlt.create_auto_cdc_from_snapshot_flow(" in code
+        assert "dp.create_auto_cdc_from_snapshot_flow(" in code
         assert 'target="silver.customers"' in code
         assert 'source="raw.customer_snapshots"' in code
         assert 'keys=["customer_id"]' in code
@@ -238,8 +237,8 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
         assert "from typing import Optional, Tuple" in code
         
         # Verify snapshot CDC structure
-        assert "dlt.create_streaming_table(" in code
-        assert "dlt.create_auto_cdc_from_snapshot_flow(" in code
+        assert "dp.create_streaming_table(" in code
+        assert "dp.create_auto_cdc_from_snapshot_flow(" in code
         assert 'target="silver.customers"' in code
         assert "source=next_customer_snapshot" in code  # Function reference, not string
         assert 'keys=["customer_id", "region"]' in code
@@ -270,7 +269,7 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
         code = generator.generate(action, {})
         
         # Verify except columns usage
-        assert "dlt.create_auto_cdc_from_snapshot_flow(" in code
+        assert "dp.create_auto_cdc_from_snapshot_flow(" in code
         assert 'track_history_except_column_list=["created_at", "updated_at", "_metadata"]' in code
         assert "track_history_column_list" not in code  # Should not have both
 
@@ -293,7 +292,7 @@ def test_materialized_view_string_source():
     
     # Verify the string source is correctly extracted and used
     assert "v_simple_view" in code
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
     assert 'name="test_db.test_table"' in code
     assert "spark.read.table" in code  # Should use spark.read.table for source view
 
@@ -316,7 +315,7 @@ def test_materialized_view_dict_source_with_database():
     
     # Verify the dict source is correctly parsed into qualified name
     assert "source_db.source_table" in code
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
     assert 'name="test_db.test_table"' in code
     assert "spark.read.table" in code
 
@@ -340,7 +339,7 @@ def test_materialized_view_dict_source_without_database():
     # Verify the dict source is correctly parsed to table name only
     assert '"source_table"' in code  # Table name should appear in quotes
     assert "source_db.source_table" not in code  # Should not have database prefix
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
     assert 'name="test_db.test_table"' in code
     assert "spark.read.table" in code
 
@@ -365,7 +364,7 @@ def test_materialized_view_list_source_first_item():
     assert "first_view" in code
     assert "ignored_view" not in code
     assert "also_ignored" not in code
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
     assert 'name="test_db.test_table"' in code
     assert "spark.read.table" in code
 
@@ -459,7 +458,7 @@ def test_materialized_view_no_database_fallback():
     # Verify table name is used without database prefix
     assert 'name="test_table"' in code
     assert 'name="test_db.test_table"' not in code  # Should not have database prefix
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
 
@@ -484,7 +483,7 @@ def test_materialized_view_custom_comment_and_description():
     # Verify custom comment and description appear in generated code
     assert 'comment="Custom table comment"' in code
     assert 'Custom action description' in code  # Should appear in function docstring
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
 
@@ -508,7 +507,7 @@ def test_materialized_view_with_flowgroup_context():
     
     # Verify flowgroup context is used (check this is passed to template)
     # The template should have access to flowgroup variable
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
     assert 'name="test_db.test_table"' in code
     assert "spark.sql" in code
     # Note: The actual usage of flowgroup in template may vary, 
@@ -591,7 +590,7 @@ def test_materialized_view_disabled_metadata():
     # Verify metadata is disabled by default
     assert "# Add operational metadata columns" not in code
     assert "withColumn" not in code  # No metadata column additions
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
 
@@ -625,7 +624,7 @@ def test_materialized_view_enabled_metadata_mock():
         # Re-call with modified context that forces metadata
         with patch.object(generator, 'render_template') as mock_render:
             # Mock the template rendering to include metadata
-            mock_render.return_value = '''@dlt.table(
+            mock_render.return_value = '''@dp.materialized_view(
     name="test_db.test_table",
     comment="Materialized view: test_table",
     table_properties={})
@@ -647,7 +646,7 @@ def test_table():
     assert "# Add operational metadata columns" in code
     assert "withColumn" in code
     assert "_test_column" in code
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
 
 
 @pytest.mark.parametrize("source_config,expected_view", [
@@ -690,7 +689,7 @@ def test_materialized_view_parametrized_sources(source_config, expected_view):
     
     # Verify expected view name appears in generated code
     assert expected_view in code
-    assert "@dlt.table(" in code
+    assert "@dp.materialized_view(" in code
     assert 'name="test_db.test_table"' in code
     assert "spark.read.table" in code
 
@@ -732,10 +731,10 @@ def test_materialized_view_full_structure():
     # Verify overall structure and order
     lines = code.split('\n')
     
-    # Check that @dlt.table comes before function definition
-    dlt_table_line = next(i for i, line in enumerate(lines) if "@dlt.table(" in line)
+    # Check that @dp.materialized_view comes before function definition
+    dlt_mv_line = next(i for i, line in enumerate(lines) if "@dp.materialized_view(" in line)
     function_def_line = next(i for i, line in enumerate(lines) if "def customer_analytics():" in line)
-    assert dlt_table_line < function_def_line, "DLT decorator should come before function definition"
+    assert dlt_mv_line < function_def_line, "DLT decorator should come before function definition"
     
     # Check that imports would be at the top (handled by base generator)
     # Check specific configurations are included
@@ -748,7 +747,6 @@ def test_materialized_view_full_structure():
     assert 'partition_cols=["region", "signup_year"]' in code
     assert 'cluster_by=["customer_id"]' in code
     assert 'path="/mnt/data/gold/customer_analytics"' in code
-    assert 'refresh_schedule="@daily"' in code
     
     # Verify source extraction and usage
     assert "silver.customer_data" in code
@@ -764,7 +762,7 @@ def test_write_generator_imports():
     """Test that write generators manage imports correctly."""
     # Write generator
     mv_gen = MaterializedViewWriteGenerator()
-    assert "import dlt" in mv_gen.imports
+    assert "from pyspark import pipelines as dp" in mv_gen.imports
     assert "from pyspark.sql import DataFrame" in mv_gen.imports
 
 

@@ -2,8 +2,8 @@
 # Pipeline: gold_load
 # FlowGroup: customer_lifetime_value
 
+from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "gold_load"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "customer_lifetime_value"
 # ============================================================================
 
 
-@dlt.view()
+@dp.temporary_view()
 def v_customer_lifetime_value_sql():
     """SQL source: customer_lifetime_value_sql"""
     df = spark.sql(
@@ -49,7 +49,7 @@ GROUP BY c.customer_id, c.name, c.market_segment, n.name
 # ============================================================================
 
 
-@dlt.table(
+@dp.materialized_view(
     name="acme_edw_tst.edw_gold.customer_lifetime_value_mv",
     comment="Materialized view: customer_lifetime_value_mv",
     table_properties={},

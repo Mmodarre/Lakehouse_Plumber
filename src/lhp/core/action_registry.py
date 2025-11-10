@@ -25,6 +25,7 @@ from ..generators.transform import (
 from ..generators.write import (
     StreamingTableWriteGenerator,
     MaterializedViewWriteGenerator,
+    SinkWriteGenerator,
 )
 from ..generators.test import (
     TestActionGenerator,
@@ -70,6 +71,7 @@ class ActionRegistry:
         self._write_generators = {
             WriteTargetType.STREAMING_TABLE: StreamingTableWriteGenerator,
             WriteTargetType.MATERIALIZED_VIEW: MaterializedViewWriteGenerator,
+            WriteTargetType.SINK: SinkWriteGenerator,
         }
         
         # Test generators - all test types use the same generator

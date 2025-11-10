@@ -1,0 +1,35 @@
+# {{ comment }}
+
+# Create {{ 'Event Hubs' if is_event_hubs else 'Kafka' }} sink
+dp.create_sink(
+    name="{{ sink_name }}",
+    format="kafka",
+    options={{ sink_options | tojson }}
+)
+
+# Define append flow(s)
+{% for source_view in source_views %}
+@dp.append_flow(
+    target="{{ sink_name }}",
+    name="f_{{ sink_name }}_{{ loop.index }}",
+    comment="{{ description }}"
+)
+def f_{{ sink_name }}_{{ loop.index }}():
+    df = spark.readStream.table("{{ source_view }}")
+    
+    {% if add_operational_metadata %}
+    # Add operational metadata columns FIRST
+    {% for col_name, expression in metadata_columns.items()|sort %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
+    {% endif %}
+    
+    # Runtime validation for strict mode (user must provide key and value columns)
+    if "value" not in df.columns:
+        raise ValueError("Kafka sink requires 'value' column in strict mode. Add a transform action to create it.")
+    # Key column is optional for Kafka
+    
+    return df
+{% endfor %}
+
+

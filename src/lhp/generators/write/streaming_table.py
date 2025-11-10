@@ -13,7 +13,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
 
     def __init__(self):
         super().__init__()
-        self.add_import("import dlt")
+        self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: dict) -> str:
         """Generate streaming table code."""
@@ -29,7 +29,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         # Extract configuration
         mode = target_config.get(
             "mode", "standard"
-        )  # "cdc" and "snapshot_cdc" are special modes
+        )  # Valid modes: "standard" (default), "cdc", "snapshot_cdc"
         database = target_config.get("database")
         table = target_config.get("table") or target_config.get("name")
 

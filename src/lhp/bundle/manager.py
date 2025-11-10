@@ -162,7 +162,10 @@ class BundleManager:
         # Step 2: Scenario 4 - ERROR on multiple files (configuration error)
         if len(related_files) > 1:
             file_list = [str(f) for f in related_files]
-            error_msg = f"Multiple bundle resource files found for pipeline '{pipeline_name}': {file_list}. Only one resource file per pipeline is allowed."
+            error_msg = (
+                f"Multiple files define the same pipeline '{pipeline_name}_pipeline': {file_list}. "
+                f"Each pipeline must be defined in only one resource file."
+            )
             self.logger.error(error_msg)
             raise BundleResourceError(error_msg)
         
@@ -715,8 +718,8 @@ class BundleManager:
         Extract catalog.schema patterns from Python file content using regex.
         
         Looks for these patterns:
-        - dlt.create_streaming_table(name="catalog.schema.table")
-        - @dlt.table(name="catalog.schema.table")
+        - dp.create_streaming_table(name="catalog.schema.table")
+        - @dp.materialized_view(name="catalog.schema.table")
         
         Args:
             content: Python file content as string
@@ -728,8 +731,8 @@ class BundleManager:
         
         # Regex patterns for table creation (only patterns that create new tables)
         patterns = [
-            r'dlt\.create_streaming_table\(\s*\n?\s*name="([^"]+)"',  # streaming tables
-            r'@dlt\.table\(\s*\n?\s*name="([^"]+)"',                  # materialized views
+            r'dp\.create_streaming_table\(\s*\n?\s*name="([^"]+)"',  # streaming tables
+            r'@dp\.materialized_view\(\s*\n?\s*name="([^"]+)"',                  # materialized views
         ]
         
         database_values = []
@@ -1051,29 +1054,41 @@ class BundleManager:
 
     def _extract_pipeline_name_from_resource_file(self, resource_file: Path) -> Optional[str]:
         """
-        Extract pipeline name from LHP-generated resource file.
+        Extract pipeline name from resource file by parsing YAML content.
+        
+        Changed from filename-based to YAML content-based extraction for accuracy.
         
         Args:
             resource_file: Path to the resource file
             
         Returns:
-            Pipeline name if it's an LHP-generated file, None otherwise
+            Pipeline name (directory name without _pipeline suffix) if LHP-generated, None otherwise
         """
         # First check if this is an LHP-generated file
         if not self._is_lhp_generated_file(resource_file):
             self.logger.debug(f"Skipping non-LHP file: {resource_file.name}")
             return None
             
-        file_name = resource_file.name
-        
-        # Handle .pipeline.yml format
-        if file_name.endswith(".pipeline.yml"):
-            return file_name[:-13]  # Remove ".pipeline.yml"
-        
-        # Handle .yml format  
-        elif file_name.endswith(".yml"):
-            return file_name[:-4]   # Remove ".yml"
-        
+        try:
+            # Extract pipeline keys from YAML content
+            pipeline_keys = self._extract_pipeline_keys_from_file(resource_file)
+            
+            if pipeline_keys:
+                # Get first pipeline key (only one per file in Databricks bundles)
+                pipeline_key = pipeline_keys[0]
+                
+                # Remove '_pipeline' suffix to get directory name
+                # 'bronze_ncr_pipeline' -> 'bronze_ncr'
+                if pipeline_key.endswith('_pipeline'):
+                    return pipeline_key[:-9]  # Remove '_pipeline' (9 chars)
+                
+                # If no suffix, return as-is (edge case)
+                return pipeline_key
+                
+        except BundleResourceError:
+            # Already logged in _extract_pipeline_keys_from_file
+            return None
+            
         return None
 
     
@@ -1187,39 +1202,94 @@ class BundleManager:
 
     def _find_all_resource_files_for_pipeline(self, pipeline_name: str) -> List[Path]:
         """
-        Find all resource files that might be related to a pipeline.
+        Find resource files that define the given pipeline by parsing YAML content.
+        
+        This checks actual pipeline definitions in YAML (resources.pipelines keys),
+        not filename patterns. Prevents false positives from similar filename prefixes.
         
         Args:
-            pipeline_name: Name of the pipeline to search for
+            pipeline_name: Name of the pipeline directory (e.g., 'bronze_ncr')
             
         Returns:
-            List of Path objects for all related resource files
+            List of Path objects for files that define this pipeline
+            
+        Raises:
+            BundleResourceError: If YAML files are malformed
         """
-        related_files = []
+        matching_files = []
+        expected_pipeline_key = f"{pipeline_name}_pipeline"
         
         if not self.resources_dir.exists():
-            return related_files
+            return matching_files
         
         try:
-            # Look for standard naming patterns
-            patterns = [
-                f"{pipeline_name}.pipeline.yml",
-                f"{pipeline_name}.yml",
-                f"{pipeline_name}_*.pipeline.yml",  # Custom suffixes
-                f"{pipeline_name}_*.yml"
-            ]
+            # Get all YAML files (both .yml and .yaml extensions)
+            yaml_files = []
+            for ext in ['*.yml', '*.yaml']:
+                yaml_files.extend(self.resources_dir.glob(ext))
             
-            for pattern in patterns:
-                for file_path in self.resources_dir.glob(pattern):
-                    if file_path.is_file() and file_path not in related_files:
-                        related_files.append(file_path)
-                        self.logger.debug(f"Found related file for pipeline '{pipeline_name}': {file_path.name}")
+            for file_path in yaml_files:
+                # Skip backup files
+                if '.bkup' in file_path.name:
+                    self.logger.debug(f"Skipping backup file: {file_path.name}")
+                    continue
+                    
+                # Parse YAML and check for pipeline definition
+                pipeline_keys = self._extract_pipeline_keys_from_file(file_path)
+                if expected_pipeline_key in pipeline_keys:
+                    matching_files.append(file_path)
+                    self.logger.debug(f"Found pipeline '{expected_pipeline_key}' in {file_path.name}")
+                    
+            return matching_files
             
-            return related_files
-            
+        except BundleResourceError:
+            # Re-raise BundleResourceError as-is (already formatted)
+            raise
         except (OSError, PermissionError) as e:
-            self.logger.warning(f"Error finding resource files for pipeline '{pipeline_name}': {e}")
+            error_msg = f"Error accessing resource files for pipeline '{pipeline_name}': {e}"
+            self.logger.error(error_msg)
+            raise BundleResourceError(error_msg, e)
+
+    def _extract_pipeline_keys_from_file(self, resource_file: Path) -> List[str]:
+        """
+        Extract pipeline resource keys from a YAML file.
+        
+        Parses the YAML structure to find keys under resources.pipelines section.
+        Used for content-based duplicate detection.
+        
+        Args:
+            resource_file: Path to the resource file to parse
+            
+        Returns:
+            List of pipeline keys found (e.g., ['bronze_ncr_pipeline'])
+            
+        Raises:
+            BundleResourceError: If YAML is malformed or unreadable
+        """
+        try:
+            import yaml
+            
+            with open(resource_file, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+            
+            # Navigate YAML structure: resources -> pipelines -> keys
+            if data and isinstance(data, dict):
+                resources = data.get('resources', {})
+                if isinstance(resources, dict):
+                    pipelines = resources.get('pipelines', {})
+                    if isinstance(pipelines, dict):
+                        return list(pipelines.keys())
+            
             return []
+            
+        except yaml.YAMLError as e:
+            error_msg = f"Malformed YAML in {resource_file.name}: {e}"
+            self.logger.error(error_msg)
+            raise BundleResourceError(error_msg, e)
+        except Exception as e:
+            error_msg = f"Failed to read {resource_file.name}: {e}"
+            self.logger.error(error_msg)
+            raise BundleResourceError(error_msg, e)
 
     def _backup_single_file(self, resource_file: Path, pipeline_name: str):
         """

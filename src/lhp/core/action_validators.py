@@ -390,6 +390,9 @@ class WriteActionValidator(BaseActionValidator):
                     errors.extend(self._validate_streaming_table(action, prefix))
                 elif write_type == WriteTargetType.MATERIALIZED_VIEW:
                     errors.extend(self._validate_materialized_view(action, prefix))
+            
+            elif write_type == WriteTargetType.SINK:
+                errors.extend(self._validate_sink(action, prefix))
 
         except ValueError:
             pass  # Already handled above
@@ -442,6 +445,118 @@ class WriteActionValidator(BaseActionValidator):
                 f"{prefix}: Materialized view source must be a string or list of view names"
             )
 
+        return errors
+    
+    def _validate_sink(self, action: Action, prefix: str) -> List[str]:
+        """Validate sink write target."""
+        errors = []
+        sink_config = action.write_target
+        
+        # Must have sink_type
+        if not sink_config.get("sink_type"):
+            errors.append(f"{prefix}: Sink must have 'sink_type'")
+            return errors
+        
+        # Must have sink_name
+        if not sink_config.get("sink_name"):
+            errors.append(f"{prefix}: Sink must have 'sink_name'")
+        
+        # Must have source to read from
+        if not action.source:
+            errors.append(f"{prefix}: Sink must have 'source' to read from")
+        elif not isinstance(action.source, (str, list)):
+            errors.append(
+                f"{prefix}: Sink source must be a string or list of view names"
+            )
+        
+        # Type-specific validation
+        sink_type = sink_config["sink_type"]
+        
+        if sink_type == "delta":
+            errors.extend(self._validate_delta_sink(action, prefix))
+        elif sink_type == "kafka":
+            errors.extend(self._validate_kafka_sink(action, prefix))
+        elif sink_type == "custom":
+            errors.extend(self._validate_custom_sink(action, prefix))
+        else:
+            errors.append(f"{prefix}: Unknown sink_type '{sink_type}'")
+        
+        return errors
+    
+    def _validate_delta_sink(self, action: Action, prefix: str) -> List[str]:
+        """Validate Delta sink configuration.
+        
+        Delta sinks require either 'tableName' OR 'path' (not both).
+        Other options are passed through for future DLT support.
+        """
+        errors = []
+        sink_config = action.write_target
+        
+        # Delta sinks must have options
+        if not sink_config.get("options"):
+            errors.append(
+                f"{prefix}: Delta sink requires 'options' with either 'tableName' or 'path'"
+            )
+            return errors
+        
+        options = sink_config["options"]
+        has_table_name = "tableName" in options
+        has_path = "path" in options
+        
+        # Must have exactly one: tableName or path
+        if not has_table_name and not has_path:
+            errors.append(
+                f"{prefix}: Delta sink options must include either 'tableName' or 'path'"
+            )
+        elif has_table_name and has_path:
+            errors.append(
+                f"{prefix}: Delta sink options cannot have both 'tableName' and 'path'. Use one or the other."
+            )
+        
+        # Note: Other options are allowed and passed through silently
+        # for future DLT support (e.g., checkpointLocation, mergeSchema, etc.)
+        
+        return errors
+    
+    def _validate_kafka_sink(self, action: Action, prefix: str) -> List[str]:
+        """Validate Kafka/Event Hubs sink configuration."""
+        errors = []
+        sink_config = action.write_target
+        
+        # Required fields
+        if not sink_config.get("bootstrap_servers"):
+            errors.append(f"{prefix}: Kafka sink must have 'bootstrap_servers'")
+        
+        if not sink_config.get("topic"):
+            errors.append(f"{prefix}: Kafka sink must have 'topic'")
+        
+        # Validate options using shared validator
+        if sink_config.get("options"):
+            try:
+                from ..utils.kafka_validator import KafkaOptionsValidator
+                validator = KafkaOptionsValidator()
+                validator.process_options(
+                    sink_config["options"], 
+                    action.name,
+                    is_source=False
+                )
+            except Exception as e:
+                errors.append(f"{prefix}: {str(e)}")
+        
+        return errors
+    
+    def _validate_custom_sink(self, action: Action, prefix: str) -> List[str]:
+        """Validate custom Python sink configuration."""
+        errors = []
+        sink_config = action.write_target
+        
+        # Required fields
+        if not sink_config.get("module_path"):
+            errors.append(f"{prefix}: Custom sink must have 'module_path'")
+        
+        if not sink_config.get("custom_sink_class"):
+            errors.append(f"{prefix}: Custom sink must have 'custom_sink_class'")
+        
         return errors
 
     def _validate_streaming_table_modes(self, action: Action, prefix: str) -> List[str]:

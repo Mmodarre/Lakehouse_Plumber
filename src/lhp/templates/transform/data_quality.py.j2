@@ -1,15 +1,15 @@
-@dlt.view()
+@dp.temporary_view()
 {% if fail_expectations %}
 # These expectations will fail the pipeline if violated
-@dlt.expect_all_or_fail({{ fail_expectations | tojson }})
+@dp.expect_all_or_fail({{ fail_expectations | tojson }})
 {% endif %}
 {% if drop_expectations %}
 # These expectations will drop rows that violate them
-@dlt.expect_all_or_drop({{ drop_expectations | tojson }})
+@dp.expect_all_or_drop({{ drop_expectations | tojson }})
 {% endif %}
 {% if warn_expectations %}
 # These expectations will log warnings but not drop rows
-@dlt.expect_all({{ warn_expectations | tojson }})
+@dp.expect_all({{ warn_expectations | tojson }})
 {% endif %}
 def {{ target_view }}():
     """{{ description }}"""
@@ -26,4 +26,4 @@ def {{ target_view }}():
     {% endfor %}
     {% endif %}
     
-    return df 
+    return df

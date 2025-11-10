@@ -2,7 +2,7 @@
 # Pipeline: acmi_edw_silver
 # FlowGroup: partsupp_silver_dim
 
-import dlt
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_silver"
@@ -71,12 +71,12 @@ def next_snapshot_and_version(
 
 
 # Create the streaming table for snapshot CDC
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_dev.edw_silver.partsupp_dim", comment="Streaming table: partsupp_dim"
 )
 
 # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
-dlt.create_auto_cdc_from_snapshot_flow(
+dp.create_auto_cdc_from_snapshot_flow(
     target="acme_edw_dev.edw_silver.partsupp_dim",
     source=next_snapshot_and_version,
     keys=["part_id", "supplier_id"],

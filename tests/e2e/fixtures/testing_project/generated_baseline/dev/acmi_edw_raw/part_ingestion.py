@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_raw
 # FlowGroup: part_ingestion
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_raw"
@@ -31,7 +31,7 @@ part_cloudfiles_schema_hints = """
 )
 
 
-@dlt.view()
+@dp.temporary_view()
 def v_part_raw_cloudfiles():
     """Load part_raw JSON files from landing volume"""
     df = (
@@ -57,7 +57,7 @@ def v_part_raw_cloudfiles():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_dev.edw_raw.part_raw",
     comment="Streaming table: part_raw",
     table_properties={
@@ -70,7 +70,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_dev.edw_raw.part_raw",
     name="f_part_raw_cloudfiles",
     comment="Append flow to acme_edw_dev.edw_raw.part_raw",

@@ -64,7 +64,7 @@ class ImportManager:
         Add manual import statement (backward compatible API).
         
         Args:
-            import_stmt: Import statement like "import dlt" or "from pyspark.sql import functions"
+            import_stmt: Import statement like "from pyspark import pipelines as dp" or "from pyspark.sql import functions"
         """
         if import_stmt and import_stmt.strip():
             self._manual_imports.add(import_stmt.strip())
@@ -313,8 +313,8 @@ class ImportManager:
         if module and module.split('.')[0] in self._standard_modules:
             return "standard"
         
-        # DLT
-        if "dlt" in import_stmt_lower:
+        # DLT (pyspark.pipelines) - check before general pyspark check
+        if "pipelines" in import_stmt_lower:
             return "dlt"
         
         # PySpark

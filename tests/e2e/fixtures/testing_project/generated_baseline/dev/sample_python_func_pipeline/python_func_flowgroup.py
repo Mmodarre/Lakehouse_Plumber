@@ -3,8 +3,8 @@
 # FlowGroup: python_func_flowgroup
 
 from custom_python_functions.sample_func import transform_lrc_data_streaming
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "sample_python_func_pipeline"
@@ -16,7 +16,7 @@ FLOWGROUP_ID = "python_func_flowgroup"
 # ============================================================================
 
 
-@dlt.view()
+@dp.temporary_view()
 def v_customer_raws():
     """Load customer table from raw schema"""
     df = spark.readStream.table("acme_edw_dev.edw_raw.customers")
@@ -32,7 +32,7 @@ def v_customer_raws():
 # ============================================================================
 
 
-@dlt.view()
+@dp.temporary_view()
 def v_customer_bronze_cleaneds():
     """Python transform: sample_func.transform_lrc_data_streaming"""
     # Load source view(s)
@@ -48,9 +48,9 @@ def v_customer_bronze_cleaneds():
     return df
 
 
-@dlt.view()
+@dp.temporary_view()
 # These expectations will fail the pipeline if violated
-@dlt.expect_all_or_fail(
+@dp.expect_all_or_fail(
     {
         "valid_custkey": "customer_id IS NOT NULL AND customer_id > 0",
         "valid_customer_name": "name IS NOT NULL AND LENGTH(TRIM(name)) > 0",
@@ -58,7 +58,7 @@ def v_customer_bronze_cleaneds():
     }
 )
 # These expectations will log warnings but not drop rows
-@dlt.expect_all(
+@dp.expect_all(
     {
         "valid_phone_format": "phone IS NULL OR LENGTH(phone) >= 10",
         "valid_account_balance": "account_balance IS NULL OR account_balance >= -10000",
@@ -77,7 +77,7 @@ def v_customer_bronze_DQEs():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_dev.edw_bronze.customers",
     comment="Streaming table: customers",
     table_properties={
@@ -89,7 +89,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_dev.edw_bronze.customers",
     name="f_customer_bronze",
     comment="Append flow to acme_edw_dev.edw_bronze.customers",

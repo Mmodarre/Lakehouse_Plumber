@@ -102,7 +102,7 @@ class CodeGenerator:
         custom_source_sections = []
         
         # Add base imports
-        all_imports.add("import dlt")
+        all_imports.add("from pyspark import pipelines as dp")
         
         # Define section headers
         section_headers = {
@@ -263,6 +263,14 @@ class CodeGenerator:
             custom_sources.append({
                 'content': generator.custom_source_code,
                 'source_file': generator.source_file_path,
+                'action_name': generator.action_name if hasattr(generator, 'action_name') else 'unknown'
+            })
+        
+        # Collect custom sink code if available
+        if hasattr(generator, 'custom_sink_code') and generator.custom_sink_code:
+            custom_sources.append({
+                'content': generator.custom_sink_code,
+                'source_file': generator.sink_file_path,
                 'action_name': generator.action_name if hasattr(generator, 'action_name') else 'unknown'
             })
         

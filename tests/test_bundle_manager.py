@@ -532,4 +532,637 @@ project_defaults:
         # Test 6: Verify other config options are present
         assert pipeline_config.get('photon') is True
         assert pipeline_config.get('edition') == 'ADVANCED'
-        assert pipeline_config.get('channel') == 'CURRENT' 
+        assert pipeline_config.get('channel') == 'CURRENT'
+
+
+class TestBundleManagerUtilityMethods:
+    """Test utility methods and edge cases for BundleManager."""
+    
+    def setup_method(self):
+        """Set up test environment for each test."""
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.project_root = self.temp_dir / "test_project"
+        self.project_root.mkdir()
+        self.manager = BundleManager(self.project_root)
+    
+    def teardown_method(self):
+        """Clean up test environment after each test."""
+        shutil.rmtree(self.temp_dir)
+    
+    def test_get_env_resources_dir(self):
+        """Test environment resources directory resolution."""
+        # Should return base resources directory regardless of env
+        resources_dir = self.manager._get_env_resources_dir("dev")
+        assert resources_dir == self.manager.resources_base_dir
+        
+        resources_dir = self.manager._get_env_resources_dir("prod")
+        assert resources_dir == self.manager.resources_base_dir
+    
+    def test_extract_most_common_database_empty_list(self):
+        """Test extracting most common database from empty list."""
+        result = self.manager._extract_most_common_database([])
+        assert result is None
+    
+    def test_extract_most_common_database_single_value(self):
+        """Test extracting most common database with single value."""
+        result = self.manager._extract_most_common_database(["catalog.schema"])
+        assert result == "catalog.schema"
+    
+    def test_extract_most_common_database_multiple_values(self):
+        """Test extracting most common database with multiple values."""
+        result = self.manager._extract_most_common_database([
+            "catalog1.schema1",
+            "catalog1.schema1",
+            "catalog2.schema2",
+            "catalog1.schema1"
+        ])
+        assert result == "catalog1.schema1"
+    
+    def test_extract_most_common_database_tie(self):
+        """Test extracting most common database with tie (first occurrence wins)."""
+        result = self.manager._extract_most_common_database([
+            "catalog1.schema1",
+            "catalog2.schema2",
+            "catalog1.schema1",
+            "catalog2.schema2"
+        ])
+        # First occurrence should win
+        assert result in ["catalog1.schema1", "catalog2.schema2"]
+    
+    def test_extract_first_global_catalog_schema_no_files(self):
+        """Test extracting catalog.schema when no files exist."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        
+        result = self.manager._extract_first_global_catalog_schema(output_dir)
+        assert result["catalog"] == "main"
+        assert "bundle.target" in result["schema"]
+    
+    def test_extract_first_global_catalog_schema_nonexistent_dir(self):
+        """Test extracting catalog.schema when output directory doesn't exist."""
+        output_dir = self.project_root / "nonexistent"
+        
+        result = self.manager._extract_first_global_catalog_schema(output_dir)
+        assert result["catalog"] == "main"
+        assert "bundle.target" in result["schema"]
+    
+    def test_extract_first_global_catalog_schema_with_files(self):
+        """Test extracting catalog.schema from Python files."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        # Create Python file with catalog.schema pattern
+        py_file = pipeline_dir / "test.py"
+        py_file.write_text('dp.create_streaming_table(name="catalog.schema.table")')
+        
+        result = self.manager._extract_first_global_catalog_schema(output_dir)
+        assert result["catalog"] == "catalog"
+        assert result["schema"] == "schema"
+    
+    def test_extract_first_global_catalog_schema_string_path(self):
+        """Test extracting catalog.schema with string path."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        
+        result = self.manager._extract_first_global_catalog_schema(str(output_dir))
+        # Should use generated subdirectory
+        assert isinstance(result, dict)
+    
+    def test_get_all_substitution_environments_empty_dir(self):
+        """Test getting substitution environments when directory doesn't exist."""
+        result = self.manager._get_all_substitution_environments()
+        assert result == []
+    
+    def test_get_all_substitution_environments_multiple_files(self):
+        """Test getting substitution environments with multiple files."""
+        substitutions_dir = self.project_root / "substitutions"
+        substitutions_dir.mkdir()
+        
+        (substitutions_dir / "dev.yaml").write_text("dev: {}")
+        (substitutions_dir / "tst.yaml").write_text("tst: {}")
+        (substitutions_dir / "prod.yaml").write_text("prod: {}")
+        
+        result = self.manager._get_all_substitution_environments()
+        assert len(result) == 3
+        assert "dev" in result
+        assert "tst" in result
+        assert "prod" in result
+        assert result == sorted(result)  # Should be sorted
+    
+    def test_find_substitution_variables_for_values_missing_file(self):
+        """Test finding substitution variables when file doesn't exist."""
+        result = self.manager._find_substitution_variables_for_values(
+            "catalog", "schema", "dev"
+        )
+        assert result["catalog_var"] is None
+        assert result["schema_var"] is None
+    
+    def test_find_substitution_variables_for_values_no_matches(self):
+        """Test finding substitution variables when no matches found."""
+        substitutions_dir = self.project_root / "substitutions"
+        substitutions_dir.mkdir()
+        sub_file = substitutions_dir / "dev.yaml"
+        sub_file.write_text("""
+dev:
+  other_var: "other_value"
+""")
+        
+        result = self.manager._find_substitution_variables_for_values(
+            "catalog", "schema", "dev"
+        )
+        assert result["catalog_var"] is None
+        assert result["schema_var"] is None
+    
+    def test_find_substitution_variables_for_values_with_matches(self):
+        """Test finding substitution variables with matches."""
+        substitutions_dir = self.project_root / "substitutions"
+        substitutions_dir.mkdir()
+        sub_file = substitutions_dir / "dev.yaml"
+        sub_file.write_text("""
+dev:
+  catalog: "my_catalog"
+  schema: "my_schema"
+""")
+        
+        result = self.manager._find_substitution_variables_for_values(
+            "my_catalog", "my_schema", "dev"
+        )
+        assert result["catalog_var"] == "catalog"
+        assert result["schema_var"] == "schema"
+    
+    def test_validate_databricks_targets_exist_missing_file(self):
+        """Test validating databricks targets when file doesn't exist."""
+        with pytest.raises(FileNotFoundError):
+            self.manager._validate_databricks_targets_exist(["dev"])
+    
+    def test_validate_databricks_targets_exist_missing_targets(self):
+        """Test validating databricks targets when targets are missing."""
+        databricks_file = self.project_root / "databricks.yml"
+        databricks_file.write_text("""
+targets:
+  dev: {}
+""")
+        
+        from lhp.bundle.exceptions import MissingDatabricksTargetError
+        with pytest.raises(MissingDatabricksTargetError):
+            self.manager._validate_databricks_targets_exist(["dev", "prod"])
+    
+    def test_validate_databricks_targets_exist_malformed_yaml(self):
+        """Test validating databricks targets with malformed YAML."""
+        databricks_file = self.project_root / "databricks.yml"
+        databricks_file.write_text("invalid: yaml: content: [")
+        
+        with pytest.raises(BundleResourceError):
+            self.manager._validate_databricks_targets_exist(["dev"])
+    
+    def test_validate_databricks_targets_exist_missing_targets_section(self):
+        """Test validating databricks targets when targets section is missing."""
+        databricks_file = self.project_root / "databricks.yml"
+        databricks_file.write_text("other_key: value")
+        
+        from lhp.bundle.exceptions import MissingDatabricksTargetError
+        with pytest.raises(MissingDatabricksTargetError):
+            self.manager._validate_databricks_targets_exist(["dev"])
+    
+    def test_load_substitution_values_for_environment_missing_file(self):
+        """Test loading substitution values when file doesn't exist."""
+        result = self.manager._load_substitution_values_for_environment(
+            "dev", "catalog", "schema"
+        )
+        assert result["catalog"] == "main"
+        assert "bundle.target" in result["schema"]
+    
+    def test_load_substitution_values_for_environment_missing_variables(self):
+        """Test loading substitution values when variables are missing."""
+        substitutions_dir = self.project_root / "substitutions"
+        substitutions_dir.mkdir()
+        sub_file = substitutions_dir / "dev.yaml"
+        sub_file.write_text("dev: {}")
+        
+        result = self.manager._load_substitution_values_for_environment(
+            "dev", "catalog", "schema"
+        )
+        assert result["catalog"] == "main"
+        assert "bundle.target" in result["schema"]
+    
+    def test_load_substitution_values_for_environment_with_values(self):
+        """Test loading substitution values with valid values."""
+        substitutions_dir = self.project_root / "substitutions"
+        substitutions_dir.mkdir()
+        sub_file = substitutions_dir / "dev.yaml"
+        sub_file.write_text("""
+dev:
+  catalog: "my_catalog"
+  schema: "my_schema"
+""")
+        
+        result = self.manager._load_substitution_values_for_environment(
+            "dev", "catalog", "schema"
+        )
+        assert result["catalog"] == "my_catalog"
+        assert result["schema"] == "my_schema"
+    
+    def test_extract_database_from_python_files_no_files(self):
+        """Test extracting database from Python files when no files exist."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        result = self.manager._extract_database_from_python_files("test_pipeline", output_dir)
+        assert result["catalog"] == "main"
+        assert "bundle.target" in result["schema"]
+    
+    def test_extract_database_from_python_files_with_files(self):
+        """Test extracting database from Python files."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        py_file = pipeline_dir / "test.py"
+        py_file.write_text('dp.create_streaming_table(name="catalog.schema.table")')
+        
+        result = self.manager._extract_database_from_python_files("test_pipeline", output_dir)
+        assert result["catalog"] == "catalog"
+        assert result["schema"] == "schema"
+    
+    def test_extract_database_patterns_streaming_table(self):
+        """Test extracting database patterns from streaming table."""
+        content = 'dp.create_streaming_table(\n    name="catalog.schema.table"\n)'
+        result = self.manager._extract_database_patterns(content)
+        assert "catalog.schema" in result
+    
+    def test_extract_database_patterns_materialized_view(self):
+        """Test extracting database patterns from materialized view."""
+        content = '@dp.materialized_view(\n    name="catalog.schema.table"\n)'
+        result = self.manager._extract_database_patterns(content)
+        assert "catalog.schema" in result
+    
+    def test_extract_database_patterns_multiple_patterns(self):
+        """Test extracting database patterns with multiple matches."""
+        content = '''
+dp.create_streaming_table(name="catalog1.schema1.table1")
+@dp.materialized_view(name="catalog2.schema2.table2")
+'''
+        result = self.manager._extract_database_patterns(content)
+        assert "catalog1.schema1" in result
+        assert "catalog2.schema2" in result
+    
+    def test_extract_database_patterns_no_match(self):
+        """Test extracting database patterns when no matches found."""
+        content = "print('hello')"
+        result = self.manager._extract_database_patterns(content)
+        assert result == []
+    
+    def test_parse_resolved_database_string_valid(self):
+        """Test parsing valid resolved database string."""
+        result = self.manager._parse_resolved_database_string("catalog.schema")
+        assert result["catalog"] == "catalog"
+        assert result["schema"] == "schema"
+    
+    def test_parse_resolved_database_string_invalid_no_dot(self):
+        """Test parsing invalid database string without dot."""
+        result = self.manager._parse_resolved_database_string("catalog")
+        assert result["catalog"] == "main"
+        assert "bundle.target" in result["schema"]
+    
+    def test_parse_resolved_database_string_invalid_empty(self):
+        """Test parsing empty database string."""
+        result = self.manager._parse_resolved_database_string("")
+        assert result["catalog"] == "main"
+        assert "bundle.target" in result["schema"]
+    
+    def test_parse_resolved_database_string_none(self):
+        """Test parsing None database string."""
+        result = self.manager._parse_resolved_database_string(None)
+        assert result["catalog"] == "main"
+        assert "bundle.target" in result["schema"]
+    
+    def test_create_unique_backup_path_first_backup(self):
+        """Test creating unique backup path for first backup."""
+        resource_file = self.project_root / "test.pipeline.yml"
+        backup_path = self.manager._create_unique_backup_path(resource_file)
+        assert backup_path == self.project_root / "test.pipeline.yml.bkup"
+    
+    def test_create_unique_backup_path_collision_handling(self):
+        """Test creating unique backup path with collision handling."""
+        resource_file = self.project_root / "test.pipeline.yml"
+        backup_file = self.project_root / "test.pipeline.yml.bkup"
+        backup_file.write_text("existing backup")
+        
+        backup_path = self.manager._create_unique_backup_path(resource_file)
+        assert backup_path == self.project_root / "test.pipeline.yml.bkup.1"
+        
+        # Create another collision
+        backup_file_1 = self.project_root / "test.pipeline.yml.bkup.1"
+        backup_file_1.write_text("another backup")
+        
+        backup_path = self.manager._create_unique_backup_path(resource_file)
+        assert backup_path == self.project_root / "test.pipeline.yml.bkup.2"
+    
+    def test_safe_directory_create(self):
+        """Test safe directory creation."""
+        test_dir = self.project_root / "test_dir"
+        self.manager._safe_directory_create(test_dir, "test directory")
+        assert test_dir.exists()
+        assert test_dir.is_dir()
+    
+    def test_safe_directory_create_existing(self):
+        """Test safe directory creation when directory already exists."""
+        test_dir = self.project_root / "test_dir"
+        test_dir.mkdir()
+        
+        # Should not raise error
+        self.manager._safe_directory_create(test_dir, "test directory")
+        assert test_dir.exists()
+    
+    def test_safe_directory_access_existing(self):
+        """Test safe directory access when directory exists."""
+        test_dir = self.project_root / "test_dir"
+        test_dir.mkdir()
+        
+        # Should not raise error
+        self.manager._safe_directory_access(test_dir, "test directory")
+    
+    def test_safe_directory_access_missing(self):
+        """Test safe directory access when directory doesn't exist."""
+        test_dir = self.project_root / "nonexistent"
+        
+        with pytest.raises(BundleResourceError) as exc_info:
+            self.manager._safe_directory_access(test_dir, "test directory")
+        
+        assert "does not exist" in str(exc_info.value)
+    
+    def test_handle_pipeline_error_yaml_parsing(self):
+        """Test handling YAML parsing errors."""
+        from lhp.bundle.exceptions import YAMLParsingError
+        
+        error = YAMLParsingError("YAML error")
+        result = self.manager._handle_pipeline_error("test_pipeline", error, "test operation")
+        
+        assert isinstance(result, BundleResourceError)
+        assert "YAML processing failed" in str(result)
+        assert "test_pipeline" in str(result)
+    
+    def test_handle_pipeline_error_os_error(self):
+        """Test handling OS errors."""
+        error = OSError("Permission denied")
+        result = self.manager._handle_pipeline_error("test_pipeline", error, "test operation")
+        
+        assert isinstance(result, BundleResourceError)
+        assert "File system error" in str(result)
+        assert "test_pipeline" in str(result)
+    
+    def test_handle_pipeline_error_generic(self):
+        """Test handling generic errors."""
+        error = ValueError("Generic error")
+        result = self.manager._handle_pipeline_error("test_pipeline", error, "test operation")
+        
+        assert isinstance(result, BundleResourceError)
+        assert "test operation failed" in str(result)
+        assert "test_pipeline" in str(result)
+    
+    def test_extract_pipeline_name_from_filename_pipeline_yml(self):
+        """Test extracting pipeline name from .pipeline.yml filename."""
+        resource_file = self.project_root / "test_pipeline.pipeline.yml"
+        result = self.manager._extract_pipeline_name_from_filename(resource_file)
+        assert result == "test_pipeline"
+    
+    def test_extract_pipeline_name_from_filename_yml(self):
+        """Test extracting pipeline name from .yml filename."""
+        resource_file = self.project_root / "test_pipeline.yml"
+        result = self.manager._extract_pipeline_name_from_filename(resource_file)
+        assert result == "test_pipeline"
+    
+    def test_extract_pipeline_name_from_filename_invalid(self):
+        """Test extracting pipeline name from invalid filename."""
+        resource_file = self.project_root / "test.txt"
+        result = self.manager._extract_pipeline_name_from_filename(resource_file)
+        assert result is None
+    
+    def test_update_configuration_files_error_handling(self):
+        """Test _update_configuration_files error handling."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        
+        # Mock _update_databricks_variables to raise error
+        with patch.object(self.manager, '_update_databricks_variables', side_effect=Exception("Test error")):
+            with pytest.raises(BundleResourceError) as exc_info:
+                self.manager._update_configuration_files(output_dir, "dev")
+            
+            assert "Databricks YAML variable update failed" in str(exc_info.value)
+    
+    def test_create_new_resource_file_error_handling(self):
+        """Test _create_new_resource_file error handling."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        resources_dir = self.project_root / "resources" / "lhp"
+        resources_dir.mkdir(parents=True)
+        
+        # Mock write_text to raise permission error
+        with patch('pathlib.Path.write_text', side_effect=PermissionError("Permission denied")):
+            with pytest.raises(BundleResourceError) as exc_info:
+                self.manager._create_new_resource_file("test_pipeline", output_dir.parent, "dev")
+            
+            assert "Failed to create resource file" in str(exc_info.value)
+    
+    def test_process_current_pipelines_error_handling(self):
+        """Test _process_current_pipelines error handling."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        # Mock _sync_pipeline_resource to raise error
+        with patch.object(self.manager, '_sync_pipeline_resource', side_effect=OSError("Test error")):
+            with pytest.raises(BundleResourceError) as exc_info:
+                self.manager._process_current_pipelines([pipeline_dir], "dev")
+            
+            assert "File system error" in str(exc_info.value) or "failed" in str(exc_info.value).lower()
+            assert "test_pipeline" in str(exc_info.value)
+    
+    def test_cleanup_orphaned_resources_with_exception(self):
+        """Test _cleanup_orphaned_resources handles exceptions gracefully."""
+        resources_dir = self.project_root / "resources" / "lhp"
+        resources_dir.mkdir(parents=True)
+        
+        # Create orphaned file
+        orphaned_file = resources_dir / "orphaned.pipeline.yml"
+        orphaned_file.write_text("# Generated by LakehousePlumber\nresources:\n  pipelines:\n    orphaned_pipeline:\n      name: test")
+        
+        # Mock _delete_resource_file to raise error
+        with patch.object(self.manager, '_delete_resource_file', side_effect=Exception("Delete error")):
+            # Should log warning but not raise
+            result = self.manager._cleanup_orphaned_resources(set())
+            # Should return 0 since deletion failed
+            assert result == 0
+    
+    def test_sync_pipeline_resource_scenario_1a_preserve(self):
+        """Test Scenario 1a: Python exists + LHP file exists → DON'T TOUCH."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        resources_dir = self.project_root / "resources" / "lhp"
+        resources_dir.mkdir(parents=True)
+        
+        # Create LHP file
+        lhp_file = resources_dir / "test_pipeline.pipeline.yml"
+        lhp_file.write_text("""# Generated by LakehousePlumber
+resources:
+  pipelines:
+    test_pipeline_pipeline:
+      name: test_pipeline_pipeline
+""")
+        
+        result = self.manager._sync_pipeline_resource("test_pipeline", pipeline_dir, "dev")
+        assert result is False  # No changes needed
+        
+        # File should still exist and be unchanged
+        assert lhp_file.exists()
+    
+    def test_sync_pipeline_resource_scenario_1a_override(self):
+        """Test Scenario 1a override: Python exists + LHP file + force + pipeline config → REGENERATE."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        resources_dir = self.project_root / "resources" / "lhp"
+        resources_dir.mkdir(parents=True)
+        
+        # Create LHP file
+        lhp_file = resources_dir / "test_pipeline.pipeline.yml"
+        lhp_file.write_text("""# Generated by LakehousePlumber
+resources:
+  pipelines:
+    test_pipeline_pipeline:
+      name: test_pipeline_pipeline
+""")
+        
+        result = self.manager._sync_pipeline_resource("test_pipeline", pipeline_dir, "dev", force=True, has_pipeline_config=True)
+        assert result is True  # File was regenerated
+    
+    def test_sync_pipeline_resource_scenario_1b_backup_replace(self):
+        """Test Scenario 1b: Python exists + User file exists → BACKUP + REPLACE."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        resources_dir = self.project_root / "resources" / "lhp"
+        resources_dir.mkdir(parents=True)
+        
+        # Create user file (no LHP header)
+        user_file = resources_dir / "test_pipeline.pipeline.yml"
+        user_file.write_text("""# User-created file
+resources:
+  pipelines:
+    test_pipeline_pipeline:
+      name: test_pipeline_pipeline
+""")
+        
+        result = self.manager._sync_pipeline_resource("test_pipeline", pipeline_dir, "dev")
+        assert result is True  # File was replaced
+        
+        # Backup should exist
+        backup_files = list(resources_dir.glob("test_pipeline*.bkup*"))
+        assert len(backup_files) > 0
+    
+    def test_sync_pipeline_resource_scenario_2_create(self):
+        """Test Scenario 2: Python exists + No file exists → CREATE."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        resources_dir = self.project_root / "resources" / "lhp"
+        resources_dir.mkdir(parents=True)
+        
+        result = self.manager._sync_pipeline_resource("test_pipeline", pipeline_dir, "dev")
+        assert result is True  # File was created
+        
+        # File should exist
+        resource_file = resources_dir / "test_pipeline.pipeline.yml"
+        assert resource_file.exists()
+    
+    def test_sync_pipeline_resource_scenario_4_multiple_files_error(self):
+        """Test Scenario 4: Multiple files exist → ERROR."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        
+        resources_dir = self.project_root / "resources" / "lhp"
+        resources_dir.mkdir(parents=True)
+        
+        # Create two files defining the same pipeline
+        file1 = resources_dir / "test_pipeline.pipeline.yml"
+        file1.write_text("""# Generated by LakehousePlumber
+resources:
+  pipelines:
+    test_pipeline_pipeline:
+      name: test_pipeline_pipeline
+""")
+        
+        file2 = resources_dir / "test_pipeline.yml"
+        file2.write_text("""# Generated by LakehousePlumber
+resources:
+  pipelines:
+    test_pipeline_pipeline:
+      name: test_pipeline_pipeline
+""")
+        
+        with pytest.raises(BundleResourceError) as exc_info:
+            self.manager._sync_pipeline_resource("test_pipeline", pipeline_dir, "dev")
+        
+        assert "Multiple files define the same pipeline" in str(exc_info.value)
+    
+    def test_sync_resources_with_generated_files_full_workflow(self):
+        """Test full sync workflow with all scenarios."""
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+        
+        # Create pipeline directory
+        pipeline_dir = output_dir / "test_pipeline"
+        pipeline_dir.mkdir()
+        (pipeline_dir / "test.py").write_text("# test")
+        
+        # Create databricks.yml
+        databricks_file = self.project_root / "databricks.yml"
+        databricks_file.write_text("""
+targets:
+  dev: {}
+""")
+        
+        result = self.manager.sync_resources_with_generated_files(output_dir, "dev")
+        assert result >= 0  # Should return count of updated/removed files
+        
+        # Resource file should be created
+        resources_dir = self.project_root / "resources" / "lhp"
+        resource_file = resources_dir / "test_pipeline.pipeline.yml"
+        assert resource_file.exists()
+    
+    def test_log_sync_summary_updated_and_removed(self):
+        """Test _log_sync_summary with both updated and removed files."""
+        with patch.object(self.manager.logger, 'info') as mock_info:
+            self.manager._log_sync_summary(2, 1)
+            mock_info.assert_called()
+            call_args = str(mock_info.call_args)
+            assert "updated 2" in call_args or "2" in call_args
+            assert "deleted 1" in call_args or "1" in call_args
+    
+    def test_log_sync_summary_no_changes(self):
+        """Test _log_sync_summary with no changes."""
+        with patch.object(self.manager.logger, 'info') as mock_info:
+            self.manager._log_sync_summary(0, 0)
+            mock_info.assert_called()
+            call_args = str(mock_info.call_args)
+            assert "preserved" in call_args or "conservative" in call_args.lower()

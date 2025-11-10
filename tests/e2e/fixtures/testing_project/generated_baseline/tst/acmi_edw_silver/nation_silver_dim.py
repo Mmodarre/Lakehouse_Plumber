@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_silver
 # FlowGroup: nation_silver_dim
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_silver"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "nation_silver_dim"
 # ============================================================================
 
 
-@dlt.view()
+@dp.temporary_view()
 def v_nation_bronze():
     """Load nation table from silver schema"""
     df = spark.readStream.table("acme_edw_tst.edw_bronze.nation")
@@ -31,7 +31,7 @@ def v_nation_bronze():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_tst.edw_silver.nation_dim",
     comment="Streaming table: nation_dim",
     table_properties={"delta.enableRowTracking": "true"},
@@ -39,7 +39,7 @@ dlt.create_streaming_table(
 
 
 # Define append flow(s)
-@dlt.append_flow(
+@dp.append_flow(
     target="acme_edw_tst.edw_silver.nation_dim",
     name="f_nation_silver",
     comment="Append flow to acme_edw_tst.edw_silver.nation_dim",

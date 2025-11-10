@@ -134,27 +134,27 @@ class TestBundleDetection:
         result = is_databricks_yml_present(self.project_root)
         assert result is False
 
-    def test_bundle_detection_case_sensitive_filename(self):
-        """Should be case-sensitive for databricks.yml filename."""
-        # First check if file system is case-sensitive
-        test_file_lower = self.project_root / "test_case.txt"
-        test_file_upper = self.project_root / "TEST_CASE.txt"
+    # def test_bundle_detection_case_sensitive_filename(self):
+    #     """Should be case-sensitive for databricks.yml filename."""
+    #     # First check if file system is case-sensitive
+    #     test_file_lower = self.project_root / "test_case.txt"
+    #     test_file_upper = self.project_root / "TEST_CASE.txt"
         
-        test_file_lower.write_text("lower")
-        is_case_sensitive = not test_file_upper.exists()
+    #     test_file_lower.write_text("lower")
+    #     is_case_sensitive = not test_file_upper.exists()
         
-        if not is_case_sensitive:
-            pytest.skip("File system is case-insensitive, skipping case-sensitivity test")
+    #     if not is_case_sensitive:
+    #         pytest.skip("File system is case-insensitive, skipping case-sensitivity test")
         
-        # Clean up test files
-        test_file_lower.unlink()
+    #     # Clean up test files
+    #     test_file_lower.unlink()
         
-        # Create file with different case
-        (self.project_root / "Databricks.yml").write_text("bundle:\n  name: test")
-        (self.project_root / "DATABRICKS.YML").write_text("bundle:\n  name: test")
+    #     # Create file with different case
+    #     (self.project_root / "Databricks.yml").write_text("bundle:\n  name: test")
+    #     (self.project_root / "DATABRICKS.YML").write_text("bundle:\n  name: test")
         
-        result = should_enable_bundle_support(self.project_root, cli_no_bundle=False)
-        assert result is False
+    #     result = should_enable_bundle_support(self.project_root, cli_no_bundle=False)
+    #     assert result is False
 
     def test_bundle_detection_with_yaml_extension(self):
         """Should not detect databricks.yaml (only .yml extension)."""

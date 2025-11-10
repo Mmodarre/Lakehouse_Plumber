@@ -49,8 +49,9 @@ Actions come in three top-level types:
 || **Transform** || Manipulate data in one or more steps (SQL, Python,      |
 ||               || schema adjustments, data-quality checks, temp tables…). |
 +----------------+----------------------------------------------------------+
-|| **Write**     || Persist the final dataset to a *streaming_table* or     |
-||               || *materialized_view*.                                    |
+|| **Write**     || Persist the final dataset to a *streaming_table*,      |
+||               || *materialized_view*, or external *sink* (Kafka,        |
+||               || Delta, custom API).                                     |
 +----------------+----------------------------------------------------------+
 
 
@@ -805,7 +806,7 @@ Both Python and SQL files support secret substitutions with the same syntax as Y
    :linenos:
    :emphasize-lines: 6-8
 
-   @dlt.view()
+   @dp.temporary_view()
    def v_customers_raw():
        """Load from external database"""
        df = spark.read \
@@ -961,9 +962,9 @@ pipeline configurations. This is a defensive design pattern that prevents common
 
 **Target types:**
 
-- **``view``** - Source views created by load actions (``@dlt.view()``)
-- **``streaming_table``** - Live tables with streaming updates (``@dlt.table()``)  
-- **``materialized_view``** - Batch-computed views for analytics (``@dlt.view()``)
+- **``view``** - Source views created by load actions (``@dp.temporary_view()``)
+- **``streaming_table``** - Live tables with streaming updates (``@dp.materialized_view()``)  
+- **``materialized_view``** - Batch-computed views for analytics (``@dp.temporary_view()``)
 
 **Source-specific metadata limitations:**
 
@@ -1178,7 +1179,7 @@ Usage Patterns
    :linenos:
    :emphasize-lines: 8-11
 
-   @dlt.view()
+   @dp.temporary_view()
    def v_customers_raw():
        """Load customer files from landing zone"""
        df = spark.readStream \

@@ -14,7 +14,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
 
     def __init__(self):
         super().__init__()
-        self.add_import("import dlt")
+        self.add_import("from pyspark import pipelines as dp")
         self.dqe_parser = DQEParser()
 
     def generate(self, action: Action, flowgroup_config: Dict[str, Any]) -> str:

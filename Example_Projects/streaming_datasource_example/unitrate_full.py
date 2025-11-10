@@ -1,4 +1,4 @@
-import dlt
+from pyspark import pipelines as dp
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 
@@ -235,7 +235,7 @@ except Exception as e:
     print(f"⚠️  Warning: Could not register data source during module load: {e}")
 
 # Bronze Layer - Raw currency data from API with Progress Tracking
-@dlt.table(
+@dp.materialized_view(
     comment="Raw currency exchange rates from UniRateAPI with UC Volume progress tracking",
     table_properties={
         "quality": "bronze",
@@ -282,16 +282,16 @@ def currency_exchange_bronze():
     )
 
 # Silver Layer - Cleaned and enriched currency data
-@dlt.table(
+@dp.materialized_view(
     comment="Cleaned currency exchange rates with market insights",
     table_properties={
         "quality": "silver",
         "pipelines.autoOptimize.managed": "true"
     }
 )
-@dlt.expect_or_drop("valid_exchange_rate", "exchange_rate > 0")
-@dlt.expect_or_drop("valid_currencies", "base_currency != 'ERROR' AND target_currency != 'ERROR'")
-@dlt.expect_or_drop("realistic_rate", "exchange_rate < 1000000")  # Sanity check
+@dp.expect_or_drop("valid_exchange_rate", "exchange_rate > 0")
+@dp.expect_or_drop("valid_currencies", "base_currency != 'ERROR' AND target_currency != 'ERROR'")
+@dp.expect_or_drop("realistic_rate", "exchange_rate < 1000000")  # Sanity check
 def currency_exchange_silver():
     """
     Silver table with cleaned currency data and derived market insights.
@@ -341,7 +341,7 @@ def currency_exchange_silver():
     )
 
 # Gold Layer - Currency market dashboard data
-@dlt.table(
+@dp.materialized_view(
     comment="Currency market dashboard with aggregated insights per pipeline run",
     table_properties={
         "quality": "gold",
@@ -399,7 +399,7 @@ def currency_market_dashboard():
     )
 
 # Gold Layer - Real-time currency alerts
-@dlt.table(
+@dp.materialized_view(
     comment="Real-time alerts for significant currency movements",
     table_properties={
         "quality": "gold",
@@ -445,7 +445,7 @@ def currency_movement_alerts():
     )
 
 # Reporting Layer - Materialized View aggregates for BI dashboards
-@dlt.table(
+@dp.materialized_view(
     comment="Materialized View currency market reporting aggregates for BI dashboards",
     table_properties={
         "quality": "reporting",
@@ -537,7 +537,7 @@ def currency_market_report():
         )
     )
 
-@dlt.table(
+@dp.materialized_view(
     comment="Weekly currency market trends for executive reporting",
     table_properties={
         "quality": "reporting",
@@ -621,7 +621,7 @@ def currency_weekly_trends():
         )
     )
 
-@dlt.table(
+@dp.materialized_view(
     comment="Currency pair correlation matrix for portfolio analysis",
     table_properties={
         "quality": "reporting",

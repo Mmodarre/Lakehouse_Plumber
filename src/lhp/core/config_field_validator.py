@@ -116,6 +116,21 @@ class ConfigFieldValidator:
                 "refresh_schedule",
                 "sql",
             },
+            "sink": {
+                "type",
+                "sink_type",
+                "sink_name",
+                "comment",
+                "description",
+                # Kafka/Event Hubs fields
+                "bootstrap_servers",
+                "topic",
+                # Custom sink fields
+                "module_path",
+                "custom_sink_class",
+                # Common fields
+                "options",
+            },
         }
 
         # Action-level fields that are always valid

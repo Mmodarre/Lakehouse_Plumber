@@ -29,11 +29,11 @@ def test_streaming_table_with_multiple_sources():
     code = generator.generate(action, context)
     
     # Check that create_streaming_table is used
-    assert "dlt.create_streaming_table(" in code
+    assert "dp.create_streaming_table(" in code
     assert 'name="silver.all_events"' in code
     
     # Check that multiple append_flows are created for single action with multiple sources
-    assert "@dlt.append_flow(" in code
+    assert "@dp.append_flow(" in code
     assert 'target="silver.all_events"' in code
     assert "def f_all_events_1():" in code
     assert "def f_all_events_2():" in code
@@ -103,18 +103,18 @@ def test_streaming_table_cdc_mode():
     code = generator.generate(action, context)
     
     # Check that create_streaming_table is used first
-    assert "dlt.create_streaming_table(" in code
+    assert "dp.create_streaming_table(" in code
     assert 'name="silver.dim_customer"' in code
     
     # Check that create_auto_cdc_flow is used
-    assert "dlt.create_auto_cdc_flow(" in code
+    assert "dp.create_auto_cdc_flow(" in code
     assert 'target="silver.dim_customer"' in code
     assert 'source="v_customer_changes"' in code
     assert 'keys=["customer_id"]' in code
     assert 'stored_as_scd_type=2' in code
     
     # Should not have append_flow decorator
-    assert "@dlt.append_flow" not in code
+    assert "@dp.append_flow" not in code
 
 
 def test_streaming_table_single_source():
@@ -137,8 +137,8 @@ def test_streaming_table_single_source():
     code = generator.generate(action, context)
     
     # Check basic structure
-    assert "dlt.create_streaming_table(" in code
-    assert "@dlt.append_flow(" in code
+    assert "dp.create_streaming_table(" in code
+    assert "@dp.append_flow(" in code
     assert "def f_events():" in code
     assert 'spark.readStream.table("v_events")' in code
 
@@ -242,22 +242,22 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
     code = generator.generate(combined_action, context)
     
     # Verify streaming table is created
-    assert "dlt.create_streaming_table(" in code
+    assert "dp.create_streaming_table(" in code
     assert 'name="catalog.schema.lineitem"' in code
     
     # Verify both append flows are generated with correct once flags
-    assert "@dlt.append_flow(" in code
+    assert "@dp.append_flow(" in code
     assert "def f_lineitem_streaming():" in code
     assert "def f_lineitem_backfill():" in code
     
     # Check that streaming flow doesn't have once=True
     streaming_flow_section = code.split("def f_lineitem_streaming():")[0]
-    streaming_append = streaming_flow_section.split("@dlt.append_flow(")[-1]
+    streaming_append = streaming_flow_section.split("@dp.append_flow(")[-1]
     assert "once=True" not in streaming_append
     
     # Check that backfill flow has once=True
     backfill_flow_section = code.split("def f_lineitem_backfill():")[0]
-    backfill_append = backfill_flow_section.split("@dlt.append_flow(")[-1]
+    backfill_append = backfill_flow_section.split("@dp.append_flow(")[-1]
     assert "once=True" in backfill_append
     
     # Verify correct read methods
@@ -384,8 +384,8 @@ def test_backward_compatibility_single_action():
     code = generator.generate(action, context)
     
     # Should still work as before
-    assert "dlt.create_streaming_table(" in code
-    assert "@dlt.append_flow(" in code
+    assert "dp.create_streaming_table(" in code
+    assert "@dp.append_flow(" in code
     assert "once=True" in code
     assert "def f_single_events():" in code
     assert 'spark.read.table("v_events")' in code  # Batch for once=True
@@ -438,4 +438,4 @@ def test_orchestrator_preserves_table_creation_logic():
     code = generator.generate(combined_action, context)
     
     # Should create the table because table creator has create_table=True
-    assert "dlt.create_streaming_table(" in code 
+    assert "dp.create_streaming_table(" in code 

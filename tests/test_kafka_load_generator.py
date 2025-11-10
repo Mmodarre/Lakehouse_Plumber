@@ -29,7 +29,7 @@ class TestKafkaLoadGenerator:
         result = self.generator.generate(action, {})
 
         # Check basic structure
-        assert "@dlt.view()" in result
+        assert "@dp.temporary_view()" in result
         assert "def v_kafka_data():" in result
         assert "spark.readStream" in result
         assert '.format("kafka")' in result
@@ -371,7 +371,7 @@ class TestKafkaLoadGenerator:
         result = self.generator.generate(action, {})
 
         # Check basic structure
-        assert "@dlt.view()" in result
+        assert "@dp.temporary_view()" in result
         assert "def v_kafka_comprehensive():" in result
         assert "Comprehensive Kafka load with SSL and custom options" in result
         assert "spark.readStream" in result
@@ -427,8 +427,8 @@ class TestKafkaLoadGenerator:
 
         self.generator.generate(action, {})
 
-        # Check that dlt import was added
-        assert "import dlt" in self.generator.imports
+        # Check that pipeline as dp import was added
+        assert "from pyspark import pipelines as dp" in self.generator.imports
 
     def test_quoted_values_escaped(self):
         """Test that inner quotes in string values are properly escaped."""

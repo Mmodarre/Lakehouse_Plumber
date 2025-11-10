@@ -108,8 +108,8 @@ class TestUniquenessFilter:
         code = generator.generate(action=action)
         
         # Verify generated code
-        assert 'import dlt' in code
-        assert '@dlt.expect_all_or_fail' in code
+        assert 'from pyspark import pipelines as dp' in code
+        assert '@dp.expect_all_or_fail' in code
         assert 'WHERE is_current = true' in code
         assert 'GROUP BY customer_id' in code
         assert 'no_duplicates' in code

@@ -5,11 +5,11 @@ from ...models.config import Action
 
 
 class MaterializedViewWriteGenerator(BaseActionGenerator):
-    """Generate materialized view write actions."""
+    """Generate materialized view write actions using @dp.materialized_view decorator."""
 
     def __init__(self):
         super().__init__()
-        self.add_import("import dlt")
+        self.add_import("from pyspark import pipelines as dp")
         self.add_import("from pyspark.sql import DataFrame")
 
     def generate(self, action: Action, context: dict) -> str:

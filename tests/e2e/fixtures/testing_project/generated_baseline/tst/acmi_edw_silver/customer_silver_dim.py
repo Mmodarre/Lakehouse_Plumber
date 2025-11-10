@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_silver
 # FlowGroup: customer_silver_dim
 
+from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_silver"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "customer_silver_dim"
 # ============================================================================
 
 
-@dlt.view()
+@dp.temporary_view()
 def v_customer_bronze():
     """Load customer table from silver schema"""
     df = spark.readStream.table("acme_edw_tst.edw_bronze.customer")
@@ -31,14 +31,14 @@ def v_customer_bronze():
 # ============================================================================
 
 # Create the streaming table for CDC
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acme_edw_tst.edw_silver.customer_dim",
     comment="Streaming table: customer_dim",
     table_properties={"delta.enableRowTracking": "true"},
 )
 
 # CDC mode using auto_cdc
-dlt.create_auto_cdc_flow(
+dp.create_auto_cdc_flow(
     target="acme_edw_tst.edw_silver.customer_dim",
     source="v_customer_bronze",
     keys=["customer_id"],

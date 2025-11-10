@@ -4,7 +4,7 @@ from pyspark.sql.datasource import DataSource, DataSourceStreamReader, InputPart
 from pyspark.sql.functions import *
 from pyspark.sql.types import *
 from typing import Iterator, Tuple
-import dlt
+from pyspark import pipelines as dp
 import json
 import os
 import requests

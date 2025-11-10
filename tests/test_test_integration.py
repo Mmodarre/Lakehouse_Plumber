@@ -31,8 +31,8 @@ class TestTestActionIntegration:
         code = generator.generate(action=action, context={'pipeline': 'test_pipeline'})
         
         # Verify code contains expected elements
-        assert 'import dlt' in code
-        assert '@dlt.view(' in code or '@dlt.table(' in code
+        assert 'from pyspark import pipelines as dp' in code
+        assert '@dp.temporary_view(' in code or '@dp.table(' in code
         assert 'tmp_test_no_data_loss' in code
         assert 'SELECT * FROM' in code
         assert 'COUNT(*)' in code
@@ -42,7 +42,7 @@ class TestTestActionIntegration:
         assert 'bronze.customers' in code
         
         # Verify expectations
-        assert '@dlt.expect_all_or_fail' in code or '@dlt.expect_or_fail' in code
+        assert '@dp.expect_all_or_fail' in code or '@dp.expect_or_fail' in code
         assert 'row_count_match' in code
         assert 'abs(source_count - target_count) <= 0' in code
     
@@ -125,7 +125,7 @@ class TestTestActionIntegration:
         assert ' AND ' in code  # Columns should be joined with AND
         
         # Should use warn, not fail
-        assert '@dlt.expect_all(' in code or '@dlt.expect(' in code
+        assert '@dp.expect_all(' in code or '@dp.expect(' in code
     
     def test_range_end_to_end(self):
         """Test RANGE test type generates correct code."""
@@ -340,7 +340,7 @@ class TestTestActionIntegration:
         
         # Verify default target naming (updated to tmp_test_)
         assert 'tmp_test_my_test' in code
-        assert '@dlt.table(name="tmp_test_my_test"' in code
+        assert '@dp.table(name="tmp_test_my_test"' in code
         assert 'temporary=True' in code
     
     def test_on_violation_defaults_to_fail(self):
@@ -374,10 +374,10 @@ class TestTestActionIntegration:
         code = generator.generate(action=action, context={})
         
         # Should generate temporary table, not view
-        assert '@dlt.table(' in code
+        assert '@dp.table(' in code
         assert 'temporary=True' in code
-        assert '@dlt.view(' not in code
+        assert '@dp.temporary_view(' not in code
         
         # Should still have expectations and function
-        assert '@dlt.expect_all_or_fail' in code
+        assert '@dp.expect_all_or_fail' in code
         assert 'def tmp_test_test_temp_table():' in code

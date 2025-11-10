@@ -360,11 +360,11 @@
         },
         "WriteTarget": {
             "type": "object",
-            "required": ["type", "database", "table"],
+            "required": ["type"],
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": ["streaming_table", "materialized_view"],
+                    "enum": ["streaming_table", "materialized_view", "sink"],
                     "description": "Type of write target"
                 },
                 "database": {
@@ -456,6 +456,36 @@
                 "sql": {
                     "type": "string",
                     "description": "SQL query for materialized views (can use template parameters with {{ }})"
+                },
+                "sink_type": {
+                    "type": "string",
+                    "enum": ["delta", "kafka", "custom"],
+                    "description": "Type of sink (delta, kafka, custom)"
+                },
+                "sink_name": {
+                    "type": "string",
+                    "description": "Name of the sink (can use template parameters with {{ }})"
+                },
+                "bootstrap_servers": {
+                    "type": "string",
+                    "description": "Kafka bootstrap servers (for Kafka/Event Hubs sinks) (can use template parameters with {{ }})"
+                },
+                "topic": {
+                    "type": "string",
+                    "description": "Kafka topic (for Kafka/Event Hubs sinks) (can use template parameters with {{ }})"
+                },
+                "module_path": {
+                    "type": "string",
+                    "description": "Path to custom sink module (for custom sinks) (can use template parameters with {{ }})"
+                },
+                "custom_sink_class": {
+                    "type": "string",
+                    "description": "Custom sink class name (for custom sinks) (can use template parameters with {{ }})"
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Sink-specific options. For delta sinks: must contain either 'tableName' OR 'path' (not both). For kafka sinks: can include kafka.* prefixed options. Additional options pass through for forward compatibility. (can use template parameters with {{ }})"
                 },
                 "mode": {
                     "type": "string",

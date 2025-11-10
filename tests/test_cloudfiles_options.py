@@ -339,7 +339,7 @@ class TestCloudFilesOptions:
         assert '.option("cloudFiles.rescueDataColumn", "_rescued_data")' in result
         
         # Check the function structure
-        assert "@dlt.view()" in result
+        assert "@dp.temporary_view()" in result
         assert "def customers_bronze():" in result
         assert "spark.readStream" in result
         assert ".format(\"cloudFiles\")" in result

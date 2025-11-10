@@ -1,0 +1,35 @@
+# {{ comment }}
+
+# Register custom data sink
+try:
+    spark.dataSource.register({{ custom_sink_class }})
+except Exception:
+    pass  # Already registered
+
+# Create custom sink
+dp.create_sink(
+    name="{{ sink_name }}",
+    format="{{ datasink_format_name }}",
+    options={{ options | tojson }}
+)
+
+# Define append flow(s)
+{% for source_view in source_views %}
+@dp.append_flow(
+    target="{{ sink_name }}",
+    name="f_{{ sink_name }}_{{ loop.index }}",
+    comment="""{{ description }}"""
+)
+def f_{{ sink_name }}_{{ loop.index }}():
+    df = spark.readStream.table("{{ source_view }}")
+    
+    {% if add_operational_metadata %}
+    # Add operational metadata columns
+    {% for col_name, expression in metadata_columns.items()|sort %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
+    {% endif %}
+    
+    return df
+{% endfor %}
+

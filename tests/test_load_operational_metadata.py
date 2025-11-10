@@ -119,7 +119,7 @@ class TestLoadOperationalMetadata:
         assert "from pyspark.sql import functions as F" in generator.imports
         
         # Check that view decorator is used
-        assert "@dlt.view()" in code
+        assert "@dp.temporary_view()" in code
 
     def test_delta_load_with_operational_metadata(self):
         """Test Delta load generator with operational metadata."""
@@ -143,7 +143,7 @@ class TestLoadOperationalMetadata:
         assert "df.withColumn('_source_table', F.lit('source.customers'))" in code
         
         # Check that view decorator is used
-        assert "@dlt.view()" in code
+        assert "@dp.temporary_view()" in code
 
     def test_sql_load_with_operational_metadata(self):
         """Test SQL load generator with operational metadata."""
@@ -164,7 +164,7 @@ class TestLoadOperationalMetadata:
         assert "df.withColumn('_pipeline_name', F.lit('test_pipeline'))" in code
         
         # Check that view decorator is used
-        assert "@dlt.view()" in code
+        assert "@dp.temporary_view()" in code
 
     def test_jdbc_load_with_operational_metadata(self):
         """Test JDBC load generator with operational metadata."""
@@ -189,7 +189,7 @@ class TestLoadOperationalMetadata:
         assert "df.withColumn('_source_table', F.lit('customers'))" in code
         
         # Check that view decorator is used
-        assert "@dlt.view()" in code
+        assert "@dp.temporary_view()" in code
 
     def test_python_load_with_operational_metadata(self):
         """Test Python load generator with operational metadata."""
@@ -215,7 +215,7 @@ class TestLoadOperationalMetadata:
         assert "df.withColumn('_pipeline_name', F.lit('test_pipeline'))" in code
         
         # Check that view decorator is used
-        assert "@dlt.view()" in code
+        assert "@dp.temporary_view()" in code
 
     def test_operational_metadata_disabled(self):
         """Test load action with operational metadata disabled."""

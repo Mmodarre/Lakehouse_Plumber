@@ -68,7 +68,7 @@ class TestTransformOperationalMetadata:
         code = generator.generate(action, context)
         
         # Verify basic structure
-        assert "@dlt.view(" in code
+        assert "@dp.temporary_view(" in code
         assert "v_test_output" in code
         assert "df = spark.sql(" in code
         assert "return df" in code
@@ -119,7 +119,7 @@ class TestTransformOperationalMetadata:
             code = generator.generate(action, context)
             
             # Verify basic structure
-            assert "@dlt.view()" in code
+            assert "@dp.temporary_view()" in code
             assert "v_test_quality" in code
             assert "spark.readStream.table" in code  # stream mode
             assert "return df" in code
@@ -130,7 +130,7 @@ class TestTransformOperationalMetadata:
             assert "df = df.withColumn('_processing_timestamp'" in code
             
             # Verify expectations are preserved
-            assert "@dlt.expect_all_or_fail" in code
+            assert "@dp.expect_all_or_fail" in code
             
         finally:
             Path(expectations_file).unlink()
@@ -156,7 +156,7 @@ class TestTransformOperationalMetadata:
         code = generator.generate(action, context)
         
         # Verify basic structure
-        assert "@dlt.table(" in code
+        assert "@dp.table(" in code
         assert "temporary=True" in code
         assert "temp_customers" in code
         assert "spark.read.table" in code  # batch mode (default)
@@ -223,7 +223,7 @@ class TestTransformOperationalMetadata:
         code = generator.generate(action, context)
         
         # Verify basic structure works
-        assert "@dlt.view(" in code
+        assert "@dp.temporary_view(" in code
         assert "v_no_metadata" in code
         assert "df = spark.sql(" in code
         assert "return df" in code

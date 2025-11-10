@@ -33,7 +33,7 @@ class TestTransformGenerators:
         code = generator.generate(action, {})
         
         # Verify generated code
-        assert "@dlt.view(comment=" in code
+        assert "@dp.temporary_view(comment=" in code
         assert "v_customers_clean" in code
         assert "df = spark.sql(" in code
         assert "return df" in code
@@ -66,11 +66,16 @@ class TestTransformGenerators:
         code = generator.generate(action, {"spec_dir": Path(expectations_file).parent})
         
         # Verify generated code
-        assert "@dlt.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_customers_validated" in code
-        assert "@dlt.expect_all_or_fail" in code
-        assert "@dlt.expect_all_or_drop" in code
-        assert "@dlt.expect_all" in code
+        assert "@dp.expect_all_or_fail" in code
+        assert "@dp.expect_all_or_drop" in code
+        assert "@dp.expect_all" in code
+        
+        # Verify inline expectations format (not using variables)
+        assert '"id_not_null": "id IS NOT NULL"' in code
+        assert '"age_check": "age >= 18"' in code
+        assert '"email_not_null": "email IS NOT NULL"' in code
         
         # Clean up
         Path(expectations_file).unlink()
@@ -111,7 +116,7 @@ def enrich_customers(df, spark, parameters):
             })
         
         # Verify generated code
-        assert "@dlt.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_customers_enriched" in code
         assert "enrich_customers" in code
         assert 'spark.read.table("v_customers_validated")' in code
@@ -239,11 +244,11 @@ def transform_orders(df, spark, parameters):
         code = generator.generate(action, {})
         
         # Verify generated code uses correct pattern
-        assert "@dlt.table(" in code
+        assert "@dp.table(" in code
         assert "temporary=True" in code
         assert "def customers_staging():" in code
         # Verify it does NOT use the old incorrect pattern
-        assert "dlt.create_streaming_table" not in code
+        assert "dp.create_streaming_table" not in code
         assert "customers_staging_temp" not in code
 
     def test_python_transform_nested_paths(self):
@@ -1231,7 +1236,7 @@ def transform_customers(df, spark, parameters):
         code = generator.generate(action, {})
         
         # Verify generated code structure
-        assert "@dlt.view()" in code
+        assert "@dp.temporary_view()" in code
         assert "v_customer_standardized" in code
         assert "spark.read.table(\"v_customer_raw\")" in code
         assert "return df" in code
@@ -1399,7 +1404,7 @@ def test_transform_generator_imports():
     """Test that transform generators manage imports correctly."""
     # Transform generator with additional imports
     schema_gen = SchemaTransformGenerator()
-    assert "import dlt" in schema_gen.imports
+    assert "from pyspark import pipelines as dp" in schema_gen.imports
     assert "from pyspark.sql import functions as F" in schema_gen.imports
     assert "from pyspark.sql.types import StructType" in schema_gen.imports
 

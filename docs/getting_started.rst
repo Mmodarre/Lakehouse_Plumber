@@ -48,8 +48,8 @@ Use the **`lhp init`** command to scaffold a new repo-ready directory structure:
 
 .. code-block:: bash
 
-   lhp init <my_dlt_project>
-   cd <my_dlt_project>
+   lhp init <my_spd_project>
+   cd <my_spd_project>
 
 The command creates folders such as ``pipelines/``, ``templates/``,
 ``substitutions/`` and a starter ``lhp.yaml`` project file. It also includes
@@ -203,7 +203,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
    # Pipeline: tpch_sample_ingestion
    # FlowGroup: customer_ingestion
 
-   import dlt
+   from pyspark import pipelines as dp
 
    # Pipeline Configuration
    PIPELINE_ID = "tpch_sample_ingestion"
@@ -213,7 +213,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
    # SOURCE VIEWS
    # ============================================================================
 
-   @dlt.view()
+   @dp.temporary_view()
    def v_customer_sample_raw():
       """Load customer sample table from Databricks samples catalog"""
       df = spark.readStream \
@@ -226,7 +226,7 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
    # TRANSFORMATION VIEWS
    # ============================================================================
 
-   @dlt.view(comment="Transform customer sample table")
+   @dp.temporary_view(comment="Transform customer sample table")
    def v_customer_sample_cleaned():
       """Transform customer sample table"""
       return spark.sql("""SELECT
@@ -246,14 +246,14 @@ Databricks or commit to your repository. (Databricks Assest Bundles integration 
    # ============================================================================
 
    # Create the streaming table
-   dlt.create_streaming_table(
+   dp.create_streaming_table(
       name="acmi_edw_dev.edw_bronze.tpch_sample_customer",
       comment="Streaming table: tpch_sample_customer",
       table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})
 
 
    # Define append flow(s)
-   @dlt.append_flow(
+   @dp.append_flow(
       target="acmi_edw_dev.edw_bronze.tpch_sample_customer",
       name="f_customer_sample_bronze",
       comment="Write customer sample table to bronze schema"

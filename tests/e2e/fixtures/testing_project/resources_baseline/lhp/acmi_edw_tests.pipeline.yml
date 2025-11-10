@@ -21,7 +21,8 @@ resources:
         bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
 
 
-      # Additional pipeline configuration options (uncomment and modify as needed):
+      # Additional pipeline configuration options
+      # Add to your pipeline_config.yaml as needed and pass the file path through the --pipeline-config flag:
         
       # Compute clusters configuration (alternative to serverless)
       # clusters:

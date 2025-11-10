@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_modelled
 # FlowGroup: partsupp_modelled_fct
 
+from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
-import dlt
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_modelled"
@@ -15,7 +15,7 @@ FLOWGROUP_ID = "partsupp_modelled_fct"
 # ============================================================================
 
 
-@dlt.view()
+@dp.temporary_view()
 def v_partsupp_modelled_fct():
     """Load partsupp table with surrogate keys"""
     df = spark.sql(
@@ -66,7 +66,7 @@ from
 # ============================================================================
 
 
-@dlt.table(
+@dp.materialized_view(
     name="acme_edw_dev.edw_gold.partsupp_modelled_fct",
     comment="Materialized view: partsupp_modelled_fct",
     table_properties={},

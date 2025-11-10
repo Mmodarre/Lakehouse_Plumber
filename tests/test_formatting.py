@@ -20,7 +20,7 @@ class TestCodeFormatter:
         """Test import organization."""
         code = """import os
 from pathlib import Path
-import dlt
+from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
 from mymodule import helper
 """
@@ -32,7 +32,7 @@ from mymodule import helper
         
         # Find positions of imports
         os_pos = next(i for i, line in enumerate(lines) if 'import os' in line)
-        dlt_pos = next(i for i, line in enumerate(lines) if 'import dlt' in line)
+        dlt_pos = next(i for i, line in enumerate(lines) if 'from pyspark import pipelines as dp' in line)
         
         # Standard library should come before third-party
         assert os_pos < dlt_pos
