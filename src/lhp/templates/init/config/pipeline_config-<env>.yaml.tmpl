@@ -112,6 +112,19 @@ project_defaults:
 #   name: raw_ingestion_event_log
 #   schema: _meta
 #   catalog: ${var.default_pipeline_catalog}
+#
+# # Pipeline-level permissions
+# permissions:
+#   - service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d
+#     level: CAN_MANAGE
+#   - user_name: user@example.com
+#     level: CAN_RUN
+#   - group_name: data-engineers
+#     level: CAN_VIEW
+
+# # Pipeline-level run_as
+# run_as:
+#   service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d
 
 ---
 # ==============================================================================

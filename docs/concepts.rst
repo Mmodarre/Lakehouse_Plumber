@@ -24,6 +24,48 @@ Required keys in a FlowGroup YAML file
    flowgroup: customer_bronze_ingestion  # unique name for the flowgroup (logical)
    actions:                              # list of steps in the flowgroup
 
+Optional keys in a FlowGroup YAML file
+
+.. code-block:: yaml
+
+   job_name: NCR  # Optional: Assign flowgroup to a specific orchestration job
+
+The ``job_name`` property enables **multi-job orchestration**, allowing you to split your flowgroups into separate Databricks jobs rather than a single monolithic orchestration job. This is useful for:
+
+* **Separate scheduling** - Different jobs can run on different schedules (e.g., hourly POS data, daily ERP data)
+* **Isolated execution** - Jobs run independently with separate concurrency and resource settings
+* **Modular organization** - Group related flowgroups by source system, business domain, or data criticality
+* **Flexible configuration** - Each job can have its own tags, notifications, timeouts, and performance targets
+
+.. important::
+   **All-or-Nothing Rule**: If ``job_name`` is defined for **any** flowgroup in your project, it **must** be defined for **all** flowgroups. This ensures consistent orchestration behavior and prevents configuration errors.
+
+**Example with multi-job orchestration:**
+
+.. code-block:: yaml
+   :caption: pipelines/ncr/pos_transactions.yaml
+
+   pipeline: bronze_ncr
+   flowgroup: pos_transaction_bronze
+   job_name: NCR  # Assigns this flowgroup to the "NCR" orchestration job
+   
+   actions:
+     - name: load_pos_data
+       type: load
+       source:
+         type: cloudfiles
+         path: "/mnt/landing/ncr/pos/*.parquet"
+       target: v_pos_raw
+
+When ``job_name`` is used:
+
+* Each unique ``job_name`` generates a separate Databricks job file (e.g., ``NCR.job.yml``, ``SAP_SFCC.job.yml``)
+* A **master orchestration job** is generated that coordinates execution across all jobs
+* Dependencies between jobs are automatically detected and handled in the master job
+* Per-job configuration is managed through multi-document ``job_config.yaml`` files
+
+.. seealso::
+   For complete details on multi-job orchestration, job configuration, and the master orchestration job, see :doc:`databricks_bundles`.
 
 .. note::
    **FlowGroup vs Pipeline:**

@@ -23,6 +23,10 @@
                     "type": "string",
                     "description": "Name of the flowgroup"
                 },
+                "job_name": {
+                    "type": "string",
+                    "description": "Optional job name for grouping flowgroups into separate orchestration jobs"
+                },
                 "presets": {
                     "$ref": "#/definitions/Presets"
                 },
@@ -72,6 +76,10 @@
                             "pipeline": {
                                 "type": "string",
                                 "description": "Override pipeline name for this flowgroup (optional, inherits from document level)"
+                            },
+                            "job_name": {
+                                "type": "string",
+                                "description": "Optional job name for grouping flowgroups into separate orchestration jobs"
                             },
                             "use_template": {
                                 "$ref": "#/definitions/UseTemplate"

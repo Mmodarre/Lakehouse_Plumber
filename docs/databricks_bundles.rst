@@ -1593,6 +1593,284 @@ The dependency analysis integrates with other Lakehouse Plumber features:
     Use dependency analysis to optimize build and deployment order
 
 
+Multi-Job Orchestration
+------------------------
+
+**Overview**
+
+LakehousePlumber supports generating multiple orchestration jobs instead of a single job, enabling better organization and resource management for large projects.
+
+**When to Use Multi-Job Mode**
+
+- **Project Segregation**: Separate jobs by data layer (bronze, silver, gold)
+- **Resource Optimization**: Different compute requirements per job
+- **Team Ownership**: Assign jobs to different teams
+- **SLA Management**: Run critical jobs with higher priority/resources
+- **Cost Control**: Apply different schedules and timeout policies
+
+Enabling Multi-Job Mode
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add the ``job_name`` property to your flowgroup YAMLs:
+
+.. code-block:: yaml
+   :caption: pipelines/bronze/customer_ingestion.yaml
+
+   pipeline: data_bronze
+   flowgroup: customer_ingestion
+   job_name: bronze_ingestion_job  # NEW property
+   
+   actions:
+     - name: load_customer
+       type: load
+       # ... rest of configuration
+
+**Validation Rules**
+
+- **All-or-nothing**: If ANY flowgroup has ``job_name``, ALL must have it
+- **Format**: Alphanumeric, underscore, and hyphen only (``^[a-zA-Z0-9_-]+$``)
+- **Pipeline filter restriction**: Cannot use ``--pipeline`` flag with multi-job mode
+
+Job Configuration (Multi-Document)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``job_config.yaml`` supports multi-document YAML format:
+
+.. code-block:: yaml
+   :caption: config/job_config.yaml
+
+   # ============================================================================
+   # Project Defaults - Applied to ALL jobs
+   # ============================================================================
+   project_defaults:
+     max_concurrent_runs: 1
+     performance_target: STANDARD
+     queue:
+       enabled: true
+     tags:
+       managed_by: lakehouse_plumber
+       environment: dev
+
+   ---
+   # ============================================================================
+   # Job-Specific Configuration - Bronze Layer
+   # ============================================================================
+   job_name: bronze_ingestion_job
+   max_concurrent_runs: 2  # Override for this job
+   tags:
+     layer: bronze  # Deep-merged with project_defaults.tags
+     data_type: raw_ingestion
+
+   ---
+   # ============================================================================
+   # Job-Specific Configuration - Silver Layer
+   # ============================================================================
+   job_name: silver_transform_job
+   performance_target: PERFORMANCE_OPTIMIZED  # Override
+   tags:
+     layer: silver
+     criticality: high
+
+**Configuration Merge Behavior**
+
+Configs are deep-merged in order: ``DEFAULT → project_defaults → job-specific``
+
+.. code-block:: yaml
+
+   # Example: Tags Deep Merge
+   project_defaults.tags:  {managed_by: "lhp", environment: "dev"}
+   job-specific.tags:      {layer: "bronze", environment: "prod"}
+   # Result:               {managed_by: "lhp", environment: "prod", layer: "bronze"}
+
+**Note**: Nested dicts are deep-merged, but lists are REPLACED (not appended).
+
+Generating Multiple Jobs
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Generate individual jobs plus a master orchestration job:
+
+.. code-block:: bash
+
+   # Generate all jobs
+   lhp deps -jc config/job_config.yaml --bundle-output
+
+**Generated Files** (flat structure in ``resources/``):
+
+.. code-block:: text
+
+   resources/
+   ├── bronze_ingestion_job.job.yml
+   ├── silver_transform_job.job.yml
+   ├── gold_analytics_job.job.yml
+   └── my_project_master.job.yml  # Master orchestration job
+
+Master Orchestration Job
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The master job coordinates all individual jobs using ``job_task`` references:
+
+.. code-block:: yaml
+   :caption: resources/my_project_master.job.yml
+
+   resources:
+     jobs:
+       my_project_master:
+         name: my_project_master
+         max_concurrent_runs: 1
+         tasks:
+           - task_key: bronze_ingestion_job_task
+             job_task:
+               job_id: ${resources.jobs.bronze_ingestion_job.id}
+           
+           - task_key: silver_transform_job_task
+             depends_on:
+               - task_key: bronze_ingestion_job_task
+             job_task:
+               job_id: ${resources.jobs.silver_transform_job.id}
+           
+           - task_key: gold_analytics_job_task
+             depends_on:
+               - task_key: silver_transform_job_task
+             job_task:
+               job_id: ${resources.jobs.gold_analytics_job.id}
+
+**Master Job Features**:
+
+- Automatically analyzes cross-job dependencies
+- Creates proper task ordering
+- Uses Databricks job_task for job-level orchestration
+- Single entry point for running entire data pipeline
+
+CLI Output with Multiple Jobs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   🔍 Analyzing Pipeline Dependencies
+   ============================================================
+   job_name detected - generating multiple jobs + master orchestration job
+   
+   📊 Building dependency graphs...
+   📈 Analysis Summary:
+      Total pipelines analyzed: 15
+      Execution stages: 5
+      External sources: 8
+   
+   💾 Generating output files...
+   
+   JOB (multiple jobs):
+      bronze_ingestion_job: resources/bronze_ingestion_job.job.yml (3,245 bytes)
+      silver_transform_job: resources/silver_transform_job.job.yml (4,128 bytes)
+      gold_analytics_job: resources/gold_analytics_job.job.yml (2,891 bytes)
+      Master Job: resources/my_project_master.job.yml (1,456 bytes)
+
+Migration from Single-Job to Multi-Job
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Step 1**: Add ``job_name`` to all flowgroup YAMLs
+
+.. code-block:: bash
+
+   # Use consistent naming by layer or team
+   job_name: bronze_ingestion_job    # For all bronze flowgroups
+   job_name: silver_transform_job    # For all silver flowgroups
+   job_name: gold_analytics_job      # For all gold flowgroups
+
+**Step 2**: Create multi-document job_config.yaml
+
+Copy the template from ``src/lhp/templates/init/config/job_config-<env>.yaml.tmpl``
+
+**Step 3**: Regenerate jobs
+
+.. code-block:: bash
+
+   lhp deps -jc config/job_config.yaml --bundle-output
+
+**Step 4**: Deploy with Databricks bundles
+
+.. code-block:: bash
+
+   databricks bundle validate
+   databricks bundle deploy -t dev
+
+Troubleshooting
+~~~~~~~~~~~~~~~
+
+**Error: Inconsistent job_name usage**
+
+.. code-block:: text
+
+   ❌ ERROR: Inconsistent job_name usage
+   Found 5 flowgroups WITH job_name and 3 WITHOUT job_name.
+   
+   Flowgroups WITH job_name:
+     - customer_bronze
+     - orders_bronze
+     ...
+   
+   Flowgroups WITHOUT job_name (missing):
+     - supplier_bronze
+     - part_bronze
+     - region_bronze
+
+**Solution**: Add ``job_name`` to all flowgroups or remove from all.
+
+**Error: Invalid job_name format**
+
+.. code-block:: text
+
+   ❌ ERROR: Invalid job_name format
+   job_name must contain only alphanumeric characters, underscores, and hyphens.
+   
+   Invalid job_name(s):
+     - customer_ingestion: 'bronze job #1'  # Invalid: contains space and #
+
+**Solution**: Use only letters, numbers, underscores, and hyphens.
+
+**Error: Pipeline filter not supported**
+
+.. code-block:: text
+
+   ❌ ERROR: Pipeline filter not supported with job_name
+   Cannot use --pipeline filter when job_name is defined.
+
+**Solution**: Remove ``--pipeline`` flag or use single-job mode.
+
+Best Practices
+~~~~~~~~~~~~~~
+
+1. **Consistent Naming Convention**
+   
+   Use descriptive, hierarchical names: ``<layer>_<purpose>_job``
+
+2. **Resource Optimization**
+   
+   .. code-block:: yaml
+   
+      # Heavy ingestion job
+      job_name: bronze_ingestion_job
+      max_concurrent_runs: 3
+      
+      # Light transformation job
+      job_name: silver_transform_job  
+      performance_target: STANDARD
+
+3. **Tag Strategy**
+   
+   .. code-block:: yaml
+   
+      project_defaults:
+        tags:
+          project: my_data_warehouse
+          managed_by: lakehouse_plumber
+      ---
+      job_name: bronze_ingestion_job
+      tags:
+        layer: bronze
+        cost_center: data_engineering
+        # Inherits: project, managed_by
+
+
 Related Documentation
 ---------------------
 

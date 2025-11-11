@@ -1,0 +1,199 @@
+# ==============================================================================
+# LakehousePlumber Job Configuration Template - Multi-Job Support
+# ==============================================================================
+# 
+# This template supports BOTH single-job and multi-job orchestration modes.
+#
+# SINGLE-JOB MODE (backward compatible):
+#   - No job_name property in flowgroup YAMLs
+#   - All config below applies to the single orchestration job
+#
+# MULTI-JOB MODE (with job_name in flowgroups):
+#   - Use multi-document YAML format (documents separated by ---)
+#   - First document: project_defaults (applies to ALL jobs)
+#   - Subsequent documents: job-specific configs (override project_defaults)
+#
+# Usage:
+#   1. Copy or rename this file to remove the .tmpl extension
+#   2. Customize the settings below for your project
+#   3. Pass to lhp deps command: lhp deps --job-config config/job_config.yaml
+#
+# Documentation: See docs/databricks_bundles.rst for more details
+# ==============================================================================
+
+# ==============================================================================
+# Project Defaults - Applied to ALL jobs
+# ==============================================================================
+# For single-job mode: these become the job config
+# For multi-job mode: these are inherited by all jobs (can be overridden)
+project_defaults:
+  
+  # Maximum number of concurrent runs of each job
+  # Prevents resource contention and controls parallel execution
+  # Default: 1
+  max_concurrent_runs: 1
+  
+  # Performance target for job execution
+  # Options: 
+  #   - STANDARD: Cost-effective, slower cluster startup
+  #   - PERFORMANCE_OPTIMIZED: Faster startup, higher cost
+  # Default: STANDARD
+  performance_target: STANDARD
+  
+  # Job queue settings
+  # When enabled, jobs wait in queue if max_concurrent_runs is reached
+  queue:
+    enabled: true
+  
+  # Job-level timeout in seconds (optional)
+  # Uncomment and adjust based on your data volume and processing requirements
+  # Example: 7200 = 2 hours, 3600 = 1 hour
+  # timeout_seconds: 3600
+  
+  # Tags for cost tracking, organization, and monitoring
+  # These tags are deep-merged with job-specific tags
+  tags:
+    managed_by: lakehouse_plumber
+    environment: dev
+  #   project: my_project
+  #   team: data-engineering
+  #   cost_center: analytics
+  
+  # Email notifications for job lifecycle events (optional)
+  # email_notifications:
+  #   on_start:
+  #     - data-engineering@company.com
+  #   on_success:
+  #     - data-engineering@company.com
+  #   on_failure:
+  #     - data-engineering@company.com
+  #     - data-ops@company.com
+  
+  # Webhook notifications for external integrations (optional)
+  # webhook_notifications:
+  #   on_start:
+  #     - id: slack_notification
+  #   on_failure:
+  #     - id: pagerduty_alert
+  
+  # Job schedule (optional)
+  # Uncomment to enable scheduled execution
+  # schedule:
+  #   quartz_cron_expression: "0 0 2 * * ?"
+  #   timezone_id: "America/New_York"
+  #   pause_status: "UNPAUSED"
+  
+  # Job permissions (optional)
+  # permissions:
+  #   - level: CAN_VIEW
+  #     user_name: user@company.com
+  #   - level: CAN_MANAGE_RUN
+  #     group_name: data-engineering
+
+# ==============================================================================
+# MULTI-JOB MODE EXAMPLES BELOW
+# ==============================================================================
+# If your flowgroups use job_name property, you can add job-specific configs
+# below. Each job-specific config OVERRIDES and DEEP-MERGES with project_defaults.
+# Delete these examples if you're using single-job mode.
+# ==============================================================================
+
+---
+# ==============================================================================
+# Job-Specific Configuration - Bronze Layer Ingestion
+# ==============================================================================
+job_name: bronze_ingestion_job
+
+# Override concurrent runs for this specific job
+max_concurrent_runs: 2
+
+# Add job-specific tags (deep-merged with project_defaults.tags)
+tags:
+  layer: bronze
+  data_type: raw_ingestion
+  # Note: managed_by and environment from project_defaults are still inherited
+
+# Optional: Override timeout for this job
+# timeout_seconds: 7200
+
+# Optional: Job-specific schedule
+# schedule:
+#   quartz_cron_expression: "0 0 1 * * ?"
+#   timezone_id: "America/New_York"
+#   pause_status: "UNPAUSED"
+
+---
+# ==============================================================================
+# Job-Specific Configuration - Silver Transformation
+# ==============================================================================
+job_name: silver_transform_job
+
+# Use performance-optimized for faster silver transformations
+performance_target: PERFORMANCE_OPTIMIZED
+
+# Add job-specific tags (deep-merged with project_defaults.tags)
+tags:
+  layer: silver
+  data_type: transformed
+  criticality: high
+
+# Optional: Longer timeout for complex transformations
+# timeout_seconds: 10800
+
+---
+# ==============================================================================
+# Job-Specific Configuration - Gold Analytics
+# ==============================================================================
+job_name: gold_analytics_job
+
+# Add job-specific tags (deep-merged with project_defaults.tags)
+tags:
+  layer: gold
+  data_type: analytics
+  business_critical: "true"
+
+# Optional: Job-specific notifications
+# email_notifications:
+#   on_failure:
+#     - analytics-team@company.com
+#     - data-ops@company.com
+
+# =============================================================================
+# Notes on Multi-Job Configuration
+# =============================================================================
+#
+# CONFIG MERGE BEHAVIOR:
+#   - Merge order: DEFAULT → project_defaults → job-specific config
+#   - Nested dicts (tags, queue, etc.) are DEEP MERGED
+#   - Lists (email addresses, etc.) are REPLACED (not appended)
+#
+# EXAMPLE - Tags deep merge:
+#   project_defaults.tags:  {managed_by: "lhp", environment: "dev"}
+#   job-specific.tags:      {layer: "bronze", environment: "prod"}
+#   Result:                 {managed_by: "lhp", environment: "prod", layer: "bronze"}
+#
+# USING SINGLE-JOB MODE:
+#   - Don't add job_name to flowgroup YAMLs
+#   - Keep only the project_defaults document (or rename to single config)
+#   - Delete all job-specific documents (everything after first ---)
+#
+# VALIDATION:
+#   - If ANY flowgroup has job_name, ALL must have it (enforced)
+#   - job_name must be valid filename: alphanumeric, underscore, hyphen only
+#
+# MULTI-FLOWGROUP ARRAY FILES:
+#   Files using the flowgroups array syntax automatically inherit job_name:
+#   
+#   Example:
+#     pipeline: raw_ingestions_sap
+#     job_name: bronze_ingestion_job  # ← Inherited by all flowgroups below
+#     
+#     flowgroups:
+#       - flowgroup: supplier_ingestion
+#         # job_name automatically inherited from document level
+#       - flowgroup: product_ingestion
+#         # job_name automatically inherited from document level
+#
+# For detailed documentation, see: docs/databricks_bundles.rst
+#
+# ==============================================================================

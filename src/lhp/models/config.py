@@ -204,6 +204,7 @@ class Action(BaseModel):
 class FlowGroup(BaseModel):
     pipeline: str
     flowgroup: str
+    job_name: Optional[str] = None
     presets: List[str] = []
     use_template: Optional[str] = None
     template_parameters: Optional[Dict[str, Any]] = None

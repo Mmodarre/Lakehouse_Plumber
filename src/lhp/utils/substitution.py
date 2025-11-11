@@ -38,8 +38,9 @@ class EnhancedSubstitutionManager:
     SECRET_PATTERN = re.compile(r"\$\{secret:([^}]+)\}")
     UNRESOLVED_TOKEN_PATTERN = re.compile(r'\{(?!dbutils\.)([^}]+)\}')
 
-    def __init__(self, substitution_file: Path = None, env: str = "dev"):
+    def __init__(self, substitution_file: Path = None, env: str = "dev", skip_validation: bool = False):
         self.env = env
+        self.skip_validation = skip_validation  # Flag to skip unresolved token validation
         self.mappings: Dict[str, str] = {}
         self.prefix_suffix_rules: Dict[str, Dict[str, str]] = {}
         self.secret_scopes: Dict[str, str] = {}

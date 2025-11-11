@@ -7,7 +7,7 @@ configurations based on pipeline dependency analysis results.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 import yaml
 
@@ -76,31 +76,36 @@ class JobGenerator:
         self.logger = logger
         
         # Load and merge job configuration
-        self.job_config = self._load_job_config(project_root, config_file_path)
+        self.project_defaults, self.job_specific_configs = self._load_job_config(project_root, config_file_path)
+        # For backward compatibility, store merged defaults as job_config
+        self.job_config = self._deep_merge_dicts(self.DEFAULT_JOB_CONFIG.copy(), self.project_defaults)
 
     def _load_job_config(self, 
                          project_root: Optional[Path] = None,
-                         config_file_path: Optional[str] = None) -> Dict[str, Any]:
+                         config_file_path: Optional[str] = None) -> Tuple[Dict[str, Any], Dict[str, Dict[str, Any]]]:
         """
-        Load user's custom job config and merge with defaults.
+        Load user's custom job config with multi-document support.
+        
+        Supports two formats:
+        1. Single document (backward compatible): Returns as project_defaults
+        2. Multi-document:
+           - First document with 'project_defaults' key → global defaults
+           - Subsequent documents with 'job_name' key → job-specific configs
         
         Args:
             project_root: Root directory of the project
             config_file_path: Custom config file path (relative to project_root)
             
         Returns:
-            Merged job configuration dictionary
+            Tuple of (project_defaults, job_specific_configs_dict)
             
         Raises:
             FileNotFoundError: If specified config file doesn't exist
             yaml.YAMLError: If config file has invalid YAML syntax
         """
-        # Start with defaults
-        config = self.DEFAULT_JOB_CONFIG.copy()
-        
-        # If no project root, return defaults only
+        # If no project root, return empty configs
         if project_root is None:
-            return config
+            return {}, {}
         
         # Determine config file path
         if config_file_path:
@@ -115,29 +120,114 @@ class JobGenerator:
             # Default path
             full_config_path = project_root / "templates" / "bundle" / "job_config.yaml"
             if not full_config_path.exists():
-                # No custom config, return defaults
+                # No custom config, return empty
                 self.logger.debug(f"No custom job config found at {full_config_path}, using defaults")
-                return config
+                return {}, {}
         
-        # Load user config
+        # Load all YAML documents
         try:
             with open(full_config_path, 'r', encoding='utf-8') as f:
-                user_config = yaml.safe_load(f)
+                documents = list(yaml.safe_load_all(f))
             
-            # If file is empty or only comments, return defaults
-            if user_config is None:
+            # Filter out None/empty documents
+            documents = [doc for doc in documents if doc is not None]
+            
+            if not documents:
                 self.logger.debug(f"Empty config file at {full_config_path}, using defaults")
-                return config
+                return {}, {}
             
-            # Merge user config with defaults (user values override)
-            config.update(user_config)
-            self.logger.info(f"Loaded custom job config from {full_config_path}")
+            # Check if this is multi-document format
+            if len(documents) == 1:
+                # Single document - check if it has project_defaults key
+                doc = documents[0]
+                if "project_defaults" in doc:
+                    # Multi-doc format with only project_defaults
+                    self.logger.info(f"Loaded project_defaults from {full_config_path}")
+                    return doc["project_defaults"], {}
+                else:
+                    # Legacy single-doc format - treat entire doc as project_defaults
+                    self.logger.info(f"Loaded single-document job config from {full_config_path}")
+                    return doc, {}
             
-            return config
+            # Multi-document format
+            project_defaults = {}
+            job_specific_configs = {}
+            
+            for idx, doc in enumerate(documents):
+                if "project_defaults" in doc:
+                    # This is the project defaults document
+                    project_defaults = doc["project_defaults"]
+                    self.logger.info(f"Loaded project_defaults from document {idx+1}")
+                    
+                elif "job_name" in doc:
+                    # This is a job-specific config
+                    job_name = doc["job_name"]
+                    # Extract all fields except job_name
+                    job_config = {k: v for k, v in doc.items() if k != "job_name"}
+                    job_specific_configs[job_name] = job_config
+                    self.logger.info(f"Loaded job-specific config for '{job_name}' from document {idx+1}")
+                    
+                else:
+                    self.logger.warning(
+                        f"Document {idx+1} in {full_config_path} has neither 'project_defaults' "
+                        f"nor 'job_name' key - skipping"
+                    )
+            
+            return project_defaults, job_specific_configs
             
         except yaml.YAMLError as e:
             self.logger.error(f"Invalid YAML in job config file {full_config_path}: {e}")
             raise
+    
+    def _deep_merge_dicts(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Deep merge two dictionaries. Nested dicts are merged recursively, lists are replaced.
+        
+        Args:
+            base: Base dictionary
+            override: Dictionary with override values
+            
+        Returns:
+            Merged dictionary (new dict, does not modify inputs)
+        """
+        result = base.copy()
+        
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                # Recursively merge nested dicts
+                result[key] = self._deep_merge_dicts(result[key], value)
+            else:
+                # Replace value (including lists)
+                result[key] = value
+        
+        return result
+    
+    def get_job_config_for_job(self, job_name: str) -> Dict[str, Any]:
+        """
+        Get merged configuration for a specific job.
+        
+        Merges in order: DEFAULT_JOB_CONFIG → project_defaults → job-specific config
+        
+        Args:
+            job_name: Name of the job
+            
+        Returns:
+            Merged configuration dictionary for the job
+        """
+        # Start with defaults
+        config = self.DEFAULT_JOB_CONFIG.copy()
+        
+        # Merge project_defaults
+        config = self._deep_merge_dicts(config, self.project_defaults)
+        
+        # Merge job-specific config if exists
+        if job_name in self.job_specific_configs:
+            config = self._deep_merge_dicts(config, self.job_specific_configs[job_name])
+            self.logger.debug(f"Using job-specific config for '{job_name}'")
+        else:
+            self.logger.debug(f"No job-specific config for '{job_name}', using project_defaults")
+        
+        return config
 
     def generate_job(self,
                     dependency_result: DependencyAnalysisResult,
@@ -251,7 +341,7 @@ class JobGenerator:
 
         # Determine output file path
         if output_path.is_dir():
-            filename = f"{job_name or 'orchestration_job'}.yml"
+            filename = f"{job_name or 'orchestration_job'}.job.yml"
             file_path = output_path / filename
         else:
             file_path = output_path
@@ -269,4 +359,128 @@ class JobGenerator:
 
         except IOError as e:
             self.logger.error(f"Failed to write job file to {file_path}: {e}")
+            raise
+    
+    def generate_jobs_by_name(self,
+                              job_results: Dict[str, DependencyAnalysisResult],
+                              project_name: Optional[str] = None) -> Dict[str, str]:
+        """
+        Generate multiple job YAML files from job-specific dependency results.
+        
+        Args:
+            job_results: Dictionary mapping job_name to DependencyAnalysisResult
+            project_name: Name of the project (used in templates)
+            
+        Returns:
+            Dictionary mapping job_name to YAML content
+        """
+        if not project_name:
+            project_name = "lhp_project"
+        
+        job_yamls = {}
+        
+        for job_name, dep_result in job_results.items():
+            self.logger.info(f"Generating job YAML for: {job_name}")
+            
+            # Get job-specific config
+            job_config = self.get_job_config_for_job(job_name)
+            
+            # Transform dependency data for template
+            job_stages = self._create_job_stages(dep_result)
+            
+            # Build template context
+            context = {
+                "project_name": project_name,
+                "job_name": job_name,
+                "execution_stages": job_stages,
+                "total_pipelines": len(dep_result.pipeline_dependencies),
+                "total_stages": len(dep_result.execution_stages),
+                "job_config": job_config
+            }
+            
+            # Render template
+            try:
+                template = self.jinja_env.get_template("bundle/job_resource.yml.j2")
+                job_yaml = template.render(**context)
+                job_yamls[job_name] = job_yaml
+                self.logger.debug(f"Generated YAML for job '{job_name}' ({len(job_yaml)} bytes)")
+                
+            except Exception as e:
+                self.logger.error(f"Failed to render template for job '{job_name}': {e}")
+                raise
+        
+        self.logger.info(f"Generated {len(job_yamls)} job YAML file(s)")
+        return job_yamls
+    
+    def generate_master_job(self,
+                           job_results: Dict[str, DependencyAnalysisResult],
+                           master_job_name: str,
+                           project_name: Optional[str] = None) -> str:
+        """
+        Generate master orchestration job that coordinates all individual jobs.
+        
+        The master job uses job_task references to execute individual jobs
+        in the correct order based on cross-job dependencies.
+        
+        Args:
+            job_results: Dictionary mapping job_name to DependencyAnalysisResult
+            master_job_name: Name for the master orchestration job
+            project_name: Name of the project
+            
+        Returns:
+            YAML content for the master orchestration job
+        """
+        if not project_name:
+            project_name = "lhp_project"
+        
+        self.logger.info(f"Generating master orchestration job: {master_job_name}")
+        
+        # Analyze cross-job dependencies
+        # For now, we'll use a simple ordering based on job names
+        # In a full implementation, this would analyze pipeline dependencies across jobs
+        jobs_info = {}
+        
+        for job_name, dep_result in job_results.items():
+            # For each job, determine which other jobs it depends on
+            # based on pipeline dependencies
+            depends_on = []
+            
+            # Get all pipelines in this job
+            job_pipelines = set(dep_result.pipeline_dependencies.keys())
+            
+            # Check dependencies against other jobs
+            for other_job_name, other_dep_result in job_results.items():
+                if other_job_name == job_name:
+                    continue
+                
+                other_pipelines = set(other_dep_result.pipeline_dependencies.keys())
+                
+                # Check if any pipeline in current job depends on pipelines in other job
+                for pipeline in job_pipelines:
+                    pipeline_dep = dep_result.pipeline_dependencies.get(pipeline)
+                    if pipeline_dep and any(dep in other_pipelines for dep in pipeline_dep.depends_on):
+                        depends_on.append(other_job_name)
+                        break
+            
+            jobs_info[job_name] = {
+                "depends_on": list(set(depends_on)),  # Remove duplicates
+                "pipeline_count": len(job_pipelines)
+            }
+        
+        # Build template context
+        context = {
+            "master_job_name": master_job_name,
+            "project_name": project_name,
+            "jobs": jobs_info
+        }
+        
+        # Render master job template
+        try:
+            template = self.jinja_env.get_template("bundle/master_job_resource.yml.j2")
+            master_yaml = template.render(**context)
+            self.logger.info(f"Generated master job with {len(jobs_info)} job task(s)")
+            return master_yaml
+            
+        except Exception as e:
+            self.logger.error(f"Failed to render master job template: {e}")
             raise

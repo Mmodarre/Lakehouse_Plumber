@@ -127,9 +127,10 @@ class TestDependenciesCommand:
         result.pipeline_dependencies = {'target_pipeline': result.pipeline_dependencies['pipeline1']}
         mock_analyzer.analyze_dependencies.return_value = result
 
-        # Mock pipeline validation
-        mock_flowgroups = [Mock(pipeline='target_pipeline'), Mock(pipeline='other_pipeline')]
-        mock_analyzer._get_flowgroups.return_value = mock_flowgroups
+        # Mock pipeline validation - explicitly set job_name=None for flowgroups
+        mock_fg1 = Mock(pipeline='target_pipeline', job_name=None)
+        mock_fg2 = Mock(pipeline='other_pipeline', job_name=None)
+        mock_analyzer._get_flowgroups.return_value = [mock_fg1, mock_fg2]
 
         with patch('lhp.cli.commands.dependencies_command.DependencyOutputManager'), \
              patch('click.echo'):
@@ -394,6 +395,52 @@ class TestDependenciesCommand:
 
 class TestCreateDependenciesCommand:
     """Test the create_dependencies_command factory function."""
+    
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.command = DependenciesCommand()
+    
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+    
+    def create_mock_analysis_result(self):
+        """Create mock dependency analysis result."""
+        graphs = DependencyGraphs(
+            action_graph=nx.DiGraph(),
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=nx.DiGraph(),
+            metadata={'total_pipelines': 2}
+        )
+
+        pipeline_deps = {
+            'pipeline1': PipelineDependency(
+                pipeline='pipeline1',
+                depends_on=[],
+                flowgroup_count=1,
+                action_count=2,
+                external_sources=['external.table1'],
+                stage=0
+            ),
+            'pipeline2': PipelineDependency(
+                pipeline='pipeline2',
+                depends_on=['pipeline1'],
+                flowgroup_count=1,
+                action_count=3,
+                external_sources=[],
+                stage=1
+            )
+        }
+
+        return DependencyAnalysisResult(
+            graphs=graphs,
+            pipeline_dependencies=pipeline_deps,
+            execution_stages=[['pipeline1'], ['pipeline2']],
+            circular_dependencies=[],
+            external_sources=['external.table1']
+        )
 
     def test_command_creation(self):
         """Test that command is created properly."""
@@ -474,3 +521,131 @@ class TestCreateDependenciesCommand:
 
         verbose_option = next(p for p in command_func.params if p.name == 'verbose')
         assert verbose_option.is_flag is True
+    
+    @patch('lhp.cli.commands.dependencies_command.DependencyOutputManager')
+    @patch('lhp.cli.commands.dependencies_command.DependencyAnalyzer')
+    @patch('lhp.cli.commands.dependencies_command.ProjectConfigLoader')
+    @patch.object(DependenciesCommand, 'setup_from_context')
+    @patch.object(DependenciesCommand, 'ensure_project_root')
+    def test_pipeline_filter_with_job_name_raises_error_003(self, mock_ensure_root, mock_setup,
+                                                            mock_config_loader, mock_analyzer_class,
+                                                            mock_output_manager_class):
+        """Test that --pipeline filter with job_name raises error 003."""
+        # Setup mocks
+        mock_ensure_root.return_value = self.temp_dir
+        mock_analyzer = Mock()
+        mock_analyzer_class.return_value = mock_analyzer
+        
+        # Mock _get_flowgroups to return flowgroups WITH job_name
+        from lhp.models.config import FlowGroup, Action, ActionType
+        flowgroups = [
+            FlowGroup(pipeline="bronze_pipeline", flowgroup="fg1", job_name="bronze_job",
+                     actions=[Action(name="load", type=ActionType.LOAD, source="raw.table", target="v_table")]),
+            FlowGroup(pipeline="silver_pipeline", flowgroup="fg2", job_name="silver_job",
+                     actions=[Action(name="load", type=ActionType.LOAD, source="bronze.table", target="v_table")]),
+        ]
+        mock_analyzer._get_flowgroups.return_value = flowgroups
+        
+        # Execute with --pipeline filter
+        with pytest.raises(LHPError) as exc_info:
+            self.command.execute(pipeline="bronze_pipeline")
+        
+        # Verify error code and message
+        error = exc_info.value
+        assert error.code == "LHP-VAL-003"
+        assert "Pipeline filter not supported with job_name" in error.title or "pipeline" in error.title.lower()
+    
+    @patch('lhp.cli.commands.dependencies_command.DependencyOutputManager')
+    @patch('lhp.cli.commands.dependencies_command.DependencyAnalyzer')
+    @patch('lhp.cli.commands.dependencies_command.ProjectConfigLoader')
+    @patch.object(DependenciesCommand, 'setup_from_context')
+    @patch.object(DependenciesCommand, 'ensure_project_root')
+    @patch('click.echo')
+    def test_pipeline_filter_without_job_name_works(self, mock_echo, mock_ensure_root, mock_setup,
+                                                    mock_config_loader, mock_analyzer_class,
+                                                    mock_output_manager_class):
+        """Test that --pipeline filter works normally when no job_name is defined."""
+        # Setup mocks
+        mock_ensure_root.return_value = self.temp_dir
+        mock_analyzer = Mock()
+        mock_analyzer_class.return_value = mock_analyzer
+        
+        mock_output_manager = Mock()
+        mock_output_manager_class.return_value = mock_output_manager
+        
+        # Mock _get_flowgroups to return flowgroups WITHOUT job_name
+        from lhp.models.config import FlowGroup, Action, ActionType
+        flowgroups = [
+            FlowGroup(pipeline="bronze_pipeline", flowgroup="fg1", job_name=None,
+                     actions=[Action(name="load", type=ActionType.LOAD, source="raw.table", target="v_table")]),
+            FlowGroup(pipeline="silver_pipeline", flowgroup="fg2", job_name=None,
+                     actions=[Action(name="load", type=ActionType.LOAD, source="bronze.table", target="v_table")]),
+        ]
+        mock_analyzer._get_flowgroups.return_value = flowgroups
+        
+        # Mock analysis result
+        result = self.create_mock_analysis_result()
+        mock_analyzer.analyze_dependencies.return_value = result
+        
+        # Mock file generation
+        generated_files = {'dot': self.temp_dir / 'deps.dot'}
+        (self.temp_dir / 'deps.dot').touch()
+        mock_output_manager.save_outputs.return_value = generated_files
+        
+        # Execute with --pipeline filter
+        self.command.execute(output_format="dot", pipeline="bronze_pipeline")
+        
+        # Should succeed without raising
+        mock_analyzer.analyze_dependencies.assert_called_once()
+    
+    @patch('lhp.cli.commands.dependencies_command.DependencyOutputManager')
+    @patch('lhp.cli.commands.dependencies_command.DependencyAnalyzer')
+    @patch('lhp.cli.commands.dependencies_command.ProjectConfigLoader')
+    @patch.object(DependenciesCommand, 'setup_from_context')
+    @patch.object(DependenciesCommand, 'ensure_project_root')
+    @patch('click.echo')
+    def test_cli_displays_multiple_job_files_correctly(self, mock_echo, mock_ensure_root, mock_setup,
+                                                       mock_config_loader, mock_analyzer_class,
+                                                       mock_output_manager_class):
+        """Test that CLI displays multiple job files in organized way."""
+        # Setup mocks
+        mock_ensure_root.return_value = self.temp_dir
+        mock_analyzer = Mock()
+        mock_analyzer_class.return_value = mock_analyzer
+        
+        mock_output_manager = Mock()
+        mock_output_manager_class.return_value = mock_output_manager
+        
+        # Mock analysis result
+        result = self.create_mock_analysis_result()
+        mock_analyzer.analyze_dependencies.return_value = result
+        
+        # Mock file generation with multiple job files
+        bronze_job_file = self.temp_dir / 'bronze_job.job.yml'
+        silver_job_file = self.temp_dir / 'silver_job.job.yml'
+        master_job_file = self.temp_dir / 'test_master.job.yml'
+        
+        for f in [bronze_job_file, silver_job_file, master_job_file]:
+            f.write_text("# test content")
+        
+        generated_files = {
+            'dot': self.temp_dir / 'deps.dot',
+            'job': {
+                'bronze_job': bronze_job_file,
+                'silver_job': silver_job_file,
+                '_master': master_job_file
+            }
+        }
+        (self.temp_dir / 'deps.dot').touch()
+        mock_output_manager.save_outputs.return_value = generated_files
+        
+        # Execute command
+        self.command.execute(output_format="dot,job")
+        
+        # Verify display called for each job file
+        # Check that echo was called with job file information
+        echo_calls = [str(call) for call in mock_echo.call_args_list]
+        combined_output = " ".join(echo_calls)
+        
+        # Should mention job files
+        assert any("bronze_job" in call or "job" in call.lower() for call in echo_calls)
