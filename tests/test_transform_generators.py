@@ -1257,6 +1257,87 @@ def transform_customers(df, spark, parameters):
         # Verify description
         assert "Standardize customer schema and data types" in code
     
+    def test_schema_transform_with_schema_file(self, tmp_path):
+        """Test schema transform generator with external schema file."""
+        # Create schema file
+        schema_file = tmp_path / "customer_transform.yaml"
+        schema_file.write_text("""
+enforcement: strict
+columns:
+  - "c_custkey -> customer_id: BIGINT"
+  - "c_name -> customer_name"
+""")
+        
+        generator = SchemaTransformGenerator()
+        action = Action(
+            name="standardize_customer",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source={
+                "view": "v_customer_raw",
+                "schema_file": str(schema_file)
+            },
+            target="v_customer_standardized",
+            readMode="batch"
+        )
+        
+        context = {"spec_dir": tmp_path}
+        code = generator.generate(action, context)
+        
+        # Verify generated code
+        assert "@dp.temporary_view()" in code
+        assert "v_customer_standardized" in code
+        assert "df.withColumnRenamed(\"c_custkey\", \"customer_id\")" in code
+        assert "df.withColumnRenamed(\"c_name\", \"customer_name\")" in code
+        assert "F.col(\"customer_id\").cast(\"BIGINT\")" in code
+    
+    def test_schema_transform_both_schema_and_file_error(self, tmp_path):
+        """Test that providing both schema and schema_file raises an error."""
+        schema_file = tmp_path / "transform.yaml"
+        schema_file.write_text("""
+columns:
+  - "c_custkey -> customer_id"
+""")
+        
+        generator = SchemaTransformGenerator()
+        action = Action(
+            name="transform",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source={
+                "view": "v_customer_raw",
+                "schema": {
+                    "column_mapping": {"c_name": "customer_name"}
+                },
+                "schema_file": str(schema_file)
+            },
+            target="v_customer_standardized"
+        )
+        
+        context = {"spec_dir": tmp_path}
+        
+        with pytest.raises(ValueError, match="Cannot specify both.*schema.*and.*schema_file"):
+            generator.generate(action, context)
+    
+    def test_schema_transform_file_not_found_error(self, tmp_path):
+        """Test that missing schema file raises appropriate error."""
+        generator = SchemaTransformGenerator()
+        action = Action(
+            name="transform",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source={
+                "view": "v_customer_raw",
+                "schema_file": "missing.yaml"
+            },
+            target="v_customer_standardized"
+        )
+        
+        context = {"spec_dir": tmp_path}
+        
+        with pytest.raises(FileNotFoundError):
+            generator.generate(action, context)
+    
     def test_schema_transform_column_mapping_only(self):
         """Test schema transform with only column mapping."""
         generator = SchemaTransformGenerator()

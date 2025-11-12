@@ -1673,8 +1673,100 @@ schema
 ~~~~~~
 Schema transform actions apply column mapping, type casting, and schema enforcement to standardize data structures.
 
+**Recommended Approach: External Schema Files (Arrow Format)**
+
+The arrow format provides a concise, readable syntax for defining schema transformations in external files:
+
 .. code-block:: yaml
 
+  # In your action YAML:
+  actions:
+    - name: standardize_customer_schema
+      type: transform
+      transform_type: schema
+      source:
+        view: v_customer_raw
+        schema_file: "schemas/bronze/customer_transform.yaml"
+      target: v_customer_standardized
+      readMode: batch
+      description: "Standardize customer schema and data types"
+
+.. code-block:: yaml
+
+  # In schemas/bronze/customer_transform.yaml:
+  name: customer_transform
+  enforcement: strict
+  columns:
+    - "c_custkey -> customer_id: BIGINT"     # Rename and cast
+    - "c_name -> customer_name"               # Rename only
+    - "c_address -> address"                  # Rename only
+    - "account_balance: DECIMAL(18,2)"        # Cast only
+    - "phone_number: STRING"                  # Cast only
+
+**Arrow Format Syntax:**
+
+- ``"old_col -> new_col: TYPE"`` - Rename and cast in one line
+- ``"old_col -> new_col"`` - Rename only
+- ``"col: TYPE"`` - Cast only (no rename)
+- ``"col"`` - Pass-through (strict mode only, explicitly keep column)
+
+**Schema File Paths:**
+
+Schema files can be organized in subdirectories relative to your project root:
+
+.. code-block:: yaml
+
+  # Root level
+  schema_file: "customer_transform.yaml"
+  
+  # In schemas/ directory
+  schema_file: "schemas/customer_transform.yaml"
+  
+  # Nested subdirectories (recommended for organization by layer)
+  schema_file: "schemas/bronze/dimensions/customer_transform.yaml"
+  
+  # Absolute paths also supported
+  schema_file: "/absolute/path/to/schema.yaml"
+
+**Schema Enforcement Modes:**
+
+Schema transforms support two enforcement modes:
+
+- **strict** (recommended): Only explicitly defined columns are kept in the output. All other columns are dropped. This ensures data quality and prevents schema drift.
+- **permissive** (default): Explicitly defined columns are transformed, but all other columns pass through unchanged. Useful when you only want to standardize specific columns.
+
+.. code-block:: yaml
+
+  # Strict enforcement example
+  enforcement: strict
+  columns:
+    - "c_custkey -> customer_id: BIGINT"
+    - "c_name -> customer_name"
+  
+  # Input:  c_custkey, c_name, c_address, c_phone, extra_col
+  # Output: customer_id, customer_name (+ operational metadata)
+  #         ↑ All unmapped columns dropped
+
+.. code-block:: yaml
+
+  # Permissive enforcement example
+  enforcement: permissive  # or omit (permissive is default)
+  columns:
+    - "c_custkey -> customer_id: BIGINT"
+    - "c_name -> customer_name"
+  
+  # Input:  c_custkey, c_name, c_address, c_phone, extra_col
+  # Output: customer_id, customer_name, c_address, c_phone, extra_col
+  #         ↑ All unmapped columns kept
+
+**Legacy Format (Deprecated - For Backward Compatibility)**
+
+.. note::
+  The legacy inline format is still supported for backward compatibility but is not recommended for new projects. Please use the arrow format for better readability and maintainability.
+
+.. code-block:: yaml
+
+  # Legacy inline format (deprecated)
   actions:
     - name: standardize_customer_schema
       type: transform
@@ -1686,15 +1778,10 @@ Schema transform actions apply column mapping, type casting, and schema enforcem
           column_mapping:
             c_custkey: customer_id
             c_name: customer_name
-            c_address: address
-            c_phone: phone_number
           type_casting:
             customer_id: "BIGINT"
             account_balance: "DECIMAL(18,2)"
-            phone_number: "STRING"
       target: v_customer_standardized
-      readMode: batch
-      description: "Standardize customer schema and data types"
 
 **Anatomy of a schema transform action**
 
@@ -1703,10 +1790,11 @@ Schema transform actions apply column mapping, type casting, and schema enforcem
 - **transform_type**: Specifies this is a schema transformation
 - **source**:
       - **view**: Name of the input view to transform
-      - **schema**: Schema transformation configuration
-        - **enforcement**: Schema enforcement level ("strict" or "permissive")
-        - **column_mapping**: Dictionary of old_name -> new_name mappings
-        - **type_casting**: Dictionary of column_name -> new_data_type castings
+      - **schema_file**: Path to external schema file (recommended, arrow or legacy format)
+      - **schema**: Inline schema configuration (deprecated, legacy format only)
+        - **enforcement**: Schema enforcement level ("strict" or "permissive", default: "permissive")
+        - **column_mapping**: Dictionary of old_name -> new_name mappings (legacy)
+        - **type_casting**: Dictionary of column_name -> new_data_type castings (legacy)
 - **target**: Name of the output view with transformed schema
 - **readMode**: Either *batch* or *stream* - determines execution mode
 - **description**: Optional documentation for the action
@@ -1716,8 +1804,7 @@ Schema transform actions apply column mapping, type casting, and schema enforcem
   - Schema evolution: :doc:`concepts`
 
 .. Important::
-  Schema transforms preserve operational metadata columns automatically.
-  Use for standardizing column names and ensuring consistent data types across your lakehouse.
+  Schema transforms preserve operational metadata columns automatically. These columns are never renamed or cast, and are always included in the output regardless of enforcement mode. Use schema transforms for standardizing column names and ensuring consistent data types across your lakehouse.
 
 **The above YAML translates to the following PySpark code**
 
@@ -1737,12 +1824,33 @@ Schema transform actions apply column mapping, type casting, and schema enforcem
       df = df.withColumnRenamed("c_custkey", "customer_id")
       df = df.withColumnRenamed("c_name", "customer_name")
       df = df.withColumnRenamed("c_address", "address")
-      df = df.withColumnRenamed("c_phone", "phone_number")
       
       # Apply type casting
       df = df.withColumn("customer_id", F.col("customer_id").cast("BIGINT"))
       df = df.withColumn("account_balance", F.col("account_balance").cast("DECIMAL(18,2)"))
       df = df.withColumn("phone_number", F.col("phone_number").cast("STRING"))
+      
+      # Strict schema enforcement - select only specified columns
+      # Schema-defined columns (will fail if missing)
+      columns_to_select = [
+          "customer_id",
+          "customer_name",
+          "address",
+          "account_balance",
+          "phone_number"
+      ]
+      
+      # Add operational metadata columns only if they exist (optional)
+      available_columns = set(df.columns)
+      metadata_columns = [
+          "_ingestion_timestamp",
+          "_source_file"
+      ]
+      for meta_col in metadata_columns:
+          if meta_col in available_columns:
+              columns_to_select.append(meta_col)
+      
+      df = df.select(*columns_to_select)
       
       return df
 
