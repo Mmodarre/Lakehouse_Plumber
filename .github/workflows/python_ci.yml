@@ -35,9 +35,7 @@ jobs:
     - name: Cache pip dependencies
       uses: actions/cache@v4
       with:
-        path: |
-          ~/.cache/pip
-          ~\AppData\Local\pip\Cache
+        path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
         restore-keys: |
           ${{ runner.os }}-pip-${{ matrix.python-version }}-

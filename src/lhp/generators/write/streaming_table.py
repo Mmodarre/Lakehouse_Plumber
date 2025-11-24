@@ -1,6 +1,7 @@
 """Streaming table write generator """
 
 import ast
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
@@ -61,16 +62,12 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             # Check if it's a file path
             if self._is_table_schema_file(schema_value):
                 # Load from external file
-                project_root = context.get("project_root")
-                if project_root:
-                    schema = load_external_file_text(
-                        schema_value,
-                        project_root,
-                        file_type="table schema file"
-                    ).strip()
-                else:
-                    # Fallback if project_root not in context
-                    schema = schema_value
+                project_root = context.get("project_root", Path.cwd())
+                schema = load_external_file_text(
+                    schema_value,
+                    project_root,
+                    file_type="table schema file"
+                ).strip()
             else:
                 # Inline DDL
                 schema = schema_value
