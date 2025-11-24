@@ -1321,6 +1321,8 @@ columns:
     
     def test_schema_transform_file_not_found_error(self, tmp_path):
         """Test that missing schema file raises appropriate error."""
+        from lhp.utils.error_formatter import LHPError
+        
         generator = SchemaTransformGenerator()
         action = Action(
             name="transform",
@@ -1335,8 +1337,11 @@ columns:
         
         context = {"spec_dir": tmp_path}
         
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(LHPError) as exc_info:
             generator.generate(action, context)
+        
+        assert "LHP-IO-001" in str(exc_info.value)
+        assert "missing.yaml" in str(exc_info.value)
     
     def test_schema_transform_column_mapping_only(self):
         """Test schema transform with only column mapping."""

@@ -4,6 +4,7 @@ from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.operational_metadata import OperationalMetadata
+from ...utils.external_file_loader import load_external_file_text
 
 
 class SQLTransformGenerator(BaseActionGenerator):
@@ -72,14 +73,13 @@ class SQLTransformGenerator(BaseActionGenerator):
         if action.sql:
             sql_content = action.sql.strip()
         elif action.sql_path:
-            sql_file = Path(action.sql_path)
-            if not sql_file.is_absolute() and spec_dir:
-                sql_file = spec_dir / sql_file
-
-            if not sql_file.exists():
-                raise FileNotFoundError(f"SQL file not found: {sql_file}")
-
-            sql_content = sql_file.read_text().strip()
+            # Use common utility for file loading
+            project_root = context.get("project_root") if context else (spec_dir or Path.cwd())
+            sql_content = load_external_file_text(
+                action.sql_path,
+                project_root,
+                file_type="SQL file"
+            ).strip()
         else:
             raise ValueError(f"SQL transform '{action.name}' must have sql or sql_path")
         

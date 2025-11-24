@@ -103,16 +103,46 @@ cloudFiles
             - **header**: First row contains column headers
             - **delimiter**: Use pipe character as field separator
             - **cloudFiles.maxFilesPerTrigger**: Limit number of files processed per trigger
-            - **cloudFiles.schemaHints**: the path to the schema file
+            - **cloudFiles.schemaHints**: Schema definition for Auto Loader (supports multiple formats - see below)
 - **target**: Name of the temporary view created
 - **description**: Optional documentation for the action
+
+**cloudFiles.schemaHints Format Options**
+
+The ``cloudFiles.schemaHints`` option supports three formats, automatically detected by the framework:
+
+**Option 1: Inline DDL String** (for simple schemas)
+
+.. code-block:: yaml
+
+  cloudFiles.schemaHints: "customer_id BIGINT, name STRING, email STRING"
+
+**Option 2: External YAML File** (recommended for complex schemas with metadata)
+
+.. code-block:: yaml
+
+  cloudFiles.schemaHints: "schemas/customer_schema.yaml"
+
+**Option 3: External DDL/SQL File** (for pre-defined DDL statements)
+
+.. code-block:: yaml
+
+  cloudFiles.schemaHints: "schemas/customer_schema.ddl"
+  # or
+  cloudFiles.schemaHints: "schemas/customer_schema.sql"
+
+.. note::
+  **File Path Organization**: Schema files can be organized in subdirectories relative to your project root:
+  
+  - Root level: ``"customer_schema.yaml"``
+  - Single directory: ``"schemas/customer_schema.yaml"``
+  - Nested subdirectories: ``"schemas/bronze/dimensions/customer_schema.yaml"``
+  
+  The framework automatically detects whether the value is an inline DDL string or a file path based on common file indicators (``.yaml``, ``.yml``, ``.ddl``, ``.sql``, or path separators).
             
 .. seealso::
   - For full list of options see the `Databricks Auto Loader documentation <https://docs.databricks.com/en/data/data-sources/cloud-files/auto-loader/index.html>`_.
   - Operational metadata: :doc:`concepts`
-  
-  .. TODO: add link to schema hints
-    - Schema Hints: :doc:`schema_hints`
 
 .. Important::
   Lakehouse Plumber uses syntax consistent with Databricks, making it easy to transfer knowledge between the two.
@@ -2022,11 +2052,39 @@ Append Streaming Table Write
       - **partition_columns**: Columns to partition the table by
       - **cluster_columns**: Columns to cluster/z-order the table by
       - **spark_conf**: Streaming-specific Spark configuration
-      - **table_schema**: DDL schema definition for the table
+      - **table_schema**: DDL schema definition for the table (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
       - **mode**: Streaming mode - "standard" (default), "cdc", or "snapshot_cdc"
 - **description**: Optional documentation for the action
+
+**table_schema Format Options**
+
+The ``table_schema`` option supports two formats, automatically detected by the framework:
+
+**Option 1: Inline DDL** (multiline string)
+
+.. code-block:: yaml
+
+  table_schema: |
+    customer_id BIGINT NOT NULL,
+    name STRING,
+    email STRING,
+    region STRING,
+    registration_date DATE,
+    _source_file_path STRING,
+    _processing_timestamp TIMESTAMP
+
+**Option 2: External DDL/SQL File**
+
+.. code-block:: yaml
+
+  table_schema: "schemas/customer_table.ddl"
+  # or
+  table_schema: "schemas/customer_table.sql"
+
+.. note::
+  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``) or path separators.
 
 **The above YAML translates to the following PySpark code**
 
@@ -2478,7 +2536,7 @@ for pre-computed analytics tables based on the output of a query.
         comment: "Daily customer summary materialized view"
       description: "Create daily customer summary for analytics"
 
-**Option 2: SQL Query Based**
+**Option 2: Inline SQL Query**
 
 .. code-block:: yaml
 
@@ -2507,6 +2565,25 @@ for pre-computed analytics tables based on the output of a query.
         row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
       description: "Daily sales summary by region and category"
 
+**Option 3: External SQL File**
+
+.. code-block:: yaml
+
+  actions:
+    - name: create_sales_summary_mv
+      type: write
+      write_target:
+        type: materialized_view
+        database: "{catalog}.{gold_schema}"
+        table: daily_sales_summary
+        sql_path: "sql/gold/daily_sales_summary.sql"
+        table_properties:
+          delta.autoOptimize.optimizeWrite: "true"
+          custom.business.domain: "sales_analytics"
+        partition_columns: ["sales_date"]
+        row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
+      description: "Daily sales summary by region and category"
+
 **Anatomy of a materialized view write action**
 
 - **name**: Unique name for this action within the FlowGroup
@@ -2516,14 +2593,46 @@ for pre-computed analytics tables based on the output of a query.
       - **type**: Use materialized view as target
       - **database**: Target database using substitution variables
       - **table**: Target table name
-      - **sql**: SQL query to define the view (alternative to source)
+      - **sql**: Inline SQL query to define the view (alternative to source or sql_path)
+      - **sql_path**: Path to external SQL file to define the view (alternative to source or sql)
       - **table_properties**: Delta table properties for optimization
       - **partition_columns**: Columns to partition the view by
       - **cluster_columns**: Columns to cluster/z-order the view by
-      - **table_schema**: DDL schema definition for the view
+      - **table_schema**: DDL schema definition for the view (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
 - **description**: Optional documentation for the action
+
+.. note::
+  **SQL Query Options**: You can define the materialized view query in three ways:
+  
+  1. **Source view** (Option 1): Read from an existing view using ``source``
+  2. **Inline SQL** (Option 2): Define SQL directly in YAML using ``sql``
+  3. **External SQL file** (Option 3): Reference external SQL file using ``sql_path``
+  
+  External SQL files support substitution variables (``{tokens}`` and ``${secret:scope/key}``) 
+  and can be organized in subdirectories (e.g., ``"sql/gold/aggregations/sales_summary.sql"``).
+
+**table_schema Format Options**
+
+The ``table_schema`` option supports two formats, automatically detected by the framework:
+
+**Option 1: Inline DDL**
+
+.. code-block:: yaml
+
+  table_schema: "product_id BIGINT, name STRING, price DECIMAL(10,2), category STRING"
+
+**Option 2: External DDL/SQL File**
+
+.. code-block:: yaml
+
+  table_schema: "schemas/product_view_schema.ddl"
+  # or
+  table_schema: "schemas/gold/product_view_schema.sql"
+
+.. note::
+  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``) or path separators.
 
 **The above YAML examples translate to the following PySpark code**
 

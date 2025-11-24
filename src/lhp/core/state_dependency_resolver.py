@@ -357,6 +357,29 @@ class StateDependencyResolver:
                     source_function = snapshot_config.get('source_function', {})
                     if source_function.get('file'):
                         files.add(source_function['file'])
+            
+            # Schema files from cloudFiles.schemaHints in templates
+            if action.get('type') == 'load':
+                source = action.get('source', {})
+                if isinstance(source, dict):
+                    options = source.get('options', {})
+                    schema_hints = options.get('cloudFiles.schemaHints')
+                    if schema_hints and self._is_file_path(schema_hints):
+                        files.add(schema_hints)
+            
+            # Schema files from transform schema_file in templates
+            if action.get('type') == 'transform' and action.get('transform_type') == 'schema':
+                source = action.get('source', {})
+                if isinstance(source, dict) and source.get('schema_file'):
+                    files.add(source['schema_file'])
+            
+            # Table schema files from write actions in templates
+            if action.get('type') == 'write':
+                write_target = action.get('write_target', {})
+                if isinstance(write_target, dict):
+                    table_schema = write_target.get('table_schema') or write_target.get('schema')
+                    if table_schema and self._is_file_path(table_schema):
+                        files.add(table_schema)
         
         return files
 
@@ -550,9 +573,42 @@ class StateDependencyResolver:
                 source_function = snapshot_config.get('source_function', {})
                 if source_function.get('file'):
                     files.add(source_function['file'])
+            
+            # Schema files from cloudFiles.schemaHints
+            if (hasattr(action, 'type') and action.type == 'load' and
+                hasattr(action, 'source') and isinstance(action.source, dict)):
+                options = action.source.get('options', {})
+                schema_hints = options.get('cloudFiles.schemaHints')
+                if schema_hints and self._is_file_path(schema_hints):
+                    files.add(schema_hints)
+            
+            # Schema files from transform schema_file
+            if (hasattr(action, 'type') and action.type == 'transform' and
+                hasattr(action, 'transform_type') and action.transform_type == 'schema' and
+                hasattr(action, 'source') and isinstance(action.source, dict)):
+                schema_file = action.source.get('schema_file')
+                if schema_file:
+                    files.add(schema_file)
+            
+            # Table schema files from write actions
+            if (hasattr(action, 'type') and action.type == 'write' and
+                hasattr(action, 'write_target') and isinstance(action.write_target, dict)):
+                table_schema = action.write_target.get('table_schema') or action.write_target.get('schema')
+                if table_schema and self._is_file_path(table_schema):
+                    files.add(table_schema)
+                
+                # SQL files from materialized view sql_path
+                sql_path = action.write_target.get('sql_path')
+                if sql_path:
+                    files.add(sql_path)
         
         return files
 
+    def _is_file_path(self, value: str) -> bool:
+        """Detect if value is a file path vs inline content."""
+        from ..utils.external_file_loader import is_file_path
+        return is_file_path(value)
+    
     def _create_external_file_dependency(self, file_path: str) -> Optional[DependencyInfo]:
         """Create dependency info for an external file using simple hash-based tracking.
         

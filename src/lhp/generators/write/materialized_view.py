@@ -1,7 +1,9 @@
 """Materialized view write generator for LakehousePlumber."""
 
+from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.external_file_loader import load_external_file_text
 
 
 class MaterializedViewWriteGenerator(BaseActionGenerator):
@@ -34,7 +36,26 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         spark_conf = target_config.get("spark_conf", {})
 
         # Schema definition (SQL DDL string or StructType)
-        schema = target_config.get("table_schema") or target_config.get("schema")
+        schema_value = target_config.get("table_schema") or target_config.get("schema")
+        schema = None
+        
+        if schema_value:
+            # Check if it's a file path
+            if self._is_table_schema_file(schema_value):
+                # Load from external file
+                project_root = context.get("project_root")
+                if project_root:
+                    schema = load_external_file_text(
+                        schema_value,
+                        project_root,
+                        file_type="table schema file"
+                    ).strip()
+                else:
+                    # Fallback if project_root not in context
+                    schema = schema_value
+            else:
+                # Inline DDL
+                schema = schema_value
 
         # Row filter clause
         row_filter = target_config.get("row_filter")
@@ -46,7 +67,27 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         refresh_schedule = target_config.get("refresh_schedule")
 
         # Get SQL query if provided directly in write_target
-        sql_query = target_config.get("sql")
+        sql_query = None
+        if "sql" in target_config:
+            sql_query = target_config["sql"].strip()
+        elif "sql_path" in target_config:
+            # Load from external SQL file
+            project_root = context.get("project_root", Path.cwd())
+            sql_query = load_external_file_text(
+                target_config["sql_path"],
+                project_root,
+                file_type="SQL file"
+            ).strip()
+            
+            # Apply substitutions if available
+            if "substitution_manager" in context:
+                substitution_mgr = context["substitution_manager"]
+                sql_query = substitution_mgr._process_string(sql_query)
+                
+                # Track secret references
+                secret_refs = substitution_mgr.get_secret_references()
+                if "secret_references" in context and context["secret_references"] is not None:
+                    context["secret_references"].update(secret_refs)
 
         # If no SQL in write_target, must have source view
         source_view = None
@@ -82,6 +123,16 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         }
 
         return self.render_template("write/materialized_view.py.j2", template_context)
+    
+    def _is_table_schema_file(self, value: str) -> bool:
+        """Check if value is a schema file path."""
+        if not value:
+            return False
+        value_lower = value.lower()
+        return (".ddl" in value_lower or 
+                ".sql" in value_lower or 
+                "/" in value or 
+                "\\" in value)
 
     def _extract_source_view(self, source) -> str:
         """Extract source view name from action source."""

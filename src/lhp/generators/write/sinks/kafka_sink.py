@@ -78,3 +78,8 @@ class KafkaSinkWriteGenerator(BaseSinkWriteGenerator):
         return self.render_template("write/sinks/kafka_sink.py.j2", template_context)
 
 
+
+
+
+
+

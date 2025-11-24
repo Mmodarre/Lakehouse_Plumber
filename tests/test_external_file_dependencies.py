@@ -460,3 +460,357 @@ actions:
             
             # Checksums should be different (indicating file change detected)
             assert initial_checksum != modified_checksum
+
+    def test_cloudfiles_schema_hints_file_dependency_tracking(self):
+        """Test that cloudFiles.schemaHints external files are tracked as dependencies."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create schema file
+            schema_dir = project_root / "schemas" / "bronze"
+            schema_dir.mkdir(parents=True)
+            schema_file = schema_dir / "customer_schema.yaml"
+            schema_file.write_text("""
+name: customer_schema
+version: "1.0"
+columns:
+  - name: customer_id
+    type: BIGINT
+  - name: name
+    type: STRING
+""")
+            
+            # Create YAML file with cloudFiles action
+            yaml_content = """
+pipeline: test_pipeline
+flowgroup: test_flowgroup
+actions:
+  - name: load_customers
+    type: load
+    source:
+      type: cloudfiles
+      path: "/mnt/landing/customers"
+      format: json
+      options:
+        cloudFiles.format: json
+        cloudFiles.schemaHints: "schemas/bronze/customer_schema.yaml"
+    target: v_customers_raw
+"""
+            yaml_file = project_root / "test.yaml"
+            yaml_file.write_text(yaml_content)
+            
+            # Create dependency resolver
+            resolver = StateDependencyResolver(project_root)
+            
+            # Test dependency discovery
+            dependencies = resolver.resolve_file_dependencies(yaml_file, "dev")
+            
+            # Should find the schema file dependency
+            assert "schemas/bronze/customer_schema.yaml" in dependencies
+            assert dependencies["schemas/bronze/customer_schema.yaml"].type == "external_file"
+
+    def test_cloudfiles_schema_hints_ddl_file_dependency_tracking(self):
+        """Test that cloudFiles.schemaHints DDL files are tracked as dependencies."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create DDL schema file
+            schema_dir = project_root / "schemas"
+            schema_dir.mkdir()
+            schema_file = schema_dir / "product_schema.ddl"
+            schema_file.write_text("product_id BIGINT, product_name STRING, price DECIMAL(10,2)")
+            
+            # Create YAML file with cloudFiles action using DDL
+            yaml_content = """
+pipeline: test_pipeline
+flowgroup: test_flowgroup
+actions:
+  - name: load_products
+    type: load
+    source:
+      type: cloudfiles
+      path: "/mnt/landing/products"
+      format: csv
+      options:
+        cloudFiles.format: csv
+        cloudFiles.schemaHints: "schemas/product_schema.ddl"
+    target: v_products_raw
+"""
+            yaml_file = project_root / "test.yaml"
+            yaml_file.write_text(yaml_content)
+            
+            # Create dependency resolver
+            resolver = StateDependencyResolver(project_root)
+            
+            # Test dependency discovery
+            dependencies = resolver.resolve_file_dependencies(yaml_file, "dev")
+            
+            # Should find the DDL schema file dependency
+            assert "schemas/product_schema.ddl" in dependencies
+            assert dependencies["schemas/product_schema.ddl"].type == "external_file"
+
+    def test_transform_schema_file_dependency_tracking(self):
+        """Test that transform schema_file is tracked as a dependency."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create schema file
+            schema_dir = project_root / "schemas" / "transformations"
+            schema_dir.mkdir(parents=True)
+            schema_file = schema_dir / "enrichment_schema.yaml"
+            schema_file.write_text("""
+name: enrichment_schema
+version: "1.0"
+columns:
+  - name: id
+    type: BIGINT
+  - name: enriched_field
+    type: STRING
+""")
+            
+            # Create YAML file with schema transform action
+            yaml_content = """
+pipeline: test_pipeline
+flowgroup: test_flowgroup
+actions:
+  - name: apply_schema
+    type: transform
+    transform_type: schema
+    source:
+      view: v_raw_data
+      schema_file: "schemas/transformations/enrichment_schema.yaml"
+    target: v_enriched_data
+"""
+            yaml_file = project_root / "test.yaml"
+            yaml_file.write_text(yaml_content)
+            
+            # Create dependency resolver
+            resolver = StateDependencyResolver(project_root)
+            
+            # Test dependency discovery
+            dependencies = resolver.resolve_file_dependencies(yaml_file, "dev")
+            
+            # Should find the schema file dependency
+            assert "schemas/transformations/enrichment_schema.yaml" in dependencies
+            assert dependencies["schemas/transformations/enrichment_schema.yaml"].type == "external_file"
+
+    def test_write_table_schema_file_dependency_tracking(self):
+        """Test that write action table_schema files are tracked as dependencies."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create table schema DDL file
+            schema_dir = project_root / "schemas" / "bronze"
+            schema_dir.mkdir(parents=True)
+            schema_file = schema_dir / "customers_table.ddl"
+            schema_file.write_text("customer_id BIGINT NOT NULL, name STRING, email STRING")
+            
+            # Create YAML file with streaming table action
+            yaml_content = """
+pipeline: test_pipeline
+flowgroup: test_flowgroup
+actions:
+  - name: write_customers
+    type: write
+    source: v_customers_raw
+    write_target:
+      type: streaming_table
+      database: "bronze"
+      table: "customers"
+      table_schema: "schemas/bronze/customers_table.ddl"
+"""
+            yaml_file = project_root / "test.yaml"
+            yaml_file.write_text(yaml_content)
+            
+            # Create dependency resolver
+            resolver = StateDependencyResolver(project_root)
+            
+            # Test dependency discovery
+            dependencies = resolver.resolve_file_dependencies(yaml_file, "dev")
+            
+            # Should find the table schema file dependency
+            assert "schemas/bronze/customers_table.ddl" in dependencies
+            assert dependencies["schemas/bronze/customers_table.ddl"].type == "external_file"
+
+    def test_materialized_view_sql_path_dependency_tracking(self):
+        """Test that materialized view sql_path files are tracked as dependencies."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create SQL file
+            sql_dir = project_root / "sql" / "gold"
+            sql_dir.mkdir(parents=True)
+            sql_file = sql_dir / "customer_summary.sql"
+            sql_file.write_text("""
+SELECT customer_id, COUNT(*) as order_count
+FROM bronze.orders
+GROUP BY customer_id
+""")
+            
+            # Create YAML file with materialized view action
+            yaml_content = """
+pipeline: test_pipeline
+flowgroup: test_flowgroup
+actions:
+  - name: create_customer_summary
+    type: write
+    write_target:
+      type: materialized_view
+      database: "gold"
+      table: "customer_summary"
+      sql_path: "sql/gold/customer_summary.sql"
+"""
+            yaml_file = project_root / "test.yaml"
+            yaml_file.write_text(yaml_content)
+            
+            # Create dependency resolver
+            resolver = StateDependencyResolver(project_root)
+            
+            # Test dependency discovery
+            dependencies = resolver.resolve_file_dependencies(yaml_file, "dev")
+            
+            # Should find the SQL file dependency
+            assert "sql/gold/customer_summary.sql" in dependencies
+            assert dependencies["sql/gold/customer_summary.sql"].type == "external_file"
+
+    def test_schema_files_with_expectations_file_dependency_tracking(self):
+        """Test tracking schema files alongside expectations files in data quality actions."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create expectations file
+            expectations_dir = project_root / "expectations"
+            expectations_dir.mkdir()
+            expectations_file = expectations_dir / "data_quality.yaml"
+            expectations_file.write_text("""
+expectations:
+  - name: valid_id
+    constraint: "id IS NOT NULL"
+  - name: positive_amount
+    constraint: "amount > 0"
+""")
+            
+            # Create schema file
+            schema_dir = project_root / "schemas"
+            schema_dir.mkdir()
+            schema_file = schema_dir / "clean_schema.yaml"
+            schema_file.write_text("""
+name: clean_schema
+columns:
+  - name: id
+    type: BIGINT
+  - name: amount
+    type: DECIMAL(10,2)
+""")
+            
+            # Create YAML file with data quality and schema actions
+            yaml_content = """
+pipeline: test_pipeline
+flowgroup: test_flowgroup
+actions:
+  - name: load_data
+    type: load
+    source:
+      type: cloudfiles
+      path: "/data"
+      format: json
+      options:
+        cloudFiles.format: json
+        cloudFiles.schemaHints: "schemas/clean_schema.yaml"
+    target: v_raw_data
+  - name: apply_quality_checks
+    type: transform
+    transform_type: data_quality
+    source: v_raw_data
+    expectations_file: "expectations/data_quality.yaml"
+    target: v_clean_data
+"""
+            yaml_file = project_root / "test.yaml"
+            yaml_file.write_text(yaml_content)
+            
+            # Create dependency resolver
+            resolver = StateDependencyResolver(project_root)
+            
+            # Test dependency discovery
+            dependencies = resolver.resolve_file_dependencies(yaml_file, "dev")
+            
+            # Should find both schema and expectations files
+            assert "schemas/clean_schema.yaml" in dependencies
+            assert "expectations/data_quality.yaml" in dependencies
+            assert dependencies["schemas/clean_schema.yaml"].type == "external_file"
+            assert dependencies["expectations/data_quality.yaml"].type == "external_file"
+
+    def test_multiple_schema_file_types_in_single_flowgroup(self):
+        """Test tracking multiple schema file types in a single flowgroup."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create various schema files
+            schema_dir = project_root / "schemas"
+            schema_dir.mkdir()
+            (schema_dir / "load_schema.yaml").write_text("name: load_schema")
+            (schema_dir / "transform_schema.yaml").write_text("name: transform_schema")
+            (schema_dir / "table_schema.ddl").write_text("id BIGINT, name STRING")
+            
+            sql_dir = project_root / "sql"
+            sql_dir.mkdir()
+            (sql_dir / "summary.sql").write_text("SELECT * FROM table")
+            
+            # Create YAML file with multiple schema file references
+            yaml_content = """
+pipeline: test_pipeline
+flowgroup: test_flowgroup
+actions:
+  - name: load_data
+    type: load
+    source:
+      type: cloudfiles
+      path: "/data"
+      format: json
+      options:
+        cloudFiles.format: json
+        cloudFiles.schemaHints: "schemas/load_schema.yaml"
+    target: v_raw_data
+  - name: transform_data
+    type: transform
+    transform_type: schema
+    source:
+      view: v_raw_data
+      schema_file: "schemas/transform_schema.yaml"
+    target: v_transformed_data
+  - name: write_data
+    type: write
+    source: v_transformed_data
+    write_target:
+      type: streaming_table
+      database: "bronze"
+      table: "data_table"
+      table_schema: "schemas/table_schema.ddl"
+  - name: create_summary
+    type: write
+    write_target:
+      type: materialized_view
+      database: "gold"
+      table: "summary"
+      sql_path: "sql/summary.sql"
+"""
+            yaml_file = project_root / "test.yaml"
+            yaml_file.write_text(yaml_content)
+            
+            # Create dependency resolver
+            resolver = StateDependencyResolver(project_root)
+            
+            # Test dependency discovery
+            dependencies = resolver.resolve_file_dependencies(yaml_file, "dev")
+            
+            # Should find all schema files
+            expected_files = [
+                "schemas/load_schema.yaml",
+                "schemas/transform_schema.yaml",
+                "schemas/table_schema.ddl",
+                "sql/summary.sql"
+            ]
+            
+            for file_path in expected_files:
+                assert file_path in dependencies, f"Missing dependency: {file_path}"
+                assert dependencies[file_path].type == "external_file"

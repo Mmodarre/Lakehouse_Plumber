@@ -5,6 +5,7 @@ from typing import Dict, Any
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.schema_transform_parser import SchemaTransformParser
+from ...utils.external_file_loader import resolve_external_file_path
 
 
 class SchemaTransformGenerator(BaseActionGenerator):
@@ -164,11 +165,12 @@ class SchemaTransformGenerator(BaseActionGenerator):
             FileNotFoundError: If schema file doesn't exist.
             ValueError: If schema format is invalid.
         """
-        file_path = Path(schema_file_path)
-        
-        # Resolve path relative to project root if not absolute
-        if not file_path.is_absolute():
-            file_path = project_root / file_path
+        # Use common utility for path resolution
+        resolved_path = resolve_external_file_path(
+            schema_file_path,
+            project_root,
+            file_type="schema file"
+        )
         
         # Parse the schema file
-        return self.schema_parser.parse_file(file_path)
+        return self.schema_parser.parse_file(resolved_path)

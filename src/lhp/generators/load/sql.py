@@ -4,7 +4,7 @@ from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.operational_metadata import OperationalMetadata
-from ...utils.error_formatter import ErrorFormatter
+from ...utils.external_file_loader import load_external_file_text
 
 
 class SQLLoadGenerator(BaseActionGenerator):
@@ -74,30 +74,13 @@ class SQLLoadGenerator(BaseActionGenerator):
         if "sql" in source_config:
             sql_content = source_config["sql"]
         elif "sql_path" in source_config:
-            sql_file = Path(source_config["sql_path"])
-            if not sql_file.is_absolute() and spec_dir:
-                sql_file = spec_dir / sql_file
-
-            if not sql_file.exists():
-                # Build search locations for error message
-                search_locations = []
-                if source_config["sql_path"].startswith("/"):
-                    search_locations.append(f"Absolute path: {sql_file}")
-                else:
-                    search_locations.append(
-                        f"Relative to YAML: {spec_dir / source_config['sql_path']}"
-                    )
-                    search_locations.append(
-                        f"Working directory: {Path.cwd() / source_config['sql_path']}"
-                    )
-
-                raise ErrorFormatter.file_not_found(
-                    file_path=str(source_config["sql_path"]),
-                    search_locations=search_locations,
-                    file_type="SQL file",
-                )
-
-            sql_content = sql_file.read_text().strip()
+            # Use common utility for file loading
+            project_root = context.get("project_root") if context else (spec_dir or Path.cwd())
+            sql_content = load_external_file_text(
+                source_config["sql_path"],
+                project_root,
+                file_type="SQL file"
+            ).strip()
         else:
             raise ValueError("SQL source must have 'sql' or 'sql_path'")
         
