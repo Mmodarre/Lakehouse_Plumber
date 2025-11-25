@@ -399,6 +399,19 @@
                     "type": "string",
                     "description": "Path to expectations file for data quality transforms"
                 },
+                "schema_inline": {
+                    "type": "string",
+                    "description": "Inline schema definition for schema transforms (arrow or YAML format)"
+                },
+                "schema_file": {
+                    "type": "string",
+                    "description": "Path to external schema file for schema transforms"
+                },
+                "enforcement": {
+                    "type": "string",
+                    "enum": ["strict", "permissive"],
+                    "description": "Schema enforcement mode for schema transforms: 'strict' (only defined columns) or 'permissive' (allow extra columns). Default: permissive"
+                },
                 "once": {
                     "type": "boolean",
                     "description": "Whether this is a one-time flow/backfill"
@@ -415,14 +428,6 @@
                     "type": "object",
                     "description": "Parameters dictionary passed to Python function. Optional for Python transforms and loads.",
                     "additionalProperties": true
-                },
-                "schema_file": {
-                    "type": "string",
-                    "description": "Path to schema file for schema transforms"
-                },
-                "schema_path": {
-                    "type": "string",
-                    "description": "Path to schema file (alternative to schema_file)"
                 }
             }
         },

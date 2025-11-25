@@ -1206,29 +1206,22 @@ def transform_customers(df, spark, parameters):
         """Test schema transform generator."""
         generator = SchemaTransformGenerator()
         
-        # Test with both column mapping and type casting
+        # Test with inline schema (arrow format)
         action = Action(
             name="standardize_customer_schema",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_customer_raw",
-                "schema": {
-                    "enforcement": "strict",
-                    "column_mapping": {
-                        "c_custkey": "customer_id",
-                        "c_name": "customer_name",
-                        "c_address": "address",
-                        "c_phone": "phone_number"
-                    },
-                    "type_casting": {
-                        "customer_id": "BIGINT",
-                        "account_balance": "DECIMAL(18,2)",
-                        "phone_number": "STRING"
-                    }
-                }
-            },
+            source="v_customer_raw",
             target="v_customer_standardized",
+            schema_inline="""
+c_custkey -> customer_id: BIGINT
+c_name -> customer_name
+c_address -> address
+c_phone -> phone_number
+account_balance: DECIMAL(18,2)
+phone_number: STRING
+            """,
+            enforcement="strict",
             readMode="batch",
             description="Standardize customer schema and data types"
         )
@@ -1262,7 +1255,6 @@ def transform_customers(df, spark, parameters):
         # Create schema file
         schema_file = tmp_path / "customer_transform.yaml"
         schema_file.write_text("""
-enforcement: strict
 columns:
   - "c_custkey -> customer_id: BIGINT"
   - "c_name -> customer_name"
@@ -1273,11 +1265,10 @@ columns:
             name="standardize_customer",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_customer_raw",
-                "schema_file": str(schema_file)
-            },
+            source="v_customer_raw",
             target="v_customer_standardized",
+            schema_file=str(schema_file),
+            enforcement="strict",
             readMode="batch"
         )
         
@@ -1304,19 +1295,15 @@ columns:
             name="transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_customer_raw",
-                "schema": {
-                    "column_mapping": {"c_name": "customer_name"}
-                },
-                "schema_file": str(schema_file)
-            },
-            target="v_customer_standardized"
+            source="v_customer_raw",
+            target="v_customer_standardized",
+            schema_inline="c_name -> customer_name",
+            schema_file=str(schema_file)
         )
         
         context = {"spec_dir": tmp_path}
         
-        with pytest.raises(ValueError, match="Cannot specify both.*schema.*and.*schema_file"):
+        with pytest.raises(ValueError, match="cannot specify both.*schema_inline.*and.*schema_file"):
             generator.generate(action, context)
     
     def test_schema_transform_file_not_found_error(self, tmp_path):
@@ -1328,11 +1315,9 @@ columns:
             name="transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_customer_raw",
-                "schema_file": "missing.yaml"
-            },
-            target="v_customer_standardized"
+            source="v_customer_raw",
+            target="v_customer_standardized",
+            schema_file="missing.yaml"
         )
         
         context = {"spec_dir": tmp_path}
@@ -1351,16 +1336,12 @@ columns:
             name="rename_columns",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw_data",
-                "schema": {
-                    "column_mapping": {
-                        "old_name": "new_name",
-                        "legacy_id": "customer_id"
-                    }
-                }
-            },
-            target="v_renamed_data"
+            source="v_raw_data",
+            target="v_renamed_data",
+            schema_inline="""
+old_name -> new_name
+legacy_id -> customer_id
+            """
         )
         
         code = generator.generate(action, {})
@@ -1380,17 +1361,13 @@ columns:
             name="cast_types",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw_data",
-                "schema": {
-                    "type_casting": {
-                        "age": "INTEGER",
-                        "salary": "DECIMAL(10,2)",
-                        "active": "BOOLEAN"
-                    }
-                }
-            },
-            target="v_typed_data"
+            source="v_raw_data",
+            target="v_typed_data",
+            schema_inline="""
+age: INTEGER
+salary: DECIMAL(10,2)
+active: BOOLEAN
+            """
         )
         
         code = generator.generate(action, {})
@@ -1411,15 +1388,9 @@ columns:
             name="stream_schema",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_streaming_data",
-                "schema": {
-                    "type_casting": {
-                        "timestamp": "TIMESTAMP"
-                    }
-                }
-            },
+            source="v_streaming_data",
             target="v_typed_stream",
+            schema_inline="timestamp: TIMESTAMP",
             readMode="stream"
         )
         
@@ -1457,20 +1428,14 @@ columns:
             name="clean_data",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw_data",
-                "schema": {
-                    "column_mapping": {
-                        "customer_id": "id",
-                        "_ingestion_timestamp": "ingestion_time"  # This should be ignored
-                    },
-                    "type_casting": {
-                        "age": "int",
-                        "_source_file": "int"  # This should be ignored
-                    }
-                }
-            },
-            target="v_clean_data"
+            source="v_raw_data",
+            target="v_clean_data",
+            schema_inline="""
+customer_id -> id
+age: int
+_ingestion_timestamp -> ingestion_time
+_source_file: int
+            """
         )
         
         code = generator.generate(action, {"project_config": project_config})

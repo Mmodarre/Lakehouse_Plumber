@@ -218,6 +218,8 @@ class TransformActionValidator(BaseActionValidator):
                 errors.extend(self._validate_python_transform(action, prefix))
             elif transform_type == TransformType.TEMP_TABLE:
                 errors.extend(self._validate_temp_table_transform(action, prefix))
+            elif transform_type == TransformType.SCHEMA:
+                errors.extend(self._validate_schema_transform(action, prefix))
 
         except ValueError:
             pass  # Already handled above
@@ -297,6 +299,60 @@ class TransformActionValidator(BaseActionValidator):
         # Must have source
         if not action.source:
             errors.append(f"{prefix}: Temp table transform must have 'source'")
+        return errors
+    
+    def _validate_schema_transform(self, action: Action, prefix: str) -> List[str]:
+        """Validate schema transform configuration."""
+        errors = []
+        
+        # Must have source (view name)
+        if not action.source:
+            errors.append(f"{prefix}: Schema transform must have 'source' (view name)")
+        elif isinstance(action.source, dict):
+            # Old format detected
+            errors.append(
+                f"{prefix}: Schema transform uses deprecated nested format. "
+                "The 'source' field must be a simple view name (string). "
+                "Move 'schema' or 'schema_file' to top-level action fields."
+            )
+        elif not isinstance(action.source, str):
+            errors.append(
+                f"{prefix}: Schema transform source must be a string (view name), "
+                f"got {type(action.source).__name__}"
+            )
+        
+        # Must have exactly one of schema_inline or schema_file
+        has_schema_inline = hasattr(action, 'schema_inline') and action.schema_inline is not None
+        has_schema_file = hasattr(action, 'schema_file') and action.schema_file is not None
+        
+        if has_schema_inline and has_schema_file:
+            errors.append(
+                f"{prefix}: Schema transform cannot specify both 'schema_inline' and 'schema_file'. "
+                "Use either inline schema or external schema file, not both."
+            )
+        elif not has_schema_inline and not has_schema_file:
+            errors.append(
+                f"{prefix}: Schema transform must specify either 'schema_inline' (inline) or "
+                "'schema_file' (external). Schema transforms require a schema definition."
+            )
+        
+        # Validate enforcement if specified
+        if hasattr(action, 'enforcement') and action.enforcement is not None:
+            if action.enforcement not in ["strict", "permissive"]:
+                errors.append(
+                    f"{prefix}: Schema transform enforcement must be 'strict' or 'permissive', "
+                    f"got '{action.enforcement}'"
+                )
+        
+        # Validate schema_file exists if specified (and project_root is available)
+        if has_schema_file and self.project_root:
+            from pathlib import Path
+            schema_file_path = Path(self.project_root) / action.schema_file
+            if not schema_file_path.exists():
+                errors.append(
+                    f"{prefix}: Schema file '{action.schema_file}' not found at {schema_file_path}"
+                )
+        
         return errors
 
 

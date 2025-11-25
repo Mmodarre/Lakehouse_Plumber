@@ -576,10 +576,9 @@ actions:
   - name: apply_schema
     type: transform
     transform_type: schema
-    source:
-      view: v_raw_data
-      schema_file: "schemas/transformations/enrichment_schema.yaml"
+    source: v_raw_data
     target: v_enriched_data
+    schema_file: "schemas/transformations/enrichment_schema.yaml"
 """
             yaml_file = project_root / "test.yaml"
             yaml_file.write_text(yaml_content)
@@ -774,9 +773,8 @@ actions:
   - name: transform_data
     type: transform
     transform_type: schema
-    source:
-      view: v_raw_data
-      schema_file: "schemas/transform_schema.yaml"
+    source: v_raw_data
+    schema_file: "schemas/transform_schema.yaml"
     target: v_transformed_data
   - name: write_data
     type: write

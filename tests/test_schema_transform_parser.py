@@ -14,7 +14,6 @@ class TestSchemaTransformParserArrowFormat:
         
         data = {
             "name": "test_transform",
-            "enforcement": "strict",
             "columns": [
                 "c_custkey -> customer_id: BIGINT",
                 "c_name -> customer_name: STRING"
@@ -23,7 +22,8 @@ class TestSchemaTransformParserArrowFormat:
         
         result = parser.parse_arrow_format(data)
         
-        assert result["enforcement"] == "strict"
+        # Enforcement is no longer returned by parser (action-level only)
+        assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",
             "c_name": "customer_name"
@@ -149,20 +149,21 @@ class TestSchemaTransformParserArrowFormat:
         with pytest.raises(ValueError, match="Duplicate source column"):
             parser.parse_arrow_format(data)
     
-    def test_parse_arrow_duplicate_same_column_rename_and_cast_error(self):
-        """Test that renaming and casting same column in separate lines raises an error."""
+    def test_parse_arrow_rename_then_cast_separate_lines(self):
+        """Test that renaming and casting same column in separate lines is allowed."""
         parser = SchemaTransformParser()
         
         data = {
             "columns": [
                 "c_custkey -> customer_id",
-                "customer_id: BIGINT"  # Trying to cast the renamed column separately
+                "customer_id: BIGINT"  # Casting the renamed column separately is allowed
             ]
         }
         
-        # This should error because customer_id appears as both target of rename and type cast
-        with pytest.raises(ValueError, match="Duplicate.*customer_id"):
-            parser.parse_arrow_format(data)
+        # This should work - rename then cast is a valid pattern
+        result = parser.parse_arrow_format(data)
+        assert result["column_mapping"] == {"c_custkey": "customer_id"}
+        assert result["type_casting"] == {"customer_id": "BIGINT"}
     
     def test_parse_arrow_invalid_syntax_wrong_arrow(self):
         """Test that invalid arrow syntax raises an error."""
@@ -217,7 +218,7 @@ class TestSchemaTransformParserArrowFormat:
             parser.parse_arrow_format(data)
     
     def test_parse_arrow_default_enforcement_permissive(self):
-        """Test that default enforcement is permissive when not specified."""
+        """Test that enforcement is not returned by parser (action-level only)."""
         parser = SchemaTransformParser()
         
         data = {
@@ -228,7 +229,9 @@ class TestSchemaTransformParserArrowFormat:
         
         result = parser.parse_arrow_format(data)
         
-        assert result["enforcement"] == "permissive"
+        # Enforcement is action-level only, not returned by parser
+        assert "enforcement" not in result
+        assert "column_mapping" in result
     
     def test_parse_arrow_mixed_operations(self):
         """Test parsing with mixed operations in single file."""
@@ -265,7 +268,6 @@ class TestSchemaTransformParserLegacyFormat:
         parser = SchemaTransformParser()
         
         data = {
-            "enforcement": "strict",
             "column_mapping": {
                 "c_custkey": "customer_id",
                 "c_name": "customer_name"
@@ -278,7 +280,8 @@ class TestSchemaTransformParserLegacyFormat:
         
         result = parser.parse_legacy_format(data)
         
-        assert result["enforcement"] == "strict"
+        # Enforcement is not returned by parser (action-level only)
+        assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",
             "c_name": "customer_name"
@@ -327,7 +330,7 @@ class TestSchemaTransformParserLegacyFormat:
         }
     
     def test_parse_legacy_default_enforcement_permissive(self):
-        """Test that default enforcement is permissive in legacy format."""
+        """Test that enforcement is not returned by parser (action-level only)."""
         parser = SchemaTransformParser()
         
         data = {
@@ -338,10 +341,12 @@ class TestSchemaTransformParserLegacyFormat:
         
         result = parser.parse_legacy_format(data)
         
-        assert result["enforcement"] == "permissive"
+        # Enforcement is action-level only, not returned by parser
+        assert "enforcement" not in result
+        assert "column_mapping" in result
     
     def test_parse_legacy_explicit_permissive_enforcement(self):
-        """Test parsing legacy format with explicit permissive enforcement."""
+        """Test parsing legacy format ignores enforcement (action-level only)."""
         parser = SchemaTransformParser()
         
         data = {
@@ -353,7 +358,9 @@ class TestSchemaTransformParserLegacyFormat:
         
         result = parser.parse_legacy_format(data)
         
-        assert result["enforcement"] == "permissive"
+        # Enforcement is ignored by parser (action-level only)
+        assert "enforcement" not in result
+        assert result["column_mapping"] == {"c_custkey": "customer_id"}
 
 
 class TestSchemaTransformParserValidation:
@@ -406,27 +413,17 @@ class TestSchemaTransformParserValidation:
             parser.parse_file_data(data)
     
     def test_empty_mappings_in_strict_mode_error(self):
-        """Test that empty mappings in strict mode raises an error."""
+        """Test that empty columns raises an error (regardless of enforcement)."""
         parser = SchemaTransformParser()
         
         # Arrow format with empty columns
         data_arrow = {
-            "enforcement": "strict",
             "columns": []
         }
         
-        with pytest.raises(ValueError, match="Strict enforcement requires at least one column"):
+        # Empty columns should always raise an error
+        with pytest.raises(ValueError, match="No columns defined"):
             parser.parse_arrow_format(data_arrow)
-        
-        # Legacy format with empty mappings
-        data_legacy = {
-            "enforcement": "strict",
-            "column_mapping": {},
-            "type_casting": {}
-        }
-        
-        with pytest.raises(ValueError, match="Strict enforcement requires at least one column"):
-            parser.parse_legacy_format(data_legacy)
     
     def test_empty_columns_permissive_mode_error(self):
         """Test that empty columns in permissive mode also raises an error."""
@@ -453,17 +450,17 @@ class TestSchemaTransformParserValidation:
             parser.parse_file_data(data)
     
     def test_pass_through_in_permissive_mode_error(self):
-        """Test that pass-through columns in permissive mode raise an error."""
+        """Test that pass-through columns are allowed (enforcement is action-level)."""
         parser = SchemaTransformParser()
         
         data = {
-            "enforcement": "permissive",
             "columns": [
                 "c_custkey -> customer_id",
                 "address"  # Pass-through column
             ]
         }
         
-        with pytest.raises(ValueError, match="Pass-through columns.*only allowed in strict mode"):
-            parser.parse_arrow_format(data)
+        # Pass-through columns are now allowed in parser (enforcement validation is action-level)
+        result = parser.parse_arrow_format(data)
+        assert "address" in result["pass_through_columns"]
 

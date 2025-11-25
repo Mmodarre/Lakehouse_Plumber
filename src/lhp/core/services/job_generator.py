@@ -46,7 +46,9 @@ class JobGenerator:
     DEFAULT_JOB_CONFIG = {
         "max_concurrent_runs": 1,
         "queue": {"enabled": True},
-        "performance_target": "STANDARD"
+        "performance_target": "STANDARD",
+        "generate_master_job": True,  # Control master job generation
+        "master_job_name": None  # Custom master job name (None = auto-generate)
     }
 
     def __init__(self, 
@@ -228,6 +230,37 @@ class JobGenerator:
             self.logger.debug(f"No job-specific config for '{job_name}', using project_defaults")
         
         return config
+    
+    def should_generate_master_job(self) -> bool:
+        """Check if master orchestration job should be generated.
+        
+        Reads from project_defaults.generate_master_job in job_config.yaml.
+        
+        Returns:
+            bool: True if master job should be generated (default: True)
+        """
+        return self.project_defaults.get("generate_master_job", True)
+    
+    def get_master_job_name(self, project_name: str) -> str:
+        """Get master job name from config or generate default.
+        
+        Reads from project_defaults.master_job_name in job_config.yaml.
+        
+        Args:
+            project_name: Project name for auto-generating default name
+            
+        Returns:
+            str: Master job name (custom or auto-generated)
+            
+        Example:
+            Custom: "production_orchestrator"
+            Auto: "acme_edw_master"
+        """
+        custom_name = self.project_defaults.get("master_job_name")
+        if custom_name:
+            self.logger.info(f"Using custom master job name: {custom_name}")
+            return custom_name
+        return f"{project_name}_master"
 
     def generate_job(self,
                     dependency_result: DependencyAnalysisResult,
@@ -295,8 +328,9 @@ class JobGenerator:
             is_parallel = len(stage_pipelines) > 1
 
             # Create JobPipeline objects for this stage
+            # Sort pipelines for deterministic output
             pipelines = []
-            for pipeline_name in stage_pipelines:
+            for pipeline_name in sorted(stage_pipelines):
                 pipeline_info = dependency_result.pipeline_dependencies.get(pipeline_name)
                 depends_on = pipeline_info.depends_on if pipeline_info else []
 
@@ -415,57 +449,46 @@ class JobGenerator:
     def generate_master_job(self,
                            job_results: Dict[str, DependencyAnalysisResult],
                            master_job_name: str,
-                           project_name: Optional[str] = None) -> str:
+                           project_name: Optional[str] = None,
+                           global_result: Optional[DependencyAnalysisResult] = None) -> str:
         """
-        Generate master orchestration job that coordinates all individual jobs.
+        Generate master orchestration job with cross-job dependencies.
         
-        The master job uses job_task references to execute individual jobs
-        in the correct order based on cross-job dependencies.
+        Uses global dependency analysis to determine which jobs depend on others
+        based on their pipeline relationships.
         
         Args:
-            job_results: Dictionary mapping job_name to DependencyAnalysisResult
+            job_results: Mapping of job_name to individual job's DependencyAnalysisResult
             master_job_name: Name for the master orchestration job
-            project_name: Name of the project
+            project_name: Project name for metadata
+            global_result: Global DependencyAnalysisResult from analyzing all flowgroups.
+                          REQUIRED for correct dependency resolution.
             
         Returns:
-            YAML content for the master orchestration job
+            YAML string for master orchestration job with proper depends_on clauses
+            
+        Raises:
+            ValueError: If global_result is None (required for correct dependencies)
         """
         if not project_name:
             project_name = "lhp_project"
         
+        # STRICT VALIDATION (Decision 3.b)
+        if global_result is None:
+            raise ValueError(
+                "global_result is required for generate_master_job(). "
+                "Pass the global DependencyAnalysisResult from analyze_dependencies_by_job()."
+            )
+        
         self.logger.info(f"Generating master orchestration job: {master_job_name}")
         
-        # Analyze cross-job dependencies
-        # For now, we'll use a simple ordering based on job names
-        # In a full implementation, this would analyze pipeline dependencies across jobs
-        jobs_info = {}
+        # Build pipeline-to-job mapping
+        pipeline_to_job = self._build_pipeline_to_job_mapping(job_results)
         
-        for job_name, dep_result in job_results.items():
-            # For each job, determine which other jobs it depends on
-            # based on pipeline dependencies
-            depends_on = []
-            
-            # Get all pipelines in this job
-            job_pipelines = set(dep_result.pipeline_dependencies.keys())
-            
-            # Check dependencies against other jobs
-            for other_job_name, other_dep_result in job_results.items():
-                if other_job_name == job_name:
-                    continue
-                
-                other_pipelines = set(other_dep_result.pipeline_dependencies.keys())
-                
-                # Check if any pipeline in current job depends on pipelines in other job
-                for pipeline in job_pipelines:
-                    pipeline_dep = dep_result.pipeline_dependencies.get(pipeline)
-                    if pipeline_dep and any(dep in other_pipelines for dep in pipeline_dep.depends_on):
-                        depends_on.append(other_job_name)
-                        break
-            
-            jobs_info[job_name] = {
-                "depends_on": list(set(depends_on)),  # Remove duplicates
-                "pipeline_count": len(job_pipelines)
-            }
+        # Determine cross-job dependencies using global analysis
+        jobs_info = self._analyze_cross_job_dependencies_from_global(
+            job_results, pipeline_to_job, global_result
+        )
         
         # Build template context
         context = {
@@ -484,3 +507,81 @@ class JobGenerator:
         except Exception as e:
             self.logger.error(f"Failed to render master job template: {e}")
             raise
+    
+    def _build_pipeline_to_job_mapping(self, 
+                                       job_results: Dict[str, DependencyAnalysisResult]
+                                       ) -> Dict[str, str]:
+        """Build mapping of pipeline name to job name.
+        
+        Args:
+            job_results: Dictionary mapping job names to their analysis results
+            
+        Returns:
+            Dictionary mapping pipeline names to job names
+            
+        Example:
+            {"acmi_edw_raw": "j_one", "acmi_edw_bronze": "j_two"}
+        """
+        pipeline_to_job = {}
+        for job_name, result in job_results.items():
+            for pipeline_name in result.pipeline_dependencies.keys():
+                pipeline_to_job[pipeline_name] = job_name
+        return pipeline_to_job
+    
+    def _analyze_cross_job_dependencies_from_global(self,
+                                                    job_results: Dict[str, DependencyAnalysisResult],
+                                                    pipeline_to_job: Dict[str, str],
+                                                    global_result: DependencyAnalysisResult
+                                                    ) -> Dict[str, Dict[str, Any]]:
+        """Determine which jobs depend on other jobs using global pipeline dependencies.
+        
+        Uses the global dependency analysis to identify which pipelines depend on which,
+        then maps those pipeline dependencies to job-level dependencies.
+        
+        Args:
+            job_results: Individual job analysis results
+            pipeline_to_job: Mapping of pipeline name to job name
+            global_result: Global analysis with complete pipeline dependency graph
+            
+        Returns:
+            Dictionary mapping job names to their metadata including depends_on list
+            
+        Example:
+            {
+                "j_one": {"depends_on": [], "pipeline_count": 1},
+                "j_two": {"depends_on": ["j_one"], "pipeline_count": 1},
+                "j_three": {"depends_on": ["j_two"], "pipeline_count": 1}
+            }
+        """
+        jobs_info = {}
+        
+        for job_name, job_result in job_results.items():
+            depends_on_jobs = set()
+            
+            # Get all pipelines in this job
+            job_pipelines = set(job_result.pipeline_dependencies.keys())
+            
+            # For each pipeline in this job, check global dependencies
+            for pipeline_name in job_pipelines:
+                if pipeline_name in global_result.pipeline_dependencies:
+                    global_pipeline_dep = global_result.pipeline_dependencies[pipeline_name]
+                    
+                    # Check which pipelines this pipeline depends on
+                    for upstream_pipeline in global_pipeline_dep.depends_on:
+                        # Find which job owns the upstream pipeline
+                        upstream_job = pipeline_to_job.get(upstream_pipeline)
+                        
+                        # If upstream pipeline belongs to a different job, add dependency
+                        if upstream_job and upstream_job != job_name:
+                            depends_on_jobs.add(upstream_job)
+                            self.logger.debug(
+                                f"Job '{job_name}' depends on job '{upstream_job}' "
+                                f"(pipeline '{pipeline_name}' → '{upstream_pipeline}')"
+                            )
+            
+            jobs_info[job_name] = {
+                "depends_on": sorted(list(depends_on_jobs)),  # Sort for deterministic output
+                "pipeline_count": len(job_pipelines)
+            }
+        
+        return jobs_info

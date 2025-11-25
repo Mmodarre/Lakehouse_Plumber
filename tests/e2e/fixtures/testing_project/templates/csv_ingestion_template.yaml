@@ -51,7 +51,7 @@ actions:
         cloudFiles.rescuedDataColumn: _rescued_data
         # Managed file events is not available in Databricks Free Edition, Uncomment to use it if you are not using the free edition
         # cloudFiles.useManagedFileEvents: True  
-        cloudFiles.schemaHints: "schemas/{{ schema_file }}.yaml"
+        cloudFiles.schemaHints: "schemas/{{ schema_file }}"
 
     target: v_{{ table_name }}_cloudfiles
     description: "Load {{ table_name }} CSV files from landing volume"

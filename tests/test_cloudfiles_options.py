@@ -619,7 +619,7 @@ class TestSchemaParser:
         """Test conversion to schema hints."""
         result = self.parser.to_schema_hints(self.schema_data)
         
-        expected = "id BIGINT, name STRING, amount DECIMAL(18,2), is_active BOOLEAN, created_at TIMESTAMP"
+        expected = "id BIGINT NOT NULL, name STRING, amount DECIMAL(18,2), is_active BOOLEAN NOT NULL, created_at TIMESTAMP NOT NULL"
         assert result == expected
     
     def test_to_struct_type_code(self):

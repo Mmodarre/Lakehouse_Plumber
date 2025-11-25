@@ -16,16 +16,12 @@ class TestSchemaTransformEnforcement:
             name="strict_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "strict",
-                    "column_mapping": {
-                        "c_custkey": "customer_id",
-                        "c_name": "customer_name"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+c_custkey -> customer_id
+c_name -> customer_name
+            """,
+            enforcement="strict",
             target="v_clean",
             readMode="batch"
         )
@@ -46,17 +42,13 @@ class TestSchemaTransformEnforcement:
             name="strict_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "strict",
-                    "column_mapping": {
-                        "a": "col_a",
-                        "b": "col_b",
-                        "c": "col_c"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+a -> col_a
+b -> col_b
+c -> col_c
+            """,
+            enforcement="strict",
             target="v_clean"
         )
         
@@ -93,15 +85,11 @@ class TestSchemaTransformEnforcement:
             name="strict_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "strict",
-                    "column_mapping": {
-                        "c_custkey": "customer_id"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+c_custkey -> customer_id
+            """,
+            enforcement="strict",
             target="v_clean"
         )
         
@@ -138,15 +126,11 @@ class TestSchemaTransformEnforcement:
             name="strict_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "strict",
-                    "column_mapping": {
-                        "c_custkey": "customer_id"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+c_custkey -> customer_id
+            """,
+            enforcement="strict",
             target="v_clean"
         )
         
@@ -172,15 +156,11 @@ class TestSchemaTransformEnforcement:
             name="permissive_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "permissive",
-                    "column_mapping": {
-                        "c_custkey": "customer_id"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+c_custkey -> customer_id
+            """,
+            enforcement="permissive",
             target="v_clean"
         )
         
@@ -200,20 +180,13 @@ class TestSchemaTransformEnforcement:
             name="permissive_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "permissive",
-                    "column_mapping": {
-                        "c_custkey": "customer_id",
-                        "c_name": "customer_name"
-                    },
-                    "type_casting": {
-                        "customer_id": "BIGINT",
-                        "account_balance": "DECIMAL(18,2)"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+c_custkey -> customer_id: BIGINT
+c_name -> customer_name
+account_balance: DECIMAL(18,2)
+            """,
+            enforcement="permissive",
             target="v_clean"
         )
         
@@ -236,15 +209,11 @@ class TestSchemaTransformEnforcement:
             name="default_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    # No enforcement specified
-                    "column_mapping": {
-                        "c_custkey": "customer_id"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+c_custkey -> customer_id
+            """,
+            # No enforcement specified - defaults to permissive
             target="v_clean"
         )
         
@@ -263,16 +232,12 @@ class TestSchemaTransformEnforcement:
             name="strict_casting",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "strict",
-                    "type_casting": {
-                        "customer_id": "BIGINT",
-                        "amount": "DECIMAL(18,2)"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+customer_id: BIGINT
+amount: DECIMAL(18,2)
+            """,
+            enforcement="strict",
             target="v_clean"
         )
         
@@ -311,19 +276,12 @@ class TestSchemaTransformEnforcement:
             name="transform_with_metadata",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "column_mapping": {
-                        "_ingestion_timestamp": "renamed_timestamp",  # Should be ignored
-                        "c_custkey": "customer_id"
-                    },
-                    "type_casting": {
-                        "_source_file": "STRING",  # Should be ignored
-                        "customer_id": "BIGINT"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+_ingestion_timestamp -> renamed_timestamp
+c_custkey -> customer_id: BIGINT
+_source_file: STRING
+            """,
             target="v_clean"
         )
         
@@ -352,18 +310,14 @@ class TestSchemaTransformColumnOrdering:
             name="ordered_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "strict",
-                    "column_mapping": {
-                        "d_col": "fourth",
-                        "a_col": "first",
-                        "c_col": "third",
-                        "b_col": "second"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+d_col -> fourth
+a_col -> first
+c_col -> third
+b_col -> second
+            """,
+            enforcement="strict",
             target="v_clean"
         )
         
@@ -374,8 +328,7 @@ class TestSchemaTransformColumnOrdering:
         select_idx = code.index("columns_to_select = [")
         select_section = code[select_idx:select_idx + 500]
         
-        # Columns should appear in the order they were defined in column_mapping
-        # Python 3.7+ dicts maintain insertion order
+        # Columns should appear in the order they were defined in schema_inline
         first_pos = select_section.index('"fourth"')
         second_pos = select_section.index('"first"')
         third_pos = select_section.index('"third"')
@@ -409,16 +362,12 @@ class TestSchemaTransformColumnOrdering:
             name="ordered_with_metadata",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "strict",
-                    "column_mapping": {
-                        "a": "col_a",
-                        "b": "col_b"
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+a -> col_a
+b -> col_b
+            """,
+            enforcement="strict",
             target="v_clean"
         )
         
@@ -452,20 +401,13 @@ class TestSchemaTransformColumnOrdering:
             name="mixed_ordered_transform",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw",
-                "schema": {
-                    "enforcement": "strict",
-                    "column_mapping": {
-                        "a": "first",
-                        "c": "third"
-                    },
-                    "type_casting": {
-                        "second": "BIGINT",  # Column not renamed
-                        "first": "STRING"    # Column that was renamed
-                    }
-                }
-            },
+            source="v_raw",
+            schema_inline="""
+a -> first: STRING
+second: BIGINT
+c -> third
+            """,
+            enforcement="strict",
             target="v_clean"
         )
         

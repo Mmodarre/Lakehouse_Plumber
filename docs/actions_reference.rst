@@ -139,6 +139,13 @@ The ``cloudFiles.schemaHints`` option supports three formats, automatically dete
   - Nested subdirectories: ``"schemas/bronze/dimensions/customer_schema.yaml"``
   
   The framework automatically detects whether the value is an inline DDL string or a file path based on common file indicators (``.yaml``, ``.yml``, ``.ddl``, ``.sql``, or path separators).
+  
+  **YAML Schema Conversion**: When using YAML schema files (Option 2), the ``nullable`` field is respected during conversion to DDL:
+  
+  - Columns with ``nullable: false`` are converted to include ``NOT NULL`` constraint
+  - Columns with ``nullable: true`` (or omitted, default is true) are converted without constraints
+  
+  Example: A YAML column defined as ``{name: c_custkey, type: BIGINT, nullable: false}`` will generate ``c_custkey BIGINT NOT NULL`` in the schema hints.
             
 .. seealso::
   - For full list of options see the `Databricks Auto Loader documentation <https://docs.databricks.com/en/data/data-sources/cloud-files/auto-loader/index.html>`_.
@@ -158,10 +165,10 @@ The ``cloudFiles.schemaHints`` option supports three formats, automatically dete
   from pyspark.sql.functions import F
 
   customer_cloudfiles_schema_hints = """
-      c_custkey BIGINT,
-      c_name STRING,
+      c_custkey BIGINT NOT NULL,
+      c_name STRING NOT NULL,
       c_address STRING,
-      c_nationkey BIGINT,
+      c_nationkey BIGINT NOT NULL,
       c_phone STRING,
       c_acctbal DECIMAL(18,2),
       c_mktsegment STRING,
@@ -1703,29 +1710,37 @@ schema
 ~~~~~~
 Schema transform actions apply column mapping, type casting, and schema enforcement to standardize data structures.
 
-**Recommended Approach: External Schema Files (Arrow Format)**
+**Action Format Structure**
 
-The arrow format provides a concise, readable syntax for defining schema transformations in external files:
+Schema transform actions use a flat structure with schema definition at the action level:
 
 .. code-block:: yaml
 
-  # In your action YAML:
   actions:
     - name: standardize_customer_schema
       type: transform
       transform_type: schema
-      source:
-        view: v_customer_raw
-        schema_file: "schemas/bronze/customer_transform.yaml"
+      source: v_customer_raw                              # Simple view name (string)
       target: v_customer_standardized
-      readMode: batch
+      schema_file: "schemas/bronze/customer_transform.yaml"  # OR use inline schema
+      enforcement: strict                                  # Optional: strict or permissive (default: permissive)
+      readMode: stream                                     # Optional: stream (default) or batch
       description: "Standardize customer schema and data types"
+
+**Key Points:**
+
+- **source**: Must be a simple string (view name), not a dictionary
+- **schema_file** OR **schema**: Choose one (external file or inline definition)
+- **enforcement**: Action-level field (strict or permissive)
+- **readMode**: Defaults to **stream** (not batch)
+
+**External Schema Files (Recommended)**
+
+External schema files contain only column definitions (no enforcement):
 
 .. code-block:: yaml
 
   # In schemas/bronze/customer_transform.yaml:
-  name: customer_transform
-  enforcement: strict
   columns:
     - "c_custkey -> customer_id: BIGINT"     # Rename and cast
     - "c_name -> customer_name"               # Rename only
@@ -1758,20 +1773,59 @@ Schema files can be organized in subdirectories relative to your project root:
   # Absolute paths also supported
   schema_file: "/absolute/path/to/schema.yaml"
 
+**Inline Schema (Arrow Format)**
+
+For simple transformations, use inline schema with arrow syntax:
+
+.. code-block:: yaml
+
+  - name: standardize_customer_schema
+    type: transform
+    transform_type: schema
+    source: v_customer_raw
+    target: v_customer_standardized
+    enforcement: strict
+    schema_inline: |
+      c_custkey -> customer_id: BIGINT
+      c_name -> customer_name
+      account_balance: DECIMAL(18,2)
+      phone_number: STRING
+
+**Inline Schema (Full YAML Format)**
+
+For more complex schemas, use full YAML structure inline:
+
+.. code-block:: yaml
+
+  - name: standardize_customer_schema
+    type: transform
+    transform_type: schema
+    source: v_customer_raw
+    target: v_customer_standardized
+    enforcement: strict
+    schema_inline: |
+      columns:
+        - "c_custkey -> customer_id: BIGINT"
+        - "c_name -> customer_name"
+        - "account_balance: DECIMAL(18,2)"
+
 **Schema Enforcement Modes:**
 
-Schema transforms support two enforcement modes:
+Schema transforms support two enforcement modes (specified at action level):
 
-- **strict** (recommended): Only explicitly defined columns are kept in the output. All other columns are dropped. This ensures data quality and prevents schema drift.
+- **strict**: Only explicitly defined columns are kept in the output. All other columns are dropped. This ensures data quality and prevents schema drift.
 - **permissive** (default): Explicitly defined columns are transformed, but all other columns pass through unchanged. Useful when you only want to standardize specific columns.
 
 .. code-block:: yaml
 
   # Strict enforcement example
-  enforcement: strict
-  columns:
-    - "c_custkey -> customer_id: BIGINT"
-    - "c_name -> customer_name"
+  - name: transform_strict
+    type: transform
+    transform_type: schema
+    source: v_raw
+    target: v_clean
+    enforcement: strict
+    schema_file: "schemas/transform.yaml"
   
   # Input:  c_custkey, c_name, c_address, c_phone, extra_col
   # Output: customer_id, customer_name (+ operational metadata)
@@ -1779,54 +1833,49 @@ Schema transforms support two enforcement modes:
 
 .. code-block:: yaml
 
-  # Permissive enforcement example
-  enforcement: permissive  # or omit (permissive is default)
-  columns:
-    - "c_custkey -> customer_id: BIGINT"
-    - "c_name -> customer_name"
+  # Permissive enforcement example (default)
+  - name: transform_permissive
+    type: transform
+    transform_type: schema
+    source: v_raw
+    target: v_clean
+    enforcement: permissive  # or omit (permissive is default)
+    schema_file: "schemas/transform.yaml"
   
   # Input:  c_custkey, c_name, c_address, c_phone, extra_col
   # Output: customer_id, customer_name, c_address, c_phone, extra_col
   #         ↑ All unmapped columns kept
 
-**Legacy Format (Deprecated - For Backward Compatibility)**
+**Breaking Change: Old Format No Longer Supported**
 
-.. note::
-  The legacy inline format is still supported for backward compatibility but is not recommended for new projects. Please use the arrow format for better readability and maintainability.
-
-.. code-block:: yaml
-
-  # Legacy inline format (deprecated)
-  actions:
-    - name: standardize_customer_schema
-      type: transform
-      transform_type: schema
-      source:
-        view: v_customer_raw
-        schema:
-          enforcement: strict
-          column_mapping:
-            c_custkey: customer_id
-            c_name: customer_name
-          type_casting:
-            customer_id: "BIGINT"
-            account_balance: "DECIMAL(18,2)"
-      target: v_customer_standardized
+.. warning::
+  The nested format with schema definition inside ``source`` is no longer supported and will raise an error:
+  
+  .. code-block:: yaml
+  
+    # OLD FORMAT (NO LONGER WORKS):
+    source:
+      view: v_customer_raw
+      schema_file: "path.yaml"
+    
+    # NEW FORMAT (REQUIRED):
+    source: v_customer_raw
+    schema_file: "path.yaml"
+    enforcement: strict
+  
+  If you see an error about "deprecated nested format", move ``schema_inline`` or ``schema_file`` to the top level of the action.
 
 **Anatomy of a schema transform action**
 
 - **name**: Unique name for this action within the FlowGroup
-- **type**: Action type - transforms data schema and types
-- **transform_type**: Specifies this is a schema transformation
-- **source**:
-      - **view**: Name of the input view to transform
-      - **schema_file**: Path to external schema file (recommended, arrow or legacy format)
-      - **schema**: Inline schema configuration (deprecated, legacy format only)
-        - **enforcement**: Schema enforcement level ("strict" or "permissive", default: "permissive")
-        - **column_mapping**: Dictionary of old_name -> new_name mappings (legacy)
-        - **type_casting**: Dictionary of column_name -> new_data_type castings (legacy)
+- **type**: Must be ``transform``
+- **transform_type**: Must be ``schema``
+- **source**: Name of the input view to transform (simple string, not a dictionary)
 - **target**: Name of the output view with transformed schema
-- **readMode**: Either *batch* or *stream* - determines execution mode
+- **schema_file**: Path to external schema file (arrow or legacy format) - use this OR schema_inline
+- **schema_inline**: Inline schema definition (arrow or YAML format) - use this OR schema_file
+- **enforcement**: Optional - Schema enforcement mode (``strict`` or ``permissive``, default: ``permissive``)
+- **readMode**: Optional - Either ``stream`` (default) or ``batch`` - determines execution mode
 - **description**: Optional documentation for the action
 
 .. seealso::
@@ -1848,7 +1897,7 @@ Schema transforms support two enforcement modes:
   @dp.temporary_view()
   def v_customer_standardized():
       """Standardize customer schema and data types"""
-      df = spark.read.table("v_customer_raw")
+      df = spark.readStream.table("v_customer_raw")  # Default is stream mode
       
       # Apply column renaming
       df = df.withColumnRenamed("c_custkey", "customer_id")

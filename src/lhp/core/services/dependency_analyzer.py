@@ -63,6 +63,24 @@ class DependencyAnalyzer:
         self._flowgroups: Optional[List[FlowGroup]] = None
         self._flowgroup_file_paths: Dict[str, Path] = {}
 
+    def get_project_name(self) -> str:
+        """
+        Get the project name from lhp.yaml configuration.
+        
+        Returns:
+            Project name from lhp.yaml's 'name' field, or falls back to directory name
+            if lhp.yaml doesn't exist or has no name field.
+        """
+        try:
+            project_config = self.config_loader.load_project_config()
+            if project_config and project_config.name:
+                return project_config.name
+        except Exception as e:
+            self.logger.debug(f"Could not load project config for name: {e}")
+        
+        # Fallback to directory name for backward compatibility
+        return self.project_root.name if self.project_root else "lhp_project"
+
     def build_dependency_graphs(self, pipeline_filter: Optional[str] = None) -> DependencyGraphs:
         """
         Build dependency graphs at action, flowgroup, and pipeline levels.
@@ -156,15 +174,19 @@ class DependencyAnalyzer:
 
         return result
 
-    def analyze_dependencies_by_job(self) -> Dict[str, DependencyAnalysisResult]:
+    def analyze_dependencies_by_job(self) -> Tuple[Dict[str, DependencyAnalysisResult], DependencyAnalysisResult]:
         """
         Perform dependency analysis grouped by job_name.
         
         First analyzes all flowgroups together (global view), then analyzes
-        each job_name group separately. Returns one DependencyAnalysisResult per job.
+        each job_name group separately.
         
         Returns:
-            Dictionary mapping job_name to DependencyAnalysisResult
+            Tuple of:
+            - Dictionary mapping job_name to DependencyAnalysisResult (per-job analysis)
+            - DependencyAnalysisResult for global analysis (all flowgroups together)
+            
+        Note: In single-job mode, both tuple elements reference the same result.
             
         Raises:
             LHPError: If job_name validation fails
@@ -178,7 +200,17 @@ class DependencyAnalyzer:
         
         if not flowgroups:
             self.logger.warning("No flowgroups found for analysis")
-            return {}
+            # Return empty results - create minimal result for consistency
+            from ...models.dependencies import DependencyGraphs
+            empty_graphs = self._create_empty_graphs()
+            empty_result = DependencyAnalysisResult(
+                graphs=empty_graphs,
+                pipeline_dependencies={},
+                execution_stages=[],
+                circular_dependencies=[],
+                external_sources=[]
+            )
+            return {}, empty_result
         
         # Validate job_name usage (all-or-nothing rule)
         validate_job_names(flowgroups)
@@ -190,8 +222,9 @@ class DependencyAnalyzer:
             # No job_name defined - return single result with default key
             self.logger.info("No job_name defined - performing single-job analysis")
             result = self.analyze_dependencies()
-            project_name = self.project_root.name if self.project_root else "lhp_project"
-            return {f"{project_name}_orchestration": result}
+            project_name = self.get_project_name()
+            job_results = {f"{project_name}_orchestration": result}
+            return job_results, result  # Return tuple: (job_results, global_result)
         
         # Group flowgroups by job_name
         job_groups: Dict[str, List[FlowGroup]] = {}
@@ -248,7 +281,7 @@ class DependencyAnalyzer:
             f"{len(flowgroups)} total flowgroups"
         )
         
-        return job_results
+        return job_results, global_result  # Return tuple: (job_results, global_result)
 
     def get_execution_order(self, graphs: DependencyGraphs) -> List[List[str]]:
         """

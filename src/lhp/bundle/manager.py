@@ -1074,7 +1074,7 @@ class BundleManager:
         else:
             self.logger.info("All bundle resources preserved (conservative approach - existing LHP files untouched)")
 
-    def _create_new_resource_file(self, pipeline_name: str, output_dir: Path, env: str = None):
+    def _create_new_resource_file(self, pipeline_name: str, output_dir: Path, env: str):
         """
         Create new resource file for a pipeline.
         

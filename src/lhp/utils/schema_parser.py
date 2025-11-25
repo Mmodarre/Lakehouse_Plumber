@@ -108,7 +108,11 @@ class SchemaParser:
         for column in schema_data["columns"]:
             name = column["name"]
             col_type = column["type"]
-            hints.append(f"{name} {col_type}")
+            nullable = column.get("nullable", True)
+            
+            # Add NOT NULL constraint if column is not nullable
+            constraint = "" if nullable else " NOT NULL"
+            hints.append(f"{name} {col_type}{constraint}")
 
         return ", ".join(hints)
 

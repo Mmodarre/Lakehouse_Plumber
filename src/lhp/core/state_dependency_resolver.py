@@ -369,9 +369,9 @@ class StateDependencyResolver:
             
             # Schema files from transform schema_file in templates
             if action.get('type') == 'transform' and action.get('transform_type') == 'schema':
-                source = action.get('source', {})
-                if isinstance(source, dict) and source.get('schema_file'):
-                    files.add(source['schema_file'])
+                schema_file = action.get('schema_file')
+                if schema_file:
+                    files.add(schema_file)
             
             # Table schema files from write actions in templates
             if action.get('type') == 'write':
@@ -584,9 +584,8 @@ class StateDependencyResolver:
             
             # Schema files from transform schema_file
             if (hasattr(action, 'type') and action.type == 'transform' and
-                hasattr(action, 'transform_type') and action.transform_type == 'schema' and
-                hasattr(action, 'source') and isinstance(action.source, dict)):
-                schema_file = action.source.get('schema_file')
+                hasattr(action, 'transform_type') and action.transform_type == 'schema'):
+                schema_file = getattr(action, 'schema_file', None)
                 if schema_file:
                     files.add(schema_file)
             

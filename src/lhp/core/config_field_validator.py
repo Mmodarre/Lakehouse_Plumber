@@ -70,7 +70,7 @@ class ConfigFieldValidator:
                 # No additional fields - uses action.expectations_file
             },
             "schema": {
-                # No additional fields - uses action.schema_file or action.schema_path
+                # No additional fields - uses action.schema_file or action.schema_inline
             },
             "temp_table": {
                 # No additional fields - basic temp table configuration
@@ -154,6 +154,10 @@ class ConfigFieldValidator:
             "parameters",
             # Custom data source specific fields
             "custom_datasource_class",
+            # Schema transform specific fields
+            "schema_inline",
+            "schema_file",
+            "enforcement",
             # Test action specific fields
             "test_type",
             "on_violation",

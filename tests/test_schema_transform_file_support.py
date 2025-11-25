@@ -11,11 +11,10 @@ class TestSchemaTransformFileLoading:
     
     def test_load_file_from_root_level(self, tmp_path):
         """Test loading schema file from root level."""
-        # Create schema file in root
+        # Create schema file in root (enforcement removed - action-level only)
         schema_file = tmp_path / "customer_transform.yaml"
         schema_file.write_text("""
 name: customer_transform
-enforcement: strict
 columns:
   - "c_custkey -> customer_id: BIGINT"
   - "c_name -> customer_name"
@@ -24,7 +23,8 @@ columns:
         parser = SchemaTransformParser()
         result = parser.parse_file(schema_file)
         
-        assert result["enforcement"] == "strict"
+        # Enforcement is not returned by parser (action-level only)
+        assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",
             "c_name": "customer_name"
@@ -60,7 +60,6 @@ columns:
         
         schema_file = schemas_dir / "customer_transform.yaml"
         schema_file.write_text("""
-enforcement: strict
 columns:
   - "c_custkey -> customer_id: BIGINT"
 """)
@@ -68,7 +67,8 @@ columns:
         parser = SchemaTransformParser()
         result = parser.parse_file(schema_file)
         
-        assert result["enforcement"] == "strict"
+        # Enforcement is not returned by parser (action-level only)
+        assert "enforcement" not in result
         assert result["column_mapping"] == {"c_custkey": "customer_id"}
         assert result["type_casting"] == {"customer_id": "BIGINT"}
     
@@ -134,7 +134,6 @@ columns:
         """Test loading legacy format from file."""
         schema_file = tmp_path / "legacy_transform.yaml"
         schema_file.write_text("""
-enforcement: strict
 column_mapping:
   c_custkey: customer_id
   c_name: customer_name
@@ -145,7 +144,8 @@ type_casting:
         parser = SchemaTransformParser()
         result = parser.parse_file(schema_file)
         
-        assert result["enforcement"] == "strict"
+        # Enforcement is not returned by parser (action-level only)
+        assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",
             "c_name": "customer_name"
@@ -157,7 +157,6 @@ type_casting:
         schema_file = tmp_path / "arrow_transform.yaml"
         schema_file.write_text("""
 name: test_transform
-enforcement: permissive
 columns:
   - "c_custkey -> customer_id: BIGINT"
   - "c_name -> customer_name"
@@ -167,7 +166,8 @@ columns:
         parser = SchemaTransformParser()
         result = parser.parse_file(schema_file)
         
-        assert result["enforcement"] == "permissive"
+        # Enforcement is not returned by parser (action-level only)
+        assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",
             "c_name": "customer_name"

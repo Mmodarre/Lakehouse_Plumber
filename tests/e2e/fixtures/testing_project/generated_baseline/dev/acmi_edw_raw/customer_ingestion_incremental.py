@@ -16,10 +16,10 @@ FLOWGROUP_ID = "customer_ingestion_incremental"
 
 # Schema hints for customer_cloudfiles table
 customer_cloudfiles_schema_hints = """
-    c_custkey BIGINT,
-    c_name STRING,
+    c_custkey BIGINT NOT NULL,
+    c_name STRING NOT NULL,
     c_address STRING,
-    c_nationkey BIGINT,
+    c_nationkey BIGINT NOT NULL,
     c_phone STRING,
     c_acctbal DECIMAL(18,2),
     c_mktsegment STRING,

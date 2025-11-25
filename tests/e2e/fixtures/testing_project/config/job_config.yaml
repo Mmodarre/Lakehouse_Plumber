@@ -1,131 +1,320 @@
-# Job Configuration for LHP Orchestration Job
-# This config controls settings for the Databricks orchestration job
-# that runs all pipelines in dependency order
+# ==============================================================================
+# ACME Supermarkets - Multi-Job Orchestration Configuration
+# ==============================================================================
+# This file uses multi-document YAML format to configure:
+# 1. project_defaults - Applied to ALL jobs
+# 2. Job-specific configurations for NCR and SAP_SFCC jobs
+# ==============================================================================
 
 # ==============================================================================
-# BASIC SETTINGS
+# Project Defaults - Applied to ALL Jobs
 # ==============================================================================
+project_defaults:
+  # generate_master_job: true
+  # master_job_name: mehdi_master_job
+  # generate_master_job: false
+  # Maximum number of concurrent runs (can be overridden per job)
+  max_concurrent_runs: 2
+  
+  # Performance target for job execution
+  performance_target: PERFORMANCE_OPTIMIZED
+  
+  # Queue configuration
+  queue:
+    enabled: false
+  
+  # Common tags for all jobs
+  tags:
+    environment: dev
+    project: acme_supermarkets
+    team: data-engineering
+    cost_center: analytics
+    data_domain: retail
+    pipeline_type: medallion_architecture
+    managed_by: lakehouse_plumber
 
-# Maximum number of concurrent runs of this job
-# Recommended: 1 for sequential execution, 2+ for parallel with different data
-max_concurrent_runs: 1
+---
+# ==============================================================================
+# Job-Specific Configuration - j_one
+# ==============================================================================
+job_name: j_one
 
-# Performance target for job execution
-# Options: STANDARD (balanced), PERFORMANCE_OPTIMIZED (faster startup)
+# NCR jobs handle real-time POS data - run more frequently
+max_concurrent_runs: 2
+
+# Schedule: Every 2 hours during business hours (6 AM - 10 PM EST)
+schedule:
+  quartz_cron_expression: "0 0 6-22/2 * * ?"
+  timezone_id: "America/New_York"
+  pause_status: UNPAUSED
+
+# Job-specific tags (deep-merged with project_defaults.tags)
+tags:
+  source_system: NCR
+  data_type: point_of_sale
+  frequency: every_2_hours
+  criticality: high
+  layer: raw_to_silver
+
+# Email notifications for NCR job
+email_notifications:
+  on_failure:
+    - ncr-oncall@acme-supermarkets.com
+    - data-team@acme-supermarkets.com
+
+---
+# ==============================================================================
+# Job-Specific Configuration - j_two 
+# ==============================================================================
+job_name: j_two
+
+# SAP/SFCC jobs handle batch data loads - can run concurrently
+max_concurrent_runs: 3
+
+# Performance optimized for large batch loads
 performance_target: PERFORMANCE_OPTIMIZED
 
-# ==============================================================================
-# QUEUE SETTINGS
-# ==============================================================================
-
-# Enable job queueing when max concurrent runs is reached
-queue:
-  enabled: false
-
-# ==============================================================================
-# TIMEOUT SETTINGS
-# ==============================================================================
-
-# Maximum time (in seconds) for job to run before timeout
-# Example: 7200 = 2 hours, 28800 = 8 hours
-# Uncomment to enable:
-# timeout_seconds: 7200
-
-# ==============================================================================
-# TAGS (for cost tracking and organization)
-# ==============================================================================
-
-# Custom tags for the orchestration job
-# Useful for cost allocation, environment tracking, etc.
-tags:
-  environment: dev
-  project: acmi_edw
-  team: data_engineering
-  managed_by: lakehouse_plumber
-
-# ==============================================================================
-# EMAIL NOTIFICATIONS
-# ==============================================================================
-
-# Email notifications for job lifecycle events
-# Uncomment and customize as needed:
-
-# email_notifications:
-#   on_start:
-#     - data-eng-team@company.com
-#   on_success:
-#     - data-eng-team@company.com
-#   on_failure:
-#     - data-eng-team@company.com
-#     - oncall@company.com
-
-# ==============================================================================
-# WEBHOOK NOTIFICATIONS
-# ==============================================================================
-
-# Webhook notifications for integration with external systems
-# (Slack, PagerDuty, custom monitoring, etc.)
-# Uncomment and add your webhook IDs:
-
-# webhook_notifications:
-#   on_start:
-#     - id: "slack_webhook_id_123"
-#   on_success:
-#     - id: "slack_webhook_id_123"
-#   on_failure:
-#     - id: "pagerduty_webhook_id_456"
-#     - id: "slack_webhook_id_123"
-
-# ==============================================================================
-# PERMISSIONS
-# ==============================================================================
-
-# Job-level permissions for access control
-# Levels: CAN_VIEW, CAN_MANAGE_RUN, CAN_MANAGE
-# Uncomment and customize:
-
-# permissions:
-#   - level: CAN_MANAGE
-#     user_name: admin@company.com
-#   - level: CAN_MANAGE_RUN
-#     group_name: data-engineering
-#   - level: CAN_VIEW
-#     group_name: data-analysts
-
-# ==============================================================================
-# SCHEDULE
-# ==============================================================================
-
-# Schedule for automatic job runs
-# Uses Quartz cron expression format
-# Uncomment to enable scheduled runs:
-
+# Schedule: Daily at 3:00 AM EST (after SAP/SFCC nightly batch)
 schedule:
-  quartz_cron_expression: "0 0 8 * * ?"  # Daily at 8 AM
+  quartz_cron_expression: "0 0 3 * * ?"
   timezone_id: "America/New_York"
-  pause_status: UNPAUSED  # or PAUSED to create disabled schedule
+  pause_status: UNPAUSED
 
-# Common cron expressions:
-# - "0 0 8 * * ?"     - Daily at 8 AM
-# - "0 0 */4 * * ?"   - Every 4 hours
-# - "0 0 8 * * MON"   - Every Monday at 8 AM
-# - "0 0 8 1 * ?"     - First day of month at 8 AM
+# Job-specific tags (deep-merged with project_defaults.tags)
+tags:
+  source_systems: SAP_and_SFCC
+  data_type: erp_and_ecommerce
+  frequency: daily
+  criticality: medium
+  layer: raw_to_silver
+
+# Email notifications for SAP_SFCC job
+email_notifications:
+  on_failure:
+    - sap-sfcc-team@acme-supermarkets.com
+    - data-team@acme-supermarkets.com
+  on_success:
+    - data-team@acme-supermarkets.com
+
+# Timeout for large batch jobs (4 hours)
+timeout_seconds: 14400
+---
+# ==============================================================================
+# Job-Specific Configuration - j_three 
+# ==============================================================================
+job_name: j_three
+
+# SAP/SFCC jobs handle batch data loads - can run concurrently
+max_concurrent_runs: 3
+
+# Performance optimized for large batch loads
+performance_target: PERFORMANCE_OPTIMIZED
+
+# Schedule: Daily at 3:00 AM EST (after SAP/SFCC nightly batch)
+schedule:
+  quartz_cron_expression: "0 0 3 * * ?"
+  timezone_id: "America/New_York"
+  pause_status: UNPAUSED
+
+# Job-specific tags (deep-merged with project_defaults.tags)
+tags:
+  source_systems: SAP_and_SFCC
+  data_type: erp_and_ecommerce
+  frequency: daily
+  criticality: medium
+  layer: raw_to_silver
+
+# Email notifications for SAP_SFCC job
+email_notifications:
+  on_failure:
+    - sap-sfcc-team@acme-supermarkets.com
+    - data-team@acme-supermarkets.com
+  on_success:
+    - data-team@acme-supermarkets.com
+
+# Timeout for large batch jobs (4 hours)
+timeout_seconds: 14400
+---
+# ==============================================================================
+# Job-Specific Configuration - j_th
+# ==============================================================================
+job_name: j_three
+
+# SAP/SFCC jobs handle batch data loads - can run concurrently
+max_concurrent_runs: 3
+
+# Performance optimized for large batch loads
+performance_target: PERFORMANCE_OPTIMIZED
+
+# Schedule: Daily at 3:00 AM EST (after SAP/SFCC nightly batch)
+schedule:
+  quartz_cron_expression: "0 0 3 * * ?"
+  timezone_id: "America/New_York"
+  pause_status: UNPAUSED
+
+# Job-specific tags (deep-merged with project_defaults.tags)
+tags:
+  source_systems: SAP_and_SFCC
+  data_type: erp_and_ecommerce
+  frequency: daily
+  criticality: medium
+  layer: raw_to_silver
+
+# Email notifications for SAP_SFCC job
+email_notifications:
+  on_failure:
+    - sap-sfcc-team@acme-supermarkets.com
+    - data-team@acme-supermarkets.com
+  on_success:
+    - data-team@acme-supermarkets.com
+
+# Timeout for large batch jobs (4 hours)
+timeout_seconds: 14400
+---
+# ==============================================================================
+# Job-Specific Configuration - j_four 
+# ==============================================================================
+job_name: j_four
+
+# SAP/SFCC jobs handle batch data loads - can run concurrently
+max_concurrent_runs: 3
+
+# Performance optimized for large batch loads
+performance_target: PERFORMANCE_OPTIMIZED
+
+# Schedule: Daily at 3:00 AM EST (after SAP/SFCC nightly batch)
+schedule:
+  quartz_cron_expression: "0 0 3 * * ?"
+  timezone_id: "America/New_York"
+  pause_status: UNPAUSED
+
+# Job-specific tags (deep-merged with project_defaults.tags)
+tags:
+  source_systems: SAP_and_SFCC
+  data_type: erp_and_ecommerce
+  frequency: daily
+  criticality: medium
+  layer: raw_to_silver
+
+# Email notifications for SAP_SFCC job
+email_notifications:
+  on_failure:
+    - sap-sfcc-team@acme-supermarkets.com
+    - data-team@acme-supermarkets.com
+  on_success:
+    - data-team@acme-supermarkets.com
+
+# Timeout for large batch jobs (4 hours)
+timeout_seconds: 14400
+---
+# ==============================================================================
+# Job-Specific Configuration - j_nine 
+# ==============================================================================
+job_name: j_nine
+
+# SAP/SFCC jobs handle batch data loads - can run concurrently
+max_concurrent_runs: 3
+
+# Performance optimized for large batch loads
+performance_target: PERFORMANCE_OPTIMIZED
+
+# Schedule: Daily at 3:00 AM EST (after SAP/SFCC nightly batch)
+schedule:
+  quartz_cron_expression: "0 0 3 * * ?"
+  timezone_id: "America/New_York"
+  pause_status: UNPAUSED
+
+# Job-specific tags (deep-merged with project_defaults.tags)
+tags:
+  source_systems: SAP_and_SFCC
+  data_type: erp_and_ecommerce
+  frequency: daily
+  criticality: medium
+  layer: raw_to_silver
+
+# Email notifications for SAP_SFCC job
+email_notifications:
+  on_failure:
+    - sap-sfcc-team@acme-supermarkets.com
+    - data-team@acme-supermarkets.com
+  on_success:
+    - data-team@acme-supermarkets.com
+
+# Timeout for large batch jobs (4 hours)
+timeout_seconds: 14400
+# ==============================================================================
+# Usage Instructions
+# ==============================================================================
+
+# To generate multi-job orchestration:
+#
+# 1. Generate individual jobs + master orchestration job:
+#    cd /path/to/acme_supermarkets_lhp
+#    lhp deps -jc config/job_config.yaml --bundle-output
+#
+# 2. This will create:
+#    resources/NCR.job.yml              (NCR POS data job)
+#    resources/SAP_SFCC.job.yml         (SAP + SFCC data job)
+#    resources/acme_supermarkets_master.job.yml  (Master orchestrator)
+#
+# 3. Deploy with Databricks Asset Bundle:
+#    databricks bundle validate
+#    databricks bundle deploy -t dev
+#
+# 4. Run the master job (which orchestrates both NCR and SAP_SFCC jobs):
+#    databricks bundle run acme_supermarkets_master -t dev
+#
+# 5. Or run individual jobs:
+#    databricks bundle run NCR -t dev
+#    databricks bundle run SAP_SFCC -t dev
 
 # ==============================================================================
-# NOTES
+# Configuration Merge Behavior
 # ==============================================================================
 #
-# Usage:
-#   lhp deps --job-config config/job_config.yaml --bundle-output
+# Configs are deep-merged in this order:
+#   DEFAULT_JOB_CONFIG → project_defaults → job-specific
 #
-# This will generate: resources/lhp/<project_name>_orchestration.job.yml
+# Example for NCR job tags:
+#   project_defaults.tags: {environment: dev, project: acme_supermarkets, ...}
+#   NCR.tags:              {source_system: NCR, criticality: high}
+#   Result:                All tags combined (NCR tags + project defaults)
 #
-# All settings above are optional except max_concurrent_runs and performance_target
-# which have defaults if not specified.
-#
-# For more information:
-#   - See docs/databricks_bundles.rst
-#   - Databricks Jobs API: https://docs.databricks.com/workflows/jobs/
-#
+# Note: Nested dicts are deep-merged, but lists are REPLACED (not appended)
+
 # ==============================================================================
+# Schedule Examples (Quartz Cron)
+# ==============================================================================
+#
+# Every hour:           "0 0 * * * ?"
+# Every 2 hours:        "0 0 */2 * * ?"
+# Every 6 hours:        "0 0 */6 * * ?"
+# Daily at 2 AM:        "0 0 2 * * ?"
+# Weekdays at 8 AM:     "0 0 8 ? * MON-FRI"
+# Business hours only:  "0 0 6-22/2 * * ?"  (6 AM - 10 PM every 2 hours)
+#
+# Timezone: Use IANA timezone IDs (e.g., "America/New_York", "UTC")
+
+# ==============================================================================
+# Environment-Specific Recommendations
+# ==============================================================================
+#
+# PRODUCTION:
+#   - max_concurrent_runs: 1 (single execution for data consistency)
+#   - performance_target: PERFORMANCE_OPTIMIZED
+#   - timeout_seconds: 14400 (4 hours for full data volumes)
+#   - PagerDuty/Slack failure notifications
+#   - Strict permissions (CAN_MANAGE limited to admins)
+#
+# STAGING:
+#   - max_concurrent_runs: 2
+#   - performance_target: STANDARD
+#   - timeout_seconds: 7200 (2 hours)
+#   - Email notifications to staging team
+#
+# DEV (current):
+#   - max_concurrent_runs: 2-3 (allow parallel testing)
+#   - performance_target: PERFORMANCE_OPTIMIZED or STANDARD
+#   - timeout_seconds: 7200 (2 hours)
+#   - Email notifications to dev team only
 

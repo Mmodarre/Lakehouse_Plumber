@@ -5,6 +5,7 @@ pipeline: acmi_edw_bronze
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: customer_bronze
+#job_name: j_two
 presets:
   - default_delta_properties
 

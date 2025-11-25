@@ -1,0 +1,20 @@
+# THIS FORMAT IS FOR BACKWARD COMPATIBILITY ONLY
+# This is a sample schema transform file referenced by a schema transform action
+# This file uses the LEGACY format with separate column_mapping and type_casting sections
+# For the newer arrow format, see lineitem_bronze_schema.yaml.tmpl
+
+
+name: orders_africa_bronze_transform
+column_mapping:
+  o_orderkey: order_id
+  o_custkey: customer_id
+  o_orderstatus: order_status
+  o_totalprice: total_price
+  o_orderdate: order_date
+  o_orderpriority: order_priority
+  o_clerk: clerk
+  o_shippriority: ship_priority
+  o_comment: comment
+type_casting:
+  last_modified_dt: TIMESTAMP
+

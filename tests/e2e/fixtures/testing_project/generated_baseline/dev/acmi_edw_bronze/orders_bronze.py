@@ -4,6 +4,7 @@
 
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
+from pyspark.sql.types import StructType
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"
@@ -86,68 +87,116 @@ def v_orders_migration():
 # ============================================================================
 
 
-@dp.temporary_view(comment="SQL transform: orders_africa_bronze_cleanse")
+@dp.temporary_view()
 def v_orders_africa_bronze_cleaned():
-    """SQL transform: orders_africa_bronze_cleanse"""
-    df = spark.sql(
-        """SELECT
-  o_orderkey as order_id,
-  o_custkey as customer_id,
-  o_orderstatus as order_status,
-  o_totalprice as total_price,
-  o_orderdate as order_date,
-  o_orderpriority as order_priority,
-  o_clerk as clerk,
-  o_shippriority as ship_priority,
-  o_comment as comment,
-  cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
-  * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
-FROM stream(v_orders_africa_raw)"""
-    )
+    """Schema application: orders_africa_bronze_cleanse"""
+    df = spark.readStream.table("v_orders_africa_raw")
+
+    # Apply column renaming
+    df = df.withColumnRenamed("o_orderkey", "order_id")
+    df = df.withColumnRenamed("o_custkey", "customer_id")
+    df = df.withColumnRenamed("o_orderstatus", "order_status")
+    df = df.withColumnRenamed("o_totalprice", "total_price")
+    df = df.withColumnRenamed("o_orderdate", "order_date")
+    df = df.withColumnRenamed("o_orderpriority", "order_priority")
+    df = df.withColumnRenamed("o_clerk", "clerk")
+    df = df.withColumnRenamed("o_shippriority", "ship_priority")
+    df = df.withColumnRenamed("o_comment", "comment")
+
+    # Apply type casting
+    df = df.withColumn("last_modified_dt", F.col("last_modified_dt").cast("TIMESTAMP"))
 
     return df
 
 
-@dp.temporary_view(comment="SQL transform: orders_america_bronze_cleanse")
+@dp.temporary_view()
 def v_orders_america_bronze_cleaned():
-    """SQL transform: orders_america_bronze_cleanse"""
-    df = spark.sql(
-        """SELECT
-  o_orderkey as order_id,
-  o_custkey as customer_id,
-  o_orderstatus as order_status,
-  o_totalprice as total_price,
-  o_orderdate as order_date,
-  o_orderpriority as order_priority,
-  o_clerk as clerk,
-  o_shippriority as ship_priority,
-  o_comment as comment,
-  cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
-  * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
-FROM stream(v_orders_america_raw)"""
-    )
+    """Schema application: orders_america_bronze_cleanse"""
+    df = spark.readStream.table("v_orders_america_raw")
+
+    # Apply column renaming
+    df = df.withColumnRenamed("o_orderkey", "order_id")
+    df = df.withColumnRenamed("o_custkey", "customer_id")
+    df = df.withColumnRenamed("o_orderstatus", "order_status")
+    df = df.withColumnRenamed("o_totalprice", "total_price")
+    df = df.withColumnRenamed("o_orderdate", "order_date")
+    df = df.withColumnRenamed("o_orderpriority", "order_priority")
+    df = df.withColumnRenamed("o_clerk", "clerk")
+    df = df.withColumnRenamed("o_shippriority", "ship_priority")
+    df = df.withColumnRenamed("o_comment", "comment")
+
+    # Apply type casting
+    df = df.withColumn("last_modified_dt", F.col("last_modified_dt").cast("TIMESTAMP"))
+
+    # Strict schema enforcement - select only specified columns
+    # Schema-defined columns (will fail if missing)
+    columns_to_select = [
+        "order_id",
+        "customer_id",
+        "order_status",
+        "total_price",
+        "order_date",
+        "order_priority",
+        "clerk",
+        "ship_priority",
+        "comment",
+        "last_modified_dt",
+    ]
+
+    # Add operational metadata columns only if they exist (optional)
+    available_columns = set(df.columns)
+    metadata_columns = ["_source_file_path", "_processing_timestamp"]
+    for meta_col in metadata_columns:
+        if meta_col in available_columns:
+            columns_to_select.append(meta_col)
+
+    df = df.select(*columns_to_select)
 
     return df
 
 
-@dp.temporary_view(comment="SQL transform: orders_asia_bronze_cleanse")
+@dp.temporary_view()
 def v_orders_asia_bronze_cleaned():
-    """SQL transform: orders_asia_bronze_cleanse"""
-    df = spark.sql(
-        """SELECT
-  o_orderkey as order_id,
-  o_custkey as customer_id,
-  o_orderstatus as order_status,
-  o_totalprice as total_price,
-  o_orderdate as order_date,
-  o_orderpriority as order_priority,
-  o_clerk as clerk,
-  o_shippriority as ship_priority,
-  o_comment as comment,
-  cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
-  * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
-FROM stream(v_orders_asia_raw)"""
-    )
+    """Schema application: orders_asia_bronze_cleanse"""
+    df = spark.readStream.table("v_orders_asia_raw")
+
+    # Apply column renaming
+    df = df.withColumnRenamed("o_orderkey", "order_id")
+    df = df.withColumnRenamed("o_custkey", "customer_id")
+    df = df.withColumnRenamed("o_orderstatus", "order_status")
+    df = df.withColumnRenamed("o_totalprice", "total_price")
+    df = df.withColumnRenamed("o_orderdate", "order_date")
+    df = df.withColumnRenamed("o_orderpriority", "order_priority")
+    df = df.withColumnRenamed("o_clerk", "clerk")
+    df = df.withColumnRenamed("o_shippriority", "ship_priority")
+    df = df.withColumnRenamed("o_comment", "comment")
+
+    # Apply type casting
+    df = df.withColumn("last_modified_dt", F.col("last_modified_dt").cast("TIMESTAMP"))
+
+    # Strict schema enforcement - select only specified columns
+    # Schema-defined columns (will fail if missing)
+    columns_to_select = [
+        "order_id",
+        "customer_id",
+        "order_status",
+        "total_price",
+        "order_date",
+        "order_priority",
+        "clerk",
+        "ship_priority",
+        "comment",
+        "last_modified_dt",
+    ]
+
+    # Add operational metadata columns only if they exist (optional)
+    available_columns = set(df.columns)
+    metadata_columns = ["_source_file_path", "_processing_timestamp"]
+    for meta_col in metadata_columns:
+        if meta_col in available_columns:
+            columns_to_select.append(meta_col)
+
+    df = df.select(*columns_to_select)
 
     return df
 

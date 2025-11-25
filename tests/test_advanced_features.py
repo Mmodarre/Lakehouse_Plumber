@@ -201,18 +201,13 @@ actions:
   - name: apply_schema
     type: transform
     transform_type: schema
-    source:
-      view: v_raw_json
-      schema:
-        enforcement: strict
-        type_casting:
-          customer_id: "BIGINT"
-          amount: "DOUBLE"
-          created_date: "DATE"
-        column_mapping:
-          cust_id: customer_id
-          amt: amount
+    source: v_raw_json
     target: v_structured_data
+    enforcement: strict
+    schema_inline: |
+      cust_id -> customer_id: BIGINT
+      amt -> amount: DOUBLE
+      created_date: DATE
     description: "Apply schema and type casting"
     
   - name: save_structured

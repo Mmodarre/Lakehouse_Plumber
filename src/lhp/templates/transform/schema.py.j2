@@ -1,10 +1,10 @@
 @dp.temporary_view()
 def {{ target_view }}():
     """{{ description }}"""
-    {% if readMode == "stream" %}
-    df = spark.readStream.table("{{ source_view }}")
-    {% else %}
+    {% if readMode == "batch" %}
     df = spark.read.table("{{ source_view }}")
+    {% else %}
+    df = spark.readStream.table("{{ source_view }}")
     {% endif %}
     
     {% if column_mapping %}

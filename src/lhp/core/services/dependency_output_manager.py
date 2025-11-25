@@ -378,8 +378,8 @@ class DependencyOutputManager:
             config_file_path=job_config_path
         )
 
-        # Extract project name from analyzer's project root or use default
-        project_name = analyzer.project_root.name if analyzer.project_root else "lhp_project"
+        # Extract project name from lhp.yaml or fallback to directory name
+        project_name = analyzer.get_project_name()
 
         # Check if flowgroups have job_name property
         # Defensive: handle case where analyzer is mocked in tests
@@ -411,8 +411,8 @@ class DependencyOutputManager:
         # Multi-job mode: job_name is defined in flowgroups
         self.logger.info("job_name detected - generating multiple jobs + master orchestration job")
         
-        # Get per-job dependency results
-        job_results = analyzer.analyze_dependencies_by_job()
+        # Get per-job dependency results and global analysis
+        job_results, global_result = analyzer.analyze_dependencies_by_job()
         
         # Determine output directory (flat structure)
         if bundle_output:
@@ -439,19 +439,33 @@ class DependencyOutputManager:
                 self.logger.error(f"Failed to write job file {job_file}: {e}")
                 raise
         
-        # Generate master orchestration job
-        master_job_name = f"{project_name}_master"
-        master_yaml = job_generator.generate_master_job(job_results, master_job_name, project_name)
-        
-        master_file = output_dir / f"{master_job_name}.job.yml"
-        try:
-            with open(master_file, 'w', encoding='utf-8') as f:
-                f.write(master_yaml)
-            generated_files["_master"] = master_file
-            self.logger.info(f"Generated master job file: {master_file}")
-        except IOError as e:
-            self.logger.error(f"Failed to write master job file {master_file}: {e}")
-            raise
+        # Generate master orchestration job (if enabled)
+        if job_generator.should_generate_master_job():
+            # Get master job name (custom or auto-generated)
+            master_job_name = job_generator.get_master_job_name(project_name)
+            
+            # Generate with global result
+            master_yaml = job_generator.generate_master_job(
+                job_results, 
+                master_job_name, 
+                project_name,
+                global_result=global_result
+            )
+            
+            master_file = output_dir / f"{master_job_name}.job.yml"
+            try:
+                with open(master_file, 'w', encoding='utf-8') as f:
+                    f.write(master_yaml)
+                generated_files["_master"] = master_file
+                self.logger.info(f"Generated master job file: {master_file}")
+            except IOError as e:
+                self.logger.error(f"Failed to write master job file {master_file}: {e}")
+                raise
+        else:
+            self.logger.info(
+                "Master job generation disabled via job_config.yaml "
+                "(project_defaults.generate_master_job: false)"
+            )
         
         self.logger.info(f"Generated {len(generated_files)} job file(s) total")
         return generated_files

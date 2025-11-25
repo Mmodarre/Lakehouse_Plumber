@@ -366,6 +366,24 @@
                     "type": "string",
                     "description": "Path to expectations file for data quality transforms (can use template parameters with {{ }})"
                 },
+                "schema_inline": {
+                    "type": "string",
+                    "description": "Inline schema definition for schema transforms (arrow or YAML format, can use template parameters with {{ }})"
+                },
+                "schema_file": {
+                    "type": "string",
+                    "description": "Path to external schema file for schema transforms (can use template parameters with {{ }})"
+                },
+                "enforcement": {
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "enum": ["strict", "permissive"]
+                        },
+                        {"type": "string"}
+                    ],
+                    "description": "Schema enforcement mode for schema transforms: 'strict' or 'permissive' (can use template parameters with {{ }}). Default: permissive"
+                },
                 "once": {
                     "oneOf": [
                         {"type": "boolean"},
@@ -398,10 +416,6 @@
                 "schema_file": {
                     "type": "string",
                     "description": "Path to schema file for schema transforms (can use template parameters with {{ }})"
-                },
-                "schema_path": {
-                    "type": "string",
-                    "description": "Path to schema file (alternative to schema_file) (can use template parameters with {{ }})"
                 }
             }
         },

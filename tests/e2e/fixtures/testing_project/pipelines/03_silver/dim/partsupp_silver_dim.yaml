@@ -4,6 +4,7 @@ pipeline: acmi_edw_silver
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: partsupp_silver_dim
+#job_name: j_three
 preset: default_delta_properties
 actions:
   # Load is not neceseary here as everything is in the same pipeline

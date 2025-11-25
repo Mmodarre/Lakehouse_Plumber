@@ -35,10 +35,11 @@ class TestAnalyzeDependenciesByJob:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # Should return single result with project_orchestration name
         assert len(results) == 1
+        assert global_result is not None  # Should have global result too
         assert any("orchestration" in key for key in results.keys())
     
     @patch('lhp.core.services.dependency_analyzer.DependencyAnalyzer._get_flowgroups')
@@ -54,10 +55,11 @@ class TestAnalyzeDependenciesByJob:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # Should return 2 results
         assert len(results) == 2
+        assert global_result is not None  # Should have global result
         assert "bronze_job" in results
         assert "silver_job" in results
     
@@ -71,7 +73,7 @@ class TestAnalyzeDependenciesByJob:
         
         # Should raise LHPError from validator
         with pytest.raises(LHPError) as exc_info:
-            analyzer.analyze_dependencies_by_job()
+            results, global_result = analyzer.analyze_dependencies_by_job()
         
         assert exc_info.value.code == "LHP-VAL-002"
     
@@ -91,7 +93,7 @@ class TestAnalyzeDependenciesByJob:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # Should have 2 results
         assert len(results) == 2
@@ -116,7 +118,7 @@ class TestAnalyzeDependenciesByJob:
         
         # Both methods should work
         single_result = analyzer.analyze_dependencies()
-        multi_result = analyzer.analyze_dependencies_by_job()
+        multi_result, multi_global_result = analyzer.analyze_dependencies_by_job()
         
         # Multi-job should return single result in backward compat mode
         assert len(multi_result) == 1
@@ -157,7 +159,7 @@ class TestGlobalAndPerJobAnalysis:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # analyze_dependencies should be called: 1 for global + 2 for each job = 3 times
         assert mock_analyze.call_count == 3
@@ -176,7 +178,7 @@ class TestGlobalAndPerJobAnalysis:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # bronze_job should have external.source1 as external
         assert "external.source1" in results["bronze_job"].external_sources
@@ -201,7 +203,7 @@ class TestGlobalAndPerJobAnalysis:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # Check for log messages about multi-job analysis
         assert "multi-job" in caplog.text.lower() or "job(s)" in caplog.text.lower()
@@ -219,7 +221,7 @@ class TestGlobalAndPerJobAnalysis:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # bronze_job: external.global_source is globally external
         assert "external.global_source" in results["bronze_job"].external_sources
@@ -248,7 +250,7 @@ class TestMultiJobEdgeCases:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # Should return empty dict
         assert results == {}
@@ -261,7 +263,7 @@ class TestMultiJobEdgeCases:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # Should return single job result
         assert len(results) == 1
@@ -279,7 +281,7 @@ class TestMultiJobEdgeCases:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # Should return single result with all flowgroups
         assert len(results) == 1
@@ -299,7 +301,7 @@ class TestMultiJobEdgeCases:
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         # Should have 3 results
         assert len(results) == 3
@@ -319,6 +321,6 @@ class TestMultiJobEdgeCases:
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         
         # Should not raise, should use single-job mode
-        results = analyzer.analyze_dependencies_by_job()
+        results, global_result = analyzer.analyze_dependencies_by_job()
         
         assert len(results) == 1
