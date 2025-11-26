@@ -489,11 +489,11 @@
                 },
                 "schema": {
                     "type": "string",
-                    "description": "Table schema (can use template parameters with {{ }})"
+                    "description": "Table schema (legacy, use 'table_schema' instead. Can use template parameters with {{ }})"
                 },
                 "table_schema": {
                     "type": "string",
-                    "description": "Table schema (deprecated, use 'schema')"
+                    "description": "Table schema definition (DDL string or external file path. Can use template parameters with {{ }})"
                 },
                 "row_filter": {
                     "type": "string",

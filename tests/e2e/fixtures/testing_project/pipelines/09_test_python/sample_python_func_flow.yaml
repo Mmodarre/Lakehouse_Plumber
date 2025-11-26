@@ -52,7 +52,7 @@ actions:
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: "customers"
-      schema: |
+      table_schema: |
         customer_id BIGINT NOT NULL,
         name STRING,
         email STRING,
@@ -96,11 +96,4 @@ actions:
       table: "customers_clustered_with_row_filter"
       cluster_columns: ["customer_id"]
       row_filter: "ROW FILTER catalog.schema.customer_access_filter ON (region)"
-      schema: |
-        customer_id BIGINT NOT NULL,
-        name STRING,
-        email STRING,
-        region STRING,
-        registration_date DATE,
-        _source_file_path STRING,
-        _processing_timestamp TIMESTAMP
+      table_schema: "schemas/customer_bronze_schema.ddl"

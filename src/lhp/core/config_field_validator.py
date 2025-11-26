@@ -90,7 +90,8 @@ class ConfigFieldValidator:
                 "partition_columns",
                 "cluster_columns",
                 "spark_conf",
-                "schema",
+                "schema",  # Legacy - kept for backward compatibility
+                "table_schema",  # Official property name
                 "row_filter",
                 "temporary",
                 "path",
@@ -109,7 +110,8 @@ class ConfigFieldValidator:
                 "partition_columns",
                 "cluster_columns",
                 "spark_conf",
-                "schema",
+                "schema",  # Legacy - kept for backward compatibility
+                "table_schema",  # Official property name
                 "row_filter",
                 "temporary",
                 "path",

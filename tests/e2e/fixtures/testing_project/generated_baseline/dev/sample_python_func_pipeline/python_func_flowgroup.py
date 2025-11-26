@@ -172,8 +172,7 @@ email STRING,
 region STRING,
 registration_date DATE,
 _source_file_path STRING,
-_processing_timestamp TIMESTAMP
-""",
+_processing_timestamp TIMESTAMP""",
     row_filter="ROW FILTER catalog.schema.customer_access_filter ON (region)",
 )
 

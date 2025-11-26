@@ -483,11 +483,11 @@
                 },
                 "schema": {
                     "type": "string",
-                    "description": "Table schema"
+                    "description": "Table schema (legacy, use 'table_schema' instead)"
                 },
                 "table_schema": {
                     "type": "string",
-                    "description": "Table schema (deprecated, use 'schema')"
+                    "description": "Table schema definition (DDL string or external file path)"
                 },
                 "row_filter": {
                     "type": "string",
