@@ -705,6 +705,10 @@ class ActionOrchestrator:
         # 6. Finalize
         if state_manager:
             state_manager.save()
+        if pipeline_output_dir:
+            files_written, files_skipped = smart_writer.get_stats()
+            self.logger.info(f"Generation complete: {files_written} files written, "
+                           f"{files_skipped} files skipped (no changes)")
 
         self.logger.info(f"Pipeline generation complete: {pipeline_field}")
         return generated_files
