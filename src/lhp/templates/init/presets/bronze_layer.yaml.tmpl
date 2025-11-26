@@ -6,12 +6,17 @@ description: "Standard configuration for bronze layer tables"
 defaults:
   load_actions:
     cloudfiles:
-      schema_evolution_mode: "addNewColumns"
-      rescue_data_column: "_rescued_data"
-      schema_hints: "true"
+      options:
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+        cloudFiles.useStrictGlobber: "false"
+        cloudFiles.maxFilesPerTrigger: 200
+        ignoreCorruptFiles: "true"
+        ignoreMissingFiles: "true"
     
   write_actions:
     streaming_table:
       table_properties:
         delta.autoOptimize.optimizeWrite: "true"
+        delta.enableChangeDataFeed: "true"
         quality: "bronze" 

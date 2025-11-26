@@ -1,0 +1,8 @@
+pipeline: acmi_edw_raw
+flowgroup: template_preset_merge
+#job_name: j_one
+
+use_template: preset_test_template
+template_parameters:
+  table_name: merge_test
+

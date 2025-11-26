@@ -74,16 +74,16 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
                 project_root,
                 file_type="SQL file"
             ).strip()
+        
+        # Apply substitutions to SQL content (both inline and file-based)
+        if sql_query and "substitution_manager" in context:
+            substitution_mgr = context["substitution_manager"]
+            sql_query = substitution_mgr._process_string(sql_query)
             
-            # Apply substitutions if available
-            if "substitution_manager" in context:
-                substitution_mgr = context["substitution_manager"]
-                sql_query = substitution_mgr._process_string(sql_query)
-                
-                # Track secret references
-                secret_refs = substitution_mgr.get_secret_references()
-                if "secret_references" in context and context["secret_references"] is not None:
-                    context["secret_references"].update(secret_refs)
+            # Track secret references
+            secret_refs = substitution_mgr.get_secret_references()
+            if "secret_references" in context and context["secret_references"] is not None:
+                context["secret_references"].update(secret_refs)
 
         # If no SQL in write_target, must have source view
         source_view = None

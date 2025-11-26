@@ -174,9 +174,10 @@ class LoadActionValidator(BaseActionValidator):
 class TransformActionValidator(BaseActionValidator):
     """Validator for transform actions."""
 
-    def __init__(self, action_registry, field_validator, project_root=None):
+    def __init__(self, action_registry, field_validator, project_root=None, project_config=None):
         super().__init__(action_registry, field_validator)
         self.project_root = project_root
+        self.project_config = project_config
 
     def validate(self, action: Action, prefix: str) -> List[str]:
         """Validate transform action configuration."""
@@ -301,6 +302,90 @@ class TransformActionValidator(BaseActionValidator):
             errors.append(f"{prefix}: Temp table transform must have 'source'")
         return errors
     
+    def _validate_metadata_columns_not_manipulated(
+        self, 
+        action: Action, 
+        prefix: str,
+        project_config
+    ) -> List[str]:
+        """Validate that operational metadata columns are not renamed or cast.
+        
+        Args:
+            action: The schema transform action to validate
+            prefix: Error message prefix
+            project_config: Project configuration containing operational_metadata
+            
+        Returns:
+            List of validation error messages
+        """
+        errors = []
+        
+        # Only validate if project has operational metadata defined
+        if not project_config or not project_config.operational_metadata:
+            return errors
+        
+        # Get metadata column names from project config
+        metadata_columns = set(project_config.operational_metadata.columns.keys())
+        if not metadata_columns:
+            return errors
+        
+        # Parse the schema configuration
+        from pathlib import Path
+        from ..utils.schema_transform_parser import SchemaTransformParser
+        
+        parser = SchemaTransformParser()
+        schema_config = {}
+        
+        try:
+            if action.schema_inline:
+                schema_config = parser.parse_inline_schema(action.schema_inline)
+            elif action.schema_file and self.project_root:
+                schema_file_path = Path(self.project_root) / action.schema_file
+                if schema_file_path.exists():
+                    schema_config = parser.parse_file(schema_file_path)
+        except Exception:
+            # If parsing fails, skip this validation (other validators will catch parsing errors)
+            return errors
+        
+        # Check column_mapping for metadata columns (source names)
+        column_mapping = schema_config.get("column_mapping", {})
+        for source_col in column_mapping.keys():
+            if source_col in metadata_columns:
+                errors.append(
+                    f"{prefix}: Cannot rename operational metadata column '{source_col}'. "
+                    f"Operational metadata columns defined in lhp.yaml are automatically managed "
+                    f"by the framework and cannot be renamed or type-cast in schema transforms.\n"
+                    f"  → To fix: Remove '{source_col}' from your schema definition."
+                )
+        
+        # Build reverse mapping to check type_casting for renamed metadata columns (target names)
+        reverse_mapping = {target: source for source, target in column_mapping.items()}
+        
+        # Check type_casting for both direct and renamed metadata columns
+        type_casting = schema_config.get("type_casting", {})
+        for col in type_casting.keys():
+            # Check if it's a direct metadata column (by source name)
+            if col in metadata_columns:
+                errors.append(
+                    f"{prefix}: Cannot type-cast operational metadata column '{col}'. "
+                    f"Operational metadata columns defined in lhp.yaml are automatically managed "
+                    f"by the framework and cannot be renamed or type-cast in schema transforms.\n"
+                    f"  → To fix: Remove '{col}' from your schema definition."
+                )
+            # Check if it's a renamed metadata column (by target name)
+            elif col in reverse_mapping:
+                source_col = reverse_mapping[col]
+                if source_col in metadata_columns:
+                    errors.append(
+                        f"{prefix}: Cannot type-cast operational metadata column '{source_col}' "
+                        f"(renamed to '{col}'). Operational metadata columns defined in lhp.yaml "
+                        f"are automatically managed by the framework and cannot be renamed or "
+                        f"type-cast in schema transforms.\n"
+                        f"  → To fix: Remove '{source_col} -> {col}' from your schema definition."
+                    )
+        
+        return errors
+    
     def _validate_schema_transform(self, action: Action, prefix: str) -> List[str]:
         """Validate schema transform configuration."""
         errors = []
@@ -352,6 +437,12 @@ class TransformActionValidator(BaseActionValidator):
                 errors.append(
                     f"{prefix}: Schema file '{action.schema_file}' not found at {schema_file_path}"
                 )
+        
+        # Validate that operational metadata columns are not manipulated
+        metadata_errors = self._validate_metadata_columns_not_manipulated(
+            action, prefix, self.project_config
+        )
+        errors.extend(metadata_errors)
         
         return errors
 

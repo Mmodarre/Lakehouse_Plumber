@@ -52,7 +52,10 @@ class DependencyAnalyzer:
 
         self.template_engine = TemplateEngine(project_root / "templates")
         self.preset_manager = PresetManager(project_root / "presets")
-        self.config_validator = ConfigValidator(project_root)
+        
+        # Load project config for metadata validation
+        project_config = self.config_loader.load_project_config()
+        self.config_validator = ConfigValidator(project_root, project_config)
         self.secret_validator = SecretValidator()
         self.flowgroup_processor = FlowgroupProcessor(
             self.template_engine, self.preset_manager,

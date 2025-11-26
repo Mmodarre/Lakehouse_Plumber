@@ -1,0 +1,33 @@
+name: preset_test_template
+version: "1.0"
+description: "Template to test preset merging with explicit options"
+
+presets:
+  - cloudfiles_defaults  # Template-level preset
+
+parameters:
+  - name: table_name
+    type: string
+    required: true
+
+actions:
+  - name: "load_{{ table_name }}"
+    type: load
+    readMode: stream
+    source:
+      type: cloudfiles
+      path: "/data/{{ table_name }}/*.csv"
+      format: csv
+      options:
+        cloudFiles.format: csv
+        cloudFiles.inferColumnTypes: "true"  # Template explicit option
+    target: "v_{{ table_name }}_raw"
+  
+  - name: "write_{{ table_name }}"
+    type: write
+    source: "v_{{ table_name }}_raw"
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{raw_schema}"
+      table: "{{ table_name }}_test"
+

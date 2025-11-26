@@ -109,12 +109,14 @@ class ActionOrchestrator:
         self.template_engine = TemplateEngine(project_root / "templates")
         self.project_config_loader = ProjectConfigLoader(project_root)
         self.action_registry = ActionRegistry()
-        self.config_validator = ConfigValidator(project_root)
         self.secret_validator = SecretValidator()
         self.dependency_resolver = DependencyResolver()
 
-        # Load project configuration
+        # Load project configuration (needed for validator)
         self.project_config = self.project_config_loader.load_project_config()
+        
+        # Initialize config validator with project config for metadata validation
+        self.config_validator = ConfigValidator(project_root, self.project_config)
 
         # Initialize services with component dependencies
         self.discoverer = FlowgroupDiscoverer(project_root, self.project_config_loader)

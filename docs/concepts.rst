@@ -110,18 +110,49 @@ For a complete catalogue of Action sub-types and their options see
 Presets
 -------
 A **Preset** is a YAML file that provides default configuration snippets you can
-reuse across FlowGroups.  Typical examples:
+reuse across FlowGroups. Presets inject default values that are merged with
+explicit configurations in templates and flowgroups.
 
-* Standardised table properties for all Bronze streaming tables.
-* Standardised CloudFiles properties
+Common use cases:
 
-Usage inside a FlowGroup YAML file:
+* Standardised table properties for all Bronze streaming tables
+* CloudFiles ingestion options (error handling, schema evolution)
+* Spark configuration tuning
 
+Example preset file:
+
+.. code-block:: yaml
+   :caption: presets/cloudfiles_defaults.yaml
+
+   name: cloudfiles_defaults
+   version: "1.0"
+   description: "Standard CloudFiles options"
+   
+   defaults:
+     load_actions:
+       cloudfiles:
+         options:
+           cloudFiles.rescuedDataColumn: "_rescued_data"
+           ignoreCorruptFiles: "true"
+           ignoreMissingFiles: "true"
+           cloudFiles.maxFilesPerTrigger: 200
+
+Usage in a FlowGroup:
 
 .. code-block:: yaml
    
    presets:
-     - bronze_layer
+     - cloudfiles_defaults
+   
+   actions:
+     - name: load_data
+       type: load
+       source:
+         type: cloudfiles
+         options:
+           cloudFiles.format: csv  # Merged with preset options
+
+For complete preset documentation see :doc:`presets_reference`.
 
 Templates
 ---------

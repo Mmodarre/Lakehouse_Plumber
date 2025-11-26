@@ -1,0 +1,30 @@
+pipeline: acmi_edw_raw
+flowgroup: write_target_preset
+#job_name: j_one
+
+presets:
+  - write_defaults
+
+actions:
+  - name: load_write_preset_test
+    type: load
+    readMode: stream
+    source:
+      type: cloudfiles
+      path: "/data/write_preset/*.csv"
+      format: csv
+      options:
+        cloudFiles.format: csv
+    target: v_write_preset_raw
+  
+  - name: write_with_preset_props
+    type: write
+    source: v_write_preset_raw
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{raw_schema}"
+      table: "write_preset_test"
+      table_properties:
+        PII: "true"  # Explicit property
+        # Preset properties should merge with this
+

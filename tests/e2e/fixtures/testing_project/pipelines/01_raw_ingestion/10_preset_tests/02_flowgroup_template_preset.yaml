@@ -1,0 +1,11 @@
+pipeline: acmi_edw_raw
+flowgroup: flowgroup_template_preset
+#job_name: j_one
+
+presets:
+  - write_defaults  # Flowgroup-level preset
+
+use_template: preset_test_template
+template_parameters:
+  table_name: precedence_test
+
