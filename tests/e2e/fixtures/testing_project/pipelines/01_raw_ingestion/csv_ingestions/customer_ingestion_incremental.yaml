@@ -9,7 +9,7 @@ presets:
 # Use the template to generate the actions for the pipeline
 # Template parameters are used to pass in the table name and landing folder
 # The template will generate the actions for the pipeline
-use_template: csv_ingestion_template
+use_template: ingestion/csv_ingestion_template
 template_parameters:
   table_name: customer_raw
   landing_folder: customer
