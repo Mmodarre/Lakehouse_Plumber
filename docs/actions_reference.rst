@@ -2131,9 +2131,11 @@ The ``table_schema`` option supports two formats, automatically detected by the 
   table_schema: "schemas/customer_table.ddl"
   # or
   table_schema: "schemas/customer_table.sql"
+  # or
+  table_schema: "schemas/customer_table.yaml"
 
 .. note::
-  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``) or path separators.
+  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
 
 **The above YAML translates to the following PySpark code**
 
@@ -2679,9 +2681,11 @@ The ``table_schema`` option supports two formats, automatically detected by the 
   table_schema: "schemas/product_view_schema.ddl"
   # or
   table_schema: "schemas/gold/product_view_schema.sql"
+  # or
+  table_schema: "schemas/product_view_schema.yaml"
 
 .. note::
-  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``) or path separators.
+  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
 
 **The above YAML examples translate to the following PySpark code**
 

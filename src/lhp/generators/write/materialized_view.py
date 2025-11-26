@@ -3,7 +3,8 @@
 from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.external_file_loader import load_external_file_text
+from ...utils.external_file_loader import load_external_file_text, is_file_path, resolve_external_file_path
+from ...utils.schema_parser import SchemaParser
 
 
 class MaterializedViewWriteGenerator(BaseActionGenerator):
@@ -13,6 +14,7 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
         self.add_import("from pyspark.sql import DataFrame")
+        self.schema_parser = SchemaParser()
 
     def generate(self, action: Action, context: dict) -> str:
         """Generate materialized view code."""
@@ -41,14 +43,27 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         
         if schema_value:
             # Check if it's a file path
-            if self._is_table_schema_file(schema_value):
+            if is_file_path(schema_value):
                 # Load from external file
                 project_root = context.get("project_root", Path.cwd())
-                schema = load_external_file_text(
-                    schema_value,
-                    project_root,
-                    file_type="table schema file"
-                ).strip()
+                file_ext = Path(schema_value).suffix.lower()
+                
+                if file_ext in ['.yaml', '.yml', '.json']:
+                    # YAML/JSON schema - parse and convert to DDL
+                    resolved_path = resolve_external_file_path(
+                        schema_value,
+                        project_root,
+                        file_type="table schema file"
+                    )
+                    schema_data = self.schema_parser.parse_schema_file(resolved_path)
+                    schema = self.schema_parser.to_schema_hints(schema_data)
+                else:
+                    # DDL/SQL file - load as plain text
+                    schema = load_external_file_text(
+                        schema_value,
+                        project_root,
+                        file_type="table schema file"
+                    ).strip()
             else:
                 # Inline DDL
                 schema = schema_value
@@ -119,16 +134,6 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         }
 
         return self.render_template("write/materialized_view.py.j2", template_context)
-    
-    def _is_table_schema_file(self, value: str) -> bool:
-        """Check if value is a schema file path."""
-        if not value:
-            return False
-        value_lower = value.lower()
-        return (".ddl" in value_lower or 
-                ".sql" in value_lower or 
-                "/" in value or 
-                "\\" in value)
 
     def _extract_source_view(self, source) -> str:
         """Extract source view name from action source."""

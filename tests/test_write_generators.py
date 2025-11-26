@@ -1189,6 +1189,158 @@ def test_streaming_table_table_schema_inline_vs_file():
         assert "product_id BIGINT, product_name STRING, price DECIMAL(10,2)" in code_file
 
 
+def test_streaming_table_table_schema_from_yaml_file():
+    """Test streaming table loading table_schema from YAML file."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create YAML file with schema definition
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "customer_table.yaml"
+        schema_file.write_text("""name: customer_table
+version: "1.0"
+columns:
+  - name: customer_id
+    type: BIGINT
+    nullable: false
+  - name: customer_name
+    type: STRING
+    nullable: true
+  - name: email
+    type: STRING
+    nullable: true
+  - name: signup_date
+    type: DATE
+    nullable: false
+""")
+        
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_customers_stream",
+            type=ActionType.WRITE,
+            source="v_customers_raw",
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "customers",
+                "table_schema": "schemas/customer_table.yaml"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from YAML file and converted to DDL
+        assert "customer_id BIGINT NOT NULL" in code
+        assert "customer_name STRING" in code
+        assert "email STRING" in code
+        assert "signup_date DATE NOT NULL" in code
+
+
+def test_streaming_table_table_schema_from_yml_file():
+    """Test streaming table loading table_schema from .yml file (alternative extension)."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create .yml file with schema definition
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "product_table.yml"
+        schema_file.write_text("""name: product_table
+version: "1.0"
+columns:
+  - name: product_id
+    type: BIGINT
+    nullable: false
+  - name: product_name
+    type: STRING
+    nullable: false
+  - name: price
+    type: DECIMAL(10,2)
+    nullable: false
+""")
+        
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_products_stream",
+            type=ActionType.WRITE,
+            source="v_products_raw",
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "products",
+                "table_schema": "schemas/product_table.yml"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from .yml file and converted to DDL
+        assert "product_id BIGINT NOT NULL" in code
+        assert "product_name STRING NOT NULL" in code
+        assert "price DECIMAL(10,2) NOT NULL" in code
+
+
+def test_materialized_view_table_schema_from_yaml_file():
+    """Test materialized view loading table_schema from YAML file."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create YAML file with schema definition
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "orders_aggregate.yaml"
+        schema_file.write_text("""name: orders_aggregate
+version: "1.0"
+columns:
+  - name: customer_id
+    type: BIGINT
+    nullable: false
+  - name: total_orders
+    type: INT
+    nullable: false
+  - name: total_amount
+    type: DECIMAL(18,2)
+    nullable: false
+  - name: last_order_date
+    type: DATE
+    nullable: true
+""")
+        
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="create_orders_aggregate_mv",
+            type=ActionType.WRITE,
+            source="v_orders_summary",
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "orders_aggregate",
+                "table_schema": "schemas/orders_aggregate.yaml"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from YAML file and converted to DDL
+        assert "customer_id BIGINT NOT NULL" in code
+        assert "total_orders INT NOT NULL" in code
+        assert "total_amount DECIMAL(18,2) NOT NULL" in code
+        assert "last_order_date DATE" in code
+
+
 def test_write_generator_imports():
     """Test that write generators manage imports correctly."""
     # Write generator
