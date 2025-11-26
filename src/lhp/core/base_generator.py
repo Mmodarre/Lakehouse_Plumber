@@ -105,3 +105,52 @@ class BaseActionGenerator(ABC):
         """Render Jinja2 template."""
         template = self.env.get_template(template_name)
         return template.render(**context)
+    
+    def _get_operational_metadata(
+        self, 
+        action: 'Action', 
+        context: Dict[str, Any],
+        target_type: str = "view"
+    ) -> tuple:
+        """Get operational metadata configuration.
+        
+        Centralized method for handling operational metadata across all generators.
+        Uses the OperationalMetadataService for consistent behavior.
+        
+        Args:
+            action: Action configuration
+            context: Context dictionary with flowgroup and project info
+            target_type: Type of target (view, streaming_table, materialized_view)
+            
+        Returns:
+            Tuple of (add_metadata: bool, metadata_columns: dict)
+        """
+        from ..core.services.operational_metadata_service import OperationalMetadataService
+        
+        flowgroup = context.get("flowgroup")
+        preset_config = context.get("preset_config", {})
+        project_config = context.get("project_config")
+        
+        # Use the service for centralized handling
+        service = OperationalMetadataService()
+        add_metadata, metadata_columns = service.get_metadata_for_action(
+            action=action,
+            flowgroup=flowgroup,
+            preset_config=preset_config,
+            project_config=project_config,
+            target_type=target_type,
+            import_manager=self.get_import_manager()
+        )
+        
+        # Get required imports and add them
+        metadata_imports = service.get_required_imports(
+            action=action,
+            flowgroup=flowgroup,
+            preset_config=preset_config,
+            project_config=project_config,
+            target_type=target_type
+        )
+        for import_stmt in metadata_imports:
+            self.add_import(import_stmt)
+        
+        return add_metadata, metadata_columns

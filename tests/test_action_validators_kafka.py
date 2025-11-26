@@ -2,7 +2,7 @@
 Tests for Kafka-specific action validation in action_validators.py
 """
 import pytest
-from lhp.core.action_validators import LoadActionValidator
+from lhp.core.validators import LoadActionValidator
 from lhp.core.action_registry import ActionRegistry
 from lhp.core.config_field_validator import ConfigFieldValidator
 from lhp.models.config import Action

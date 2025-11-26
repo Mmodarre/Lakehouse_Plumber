@@ -144,7 +144,6 @@ class Action: pass
             assert ActionOrchestrator is not None
             
             # Test that methods with Tuple return types exist
-            assert hasattr(ActionOrchestrator, 'validate_pipeline')
             assert hasattr(ActionOrchestrator, 'validate_pipeline_by_field')
         except TypeError as e:
             if "'type' object is not subscriptable" in str(e):

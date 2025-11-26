@@ -407,14 +407,12 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
         Returns:
             Combined action with individual action metadata
         """
-        from ...core.validator import ConfigValidator
-        
         # Determine which action should create the table based on existing validation logic
+        from ..validators import TableCreationValidator
         table_creator = None
+        table_creation_validator = TableCreationValidator()
         for action in actions:
-            # Create a temporary config validator to use its logic
-            config_validator = ConfigValidator(Path.cwd())  # Temporary instance
-            if config_validator._action_creates_table(action):
+            if table_creation_validator._action_creates_table(action):
                 table_creator = action
                 break
         

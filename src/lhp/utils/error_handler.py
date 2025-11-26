@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from typing import Optional, Dict, Any, List
 from pathlib import Path
@@ -139,7 +140,7 @@ class ErrorHandler:
         """Get terminal width for formatting."""
         try:
             return shutil.get_terminal_size().columns
-        except:
+        except (OSError, ValueError):
             return 80  # Fallback width
 
     def _format_error_box(
@@ -205,8 +206,6 @@ class ErrorHandler:
         details = {}
 
         # Extract error code
-        import re
-
         code_match = re.search(r"\[LHP-([A-Z]+-[0-9]+)\]", error_str)
         if code_match:
             details["code"] = code_match.group(1)

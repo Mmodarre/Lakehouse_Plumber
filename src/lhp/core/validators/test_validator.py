@@ -1,8 +1,8 @@
 """Validator for test actions."""
 
 from typing import List
-from ..models.config import Action, TestActionType, ViolationAction
-from ..utils.error_formatter import ErrorFormatter
+from ...models.config import Action, TestActionType, ViolationAction
+from ...utils.error_formatter import ErrorFormatter
 
 
 class TestActionValidator:
@@ -145,3 +145,4 @@ class TestActionValidator:
                 errors.append(f"{prefix}: Custom expectations test requires 'expectations' field")
         
         return errors
+

@@ -1154,42 +1154,6 @@ class ActionOrchestrator:
         else:
             return []
 
-    def validate_pipeline(
-        self, pipeline_name: str, env: str
-    ) -> Tuple[List[str], List[str]]:
-        """Validate pipeline configuration without generating code.
-
-        Args:
-            pipeline_name: Name of the pipeline to validate
-            env: Environment to validate for
-
-        Returns:
-            Tuple of (errors, warnings)
-        """
-        errors = []
-        warnings = []
-
-        try:
-            pipeline_dir = self.project_root / "pipelines" / pipeline_name
-            flowgroups = self._discover_flowgroups(pipeline_dir)
-
-            substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
-            substitution_mgr = self.dependencies.create_substitution_manager(substitution_file, env)
-
-            for flowgroup in flowgroups:
-                try:
-                    self.process_flowgroup(flowgroup, substitution_mgr)
-                    # Validation happens in _process_flowgroup
-                    # Note: Success validation does not generate warnings
-
-                except Exception as e:
-                    errors.append(f"Flowgroup '{flowgroup.flowgroup}': {e}")
-
-        except Exception as e:
-            errors.append(f"Pipeline validation failed: {e}")
-
-        return errors, warnings
-
     def validate_pipeline_by_field(
         self, pipeline_field: str, env: str
     ) -> Tuple[List[str], List[str]]:

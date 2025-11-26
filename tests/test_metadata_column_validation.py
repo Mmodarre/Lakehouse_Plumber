@@ -2,7 +2,7 @@
 import pytest
 from pathlib import Path
 
-from lhp.core.action_validators import TransformActionValidator
+from lhp.core.validators import TransformActionValidator
 from lhp.core.action_registry import ActionRegistry
 from lhp.core.config_field_validator import ConfigFieldValidator
 from lhp.models.config import (

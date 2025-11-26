@@ -2,7 +2,7 @@
 
 import pytest
 from lhp.models.config import Action, ActionType
-from lhp.core.action_validators import WriteActionValidator
+from lhp.core.validators import WriteActionValidator
 from lhp.core.action_registry import ActionRegistry
 from lhp.core.config_field_validator import ConfigFieldValidator
 import logging

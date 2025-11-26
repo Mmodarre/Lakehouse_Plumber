@@ -1243,24 +1243,6 @@ class TestActionOrchestratorValidationWithoutGeneration:
             
             return orchestrator
 
-    def test_missing_discover_flowgroups_method_returns_error(self, orchestrator_validation):
-        """Test that missing _discover_flowgroups method returns error (bug detection)."""
-        # Arrange
-        pipeline_name = "test_pipeline"
-        env = "dev"
-        
-        # Act - should catch AttributeError and return it in errors list
-        errors, warnings = orchestrator_validation.validate_pipeline(pipeline_name, env)
-        
-        # Assert
-        assert len(errors) == 1  # One error collected
-        assert warnings == []  # No warnings
-        
-        # Error should include the AttributeError details
-        error_message = errors[0]
-        assert "Pipeline validation failed" in error_message
-        assert "_discover_flowgroups" in error_message
-
     def test_pipeline_field_validation_no_flowgroups_returns_specific_error(self, orchestrator_validation):
         """Test pipeline field validation finds no flowgroups returns specific error."""
         # Arrange
