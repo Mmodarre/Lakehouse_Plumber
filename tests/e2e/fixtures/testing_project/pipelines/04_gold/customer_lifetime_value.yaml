@@ -4,7 +4,7 @@ pipeline: gold_load
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: customer_lifetime_value
-
+#job_name: j_four
 actions:
 
   - name: customer_lifetime_value_sql

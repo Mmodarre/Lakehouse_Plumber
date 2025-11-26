@@ -72,30 +72,31 @@ class FlowgroupProcessor:
         flowgroup_dict = flowgroup.model_dump()
         substituted_dict = substitution_mgr.substitute_yaml(flowgroup_dict)
         
-        # Step 3.5: Validate no unresolved tokens
-        validation_errors = substitution_mgr.validate_no_unresolved_tokens(substituted_dict)
-        if validation_errors:
-            from ...utils.error_formatter import LHPError, ErrorCategory
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="010",
-                title="Unresolved substitution tokens detected",
-                details=f"Found {len(validation_errors)} unresolved token(s):\n\n" + 
-                        "\n".join(f"  • {e}" for e in validation_errors[:5]),
-                suggestions=[
-                    f"Check substitutions/{substitution_mgr.env}.yaml for missing token definitions",
-                    "Verify token names match exactly (including case)",
-                    "For map lookups (Phase 2), ensure both map and key exist: {map[key]}",
-                    "Check for typos in token names"
-                ],
-                context={
-                    "Environment": substitution_mgr.env,
-                    "Pipeline": flowgroup.pipeline,
-                    "Flowgroup": flowgroup.flowgroup,
-                    "Total Unresolved": len(validation_errors),
-                    "Showing": min(5, len(validation_errors))
-                }
-            )
+        # Step 3.5: Validate no unresolved tokens (skip if validation disabled)
+        if not substitution_mgr.skip_validation:
+            validation_errors = substitution_mgr.validate_no_unresolved_tokens(substituted_dict)
+            if validation_errors:
+                from ...utils.error_formatter import LHPError, ErrorCategory
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="010",
+                    title="Unresolved substitution tokens detected",
+                    details=f"Found {len(validation_errors)} unresolved token(s):\n\n" + 
+                            "\n".join(f"  • {e}" for e in validation_errors[:5]),
+                    suggestions=[
+                        f"Check substitutions/{substitution_mgr.env}.yaml for missing token definitions",
+                        "Verify token names match exactly (including case)",
+                        "For map lookups (Phase 2), ensure both map and key exist: {map[key]}",
+                        "Check for typos in token names"
+                    ],
+                    context={
+                        "Environment": substitution_mgr.env,
+                        "Pipeline": flowgroup.pipeline,
+                        "Flowgroup": flowgroup.flowgroup,
+                        "Total Unresolved": len(validation_errors),
+                        "Showing": min(5, len(validation_errors))
+                    }
+                )
         
         processed_flowgroup = FlowGroup(**substituted_dict)
         

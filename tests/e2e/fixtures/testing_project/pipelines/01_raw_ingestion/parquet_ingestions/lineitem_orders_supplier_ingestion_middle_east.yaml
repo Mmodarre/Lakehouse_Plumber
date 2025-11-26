@@ -1,6 +1,7 @@
 pipeline: acmi_edw_raw
 
 flowgroup: lineitem_ingestion_middle_east
+#job_name: j_one
 presets:
   - default_delta_properties
 use_template: parquet_ingestion_template
@@ -11,6 +12,7 @@ template_parameters:
 ---
 pipeline: acmi_edw_raw
 flowgroup: orders_ingestion_middle_east
+#job_name: j_one
 use_template: parquet_ingestion_template
 template_parameters:
   table_name: orders_middle_east_raw
@@ -19,6 +21,7 @@ template_parameters:
 ---
 pipeline: acmi_edw_raw
 flowgroup: supplier_ingestion_incremental
+#job_name: j_one
 use_template: parquet_ingestion_template
 template_parameters:
   table_name: supplier_raw

@@ -108,7 +108,7 @@ class TestBundleJinja2Templates:
         assert len(long_pipeline_name) <= 200
         
         # Template should handle long names without issues
-        content = self.manager.generate_resource_file_content(long_pipeline_name, self.generated_dir)
+        content = self.manager.generate_resource_file_content(long_pipeline_name, self.generated_dir, "dev")
         
         # Verify no truncation occurred
         assert f"Bundle Resource for {long_pipeline_name}" in content
@@ -129,7 +129,7 @@ class TestBundleJinja2Templates:
         for invalid_name in invalid_names:
             try:
                 # Should handle gracefully without crashing
-                content = self.manager.generate_resource_file_content(invalid_name, self.generated_dir)
+                content = self.manager.generate_resource_file_content(invalid_name, self.generated_dir, "dev")
                 
                 # If it succeeds, verify reasonable behavior
                 if content:
@@ -145,7 +145,7 @@ class TestBundleJinja2Templates:
             
         # Test with special characters that might cause issues
         special_chars_name = "test@#$%^&*()"
-        content = self.manager.generate_resource_file_content(special_chars_name, self.generated_dir)
+        content = self.manager.generate_resource_file_content(special_chars_name, self.generated_dir, "dev")
         
         # Should handle special characters
         assert content is not None
@@ -392,22 +392,86 @@ class TestBundleJinja2Templates:
                 # Verify correct template was used
                 assert template_name == "bundle/pipeline_resource.yml.j2"
                 
-                # Verify context structure (updated for pipeline config feature)
+                # Verify context structure (updated for catalog/schema config feature)
                 assert isinstance(context, dict)
                 assert "pipeline_name" in context
                 assert "pipeline_config" in context
-                # Note: catalog and schema are no longer in context (now use variables)
+                assert "catalog" in context  # Now included (may be None)
+                assert "schema" in context   # Now included (may be None)
                 
                 # Verify correct pipeline_name value
                 expected_name = pipeline_names[i]
                 assert context["pipeline_name"] == expected_name
                 
-                # Context should contain pipeline_name and pipeline_config
-                assert len(context) == 2, f"Context should contain pipeline_name and pipeline_config, got: {context.keys()}"
+                # Context should contain pipeline_name, pipeline_config, catalog, and schema
+                assert len(context) == 4, f"Context should contain 4 keys, got: {context.keys()}"
                 
         finally:
             # Restore original method
             self.manager.template_renderer.render_template = original_render
+    
+    def test_template_context_has_resolved_values(self):
+        """Should pass resolved (substituted) config values to template."""
+        # Setup: Create pipeline config with tokens and substitution file
+        config_file = self.project_root / "config" / "pipeline_config.yaml"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+---
+pipeline: token_test
+catalog: "{catalog}"
+schema: "{bronze_schema}"
+serverless: false
+clusters:
+  - label: default
+    node_type_id: "{node_type}"
+    policy_id: "{policy_id}"
+""")
+        
+        sub_file = self.project_root / "substitutions" / "dev.yaml"
+        sub_file.parent.mkdir(parents=True, exist_ok=True)
+        sub_file.write_text("""
+dev:
+  catalog: resolved_catalog
+  bronze_schema: resolved_schema
+  node_type: Standard_D8ds_v5
+  policy_id: resolved-policy-123
+""")
+        
+        # Recreate manager with new config
+        manager_with_config = BundleManager(self.project_root, str(config_file))
+        
+        # Capture context
+        captured_context = None
+        original_render = manager_with_config.template_renderer.render_template
+        
+        def mock_render(template_name, context):
+            nonlocal captured_context
+            captured_context = context
+            return original_render(template_name, context)
+        
+        manager_with_config.template_renderer.render_template = mock_render
+        
+        try:
+            # Act
+            manager_with_config.generate_resource_file_content("token_test", self.generated_dir, "dev")
+            
+            # Assert - verify tokens were resolved in context
+            assert captured_context is not None
+            
+            # Check catalog/schema in top-level context (for conditional)
+            assert captured_context["catalog"] == "resolved_catalog"
+            assert captured_context["schema"] == "resolved_schema"
+            
+            # Check that pipeline_config has ALL fields resolved
+            config = captured_context["pipeline_config"]
+            assert config["catalog"] == "resolved_catalog"
+            assert config["schema"] == "resolved_schema"
+            assert config["clusters"][0]["node_type_id"] == "Standard_D8ds_v5"
+            assert config["clusters"][0]["policy_id"] == "resolved-policy-123"
+            
+        finally:
+            # Restore original method
+            manager_with_config.template_renderer.render_template = original_render
     
     def test_template_rendering_error_handling(self):
         """Should handle Jinja2 errors gracefully (missing variables, etc.)"""
@@ -652,7 +716,7 @@ class TestBundleJinja2Templates:
             
             # Should handle missing template gracefully
             try:
-                self.manager.generate_resource_file_content("test_pipeline", self.generated_dir)
+                self.manager.generate_resource_file_content("test_pipeline", self.generated_dir, "dev")
                 pytest.fail("Expected TemplateNotFound to be raised")
             except TemplateNotFound:
                 pass  # Expected behavior - let caller handle the error
@@ -663,14 +727,14 @@ class TestBundleJinja2Templates:
             
             # Should propagate template rendering errors
             try:
-                self.manager.generate_resource_file_content("test_pipeline", self.generated_dir)
+                self.manager.generate_resource_file_content("test_pipeline", self.generated_dir, "dev")
                 pytest.fail("Expected template rendering error to be raised")
             except Exception as e:
                 assert "Template rendering failed" in str(e)
                 
         # Test 4: Verify system can recover after errors
         # (Normal operation should work again after patches are removed)
-        recovery_content = self.manager.generate_resource_file_content("recovery_test", self.generated_dir)
+        recovery_content = self.manager.generate_resource_file_content("recovery_test", self.generated_dir, "dev")
         assert recovery_content is not None
         assert "recovery_test" in recovery_content
     
@@ -705,7 +769,7 @@ class TestBundleJinja2Templates:
                 mock_render.return_value = invalid_output
                 
                 # Get the generated content
-                result = self.manager.generate_resource_file_content("test", self.generated_dir)
+                result = self.manager.generate_resource_file_content("test", self.generated_dir, "dev")
                 
                 # Verify it returns the invalid content (detection happens at parse time)
                 assert result == invalid_output
@@ -719,7 +783,7 @@ class TestBundleJinja2Templates:
                     
         # Test 3: Verify recovery after invalid output
         # (Should work normally again when template is fixed)
-        recovery_content = self.manager.generate_resource_file_content("recovery_test", self.generated_dir)
+        recovery_content = self.manager.generate_resource_file_content("recovery_test", self.generated_dir, "dev")
         assert recovery_content is not None
         
         # Should produce valid YAML again

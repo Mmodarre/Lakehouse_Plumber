@@ -248,7 +248,15 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             )
             
         except Exception as e:
-            self.logger.error(f"Pipeline generation failed: {e}")
+            # Log brief context without full error details (avoids duplication)
+            from ..utils.error_formatter import LHPError
+            if isinstance(e, LHPError):
+                # LHPError already has formatted details, just log context
+                self.logger.debug(f"Pipeline generation failed for {request.pipeline_identifier}")
+            else:
+                # Regular exception - log full details
+                self.logger.error(f"Pipeline generation failed: {e}")
+            
             return GenerationResponse(
                 success=False,
                 generated_files={},

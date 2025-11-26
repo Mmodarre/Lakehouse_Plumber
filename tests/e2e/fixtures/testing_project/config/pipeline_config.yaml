@@ -7,29 +7,33 @@ project_defaults:
 
 ---
 pipeline: acmi_edw_raw
+catalog: "{catalog}"
+schema: "{raw_schema}"
 serverless: false 
 clusters:
   - label: default
-    node_type_id: Standard_D16ds_v5
-    driver_node_type_id: Standard_D32ds_v5
+    node_type_id: "{cluster_node_type_id}"
+    driver_node_type_id: "{cluster_driver_node_type_id}"
     autoscale:
-      min_workers: 2
-      max_workers: 10
-      mode: ENHANCED
-photon: true
+      min_workers: "{cluster_autoscale_min_workers}"
+      max_workers: "{cluster_autoscale_max_workers}"
+      mode: "{cluster_autoscale_mode}"
+photon: "{photon}"
 edition: ADVANCED
 channel: PREVIEW
-continuous: true
+continuous: "{continuous}"
 
 ---
 pipeline: acmi_edw_bronze
+catalog: "{catalog}"
+schema: "{bronze_schema}"
 serverless: false
 clusters:
   - label: default
     node_type_id: Standard_D8ds_v5
     autoscale:
-      min_workers: 1
-      max_workers: 5
+      min_workers: "{cluster_autoscale_min_workers}"
+      max_workers: "{cluster_autoscale_max_workers}"
       mode: ENHANCED
 
 

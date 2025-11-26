@@ -1,0 +1,24 @@
+# This is a sample schema transform file referenced by a schema transform action
+# Column renaming uses colon (:) for renaming columns
+# Type casting uses arrow (->) for specifying data types
+# You can also use the inline format with arrow notation: "source_column -> target_column: TYPE"
+
+name: lineitem_bronze_transform
+columns:
+  - "l_orderkey -> order_id: BIGINT"
+  - "l_partkey -> part_id: BIGINT"
+  - "l_suppkey -> supplier_id: BIGINT"
+  - "l_linenumber -> line_number: INT"
+  - "l_quantity -> quantity: DECIMAL(18,2)"
+  - "l_extendedprice -> extended_price: DECIMAL(18,2)"
+  - "l_discount -> discount: DECIMAL(18,2)"
+  - "l_tax -> tax: DECIMAL(18,2)"
+  - "l_returnflag -> return_flag: STRING"
+  - "l_linestatus -> line_status: STRING"
+  - "l_shipdate -> ship_date: DATE"
+  - "l_commitdate -> commit_date: DATE"
+  - "l_receiptdate -> receipt_date: DATE"
+  - "l_shipinstruct -> ship_instruct: STRING"
+  - "l_shipmode -> ship_mode: STRING"
+  - "l_comment -> comment: STRING"
+  - "last_modified_dt: TIMESTAMP"

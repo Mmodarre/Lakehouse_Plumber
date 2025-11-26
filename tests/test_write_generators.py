@@ -758,6 +758,589 @@ def test_materialized_view_full_structure():
     assert "return df" in code
 
 
+def test_materialized_view_with_sql_path():
+    """Test materialized view loading SQL from external file via sql_path."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create SQL file
+        sql_dir = project_root / "sql" / "gold"
+        sql_dir.mkdir(parents=True)
+        sql_file = sql_dir / "customer_summary.sql"
+        sql_file.write_text("""
+SELECT 
+    customer_id,
+    customer_name,
+    COUNT(*) as total_orders,
+    SUM(order_amount) as total_spent
+FROM silver.customers c
+JOIN silver.orders o ON c.customer_id = o.customer_id
+GROUP BY customer_id, customer_name
+""")
+        
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="create_customer_summary",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "customer_summary",
+                "sql_path": "sql/gold/customer_summary.sql"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify SQL content is loaded from file
+        assert "customer_id" in code
+        assert "customer_name" in code
+        assert "total_orders" in code
+        assert "total_spent" in code
+        assert "silver.customers" in code
+        assert "silver.orders" in code
+        assert "GROUP BY customer_id, customer_name" in code
+        assert "@dp.materialized_view(" in code
+        assert 'name="gold.customer_summary"' in code
+
+
+def test_materialized_view_sql_path_with_substitutions():
+    """Test that sql_path files support substitution variables."""
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import Mock
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create SQL file with substitution variables
+        sql_dir = project_root / "sql"
+        sql_dir.mkdir()
+        sql_file = sql_dir / "sales_summary.sql"
+        sql_file.write_text("""
+SELECT 
+    product_id,
+    SUM(quantity) as total_quantity,
+    SUM(amount) as total_sales
+FROM {catalog}.{bronze_schema}.sales
+WHERE sale_date >= '{start_date}'
+GROUP BY product_id
+""")
+        
+        # Mock substitution manager
+        mock_subst_mgr = Mock()
+        mock_subst_mgr._process_string.return_value = """
+SELECT 
+    product_id,
+    SUM(quantity) as total_quantity,
+    SUM(amount) as total_sales
+FROM dev_catalog.bronze.sales
+WHERE sale_date >= '2024-01-01'
+GROUP BY product_id
+"""
+        mock_subst_mgr.get_secret_references.return_value = set()
+        
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="create_sales_summary",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "sales_summary",
+                "sql_path": "sql/sales_summary.sql"
+            }
+        )
+        
+        context = {
+            "project_root": project_root,
+            "substitution_manager": mock_subst_mgr,
+            "secret_references": set()
+        }
+        code = generator.generate(action, context)
+        
+        # Verify substitutions were applied
+        assert "dev_catalog.bronze.sales" in code
+        assert "2024-01-01" in code
+        
+        # Verify substitution manager was called
+        mock_subst_mgr._process_string.assert_called_once()
+
+
+def test_materialized_view_sql_path_file_not_found():
+    """Test error handling when sql_path file doesn't exist."""
+    import tempfile
+    from pathlib import Path
+    from lhp.utils.error_formatter import LHPError
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="create_view",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "test_view",
+                "sql_path": "sql/missing_file.sql"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        
+        # Should raise LHPError for missing file
+        with pytest.raises(LHPError) as exc_info:
+            generator.generate(action, context)
+        
+        assert "LHP-IO-001" in str(exc_info.value)
+        assert "missing_file.sql" in str(exc_info.value)
+
+
+def test_materialized_view_sql_vs_sql_path_precedence():
+    """Test that inline 'sql' takes precedence over 'sql_path'."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create SQL file (should be ignored)
+        sql_dir = project_root / "sql"
+        sql_dir.mkdir()
+        sql_file = sql_dir / "query.sql"
+        sql_file.write_text("SELECT * FROM ignored_table")
+        
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="create_view",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "test_view",
+                "sql": "SELECT customer_id, name FROM silver.customers",
+                "sql_path": "sql/query.sql"  # Should be ignored
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Should use inline SQL, not file
+        assert "silver.customers" in code
+        assert "ignored_table" not in code
+
+
+def test_materialized_view_table_schema_from_ddl_file():
+    """Test materialized view loading table_schema from DDL file."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create DDL file
+        schema_dir = project_root / "schemas" / "gold"
+        schema_dir.mkdir(parents=True)
+        schema_file = schema_dir / "product_view_schema.ddl"
+        schema_file.write_text("product_id BIGINT NOT NULL, product_name STRING, price DECIMAL(10,2), category STRING")
+        
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="create_product_view",
+            type=ActionType.WRITE,
+            source="v_products_source",
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "product_view",
+                "table_schema": "schemas/gold/product_view_schema.ddl"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from file
+        assert 'schema="product_id BIGINT NOT NULL, product_name STRING, price DECIMAL(10,2), category STRING"' in code
+        assert "@dp.materialized_view(" in code
+
+
+def test_materialized_view_table_schema_from_sql_file():
+    """Test materialized view loading table_schema from SQL file."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create SQL file with schema DDL
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "customer_view_schema.sql"
+        schema_file.write_text("customer_id BIGINT, name STRING, email STRING, region STRING")
+        
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="create_customer_view",
+            type=ActionType.WRITE,
+            source="v_customers",
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "customer_view",
+                "table_schema": "schemas/customer_view_schema.sql"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from file
+        assert 'schema="customer_id BIGINT, name STRING, email STRING, region STRING"' in code
+
+
+def test_materialized_view_table_schema_inline_vs_file():
+    """Test that inline table_schema is correctly distinguished from file paths."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Test 1: Inline schema (no file extension)
+        generator = MaterializedViewWriteGenerator()
+        action_inline = Action(
+            name="create_view_inline",
+            type=ActionType.WRITE,
+            source="v_source",
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "test_view",
+                "table_schema": "id BIGINT, name STRING, amount DECIMAL(18,2)"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code_inline = generator.generate(action_inline, context)
+        
+        # Should use inline schema
+        assert 'schema="id BIGINT, name STRING, amount DECIMAL(18,2)"' in code_inline
+        
+        # Test 2: File path with .ddl extension
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "product_schema.ddl"
+        schema_file.write_text("product_id BIGINT, product_name STRING")
+        
+        action_file = Action(
+            name="create_view_file",
+            type=ActionType.WRITE,
+            source="v_source",
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "test_view",
+                "table_schema": "schemas/product_schema.ddl"
+            }
+        )
+        
+        code_file = generator.generate(action_file, context)
+        
+        # Should load from file
+        assert 'schema="product_id BIGINT, product_name STRING"' in code_file
+
+
+def test_streaming_table_table_schema_from_ddl_file():
+    """Test streaming table loading table_schema from DDL file."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create DDL file
+        schema_dir = project_root / "schemas" / "bronze"
+        schema_dir.mkdir(parents=True)
+        schema_file = schema_dir / "customer_table.ddl"
+        schema_file.write_text("""customer_id BIGINT NOT NULL,
+name STRING,
+email STRING,
+region STRING,
+registration_date DATE,
+_source_file_path STRING,
+_processing_timestamp TIMESTAMP""")
+        
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_customer_stream",
+            type=ActionType.WRITE,
+            source="v_customer_raw",
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "customers",
+                "table_schema": "schemas/bronze/customer_table.ddl"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from file
+        assert "customer_id BIGINT NOT NULL" in code
+        assert "_source_file_path STRING" in code
+        assert "_processing_timestamp TIMESTAMP" in code
+        assert "dp.create_streaming_table(" in code
+
+
+def test_streaming_table_table_schema_from_sql_file():
+    """Test streaming table loading table_schema from SQL file."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create SQL file with schema DDL
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "orders_table.sql"
+        schema_file.write_text("order_id BIGINT, customer_id BIGINT, order_amount DECIMAL(10,2), order_date DATE")
+        
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_orders_stream",
+            type=ActionType.WRITE,
+            source="v_orders_raw",
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "orders",
+                "table_schema": "schemas/orders_table.sql"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from file
+        assert "order_id BIGINT" in code
+        assert "customer_id BIGINT" in code
+        assert "order_amount DECIMAL(10,2)" in code
+
+
+def test_streaming_table_table_schema_inline_vs_file():
+    """Test that inline table_schema is correctly distinguished from file paths."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Test 1: Inline schema (multiline string)
+        generator = StreamingTableWriteGenerator()
+        action_inline = Action(
+            name="write_table_inline",
+            type=ActionType.WRITE,
+            source="v_source",
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "test_table",
+                "table_schema": "id BIGINT, name STRING, created_at TIMESTAMP"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code_inline = generator.generate(action_inline, context)
+        
+        # Should use inline schema (with triple quotes for multiline)
+        assert 'schema="""id BIGINT, name STRING, created_at TIMESTAMP"""' in code_inline
+        
+        # Test 2: File path with .ddl extension
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "test_schema.ddl"
+        schema_file.write_text("product_id BIGINT, product_name STRING, price DECIMAL(10,2)")
+        
+        action_file = Action(
+            name="write_table_file",
+            type=ActionType.WRITE,
+            source="v_source",
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "test_table",
+                "table_schema": "schemas/test_schema.ddl"
+            }
+        )
+        
+        code_file = generator.generate(action_file, context)
+        
+        # Should load from file
+        assert "product_id BIGINT, product_name STRING, price DECIMAL(10,2)" in code_file
+
+
+def test_streaming_table_table_schema_from_yaml_file():
+    """Test streaming table loading table_schema from YAML file."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create YAML file with schema definition
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "customer_table.yaml"
+        schema_file.write_text("""name: customer_table
+version: "1.0"
+columns:
+  - name: customer_id
+    type: BIGINT
+    nullable: false
+  - name: customer_name
+    type: STRING
+    nullable: true
+  - name: email
+    type: STRING
+    nullable: true
+  - name: signup_date
+    type: DATE
+    nullable: false
+""")
+        
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_customers_stream",
+            type=ActionType.WRITE,
+            source="v_customers_raw",
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "customers",
+                "table_schema": "schemas/customer_table.yaml"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from YAML file and converted to DDL
+        assert "customer_id BIGINT NOT NULL" in code
+        assert "customer_name STRING" in code
+        assert "email STRING" in code
+        assert "signup_date DATE NOT NULL" in code
+
+
+def test_streaming_table_table_schema_from_yml_file():
+    """Test streaming table loading table_schema from .yml file (alternative extension)."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create .yml file with schema definition
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "product_table.yml"
+        schema_file.write_text("""name: product_table
+version: "1.0"
+columns:
+  - name: product_id
+    type: BIGINT
+    nullable: false
+  - name: product_name
+    type: STRING
+    nullable: false
+  - name: price
+    type: DECIMAL(10,2)
+    nullable: false
+""")
+        
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_products_stream",
+            type=ActionType.WRITE,
+            source="v_products_raw",
+            write_target={
+                "type": "streaming_table",
+                "database": "bronze",
+                "table": "products",
+                "table_schema": "schemas/product_table.yml"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from .yml file and converted to DDL
+        assert "product_id BIGINT NOT NULL" in code
+        assert "product_name STRING NOT NULL" in code
+        assert "price DECIMAL(10,2) NOT NULL" in code
+
+
+def test_materialized_view_table_schema_from_yaml_file():
+    """Test materialized view loading table_schema from YAML file."""
+    import tempfile
+    from pathlib import Path
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        
+        # Create YAML file with schema definition
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "orders_aggregate.yaml"
+        schema_file.write_text("""name: orders_aggregate
+version: "1.0"
+columns:
+  - name: customer_id
+    type: BIGINT
+    nullable: false
+  - name: total_orders
+    type: INT
+    nullable: false
+  - name: total_amount
+    type: DECIMAL(18,2)
+    nullable: false
+  - name: last_order_date
+    type: DATE
+    nullable: true
+""")
+        
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="create_orders_aggregate_mv",
+            type=ActionType.WRITE,
+            source="v_orders_summary",
+            write_target={
+                "type": "materialized_view",
+                "database": "gold",
+                "table": "orders_aggregate",
+                "table_schema": "schemas/orders_aggregate.yaml"
+            }
+        )
+        
+        context = {"project_root": project_root}
+        code = generator.generate(action, context)
+        
+        # Verify schema is loaded from YAML file and converted to DDL
+        assert "customer_id BIGINT NOT NULL" in code
+        assert "total_orders INT NOT NULL" in code
+        assert "total_amount DECIMAL(18,2) NOT NULL" in code
+        assert "last_order_date DATE" in code
+
+
 def test_write_generator_imports():
     """Test that write generators manage imports correctly."""
     # Write generator

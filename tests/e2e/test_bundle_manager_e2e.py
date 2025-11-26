@@ -258,14 +258,26 @@ resources:
         print(" BM-1: LHP-managed file preserved successfully")
 
     def test_BM1_1_regenerate_existing_lhp_managed_file_with_pipeline_config(self):
-        """BM-1_1: Regenerate existing LHP-managed file with pipeline config."""
+        """
+        BM-1_1: Test force regeneration when adding pipeline config.
+        
+        Tests Decision Matrix: "Python exists + LHP file + force + pipeline_config → REGENERATE"
+        
+        Flow:
+        1. First run: Generate WITHOUT --pipeline-config (creates default LHP file)
+        2. Second run: Generate WITH --pipeline-config and --force (should regenerate)
+        
+        This verifies that --force correctly overwrites existing LHP files when 
+        pipeline config is added/changed.
+        """
         pipeline_name = "acmi_edw_bronze"
 
-        # Setup: Run initial generation to create the pipeline directory and resource file
+        # Step 1: Initial generation WITHOUT pipeline config (default behavior)
+        # This uses --force but NOT --pipeline-config flag
         exit_code, output = self.run_bundle_sync()
         assert exit_code == 0, f"Initial generation should succeed: {output}"
 
-        # Preconditions: Pipeline directory exists, LHP resource file exists with header
+        # Verify initial file was created with LHP header
         assert (self.generated_dir /
                 pipeline_name).exists(), "Pipeline directory should exist"
         resource_file = self.resources_dir / f"{pipeline_name}.pipeline.yml"
@@ -273,24 +285,27 @@ resources:
         assert self.has_lhp_header(
             resource_file), "Resource file should have LHP header"
 
-        # Store original content
+        # # Store original content (generated WITHOUT pipeline config)
         original_content = resource_file.read_text()
         original_mtime = resource_file.stat().st_mtime
 
-        # Action: Run bundle sync with pipeline config
+        # Step 2: Regenerate WITH pipeline config and force flag
+        # This uses BOTH --force and --pipeline-config flags
         exit_code, output = self.run_bundle_sync_with_pipeline_config()
 
-        # Expected: Resource file should be regenerated with pipeline config
-        assert exit_code == 0, f"Generate should succeed: {output}"
+        # Expected: Resource file should be regenerated with pipeline config values
+        assert exit_code == 0, f"Generate with pipeline config should succeed: {output}"
         new_content = resource_file.read_text()
-        assert new_content != original_content, "Resource file content should be changed"
+        assert new_content != original_content, \
+            "Resource file content should be changed after adding pipeline config"
 
         # Verify regenerated file matches baseline (with pipeline config applied)
         baseline_resource = self.project_root / "resources_baseline" / "lhp" / f"{pipeline_name}.pipeline.yml"
         hash_result = self._compare_file_hashes(resource_file, baseline_resource)
-        assert hash_result == "", f"Generated file should match baseline with pipeline config: {hash_result}"
+        assert hash_result == "", \
+            f"Generated file should match baseline with pipeline config: {hash_result}"
 
-        print("✓ BM-1_1: LHP-managed file regenerated successfully with pipeline config")
+        print("✓ BM-1_1: Force regeneration with pipeline config successful")
 
     def test_BM2_backup_and_replace_user_managed_file(self):
         """BM-2: Backup and replace user-managed file."""

@@ -6,6 +6,7 @@ from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
 from ...utils.operational_metadata import OperationalMetadata
+from ...utils.external_file_loader import resolve_external_file_path
 import yaml
 
 
@@ -135,14 +136,18 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             expectations_file = action.source["expectations_file"]
 
         if expectations_file:
-            expectations_file = Path(expectations_file)
-            if not expectations_file.is_absolute() and spec_dir:
-                expectations_file = spec_dir / expectations_file
-
-            # Try to load the file
-            if expectations_file.exists():
-                from ...utils.yaml_loader import load_yaml_file
-                data = load_yaml_file(expectations_file, error_context="data quality expectations file")
+            # Use common utility for path resolution
+            from ...utils.yaml_loader import load_yaml_file
+            project_root = spec_dir or Path.cwd()
+            resolved_path = resolve_external_file_path(
+                expectations_file,
+                project_root,
+                file_type="expectations file"
+            )
+            
+            # Load the YAML file
+            if resolved_path.exists():
+                data = load_yaml_file(resolved_path, error_context="data quality expectations file")
 
                 # Handle different formats
                 if isinstance(data, dict):
@@ -155,10 +160,6 @@ class DataQualityTransformGenerator(BaseActionGenerator):
                 elif isinstance(data, list):
                     # Direct list of expectations
                     return data
-            else:
-                raise FileNotFoundError(
-                    f"Expectations file not found: {expectations_file}"
-                )
 
         # Return empty dict/list if no expectations found
         return {}

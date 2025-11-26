@@ -174,6 +174,10 @@ class Action(BaseModel):
         None  # Simplified: bool or list of column names
     )
     expectations_file: Optional[str] = None  # For data quality transforms
+    # Schema transform specific fields
+    schema_inline: Optional[str] = None  # Inline schema definition (arrow or YAML format)
+    schema_file: Optional[str] = None  # External schema file path
+    enforcement: Optional[str] = None  # Schema enforcement mode: strict or permissive
     # Python transform specific fields
     module_path: Optional[str] = None  # Path to Python module (relative to project root)
     function_name: Optional[str] = None  # Python function name to call
@@ -204,6 +208,7 @@ class Action(BaseModel):
 class FlowGroup(BaseModel):
     pipeline: str
     flowgroup: str
+    job_name: Optional[str] = None
     presets: List[str] = []
     use_template: Optional[str] = None
     template_parameters: Optional[Dict[str, Any]] = None

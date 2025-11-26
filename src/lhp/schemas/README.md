@@ -45,10 +45,49 @@ The `.vscode/settings.json` file automatically configures VS Code to use the app
 ### flowgroup.schema.json
 Schema for pipeline configuration files with:
 - Pipeline and flowgroup metadata
+- **job_name** for multi-job orchestration (NEW)
 - Action definitions (load, transform, write)
 - Template usage with parameters
 - Preset references
 - Operational metadata configuration
+
+#### Multi-Job Orchestration Support
+
+The `job_name` property enables generating multiple Databricks orchestration jobs:
+
+**Core Properties:**
+- `pipeline` (required): Pipeline name
+- `flowgroup` (required): Flowgroup name
+- **`job_name` (optional)**: Job name for grouping flowgroups into separate jobs
+
+**Validation Rules:**
+- If ANY flowgroup has `job_name`, ALL must have it (all-or-nothing)
+- Format: alphanumeric, underscore, hyphen only (`^[a-zA-Z0-9_-]+$`)
+- Multiple flowgroups can share the same `job_name` (grouped into one job)
+
+**Example:**
+```yaml
+pipeline: data_bronze
+flowgroup: customer_ingestion
+job_name: bronze_ingestion_job  # Groups this flowgroup with others sharing the same job_name
+
+actions:
+  - name: load_customer
+    type: load
+    # ... action configuration
+```
+
+**Use Cases:**
+- Separate jobs by data layer (bronze, silver, gold)
+- Different compute/schedule requirements per job
+- Team ownership and resource management
+- SLA-based job separation
+
+**Generated Output:**
+- Individual job files: `<job_name>.job.yml`
+- Master orchestration job: `<project_name>_master.job.yml`
+
+For complete documentation, see: `docs/databricks_bundles.rst` (Multi-Job Orchestration section)
 
 ### template.schema.json
 Schema for template files with:

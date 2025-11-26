@@ -2,17 +2,18 @@
 
 pipeline: acmi_edw_raw
 flowgroup: customer_ingestion_incremental
+#job_name: j_one
 presets:
   - default_delta_properties
 
 # Use the template to generate the actions for the pipeline
 # Template parameters are used to pass in the table name and landing folder
 # The template will generate the actions for the pipeline
-use_template: csv_ingestion_template
+use_template: ingestion/csv_ingestion_template
 template_parameters:
   table_name: customer_raw
   landing_folder: customer
-  schema_file: customer_schema
+  schema_file: customer_schema.ddl
   table_properties:
     PII: "true" # PII Tag on the table
   cluster_columns:

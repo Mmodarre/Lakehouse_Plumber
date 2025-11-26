@@ -1,0 +1,14 @@
+name: orders_africa_bronze_transform
+column_mapping:
+  o_orderkey: order_id
+  o_custkey: customer_id
+  o_orderstatus: order_status
+  o_totalprice: total_price
+  o_orderdate: order_date
+  o_orderpriority: order_priority
+  o_clerk: clerk
+  o_shippriority: ship_priority
+  o_comment: comment
+type_casting:
+  last_modified_dt: TIMESTAMP
+

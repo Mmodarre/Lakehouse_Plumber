@@ -5,9 +5,15 @@ resources:
     {{ pipeline_name }}_pipeline:
       name: {{ pipeline_name }}_pipeline
       
-      # Default Catalog and Schema for the pipeline (managed via databricks.yml variables and LHP)
+      # Catalog and Schema for the pipeline
+{% if catalog and schema %}
+      catalog: {{ catalog }}
+      schema: {{ schema }}
+{% else %}
+      # Using databricks.yml variables (not defined in pipeline config)
       catalog: ${var.default_pipeline_catalog}
       schema: ${var.default_pipeline_schema}
+{% endif %}
       
       serverless: {{ pipeline_config.serverless | lower }}
 {%- if not pipeline_config.serverless and pipeline_config.get('clusters') %}
@@ -88,7 +94,9 @@ resources:
 {%- endif %}
 
       # Additional pipeline configuration options 
-      # Add to your pipeline_config.yaml as needed and pass the file path through the --pipeline-config flag:
+      # Add to your pipeline_config-<env>.yaml as needed and pass the file path through the --pipeline-config flag:
+      # You can use substitutions file to define the values for the pipeline configuration using the following syntax:
+      # {variable_name}
  
       # Compute clusters configuration (alternative to serverless)
       # clusters:
@@ -133,3 +141,15 @@ resources:
       #   name: pipeline_evenlog
       #   schema: _meta
       #   catalog: acmi_edw_dev
+
+      # permissions:
+      #   - service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d
+      #     level: CAN_MANAGE
+      #   - user_name: user@example.com
+      #     level: CAN_RUN
+      #   - group_name: data-engineers 
+      #     level: CAN_VIEW
+      
+      # # Pipeline-level run_as
+      # run_as:
+      #   service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d OR "{SP_NAME}" (if using substitutions file)

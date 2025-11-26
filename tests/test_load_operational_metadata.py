@@ -424,18 +424,12 @@ class TestLoadOperationalMetadata:
             name="clean_data",
             type=ActionType.TRANSFORM,
             transform_type=TransformType.SCHEMA,
-            source={
-                "view": "v_raw_data",
-                "schema": {
-                    "column_mapping": {
-                        "customer_id": "id",
-                        "customer_name": "name"
-                    },
-                    "type_casting": {
-                        "age": "int"
-                    }
-                }
-            },
+            source="v_raw_data",
+            schema_inline="""
+customer_id -> id
+customer_name -> name
+age: int
+            """,
             target="v_clean_data"
         )
         

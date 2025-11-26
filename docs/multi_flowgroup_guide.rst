@@ -111,6 +111,7 @@ When using array syntax, flowgroups inherit document-level fields:
 * ``use_template``
 * ``presets``
 * ``operational_metadata``
+* ``job_name`` (for multi-job orchestration)
 
 **Inheritance Behavior:**
 
@@ -157,6 +158,34 @@ Different types can override each other (e.g., bool → list):
      - flowgroup: table2
        operational_metadata: ["col1", "col2", "col3"]
        # Override with list
+
+Job Name Inheritance
+^^^^^^^^^^^^^^^^^^^^
+
+The ``job_name`` property (used for multi-job orchestration) is also inherited by all flowgroups in the array:
+
+.. code-block:: yaml
+
+   pipeline: raw_ingestions_sap
+   job_name: SAP_SFCC  # Inherited by all flowgroups below
+   use_template: TMPL003_parquet_ingestion_template
+   
+   flowgroups:
+     - flowgroup: sap_supplier_ingestion
+       # Inherits: pipeline, job_name, use_template
+       template_parameters:
+         table_name: raw_sap_supplier
+         landing_folder: supplier
+     
+     - flowgroup: sap_product_ingestion
+       # Inherits: pipeline, job_name, use_template
+       template_parameters:
+         table_name: raw_sap_product
+         landing_folder: product
+
+**Result:** All flowgroups automatically assigned to the ``SAP_SFCC`` job.
+
+**Note:** If any flowgroup has ``job_name`` defined, all flowgroups in your project must have it (validated at runtime). See :doc:`databricks_bundles` for multi-job orchestration details.
 
 Migration Guide
 ---------------
@@ -289,6 +318,7 @@ Here's a complete example combining multiple concepts:
 
    # Bronze Layer - NCR Transaction Data
    pipeline: bronze_ncr
+   job_name: NCR  # Multi-job orchestration (optional)
    use_template: TMPL004_raw_to_bronze_standard
    presets:
      - bronze_layer

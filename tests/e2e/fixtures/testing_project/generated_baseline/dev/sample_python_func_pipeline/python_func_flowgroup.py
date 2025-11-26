@@ -85,6 +85,14 @@ dp.create_streaming_table(
         "tag_name2": "tag_value2",
         "delta.enableRowTracking": "true",
     },
+    schema="""customer_id BIGINT NOT NULL,
+name STRING,
+email STRING,
+region STRING,
+registration_date DATE,
+_source_file_path STRING,
+_processing_timestamp TIMESTAMP
+""",
 )
 
 
@@ -96,6 +104,87 @@ dp.create_streaming_table(
 )
 def f_customer_bronze():
     """Append flow to acme_edw_dev.edw_bronze.customers"""
+    # Streaming flow
+    df = spark.readStream.table("v_customer_bronze_DQEs")
+
+    return df
+
+
+# Create the streaming table
+dp.create_streaming_table(
+    name="acme_edw_dev.edw_bronze.customers_partitioned",
+    comment="Streaming table: customers_partitioned",
+    table_properties={
+        "tag_name1": "tag_value1",
+        "tag_name2": "tag_value2",
+        "delta.enableRowTracking": "true",
+    },
+    partition_cols=["region", "year"],
+)
+
+
+# Define append flow(s)
+@dp.append_flow(
+    target="acme_edw_dev.edw_bronze.customers_partitioned",
+    name="f_customer_bronze_partitioned",
+    comment="Append flow to acme_edw_dev.edw_bronze.customers_partitioned",
+)
+def f_customer_bronze_partitioned():
+    """Append flow to acme_edw_dev.edw_bronze.customers_partitioned"""
+    # Streaming flow
+    df = spark.readStream.table("v_customer_bronze_DQEs")
+
+    return df
+
+
+# Create the streaming table
+dp.create_streaming_table(
+    name="acme_edw_dev.edw_bronze.customers_clustered",
+    comment="Streaming table: customers_clustered",
+    table_properties={"delta.enableRowTracking": "true"},
+    cluster_by=["customer_id"],
+)
+
+
+# Define append flow(s)
+@dp.append_flow(
+    target="acme_edw_dev.edw_bronze.customers_clustered",
+    name="f_customer_bronze_clustered",
+    comment="Append flow to acme_edw_dev.edw_bronze.customers_clustered",
+)
+def f_customer_bronze_clustered():
+    """Append flow to acme_edw_dev.edw_bronze.customers_clustered"""
+    # Streaming flow
+    df = spark.readStream.table("v_customer_bronze_DQEs")
+
+    return df
+
+
+# Create the streaming table
+dp.create_streaming_table(
+    name="acme_edw_dev.edw_bronze.customers_clustered_with_row_filter",
+    comment="Streaming table: customers_clustered_with_row_filter",
+    table_properties={"delta.enableRowTracking": "true"},
+    cluster_by=["customer_id"],
+    schema="""customer_id BIGINT NOT NULL,
+name STRING,
+email STRING,
+region STRING,
+registration_date DATE,
+_source_file_path STRING,
+_processing_timestamp TIMESTAMP""",
+    row_filter="ROW FILTER catalog.schema.customer_access_filter ON (region)",
+)
+
+
+# Define append flow(s)
+@dp.append_flow(
+    target="acme_edw_dev.edw_bronze.customers_clustered_with_row_filter",
+    name="f_customer_bronze_clustered_with_row_filter",
+    comment="Append flow to acme_edw_dev.edw_bronze.customers_clustered_with_row_filter",
+)
+def f_customer_bronze_clustered_with_row_filter():
+    """Append flow to acme_edw_dev.edw_bronze.customers_clustered_with_row_filter"""
     # Streaming flow
     df = spark.readStream.table("v_customer_bronze_DQEs")
 

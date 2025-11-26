@@ -1,0 +1,14 @@
+name: cloudfiles_defaults
+version: "1.0"
+description: "Standard CloudFiles options for all ingestion"
+
+defaults:
+  load_actions:
+    cloudfiles:
+      options:
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+        ignoreCorruptFiles: "true"
+        ignoreMissingFiles: "true"
+        cloudFiles.useStrictGlobber: "false"
+        cloudFiles.maxFilesPerTrigger: 200
+

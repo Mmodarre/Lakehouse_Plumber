@@ -170,6 +170,7 @@ class TestReadMode:
             transform_type=TransformType.SCHEMA,
             source="v_raw",
             target="v_typed",
+            schema_inline="col1: STRING",
             readMode="stream"
         )
         
@@ -304,6 +305,7 @@ actions:
     readMode: batch
     source: v_customers
     target: v_customers_typed
+    schema_inline: "col1: STRING"
     
   - name: write_customers
     type: write

@@ -1,11 +1,14 @@
 """Streaming table write generator """
 
 import ast
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
 from ...utils.error_formatter import LHPError, ErrorCategory
+from ...utils.external_file_loader import load_external_file_text, is_file_path, resolve_external_file_path
+from ...utils.schema_parser import SchemaParser
 
 
 class StreamingTableWriteGenerator(BaseActionGenerator):
@@ -14,6 +17,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
+        self.schema_parser = SchemaParser()
 
     def generate(self, action: Action, context: dict) -> str:
         """Generate streaming table code."""
@@ -53,7 +57,35 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         spark_conf = target_config.get("spark_conf", {})
 
         # Schema definition (SQL DDL string or StructType)
-        schema = target_config.get("table_schema") or target_config.get("schema")
+        schema_value = target_config.get("table_schema") or target_config.get("schema")
+        schema = None
+        
+        if schema_value:
+            # Check if it's a file path
+            if is_file_path(schema_value):
+                # Load from external file
+                project_root = context.get("project_root", Path.cwd())
+                file_ext = Path(schema_value).suffix.lower()
+                
+                if file_ext in ['.yaml', '.yml', '.json']:
+                    # YAML/JSON schema - parse and convert to DDL
+                    resolved_path = resolve_external_file_path(
+                        schema_value,
+                        project_root,
+                        file_type="table schema file"
+                    )
+                    schema_data = self.schema_parser.parse_schema_file(resolved_path)
+                    schema = self.schema_parser.to_schema_hints(schema_data)
+                else:
+                    # DDL/SQL file - load as plain text
+                    schema = load_external_file_text(
+                        schema_value,
+                        project_root,
+                        file_type="table schema file"
+                    ).strip()
+            else:
+                # Inline DDL
+                schema = schema_value
 
         # Row filter clause
         row_filter = target_config.get("row_filter")
@@ -222,7 +254,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             action.source["read_change_feed"] = True
 
         return self.render_template("write/streaming_table.py.j2", template_context)
-
+    
     def _extract_source_views(self, source) -> List[str]:
         """Extract source views as a list from action source."""
         if isinstance(source, str):

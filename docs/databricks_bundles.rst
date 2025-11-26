@@ -583,6 +583,8 @@ Create a multi-document YAML file with project-level defaults and per-pipeline o
 ======================= =================== =====================================================
 Option                  Type                Description
 ======================= =================== =====================================================
+``catalog``             string              Unity Catalog name (supports LHP tokens)
+``schema``              string              Schema/database name (supports LHP tokens)
 ``serverless``          boolean             Use serverless compute (default: ``true``)
 ``edition``             string              DLT edition: ``CORE``, ``PRO``, or ``ADVANCED``
 ``channel``             string              Runtime channel: ``CURRENT`` or ``PREVIEW``
@@ -593,6 +595,12 @@ Option                  Type                Description
 ``tags``                dict                Custom tags for the pipeline
 ``event_log``           dict                Event logging configuration
 ======================= =================== =====================================================
+
+.. note::
+   **Catalog & Schema Configuration**: When ``catalog`` and ``schema`` are defined in 
+   ``pipeline_config.yaml``, they override the default behavior and are directly embedded 
+   in the bundle resource file. Both must be defined together (defining only one raises 
+   an error). See `Catalog and Schema Configuration`_ for details.
 
 *Usage*
 
@@ -689,6 +697,405 @@ Other configuration structures (clusters, notifications, etc.) are passed throug
 * **Non-serverless for streaming** when you need dedicated resources or specific node types
 * **Environment-specific configs** can be managed by having different config files (e.g., ``pipeline_config_dev.yaml``, ``pipeline_config_prod.yaml``)
 * **Version control** your config files alongside your pipeline definitions
+* **Use catalog/schema config** when pipelines target different Unity Catalog locations
+
+Catalog and Schema Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Overview**
+
+You can now define ``catalog`` and ``schema`` directly in ``pipeline_config.yaml`` to control
+where each pipeline writes its data in Unity Catalog. This provides fine-grained control over
+data organization and supports environment-specific configurations.
+
+**Key Features**
+
+* **Pipeline-Level Control**: Define catalog/schema per pipeline
+* **LHP Token Support**: Use substitution tokens like ``{catalog}``, ``{schema}`` from ``substitutions/{env}.yaml``
+* **Literal Values**: Use fixed strings like ``"analytics_prod"``
+* **Mixed Mode**: Combine tokens and literals (e.g., literal catalog, token schema)
+* **Automatic Resolution**: Tokens are resolved from environment-specific substitution files
+* **Validation**: Both catalog and schema must be defined together (partial definition raises errors)
+
+**When to Use**
+
+Use catalog/schema configuration when:
+
+* Pipelines write to different Unity Catalog locations
+* You need environment-specific catalog/schema values
+* You want to override the global default catalog/schema
+* Different pipelines have different data governance requirements
+
+**Basic Example**
+
+.. code-block:: yaml
+
+   # config/pipeline_config.yaml
+   ---
+   pipeline: bronze_load
+   catalog: "{catalog}"          # Resolved from substitutions/dev.yaml
+   schema: "{bronze_schema}"     # Resolved from substitutions/dev.yaml
+   serverless: true
+   
+   ---
+   pipeline: gold_analytics
+   catalog: "analytics_prod"     # Literal value - same across environments
+   schema: "{gold_schema}"        # Token - varies by environment
+   serverless: true
+
+**Substitution File Example**
+
+.. code-block:: yaml
+
+   # substitutions/dev.yaml
+   dev:
+     catalog: acme_dev
+     bronze_schema: bronze_dev
+     gold_schema: gold_dev
+
+.. code-block:: yaml
+
+   # substitutions/prod.yaml
+   prod:
+     catalog: acme_prod
+     bronze_schema: bronze_prod
+     gold_schema: gold_prod
+
+**Result**
+
+With the above configuration:
+
+* **bronze_load in dev**: Uses ``acme_dev.bronze_dev``
+* **bronze_load in prod**: Uses ``acme_prod.bronze_prod``
+* **gold_analytics in dev**: Uses ``analytics_prod.gold_dev``
+* **gold_analytics in prod**: Uses ``analytics_prod.gold_prod``
+
+**Behavior Without Catalog/Schema Config**
+
+If you don't define ``catalog`` and ``schema`` in ``pipeline_config.yaml``:
+
+1. LHP extracts catalog/schema from generated Python DLT files
+2. Creates ``databricks.yml`` variables: ``default_pipeline_catalog`` and ``default_pipeline_schema``
+3. Resource files reference these variables: ``${var.default_pipeline_catalog}``
+
+**Validation Rules**
+
+========================== ====================================================================
+Rule                       Description
+========================== ====================================================================
+**Both Required**          Must define both ``catalog`` AND ``schema`` (not just one)
+**Non-Empty**              Values must not resolve to empty strings
+**Token Resolution**       Tokens must exist in substitution file for the environment
+**Substitution File**      ``substitutions/{env}.yaml`` must exist when using tokens
+========================== ====================================================================
+
+**Error Examples**
+
+.. code-block:: yaml
+
+   # ❌ ERROR: Only catalog defined (must define both)
+   pipeline: my_pipeline
+   catalog: "{catalog}"
+   # Missing schema - raises ValueError
+
+.. code-block:: yaml
+
+   # ❌ ERROR: Empty value after resolution
+   pipeline: my_pipeline
+   catalog: "{empty_var}"    # Resolves to empty string
+   schema: "{schema}"        # Raises ValueError
+
+.. code-block:: yaml
+
+   # ❌ ERROR: Token not found in substitution file
+   pipeline: my_pipeline
+   catalog: "{nonexistent}"  # Token doesn't exist
+   schema: "{schema}"        # Raises ValueError
+
+.. code-block:: yaml
+
+   # ✅ CORRECT: Both defined with tokens
+   pipeline: my_pipeline
+   catalog: "{catalog}"
+   schema: "{schema}"
+
+.. code-block:: yaml
+
+   # ✅ CORRECT: Both defined with literals
+   pipeline: my_pipeline
+   catalog: "my_catalog"
+   schema: "my_schema"
+
+.. code-block:: yaml
+
+   # ✅ CORRECT: Mixed tokens and literals
+   pipeline: my_pipeline
+   catalog: "analytics"      # Literal
+   schema: "{gold_schema}"   # Token
+
+.. code-block:: yaml
+
+   # ✅ CORRECT: Neither defined (uses default behavior)
+   pipeline: my_pipeline
+   serverless: true
+   # catalog/schema omitted - extracted from Python files
+
+**Advanced Example: Multi-Layer Architecture**
+
+.. code-block:: yaml
+
+   # config/pipeline_config.yaml
+   project_defaults:
+     serverless: true
+     edition: ADVANCED
+   
+   ---
+   pipeline: raw_ingestions
+   catalog: "{catalog}"
+   schema: "{raw_schema}"
+   continuous: true
+   
+   ---
+   pipeline: bronze_transformations
+   catalog: "{catalog}"
+   schema: "{bronze_schema}"
+   continuous: true
+   
+   ---
+   pipeline: silver_quality
+   catalog: "{catalog}"
+   schema: "{silver_schema}"
+   
+   ---
+   pipeline: gold_analytics
+   catalog: "analytics_prod"     # Fixed catalog across environments
+   schema: "{gold_schema}"        # Environment-specific schema
+   
+   ---
+   pipeline: gold_ml_features
+   catalog: "ml_platform"         # Separate catalog for ML
+   schema: "{ml_features_schema}"
+
+**databricks.yml Impact**
+
+When pipelines define ``catalog`` and ``schema`` in ``pipeline_config.yaml``:
+
+* **Resource File**: Contains literal values (not ``${var.*}`` references)
+* **databricks.yml**: Variables are NOT added for these pipelines
+* **Mixed Pipelines**: Pipelines without config still use ``databricks.yml`` variables
+
+**Example Resource File Output**
+
+.. code-block:: yaml
+
+   # resources/lhp/bronze_load.pipeline.yml
+   # (with catalog/schema in pipeline_config.yaml)
+   resources:
+     pipelines:
+       bronze_load_pipeline:
+         name: bronze_load_pipeline
+         catalog: acme_dev              # ← Literal value (not ${var.*})
+         schema: bronze_dev             # ← Literal value
+         serverless: true
+
+.. code-block:: yaml
+
+   # resources/lhp/other_pipeline.pipeline.yml
+   # (without catalog/schema in pipeline_config.yaml)
+   resources:
+     pipelines:
+       other_pipeline_pipeline:
+         name: other_pipeline_pipeline
+         catalog: ${var.default_pipeline_catalog}  # ← Variable reference
+         schema: ${var.default_pipeline_schema}    # ← Variable reference
+         serverless: true
+
+**Best Practices**
+
+* **Environment-Specific**: Use tokens for values that change per environment
+* **Fixed Values**: Use literals for values that are constant across environments
+* **Consistent Naming**: Align token names with your substitution file structure
+* **Validation**: Test in dev environment before deploying to production
+* **Documentation**: Document which pipelines use custom catalog/schema configurations
+* **Mixed Mode**: Combine approaches - some pipelines with config, some without
+
+Full Configuration Substitution
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Overview**
+
+LHP token substitution applies to **ALL fields** in ``pipeline_config.yaml``, not just ``catalog`` and ``schema``.
+This enables complete environment-specific configuration for node types, cluster policies, notification emails,
+tags, and all other pipeline settings using LHP substitution tokens.
+
+**What Gets Substituted**
+
+All fields in ``pipeline_config.yaml`` support token substitution, including:
+
+* ``node_type_id`` - Environment-specific compute sizing
+* ``policy_id`` - Different cluster policies per environment
+* ``email_recipients`` - Environment-specific notification recipients
+* ``tags`` - Dynamic tagging based on environment
+* ``event_log.catalog`` - Event logging catalog configuration
+* Any other field that accepts string values
+
+**How It Works**
+
+1. LHP loads your raw ``pipeline_config.yaml``
+2. Applies ``EnhancedSubstitutionManager`` to the entire configuration
+3. Resolves all tokens from ``substitutions/{env}.yaml``
+4. Passes fully-resolved config to templates
+5. Generates bundle resource files with actual values
+
+**Comprehensive Example**
+
+.. code-block:: yaml
+
+   # config/pipeline_config.yaml
+   ---
+   pipeline: production_ingestion
+   catalog: "{catalog}"
+   schema: "{raw_schema}"
+   serverless: false
+   
+   # Environment-specific node types and policies
+   clusters:
+     - label: default
+       node_type_id: "{pipeline_node_type}"    # ← Token for sizing
+       policy_id: "{pipeline_policy_id}"        # ← Token for policy
+   
+   # Environment-specific notifications
+   notifications:
+     - email_recipients:
+         - "{ops_team_email}"                   # ← Token for email
+         - "{data_eng_email}"                   # ← Token for email
+       alerts:
+         - on-update-failure
+         - on-update-fatal-failure
+   
+   # Dynamic tagging
+   tags:
+     environment: "{environment_name}"          # ← Token for env tag
+     cost_center: "{cost_center_code}"          # ← Token for cost center
+     team: data-engineering                     # ← Literal value
+   
+   # Event logging with tokens
+   event_log:
+     name: pipeline_events
+     schema: _meta
+     catalog: "{event_log_catalog}"             # ← Token for catalog
+
+**Substitution Files**
+
+.. code-block:: yaml
+
+   # substitutions/dev.yaml
+   dev:
+     catalog: acme_dev
+     raw_schema: raw_dev
+     pipeline_node_type: Standard_D8ds_v5        # ← Smaller nodes for dev
+     pipeline_policy_id: dev-policy-123
+     ops_team_email: dev-ops@company.com
+     data_eng_email: dev-data-eng@company.com
+     environment_name: development
+     cost_center_code: CC-DEV-001
+     event_log_catalog: dev_meta
+
+.. code-block:: yaml
+
+   # substitutions/prod.yaml
+   prod:
+     catalog: acme_prod
+     raw_schema: raw_prod
+     pipeline_node_type: Standard_D32ds_v5       # ← Larger nodes for prod
+     pipeline_policy_id: prod-policy-456
+     ops_team_email: ops-team@company.com
+     data_eng_email: data-eng@company.com
+     environment_name: production
+     cost_center_code: CC-PROD-001
+     event_log_catalog: prod_meta
+
+**Result**
+
+The same ``pipeline_config.yaml`` produces environment-specific configurations:
+
+* **Dev**: Smaller nodes (D8ds_v5), dev emails, dev policy, dev cost center
+* **Prod**: Larger nodes (D32ds_v5), prod emails, prod policy, prod cost center
+
+**Benefits**
+
+========================== ====================================================================
+Benefit                    Description
+========================== ====================================================================
+**Environment Sizing**     Different node types for dev (smaller) vs prod (larger)
+**Policy Management**      Apply different cluster policies per environment
+**Notification Routing**   Send alerts to environment-specific teams
+**Tag Standardization**    Consistent tagging using centralized token values
+**DRY Principle**          Single config, multiple environments via tokens
+**Centralized Config**     All environment-specific values in ``substitutions/``
+========================== ====================================================================
+
+**Unresolved Tokens**
+
+Unresolved tokens pass through unchanged (not an error). This allows for:
+
+* Partial substitution scenarios
+* Optional tokens
+* Databricks-native variables (e.g., ``${var.workspace_id}``)
+
+.. code-block:: yaml
+
+   # Token doesn't exist in substitutions/dev.yaml
+   tags:
+     unknown: "{nonexistent_token}"  # ← Passes through as "{nonexistent_token}"
+     known: "{environment_name}"      # ← Resolves to "development"
+
+**Missing Substitution File**
+
+If ``substitutions/{env}.yaml`` doesn't exist:
+
+* Raw config is used without substitution
+* Tokens remain as literal strings
+* No error is raised
+* Useful for simple deployments without environment variants
+
+**Substitution Behavior**
+
+* **Strings**: Tokens are resolved (``{catalog}`` → ``acme_dev``)
+* **Numbers**: Converted to strings in substitution mappings, types restored by YAML parsing
+* **Booleans**: Converted to lowercase strings (``true``/``false``) for YAML compatibility
+* **Lists**: Each string element is checked for tokens
+* **Dicts**: Each value is recursively checked for tokens
+* **Nested Structures**: Full recursive substitution
+
+**Type Conversion Details**
+
+LHP converts all substitution values to strings for text-based token replacement:
+
+* ``true`` (YAML boolean) → ``"true"`` (string) → ``true`` (boolean in final YAML)
+* ``false`` (YAML boolean) → ``"false"`` (string) → ``false`` (boolean in final YAML)
+* ``42`` (YAML integer) → ``"42"`` (string) → ``42`` (integer in final YAML)
+* ``3.14`` (YAML float) → ``"3.14"`` (string) → ``3.14`` (float in final YAML)
+
+**Why This Works**
+
+1. Tokens in ``pipeline_config.yaml`` are string placeholders (e.g., ``serverless: "{use_serverless}"``)
+2. Substitution replaces with string values (``serverless: "true"``)
+3. Jinja2 template renders unquoted values (``serverless: true``)
+4. Databricks YAML parser restores correct types (``serverless: true`` as boolean)
+
+Booleans are specifically converted to lowercase (``"true"``/``"false"``) to ensure YAML recognizes
+them as booleans when rendered unquoted. Uppercase ``"True"``/``"False"`` may not be recognized
+consistently across YAML parsers.
+
+**Best Practices**
+
+* **Centralize Tokens**: Keep all environment-specific values in ``substitutions/``
+* **Naming Convention**: Use descriptive token names (``{prod_node_type}`` not ``{nt}``)
+* **Document Tokens**: Comment your substitution files for clarity
+* **Test Tokens**: Verify resolution in dev before promoting to prod
+* **Mixed Values**: Combine tokens and literals as needed
+* **Validation**: Review generated resource files to confirm correct substitution
 
 **Troubleshooting Guide**
 
@@ -1184,6 +1591,284 @@ The dependency analysis integrates with other Lakehouse Plumber features:
 
 **CI/CD Pipelines**
     Use dependency analysis to optimize build and deployment order
+
+
+Multi-Job Orchestration
+------------------------
+
+**Overview**
+
+LakehousePlumber supports generating multiple orchestration jobs instead of a single job, enabling better organization and resource management for large projects.
+
+**When to Use Multi-Job Mode**
+
+- **Project Segregation**: Separate jobs by data layer (bronze, silver, gold)
+- **Resource Optimization**: Different compute requirements per job
+- **Team Ownership**: Assign jobs to different teams
+- **SLA Management**: Run critical jobs with higher priority/resources
+- **Cost Control**: Apply different schedules and timeout policies
+
+Enabling Multi-Job Mode
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add the ``job_name`` property to your flowgroup YAMLs:
+
+.. code-block:: yaml
+   :caption: pipelines/bronze/customer_ingestion.yaml
+
+   pipeline: data_bronze
+   flowgroup: customer_ingestion
+   job_name: bronze_ingestion_job  # NEW property
+   
+   actions:
+     - name: load_customer
+       type: load
+       # ... rest of configuration
+
+**Validation Rules**
+
+- **All-or-nothing**: If ANY flowgroup has ``job_name``, ALL must have it
+- **Format**: Alphanumeric, underscore, and hyphen only (``^[a-zA-Z0-9_-]+$``)
+- **Pipeline filter restriction**: Cannot use ``--pipeline`` flag with multi-job mode
+
+Job Configuration (Multi-Document)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``job_config.yaml`` supports multi-document YAML format:
+
+.. code-block:: yaml
+   :caption: config/job_config.yaml
+
+   # ============================================================================
+   # Project Defaults - Applied to ALL jobs
+   # ============================================================================
+   project_defaults:
+     max_concurrent_runs: 1
+     performance_target: STANDARD
+     queue:
+       enabled: true
+     tags:
+       managed_by: lakehouse_plumber
+       environment: dev
+
+   ---
+   # ============================================================================
+   # Job-Specific Configuration - Bronze Layer
+   # ============================================================================
+   job_name: bronze_ingestion_job
+   max_concurrent_runs: 2  # Override for this job
+   tags:
+     layer: bronze  # Deep-merged with project_defaults.tags
+     data_type: raw_ingestion
+
+   ---
+   # ============================================================================
+   # Job-Specific Configuration - Silver Layer
+   # ============================================================================
+   job_name: silver_transform_job
+   performance_target: PERFORMANCE_OPTIMIZED  # Override
+   tags:
+     layer: silver
+     criticality: high
+
+**Configuration Merge Behavior**
+
+Configs are deep-merged in order: ``DEFAULT → project_defaults → job-specific``
+
+.. code-block:: yaml
+
+   # Example: Tags Deep Merge
+   project_defaults.tags:  {managed_by: "lhp", environment: "dev"}
+   job-specific.tags:      {layer: "bronze", environment: "prod"}
+   # Result:               {managed_by: "lhp", environment: "prod", layer: "bronze"}
+
+**Note**: Nested dicts are deep-merged, but lists are REPLACED (not appended).
+
+Generating Multiple Jobs
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Generate individual jobs plus a master orchestration job:
+
+.. code-block:: bash
+
+   # Generate all jobs
+   lhp deps -jc config/job_config.yaml --bundle-output
+
+**Generated Files** (flat structure in ``resources/``):
+
+.. code-block:: text
+
+   resources/
+   ├── bronze_ingestion_job.job.yml
+   ├── silver_transform_job.job.yml
+   ├── gold_analytics_job.job.yml
+   └── my_project_master.job.yml  # Master orchestration job
+
+Master Orchestration Job
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The master job coordinates all individual jobs using ``job_task`` references:
+
+.. code-block:: yaml
+   :caption: resources/my_project_master.job.yml
+
+   resources:
+     jobs:
+       my_project_master:
+         name: my_project_master
+         max_concurrent_runs: 1
+         tasks:
+           - task_key: bronze_ingestion_job_task
+             job_task:
+               job_id: ${resources.jobs.bronze_ingestion_job.id}
+           
+           - task_key: silver_transform_job_task
+             depends_on:
+               - task_key: bronze_ingestion_job_task
+             job_task:
+               job_id: ${resources.jobs.silver_transform_job.id}
+           
+           - task_key: gold_analytics_job_task
+             depends_on:
+               - task_key: silver_transform_job_task
+             job_task:
+               job_id: ${resources.jobs.gold_analytics_job.id}
+
+**Master Job Features**:
+
+- Automatically analyzes cross-job dependencies
+- Creates proper task ordering
+- Uses Databricks job_task for job-level orchestration
+- Single entry point for running entire data pipeline
+
+CLI Output with Multiple Jobs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: text
+
+   🔍 Analyzing Pipeline Dependencies
+   ============================================================
+   job_name detected - generating multiple jobs + master orchestration job
+   
+   📊 Building dependency graphs...
+   📈 Analysis Summary:
+      Total pipelines analyzed: 15
+      Execution stages: 5
+      External sources: 8
+   
+   💾 Generating output files...
+   
+   JOB (multiple jobs):
+      bronze_ingestion_job: resources/bronze_ingestion_job.job.yml (3,245 bytes)
+      silver_transform_job: resources/silver_transform_job.job.yml (4,128 bytes)
+      gold_analytics_job: resources/gold_analytics_job.job.yml (2,891 bytes)
+      Master Job: resources/my_project_master.job.yml (1,456 bytes)
+
+Migration from Single-Job to Multi-Job
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Step 1**: Add ``job_name`` to all flowgroup YAMLs
+
+.. code-block:: bash
+
+   # Use consistent naming by layer or team
+   job_name: bronze_ingestion_job    # For all bronze flowgroups
+   job_name: silver_transform_job    # For all silver flowgroups
+   job_name: gold_analytics_job      # For all gold flowgroups
+
+**Step 2**: Create multi-document job_config.yaml
+
+Copy the template from ``src/lhp/templates/init/config/job_config-<env>.yaml.tmpl``
+
+**Step 3**: Regenerate jobs
+
+.. code-block:: bash
+
+   lhp deps -jc config/job_config.yaml --bundle-output
+
+**Step 4**: Deploy with Databricks bundles
+
+.. code-block:: bash
+
+   databricks bundle validate
+   databricks bundle deploy -t dev
+
+Troubleshooting
+~~~~~~~~~~~~~~~
+
+**Error: Inconsistent job_name usage**
+
+.. code-block:: text
+
+   ❌ ERROR: Inconsistent job_name usage
+   Found 5 flowgroups WITH job_name and 3 WITHOUT job_name.
+   
+   Flowgroups WITH job_name:
+     - customer_bronze
+     - orders_bronze
+     ...
+   
+   Flowgroups WITHOUT job_name (missing):
+     - supplier_bronze
+     - part_bronze
+     - region_bronze
+
+**Solution**: Add ``job_name`` to all flowgroups or remove from all.
+
+**Error: Invalid job_name format**
+
+.. code-block:: text
+
+   ❌ ERROR: Invalid job_name format
+   job_name must contain only alphanumeric characters, underscores, and hyphens.
+   
+   Invalid job_name(s):
+     - customer_ingestion: 'bronze job #1'  # Invalid: contains space and #
+
+**Solution**: Use only letters, numbers, underscores, and hyphens.
+
+**Error: Pipeline filter not supported**
+
+.. code-block:: text
+
+   ❌ ERROR: Pipeline filter not supported with job_name
+   Cannot use --pipeline filter when job_name is defined.
+
+**Solution**: Remove ``--pipeline`` flag or use single-job mode.
+
+Best Practices
+~~~~~~~~~~~~~~
+
+1. **Consistent Naming Convention**
+   
+   Use descriptive, hierarchical names: ``<layer>_<purpose>_job``
+
+2. **Resource Optimization**
+   
+   .. code-block:: yaml
+   
+      # Heavy ingestion job
+      job_name: bronze_ingestion_job
+      max_concurrent_runs: 3
+      
+      # Light transformation job
+      job_name: silver_transform_job  
+      performance_target: STANDARD
+
+3. **Tag Strategy**
+   
+   .. code-block:: yaml
+   
+      project_defaults:
+        tags:
+          project: my_data_warehouse
+          managed_by: lakehouse_plumber
+      ---
+      job_name: bronze_ingestion_job
+      tags:
+        layer: bronze
+        cost_center: data_engineering
+        # Inherits: project, managed_by
 
 
 Related Documentation

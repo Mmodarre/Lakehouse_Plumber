@@ -4,6 +4,7 @@ pipeline: gold_load
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: customer_segmentation_mv
+#job_name: j_four
 
 actions:
 

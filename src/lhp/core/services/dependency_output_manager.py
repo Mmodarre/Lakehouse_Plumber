@@ -351,41 +351,122 @@ class DependencyOutputManager:
 
     def _save_job_format(self, analyzer: DependencyAnalyzer, result: DependencyAnalysisResult,
                         target_dir: Path, job_name: Optional[str] = None,
-                        job_config_path: Optional[str] = None, bundle_output: bool = False) -> Path:
+                        job_config_path: Optional[str] = None, bundle_output: bool = False):
         """
         Save job format to standard filename.
+        
+        Detects if job_name is used in flowgroups and generates either:
+        - Single job file (backward compatible)
+        - Multiple job files + master job (when job_name is used)
         
         Args:
             analyzer: DependencyAnalyzer instance
             result: Dependency analysis result
             target_dir: Target directory for output (used when bundle_output=False)
-            job_name: Custom job name
+            job_name: Custom job name (only used when no job_name in flowgroups)
             job_config_path: Custom job config file path
-            bundle_output: If True, save to resources/ directory
+            bundle_output: If True, save to resources/ directory (flat structure)
             
         Returns:
-            Path to generated job file
+            Path or Dict[str, Path] - single path for backward compat, dict for multiple jobs
         """
+        from ...models.config import FlowGroup
+        
         # Create JobGenerator with project root and config path
         job_generator = JobGenerator(
             project_root=analyzer.project_root,
             config_file_path=job_config_path
         )
 
-        # Extract project name from analyzer's project root or use default
-        project_name = analyzer.project_root.name if analyzer.project_root else "lhp_project"
+        # Extract project name from lhp.yaml or fallback to directory name
+        project_name = analyzer.get_project_name()
 
-        # Use provided job name or generate default
-        if not job_name:
-            job_name = f"{project_name}_orchestration"
-
-        # Determine output path based on bundle_output flag
-        if bundle_output:
-            # Save to resources/ directory for Databricks bundle integration
-            job_file = analyzer.project_root / "resources" / f"{job_name}.job.yml"
-        else:
-            # Save to specified target directory (usually .lhp/dependencies/)
-            job_file = target_dir / f"{job_name}.job.yml"
+        # Check if flowgroups have job_name property
+        # Defensive: handle case where analyzer is mocked in tests
+        try:
+            flowgroups = analyzer._get_flowgroups()
+            has_job_name = any(fg.job_name for fg in flowgroups)
+        except (TypeError, AttributeError):
+            # If we can't check flowgroups (mocked analyzer), assume single-job mode
+            has_job_name = False
         
-        return job_generator.save_job_to_file(result, job_file, job_name, project_name)
+        if not has_job_name:
+            # Backward compatible: single job mode
+            self.logger.info("No job_name defined - generating single orchestration job")
+            
+            # Use provided job name or generate default
+            if not job_name:
+                job_name = f"{project_name}_orchestration"
+
+            # Determine output path based on bundle_output flag
+            if bundle_output:
+                # Save to resources/ directory for Databricks bundle integration
+                job_file = analyzer.project_root / "resources" / f"{job_name}.job.yml"
+            else:
+                # Save to specified target directory (usually .lhp/dependencies/)
+                job_file = target_dir / f"{job_name}.job.yml"
+            
+            return job_generator.save_job_to_file(result, job_file, job_name, project_name)
+        
+        # Multi-job mode: job_name is defined in flowgroups
+        self.logger.info("job_name detected - generating multiple jobs + master orchestration job")
+        
+        # Get per-job dependency results and global analysis
+        job_results, global_result = analyzer.analyze_dependencies_by_job()
+        
+        # Determine output directory (flat structure)
+        if bundle_output:
+            output_dir = analyzer.project_root / "resources"
+        else:
+            output_dir = target_dir
+        
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate individual job YAMLs
+        job_yamls = job_generator.generate_jobs_by_name(job_results, project_name)
+        
+        # Save individual job files
+        generated_files = {}
+        for job_name_key, job_yaml in job_yamls.items():
+            job_file = output_dir / f"{job_name_key}.job.yml"
+            
+            try:
+                with open(job_file, 'w', encoding='utf-8') as f:
+                    f.write(job_yaml)
+                generated_files[job_name_key] = job_file
+                self.logger.info(f"Generated job file: {job_file}")
+            except IOError as e:
+                self.logger.error(f"Failed to write job file {job_file}: {e}")
+                raise
+        
+        # Generate master orchestration job (if enabled)
+        if job_generator.should_generate_master_job():
+            # Get master job name (custom or auto-generated)
+            master_job_name = job_generator.get_master_job_name(project_name)
+            
+            # Generate with global result
+            master_yaml = job_generator.generate_master_job(
+                job_results, 
+                master_job_name, 
+                project_name,
+                global_result=global_result
+            )
+            
+            master_file = output_dir / f"{master_job_name}.job.yml"
+            try:
+                with open(master_file, 'w', encoding='utf-8') as f:
+                    f.write(master_yaml)
+                generated_files["_master"] = master_file
+                self.logger.info(f"Generated master job file: {master_file}")
+            except IOError as e:
+                self.logger.error(f"Failed to write master job file {master_file}: {e}")
+                raise
+        else:
+            self.logger.info(
+                "Master job generation disabled via job_config.yaml "
+                "(project_defaults.generate_master_job: false)"
+            )
+        
+        self.logger.info(f"Generated {len(generated_files)} job file(s) total")
+        return generated_files
 

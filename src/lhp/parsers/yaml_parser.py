@@ -78,7 +78,7 @@ class YAMLParser:
                 # Process each flowgroup in the array
                 for fg_config in doc['flowgroups']:
                     # Apply inheritance: only inherit if key not present in fg_config
-                    inheritable_fields = ['pipeline', 'use_template', 'presets', 'operational_metadata']
+                    inheritable_fields = ['pipeline', 'use_template', 'presets', 'operational_metadata', 'job_name']
                     for field in inheritable_fields:
                         if field not in fg_config and field in shared_fields:
                             fg_config[field] = shared_fields[field]

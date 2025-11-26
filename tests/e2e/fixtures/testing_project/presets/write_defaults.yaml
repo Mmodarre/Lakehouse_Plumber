@@ -1,0 +1,12 @@
+name: write_defaults
+version: "1.0"
+description: "Standard write target configurations"
+
+defaults:
+  write_actions:
+    streaming_table:
+      table_properties:
+        delta.enableRowTracking: "true"
+        delta.autoOptimize.optimizeWrite: "true"
+        delta.enableChangeDataFeed: "true"
+

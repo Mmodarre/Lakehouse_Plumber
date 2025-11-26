@@ -229,10 +229,12 @@ class CodeGenerator:
                                  preset_config: Dict[str, Any], output_dir: Optional[Path], 
                                  state_manager, source_yaml: Optional[Path], env: Optional[str]) -> Dict[str, Any]:
         """Build context dictionary for generator execution."""
+        project_root = self.project_root or Path.cwd()
         return {
             "flowgroup": flowgroup,
             "substitution_manager": substitution_mgr,
-            "spec_dir": self.project_root or Path.cwd(),
+            "spec_dir": project_root,  # For backward compatibility
+            "project_root": project_root,  # Explicit project root for external file loading
             "preset_config": preset_config,
             "project_config": self.project_config,
             "output_dir": output_dir,

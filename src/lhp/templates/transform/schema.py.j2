@@ -1,10 +1,10 @@
 @dp.temporary_view()
 def {{ target_view }}():
     """{{ description }}"""
-    {% if readMode == "stream" %}
-    df = spark.readStream.table("{{ source_view }}")
-    {% else %}
+    {% if readMode == "batch" %}
     df = spark.read.table("{{ source_view }}")
+    {% else %}
+    df = spark.readStream.table("{{ source_view }}")
     {% endif %}
     
     {% if column_mapping %}
@@ -22,8 +22,28 @@ def {{ target_view }}():
     {% endif %}
     
     {% if schema_enforcement == 'strict' %}
-    # Strict schema enforcement - additional columns will be dropped
-    # This would be handled by DLT's schema evolution settings
+    # Strict schema enforcement - select only specified columns
+    # Schema-defined columns (will fail if missing)
+    columns_to_select = [
+        {% for col in final_columns %}
+        "{{ col }}"{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+    
+    {% if metadata_columns %}
+    # Add operational metadata columns only if they exist (optional)
+    available_columns = set(df.columns)
+    metadata_columns = [
+        {% for col in metadata_columns %}
+        "{{ col }}"{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ]
+    for meta_col in metadata_columns:
+        if meta_col in available_columns:
+            columns_to_select.append(meta_col)
+    {% endif %}
+    
+    df = df.select(*columns_to_select)
     {% endif %}
     
     return df 

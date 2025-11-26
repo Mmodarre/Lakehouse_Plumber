@@ -1,0 +1,29 @@
+pipeline: acmi_edw_raw
+flowgroup: nested_options_merge
+#job_name: j_one
+
+presets:
+  - cloudfiles_defaults
+
+actions:
+  - name: load_nested_test
+    type: load
+    readMode: stream
+    source:
+      type: cloudfiles
+      path: "/data/nested/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.schemaLocation: "/schemas/nested"
+        # Preset options should merge with these
+    target: v_nested_raw
+  
+  - name: write_nested_test
+    type: write
+    source: v_nested_raw
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{raw_schema}"
+      table: "nested_test"
+

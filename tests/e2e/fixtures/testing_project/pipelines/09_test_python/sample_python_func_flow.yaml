@@ -4,7 +4,7 @@ pipeline: sample_python_func_pipeline
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: python_func_flowgroup
-
+#job_name: j_nine
 presets:
   - default_delta_properties
 
@@ -52,6 +52,48 @@ actions:
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: "customers"
+      table_schema: |
+        customer_id BIGINT NOT NULL,
+        name STRING,
+        email STRING,
+        region STRING,
+        registration_date DATE,
+        _source_file_path STRING,
+        _processing_timestamp TIMESTAMP
       table_properties:
         tag_name1: tag_value1
         tag_name2: tag_value2
+
+  - name: write_customer_bronze_partitioned
+    type: write
+    source: v_customer_bronze_DQEs
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "customers_partitioned"
+      partition_columns: ["region", "year"]
+      table_properties:
+        tag_name1: tag_value1
+        tag_name2: tag_value2
+
+
+  - name: write_customer_bronze_clustered
+    type: write
+    source: v_customer_bronze_DQEs
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "customers_clustered"
+      cluster_columns: ["customer_id"]
+  
+
+  - name: write_customer_bronze_clustered_with_row_filter
+    type: write
+    source: v_customer_bronze_DQEs
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "customers_clustered_with_row_filter"
+      cluster_columns: ["customer_id"]
+      row_filter: "ROW FILTER catalog.schema.customer_access_filter ON (region)"
+      table_schema: "schemas/customer_bronze_schema.ddl"

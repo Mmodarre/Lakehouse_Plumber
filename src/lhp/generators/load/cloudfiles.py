@@ -8,6 +8,7 @@ from ...models.config import Action
 from ...utils.schema_parser import SchemaParser
 from ...utils.operational_metadata import OperationalMetadata
 from ...utils.error_formatter import ErrorFormatter, LHPError
+from ...utils.external_file_loader import is_file_path, resolve_external_file_path, load_external_file_text
 
 
 class CloudFilesLoadGenerator(BaseActionGenerator):
@@ -234,40 +235,35 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             # Handle schema hints specially
             if key == "cloudFiles.schemaHints":
                 if isinstance(value, str):
-                    # Check if it's a file path (contains .yaml, .json, .yml, or path separators)
-                    if (
-                        ".yaml" in value.lower()
-                        or ".yml" in value.lower()
-                        or ".json" in value.lower()
-                        or "/" in value
-                        or "\\" in value
-                    ):
+                    # Use common utility for file path detection
+                    if is_file_path(value):
                         # User provided schema file path
-                        try:
-                            schema_data = self.schema_parser.parse_schema_file(
-                                Path(value), spec_dir
-                            )
-                            processed_options[key] = self.schema_parser.to_schema_hints(
-                                schema_data
-                            )
-                        except FileNotFoundError as exc:
-                            # Build search locations
-                            search_locations = []
-                            if value.startswith("/"):
-                                search_locations.append(f"Absolute path: {value}")
-                            else:
-                                search_locations.append(
-                                    f"Relative to YAML: {spec_dir / value}"
-                                )
-                                search_locations.append(
-                                    f"Project root: {Path.cwd() / value}"
-                                )
-
-                            raise ErrorFormatter.file_not_found(
-                                file_path=str(value),
-                                search_locations=search_locations,
-                                file_type="schema file",
-                            ) from exc
+                        # Use common utility for path resolution
+                        project_root = spec_dir or Path.cwd()
+                        file_ext = Path(value).suffix.lower()
+                        resolved_path = resolve_external_file_path(
+                            value,
+                            project_root,
+                            file_type="schema file"
+                        )
+                        
+                        if file_ext in ['.yaml', '.yml', '.json']:
+                            # YAML/JSON schema - parse and convert to DDL
+                            schema_data = self.schema_parser.parse_schema_file(resolved_path)
+                            processed_options[key] = self.schema_parser.to_schema_hints(schema_data)
+                        elif file_ext in ['.ddl', '.sql']:
+                            # DDL file - load as plain text
+                            from ...utils.external_file_loader import load_external_file_text
+                            ddl_content = load_external_file_text(
+                                value,
+                                project_root,
+                                file_type="DDL schema file"
+                            ).strip()
+                            processed_options[key] = ddl_content
+                        else:
+                            # Default to YAML for backward compatibility
+                            schema_data = self.schema_parser.parse_schema_file(resolved_path)
+                            processed_options[key] = self.schema_parser.to_schema_hints(schema_data)
                     else:
                         # User provided direct hints string
                         processed_options[key] = str(value)

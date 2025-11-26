@@ -103,16 +103,53 @@ cloudFiles
             - **header**: First row contains column headers
             - **delimiter**: Use pipe character as field separator
             - **cloudFiles.maxFilesPerTrigger**: Limit number of files processed per trigger
-            - **cloudFiles.schemaHints**: the path to the schema file
+            - **cloudFiles.schemaHints**: Schema definition for Auto Loader (supports multiple formats - see below)
 - **target**: Name of the temporary view created
 - **description**: Optional documentation for the action
+
+**cloudFiles.schemaHints Format Options**
+
+The ``cloudFiles.schemaHints`` option supports three formats, automatically detected by the framework:
+
+**Option 1: Inline DDL String** (for simple schemas)
+
+.. code-block:: yaml
+
+  cloudFiles.schemaHints: "customer_id BIGINT, name STRING, email STRING"
+
+**Option 2: External YAML File** (recommended for complex schemas with metadata)
+
+.. code-block:: yaml
+
+  cloudFiles.schemaHints: "schemas/customer_schema.yaml"
+
+**Option 3: External DDL/SQL File** (for pre-defined DDL statements)
+
+.. code-block:: yaml
+
+  cloudFiles.schemaHints: "schemas/customer_schema.ddl"
+  # or
+  cloudFiles.schemaHints: "schemas/customer_schema.sql"
+
+.. note::
+  **File Path Organization**: Schema files can be organized in subdirectories relative to your project root:
+  
+  - Root level: ``"customer_schema.yaml"``
+  - Single directory: ``"schemas/customer_schema.yaml"``
+  - Nested subdirectories: ``"schemas/bronze/dimensions/customer_schema.yaml"``
+  
+  The framework automatically detects whether the value is an inline DDL string or a file path based on common file indicators (``.yaml``, ``.yml``, ``.ddl``, ``.sql``, or path separators).
+  
+  **YAML Schema Conversion**: When using YAML schema files (Option 2), the ``nullable`` field is respected during conversion to DDL:
+  
+  - Columns with ``nullable: false`` are converted to include ``NOT NULL`` constraint
+  - Columns with ``nullable: true`` (or omitted, default is true) are converted without constraints
+  
+  Example: A YAML column defined as ``{name: c_custkey, type: BIGINT, nullable: false}`` will generate ``c_custkey BIGINT NOT NULL`` in the schema hints.
             
 .. seealso::
   - For full list of options see the `Databricks Auto Loader documentation <https://docs.databricks.com/en/data/data-sources/cloud-files/auto-loader/index.html>`_.
   - Operational metadata: :doc:`concepts`
-  
-  .. TODO: add link to schema hints
-    - Schema Hints: :doc:`schema_hints`
 
 .. Important::
   Lakehouse Plumber uses syntax consistent with Databricks, making it easy to transfer knowledge between the two.
@@ -128,10 +165,10 @@ cloudFiles
   from pyspark.sql.functions import F
 
   customer_cloudfiles_schema_hints = """
-      c_custkey BIGINT,
-      c_name STRING,
+      c_custkey BIGINT NOT NULL,
+      c_name STRING NOT NULL,
       c_address STRING,
-      c_nationkey BIGINT,
+      c_nationkey BIGINT NOT NULL,
       c_phone STRING,
       c_acctbal DECIMAL(18,2),
       c_mktsegment STRING,
@@ -1673,42 +1710,172 @@ schema
 ~~~~~~
 Schema transform actions apply column mapping, type casting, and schema enforcement to standardize data structures.
 
+**Action Format Structure**
+
+Schema transform actions use a flat structure with schema definition at the action level:
+
 .. code-block:: yaml
 
   actions:
     - name: standardize_customer_schema
       type: transform
       transform_type: schema
-      source:
-        view: v_customer_raw
-        schema:
-          enforcement: strict
-          column_mapping:
-            c_custkey: customer_id
-            c_name: customer_name
-            c_address: address
-            c_phone: phone_number
-          type_casting:
-            customer_id: "BIGINT"
-            account_balance: "DECIMAL(18,2)"
-            phone_number: "STRING"
+      source: v_customer_raw                              # Simple view name (string)
       target: v_customer_standardized
-      readMode: batch
+      schema_file: "schemas/bronze/customer_transform.yaml"  # OR use inline schema
+      enforcement: strict                                  # Optional: strict or permissive (default: permissive)
+      readMode: stream                                     # Optional: stream (default) or batch
       description: "Standardize customer schema and data types"
+
+**Key Points:**
+
+- **source**: Must be a simple string (view name), not a dictionary
+- **schema_file** OR **schema**: Choose one (external file or inline definition)
+- **enforcement**: Action-level field (strict or permissive)
+- **readMode**: Defaults to **stream** (not batch)
+
+**External Schema Files (Recommended)**
+
+External schema files contain only column definitions (no enforcement):
+
+.. code-block:: yaml
+
+  # In schemas/bronze/customer_transform.yaml:
+  columns:
+    - "c_custkey -> customer_id: BIGINT"     # Rename and cast
+    - "c_name -> customer_name"               # Rename only
+    - "c_address -> address"                  # Rename only
+    - "account_balance: DECIMAL(18,2)"        # Cast only
+    - "phone_number: STRING"                  # Cast only
+
+**Arrow Format Syntax:**
+
+- ``"old_col -> new_col: TYPE"`` - Rename and cast in one line
+- ``"old_col -> new_col"`` - Rename only
+- ``"col: TYPE"`` - Cast only (no rename)
+- ``"col"`` - Pass-through (strict mode only, explicitly keep column)
+
+**Schema File Paths:**
+
+Schema files can be organized in subdirectories relative to your project root:
+
+.. code-block:: yaml
+
+  # Root level
+  schema_file: "customer_transform.yaml"
+  
+  # In schemas/ directory
+  schema_file: "schemas/customer_transform.yaml"
+  
+  # Nested subdirectories (recommended for organization by layer)
+  schema_file: "schemas/bronze/dimensions/customer_transform.yaml"
+  
+  # Absolute paths also supported
+  schema_file: "/absolute/path/to/schema.yaml"
+
+**Inline Schema (Arrow Format)**
+
+For simple transformations, use inline schema with arrow syntax:
+
+.. code-block:: yaml
+
+  - name: standardize_customer_schema
+    type: transform
+    transform_type: schema
+    source: v_customer_raw
+    target: v_customer_standardized
+    enforcement: strict
+    schema_inline: |
+      c_custkey -> customer_id: BIGINT
+      c_name -> customer_name
+      account_balance: DECIMAL(18,2)
+      phone_number: STRING
+
+**Inline Schema (Full YAML Format)**
+
+For more complex schemas, use full YAML structure inline:
+
+.. code-block:: yaml
+
+  - name: standardize_customer_schema
+    type: transform
+    transform_type: schema
+    source: v_customer_raw
+    target: v_customer_standardized
+    enforcement: strict
+    schema_inline: |
+      columns:
+        - "c_custkey -> customer_id: BIGINT"
+        - "c_name -> customer_name"
+        - "account_balance: DECIMAL(18,2)"
+
+**Schema Enforcement Modes:**
+
+Schema transforms support two enforcement modes (specified at action level):
+
+- **strict**: Only explicitly defined columns are kept in the output. All other columns are dropped. This ensures data quality and prevents schema drift.
+- **permissive** (default): Explicitly defined columns are transformed, but all other columns pass through unchanged. Useful when you only want to standardize specific columns.
+
+.. code-block:: yaml
+
+  # Strict enforcement example
+  - name: transform_strict
+    type: transform
+    transform_type: schema
+    source: v_raw
+    target: v_clean
+    enforcement: strict
+    schema_file: "schemas/transform.yaml"
+  
+  # Input:  c_custkey, c_name, c_address, c_phone, extra_col
+  # Output: customer_id, customer_name (+ operational metadata)
+  #         ↑ All unmapped columns dropped
+
+.. code-block:: yaml
+
+  # Permissive enforcement example (default)
+  - name: transform_permissive
+    type: transform
+    transform_type: schema
+    source: v_raw
+    target: v_clean
+    enforcement: permissive  # or omit (permissive is default)
+    schema_file: "schemas/transform.yaml"
+  
+  # Input:  c_custkey, c_name, c_address, c_phone, extra_col
+  # Output: customer_id, customer_name, c_address, c_phone, extra_col
+  #         ↑ All unmapped columns kept
+
+**Breaking Change: Old Format No Longer Supported**
+
+.. warning::
+  The nested format with schema definition inside ``source`` is no longer supported and will raise an error:
+  
+  .. code-block:: yaml
+  
+    # OLD FORMAT (NO LONGER WORKS):
+    source:
+      view: v_customer_raw
+      schema_file: "path.yaml"
+    
+    # NEW FORMAT (REQUIRED):
+    source: v_customer_raw
+    schema_file: "path.yaml"
+    enforcement: strict
+  
+  If you see an error about "deprecated nested format", move ``schema_inline`` or ``schema_file`` to the top level of the action.
 
 **Anatomy of a schema transform action**
 
 - **name**: Unique name for this action within the FlowGroup
-- **type**: Action type - transforms data schema and types
-- **transform_type**: Specifies this is a schema transformation
-- **source**:
-      - **view**: Name of the input view to transform
-      - **schema**: Schema transformation configuration
-        - **enforcement**: Schema enforcement level ("strict" or "permissive")
-        - **column_mapping**: Dictionary of old_name -> new_name mappings
-        - **type_casting**: Dictionary of column_name -> new_data_type castings
+- **type**: Must be ``transform``
+- **transform_type**: Must be ``schema``
+- **source**: Name of the input view to transform (simple string, not a dictionary)
 - **target**: Name of the output view with transformed schema
-- **readMode**: Either *batch* or *stream* - determines execution mode
+- **schema_file**: Path to external schema file (arrow or legacy format) - use this OR schema_inline
+- **schema_inline**: Inline schema definition (arrow or YAML format) - use this OR schema_file
+- **enforcement**: Optional - Schema enforcement mode (``strict`` or ``permissive``, default: ``permissive``)
+- **readMode**: Optional - Either ``stream`` (default) or ``batch`` - determines execution mode
 - **description**: Optional documentation for the action
 
 .. seealso::
@@ -1716,8 +1883,7 @@ Schema transform actions apply column mapping, type casting, and schema enforcem
   - Schema evolution: :doc:`concepts`
 
 .. Important::
-  Schema transforms preserve operational metadata columns automatically.
-  Use for standardizing column names and ensuring consistent data types across your lakehouse.
+  Schema transforms preserve operational metadata columns automatically. These columns are never renamed or cast, and are always included in the output regardless of enforcement mode. Use schema transforms for standardizing column names and ensuring consistent data types across your lakehouse.
 
 **The above YAML translates to the following PySpark code**
 
@@ -1731,18 +1897,39 @@ Schema transform actions apply column mapping, type casting, and schema enforcem
   @dp.temporary_view()
   def v_customer_standardized():
       """Standardize customer schema and data types"""
-      df = spark.read.table("v_customer_raw")
+      df = spark.readStream.table("v_customer_raw")  # Default is stream mode
       
       # Apply column renaming
       df = df.withColumnRenamed("c_custkey", "customer_id")
       df = df.withColumnRenamed("c_name", "customer_name")
       df = df.withColumnRenamed("c_address", "address")
-      df = df.withColumnRenamed("c_phone", "phone_number")
       
       # Apply type casting
       df = df.withColumn("customer_id", F.col("customer_id").cast("BIGINT"))
       df = df.withColumn("account_balance", F.col("account_balance").cast("DECIMAL(18,2)"))
       df = df.withColumn("phone_number", F.col("phone_number").cast("STRING"))
+      
+      # Strict schema enforcement - select only specified columns
+      # Schema-defined columns (will fail if missing)
+      columns_to_select = [
+          "customer_id",
+          "customer_name",
+          "address",
+          "account_balance",
+          "phone_number"
+      ]
+      
+      # Add operational metadata columns only if they exist (optional)
+      available_columns = set(df.columns)
+      metadata_columns = [
+          "_ingestion_timestamp",
+          "_source_file"
+      ]
+      for meta_col in metadata_columns:
+          if meta_col in available_columns:
+              columns_to_select.append(meta_col)
+      
+      df = df.select(*columns_to_select)
       
       return df
 
@@ -1914,11 +2101,41 @@ Append Streaming Table Write
       - **partition_columns**: Columns to partition the table by
       - **cluster_columns**: Columns to cluster/z-order the table by
       - **spark_conf**: Streaming-specific Spark configuration
-      - **table_schema**: DDL schema definition for the table
+      - **table_schema**: DDL schema definition for the table (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
       - **mode**: Streaming mode - "standard" (default), "cdc", or "snapshot_cdc"
 - **description**: Optional documentation for the action
+
+**table_schema Format Options**
+
+The ``table_schema`` option supports two formats, automatically detected by the framework:
+
+**Option 1: Inline DDL** (multiline string)
+
+.. code-block:: yaml
+
+  table_schema: |
+    customer_id BIGINT NOT NULL,
+    name STRING,
+    email STRING,
+    region STRING,
+    registration_date DATE,
+    _source_file_path STRING,
+    _processing_timestamp TIMESTAMP
+
+**Option 2: External DDL/SQL File**
+
+.. code-block:: yaml
+
+  table_schema: "schemas/customer_table.ddl"
+  # or
+  table_schema: "schemas/customer_table.sql"
+  # or
+  table_schema: "schemas/customer_table.yaml"
+
+.. note::
+  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
 
 **The above YAML translates to the following PySpark code**
 
@@ -2370,7 +2587,7 @@ for pre-computed analytics tables based on the output of a query.
         comment: "Daily customer summary materialized view"
       description: "Create daily customer summary for analytics"
 
-**Option 2: SQL Query Based**
+**Option 2: Inline SQL Query**
 
 .. code-block:: yaml
 
@@ -2399,6 +2616,25 @@ for pre-computed analytics tables based on the output of a query.
         row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
       description: "Daily sales summary by region and category"
 
+**Option 3: External SQL File**
+
+.. code-block:: yaml
+
+  actions:
+    - name: create_sales_summary_mv
+      type: write
+      write_target:
+        type: materialized_view
+        database: "{catalog}.{gold_schema}"
+        table: daily_sales_summary
+        sql_path: "sql/gold/daily_sales_summary.sql"
+        table_properties:
+          delta.autoOptimize.optimizeWrite: "true"
+          custom.business.domain: "sales_analytics"
+        partition_columns: ["sales_date"]
+        row_filter: "ROW FILTER catalog.schema.region_access_filter ON (region)"
+      description: "Daily sales summary by region and category"
+
 **Anatomy of a materialized view write action**
 
 - **name**: Unique name for this action within the FlowGroup
@@ -2408,14 +2644,48 @@ for pre-computed analytics tables based on the output of a query.
       - **type**: Use materialized view as target
       - **database**: Target database using substitution variables
       - **table**: Target table name
-      - **sql**: SQL query to define the view (alternative to source)
+      - **sql**: Inline SQL query to define the view (alternative to source or sql_path)
+      - **sql_path**: Path to external SQL file to define the view (alternative to source or sql)
       - **table_properties**: Delta table properties for optimization
       - **partition_columns**: Columns to partition the view by
       - **cluster_columns**: Columns to cluster/z-order the view by
-      - **table_schema**: DDL schema definition for the view
+      - **table_schema**: DDL schema definition for the view (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
 - **description**: Optional documentation for the action
+
+.. note::
+  **SQL Query Options**: You can define the materialized view query in three ways:
+  
+  1. **Source view** (Option 1): Read from an existing view using ``source``
+  2. **Inline SQL** (Option 2): Define SQL directly in YAML using ``sql``
+  3. **External SQL file** (Option 3): Reference external SQL file using ``sql_path``
+  
+  External SQL files support substitution variables (``{tokens}`` and ``${secret:scope/key}``) 
+  and can be organized in subdirectories (e.g., ``"sql/gold/aggregations/sales_summary.sql"``).
+
+**table_schema Format Options**
+
+The ``table_schema`` option supports two formats, automatically detected by the framework:
+
+**Option 1: Inline DDL**
+
+.. code-block:: yaml
+
+  table_schema: "product_id BIGINT, name STRING, price DECIMAL(10,2), category STRING"
+
+**Option 2: External DDL/SQL File**
+
+.. code-block:: yaml
+
+  table_schema: "schemas/product_view_schema.ddl"
+  # or
+  table_schema: "schemas/gold/product_view_schema.sql"
+  # or
+  table_schema: "schemas/product_view_schema.yaml"
+
+.. note::
+  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
 
 **The above YAML examples translate to the following PySpark code**
 

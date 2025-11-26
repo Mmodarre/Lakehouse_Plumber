@@ -4,6 +4,7 @@
 
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
+from pyspark.sql.types import StructType
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"
@@ -31,31 +32,47 @@ def v_lineitem_middle_east_raw():
 # ============================================================================
 
 
-@dp.temporary_view(comment="SQL transform: lineitem_bronze_cleanse")
+@dp.temporary_view()
 def v_lineitem_middle_east_bronze_cleaned():
-    """SQL transform: lineitem_bronze_cleanse"""
-    df = spark.sql(
-        """SELECT
-  l_orderkey as order_id,
-  l_partkey as part_id,
-  l_suppkey as supplier_id,
-  l_linenumber as line_number,
-  l_quantity as quantity,
-  l_extendedprice as extended_price,
-  l_discount as discount,
-  l_tax as tax,
-  l_returnflag as return_flag,
-  l_linestatus as line_status,
-  l_shipdate as ship_date,
-  l_commitdate as commit_date,
-  l_receiptdate as receipt_date,
-  l_shipinstruct as ship_instruct,
-  l_shipmode as ship_mode,
-  l_comment as comment,
-  cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
-  * EXCEPT(l_orderkey, l_partkey, l_suppkey, l_linenumber, l_quantity, l_extendedprice, l_discount, l_tax, l_returnflag, l_linestatus, l_shipdate, l_commitdate, l_receiptdate, l_shipinstruct, l_shipmode, l_comment,last_modified_dt,_rescued_data)
-FROM stream(v_lineitem_middle_east_raw)"""
-    )
+    """Schema application: lineitem_bronze_cleanse"""
+    df = spark.readStream.table("v_lineitem_middle_east_raw")
+
+    # Apply column renaming
+    df = df.withColumnRenamed("l_orderkey", "order_id")
+    df = df.withColumnRenamed("l_partkey", "part_id")
+    df = df.withColumnRenamed("l_suppkey", "supplier_id")
+    df = df.withColumnRenamed("l_linenumber", "line_number")
+    df = df.withColumnRenamed("l_quantity", "quantity")
+    df = df.withColumnRenamed("l_extendedprice", "extended_price")
+    df = df.withColumnRenamed("l_discount", "discount")
+    df = df.withColumnRenamed("l_tax", "tax")
+    df = df.withColumnRenamed("l_returnflag", "return_flag")
+    df = df.withColumnRenamed("l_linestatus", "line_status")
+    df = df.withColumnRenamed("l_shipdate", "ship_date")
+    df = df.withColumnRenamed("l_commitdate", "commit_date")
+    df = df.withColumnRenamed("l_receiptdate", "receipt_date")
+    df = df.withColumnRenamed("l_shipinstruct", "ship_instruct")
+    df = df.withColumnRenamed("l_shipmode", "ship_mode")
+    df = df.withColumnRenamed("l_comment", "comment")
+
+    # Apply type casting
+    df = df.withColumn("order_id", F.col("order_id").cast("BIGINT"))
+    df = df.withColumn("part_id", F.col("part_id").cast("BIGINT"))
+    df = df.withColumn("supplier_id", F.col("supplier_id").cast("BIGINT"))
+    df = df.withColumn("line_number", F.col("line_number").cast("INT"))
+    df = df.withColumn("quantity", F.col("quantity").cast("DECIMAL(18,2)"))
+    df = df.withColumn("extended_price", F.col("extended_price").cast("DECIMAL(18,2)"))
+    df = df.withColumn("discount", F.col("discount").cast("DECIMAL(18,2)"))
+    df = df.withColumn("tax", F.col("tax").cast("DECIMAL(18,2)"))
+    df = df.withColumn("return_flag", F.col("return_flag").cast("STRING"))
+    df = df.withColumn("line_status", F.col("line_status").cast("STRING"))
+    df = df.withColumn("ship_date", F.col("ship_date").cast("DATE"))
+    df = df.withColumn("commit_date", F.col("commit_date").cast("DATE"))
+    df = df.withColumn("receipt_date", F.col("receipt_date").cast("DATE"))
+    df = df.withColumn("ship_instruct", F.col("ship_instruct").cast("STRING"))
+    df = df.withColumn("ship_mode", F.col("ship_mode").cast("STRING"))
+    df = df.withColumn("comment", F.col("comment").cast("STRING"))
+    df = df.withColumn("last_modified_dt", F.col("last_modified_dt").cast("TIMESTAMP"))
 
     return df
 

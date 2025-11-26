@@ -53,9 +53,32 @@ class DependenciesCommand(BaseCommand):
             analyzer = DependencyAnalyzer(project_root, config_loader)
             output_manager = DependencyOutputManager()
 
-            # Validate pipeline if specified
+            # Validate pipeline filter with job_name usage
             if pipeline:
                 self._validate_pipeline_exists(analyzer, pipeline)
+                # Check if job_name is used - error out if so
+                flowgroups = analyzer._get_flowgroups()
+                if any(fg.job_name for fg in flowgroups):
+                    raise LHPError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="003",
+                        title="Pipeline filter not supported with job_name",
+                        details=(
+                            "Cannot use --pipeline filter when job_name is defined in flowgroups.\n\n"
+                            f"You specified: --pipeline {pipeline}\n"
+                            "However, your flowgroups use job_name property which enables multi-job mode.\n\n"
+                            "A single pipeline may span multiple jobs, making filtering ambiguous."
+                        ),
+                        suggestions=[
+                            "Remove the --pipeline filter to analyze all jobs",
+                            "Or remove job_name from flowgroups to use single-job mode",
+                            "Use separate lhp deps runs for different projects if needed"
+                        ],
+                        context={
+                            "Pipeline Filter": pipeline,
+                            "Flowgroups with job_name": len([fg for fg in flowgroups if fg.job_name])
+                        }
+                    )
 
             # Perform dependency analysis
             click.echo("📊 Building dependency graphs...")
@@ -197,9 +220,21 @@ class DependenciesCommand(BaseCommand):
 
     def _display_generated_files(self, generated_files: dict) -> None:
         """Display information about generated output files."""
-        for format_name, file_path in generated_files.items():
-            file_size = file_path.stat().st_size if file_path.exists() else 0
-            click.echo(f"   {format_name.upper()}: {file_path} ({file_size:,} bytes)")
+        for format_name, file_path_or_dict in generated_files.items():
+            # Handle both single file path and dict of paths (for multiple jobs)
+            if isinstance(file_path_or_dict, dict):
+                # Multiple job files (dict of {job_name: path})
+                click.echo(f"   {format_name.upper()} (multiple jobs):")
+                for job_name, job_path in file_path_or_dict.items():
+                    file_size = job_path.stat().st_size if job_path.exists() else 0
+                    if job_name == "_master":
+                        click.echo(f"      Master Job: {job_path} ({file_size:,} bytes)")
+                    else:
+                        click.echo(f"      {job_name}: {job_path} ({file_size:,} bytes)")
+            else:
+                # Single file path (backward compatible)
+                file_size = file_path_or_dict.stat().st_size if file_path_or_dict.exists() else 0
+                click.echo(f"   {format_name.upper()}: {file_path_or_dict} ({file_size:,} bytes)")
 
     def _display_execution_order(self, result) -> None:
         """Display pipeline execution order."""

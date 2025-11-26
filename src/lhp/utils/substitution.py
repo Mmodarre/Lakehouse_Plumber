@@ -38,8 +38,9 @@ class EnhancedSubstitutionManager:
     SECRET_PATTERN = re.compile(r"\$\{secret:([^}]+)\}")
     UNRESOLVED_TOKEN_PATTERN = re.compile(r'\{(?!dbutils\.)([^}]+)\}')
 
-    def __init__(self, substitution_file: Path = None, env: str = "dev"):
+    def __init__(self, substitution_file: Path = None, env: str = "dev", skip_validation: bool = False):
         self.env = env
+        self.skip_validation = skip_validation  # Flag to skip unresolved token validation
         self.mappings: Dict[str, str] = {}
         self.prefix_suffix_rules: Dict[str, Dict[str, str]] = {}
         self.secret_scopes: Dict[str, str] = {}
@@ -89,13 +90,35 @@ class EnhancedSubstitutionManager:
         global_tokens = config.get("global", {})
 
         # Merge tokens (environment-specific overrides global)
+        # Convert primitive types to strings for text substitution
         if isinstance(env_tokens, dict):
-            self.mappings.update(env_tokens)
+            for key, value in env_tokens.items():
+                # Convert primitive types to strings for text-based substitution
+                if isinstance(value, bool):
+                    # Convert booleans to lowercase for YAML compatibility
+                    self.mappings[key] = str(value).lower()
+                elif isinstance(value, (str, int, float)):
+                    self.mappings[key] = str(value)
+                elif not isinstance(value, (dict, list)):
+                    # Handle other non-nested types
+                    self.mappings[key] = str(value)
+                else:
+                    # Keep nested structures (dicts/lists) as-is for prefix_suffix handling
+                    self.mappings[key] = value
         if isinstance(global_tokens, dict):
             # Only add global tokens that aren't already set
             for key, value in global_tokens.items():
                 if key not in self.mappings:
-                    self.mappings[key] = value
+                    # Convert primitive types to strings
+                    if isinstance(value, bool):
+                        # Convert booleans to lowercase for YAML compatibility
+                        self.mappings[key] = str(value).lower()
+                    elif isinstance(value, (str, int, float)):
+                        self.mappings[key] = str(value)
+                    elif not isinstance(value, (dict, list)):
+                        self.mappings[key] = str(value)
+                    else:
+                        self.mappings[key] = value
 
         # Load secret configuration
         secrets_config = config.get("secrets", {})

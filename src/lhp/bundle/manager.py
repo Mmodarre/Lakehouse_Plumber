@@ -262,30 +262,69 @@ class BundleManager:
 
 
 
-    def generate_resource_file_content(self, pipeline_name: str, output_dir: Path, env: str = None) -> str:
+    def generate_resource_file_content(self, pipeline_name: str, output_dir: Path, env: str) -> str:
         """
         Generate content for a bundle resource file using Jinja2 template.
         
-        The template uses static variables (${var.default_pipeline_catalog} and
-        ${var.default_pipeline_schema}) rather than extracting values from Python files.
-        Actual values are managed via databricks.yml variables.
+        Applies LHP token substitution to ALL fields in pipeline_config.yaml, enabling
+        environment-specific configuration for node types, policies, emails, and all other
+        pipeline settings. Catalog/schema are validated if present.
         
         Args:
             pipeline_name: Name of the pipeline
-            output_dir: Output directory (not used for catalog/schema extraction anymore)
-            env: Environment name for template context
+            output_dir: Output directory
+            env: Environment name for token resolution (REQUIRED)
             
         Returns:
-            YAML content for the resource file with static variable references
+            YAML content for the resource file with fully substituted pipeline config
+            
+        Raises:
+            ValueError: If pipeline config validation fails
         """
-        # Get pipeline-specific configuration
-        pipeline_config = self.config_loader.get_pipeline_config(pipeline_name)
+        # Get RAW pipeline configuration
+        pipeline_config_raw = self.config_loader.get_pipeline_config(pipeline_name)
         
-        # Build template context with pipeline config
+        # Apply substitution to ENTIRE config (all fields)
+        substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
+        
+        if substitution_file.exists():
+            from ..utils.substitution import EnhancedSubstitutionManager
+            sub_mgr = EnhancedSubstitutionManager(substitution_file, env)
+            pipeline_config_resolved = sub_mgr.substitute_yaml(pipeline_config_raw)
+        else:
+            # No substitution file - use raw config
+            self.logger.debug(f"No substitution file found at {substitution_file}, using raw config")
+            pipeline_config_resolved = pipeline_config_raw
+        
+        # Extract catalog/schema for validation (if present)
+        catalog = pipeline_config_resolved.get('catalog')
+        schema = pipeline_config_resolved.get('schema')
+        
+        # Validate catalog/schema pairing
+        if catalog or schema:
+            if not (catalog and schema):
+                raise ValueError(
+                    f"Pipeline '{pipeline_name}' config must define BOTH catalog AND schema, "
+                    f"or neither. Found: catalog={'defined' if catalog else 'missing'}, "
+                    f"schema={'defined' if schema else 'missing'}"
+                )
+            
+            # Validate non-empty after substitution
+            if not catalog.strip() or not schema.strip():
+                raise ValueError(
+                    f"Pipeline '{pipeline_name}' config has empty catalog or schema after substitution"
+                )
+            
+            self.logger.info(
+                f"Pipeline '{pipeline_name}' using catalog/schema from config: {catalog}.{schema}"
+            )
+        
+        # Build template context with fully resolved config
         context = {
             "pipeline_name": pipeline_name,
-            "pipeline_config": pipeline_config
-            # env, catalog and schema are not required in the context
+            "pipeline_config": pipeline_config_resolved,  # Fully substituted!
+            "catalog": catalog,
+            "schema": schema,
         }
         
         return self.template_renderer.render_template("bundle/pipeline_resource.yml.j2", context)
@@ -577,6 +616,44 @@ class BundleManager:
             return
         
         self.logger.debug(f"Found substitution environments: {all_environments}")
+        
+        # Step 2.5: Identify pipelines with catalog/schema in config
+        pipelines_with_config = set()
+        pipelines_with_config_errors = {}
+        all_pipeline_names = set()
+        
+        for pipeline_dir in sorted([d for d in output_dir.iterdir() if d.is_dir()]):
+            pipeline_name = pipeline_dir.name
+            all_pipeline_names.add(pipeline_name)
+            
+            try:
+                # Check if pipeline config defines catalog/schema
+                pipeline_config = self.config_loader.get_pipeline_config(pipeline_name)
+                if pipeline_config.get('catalog') or pipeline_config.get('schema'):
+                    pipelines_with_config.add(pipeline_name)
+                    self.logger.debug(
+                        f"Pipeline '{pipeline_name}' has catalog/schema in config - "
+                        f"will skip databricks.yml variable update"
+                    )
+            except Exception as e:
+                pipelines_with_config_errors[pipeline_name] = str(e)
+                self.logger.warning(
+                    f"Pipeline '{pipeline_name}' config check failed: {e}"
+                )
+        
+        # Skip entirely if ALL pipelines have config
+        if pipelines_with_config and pipelines_with_config == all_pipeline_names:
+            self.logger.info(
+                f"All {len(all_pipeline_names)} pipelines have catalog/schema in config. "
+                f"Skipping databricks.yml variable update entirely."
+            )
+            return
+        
+        if pipelines_with_config:
+            self.logger.info(
+                f"{len(pipelines_with_config)} pipelines have config-defined catalog/schema: "
+                f"{sorted(pipelines_with_config)}"
+            )
         
         # Step 3: Find variable names in current environment's substitution file
         variable_info = self._find_substitution_variables_for_values(
@@ -997,7 +1074,7 @@ class BundleManager:
         else:
             self.logger.info("All bundle resources preserved (conservative approach - existing LHP files untouched)")
 
-    def _create_new_resource_file(self, pipeline_name: str, output_dir: Path, env: str = None):
+    def _create_new_resource_file(self, pipeline_name: str, output_dir: Path, env: str):
         """
         Create new resource file for a pipeline.
         

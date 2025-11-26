@@ -16,14 +16,14 @@ FLOWGROUP_ID = "part_ingestion"
 
 # Schema hints for part_cloudfiles table
 part_cloudfiles_schema_hints = """
-    p_partkey BIGINT,
-    p_name STRING,
-    p_mfgr STRING,
-    p_brand STRING,
-    p_type STRING,
-    p_size INT,
-    p_container STRING,
-    p_retailprice DECIMAL(18,2),
+    p_partkey BIGINT NOT NULL,
+    p_name STRING NOT NULL,
+    p_mfgr STRING NOT NULL,
+    p_brand STRING NOT NULL,
+    p_type STRING NOT NULL,
+    p_size INT NOT NULL,
+    p_container STRING NOT NULL,
+    p_retailprice DECIMAL(18,2) NOT NULL,
     p_comment STRING,
     last_modified_dt TIMESTAMP
 """.strip().replace(

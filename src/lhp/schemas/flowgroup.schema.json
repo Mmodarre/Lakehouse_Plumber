@@ -23,6 +23,10 @@
                     "type": "string",
                     "description": "Name of the flowgroup"
                 },
+                "job_name": {
+                    "type": "string",
+                    "description": "Optional job name for grouping flowgroups into separate orchestration jobs"
+                },
                 "presets": {
                     "$ref": "#/definitions/Presets"
                 },
@@ -72,6 +76,10 @@
                             "pipeline": {
                                 "type": "string",
                                 "description": "Override pipeline name for this flowgroup (optional, inherits from document level)"
+                            },
+                            "job_name": {
+                                "type": "string",
+                                "description": "Optional job name for grouping flowgroups into separate orchestration jobs"
                             },
                             "use_template": {
                                 "$ref": "#/definitions/UseTemplate"
@@ -248,12 +256,41 @@
                                     "additionalProperties": true
                                 },
                                 "schema": {
-                                    "type": "string",
-                                    "description": "Schema definition"
+                                    "oneOf": [
+                                        {
+                                            "type": "string",
+                                            "description": "Schema definition (DDL or path)"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "description": "Inline schema transform configuration (legacy format)",
+                                            "properties": {
+                                                "enforcement": {
+                                                    "type": "string",
+                                                    "enum": ["strict", "permissive"],
+                                                    "description": "Schema enforcement mode: 'strict' drops unmapped columns, 'permissive' keeps all columns (must be literal value, not template variable)"
+                                                },
+                                                "column_mapping": {
+                                                    "type": "object",
+                                                    "description": "Column renaming: old_name -> new_name",
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type_casting": {
+                                                    "type": "object",
+                                                    "description": "Type casting: column_name -> type",
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
                                 },
                                 "schema_file": {
                                     "type": "string",
-                                    "description": "Path to schema file"
+                                    "description": "Path to schema file (recommended for schema transforms)"
                                 },
                                 "readMode": {
                                     "type": "string",
@@ -362,6 +399,19 @@
                     "type": "string",
                     "description": "Path to expectations file for data quality transforms"
                 },
+                "schema_inline": {
+                    "type": "string",
+                    "description": "Inline schema definition for schema transforms (arrow or YAML format)"
+                },
+                "schema_file": {
+                    "type": "string",
+                    "description": "Path to external schema file for schema transforms"
+                },
+                "enforcement": {
+                    "type": "string",
+                    "enum": ["strict", "permissive"],
+                    "description": "Schema enforcement mode for schema transforms: 'strict' (only defined columns) or 'permissive' (allow extra columns). Default: permissive"
+                },
                 "once": {
                     "type": "boolean",
                     "description": "Whether this is a one-time flow/backfill"
@@ -378,14 +428,6 @@
                     "type": "object",
                     "description": "Parameters dictionary passed to Python function. Optional for Python transforms and loads.",
                     "additionalProperties": true
-                },
-                "schema_file": {
-                    "type": "string",
-                    "description": "Path to schema file for schema transforms"
-                },
-                "schema_path": {
-                    "type": "string",
-                    "description": "Path to schema file (alternative to schema_file)"
                 }
             }
         },
@@ -441,11 +483,11 @@
                 },
                 "schema": {
                     "type": "string",
-                    "description": "Table schema"
+                    "description": "Table schema (legacy, use 'table_schema' instead)"
                 },
                 "table_schema": {
                     "type": "string",
-                    "description": "Table schema (deprecated, use 'schema')"
+                    "description": "Table schema definition (DDL string or external file path)"
                 },
                 "row_filter": {
                     "type": "string",

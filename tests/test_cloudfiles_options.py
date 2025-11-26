@@ -444,6 +444,154 @@ class TestCloudFilesOptions:
             pytest.fail(f"Generated code is not valid Python: {e}")
         finally:
             warnings.simplefilter('default', SyntaxWarning)
+    
+    def test_schema_hints_from_ddl_file(self):
+        """Test schema hints processing from DDL file."""
+        # Create DDL file
+        ddl_file = Path(self.temp_dir) / "test_schema.ddl"
+        ddl_content = "customer_id BIGINT NOT NULL, name STRING, email STRING, created_at TIMESTAMP"
+        ddl_file.write_text(ddl_content)
+        
+        action = Action(
+            name="test_action",
+            type="load",
+            source={
+                "type": "cloudfiles",
+                "path": "/path/to/data",
+                "format": "csv",
+                "options": {
+                    "cloudFiles.format": "csv",
+                    "cloudFiles.schemaHints": str(ddl_file)
+                }
+            },
+            target="test_table",
+            readMode="stream"
+        )
+        
+        result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
+        
+        # Check that DDL content is properly loaded and used
+        assert "customer_id BIGINT NOT NULL" in result
+        assert "name STRING" in result
+        assert "email STRING" in result
+        assert "created_at TIMESTAMP" in result
+        assert '.option("cloudFiles.schemaHints"' in result
+    
+    def test_schema_hints_from_sql_file(self):
+        """Test schema hints processing from SQL file."""
+        # Create SQL file with DDL content
+        sql_file = Path(self.temp_dir) / "test_schema.sql"
+        sql_content = "product_id BIGINT, product_name STRING, price DECIMAL(10,2), in_stock BOOLEAN"
+        sql_file.write_text(sql_content)
+        
+        action = Action(
+            name="test_action",
+            type="load",
+            source={
+                "type": "cloudfiles",
+                "path": "/path/to/data",
+                "format": "json",
+                "options": {
+                    "cloudFiles.format": "json",
+                    "cloudFiles.schemaHints": str(sql_file)
+                }
+            },
+            target="test_table",
+            readMode="stream"
+        )
+        
+        result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
+        
+        # Check that SQL DDL content is properly loaded and used
+        assert "product_id BIGINT" in result
+        assert "product_name STRING" in result
+        assert "price DECIMAL(10,2)" in result
+        assert "in_stock BOOLEAN" in result
+        assert '.option("cloudFiles.schemaHints"' in result
+    
+    def test_schema_hints_inline_ddl_vs_file_detection(self):
+        """Test that inline DDL is correctly distinguished from file paths."""
+        # Test 1: Inline DDL (no file extensions or path separators)
+        action_inline = Action(
+            name="test_inline",
+            type="load",
+            source={
+                "type": "cloudfiles",
+                "path": "/path/to/data",
+                "format": "csv",
+                "options": {
+                    "cloudFiles.format": "csv",
+                    "cloudFiles.schemaHints": "id BIGINT, name STRING, amount DECIMAL(18,2)"
+                }
+            },
+            target="test_table",
+            readMode="stream"
+        )
+        
+        result_inline = self.generator.generate(action_inline, {"spec_dir": Path(self.temp_dir)})
+        
+        # Should use inline DDL directly (formatted with newlines in variable)
+        assert "id BIGINT" in result_inline
+        assert "name STRING" in result_inline
+        assert "amount DECIMAL(18,2)" in result_inline
+        
+        # Test 2: File path with .ddl extension (should be detected as file)
+        ddl_file = Path(self.temp_dir) / "schemas" / "product.ddl"
+        ddl_file.parent.mkdir(exist_ok=True)
+        ddl_file.write_text("product_id BIGINT, product_name STRING")
+        
+        action_file = Action(
+            name="test_file",
+            type="load",
+            source={
+                "type": "cloudfiles",
+                "path": "/path/to/data",
+                "format": "csv",
+                "options": {
+                    "cloudFiles.format": "csv",
+                    "cloudFiles.schemaHints": "schemas/product.ddl"
+                }
+            },
+            target="test_table",
+            readMode="stream"
+        )
+        
+        result_file = self.generator.generate(action_file, {"spec_dir": Path(self.temp_dir)})
+        
+        # Should load from file
+        assert "product_id BIGINT" in result_file
+        assert "product_name STRING" in result_file
+    
+    def test_schema_hints_file_in_subdirectory(self):
+        """Test loading schema hints from file in nested subdirectory."""
+        # Create nested directory structure
+        schema_dir = Path(self.temp_dir) / "schemas" / "bronze" / "dimensions"
+        schema_dir.mkdir(parents=True)
+        schema_file = schema_dir / "customer_schema.ddl"
+        schema_file.write_text("customer_id BIGINT NOT NULL, customer_name STRING, region STRING")
+        
+        action = Action(
+            name="test_action",
+            type="load",
+            source={
+                "type": "cloudfiles",
+                "path": "/path/to/data",
+                "format": "csv",
+                "options": {
+                    "cloudFiles.format": "csv",
+                    "cloudFiles.schemaHints": "schemas/bronze/dimensions/customer_schema.ddl"
+                }
+            },
+            target="test_table",
+            readMode="stream"
+        )
+        
+        result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
+        
+        # Check that schema from subdirectory is properly loaded
+        assert "customer_id BIGINT NOT NULL" in result
+        assert "customer_name STRING" in result
+        assert "region STRING" in result
 
 
 class TestSchemaParser:
@@ -471,7 +619,7 @@ class TestSchemaParser:
         """Test conversion to schema hints."""
         result = self.parser.to_schema_hints(self.schema_data)
         
-        expected = "id BIGINT, name STRING, amount DECIMAL(18,2), is_active BOOLEAN, created_at TIMESTAMP"
+        expected = "id BIGINT NOT NULL, name STRING, amount DECIMAL(18,2), is_active BOOLEAN NOT NULL, created_at TIMESTAMP NOT NULL"
         assert result == expected
     
     def test_to_struct_type_code(self):

@@ -285,6 +285,7 @@ Next Steps
    multi_flowgroup_guide
    actions_reference
    templates_reference
+   presets_reference
    databricks_bundles
    cicd_reference
    advanced

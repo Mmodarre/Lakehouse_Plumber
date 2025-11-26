@@ -48,3 +48,8 @@ class DeltaSinkWriteGenerator(BaseSinkWriteGenerator):
         return self.render_template("write/sinks/delta_sink.py.j2", template_context)
 
 
+
+
+
+
+
