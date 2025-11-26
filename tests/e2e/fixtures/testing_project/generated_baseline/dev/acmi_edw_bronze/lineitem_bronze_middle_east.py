@@ -113,6 +113,13 @@ def v_lineitem_middle_east_bronze_DQE():
 # TARGET TABLES
 # ============================================================================
 
+# Create the streaming table
+dp.create_streaming_table(
+    name="acme_edw_dev.edw_bronze.lineitem",
+    comment="Streaming table: lineitem",
+    table_properties={"delta.enableRowTracking": "true"},
+)
+
 
 # Define append flow(s)
 @dp.append_flow(

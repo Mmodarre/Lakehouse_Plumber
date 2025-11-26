@@ -645,25 +645,36 @@ class ActionOrchestrator:
         substitution_mgr = self.dependencies.create_substitution_manager(substitution_file, env)
         smart_writer = self.dependencies.create_file_writer()
 
-        # 3. Generate code for each flowgroup
+        # 3. Process all flowgroups (using helper)
+        processed_flowgroups = self._process_flowgroups_batch(flowgroups, substitution_mgr)
+
+        # 4. Validate table creation rules
+        try:
+            errors = self.config_validator.validate_table_creation_rules(processed_flowgroups)
+            if errors:
+                raise ValueError("Table creation validation failed:\n" + 
+                               "\n".join(f"  - {e}" for e in errors))
+        except Exception as e:
+            raise ValueError(f"Table creation validation failed:\n  - {str(e)}")
+
+        # 5. Generate code for each flowgroup
         generated_files = {}
-        for flowgroup in flowgroups:
-            self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
+        for processed_flowgroup in processed_flowgroups:
+            self.logger.info(f"Generating code for flowgroup: {processed_flowgroup.flowgroup}")
             
             try:
-                processed_flowgroup = self.process_flowgroup(flowgroup, substitution_mgr)
-                source_yaml = self._find_source_yaml_for_flowgroup(flowgroup)
+                source_yaml = self._find_source_yaml_for_flowgroup(processed_flowgroup)
                 
                 code = self.generate_flowgroup_code(
                     processed_flowgroup, substitution_mgr, pipeline_output_dir, 
                     state_manager, source_yaml, env, include_tests
                 )
                 formatted_code = format_code(code)
-                filename = f"{flowgroup.flowgroup}.py"
+                filename = f"{processed_flowgroup.flowgroup}.py"
                 
                 # Handle empty content
                 if not formatted_code.strip():
-                    self._handle_empty_flowgroup(flowgroup, pipeline_output_dir, filename, state_manager, env)
+                    self._handle_empty_flowgroup(processed_flowgroup, pipeline_output_dir, filename, state_manager, env)
                     continue
                 
                 # Store and write generated code
@@ -686,12 +697,12 @@ class ActionOrchestrator:
             except Exception as e:
                 from ..utils.error_formatter import LHPError
                 if isinstance(e, LHPError):
-                    self.logger.debug(f"Error generating flowgroup {flowgroup.flowgroup}")
+                    self.logger.debug(f"Error generating flowgroup {processed_flowgroup.flowgroup}")
                 else:
-                    self.logger.error(f"Error generating flowgroup {flowgroup.flowgroup}: {e}")
+                    self.logger.error(f"Error generating flowgroup {processed_flowgroup.flowgroup}: {e}")
                 raise
 
-        # 4. Finalize
+        # 6. Finalize
         if state_manager:
             state_manager.save()
 

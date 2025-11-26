@@ -425,11 +425,11 @@ class TestActionOrchestratorFlowgroupDiscovery:
              patch('lhp.core.orchestrator.TemplateEngine'), \
              patch('lhp.core.orchestrator.ProjectConfigLoader') as mock_config_loader, \
              patch('lhp.core.orchestrator.ActionRegistry'), \
-             patch('lhp.core.orchestrator.ConfigValidator'), \
+             patch('lhp.core.orchestrator.ConfigValidator') as mock_config_validator, \
              patch('lhp.core.orchestrator.SecretValidator'), \
              patch('lhp.core.orchestrator.DependencyResolver'), \
              patch('lhp.core.orchestrator.FlowgroupDiscoverer') as mock_discoverer, \
-             patch('lhp.core.orchestrator.FlowgroupProcessor'), \
+             patch('lhp.core.orchestrator.FlowgroupProcessor') as mock_processor, \
              patch('lhp.core.orchestrator.CodeGenerator'), \
              patch('lhp.core.orchestrator.PipelineValidator'):
             
@@ -440,6 +440,15 @@ class TestActionOrchestratorFlowgroupDiscovery:
             
             # Create orchestrator without version enforcement
             orchestrator = ActionOrchestrator(mock_project_root, enforce_version=False)
+            
+            # Configure processor to pass flowgroups through unchanged
+            # This supports the new batch processing + validation flow
+            mock_processor_instance = mock_processor.return_value
+            mock_processor_instance.process_flowgroup.side_effect = lambda fg, sub: fg
+            
+            # Configure validator to return empty errors for table creation validation
+            # This allows tests to pass when testing other aspects of the orchestrator
+            orchestrator.config_validator.validate_table_creation_rules.return_value = []
             
             # Store mock discoverer for test access
             orchestrator.mock_discoverer = mock_discoverer.return_value
