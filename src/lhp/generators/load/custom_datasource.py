@@ -136,14 +136,10 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         # Get readMode from action or default to stream
         readMode = action.readMode or "stream"
 
-        # Handle operational metadata (using ImportManager for enhanced import handling)
+        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
-        
-        # Use ImportManager for operational metadata imports (enhanced functionality)
-        for column_name, expression in metadata_columns.items():
-            self.add_imports_from_expression(expression)
 
         template_context = {
             "action_name": action.name,

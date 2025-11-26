@@ -33,6 +33,7 @@ from ..models.config import FlowGroup, Action, ActionType
 from ..utils.error_formatter import LHPError, ErrorCategory
 from ..utils.smart_file_writer import SmartFileWriter
 from ..utils.version import get_version
+from ..utils.source_extractor import extract_single_source_view, extract_source_views_from_action
 
 
 @dataclass
@@ -474,127 +475,74 @@ class ActionOrchestrator:
         Returns:
             Dictionary mapping filename to generated code content
         """
-        self.logger.info(
-            f"Generating pipeline '{pipeline_name}' for environment '{env}'"
-        )
+        self.logger.info(f"Generating pipeline '{pipeline_name}' for environment '{env}'")
 
-        # Discover and filter flowgroups using extracted method
+        # 1. Discover and filter flowgroups
         flowgroups = self._discover_and_filter_flowgroups(
-            env=env,
-            pipeline_identifier=pipeline_name,
-            include_tests=include_tests,
-            force_all=force_all,
-            specific_flowgroups=specific_flowgroups,
-            state_manager=state_manager,
-            use_directory_discovery=True
+            env=env, pipeline_identifier=pipeline_name, include_tests=include_tests,
+            force_all=force_all, specific_flowgroups=specific_flowgroups,
+            state_manager=state_manager, use_directory_discovery=True
         )
 
-        # 2. Load substitution manager for environment
+        # 2. Setup dependencies
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
         substitution_mgr = self.dependencies.create_substitution_manager(substitution_file, env)
-
-        # 3. Initialize smart file writer
         smart_writer = self.dependencies.create_file_writer()
 
-        # 4. Process all flowgroups first
-        processed_flowgroups = []
-        for flowgroup in flowgroups:
-            self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
+        # 3. Process all flowgroups (using helper)
+        processed_flowgroups = self._process_flowgroups_batch(flowgroups, substitution_mgr)
 
-            try:
-                # Process flowgroup
-                processed_flowgroup = self.process_flowgroup(
-                    flowgroup, substitution_mgr
-                )
-                processed_flowgroups.append(processed_flowgroup)
-
-            except Exception as e:
-                self.logger.debug(
-                    f"Error processing flowgroup {flowgroup.flowgroup}: {e}"
-                )
-                raise
-
-        # 5. Validate table creation rules across entire pipeline
+        # 4. Validate table creation rules
         try:
-            table_creation_errors = self.config_validator.validate_table_creation_rules(
-                processed_flowgroups
-            )
-            if table_creation_errors:
-                raise ValueError(
-                    "Table creation validation failed:\n"
-                    + "\n".join(f"  - {error}" for error in table_creation_errors)
-                )
+            errors = self.config_validator.validate_table_creation_rules(processed_flowgroups)
+            if errors:
+                raise ValueError("Table creation validation failed:\n" + 
+                               "\n".join(f"  - {e}" for e in errors))
         except Exception as e:
-            # Handle LHPError by converting to string (like the validator does)
             raise ValueError(f"Table creation validation failed:\n  - {str(e)}")
 
-        # 6. Generate code for each processed flowgroup
+        # 5. Generate code for each flowgroup
         generated_files = {}
-
-        for processed_flowgroup in processed_flowgroups:
-            self.logger.info(
-                f"Generating code for flowgroup: {processed_flowgroup.flowgroup}"
-            )
-
+        for flowgroup in processed_flowgroups:
+            self.logger.info(f"Generating code for flowgroup: {flowgroup.flowgroup}")
             try:
-                # Find source YAML for this flowgroup (needed for file tracking)
-                source_yaml = self._find_source_yaml_for_flowgroup(processed_flowgroup)
-                
-                # Generate code
+                source_yaml = self._find_source_yaml_for_flowgroup(flowgroup)
                 code = self.generate_flowgroup_code(
-                    processed_flowgroup, substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
+                    flowgroup, substitution_mgr, output_dir, state_manager, 
+                    source_yaml, env, include_tests
                 )
-
-                # Format code
                 formatted_code = format_code(code)
-
-                # Check if content is empty BEFORE any file operations
-                filename = f"{processed_flowgroup.flowgroup}.py"
+                filename = f"{flowgroup.flowgroup}.py"
+                
+                # Handle empty content
                 if not formatted_code.strip():
-                    # Skip this flowgroup entirely - don't write files or track in state
-                    self.logger.info(f"Skipping empty flowgroup: {processed_flowgroup.flowgroup} (no content to generate)")
-                    continue  # Skip to next flowgroup
+                    self._handle_empty_flowgroup(flowgroup, output_dir, filename, state_manager, env)
+                    continue
 
-                # Only proceed with file operations if content exists
-                # Store result (we know it's not empty at this point)
+                # Store and write generated code
                 generated_files[filename] = formatted_code
-
-                # Write to output directory if specified
                 if output_dir:
                     output_file = output_dir / filename
                     smart_writer.write_if_changed(output_file, formatted_code)
-
-                    # Track the generated file in state manager
+                    
+                    # Track in state manager (using helper)
                     if state_manager and source_yaml:
-                        # Generate context for parameter-sensitive hashing
-                        has_test_actions = any(action.type == ActionType.TEST for action in processed_flowgroup.actions)
-                        generation_context = f"include_tests:{include_tests}" if has_test_actions else ""
-                        
-                        state_manager.track_generated_file(
-                            generated_path=output_file,
-                            source_yaml=source_yaml,
-                            environment=env,
-                            pipeline=pipeline_name,
-                            flowgroup=processed_flowgroup.flowgroup,
-                            generation_context=generation_context,
+                        self._track_generated_file(
+                            flowgroup, output_file, source_yaml, env, 
+                            pipeline_name, include_tests, state_manager
                         )
 
             except Exception as e:
-                self.logger.debug(
-                    f"Error generating code for flowgroup {processed_flowgroup.flowgroup}: {e}"
-                )
+                self.logger.debug(f"Error generating code for flowgroup {flowgroup.flowgroup}: {e}")
                 raise
 
-        # Save state after all files are generated
+        # 6. Finalize
         if state_manager:
             state_manager.save()
-
-        # Log smart file writer statistics
         if output_dir:
             files_written, files_skipped = smart_writer.get_stats()
-            self.logger.info(
-                f"Generation complete: {files_written} files written, {files_skipped} files skipped (no changes)"
-            )
+            self.logger.info(f"Generation complete: {files_written} files written, "
+                           f"{files_skipped} files skipped (no changes)")
 
         return generated_files
 
@@ -676,127 +624,76 @@ class ActionOrchestrator:
         Returns:
             Dictionary mapping filename to generated code content
         """
-        self.logger.info(
-            f"Starting pipeline generation by field: {pipeline_field} for env: {env}"
-        )
+        self.logger.info(f"Starting pipeline generation by field: {pipeline_field} for env: {env}")
 
-        # Validate no duplicate pipeline+flowgroup combinations
+        # 1. Validate no duplicates and discover flowgroups
         all_flowgroups = self.discover_all_flowgroups()
         self.validate_duplicate_pipeline_flowgroup_combinations(all_flowgroups)
-
-        # Discover and filter flowgroups using extracted method
+        
         flowgroups = self._discover_and_filter_flowgroups(
-            env=env,
-            pipeline_identifier=pipeline_field,
-            include_tests=include_tests,
-            force_all=force_all,
-            specific_flowgroups=specific_flowgroups,
-            state_manager=state_manager,
-            use_directory_discovery=False  # Use field-based discovery
+            env=env, pipeline_identifier=pipeline_field, include_tests=include_tests,
+            force_all=force_all, specific_flowgroups=specific_flowgroups,
+            state_manager=state_manager, use_directory_discovery=False
         )
 
-        # Set up output directory based on pipeline field
-        if output_dir:
-            pipeline_output_dir = output_dir / pipeline_field
+        # 2. Setup output directory and dependencies
+        pipeline_output_dir = output_dir / pipeline_field if output_dir else None
+        if pipeline_output_dir:
             pipeline_output_dir.mkdir(parents=True, exist_ok=True)
-        else:
-            # For dry-run mode, don't create directories or write files
-            pipeline_output_dir = None
 
-        # Initialize substitution manager
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
         substitution_mgr = self.dependencies.create_substitution_manager(substitution_file, env)
+        smart_writer = self.dependencies.create_file_writer()
 
+        # 3. Generate code for each flowgroup
         generated_files = {}
-        
         for flowgroup in flowgroups:
             self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
             
             try:
-                # Process flowgroup
                 processed_flowgroup = self.process_flowgroup(flowgroup, substitution_mgr)
+                source_yaml = self._find_source_yaml_for_flowgroup(flowgroup)
                 
-                # Find source YAML for this flowgroup (needed for file tracking)
-                source_yaml_path = self._find_source_yaml_for_flowgroup(flowgroup)
+                code = self.generate_flowgroup_code(
+                    processed_flowgroup, substitution_mgr, pipeline_output_dir, 
+                    state_manager, source_yaml, env, include_tests
+                )
+                formatted_code = format_code(code)
+                filename = f"{flowgroup.flowgroup}.py"
                 
-                # Generate code
-                generated_code = self.generate_flowgroup_code(processed_flowgroup, substitution_mgr, pipeline_output_dir, state_manager, source_yaml_path, env, include_tests)
-                
-                # Format code with Black
-                formatted_code = format_code(generated_code)
-                
-                # Check if content is empty BEFORE any file operations
+                # Handle empty content
                 if not formatted_code.strip():
-                    # Handle empty content - check for existing files to clean up
-                    if pipeline_output_dir:
-                        output_file = pipeline_output_dir / f"{flowgroup.flowgroup}.py"
-                        if output_file.exists():
-                            try:
-                                # Delete existing file since flowgroup now generates empty content
-                                output_file.unlink()
-                                self.logger.info(f"Deleted empty flowgroup file: {output_file}")
-                                
-                                # Remove from state tracking
-                                if state_manager:
-                                    state_manager.remove_generated_file(output_file, env)
-                                    # Clean up empty directories after file deletion
-                                    state_manager.cleanup_empty_directories(env, [str(output_file)])
-                            except Exception as e:
-                                self.logger.error(f"Failed to delete empty flowgroup file {output_file}: {e}")
-                                raise  # Fail fast as requested
-                    
-                    self.logger.info(f"Skipping empty flowgroup: {flowgroup.flowgroup} (no content to generate)")
-                    continue  # Skip to next flowgroup
+                    self._handle_empty_flowgroup(flowgroup, pipeline_output_dir, filename, state_manager, env)
+                    continue
                 
-                # Only proceed with file operations if content exists
-                # Save to file only if output directory is specified (not dry-run)
+                # Store and write generated code
+                generated_files[filename] = formatted_code
                 if pipeline_output_dir:
-                    output_file = pipeline_output_dir / f"{flowgroup.flowgroup}.py"
-                    
-                    # Use SmartFileWriter for efficient file writing
-                    smart_writer = self.dependencies.create_file_writer()
+                    output_file = pipeline_output_dir / filename
                     smart_writer.write_if_changed(output_file, formatted_code)
                     
-                    # Track the generated file in state manager if provided
-                    if state_manager and source_yaml_path:
-                        # Generate context for parameter-sensitive hashing
-                        has_test_actions = any(action.type == ActionType.TEST for action in flowgroup.actions)
-                        generation_context = f"include_tests:{include_tests}" if has_test_actions else ""
-                        
-                        state_manager.track_generated_file(
-                            generated_path=output_file,
-                            source_yaml=source_yaml_path,
-                            environment=env,
-                            pipeline=pipeline_field,  # Use pipeline field for state tracking
-                            flowgroup=flowgroup.flowgroup,
-                            generation_context=generation_context,
+                    # Track in state manager (using helper)
+                    if state_manager and source_yaml:
+                        self._track_generated_file(
+                            processed_flowgroup, output_file, source_yaml, env,
+                            pipeline_field, include_tests, state_manager
                         )
                     
                     self.logger.info(f"Generated: {output_file}")
                 else:
-                    # Dry-run mode: just log what would be generated
-                    self.logger.info(f"Would generate: {flowgroup.flowgroup}.py")
+                    self.logger.info(f"Would generate: {filename}")
                     
-                # Add to generated_files (we know it's not empty at this point)
-                generated_files[f"{flowgroup.flowgroup}.py"] = formatted_code
-                
             except Exception as e:
-                # Log brief context without full error details (avoids duplication)
                 from ..utils.error_formatter import LHPError
                 if isinstance(e, LHPError):
-                    # LHPError already has formatted details, just log context
                     self.logger.debug(f"Error generating flowgroup {flowgroup.flowgroup}")
                 else:
-                    # Regular exception - log full details
                     self.logger.error(f"Error generating flowgroup {flowgroup.flowgroup}: {e}")
                 raise
 
-        # Save state after all files are generated
+        # 4. Finalize
         if state_manager:
             state_manager.save()
-
-        # Note: Bundle synchronization is handled at the CLI level after all pipelines are processed
-        # to ensure it sees the complete state of all generated files
 
         self.logger.info(f"Pipeline generation complete: {pipeline_field}")
         return generated_files
@@ -832,6 +729,8 @@ class ActionOrchestrator:
     def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
         """Find the source YAML file for a given flowgroup.
         
+        Delegates to FlowgroupDiscoverer service for consistency.
+        
         Supports multi-document (---) and flowgroups array syntax.
 
         Args:
@@ -840,25 +739,7 @@ class ActionOrchestrator:
         Returns:
             Path to the source YAML file, or None if not found
         """
-        pipelines_dir = self.project_root / "pipelines"
-        
-        if not pipelines_dir.exists():
-            return None
-
-        # Search both .yaml and .yml extensions
-        for extension in ["*.yaml", "*.yml"]:
-            for yaml_file in pipelines_dir.rglob(extension):
-                try:
-                    # Use parse_flowgroups_from_file to support multi-flowgroup files
-                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
-                    for parsed_flowgroup in flowgroups:
-                        if (parsed_flowgroup.pipeline == flowgroup.pipeline and 
-                            parsed_flowgroup.flowgroup == flowgroup.flowgroup):
-                            return yaml_file
-                except Exception as e:
-                    self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
-
-        return None
+        return self.discoverer.find_source_yaml_for_flowgroup(flowgroup)
 
     def process_flowgroup(self, flowgroup: FlowGroup, 
                          substitution_mgr: EnhancedSubstitutionManager) -> FlowGroup:
@@ -1023,6 +904,105 @@ class ActionOrchestrator:
             # Nothing to generate
             self.logger.info("Smart generation: no flowgroups need processing")
             return []
+    
+    def _process_flowgroups_batch(
+        self, 
+        flowgroups: List[FlowGroup], 
+        substitution_mgr: EnhancedSubstitutionManager
+    ) -> List[FlowGroup]:
+        """Process all flowgroups in a batch.
+        
+        Handles template expansion, preset application, and substitution
+        for a list of flowgroups.
+        
+        Args:
+            flowgroups: List of flowgroups to process
+            substitution_mgr: Substitution manager for the environment
+            
+        Returns:
+            List of processed flowgroups
+            
+        Raises:
+            Exception: If processing fails for any flowgroup
+        """
+        processed = []
+        for flowgroup in flowgroups:
+            self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
+            try:
+                processed_fg = self.process_flowgroup(flowgroup, substitution_mgr)
+                processed.append(processed_fg)
+            except Exception as e:
+                self.logger.debug(f"Error processing flowgroup {flowgroup.flowgroup}: {e}")
+                raise
+        return processed
+    
+    def _handle_empty_flowgroup(
+        self,
+        flowgroup: FlowGroup,
+        output_dir: Optional[Path],
+        filename: str,
+        state_manager,
+        env: str
+    ) -> None:
+        """Handle empty flowgroup - cleanup existing files if needed.
+        
+        Args:
+            flowgroup: The flowgroup being processed
+            output_dir: Output directory (None for dry-run)
+            filename: Generated filename
+            state_manager: State manager instance
+            env: Environment name
+        """
+        if output_dir:
+            output_file = output_dir / filename
+            if output_file.exists():
+                try:
+                    output_file.unlink()
+                    self.logger.info(f"Deleted empty flowgroup file: {output_file}")
+                    
+                    if state_manager:
+                        state_manager.remove_generated_file(output_file, env)
+                        state_manager.cleanup_empty_directories(env, [str(output_file)])
+                except Exception as e:
+                    self.logger.error(f"Failed to delete empty flowgroup file: {e}")
+                    raise
+        
+        self.logger.info(f"Skipping empty flowgroup: {flowgroup.flowgroup} (no content to generate)")
+    
+    def _track_generated_file(
+        self,
+        flowgroup: FlowGroup,
+        output_file: Path,
+        source_yaml: Path,
+        env: str,
+        pipeline_identifier: str,
+        include_tests: bool,
+        state_manager
+    ) -> None:
+        """Track generated file in state manager.
+        
+        Args:
+            flowgroup: The flowgroup being processed
+            output_file: Path to the generated file
+            source_yaml: Path to the source YAML
+            env: Environment name
+            pipeline_identifier: Pipeline name or field
+            include_tests: Whether test actions are included
+            state_manager: State manager instance
+        """
+        has_test_actions = any(
+            action.type == ActionType.TEST for action in flowgroup.actions
+        )
+        generation_context = f"include_tests:{include_tests}" if has_test_actions else ""
+        
+        state_manager.track_generated_file(
+            generated_path=output_file,
+            source_yaml=source_yaml,
+            environment=env,
+            pipeline=pipeline_identifier,
+            flowgroup=flowgroup.flowgroup,
+            generation_context=generation_context,
+        )
 
     def group_write_actions_by_target(self, write_actions: List[Action]) -> Dict[str, List[Action]]:
         """
@@ -1083,6 +1063,8 @@ class ActionOrchestrator:
 
     def _extract_single_source_view(self, source) -> str:
         """Extract a single source view from various source formats.
+        
+        Delegates to utility function for consistency across codebase.
 
         Args:
             source: Source configuration (string, list, or dict)
@@ -1090,32 +1072,12 @@ class ActionOrchestrator:
         Returns:
             Source view name as string
         """
-        if isinstance(source, str):
-            return source
-        elif isinstance(source, list) and source:
-            # Take first item from list
-            first_item = source[0]
-            if isinstance(first_item, str):
-                return first_item
-            elif isinstance(first_item, dict):
-                database = first_item.get("database")
-                table = (
-                    first_item.get("table")
-                    or first_item.get("view")
-                    or first_item.get("name", "")
-                )
-                return f"{database}.{table}" if database and table else table
-            else:
-                return str(first_item)
-        elif isinstance(source, dict):
-            database = source.get("database")
-            table = source.get("table") or source.get("view") or source.get("name", "")
-            return f"{database}.{table}" if database and table else table
-        else:
-            return ""
+        return extract_single_source_view(source)
 
     def _extract_source_views_from_action(self, source) -> List[str]:
         """Extract all source views from an action source configuration.
+        
+        Delegates to utility function for consistency across codebase.
 
         Args:
             source: Source configuration (string, list, or dict)
@@ -1123,36 +1085,7 @@ class ActionOrchestrator:
         Returns:
             List of source view names
         """
-        if isinstance(source, str):
-            return [source]
-        elif isinstance(source, list):
-            result = []
-            for item in source:
-                if isinstance(item, str):
-                    result.append(item)
-                elif isinstance(item, dict):
-                    database = item.get("database")
-                    table = (
-                        item.get("table") or item.get("view") or item.get("name", "")
-                    )
-                    if database and table:
-                        result.append(f"{database}.{table}")
-                    elif table:
-                        result.append(table)
-                else:
-                    result.append(str(item))
-            return result
-        elif isinstance(source, dict):
-            database = source.get("database")
-            table = source.get("table") or source.get("view") or source.get("name", "")
-            if database and table:
-                return [f"{database}.{table}"]
-            elif table:
-                return [table]
-            else:
-                return []
-        else:
-            return []
+        return extract_source_views_from_action(source)
 
     def validate_pipeline_by_field(
         self, pipeline_field: str, env: str

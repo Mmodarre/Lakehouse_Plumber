@@ -899,14 +899,14 @@ class TestActionOrchestratorActionAnalysis:
         # Test empty list
         assert orchestrator_action_analysis._extract_source_views_from_action([]) == []
         
-        # Test empty dict
-        assert orchestrator_action_analysis._extract_source_views_from_action({}) == []
+        # Test empty dict - now returns ["source"] as fallback (Phase 1 refactoring)
+        assert orchestrator_action_analysis._extract_source_views_from_action({}) == ["source"]
         
-        # Test None
-        assert orchestrator_action_analysis._extract_source_views_from_action(None) == []
+        # Test None - now returns ["source"] as fallback (Phase 1 refactoring)
+        assert orchestrator_action_analysis._extract_source_views_from_action(None) == ["source"]
         
-        # Test number
-        assert orchestrator_action_analysis._extract_source_views_from_action(123) == []
+        # Test number - now returns ["source"] as fallback (Phase 1 refactoring)
+        assert orchestrator_action_analysis._extract_source_views_from_action(123) == ["source"]
 
 
 class TestActionOrchestratorBundleSynchronization:

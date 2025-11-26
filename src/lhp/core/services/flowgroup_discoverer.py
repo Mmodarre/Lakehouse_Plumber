@@ -248,3 +248,34 @@ class FlowgroupDiscoverer:
                 self.logger.warning(f"Could not parse flowgroup {yaml_file}: {e}")
 
         return flowgroups_with_paths
+    
+    def find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
+        """Find the source YAML file for a given flowgroup.
+        
+        Supports multi-document (---) and flowgroups array syntax.
+
+        Args:
+            flowgroup: The flowgroup to find the source YAML for
+
+        Returns:
+            Path to the source YAML file, or None if not found
+        """
+        pipelines_dir = self.project_root / "pipelines"
+        
+        if not pipelines_dir.exists():
+            return None
+
+        # Search both .yaml and .yml extensions
+        for extension in ["*.yaml", "*.yml"]:
+            for yaml_file in pipelines_dir.rglob(extension):
+                try:
+                    # Use parse_flowgroups_from_file to support multi-flowgroup files
+                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+                    for parsed_flowgroup in flowgroups:
+                        if (parsed_flowgroup.pipeline == flowgroup.pipeline and 
+                            parsed_flowgroup.flowgroup == flowgroup.flowgroup):
+                            return yaml_file
+                except Exception as e:
+                    self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
+
+        return None

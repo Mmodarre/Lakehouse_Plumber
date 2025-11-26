@@ -8,6 +8,7 @@ from pathlib import Path
 from ...models.config import FlowGroup, Action, ActionType
 from ...utils.substitution import EnhancedSubstitutionManager
 from ...utils.error_formatter import LHPError
+from ...utils.source_extractor import extract_source_views_from_action
 
 
 class CodeGenerator:
@@ -491,37 +492,12 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
         """
         Extract all source views from an action source configuration.
         
+        Delegates to utility function for consistency across codebase.
+        
         Args:
             source: Source configuration (string, list, or dict)
             
         Returns:
             List of source view names
         """
-        if isinstance(source, str):
-            return [source]
-        elif isinstance(source, list):
-            result = []
-            for item in source:
-                if isinstance(item, str):
-                    result.append(item)
-                elif isinstance(item, dict):
-                    database = item.get("database")
-                    table = item.get("table") or item.get("view") or item.get("name", "")
-                    if database and table:
-                        result.append(f"{database}.{table}")
-                    elif table:
-                        result.append(table)
-                else:
-                    result.append(str(item))
-            return result
-        elif isinstance(source, dict):
-            database = source.get("database")
-            table = source.get("table") or source.get("view") or source.get("name", "")
-            if database and table:
-                return [f"{database}.{table}"]
-            elif table:
-                return [table]
-            else:
-                return ["source"]  # Generic fallback
-        else:
-            return [str(source)]
+        return extract_source_views_from_action(source)
