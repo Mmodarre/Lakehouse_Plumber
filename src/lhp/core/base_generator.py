@@ -153,4 +153,10 @@ class BaseActionGenerator(ABC):
         for import_stmt in metadata_imports:
             self.add_import(import_stmt)
         
+        # If using ImportManager, also register expressions for semantic tracking
+        # Maintains consistency: files→_file_imports, expressions→_expression_imports
+        if self._use_import_manager and self._import_manager and metadata_columns:
+            for col_name, expression in metadata_columns.items():
+                self.add_imports_from_expression(expression)
+        
         return add_metadata, metadata_columns
