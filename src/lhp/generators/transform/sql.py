@@ -74,7 +74,7 @@ class SQLTransformGenerator(BaseActionGenerator):
             sql_content = action.sql.strip()
         elif action.sql_path:
             # Use common utility for file loading
-            project_root = context.get("project_root") if context else (spec_dir or Path.cwd())
+            project_root = context.get("project_root", Path.cwd()) if context else (spec_dir or Path.cwd())
             sql_content = load_external_file_text(
                 action.sql_path,
                 project_root,

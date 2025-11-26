@@ -75,7 +75,7 @@ class SQLLoadGenerator(BaseActionGenerator):
             sql_content = source_config["sql"]
         elif "sql_path" in source_config:
             # Use common utility for file loading
-            project_root = context.get("project_root") if context else (spec_dir or Path.cwd())
+            project_root = context.get("project_root", Path.cwd()) if context else (spec_dir or Path.cwd())
             sql_content = load_external_file_text(
                 source_config["sql_path"],
                 project_root,
