@@ -1,5 +1,6 @@
 """Tests for ParallelFlowgroupProcessor functionality."""
 
+import os
 import time
 from pathlib import Path
 import pytest
@@ -80,8 +81,18 @@ class TestParallelFlowgroupProcessor:
             assert result.success
             assert result.code.startswith("code for")
     
+    @pytest.mark.performance
+    @pytest.mark.skipif(
+        os.getenv('CI') is not None,
+        reason="Performance test with timing assertions is unreliable in CI environments"
+    )
     def test_parallel_processing_for_large_batches(self):
-        """Test that large batches use parallel processing."""
+        """Test that large batches use parallel processing.
+        
+        Note: This is a performance test that measures actual timing and is
+        skipped in CI due to resource constraints and variability in virtualized
+        environments. Run locally with: pytest -m performance
+        """
         processor = ParallelFlowgroupProcessor()
         
         flowgroups = [MockFlowGroup(f"fg{i}", "pipeline1") for i in range(10)]

@@ -37,6 +37,7 @@ exclude =
     .pytest_cache,
     migrations,
     Example_Projects,
+    docs_old,
     tests/fixtures,
     tests/unit/fixtures,
     tests/e2e/fixtures,
