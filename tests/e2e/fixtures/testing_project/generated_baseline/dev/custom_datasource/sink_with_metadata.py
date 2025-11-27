@@ -13,7 +13,7 @@ FLOWGROUP_ID = "sink_with_metadata"
 # ============================================================================
 # CUSTOM DATA SOURCE IMPLEMENTATIONS
 # ============================================================================
-# The following code was automatically copied from: /Users/mehdi.modarressi/Documents/Coding/Lakehouse_Plumber/tests/e2e/fixtures/testing_project/py_functions/pyspark_custom_data_sources/custom_sink_wildcard.py
+# The following code was automatically copied from: tests/e2e/fixtures/testing_project/py_functions/pyspark_custom_data_sources/custom_sink_wildcard.py
 # Used by action: unknown
 
 """Custom data sink with wildcard imports to test BaseSinkWriteGenerator operational metadata."""

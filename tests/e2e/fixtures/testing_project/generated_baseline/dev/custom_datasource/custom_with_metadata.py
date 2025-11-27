@@ -15,7 +15,7 @@ FLOWGROUP_ID = "custom_with_metadata"
 # ============================================================================
 # CUSTOM DATA SOURCE IMPLEMENTATIONS
 # ============================================================================
-# The following code was automatically copied from: /Users/mehdi.modarressi/Documents/Coding/Lakehouse_Plumber/tests/e2e/fixtures/testing_project/py_functions/pyspark_custom_data_sources/api_with_wildcard.py
+# The following code was automatically copied from: tests/e2e/fixtures/testing_project/py_functions/pyspark_custom_data_sources/api_with_wildcard.py
 # Used by action: unknown
 
 """Custom data source with wildcard imports to test operational metadata import consistency."""
