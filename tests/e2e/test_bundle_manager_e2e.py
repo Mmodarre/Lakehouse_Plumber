@@ -10,6 +10,7 @@ import shutil
 import os
 import hashlib
 import yaml
+import difflib
 from pathlib import Path
 from click.testing import CliRunner
 
@@ -553,6 +554,10 @@ resources:
         # Use dev-specific directory for baseline comparison
         dev_generated_dir = self.project_root / "generated" / "dev"
 
+        # Normalize paths in generated files before comparison
+        fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+        self._normalize_generated_file_paths(dev_generated_dir, fixture_path)
+
         # Compare generated files with baseline using hashes
         hash_differences = self._compare_directory_hashes(
             dev_generated_dir, baseline_dir)
@@ -613,6 +618,10 @@ resources:
             ), f"acmi_edw_raw directory should be generated: {generated_raw_dir}"
             assert baseline_raw_dir.exists(
             ), f"acmi_edw_raw baseline should exist: {baseline_raw_dir}"
+
+            # Normalize paths in generated files before comparison
+            fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+            self._normalize_generated_file_paths(dev_generated_dir, fixture_path)
 
             # Hash comparison for generated files
             hash_differences = self._compare_directory_hashes(
@@ -794,6 +803,39 @@ resources:
     # HELPER METHODS FOR NEW TESTS
     # ========================================================================
 
+    def _normalize_generated_file_paths(self, generated_dir: Path, fixture_path: Path):
+        """Normalize absolute paths in generated files to match baseline.
+        
+        Replaces temp directory paths with actual fixture paths in all generated files
+        to enable proper hash comparison with baseline.
+        
+        Args:
+            generated_dir: Directory containing generated files (in temp location)
+            fixture_path: Original fixture directory path to normalize to
+        """
+        # Get the temp project root path (where test copied fixture to)
+        temp_project_root = str(self.project_root)
+        fixture_root = str(fixture_path)
+        
+        # Resolve both with and without /private prefix (macOS compatibility)
+        temp_project_root_private = str(self.project_root.resolve())
+        fixture_root_no_private = fixture_root.replace('/private/', '/')
+        
+        # Process all .py files in generated directory
+        for py_file in generated_dir.rglob("*.py"):
+            try:
+                content = py_file.read_text()
+                # Replace temp paths with fixture paths (handle both /private and non-private)
+                normalized_content = content.replace(temp_project_root, fixture_root)
+                normalized_content = normalized_content.replace(temp_project_root_private, fixture_root)
+                # Also normalize /private/ prefix in fixture paths for macOS
+                normalized_content = normalized_content.replace(f"/private{fixture_root}", fixture_root_no_private)
+                if normalized_content != content:
+                    py_file.write_text(normalized_content)
+            except (OSError, UnicodeDecodeError) as e:
+                # Log but don't fail - let hash comparison catch it
+                print(f"Warning: Could not normalize paths in {py_file}: {e}")
+
     def _compare_directory_hashes(self, generated_dir: Path,
                                   baseline_dir: Path) -> list:
         """Compare directory contents using file hashes."""
@@ -835,8 +877,41 @@ resources:
                 baseline_hash = get_file_hash(baseline_files[file_path])
 
                 if generated_hash != baseline_hash:
-                    differences.append(
-                        f"Content differs (hash mismatch): {file_path}")
+                    # Compute unified diff to show what changed
+                    try:
+                        with open(generated_files[file_path], 'r') as f:
+                            generated_lines = f.readlines()
+                        with open(baseline_files[file_path], 'r') as f:
+                            baseline_lines = f.readlines()
+                        
+                        diff = list(difflib.unified_diff(
+                            baseline_lines,
+                            generated_lines,
+                            fromfile=f'baseline/{file_path}',
+                            tofile=f'generated/{file_path}',
+                            lineterm='',
+                            n=3  # 3 lines of context
+                        ))
+                        
+                        # Limit diff output to first 50 lines for readability
+                        diff_output = '\n'.join(diff[:50])
+                        if len(diff) > 50:
+                            diff_output += f"\n... ({len(diff) - 50} more lines omitted)"
+                        
+                        differences.append(
+                            f"Content differs (hash mismatch): {file_path}\n"
+                            f"    Generated: {generated_hash}\n"
+                            f"    Baseline:  {baseline_hash}\n"
+                            f"    Diff:\n{diff_output}"
+                        )
+                    except Exception as e:
+                        # Fallback if diff fails
+                        differences.append(
+                            f"Content differs (hash mismatch): {file_path}\n"
+                            f"    Generated: {generated_hash}\n"
+                            f"    Baseline:  {baseline_hash}\n"
+                            f"    (Could not compute diff: {e})"
+                        )
             except (OSError, IOError, UnicodeDecodeError) as e:
                 differences.append(f"Error comparing {file_path}: {e}")
 

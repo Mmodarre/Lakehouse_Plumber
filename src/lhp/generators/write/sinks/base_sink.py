@@ -75,6 +75,10 @@ class BaseSinkWriteGenerator(BaseActionGenerator):
         if flowgroup:
             operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
         
+        # Adapt expressions if import manager is available (for consistency with BaseActionGenerator)
+        if self._use_import_manager and self._import_manager:
+            operational_metadata.adapt_expressions_for_imports(self.get_import_manager())
+        
         # Resolve metadata selection
         selection = operational_metadata.resolve_metadata_selection(
             flowgroup, action, preset_config

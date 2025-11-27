@@ -1,0 +1,28 @@
+pipeline: custom_datasource
+flowgroup: custom_with_metadata
+#job_name: j_six
+operational_metadata:
+  - _processing_timestamp
+
+actions:
+  - name: load_from_custom_api
+    type: load
+    source:
+      type: custom_datasource
+      module_path: "py_functions/pyspark_custom_data_sources/api_with_wildcard.py"
+      custom_datasource_class: "APIWithWildcardSource"
+      options:
+        endpoint: "https://api.example.com"
+    target: v_custom_api_data
+    description: "Load data from custom API source with wildcard imports"
+    
+  - name: write_custom_api_data
+    type: write
+    source: v_custom_api_data
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "custom_api_data"
+      create_table: true
+    description: "Write custom API data to streaming table"
+

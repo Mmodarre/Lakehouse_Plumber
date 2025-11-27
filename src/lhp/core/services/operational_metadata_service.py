@@ -67,7 +67,8 @@ class OperationalMetadataService:
         flowgroup,
         preset_config: Dict[str, Any],
         project_config,
-        target_type: str = "view"
+        target_type: str = "view",
+        import_manager=None
     ) -> list:
         """Get required imports for operational metadata.
         
@@ -77,6 +78,7 @@ class OperationalMetadataService:
             preset_config: Preset configuration dictionary
             project_config: Project-level configuration
             target_type: Type of target (view, streaming_table, materialized_view)
+            import_manager: Optional ImportManager for advanced import handling
             
         Returns:
             List of import statements required for the metadata
@@ -91,6 +93,10 @@ class OperationalMetadataService:
         # Update context for substitutions
         if flowgroup:
             operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
+        
+        # Adapt expressions if import manager is available (for consistency with get_metadata_for_action)
+        if import_manager:
+            operational_metadata.adapt_expressions_for_imports(import_manager)
         
         # Resolve metadata selection
         selection = operational_metadata.resolve_metadata_selection(

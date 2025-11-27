@@ -148,7 +148,8 @@ class BaseActionGenerator(ABC):
             flowgroup=flowgroup,
             preset_config=preset_config,
             project_config=project_config,
-            target_type=target_type
+            target_type=target_type,
+            import_manager=self.get_import_manager()
         )
         for import_stmt in metadata_imports:
             self.add_import(import_stmt)
