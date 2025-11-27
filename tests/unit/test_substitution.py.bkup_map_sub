@@ -1,0 +1,473 @@
+"""Tests for substitution functionality of LakehousePlumber."""
+
+import pytest
+from pathlib import Path
+import tempfile
+from lhp.utils.substitution import SecretReference, EnhancedSubstitutionManager
+
+
+class TestEnhancedSubstitutionManager:
+    """Test the enhanced substitution manager."""
+    
+    def test_token_substitution(self):
+        """Test basic token substitution."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            config = """
+dev:
+  catalog: dev_catalog
+  database: dev_bronze
+global:
+  company: acme_corp
+"""
+            f.write(config)
+            f.flush()
+            
+            try:
+                mgr = EnhancedSubstitutionManager(Path(f.name), env="dev")
+                
+                # Test token replacement
+                result = mgr._replace_tokens_in_string("Use {catalog}.{database} from {company}")
+                assert result == "Use dev_catalog.dev_bronze from acme_corp"
+                
+                # Test dollar-sign tokens
+                result = mgr._replace_tokens_in_string("${catalog}_table")
+                assert result == "dev_catalog_table"
+            finally:
+                Path(f.name).unlink()
+    
+    def test_secret_substitution(self):
+        """Test secret reference handling."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            config = """
+dev:
+  database: dev_db
+secrets:
+  default_scope: dev_secrets
+  scopes:
+    db: dev_database_secrets
+    storage: dev_storage_secrets
+"""
+            f.write(config)
+            f.flush()
+            
+            try:
+                mgr = EnhancedSubstitutionManager(Path(f.name), env="dev")
+                
+                # Test secret with explicit scope
+                result = mgr._process_string("jdbc://${secret:db/host}:5432/${database}")
+                assert "__SECRET_dev_database_secrets_host__" in result
+                assert "dev_db" in result
+                
+                # Test secret with default scope
+                result = mgr._process_string("password=${secret:admin_password}")
+                assert "__SECRET_dev_secrets_admin_password__" in result
+                
+                # Verify secret references were collected
+                assert len(mgr.get_secret_references()) == 2
+            finally:
+                Path(f.name).unlink()
+    
+    def test_yaml_substitution(self):
+        """Test substitution in YAML data structures."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"env": "dev", "catalog": "main"}
+        
+        data = {
+            "database": "{env}_bronze",
+            "table": "{catalog}.users",
+            "config": {
+                "path": "/mnt/{env}/data",
+                "secret": "${secret:storage/key}"
+            }
+        }
+        
+        result = mgr.substitute_yaml(data)
+        
+        assert result["database"] == "dev_bronze"
+        assert result["table"] == "main.users"
+        assert result["config"]["path"] == "/mnt/dev/data"
+        assert "__SECRET_" in result["config"]["secret"]
+    
+    def test_secret_placeholder_replacement(self):
+        """Test replacing secret placeholders with valid f-string Python code."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.secret_references.add(SecretReference("prod_secrets", "db_password"))
+        
+        # Test case: secret embedded in a connection string (should become f-string)
+        code = 'connection_string = "user=admin;password=__SECRET_prod_secrets_db_password__;timeout=30"'
+        
+        # Use SecretCodeGenerator to convert to valid Python
+        from lhp.utils.secret_code_generator import SecretCodeGenerator
+        generator = SecretCodeGenerator()
+        result = generator.generate_python_code(code, mgr.get_secret_references())
+        
+        # Expected: f-string with dbutils call
+        expected = 'connection_string = f"user=admin;password={dbutils.secrets.get(scope=\'prod_secrets\', key=\'db_password\')};timeout=30"'
+        assert result == expected
+
+
+class TestUnresolvedTokenValidation:
+    """Test validation of unresolved tokens."""
+    
+    def test_validation_detects_simple_unresolved_token(self):
+        """Detect simple unresolved token like {missing_token}."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"existing": "value"}
+        
+        data = {"path": "s3://bucket/{missing_token}/data"}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert len(errors) == 1
+        assert "missing_token" in errors[0]
+        assert "config.path" in errors[0]
+    
+    def test_validation_detects_map_lookup_unresolved(self):
+        """Detect unresolved map lookup like {map[key]}."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"existing": "value"}
+        
+        data = {"path": "s3://bucket/{raw_paths[customers]}/data"}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert len(errors) == 1
+        assert "raw_paths[customers]" in errors[0]
+    
+    def test_validation_ignores_dbutils_expressions(self):
+        """Don't flag dbutils.secrets.get() as unresolved."""
+        mgr = EnhancedSubstitutionManager()
+        
+        # After secret substitution, these are valid Python code
+        data = {"password": "f\"{dbutils.secrets.get(scope='scope', key='key')}\""}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert len(errors) == 0
+    
+    def test_validation_in_nested_structures(self):
+        """Detect unresolved tokens in nested dicts and lists."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {}
+        
+        data = {
+            "config": {
+                "paths": [
+                    "s3://{bucket1}/data",
+                    "s3://{bucket2}/logs"
+                ],
+                "settings": {
+                    "host": "{db_host}",
+                    "port": 5432
+                }
+            }
+        }
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert len(errors) == 3
+        assert any("bucket1" in e for e in errors)
+        assert any("bucket2" in e for e in errors)
+        assert any("db_host" in e for e in errors)
+    
+    def test_validation_error_includes_path(self):
+        """Error messages include the config path for debugging."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {}
+        
+        data = {"database": {"connection": {"host": "{db_host}"}}}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        assert "config.database.connection.host" in errors[0]
+    
+    def test_validation_with_multiple_tokens_in_one_string(self):
+        """Detect multiple unresolved tokens in single string."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {}
+        
+        data = {"url": "jdbc://{host}:{port}/{database}"}
+        errors = mgr.validate_no_unresolved_tokens(data)
+        
+        # Should find all three tokens
+        assert len(errors) == 1  # One error for the path
+        assert "host" in errors[0]
+        assert "port" in errors[0]
+        assert "database" in errors[0]
+    
+    def test_circular_reference_detection(self):
+        """Detect circular references in token expansion."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            config = """
+dev:
+  token_a: "{token_b}"
+  token_b: "{token_c}"
+  token_c: "{token_a}"
+"""
+            f.write(config)
+            f.flush()
+            
+            try:
+                # Should complete without infinite loop
+                mgr = EnhancedSubstitutionManager(Path(f.name), env="dev")
+                
+                # Tokens should still be unresolved after max iterations
+                assert "{token_b}" in mgr.mappings["token_a"] or \
+                       "{token_c}" in mgr.mappings["token_a"]
+            finally:
+                Path(f.name).unlink()
+    
+    def test_circular_reference_caught_by_validation(self):
+        """Circular references should be caught by unresolved token validation."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "a": "{b}",
+            "b": "{a}"
+        }
+        
+        # Run recursive expansion
+        mgr._expand_recursive_tokens()
+        
+        # Tokens should still be unresolved
+        data = {"value": "{a}"}
+        substituted = mgr.substitute_yaml(data)
+        errors = mgr.validate_no_unresolved_tokens(substituted)
+        
+        assert len(errors) > 0
+        assert "a" in errors[0] or "b" in errors[0]
+
+
+class TestMapLookupRegex:
+    """Test regex patterns match map lookup syntax."""
+    
+    def test_matches_simple_token(self):
+        """Regex should match simple tokens."""
+        import re
+        pattern = re.compile(r"\{([\w\-]+(?:\[[\w\-]+\])*)\}")
+        
+        assert pattern.search("{catalog}")
+        assert pattern.search("{bronze_schema}")
+        assert pattern.search("{bronze-schema}")  # Hyphenated
+    
+    def test_matches_map_lookup(self):
+        """Regex should match single-level map lookup."""
+        import re
+        pattern = re.compile(r"\{([\w\-]+(?:\[[\w\-]+\])*)\}")
+        
+        assert pattern.search("{paths[customers]}")
+        assert pattern.search("{raw_paths[customer_data]}")
+        assert pattern.search("{raw-paths[customer-data]}")  # Hyphenated names
+    
+    def test_matches_nested_lookup(self):
+        """Regex should match nested map lookups."""
+        import re
+        pattern = re.compile(r"\{([\w\-]+(?:\[[\w\-]+\])*)\}")
+        
+        assert pattern.search("{config[jdbc][host]}")
+        assert pattern.search("{db_config[mysql_dev][host_primary]}")
+        assert pattern.search("{db-config[mysql-dev][host-primary]}")  # Hyphenated
+
+
+class TestMapLookupResolution:
+    """Test _resolve_map_lookup() method."""
+    
+    def test_single_level(self):
+        """Resolve {map[key]} to value."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"paths": {"customers": "raw/customers", "orders": "raw/orders"}}
+        
+        result = mgr._resolve_map_lookup("paths[customers]")
+        assert result == "raw/customers"
+    
+    def test_nested_lookup(self):
+        """Resolve {map[key1][key2]} to nested value."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "config": {"jdbc": {"host": "mysql.com", "port": 3306}}
+        }
+        
+        result = mgr._resolve_map_lookup("config[jdbc][host]")
+        assert result == "mysql.com"
+    
+    def test_nonexistent_map(self):
+        """Return unresolved for missing map."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {}
+        
+        result = mgr._resolve_map_lookup("missing[key]")
+        assert result == "{missing[key]}"
+    
+    def test_nonexistent_key(self):
+        """Return unresolved for missing key."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"paths": {"customers": "raw"}}
+        
+        result = mgr._resolve_map_lookup("paths[invalid]")
+        assert result == "{paths[invalid]}"
+    
+    def test_indexing_nondict(self):
+        """Return unresolved when indexing non-dict."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"catalog": "main"}
+        
+        result = mgr._resolve_map_lookup("catalog[key]")
+        assert result == "{catalog[key]}"
+    
+    def test_numeric_to_string(self):
+        """Convert numeric values to string."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"config": {"port": 3306}}
+        
+        result = mgr._resolve_map_lookup("config[port]")
+        assert result == "3306"
+    
+    def test_boolean_to_string(self):
+        """Convert boolean values to string."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"flags": {"enabled": True}}
+        
+        result = mgr._resolve_map_lookup("flags[enabled]")
+        assert result == "True"
+    
+    def test_dict_value_unresolved(self):
+        """Cannot resolve to dict - must specify leaf key."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"config": {"jdbc": {"host": "localhost"}}}
+        
+        result = mgr._resolve_map_lookup("config[jdbc]")
+        assert result == "{config[jdbc]}"
+    
+    def test_empty_brackets_raises_error(self):
+        """Raise error for empty brackets."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {"paths": {"customers": "raw"}}
+        
+        with pytest.raises(ValueError, match="empty brackets"):
+            mgr._resolve_map_lookup("paths[]")
+    
+    def test_nested_empty_brackets_raises_error(self):
+        """Raise error for empty nested brackets."""
+        mgr = EnhancedSubstitutionManager()
+        
+        with pytest.raises(ValueError, match="empty brackets"):
+            mgr._resolve_map_lookup("paths[key][]")
+    
+    def test_missing_root_raises_error(self):
+        """Raise error when root token is missing."""
+        mgr = EnhancedSubstitutionManager()
+        
+        with pytest.raises(ValueError, match="missing root token"):
+            mgr._resolve_map_lookup("[key]")
+
+
+class TestMapLookupInStringSubstitution:
+    """Test map lookups work in full string substitution."""
+    
+    def test_map_lookup_in_string(self):
+        """Map lookup works in string substitution."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "bucket": "my-bucket",
+            "paths": {"customers": "raw"}
+        }
+        
+        result = mgr._replace_tokens_in_string("s3://{bucket}/{paths[customers]}")
+        assert result == "s3://my-bucket/raw"
+    
+    def test_mixed_tokens_and_lookups(self):
+        """Mix simple tokens and map lookups."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "base": "s3://b",
+            "paths": {"src": "raw"},
+            "file": "data"
+        }
+        
+        result = mgr._replace_tokens_in_string("{base}/{paths[src]}/{file}")
+        assert result == "s3://b/raw/data"
+    
+    def test_nested_map_lookup_in_string(self):
+        """Nested map lookups work in strings."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "config": {"jdbc": {"host": "db.company.com"}}
+        }
+        
+        result = mgr._replace_tokens_in_string("jdbc:mysql://{config[jdbc][host]}:3306")
+        assert result == "jdbc:mysql://db.company.com:3306"
+
+
+class TestCircularReferenceDetection:
+    """Test circular reference detection in map values."""
+    
+    def test_circular_reference_detected(self):
+        """Detect circular references in map values."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "paths": {
+                "a": "{paths[b]}/data",
+                "b": "{paths[a]}/data"
+            }
+        }
+        
+        with pytest.raises(ValueError, match="Circular reference"):
+            mgr._detect_circular_references()
+    
+    def test_self_reference_detected(self):
+        """Detect self-reference in map value."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "paths": {
+                "a": "{paths[a]}/data"
+            }
+        }
+        
+        with pytest.raises(ValueError, match="Circular reference"):
+            mgr._detect_circular_references()
+    
+    def test_no_circular_reference_allowed(self):
+        """No circular reference - should pass."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "base": "s3://bucket",
+            "paths": {
+                "customers": "{base}/raw/customers",
+                "orders": "{base}/raw/orders"
+            }
+        }
+        
+        # Should not raise
+        mgr._detect_circular_references()
+
+
+class TestDictValueExpansion:
+    """Test recursive expansion works with dict values."""
+    
+    def test_expand_simple_token_in_dict(self):
+        """Expand simple tokens in dict values."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "base": "s3://bucket",
+            "paths": {"customers": "{base}/raw"}
+        }
+        
+        mgr._expand_recursive_tokens()
+        
+        assert mgr.mappings["paths"]["customers"] == "s3://bucket/raw"
+    
+    def test_expand_nested_dict_values(self):
+        """Expand tokens in nested dict values."""
+        mgr = EnhancedSubstitutionManager()
+        mgr.mappings = {
+            "bucket": "my-bucket",
+            "base": "s3://{bucket}",
+            "paths": {
+                "bronze": "{base}/bronze",
+                "silver": "{base}/silver"
+            }
+        }
+        
+        mgr._expand_recursive_tokens()
+        
+        assert mgr.mappings["base"] == "s3://my-bucket"
+        assert mgr.mappings["paths"]["bronze"] == "s3://my-bucket/bronze"
+        assert mgr.mappings["paths"]["silver"] == "s3://my-bucket/silver"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"]) 

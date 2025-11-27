@@ -30,7 +30,7 @@ class StateManager:
     """
 
     def __init__(self, project_root: Path, state_file_name: str = ".lhp_state.json", 
-                 discoverer=None):
+                 discoverer=None, yaml_parser: Optional['YAMLParser'] = None):
         """
         Initialize state manager with service composition.
 
@@ -38,6 +38,7 @@ class StateManager:
             project_root: Root directory of the LakehousePlumber project
             state_file_name: Name of the state file (default: .lhp_state.json)
             discoverer: Optional FlowgroupDiscoverer for file discovery (fixes circular import from Phase 2)
+            yaml_parser: Optional YAML parser for shared caching
         """
         self.project_root = project_root
         self.state_file = project_root / state_file_name
@@ -46,7 +47,7 @@ class StateManager:
         
         # Initialize services with service composition
         self.persistence = StatePersistence(project_root, state_file_name)
-        self.analyzer = StateAnalyzer(project_root)
+        self.analyzer = StateAnalyzer(project_root, yaml_parser)
         self.cleaner = StateCleanupService(project_root)
         self.tracker = DependencyTracker(project_root)
         
@@ -86,7 +87,7 @@ class StateManager:
 
     def track_generated_file(self, generated_path: Path, source_yaml: Path,
                            environment: str, pipeline: str, flowgroup: str, 
-                           generation_context: str = "") -> None:
+                           generation_context: str = "", used_substitution_keys: Optional[List[str]] = None) -> None:
         """
         Track a generated file in the state with dependency resolution.
         
@@ -97,9 +98,11 @@ class StateManager:
             pipeline: Pipeline name
             flowgroup: FlowGroup name
             generation_context: Optional context string for parameter-sensitive hashing
+            used_substitution_keys: Optional list of substitution keys used during generation
         """
         self.tracker.track_generated_file(
-            self._state, generated_path, source_yaml, environment, pipeline, flowgroup, generation_context
+            self._state, generated_path, source_yaml, environment, pipeline, flowgroup, 
+            generation_context, used_substitution_keys
         )
 
     def remove_generated_file(self, generated_path: Path, environment: str) -> bool:
@@ -149,6 +152,21 @@ class StateManager:
             Dictionary mapping file paths to FileState objects
         """
         return self.tracker.get_generated_files(self._state, environment)
+    
+    def get_file_state(self, environment: str, file_path: str) -> Optional[FileState]:
+        """
+        Get file state for a specific generated file.
+        
+        Args:
+            environment: Environment name
+            file_path: Path to the generated file (relative to project root)
+            
+        Returns:
+            FileState object if file is tracked, None otherwise
+        """
+        if environment not in self._state.environments:
+            return None
+        return self._state.environments[environment].get(file_path)
 
     def get_files_by_source(self, source_yaml: Path, environment: str) -> List[FileState]:
         """

@@ -17,19 +17,23 @@ class StateAnalyzer:
     file staleness analysis, statistics generation, and smart generation planning.
     """
     
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, yaml_parser: Optional['YAMLParser'] = None):
         """
         Initialize state analyzer.
         
         Args:
             project_root: Root directory of the LakehousePlumber project
+            yaml_parser: Optional YAML parser for shared caching
         """
+        from ...parsers.yaml_parser import YAMLParser
+        
         self.project_root = project_root
+        self.yaml_parser = yaml_parser or YAMLParser()
         self.logger = logging.getLogger(__name__)
         
         # Initialize dependency resolver (reused across all operations)
         from ..state_dependency_resolver import StateDependencyResolver
-        self.dependency_resolver = StateDependencyResolver(project_root)
+        self.dependency_resolver = StateDependencyResolver(project_root, self.yaml_parser)
         
         # Initialize dependency tracker (reused across all operations)
         from .dependency_tracker import DependencyTracker
@@ -306,10 +310,8 @@ class StateAnalyzer:
             # Parse each YAML file to check its pipeline field (supports multi-flowgroup files)
             for yaml_file in current_yamls:
                 try:
-                    from ...parsers.yaml_parser import YAMLParser
-                    yaml_parser = YAMLParser()
                     # Parse all flowgroups from file (supports multi-document and array syntax)
-                    flowgroups = yaml_parser.parse_flowgroups_from_file(yaml_file)
+                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
                     
                     # Check if ANY flowgroup in this file matches the requested pipeline
                     for fg in flowgroups:
@@ -373,10 +375,8 @@ class StateAnalyzer:
             # Parse each YAML file to check its pipeline field (supports multi-flowgroup files)
             for yaml_file in current_yamls:
                 try:
-                    from ...parsers.yaml_parser import YAMLParser
-                    yaml_parser = YAMLParser()
                     # Parse all flowgroups from file (supports multi-document and array syntax)
-                    flowgroups = yaml_parser.parse_flowgroups_from_file(yaml_file)
+                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
                     
                     # Check if ANY flowgroup in this file matches the requested pipeline
                     for fg in flowgroups:

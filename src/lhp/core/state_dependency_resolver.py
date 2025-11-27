@@ -8,7 +8,7 @@ from ..models.config import FlowGroup
 from ..parsers.yaml_parser import YAMLParser
 from ..presets.preset_manager import PresetManager
 from ..core.template_engine import TemplateEngine
-from .state_manager import DependencyInfo
+from .state_models import DependencyInfo
 
 
 class StateDependencyResolver:
@@ -18,15 +18,16 @@ class StateDependencyResolver:
     while always recalculating checksums (cheap validation) to preserve change detection.
     """
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, yaml_parser: Optional[YAMLParser] = None):
         """Initialize dependency resolver.
         
         Args:
             project_root: Root directory of the LakehousePlumber project
+            yaml_parser: Optional YAML parser for shared caching
         """
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
-        self.yaml_parser = YAMLParser()
+        self.yaml_parser = yaml_parser or YAMLParser()
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
         
@@ -135,36 +136,66 @@ class StateDependencyResolver:
         }
         self._dependency_paths_cache[cache_key] = cached_paths
     
-    def _recalculate_dependency_checksums(self, cached_paths: Dict[str, Tuple[str, str]]) -> Dict[str, DependencyInfo]:
-        """Recalculate current checksums for cached dependency paths.
+    def _recalculate_dependency_checksums(
+        self, 
+        cached_paths: Dict[str, Tuple[str, str]],
+        stored_deps: Optional[Dict[str, DependencyInfo]] = None
+    ) -> Dict[str, DependencyInfo]:
+        """Recalculate current checksums for cached dependency paths, using mtime as optimization hint.
         
         Args:
             cached_paths: Dict mapping paths to (type, last_modified) tuples
+            stored_deps: Previously stored dependencies with checksums and mtimes
             
         Returns:
             Dict mapping paths to DependencyInfo with CURRENT checksums
         """
         dependencies = {}
+        stored_deps = stored_deps or {}
+        
         for path, (dep_type, _) in cached_paths.items():
             file_path = self.project_root / path
-            if file_path.exists():
-                # Always recalculate current checksum and modification time
-                current_checksum = self._calculate_checksum(file_path)
-                current_modified = self._get_file_modification_time(file_path)
-                dependencies[path] = DependencyInfo(
-                    path=path,
-                    checksum=current_checksum,  # ALWAYS FRESH
-                    type=dep_type,
-                    last_modified=current_modified  # ALWAYS FRESH
-                )
-            else:
+            
+            if not file_path.exists():
                 # File no longer exists - include with empty checksum
                 dependencies[path] = DependencyInfo(
                     path=path,
                     checksum="",
                     type=dep_type,
-                    last_modified=""
+                    last_modified="",
+                    mtime=None
                 )
+                continue
+            
+            current_mtime = file_path.stat().st_mtime
+            stored_dep = stored_deps.get(path)
+            
+            # Fast path: if mtime matches, trust stored checksum
+            if (stored_dep and stored_dep.mtime and
+                abs(current_mtime - stored_dep.mtime) < 0.001):  # Float comparison tolerance
+                dependencies[path] = DependencyInfo(
+                    path=path,
+                    checksum=stored_dep.checksum,  # Reuse stored
+                    type=dep_type,
+                    last_modified=self._get_file_modification_time(file_path),
+                    mtime=current_mtime
+                )
+                self.logger.debug(f"mtime cache hit for {path}")
+                continue
+            
+            # Slow path: recalculate checksum
+            current_checksum = self._calculate_checksum(file_path)
+            current_modified = self._get_file_modification_time(file_path)
+            
+            dependencies[path] = DependencyInfo(
+                path=path,
+                checksum=current_checksum,
+                type=dep_type,
+                last_modified=current_modified,
+                mtime=current_mtime
+            )
+            self.logger.debug(f"mtime cache miss for {path}")
+        
         return dependencies
     
     def clear_cache(self) -> None:

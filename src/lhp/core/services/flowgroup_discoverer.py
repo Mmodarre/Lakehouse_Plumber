@@ -16,17 +16,19 @@ class FlowgroupDiscoverer:
     and provides flowgroup access methods for the orchestration layer.
     """
     
-    def __init__(self, project_root: Path, config_loader=None):
+    def __init__(self, project_root: Path, config_loader=None, 
+                 yaml_parser: Optional[YAMLParser] = None):
         """
         Initialize flowgroup discoverer.
         
         Args:
             project_root: Root directory of the LakehousePlumber project
             config_loader: Optional config loader for include patterns (injected to avoid circular deps)
+            yaml_parser: Optional YAML parser (uses default if None)
         """
         self.project_root = project_root
         self.config_loader = config_loader
-        self.yaml_parser = YAMLParser()
+        self.yaml_parser = yaml_parser or YAMLParser()
         self.logger = logging.getLogger(__name__)
         self._project_config = None
         

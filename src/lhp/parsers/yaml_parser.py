@@ -1,7 +1,8 @@
 import logging
+import threading
 import yaml
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 from ..models.config import FlowGroup, Template, Preset
 from ..utils.error_formatter import LHPError
 from ..utils.yaml_loader import load_yaml_file
@@ -195,3 +196,98 @@ class YAMLParser:
                 except Exception as e:
                     self.logger.warning(f"Could not parse preset {yaml_file}: {e}")
         return presets
+
+
+class CachingYAMLParser:
+    """Thread-safe caching wrapper for YAMLParser.
+    
+    Uses file path + modification time as cache key to automatically
+    invalidate cache when files change.
+    """
+    
+    def __init__(self, base_parser: Optional['YAMLParser'] = None, 
+                 max_cache_size: int = 500) -> None:
+        """Initialize caching parser.
+        
+        Args:
+            base_parser: Underlying YAMLParser instance (creates new if None)
+            max_cache_size: Maximum number of cached entries
+        """
+        self._parser: YAMLParser = base_parser or YAMLParser()
+        self._cache: Dict[Tuple[str, float], List[FlowGroup]] = {}
+        self._max_cache_size: int = max_cache_size
+        self._lock: threading.RLock = threading.RLock()
+        self._hits: int = 0
+        self._misses: int = 0
+
+    def parse_flowgroups_from_file(self, path: Path) -> List[FlowGroup]:
+        """Parse flowgroups with caching based on file mtime.
+        
+        Args:
+            path: Path to YAML file
+            
+        Returns:
+            List of FlowGroup objects
+        """
+        resolved_path: Path = path.resolve()
+        try:
+            mtime: float = resolved_path.stat().st_mtime
+        except OSError:
+            # File doesn't exist or can't be accessed - don't cache
+            return self._parser.parse_flowgroups_from_file(path)
+
+        cache_key: Tuple[str, float] = (str(resolved_path), mtime)
+
+        with self._lock:
+            if cache_key in self._cache:
+                self._hits += 1
+                return self._cache[cache_key]
+
+            self._misses += 1
+
+            # Evict oldest entries if cache is full
+            if len(self._cache) >= self._max_cache_size:
+                # Remove ~10% of entries (FIFO approximation)
+                keys_to_remove = list(self._cache.keys())[:self._max_cache_size // 10]
+                for key in keys_to_remove:
+                    del self._cache[key]
+
+            # Parse and cache
+            result: List[FlowGroup] = self._parser.parse_flowgroups_from_file(path)
+            self._cache[cache_key] = result
+            return result
+
+    def clear_cache(self) -> None:
+        """Clear all cached entries."""
+        with self._lock:
+            self._cache.clear()
+            self._hits = 0
+            self._misses = 0
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get cache performance statistics.
+        
+        Returns:
+            Dictionary with cache hits, misses, hit rate, and size
+        """
+        with self._lock:
+            total: int = self._hits + self._misses
+            hit_rate: float = (self._hits / total * 100) if total > 0 else 0
+            return {
+                "hits": self._hits,
+                "misses": self._misses,
+                "total": total,
+                "hit_rate_percent": round(hit_rate, 1),
+                "cache_size": len(self._cache)
+            }
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate other methods to base parser.
+        
+        Args:
+            name: Attribute name
+            
+        Returns:
+            Attribute from base parser
+        """
+        return getattr(self._parser, name)

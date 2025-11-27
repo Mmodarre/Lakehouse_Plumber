@@ -13,9 +13,10 @@ from .services.flowgroup_processor import FlowgroupProcessor
 from .services.code_generator import CodeGenerator
 from .services.pipeline_validator import PipelineValidator
 from .services.generation_planning_service import GenerationPlanningService
+from .parallel_processor import ParallelFlowgroupProcessor, FlowgroupResult
 
 # Component imports (for service initialization)
-from ..parsers.yaml_parser import YAMLParser
+from ..parsers.yaml_parser import YAMLParser, CachingYAMLParser
 from ..presets.preset_manager import PresetManager
 from .template_engine import TemplateEngine
 from .project_config_loader import ProjectConfigLoader
@@ -106,6 +107,7 @@ class ActionOrchestrator:
 
         # Initialize core components (still needed for services)
         self.yaml_parser = YAMLParser()
+        self._cached_yaml_parser = CachingYAMLParser(self.yaml_parser)
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
         self.project_config_loader = ProjectConfigLoader(project_root)
@@ -120,7 +122,11 @@ class ActionOrchestrator:
         self.config_validator = ConfigValidator(project_root, self.project_config)
 
         # Initialize services with component dependencies
-        self.discoverer = FlowgroupDiscoverer(project_root, self.project_config_loader)
+        self.discoverer = FlowgroupDiscoverer(
+            project_root, 
+            self.project_config_loader,
+            yaml_parser=self._cached_yaml_parser
+        )
         self.processor = FlowgroupProcessor(
             self.template_engine, self.preset_manager,
             self.config_validator, self.secret_validator
@@ -136,6 +142,7 @@ class ActionOrchestrator:
             project_root, self.discoverer
         )
         self.command_registry = CommandRegistry()
+        self.parallel_processor = ParallelFlowgroupProcessor()
 
         # Enforce version requirements if specified and enabled
         if self.enforce_version:
@@ -529,7 +536,7 @@ class ActionOrchestrator:
                     if state_manager and source_yaml:
                         self._track_generated_file(
                             flowgroup, output_file, source_yaml, env, 
-                            pipeline_name, include_tests, state_manager
+                            pipeline_name, include_tests, state_manager, substitution_mgr
                         )
 
             except Exception as e:
@@ -645,8 +652,30 @@ class ActionOrchestrator:
         substitution_mgr = self.dependencies.create_substitution_manager(substitution_file, env)
         smart_writer = self.dependencies.create_file_writer()
 
-        # 3. Process all flowgroups (using helper)
-        processed_flowgroups = self._process_flowgroups_batch(flowgroups, substitution_mgr)
+        # 3. Check if parallel processing should be used
+        use_parallel = len(flowgroups) >= 4 and pipeline_output_dir is not None
+        
+        if use_parallel:
+            self.logger.debug(f"Using parallel processing for {len(flowgroups)} flowgroups")
+            # Process flowgroups and generate in parallel
+            results = self._generate_flowgroups_parallel(
+                flowgroups, env, pipeline_field, substitution_mgr,
+                pipeline_output_dir, include_tests
+            )
+            
+            # Extract processed flowgroups for validation (already processed in parallel workers)
+            processed_flowgroups = []
+            for result in results:
+                if not result.success:
+                    raise ValueError(f"Failed to generate {result.flowgroup_name}: {result.error}")
+                if result.processed_flowgroup:
+                    processed_flowgroups.append(result.processed_flowgroup)
+                else:
+                    # Should not happen with our implementation, but handle gracefully
+                    self.logger.warning(f"Missing processed flowgroup for {result.flowgroup_name}")
+        else:
+            # Sequential processing
+            processed_flowgroups = self._process_flowgroups_batch(flowgroups, substitution_mgr)
 
         # 4. Validate table creation rules
         try:
@@ -659,48 +688,79 @@ class ActionOrchestrator:
 
         # 5. Generate code for each flowgroup
         generated_files = {}
-        for processed_flowgroup in processed_flowgroups:
-            self.logger.info(f"Generating code for flowgroup: {processed_flowgroup.flowgroup}")
-            
-            try:
-                source_yaml = self._find_source_yaml_for_flowgroup(processed_flowgroup)
-                
-                code = self.generate_flowgroup_code(
-                    processed_flowgroup, substitution_mgr, pipeline_output_dir, 
-                    state_manager, source_yaml, env, include_tests
-                )
-                formatted_code = format_code(code)
-                filename = f"{processed_flowgroup.flowgroup}.py"
+        
+        if use_parallel:
+            # Use parallel results
+            for result in results:
+                filename = f"{result.flowgroup_name}.py"
                 
                 # Handle empty content
-                if not formatted_code.strip():
-                    self._handle_empty_flowgroup(processed_flowgroup, pipeline_output_dir, filename, state_manager, env)
+                if not result.formatted_code.strip():
+                    flowgroup = next((fg for fg in processed_flowgroups if fg.flowgroup == result.flowgroup_name), None)
+                    if flowgroup:
+                        self._handle_empty_flowgroup(flowgroup, pipeline_output_dir, filename, state_manager, env)
                     continue
                 
                 # Store and write generated code
-                generated_files[filename] = formatted_code
+                generated_files[filename] = result.formatted_code
                 if pipeline_output_dir:
                     output_file = pipeline_output_dir / filename
-                    smart_writer.write_if_changed(output_file, formatted_code)
+                    smart_writer.write_if_changed(output_file, result.formatted_code)
                     
-                    # Track in state manager (using helper)
-                    if state_manager and source_yaml:
-                        self._track_generated_file(
-                            processed_flowgroup, output_file, source_yaml, env,
-                            pipeline_field, include_tests, state_manager
-                        )
+                    # Track in state manager
+                    if state_manager and result.source_yaml:
+                        processed_flowgroup = next((fg for fg in processed_flowgroups if fg.flowgroup == result.flowgroup_name), None)
+                        if processed_flowgroup:
+                            self._track_generated_file(
+                                processed_flowgroup, output_file, result.source_yaml, env,
+                                pipeline_field, include_tests, state_manager, substitution_mgr
+                            )
                     
                     self.logger.info(f"Generated: {output_file}")
-                else:
-                    self.logger.info(f"Would generate: {filename}")
+        else:
+            # Sequential generation
+            for processed_flowgroup in processed_flowgroups:
+                self.logger.info(f"Generating code for flowgroup: {processed_flowgroup.flowgroup}")
+                
+                try:
+                    source_yaml = self._find_source_yaml_for_flowgroup(processed_flowgroup)
                     
-            except Exception as e:
-                from ..utils.error_formatter import LHPError
-                if isinstance(e, LHPError):
-                    self.logger.debug(f"Error generating flowgroup {processed_flowgroup.flowgroup}")
-                else:
-                    self.logger.error(f"Error generating flowgroup {processed_flowgroup.flowgroup}: {e}")
-                raise
+                    code = self.generate_flowgroup_code(
+                        processed_flowgroup, substitution_mgr, pipeline_output_dir, 
+                        state_manager, source_yaml, env, include_tests
+                    )
+                    formatted_code = format_code(code)
+                    filename = f"{processed_flowgroup.flowgroup}.py"
+                    
+                    # Handle empty content
+                    if not formatted_code.strip():
+                        self._handle_empty_flowgroup(processed_flowgroup, pipeline_output_dir, filename, state_manager, env)
+                        continue
+                    
+                    # Store and write generated code
+                    generated_files[filename] = formatted_code
+                    if pipeline_output_dir:
+                        output_file = pipeline_output_dir / filename
+                        smart_writer.write_if_changed(output_file, formatted_code)
+                        
+                        # Track in state manager (using helper)
+                        if state_manager and source_yaml:
+                            self._track_generated_file(
+                                processed_flowgroup, output_file, source_yaml, env,
+                                pipeline_field, include_tests, state_manager, substitution_mgr
+                            )
+                        
+                        self.logger.info(f"Generated: {output_file}")
+                    else:
+                        self.logger.info(f"Would generate: {filename}")
+                        
+                except Exception as e:
+                    from ..utils.error_formatter import LHPError
+                    if isinstance(e, LHPError):
+                        self.logger.debug(f"Error generating flowgroup {processed_flowgroup.flowgroup}")
+                    else:
+                        self.logger.error(f"Error generating flowgroup {processed_flowgroup.flowgroup}: {e}")
+                    raise
 
         # 6. Finalize
         if state_manager:
@@ -756,7 +816,7 @@ class ActionOrchestrator:
         """
         return self.discoverer.find_source_yaml_for_flowgroup(flowgroup)
 
-    def process_flowgroup(self, flowgroup: FlowGroup, 
+    def process_flowgroup(self, flowgroup: FlowGroup,
                          substitution_mgr: EnhancedSubstitutionManager) -> FlowGroup:
         """
         Process flowgroup: expand templates, apply presets, apply substitutions.
@@ -768,7 +828,21 @@ class ActionOrchestrator:
         Returns:
             Processed flowgroup
         """
-        return self.processor.process_flowgroup(flowgroup, substitution_mgr)
+        # Set tracking context for granular dependency tracking
+        # Tracking is an optimization feature - gracefully skip if parameters are invalid
+        # to allow service-level validation to proceed. Production always provides valid
+        # objects; this guard is for edge case testing scenarios.
+        if substitution_mgr and flowgroup and hasattr(flowgroup, 'flowgroup'):
+            substitution_mgr.set_tracking_context(flowgroup.flowgroup)
+        
+        try:
+            processed = self.processor.process_flowgroup(flowgroup, substitution_mgr)
+            return processed
+        finally:
+            # Clear tracking context - guard against None substitution_mgr
+            # Tracking cleanup is optional; if tracking wasn't set up, clearing is a no-op
+            if substitution_mgr:
+                substitution_mgr.clear_tracking_context()
 
     # _apply_preset_config and _deep_merge methods moved to FlowgroupProcessor service
 
@@ -992,7 +1066,8 @@ class ActionOrchestrator:
         env: str,
         pipeline_identifier: str,
         include_tests: bool,
-        state_manager
+        state_manager,
+        substitution_mgr: Optional[EnhancedSubstitutionManager] = None
     ) -> None:
         """Track generated file in state manager.
         
@@ -1004,11 +1079,17 @@ class ActionOrchestrator:
             pipeline_identifier: Pipeline name or field
             include_tests: Whether test actions are included
             state_manager: State manager instance
+            substitution_mgr: Optional substitution manager for key tracking
         """
         has_test_actions = any(
             action.type == ActionType.TEST for action in flowgroup.actions
         )
         generation_context = f"include_tests:{include_tests}" if has_test_actions else ""
+        
+        # Get used substitution keys for granular tracking
+        used_keys: Optional[List[str]] = None
+        if substitution_mgr:
+            used_keys = list(substitution_mgr.get_accessed_keys(flowgroup.flowgroup))
         
         state_manager.track_generated_file(
             generated_path=output_file,
@@ -1017,6 +1098,71 @@ class ActionOrchestrator:
             pipeline=pipeline_identifier,
             flowgroup=flowgroup.flowgroup,
             generation_context=generation_context,
+            used_substitution_keys=used_keys
+        )
+    
+    def _generate_flowgroups_parallel(
+        self,
+        flowgroups: List[FlowGroup],
+        env: str,
+        pipeline_field: str,
+        substitution_mgr: EnhancedSubstitutionManager,
+        output_dir: Optional[Path],
+        include_tests: bool
+    ) -> List[FlowgroupResult]:
+        """Generate flowgroups in parallel.
+        
+        Args:
+            flowgroups: List of flowgroups to generate
+            env: Environment name
+            pipeline_field: Pipeline field value
+            substitution_mgr: Substitution manager
+            output_dir: Output directory
+            include_tests: Whether to include test actions
+            
+        Returns:
+            List of FlowgroupResult objects
+        """
+        def process_single(fg: FlowGroup) -> FlowgroupResult:
+            """Process a single flowgroup (runs in worker thread)."""
+            try:
+                # Process flowgroup
+                processed = self.process_flowgroup(fg, substitution_mgr)
+                source_yaml = self._find_source_yaml_for_flowgroup(fg)
+                
+                # Generate code
+                code = self.generate_flowgroup_code(
+                    processed, substitution_mgr, output_dir, None,
+                    source_yaml, env, include_tests
+                )
+                
+                # Format code
+                formatted = format_code(code)
+                
+                return FlowgroupResult(
+                    flowgroup_name=fg.flowgroup,
+                    pipeline=fg.pipeline,
+                    code=code,
+                    formatted_code=formatted,
+                    source_yaml=source_yaml,
+                    success=True,
+                    processed_flowgroup=processed  # Include processed flowgroup to avoid re-processing
+                )
+            except Exception as e:
+                self.logger.error(f"Error generating flowgroup {fg.flowgroup}: {e}")
+                return FlowgroupResult(
+                    flowgroup_name=fg.flowgroup,
+                    pipeline=fg.pipeline,
+                    code="",
+                    formatted_code="",
+                    source_yaml=None,
+                    success=False,
+                    error=str(e)
+                )
+        
+        # Process in parallel
+        return self.parallel_processor.process_flowgroups_parallel(
+            flowgroups, process_single
         )
 
     def group_write_actions_by_target(self, write_actions: List[Action]) -> Dict[str, List[Action]]:
