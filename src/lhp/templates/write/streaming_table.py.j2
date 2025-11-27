@@ -173,8 +173,8 @@ dp.create_streaming_table(
 {% endif %}
 def {{ action_meta.flow_name }}():
     """{{ action_meta.description }}"""
-    {% if action_meta.once %}
-    # One-time flow (backfill)
+    {% if readMode == "batch" %}
+    # Batch mode
     df = spark.read.table("{{ action_meta.source_view }}")
     {% else %}
     # Streaming flow
@@ -210,8 +210,8 @@ def {{ action_meta.flow_name }}():
 {% endif %}
 def {{ flow_name }}{% if source_views|length > 1 %}_{{ loop.index }}{% endif %}():
     """{{ description }} from {{ source_view }}"""
-    {% if once %}
-    # One-time flow (backfill)
+    {% if readMode == "batch" %}
+    # Batch mode
     df = spark.read.table("{{ source_view }}")
     {% else %}
     # Streaming flow

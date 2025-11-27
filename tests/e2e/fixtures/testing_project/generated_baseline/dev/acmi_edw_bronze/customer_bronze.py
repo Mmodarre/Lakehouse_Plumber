@@ -132,8 +132,8 @@ dp.create_streaming_table(
 )
 def f_customer_migration():
     """Append flow to acme_edw_dev.edw_bronze.customer"""
-    # One-time flow (backfill)
-    df = spark.read.table("v_customer_migration_cleaned")
+    # Streaming flow
+    df = spark.readStream.table("v_customer_migration_cleaned")
 
     return df
 
