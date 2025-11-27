@@ -4,7 +4,6 @@ from abc import abstractmethod
 from typing import Dict, Any, List
 from ....core.base_generator import BaseActionGenerator
 from ....models.config import Action
-from ....utils.operational_metadata import OperationalMetadata
 
 
 class BaseSinkWriteGenerator(BaseActionGenerator):
@@ -45,52 +44,4 @@ class BaseSinkWriteGenerator(BaseActionGenerator):
             if "view" in source:
                 return [source["view"]]
         return []
-    
-    def _get_operational_metadata(
-        self, 
-        action: Action, 
-        context: Dict[str, Any]
-    ) -> tuple:
-        """Get operational metadata configuration.
-        
-        Args:
-            action: Action configuration
-            context: Context dictionary with flowgroup and project info
-            
-        Returns:
-            Tuple of (add_metadata: bool, metadata_columns: dict)
-        """
-        flowgroup = context.get("flowgroup")
-        preset_config = context.get("preset_config", {})
-        project_config = context.get("project_config")
-        
-        # Initialize operational metadata handler
-        operational_metadata = OperationalMetadata(
-            project_config=(
-                project_config.operational_metadata if project_config else None
-            )
-        )
-        
-        # Update context for substitutions
-        if flowgroup:
-            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
-        
-        # Adapt expressions if import manager is available (for consistency with BaseActionGenerator)
-        if self._use_import_manager and self._import_manager:
-            operational_metadata.adapt_expressions_for_imports(self.get_import_manager())
-        
-        # Resolve metadata selection
-        selection = operational_metadata.resolve_metadata_selection(
-            flowgroup, action, preset_config
-        )
-        metadata_columns = operational_metadata.get_selected_columns(
-            selection or {}, "view"
-        )
-        
-        # Get required imports for metadata
-        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
-        for import_stmt in metadata_imports:
-            self.add_import(import_stmt)
-        
-        return bool(metadata_columns), metadata_columns
 

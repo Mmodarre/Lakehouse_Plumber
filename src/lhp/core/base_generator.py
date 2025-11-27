@@ -131,9 +131,9 @@ class BaseActionGenerator(ABC):
         preset_config = context.get("preset_config", {})
         project_config = context.get("project_config")
         
-        # Use the service for centralized handling
+        # Use the unified service method (single call, single instance)
         service = OperationalMetadataService()
-        add_metadata, metadata_columns = service.get_metadata_for_action(
+        add_metadata, metadata_columns, metadata_imports = service.get_metadata_and_imports(
             action=action,
             flowgroup=flowgroup,
             preset_config=preset_config,
@@ -142,15 +142,7 @@ class BaseActionGenerator(ABC):
             import_manager=self.get_import_manager()
         )
         
-        # Get required imports and add them
-        metadata_imports = service.get_required_imports(
-            action=action,
-            flowgroup=flowgroup,
-            preset_config=preset_config,
-            project_config=project_config,
-            target_type=target_type,
-            import_manager=self.get_import_manager()
-        )
+        # Add required imports
         for import_stmt in metadata_imports:
             self.add_import(import_stmt)
         
