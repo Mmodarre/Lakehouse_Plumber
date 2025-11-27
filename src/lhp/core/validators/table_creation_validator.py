@@ -71,6 +71,31 @@ class TableCreationValidator:
                 # Create a proper LHPError for multiple table creators
                 from ...utils.error_formatter import LHPError, ErrorCategory
 
+                # Build example configuration string
+                db_name = table_name.split('.')[0]
+                table_part = table_name.split('.')[1]
+                example_text = (
+                    "Fix by updating your configuration:\n\n"
+                    "# Table Creator (keeps create_table: true)\n"
+                    f"- name: {creators[0]['action']}\n"
+                    "  type: write\n"
+                    "  source: v_source_data\n"
+                    "  write_target:\n"
+                    "    type: streaming_table\n"
+                    f'    database: "{db_name}"\n'
+                    f'    table: "{table_part}"\n'
+                    "    create_table: true    # ← Only ONE action should have this\n\n"
+                    "# Table Users (set create_table: false)\n"
+                    f"- name: {creators[1]['action']}\n"
+                    "  type: write\n"
+                    "  source: v_other_data\n"
+                    "  write_target:\n"
+                    "    type: streaming_table\n"
+                    f'    database: "{db_name}"\n'
+                    f'    table: "{table_part}"\n'
+                    "    create_table: false   # ← All others should have this"
+                )
+
                 raise LHPError(
                     category=ErrorCategory.CONFIG,
                     code_number="004",
@@ -82,27 +107,7 @@ class TableCreationValidator:
                         "Use the Append Flow API for actions that don't create the table",
                         "Consider using different table names if actions need separate tables",
                     ],
-                    example=f"""Fix by updating your configuration:
-
-# Table Creator (keeps create_table: true)
-- name: {creators[0]['action']}
-  type: write
-  source: v_source_data
-  write_target:
-    type: streaming_table
-    database: "{table_name.split('.')[0]}"
-    table: "{table_name.split('.')[1]}"
-    create_table: true    # ← Only ONE action should have this
-
-# Table Users (set create_table: false)
-- name: {creators[1]['action']}
-  type: write
-  source: v_other_data
-  write_target:
-    type: streaming_table
-    database: "{table_name.split('.')[0]}"
-    table: "{table_name.split('.')[1]}"
-    create_table: false   # ← All others should have this""",
+                    example=example_text,
                     context={
                         "Table Name": table_name,
                         "Conflicting Actions": creator_names,
@@ -159,4 +164,3 @@ class TableCreationValidator:
             if mode in ["cdc", "snapshot_cdc"]:
                 return True
             return action.write_target.create_table
-
