@@ -804,32 +804,44 @@ resources:
     # ========================================================================
 
     def _normalize_generated_file_paths(self, generated_dir: Path, fixture_path: Path):
-        """Normalize absolute paths in generated files to match baseline.
+        """Normalize absolute paths in generated files to relative paths.
         
-        Replaces temp directory paths with actual fixture paths in all generated files
-        to enable proper hash comparison with baseline.
+        Converts any absolute paths to the fixture directory (whether in temp or actual location)
+        into relative paths for environment-independent comparison.
         
         Args:
             generated_dir: Directory containing generated files (in temp location)
             fixture_path: Original fixture directory path to normalize to
         """
-        # Get the temp project root path (where test copied fixture to)
-        temp_project_root = str(self.project_root)
-        fixture_root = str(fixture_path)
+        import re
         
-        # Resolve both with and without /private prefix (macOS compatibility)
-        temp_project_root_private = str(self.project_root.resolve())
-        fixture_root_no_private = fixture_root.replace('/private/', '/')
+        # Get the temp project root path (where test copied fixture to)
+        temp_project_root = str(self.project_root.resolve())
+        fixture_root = str(fixture_path.resolve())
+        
+        # Create regex patterns that match absolute paths to test fixture content
+        # Pattern 1: Matches temp directory paths (e.g., /tmp/xyz/test_project/py_functions/...)
+        temp_pattern = re.compile(
+            r'(/[^\s:]+)?/test_project/'
+        )
+        
+        # Pattern 2: Matches real fixture paths (e.g., /Users/.../tests/e2e/fixtures/testing_project/...)
+        fixture_pattern = re.compile(
+            r'(/[^\s:]+)?/tests/e2e/fixtures/testing_project/'
+        )
+        
+        # Replacement string - use relative path from repository root
+        replacement = 'tests/e2e/fixtures/testing_project/'
         
         # Process all .py files in generated directory
         for py_file in generated_dir.rglob("*.py"):
             try:
                 content = py_file.read_text()
-                # Replace temp paths with fixture paths (handle both /private and non-private)
-                normalized_content = content.replace(temp_project_root, fixture_root)
-                normalized_content = normalized_content.replace(temp_project_root_private, fixture_root)
-                # Also normalize /private/ prefix in fixture paths for macOS
-                normalized_content = normalized_content.replace(f"/private{fixture_root}", fixture_root_no_private)
+                
+                # Normalize temp paths first, then real fixture paths
+                normalized_content = temp_pattern.sub(replacement, content)
+                normalized_content = fixture_pattern.sub(replacement, normalized_content)
+                
                 if normalized_content != content:
                     py_file.write_text(normalized_content)
             except (OSError, UnicodeDecodeError) as e:
