@@ -17,6 +17,7 @@ from click.testing import CliRunner
 from lhp.cli.main import cli
 
 
+@pytest.mark.e2e
 class TestBundleManagerE2E:
     """End-to-end tests for Bundle Manager conservative logic scenarios."""
 

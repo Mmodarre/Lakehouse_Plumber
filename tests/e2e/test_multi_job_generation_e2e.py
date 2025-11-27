@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 
+@pytest.mark.e2e
 class TestMultiJobE2E:
     """End-to-end tests for complete multi-job workflow."""
     
@@ -37,6 +38,7 @@ class TestMultiJobE2E:
         pass
 
 
+@pytest.mark.e2e
 class TestCLIIntegration:
     """Test CLI integration with multi-job generation."""
     
