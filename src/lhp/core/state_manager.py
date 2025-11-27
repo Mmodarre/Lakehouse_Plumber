@@ -1,10 +1,12 @@
 """State management for LakehousePlumber generated files."""
 
+from __future__ import annotations
+
 import json
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, Set, List, Optional, Any
+from typing import Dict, Set, List, Optional, Any, TYPE_CHECKING
 from datetime import datetime
 from dataclasses import dataclass, asdict
 from collections import defaultdict
@@ -19,6 +21,9 @@ from .state.dependency_tracker import DependencyTracker
 # Import state models from separate module to avoid circular imports
 from .state_models import DependencyInfo, GlobalDependencies, FileState, ProjectState
 
+if TYPE_CHECKING:
+    from ..parsers.yaml_parser import YAMLParser
+
 
 class StateManager:
     """
@@ -30,7 +35,7 @@ class StateManager:
     """
 
     def __init__(self, project_root: Path, state_file_name: str = ".lhp_state.json", 
-                 discoverer=None, yaml_parser: Optional['YAMLParser'] = None):
+                 discoverer=None, yaml_parser: Optional[YAMLParser] = None):
         """
         Initialize state manager with service composition.
 

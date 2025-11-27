@@ -38,6 +38,7 @@ exclude =
     migrations,
     Example_Projects,
     tests/fixtures,
+    tests/unit/fixtures,
     tests/e2e/fixtures,
 per-file-ignores =
     # __init__.py files can have unused imports

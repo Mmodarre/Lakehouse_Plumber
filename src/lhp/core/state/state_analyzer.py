@@ -1,12 +1,17 @@
 """State analysis service for LakehousePlumber."""
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import Dict, List, Set, Any, Optional
+from typing import Dict, List, Set, Any, Optional, TYPE_CHECKING
 from collections import defaultdict
 
 # Import state models from separate module
 from ..state_models import FileState, ProjectState, DependencyInfo
+
+if TYPE_CHECKING:
+    from ...parsers.yaml_parser import YAMLParser
 
 
 class StateAnalyzer:
@@ -17,7 +22,7 @@ class StateAnalyzer:
     file staleness analysis, statistics generation, and smart generation planning.
     """
     
-    def __init__(self, project_root: Path, yaml_parser: Optional['YAMLParser'] = None):
+    def __init__(self, project_root: Path, yaml_parser: Optional[YAMLParser] = None):
         """
         Initialize state analyzer.
         
@@ -25,10 +30,10 @@ class StateAnalyzer:
             project_root: Root directory of the LakehousePlumber project
             yaml_parser: Optional YAML parser for shared caching
         """
-        from ...parsers.yaml_parser import YAMLParser
+        from ...parsers.yaml_parser import YAMLParser as YAMLParserClass
         
         self.project_root = project_root
-        self.yaml_parser = yaml_parser or YAMLParser()
+        self.yaml_parser = yaml_parser or YAMLParserClass()
         self.logger = logging.getLogger(__name__)
         
         # Initialize dependency resolver (reused across all operations)
