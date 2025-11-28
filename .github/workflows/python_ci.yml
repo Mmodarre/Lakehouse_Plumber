@@ -65,9 +65,9 @@ jobs:
         # Run tests with coverage if tests directory exists
         if [ -d "tests" ]; then
           # Run unit tests sequentially (fast anyway)
-          pytest tests/ --ignore=tests/e2e --cov --cov-branch
+          pytest tests/ --ignore=tests/e2e --cov --cov-branch --junitxml=junit-unit.xml -o junit_family=legacy
           # Run e2e tests in parallel with auto-detected CPU count
-          pytest tests/e2e -n auto --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit.xml -o junit_family=legacy
+          pytest tests/e2e -n auto --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit-e2e.xml -o junit_family=legacy
         else
           echo "No tests directory found, skipping tests"
         fi

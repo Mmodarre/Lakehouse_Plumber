@@ -1400,7 +1400,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         
         # Should delegate to generator service with all correct arguments
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests, None
         )
 
     def test_generate_flowgroup_code_fails_propagates_exception(self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr):
@@ -1423,7 +1423,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         
         # Should still call generator service
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests, None
         )
 
     def test_substitution_mgr_none_still_delegates_to_services(self, orchestrator_processing, mock_flowgroup):
@@ -1449,7 +1449,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         # Should still delegate to services with None as parameter
         orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, None)
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, None, None, None, None, None, False
+            mock_flowgroup, None, None, None, None, None, False, None
         )
 
     def test_include_tests_true_passes_to_code_generator(self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr):
@@ -1474,7 +1474,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         
         # Should pass include_tests=True to generator service
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, True
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, True, None
         )
 
     def test_include_tests_false_passes_to_code_generator(self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr):
@@ -1499,7 +1499,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         
         # Should pass include_tests=False to generator service
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, False
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, False, None
         )
 
 
@@ -1579,7 +1579,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
         # Should have attempted to call both services despite failures
         orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, mock_substitution_mgr)
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, None, None, None, None, False
+            mock_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
         )
 
     def test_logging_operations_fail_does_not_break_main_functionality(self, orchestrator_error_handling, mock_flowgroup):
@@ -1610,7 +1610,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Services should still be called successfully
             orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, mock_substitution_mgr)
             orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
-                mock_flowgroup, mock_substitution_mgr, None, None, None, None, False
+                mock_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
             )
 
     def test_invalid_parameters_passed_delegates_to_services(self, orchestrator_error_handling):
@@ -1778,7 +1778,7 @@ class TestActionOrchestratorIntegrationScenarios:
         # But generator fails due to dependency conflict
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, mock_substitution_mgr)
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            processed_flowgroup, mock_substitution_mgr, None, None, None, None, False
+            processed_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
         )
 
     def test_service_coordination_with_complex_data_flow(self, orchestrator_integration):
@@ -1820,7 +1820,7 @@ class TestActionOrchestratorIntegrationScenarios:
         
         # Verify proper data flow: original -> processor -> generator
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(original_flowgroup, mock_substitution_mgr)
-        orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(transformed_flowgroup, mock_substitution_mgr, None, None, None, None, False)
+        orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(transformed_flowgroup, mock_substitution_mgr, None, None, None, None, False, None)
 
     def test_service_integration_error_propagation_and_recovery(self, orchestrator_integration):
         """Test service integration shows proper error propagation and recovery patterns."""
@@ -1890,5 +1890,5 @@ class TestActionOrchestratorIntegrationScenarios:
         # Verify parameter passing
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, mock_substitution_mgr)
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests, None
         )

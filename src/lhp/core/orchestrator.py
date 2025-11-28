@@ -719,6 +719,10 @@ class ActionOrchestrator:
                     self.logger.info(f"Generated: {output_file}")
         else:
             # Sequential generation
+            # Create Python file copier for consistent conflict detection
+            from ..generators.transform.python_file_copier import PythonFileCopier
+            python_copier = PythonFileCopier()
+            
             for processed_flowgroup in processed_flowgroups:
                 self.logger.info(f"Generating code for flowgroup: {processed_flowgroup.flowgroup}")
                 
@@ -727,7 +731,7 @@ class ActionOrchestrator:
                     
                     code = self.generate_flowgroup_code(
                         processed_flowgroup, substitution_mgr, pipeline_output_dir, 
-                        state_manager, source_yaml, env, include_tests
+                        state_manager, source_yaml, env, include_tests, python_copier
                     )
                     formatted_code = format_code(code)
                     filename = f"{processed_flowgroup.flowgroup}.py"
@@ -849,7 +853,7 @@ class ActionOrchestrator:
     def generate_flowgroup_code(self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager,
                                output_dir: Optional[Path] = None, state_manager=None,
                                source_yaml: Optional[Path] = None, env: Optional[str] = None,
-                               include_tests: bool = False) -> str:
+                               include_tests: bool = False, python_file_copier=None) -> str:
         """
         Generate complete Python code for a flowgroup.
         
@@ -861,13 +865,14 @@ class ActionOrchestrator:
             source_yaml: Source YAML path for file tracking
             env: Environment name for file tracking
             include_tests: Whether to include test actions
+            python_file_copier: Thread-safe Python file copier (for parallel mode)
             
         Returns:
             Complete Python code for the flowgroup
         """
         return self.generator.generate_flowgroup_code(
             flowgroup, substitution_mgr, output_dir, state_manager, 
-            source_yaml, env, include_tests
+            source_yaml, env, include_tests, python_file_copier
         )
 
     def determine_action_subtype(self, action: Action) -> str:
@@ -1110,7 +1115,7 @@ class ActionOrchestrator:
         output_dir: Optional[Path],
         include_tests: bool
     ) -> List[FlowgroupResult]:
-        """Generate flowgroups in parallel.
+        """Generate flowgroups in parallel with thread-safe Python file handling.
         
         Args:
             flowgroups: List of flowgroups to generate
@@ -1123,6 +1128,10 @@ class ActionOrchestrator:
         Returns:
             List of FlowgroupResult objects
         """
+        # Create thread-safe Python file copier for this pipeline
+        from ..generators.transform.python_file_copier import PythonFileCopier
+        python_copier = PythonFileCopier()
+        
         def process_single(fg: FlowGroup) -> FlowgroupResult:
             """Process a single flowgroup (runs in worker thread)."""
             try:
@@ -1130,10 +1139,10 @@ class ActionOrchestrator:
                 processed = self.process_flowgroup(fg, substitution_mgr)
                 source_yaml = self._find_source_yaml_for_flowgroup(fg)
                 
-                # Generate code
+                # Generate code with shared Python file copier
                 code = self.generate_flowgroup_code(
                     processed, substitution_mgr, output_dir, None,
-                    source_yaml, env, include_tests
+                    source_yaml, env, include_tests, python_copier
                 )
                 
                 # Format code
