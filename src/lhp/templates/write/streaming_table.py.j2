@@ -173,7 +173,7 @@ dp.create_streaming_table(
 {% endif %}
 def {{ action_meta.flow_name }}():
     """{{ action_meta.description }}"""
-    {% if readMode == "batch" %}
+    {% if action_meta.readMode == "batch" or (action_meta.readMode is none and readMode == "batch") %}
     # Batch mode
     df = spark.read.table("{{ action_meta.source_view }}")
     {% else %}

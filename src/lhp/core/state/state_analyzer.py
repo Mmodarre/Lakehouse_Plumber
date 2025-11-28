@@ -163,14 +163,15 @@ class StateAnalyzer:
             True if file dependencies changed, False otherwise
         """
         try:
-            # Get current file dependencies
+            # Get current file dependencies with mtime optimization
             source_path = Path(file_state.source_yaml)
+            stored_deps = file_state.file_dependencies or {}
             current_deps = self.dependency_resolver.resolve_file_dependencies(
-                source_path, environment, file_state.pipeline, file_state.flowgroup
+                source_path, environment, file_state.pipeline, file_state.flowgroup,
+                stored_deps=stored_deps
             )
             
             # Compare with stored dependencies
-            stored_deps = file_state.file_dependencies or {}
             
             # Check if dependency sets are different
             if set(current_deps.keys()) != set(stored_deps.keys()):
@@ -600,12 +601,13 @@ class StateAnalyzer:
             else:
                 changes.append(f"Source YAML missing: {file_state.source_yaml}")
             
-            # Check file-specific dependencies
+            # Check file-specific dependencies with mtime optimization
             source_yaml_path = Path(file_state.source_yaml)
-            current_deps = self.dependency_resolver.resolve_file_dependencies(
-                source_yaml_path, environment, file_state.pipeline, file_state.flowgroup
-            )
             stored_deps = file_state.file_dependencies or {}
+            current_deps = self.dependency_resolver.resolve_file_dependencies(
+                source_yaml_path, environment, file_state.pipeline, file_state.flowgroup,
+                stored_deps=stored_deps
+            )
             
             # Check for added dependencies
             for dep_path in current_deps.keys() - stored_deps.keys():

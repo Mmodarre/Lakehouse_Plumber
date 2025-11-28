@@ -188,6 +188,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                             "action_name": f"{action.name}_{i+1}",
                             "source_view": source_view,
                             "once": action.once or False,
+                            "readMode": action.readMode,  # Preserve readMode
                             "flow_name": flow_name,
                             "description": action.description
                             or f"Append flow to {full_table_name} from {source_view}",
@@ -202,6 +203,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                         "action_name": action.name,
                         "source_view": source_views[0] if source_views else "",
                         "once": action.once or False,
+                        "readMode": action.readMode,  # Preserve readMode
                         "flow_name": flow_name,
                         "description": action.description
                         or f"Append flow to {full_table_name}",

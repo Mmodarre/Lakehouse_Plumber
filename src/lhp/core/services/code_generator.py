@@ -441,6 +441,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                         "action_name": f"{action.name}_{i+1}",
                         "source_view": source_view,
                         "once": action.once or False,
+                        "readMode": action.readMode,  # Preserve individual readMode
                         "flow_name": flow_name,
                         "description": action.description or f"Append flow to {target_table} from {source_view}",
                     })
@@ -451,6 +452,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                     "action_name": action.name,
                     "source_view": source_view,
                     "once": action.once or False,
+                    "readMode": action.readMode,  # Preserve individual readMode
                     "flow_name": base_flow_name,
                     "description": action.description or f"Append flow to {target_table}",
                 })

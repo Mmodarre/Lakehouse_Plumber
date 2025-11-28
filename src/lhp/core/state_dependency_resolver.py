@@ -37,20 +37,23 @@ class StateDependencyResolver:
         self._dependency_paths_cache: Dict[Tuple[str, str, str, str, str], Dict[str, Tuple[str, str]]] = {}
 
     def resolve_file_dependencies(self, yaml_file: Path, environment: str, 
-                                  pipeline: str = None, flowgroup_name: str = None) -> Dict[str, DependencyInfo]:
+                                  pipeline: str = None, flowgroup_name: str = None,
+                                  stored_deps: Optional[Dict[str, DependencyInfo]] = None) -> Dict[str, DependencyInfo]:
         """Resolve all dependencies for a YAML file with safe caching.
         
         Supports multi-flowgroup files. If pipeline and flowgroup_name are provided,
         resolves dependencies for that specific flowgroup only.
         
         Caches dependency discovery (which files are referenced) but always recalculates
-        checksums to preserve change detection accuracy.
+        checksums to preserve change detection accuracy. If stored_deps is provided,
+        uses mtime optimization to avoid recalculating unchanged checksums.
         
         Args:
             yaml_file: Path to the YAML file (relative to project_root)
             environment: Environment name for dependency resolution
             pipeline: Optional pipeline name to identify specific flowgroup in multi-flowgroup files
             flowgroup_name: Optional flowgroup name to identify specific flowgroup in multi-flowgroup files
+            stored_deps: Previously stored dependencies for mtime optimization
             
         Returns:
             Dictionary mapping dependency paths to DependencyInfo objects with CURRENT checksums
@@ -71,7 +74,7 @@ class StateDependencyResolver:
             if cache_key in self._dependency_paths_cache:
                 # Cache hit: reuse discovered paths but recalculate checksums
                 cached_paths = self._dependency_paths_cache[cache_key]
-                dependencies = self._recalculate_dependency_checksums(cached_paths)
+                dependencies = self._recalculate_dependency_checksums(cached_paths, stored_deps)
                 self.logger.debug(f"Cache hit: Reused {len(dependencies)} dependency paths for {yaml_file}")
             else:
                 # Cache miss: full discovery and resolution
