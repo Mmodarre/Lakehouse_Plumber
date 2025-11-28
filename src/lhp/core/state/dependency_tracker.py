@@ -3,7 +3,7 @@
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime
 
 # Import state models from separate module
@@ -33,7 +33,8 @@ class DependencyTracker:
         self.dependency_resolver = StateDependencyResolver(project_root)
     
     def track_generated_file(self, state: ProjectState, generated_path: Path, source_yaml: Path,
-                           environment: str, pipeline: str, flowgroup: str, generation_context: str = "") -> None:
+                           environment: str, pipeline: str, flowgroup: str, generation_context: str = "",
+                           used_substitution_keys: Optional[List[str]] = None) -> None:
         """
         Track a generated file in the state with dependency resolution.
         
@@ -44,6 +45,8 @@ class DependencyTracker:
             environment: Environment name
             pipeline: Pipeline name
             flowgroup: FlowGroup name
+            generation_context: Optional context string for parameter-sensitive hashing
+            used_substitution_keys: Optional list of substitution keys used during generation
         """
         # Calculate relative paths from project root
         try:
@@ -88,6 +91,7 @@ class DependencyTracker:
             flowgroup=flowgroup,
             file_dependencies=file_dependencies,
             file_composite_checksum=composite_checksum,
+            used_substitution_keys=used_substitution_keys
         )
 
         # Ensure environment exists in state

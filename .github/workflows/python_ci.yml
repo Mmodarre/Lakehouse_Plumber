@@ -55,17 +55,19 @@ jobs:
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics 
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics \
-          --exclude=.git,__pycache__,docs/source/conf.py,old,build,dist,*.egg-info
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics 
       shell: bash
           
     - name: Test with pytest
       run: |
         # Run tests with coverage if tests directory exists
         if [ -d "tests" ]; then
-          pytest --cov --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit.xml -o junit_family=legacy
+          # Run unit tests sequentially (fast anyway)
+          pytest tests/ --ignore=tests/e2e --cov --cov-branch --junitxml=junit-unit.xml -o junit_family=legacy
+          # Run e2e tests in parallel with auto-detected CPU count
+          pytest tests/e2e -n auto --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit-e2e.xml -o junit_family=legacy
         else
           echo "No tests directory found, skipping tests"
         fi

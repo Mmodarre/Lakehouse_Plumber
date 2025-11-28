@@ -195,55 +195,8 @@
                                     "additionalProperties": true
                                 },
                                 "schema": {
-                                    "oneOf": [
-                                        {
-                                            "type": "string",
-                                            "description": "Schema definition as string (DDL, path, or template parameter with {{ }})"
-                                        },
-                                        {
-                                            "type": "object",
-                                            "description": "Inline schema transform configuration (legacy format)",
-                                            "properties": {
-                                                "enforcement": {
-                                                    "oneOf": [
-                                                        {
-                                                            "type": "string",
-                                                            "enum": ["strict", "permissive"]
-                                                        },
-                                                        {
-                                                            "type": "string",
-                                                            "pattern": ".*\\{\\{.*\\}\\}.*"
-                                                        }
-                                                    ],
-                                                    "description": "Schema enforcement mode: 'strict' drops unmapped columns, 'permissive' keeps all columns (can use template parameters with {{ }})"
-                                                },
-                                                "column_mapping": {
-                                                    "oneOf": [
-                                                        {
-                                                            "type": "object",
-                                                            "additionalProperties": {"type": "string"}
-                                                        },
-                                                        {"type": "string"}
-                                                    ],
-                                                    "description": "Column renaming: old_name -> new_name (can use template parameters with {{ }})"
-                                                },
-                                                "type_casting": {
-                                                    "oneOf": [
-                                                        {
-                                                            "type": "object",
-                                                            "additionalProperties": {"type": "string"}
-                                                        },
-                                                        {"type": "string"}
-                                                    ],
-                                                    "description": "Type casting: column_name -> type (can use template parameters with {{ }})"
-                                                },
-                                                "view": {
-                                                    "type": "string",
-                                                    "description": "Source view name (can use template parameters with {{ }})"
-                                                }
-                                            }
-                                        }
-                                    ]
+                                    "type": "string",
+                                    "description": "Schema definition as string (DDL, path, or template parameter with {{ }}). Note: For schema transforms, use 'schema_inline' or 'schema_file' at action level instead."
                                 },
                                 "schema_file": {
                                     "type": "string",
@@ -375,13 +328,7 @@
                     "description": "Path to external schema file for schema transforms (can use template parameters with {{ }})"
                 },
                 "enforcement": {
-                    "oneOf": [
-                        {
-                            "type": "string",
-                            "enum": ["strict", "permissive"]
-                        },
-                        {"type": "string"}
-                    ],
+                    "type": "string",
                     "description": "Schema enforcement mode for schema transforms: 'strict' or 'permissive' (can use template parameters with {{ }}). Default: permissive"
                 },
                 "once": {

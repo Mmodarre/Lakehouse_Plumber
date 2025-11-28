@@ -392,6 +392,10 @@ def clean_data(df, spark, parameters):
             
             output_dir = tmpdir_path / "generated"
             
+            # Create Python file copier for conflict detection (simulates orchestrator behavior)
+            from lhp.generators.transform.python_file_copier import PythonFileCopier
+            python_copier = PythonFileCopier()
+            
             # Generate first action - should use base name
             generator1 = PythonTransformGenerator()
             action1 = Action(
@@ -411,7 +415,8 @@ def clean_data(df, spark, parameters):
                     pipeline="test_pipeline",  # Same pipeline
                     flowgroup="flowgroup1",
                     actions=[]
-                )
+                ),
+                "python_file_copier": python_copier
             }
             
             code1 = generator1.generate(action1, context1)
@@ -439,7 +444,8 @@ def clean_data(df, spark, parameters):
                     pipeline="test_pipeline",  # Same pipeline - should cause conflict
                     flowgroup="flowgroup2",
                     actions=[]
-                )
+                ),
+                "python_file_copier": python_copier
             }
             
             # This should raise a conflict error since cleaner.py already exists from different source
@@ -587,6 +593,10 @@ def process_customers(df, spark, parameters):
                 ("validators/email_validator.py", "validate_email", "email_validator"),
             ]
             
+            # Create Python file copier for conflict detection
+            from lhp.generators.transform.python_file_copier import PythonFileCopier
+            python_copier = PythonFileCopier()
+            
             generator = PythonTransformGenerator()
             output_dir = tmpdir_path / "generated"
             
@@ -623,7 +633,8 @@ def helper_function():
                         pipeline="test_pipeline",
                         flowgroup=f"flowgroup_{i}",
                         actions=[]
-                    )
+                    ),
+                    "python_file_copier": python_copier
                 }
                 
                 code = generator.generate(action, context)
@@ -676,7 +687,8 @@ def process(df, spark, parameters):
                     pipeline="test_pipeline",
                     flowgroup="conflict_flowgroup_1",
                     actions=[]
-                )
+                ),
+                "python_file_copier": python_copier
             }
             
             code_conflict1 = generator.generate(action_conflict1, context_conflict1)
@@ -699,7 +711,8 @@ def process(df, spark, parameters):
                     pipeline="test_pipeline",  # Same pipeline - should cause conflict
                     flowgroup="conflict_flowgroup_2",
                     actions=[]
-                )
+                ),
+                "python_file_copier": python_copier
             }
             
             # This should raise a conflict error since processor.py already exists from different source
@@ -1072,6 +1085,10 @@ def transform_customers(df, spark, parameters):
     return df.withColumn("processed", "utils_version")
 """)
             
+            # Create Python file copier for conflict detection
+            from lhp.generators.transform.python_file_copier import PythonFileCopier
+            python_copier = PythonFileCopier()
+            
             generator = PythonTransformGenerator()
             output_dir = tmpdir_path / "generated"
             
@@ -1096,7 +1113,8 @@ def transform_customers(df, spark, parameters):
                     pipeline="comprehensive_test_pipeline",
                     flowgroup="customer_processing",
                     actions=[]
-                )
+                ),
+                "python_file_copier": python_copier
             }
             
             code1 = generator.generate(action1, context)

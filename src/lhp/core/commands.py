@@ -232,17 +232,10 @@ class ValidatePipelineCommand(Command):
                 )
             
             # Delegate to orchestrator for validation
-            if hasattr(context.orchestrator, 'validate_pipeline_by_field'):
-                errors, warnings = context.orchestrator.validate_pipeline_by_field(
-                    pipeline_field=pipeline_identifier,
-                    env=context.env
-                )
-            else:
-                # Fallback to pipeline directory method
-                errors, warnings = context.orchestrator.validate_pipeline(
-                    pipeline_name=pipeline_identifier,
-                    env=context.env
-                )
+            errors, warnings = context.orchestrator.validate_pipeline_by_field(
+                pipeline_field=pipeline_identifier,
+                env=context.env
+            )
             
             return ValidationCommandResult(
                 success=len(errors) == 0,

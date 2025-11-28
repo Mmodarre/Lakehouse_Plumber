@@ -1,0 +1,28 @@
+pipeline: custom_datasource
+flowgroup: sink_with_metadata
+#job_name: j_six
+operational_metadata:
+  - _processing_timestamp
+
+actions:
+  - name: load_test_data
+    type: load
+    source:
+      type: sql
+      sql: "SELECT 1 as id, 'test' as name, 100 as value"
+    target: v_test_sink_data
+    description: "Load test data for sink testing"
+    
+  - name: write_to_custom_sink
+    type: write
+    source: v_test_sink_data
+    write_target:
+      type: sink
+      sink_type: custom
+      sink_name: "custom_wildcard_sink"
+      module_path: "py_functions/pyspark_custom_data_sources/custom_sink_wildcard.py"
+      custom_sink_class: "CustomSinkWithWildcard"
+      options:
+        output_path: "/tmp/custom_sink_output"
+    description: "Write to custom sink with wildcard imports and operational metadata"
+

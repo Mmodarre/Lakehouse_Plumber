@@ -30,6 +30,9 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         # Extract source views as a list
         source_views = self._extract_source_views(action.source)
 
+        # Get readMode from action or default to stream
+        readMode = action.readMode or "stream"
+
         # Extract configuration
         mode = target_config.get(
             "mode", "standard"
@@ -185,6 +188,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                             "action_name": f"{action.name}_{i+1}",
                             "source_view": source_view,
                             "once": action.once or False,
+                            "readMode": action.readMode,  # Preserve readMode
                             "flow_name": flow_name,
                             "description": action.description
                             or f"Append flow to {full_table_name} from {source_view}",
@@ -199,6 +203,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                         "action_name": action.name,
                         "source_view": source_views[0] if source_views else "",
                         "once": action.once or False,
+                        "readMode": action.readMode,  # Preserve readMode
                         "flow_name": flow_name,
                         "description": action.description
                         or f"Append flow to {full_table_name}",
@@ -242,6 +247,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "description": action.description or f"Append flow to {full_table_name}",
             "once": action.once or False,  # Keep for backward compatibility
             "action_metadata": action_metadata,  # New: individual action metadata
+            "readMode": readMode,
         }
 
         # Enable stream readMode for CDC

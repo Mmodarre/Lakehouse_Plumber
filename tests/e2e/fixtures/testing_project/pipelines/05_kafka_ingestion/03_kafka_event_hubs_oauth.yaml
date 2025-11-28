@@ -1,0 +1,70 @@
+# Azure Event Hubs OAuth Authentication Example
+# This flowgroup demonstrates loading data from Azure Event Hubs using OAuth authentication
+#
+# Prerequisites:
+# - Azure Event Hubs namespace (Premium or Standard tier)
+# - Azure AD Service Principal with Event Hubs Data Receiver role
+# - Databricks secrets configured for Service Principal credentials
+# - Substitution variables configured in substitutions/dev.yaml
+#
+# Note: This is an example configuration. Adjust for your Event Hubs namespace.
+
+pipeline: kafka_sample_pipeline
+flowgroup: event_hubs_oauth_ingestion
+#job_name: j_seven
+actions:
+  - name: load_event_hubs_telemetry
+    type: load
+    readMode: stream
+    operational_metadata: ["_processing_timestamp"]
+    source:
+      type: kafka
+      bootstrap_servers: "${event_hubs_namespace}:9093"
+      subscribe: "${event_hubs_topic}"
+      options:
+        # Azure Event Hubs OAuth authentication
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "OAUTHBEARER"
+        kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
+        kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
+        kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+        
+        # Kafka consumer options
+        startingOffsets: "earliest"
+        failOnDataLoss: "false"
+        kafka.client.id: "databricks-event-hubs-telemetry-pipeline"
+        kafka.session.timeout.ms: 30000
+    target: v_event_hubs_telemetry_raw
+    description: "Load telemetry from Azure Event Hubs using OAuth authentication"
+    
+  - name: parse_event_hubs_telemetry
+    type: transform
+    transform_type: sql
+    source: v_event_hubs_telemetry_raw
+    target: v_event_hubs_telemetry_parsed
+    description: "Parse Event Hubs binary data to structured format"
+    sql: |
+      SELECT 
+        CAST(key AS STRING) as telemetry_key,
+        CAST(value AS STRING) as telemetry_json,
+        topic,
+        partition,
+        offset,
+        timestamp as event_hubs_timestamp,
+        _processing_timestamp
+      FROM stream(v_event_hubs_telemetry_raw)
+    
+  - name: write_event_hubs_telemetry_bronze
+    type: write
+    source: v_event_hubs_telemetry_parsed
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: event_hubs_telemetry_bronze
+      create_table: true
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        quality: "bronze"
+        data_source: "azure_event_hubs"
+    description: "Write Event Hubs telemetry to bronze layer"
+

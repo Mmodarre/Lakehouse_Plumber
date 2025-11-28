@@ -18,6 +18,12 @@ resources:
         - task_key: j_one_task
           job_task:
             job_id: ${resources.jobs.j_one.id}
+        - task_key: j_seven_task
+          job_task:
+            job_id: ${resources.jobs.j_seven.id}
+        - task_key: j_six_task
+          job_task:
+            job_id: ${resources.jobs.j_six.id}
         - task_key: j_three_task
           depends_on:
             - task_key: j_two_task

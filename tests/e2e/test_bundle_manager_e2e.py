@@ -10,12 +10,14 @@ import shutil
 import os
 import hashlib
 import yaml
+import difflib
 from pathlib import Path
 from click.testing import CliRunner
 
 from lhp.cli.main import cli
 
 
+@pytest.mark.e2e
 class TestBundleManagerE2E:
     """End-to-end tests for Bundle Manager conservative logic scenarios."""
 
@@ -553,6 +555,10 @@ resources:
         # Use dev-specific directory for baseline comparison
         dev_generated_dir = self.project_root / "generated" / "dev"
 
+        # Normalize paths in generated files before comparison
+        fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+        self._normalize_generated_file_paths(dev_generated_dir, fixture_path)
+
         # Compare generated files with baseline using hashes
         hash_differences = self._compare_directory_hashes(
             dev_generated_dir, baseline_dir)
@@ -613,6 +619,10 @@ resources:
             ), f"acmi_edw_raw directory should be generated: {generated_raw_dir}"
             assert baseline_raw_dir.exists(
             ), f"acmi_edw_raw baseline should exist: {baseline_raw_dir}"
+
+            # Normalize paths in generated files before comparison
+            fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+            self._normalize_generated_file_paths(dev_generated_dir, fixture_path)
 
             # Hash comparison for generated files
             hash_differences = self._compare_directory_hashes(
@@ -794,6 +804,51 @@ resources:
     # HELPER METHODS FOR NEW TESTS
     # ========================================================================
 
+    def _normalize_generated_file_paths(self, generated_dir: Path, fixture_path: Path):
+        """Normalize absolute paths in generated files to relative paths.
+        
+        Converts any absolute paths to the fixture directory (whether in temp or actual location)
+        into relative paths for environment-independent comparison.
+        
+        Args:
+            generated_dir: Directory containing generated files (in temp location)
+            fixture_path: Original fixture directory path to normalize to
+        """
+        import re
+        
+        # Get the temp project root path (where test copied fixture to)
+        temp_project_root = str(self.project_root.resolve())
+        fixture_root = str(fixture_path.resolve())
+        
+        # Create regex patterns that match absolute paths to test fixture content
+        # Pattern 1: Matches temp directory paths (e.g., /tmp/xyz/test_project/py_functions/...)
+        temp_pattern = re.compile(
+            r'(/[^\s:]+)?/test_project/'
+        )
+        
+        # Pattern 2: Matches real fixture paths (e.g., /Users/.../tests/e2e/fixtures/testing_project/...)
+        fixture_pattern = re.compile(
+            r'(/[^\s:]+)?/tests/e2e/fixtures/testing_project/'
+        )
+        
+        # Replacement string - use relative path from repository root
+        replacement = 'tests/e2e/fixtures/testing_project/'
+        
+        # Process all .py files in generated directory
+        for py_file in generated_dir.rglob("*.py"):
+            try:
+                content = py_file.read_text()
+                
+                # Normalize temp paths first, then real fixture paths
+                normalized_content = temp_pattern.sub(replacement, content)
+                normalized_content = fixture_pattern.sub(replacement, normalized_content)
+                
+                if normalized_content != content:
+                    py_file.write_text(normalized_content)
+            except (OSError, UnicodeDecodeError) as e:
+                # Log but don't fail - let hash comparison catch it
+                print(f"Warning: Could not normalize paths in {py_file}: {e}")
+
     def _compare_directory_hashes(self, generated_dir: Path,
                                   baseline_dir: Path) -> list:
         """Compare directory contents using file hashes."""
@@ -835,8 +890,41 @@ resources:
                 baseline_hash = get_file_hash(baseline_files[file_path])
 
                 if generated_hash != baseline_hash:
-                    differences.append(
-                        f"Content differs (hash mismatch): {file_path}")
+                    # Compute unified diff to show what changed
+                    try:
+                        with open(generated_files[file_path], 'r') as f:
+                            generated_lines = f.readlines()
+                        with open(baseline_files[file_path], 'r') as f:
+                            baseline_lines = f.readlines()
+                        
+                        diff = list(difflib.unified_diff(
+                            baseline_lines,
+                            generated_lines,
+                            fromfile=f'baseline/{file_path}',
+                            tofile=f'generated/{file_path}',
+                            lineterm='',
+                            n=3  # 3 lines of context
+                        ))
+                        
+                        # Limit diff output to first 50 lines for readability
+                        diff_output = '\n'.join(diff[:50])
+                        if len(diff) > 50:
+                            diff_output += f"\n... ({len(diff) - 50} more lines omitted)"
+                        
+                        differences.append(
+                            f"Content differs (hash mismatch): {file_path}\n"
+                            f"    Generated: {generated_hash}\n"
+                            f"    Baseline:  {baseline_hash}\n"
+                            f"    Diff:\n{diff_output}"
+                        )
+                    except Exception as e:
+                        # Fallback if diff fails
+                        differences.append(
+                            f"Content differs (hash mismatch): {file_path}\n"
+                            f"    Generated: {generated_hash}\n"
+                            f"    Baseline:  {baseline_hash}\n"
+                            f"    (Could not compute diff: {e})"
+                        )
             except (OSError, IOError, UnicodeDecodeError) as e:
                 differences.append(f"Error comparing {file_path}: {e}")
 
@@ -1613,51 +1701,49 @@ resources:
 
         print("✅ Phase 1: Initial generation completed")
 
-        # Phase 2: Create a conflicting source file (different source, same destination name)
-        # Simulate another flowgroup trying to copy a function with the same name
-        conflict_source = self.project_root / "py_functions" / "conflict_func.py"
+        # Phase 2: Create source files for conflict testing
+        # These will simulate two different sources trying to use the same destination name
+        first_source = self.project_root / "py_functions" / "first_source.py"
+        first_content = '''def transform_data(df):
+    """First version of the function."""
+    return df.withColumn("source", lit("FIRST"))
+'''
+        first_source.write_text(first_content)
+
+        conflict_source = self.project_root / "py_functions" / "conflict_source.py"
         conflict_content = '''def transform_data(df):
-    """This is a different function with same potential destination name."""
-    return df.withColumn("conflict_marker", lit("CONFLICT"))
+    """Conflicting version with same destination name."""
+    return df.withColumn("source", lit("CONFLICT"))
 '''
         conflict_source.write_text(conflict_content)
 
-        # Phase 3: Manually create a copied file that would conflict
-        # Simulate what would happen if two different sources tried to create same destination
+        print("✅ Phase 2: Created source files for conflict scenario")
+
+        # Phase 3: Test conflict detection using PythonFileCopier (new architecture)
+        from lhp.generators.transform.python_file_copier import PythonFileCopier, PythonFunctionConflictError
+
+        copier = PythonFileCopier()
         custom_functions_dir = self.generated_dir / "sample_python_func_pipeline" / "custom_python_functions"
-        conflict_dest = custom_functions_dir / "conflict_func.py"
+        dest_file = custom_functions_dir / "transformer.py"
 
-        # Create first version from one source
-        first_header = "# LHP-SOURCE: py_functions/first_source.py\n# Generated by LakehousePlumber - DO NOT EDIT\n\n"
-        conflict_dest.write_text(first_header +
-                                 "def original_function(): pass")
+        # First copy from first_source - should succeed
+        first_header = "# LHP-SOURCE: py_functions/first_source.py\n# Generated by LakehousePlumber\n\n"
+        copier.copy_python_file(
+            "py_functions/first_source.py",
+            dest_file,
+            first_header + first_content
+        )
 
-        print("✅ Phase 2: Created simulated conflict scenario")
+        print("✅ Phase 3: First file copied successfully")
 
-        # Phase 4: Try to copy from different source - should FAIL
-        from lhp.generators.transform.python import PythonTransformGenerator, PythonFunctionConflictError
-
-        generator = PythonTransformGenerator()
-
-        context = {
-            "output_dir":
-            self.generated_dir / "sample_python_func_pipeline",
-            "spec_dir":
-            self.project_root,
-            "flowgroup":
-            type(
-                'MockFlowgroup', (), {
-                    'pipeline': 'sample_python_func_pipeline',
-                    'flowgroup': 'python_func_flowgroup'
-                })()
-        }
-
-        # This should raise PythonFunctionConflictError
+        # Phase 4: Try to copy from different source to same destination - should FAIL
         try:
-            generator._resolve_module_name_conflicts(
-                module_path="py_functions/conflict_func.py",  # Different source!
-                base_module_name="conflict_func",
-                context=context)
+            conflict_header = "# LHP-SOURCE: py_functions/conflict_source.py\n# Generated by LakehousePlumber\n\n"
+            copier.copy_python_file(
+                "py_functions/conflict_source.py",  # Different source!
+                dest_file,  # Same destination!
+                conflict_header + conflict_content
+            )
             assert False, "Expected PythonFunctionConflictError to be raised"
         except PythonFunctionConflictError as e:
             print(f"✅ Conflict correctly detected and failed with error:")
@@ -1666,12 +1752,27 @@ resources:
             # Verify error message contains expected information
             assert "py_functions/first_source.py" in str(
                 e), "Should mention existing source"
-            assert "py_functions/conflict_func.py" in str(
+            assert "py_functions/conflict_source.py" in str(
                 e), "Should mention new source"
-            assert "conflict_func.py" in str(
+            assert "transformer.py" in str(
                 e), "Should mention destination file"
 
+            # Verify error attributes
+            assert e.existing_source == "py_functions/first_source.py"
+            assert e.new_source == "py_functions/conflict_source.py"
+            assert "transformer.py" in e.destination
+
         print("✅ Phase 4: Conflict detection working correctly")
+        
+        # Phase 5: Verify same source can be copied again (deduplication)
+        result = copier.copy_python_file(
+            "py_functions/first_source.py",  # Same source as before
+            dest_file,
+            first_header + first_content
+        )
+        assert result is False, "Second copy of same source should be skipped (deduplicated)"
+        
+        print("✅ Phase 5: Deduplication working correctly")
         print("✅ BM-15: Python function conflict failure working correctly")
 
     # ========================================================================

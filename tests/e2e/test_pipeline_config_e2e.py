@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 
 
+@pytest.mark.e2e
 class TestPipelineConfigE2E:
     """E2E tests for pipeline config with cluster configuration."""
     

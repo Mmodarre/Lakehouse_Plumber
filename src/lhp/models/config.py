@@ -12,6 +12,7 @@ class ActionType(str, Enum):
 
 class TestActionType(str, Enum):
     """Types of test actions available."""
+    __test__ = False  # Tell pytest this is not a test class
     ROW_COUNT = "row_count"
     UNIQUENESS = "uniqueness"
     REFERENTIAL_INTEGRITY = "referential_integrity"

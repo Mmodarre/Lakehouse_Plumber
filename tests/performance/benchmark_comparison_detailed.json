@@ -1,0 +1,26 @@
+{
+  "date": "2025-11-27 16:10:10",
+  "project": "acme_supermarkets_lhp",
+  "tests": {
+    "clean_generation": {
+      "v0.7.1_time": 18.24,
+      "current_time": 11.85,
+      "speedup": 1.54,
+      "files_generated": 82
+    },
+    "incremental_no_changes": {
+      "v0.7.1_time": 7.53,
+      "current_time": 5.72,
+      "speedup": 1.32
+    },
+    "force_warm_cache": {
+      "v0.7.1_time": 12.86,
+      "current_time": 7.62,
+      "speedup": 1.69
+    }
+  },
+  "summary": {
+    "average_speedup": 1.51,
+    "total_time_saved_per_run": 4.48
+  }
+}

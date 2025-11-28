@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Dict, Any, List
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.operational_metadata import OperationalMetadata
 from ...utils.error_formatter import ErrorFormatter, LHPError
 from ...utils.kafka_validator import KafkaOptionsValidator
 
@@ -68,32 +67,10 @@ class KafkaLoadGenerator(BaseActionGenerator):
 
         # Handle operational metadata
         flowgroup = context.get("flowgroup")
-        preset_config = context.get("preset_config", {})
-        project_config = context.get("project_config")
-
-        # Initialize operational metadata handler
-        operational_metadata = OperationalMetadata(
-            project_config=(
-                project_config.operational_metadata if project_config else None
-            )
+        # Handle operational metadata
+        add_operational_metadata, metadata_columns = self._get_operational_metadata(
+            action, context
         )
-
-        # Update context for substitutions
-        if flowgroup:
-            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
-
-        # Resolve metadata selection
-        selection = operational_metadata.resolve_metadata_selection(
-            flowgroup, action, preset_config
-        )
-        metadata_columns = operational_metadata.get_selected_columns(
-            selection or {}, "view"
-        )
-
-        # Get required imports for metadata
-        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
-        for import_stmt in metadata_imports:
-            self.add_import(import_stmt)
 
         template_context = {
             "action_name": action.name,
@@ -101,9 +78,9 @@ class KafkaLoadGenerator(BaseActionGenerator):
             "reader_options": reader_options,
             "description": action.description
             or f"Load data from Kafka topics at {bootstrap_servers}",
-            "add_operational_metadata": bool(metadata_columns),
+            "add_operational_metadata": add_operational_metadata,
             "metadata_columns": metadata_columns,
-            "flowgroup": flowgroup,
+            "flowgroup": context.get("flowgroup"),
         }
 
         return self.render_template("load/kafka.py.j2", template_context)

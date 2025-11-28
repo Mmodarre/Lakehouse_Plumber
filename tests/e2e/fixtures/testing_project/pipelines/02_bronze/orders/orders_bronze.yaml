@@ -223,7 +223,7 @@ actions:
   - name: write_orders_migration
     type: write
     source: v_orders_migration_cleaned
-    readMode: batch
+    readMode: stream
     once: true  
     write_target:
       create_table: false

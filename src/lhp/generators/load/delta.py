@@ -2,7 +2,6 @@
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.operational_metadata import OperationalMetadata
 from typing import Dict, Any
 
 
@@ -43,40 +42,16 @@ class DeltaLoadGenerator(BaseActionGenerator):
         )
 
         # Handle operational metadata
-        flowgroup = context.get("flowgroup")
-        preset_config = context.get("preset_config", {})
-        project_config = context.get("project_config")
-
-        # Initialize operational metadata handler
-        operational_metadata = OperationalMetadata(
-            project_config=(
-                project_config.operational_metadata if project_config else None
-            )
+        add_operational_metadata, metadata_columns = self._get_operational_metadata(
+            action, context
         )
-
-        # Update context for substitutions (source table substitution)
-        if flowgroup:
-            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
-
-        # Resolve metadata selection
-        selection = operational_metadata.resolve_metadata_selection(
-            flowgroup, action, preset_config
-        )
-        metadata_columns = operational_metadata.get_selected_columns(
-            selection or {}, "view"
-        )
-
+        
         # Apply additional context substitutions for Delta source
         # Replace ${source_table} placeholder with actual table reference
         for col_name, expression in metadata_columns.items():
             metadata_columns[col_name] = expression.replace(
                 "${source_table}", table_ref
             )
-
-        # Get required imports for metadata
-        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
-        for import_stmt in metadata_imports:
-            self.add_import(import_stmt)
 
         template_context = {
             "target": action.target,
@@ -91,9 +66,9 @@ class DeltaLoadGenerator(BaseActionGenerator):
             "select_columns": source_config.get("select_columns"),
             "reader_options": source_config.get("reader_options", {}),
             "description": action.description or f"Delta source: {table_ref}",
-            "add_operational_metadata": bool(metadata_columns),
+            "add_operational_metadata": add_operational_metadata,
             "metadata_columns": metadata_columns,
-            "flowgroup": flowgroup,
+            "flowgroup": context.get("flowgroup"),
         }
 
         return self.render_template("load/delta.py.j2", template_context)
