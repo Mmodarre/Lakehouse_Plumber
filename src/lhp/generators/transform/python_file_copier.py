@@ -67,7 +67,11 @@ class PythonFileCopier:
         with self._lock:
             if dest_key in self._copied_files:
                 existing_source = self._copied_files[dest_key]
-                if existing_source != source_path:
+                # Normalize paths for comparison: replace backslashes first, then use as_posix()
+                # This handles both Windows native paths and string literals with backslashes
+                normalized_existing = existing_source.replace('\\', '/')
+                normalized_new = source_path.replace('\\', '/')
+                if normalized_existing != normalized_new:
                     # Real conflict - different sources targeting same destination
                     raise PythonFunctionConflictError(
                         destination=dest_key,
@@ -78,8 +82,8 @@ class PythonFileCopier:
                 self._logger.debug(f"Skipping Python file copy (already copied): {source_path} → {dest_path.name}")
                 return False
 
-            # Register this file as being copied
-            self._copied_files[dest_key] = source_path
+            # Register this file as being copied (normalize to forward slashes for consistency)
+            self._copied_files[dest_key] = source_path.replace('\\', '/')
             self._logger.debug(f"Copying Python file: {source_path} → {dest_path.name}")
 
         # Write file outside the lock (safe - we own this destination now)

@@ -363,25 +363,25 @@ class StateDependencyResolver:
         for action in template_actions:
             # Expectations files (data quality)
             if action.get('expectations_file'):
-                files.add(action['expectations_file'])
+                files.add(Path(action['expectations_file']).as_posix())
             
             # Python transform files
             if action.get('type') == 'transform' and action.get('transform_type') == 'python':
                 if action.get('module_path'):
-                    files.add(action['module_path'])
+                    files.add(Path(action['module_path']).as_posix())
             
             # Python load files
             if action.get('type') == 'load':
                 source = action.get('source', {})
                 if isinstance(source, dict):
                     if source.get('type') == 'python' and source.get('module_path'):
-                        files.add(source['module_path'])
+                        files.add(Path(source['module_path']).as_posix())
                     if source.get('sql_path'):
-                        files.add(source['sql_path'])
+                        files.add(Path(source['sql_path']).as_posix())
             
             # SQL files (load and transform)
             if action.get('sql_path'):
-                files.add(action['sql_path'])
+                files.add(Path(action['sql_path']).as_posix())
             
             # Snapshot CDC source function files
             if action.get('type') == 'write':
@@ -390,7 +390,7 @@ class StateDependencyResolver:
                     snapshot_config = write_target.get('snapshot_cdc_config', {})
                     source_function = snapshot_config.get('source_function', {})
                     if source_function.get('file'):
-                        files.add(source_function['file'])
+                        files.add(Path(source_function['file']).as_posix())
             
             # Schema files from cloudFiles.schemaHints in templates
             if action.get('type') == 'load':
@@ -399,13 +399,13 @@ class StateDependencyResolver:
                     options = source.get('options', {})
                     schema_hints = options.get('cloudFiles.schemaHints')
                     if schema_hints and self._is_file_path(schema_hints):
-                        files.add(schema_hints)
+                        files.add(Path(schema_hints).as_posix())
             
             # Schema files from transform schema_file in templates
             if action.get('type') == 'transform' and action.get('transform_type') == 'schema':
                 schema_file = action.get('schema_file')
                 if schema_file:
-                    files.add(schema_file)
+                    files.add(Path(schema_file).as_posix())
             
             # Table schema files from write actions in templates
             if action.get('type') == 'write':
@@ -413,7 +413,7 @@ class StateDependencyResolver:
                 if isinstance(write_target, dict):
                     table_schema = write_target.get('table_schema') or write_target.get('schema')
                     if table_schema and self._is_file_path(table_schema):
-                        files.add(table_schema)
+                        files.add(Path(table_schema).as_posix())
         
         return files
 
@@ -579,25 +579,25 @@ class StateDependencyResolver:
             if (hasattr(action, 'type') and action.type == 'transform' and
                 hasattr(action, 'transform_type') and action.transform_type == 'python' and
                 hasattr(action, 'module_path') and action.module_path):
-                files.add(action.module_path)
+                files.add(Path(action.module_path).as_posix())
             
             # Python load files
             elif (hasattr(action, 'type') and action.type == 'load' and
                   hasattr(action, 'source') and isinstance(action.source, dict) and
                   action.source.get('type') == 'python' and
                   action.source.get('module_path')):
-                files.add(action.source['module_path'])
+                files.add(Path(action.source['module_path']).as_posix())
             
             # SQL files (load and transform with sql_path)
             if (hasattr(action, 'sql_path') and action.sql_path):
-                files.add(action.sql_path)
+                files.add(Path(action.sql_path).as_posix())
             elif (hasattr(action, 'source') and isinstance(action.source, dict) and
                   action.source.get('sql_path')):
-                files.add(action.source['sql_path'])
+                files.add(Path(action.source['sql_path']).as_posix())
             
             # Expectation files (data quality)
             if (hasattr(action, 'expectations_file') and action.expectations_file):
-                files.add(action.expectations_file)
+                files.add(Path(action.expectations_file).as_posix())
             
             # Snapshot CDC source function files
             if (hasattr(action, 'type') and action.type == 'write' and
@@ -606,7 +606,7 @@ class StateDependencyResolver:
                 snapshot_config = action.write_target.get('snapshot_cdc_config', {})
                 source_function = snapshot_config.get('source_function', {})
                 if source_function.get('file'):
-                    files.add(source_function['file'])
+                    files.add(Path(source_function['file']).as_posix())
             
             # Schema files from cloudFiles.schemaHints
             if (hasattr(action, 'type') and action.type == 'load' and
@@ -614,26 +614,26 @@ class StateDependencyResolver:
                 options = action.source.get('options', {})
                 schema_hints = options.get('cloudFiles.schemaHints')
                 if schema_hints and self._is_file_path(schema_hints):
-                    files.add(schema_hints)
+                    files.add(Path(schema_hints).as_posix())
             
             # Schema files from transform schema_file
             if (hasattr(action, 'type') and action.type == 'transform' and
                 hasattr(action, 'transform_type') and action.transform_type == 'schema'):
                 schema_file = getattr(action, 'schema_file', None)
                 if schema_file:
-                    files.add(schema_file)
+                    files.add(Path(schema_file).as_posix())
             
             # Table schema files from write actions
             if (hasattr(action, 'type') and action.type == 'write' and
                 hasattr(action, 'write_target') and isinstance(action.write_target, dict)):
                 table_schema = action.write_target.get('table_schema') or action.write_target.get('schema')
                 if table_schema and self._is_file_path(table_schema):
-                    files.add(table_schema)
+                    files.add(Path(table_schema).as_posix())
                 
                 # SQL files from materialized view sql_path
                 sql_path = action.write_target.get('sql_path')
                 if sql_path:
-                    files.add(sql_path)
+                    files.add(Path(sql_path).as_posix())
         
         return files
 
@@ -659,7 +659,7 @@ class StateDependencyResolver:
             self.logger.debug(f"Found external file dependency: {file_path}")
             
             return DependencyInfo(
-                path=file_path,
+                path=Path(file_path).as_posix(),  # Normalize for cross-platform state files
                 checksum=checksum,
                 type="external_file",
                 last_modified=last_modified
@@ -686,17 +686,19 @@ class StateDependencyResolver:
             sorted_deps = sorted(dependencies)
             
             for dep_path in sorted_deps:
-                file_path = self.project_root / dep_path
+                # Normalize path: replace backslashes with forward slashes for cross-platform consistency
+                normalized_path = dep_path.replace('\\', '/')
+                file_path = self.project_root / normalized_path
                 if file_path.exists():
-                    # Add file path to hash
-                    sha256_hash.update(dep_path.encode('utf-8'))
+                    # Add file path to hash (normalized)
+                    sha256_hash.update(normalized_path.encode('utf-8'))
                     # Add file content to hash
                     with open(file_path, "rb") as f:
                         for chunk in iter(lambda: f.read(4096), b""):
                             sha256_hash.update(chunk)
                 else:
-                    # Add path with placeholder for missing files
-                    sha256_hash.update(f"{dep_path}:MISSING".encode('utf-8'))
+                    # Add path with placeholder for missing files (normalized)
+                    sha256_hash.update(f"{normalized_path}:MISSING".encode('utf-8'))
                     
             return sha256_hash.hexdigest()
             

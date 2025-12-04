@@ -205,6 +205,39 @@ class Action(BaseModel):
     lookup_result_columns: Optional[List[str]] = None  # Expected result columns
     expectations: Optional[List[Dict[str, Any]]] = None  # Custom expectations
 
+    def model_post_init(self, __context: Any) -> None:
+        """Post-initialization processing - normalize all path fields for cross-platform compatibility."""
+        # List of path fields that need normalization
+        path_fields = ['module_path', 'sql_path', 'expectations_file', 'schema_file']
+        
+        # Normalize direct path fields
+        for field in path_fields:
+            value = getattr(self, field, None)
+            if value and isinstance(value, str):
+                setattr(self, field, value.replace('\\', '/'))
+        
+        # Normalize paths in source dict if present
+        if isinstance(self.source, dict):
+            for field in path_fields:
+                if field in self.source and isinstance(self.source[field], str):
+                    self.source[field] = self.source[field].replace('\\', '/')
+        
+        # Normalize paths in write_target dict if present
+        if isinstance(self.write_target, dict):
+            # Handle snapshot_cdc source function file paths
+            if 'snapshot_cdc_config' in self.write_target:
+                snapshot_config = self.write_target['snapshot_cdc_config']
+                if isinstance(snapshot_config, dict) and 'source_function' in snapshot_config:
+                    source_func = snapshot_config['source_function']
+                    if isinstance(source_func, dict) and 'file' in source_func:
+                        if isinstance(source_func['file'], str):
+                            source_func['file'] = source_func['file'].replace('\\', '/')
+            
+            # Handle table_schema and schema paths
+            for schema_field in ['table_schema', 'schema', 'sql_path', 'module_path']:
+                if schema_field in self.write_target and isinstance(self.write_target[schema_field], str):
+                    self.write_target[schema_field] = self.write_target[schema_field].replace('\\', '/')
+
 
 class FlowGroup(BaseModel):
     pipeline: str

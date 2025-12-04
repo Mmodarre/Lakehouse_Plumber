@@ -79,10 +79,10 @@ class DependencyTracker:
             dep_paths.append(generation_context)
         composite_checksum = self.dependency_resolver.calculate_composite_checksum(dep_paths)
 
-        # Create file state
+        # Create file state (normalize paths for cross-platform state files)
         file_state = FileState(
-            source_yaml=str(rel_source),
-            generated_path=str(rel_generated),
+            source_yaml=Path(str(rel_source)).as_posix(),
+            generated_path=Path(str(rel_generated)).as_posix(),
             checksum=generated_checksum,
             source_yaml_checksum=source_checksum,
             timestamp=datetime.now().isoformat(),
@@ -175,10 +175,11 @@ class DependencyTracker:
             rel_source = str(source_yaml)
 
         env_files = state.environments.get(environment, {})
+        # Normalize paths for comparison to handle cross-platform differences
         return [
             file_state
             for file_state in env_files.values()
-            if file_state.source_yaml == rel_source
+            if Path(file_state.source_yaml).as_posix() == Path(rel_source).as_posix()
         ]
 
     def calculate_checksum(self, file_path: Path) -> str:

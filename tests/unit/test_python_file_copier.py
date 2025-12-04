@@ -227,4 +227,21 @@ class TestPythonFileCopier:
         assert dest_path.exists()
         assert dest_path.parent.exists()
         assert dest_path.read_text() == content
+    
+    def test_path_separator_normalization_windows(self, copier, temp_dir):
+        """Test that forward and backslash paths are treated as equal (cross-platform compatibility)."""
+        dest_path = temp_dir / "test_module.py"
+        content = "# Test content"
+        
+        # First copy with forward slashes (Unix-style)
+        result1 = copier.copy_python_file("py_functions/test_module.py", dest_path, content)
+        assert result1 is True
+        
+        # Second copy with backslashes (Windows-style) - should skip, not raise error
+        result2 = copier.copy_python_file("py_functions\\test_module.py", dest_path, content)
+        assert result2 is False  # Should skip as duplicate
+        
+        # Verify no error was raised (would have raised PythonFunctionConflictError before fix)
+        assert dest_path.exists()
+        assert dest_path.read_text() == content
 
