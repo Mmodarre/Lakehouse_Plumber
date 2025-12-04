@@ -86,6 +86,46 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
 
+  # Windows-specific e2e tests using native PowerShell
+  test-e2e-windows:
+    runs-on: windows-latest
+    
+    env:
+      LHP_DISABLE_ANALYTICS: 1
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~\AppData\Local\pip\Cache
+        key: ${{ runner.os }}-pip-3.12-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-3.12-
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest pytest-cov pytest-xdist
+        pip install -e .
+        if (Test-Path requirements.txt) { pip install -r requirements.txt }
+        if (Test-Path requirements-dev.txt) { pip install -r requirements-dev.txt }
+        
+    - name: Test with pytest (e2e only)
+      run: |
+        if (Test-Path tests\e2e) {
+          pytest tests\e2e -m e2e -n auto --cov --cov-branch --cov-report=xml --junitxml=junit-e2e-windows.xml -o junit_family=legacy
+        } else {
+          Write-Host "No e2e tests directory found, skipping tests"
+        }
+
   # Separate job for testing import functionality across platforms
   test-import:
     runs-on: ${{ matrix.os }}
