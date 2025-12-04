@@ -1991,3 +1991,117 @@ resources:
         print(
             f"✅ Total files with ACTUAL content changes: {regenerated_count}")
         return regenerated_count
+
+    def test_cross_platform_state_file_compatibility(self):
+        """Test that state files generated on one OS can be loaded on another."""
+        # Phase 1: Generate state file
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generation should succeed: {output}"
+        
+        print("✅ Phase 1: Initial generation completed")
+        
+        # Phase 2: Load state
+        state_file = self.project_root / ".lhp_state.json"
+        assert state_file.exists(), "State file should exist after generation"
+        
+        import json
+        from dataclasses import asdict
+        
+        with open(state_file, 'r') as f:
+            state_data = json.load(f)
+        
+        original_env_files = state_data.get("environments", {}).get("dev", {})
+        assert len(original_env_files) > 0, "Should have generated files in dev environment"
+        
+        print(f"✅ Phase 2: Loaded state file with {len(original_env_files)} files")
+        
+        # Phase 3: Manually modify state to simulate Windows separators
+        modified_state_data = {
+            "version": state_data["version"],
+            "last_updated": state_data["last_updated"],
+            "environments": {},
+            "global_dependencies": state_data.get("global_dependencies", {})
+        }
+        
+        # Convert all file paths to Windows-style backslashes
+        for env_name, env_files in state_data.get("environments", {}).items():
+            modified_state_data["environments"][env_name] = {}
+            for file_path, file_state in env_files.items():
+                # Convert dictionary key to Windows-style
+                windows_key = file_path.replace('/', '\\')
+                
+                # Convert file_dependencies keys to Windows-style
+                if "file_dependencies" in file_state and file_state["file_dependencies"]:
+                    windows_deps = {}
+                    for dep_path, dep_info in file_state["file_dependencies"].items():
+                        windows_dep_key = dep_path.replace('/', '\\')
+                        windows_deps[windows_dep_key] = dep_info
+                    file_state["file_dependencies"] = windows_deps
+                
+                modified_state_data["environments"][env_name][windows_key] = file_state
+        
+        # Save modified state to simulate Windows generation
+        with open(state_file, 'w') as f:
+            json.dump(modified_state_data, f, indent=2)
+        
+        print("✅ Phase 3: Modified state file with Windows-style paths")
+        
+        # Verify state file has Windows separators
+        with open(state_file, 'r') as f:
+            windows_state_content = f.read()
+            assert '\\\\' in windows_state_content, "State file should contain Windows separators"
+        
+        # Phase 4: Reload state (should normalize keys)
+        from lhp.core.state.state_persistence import StatePersistence
+        
+        persistence = StatePersistence(self.project_root)
+        reloaded_state = persistence.load_state()
+        
+        print("✅ Phase 4: Reloaded state file")
+        
+        # Phase 5: Verify all keys are normalized to forward slashes
+        reloaded_env_files = reloaded_state.environments.get("dev", {})
+        assert len(reloaded_env_files) == len(original_env_files), \
+            f"Should have same number of files: expected {len(original_env_files)}, got {len(reloaded_env_files)}"
+        
+        for file_path in reloaded_env_files.keys():
+            assert '\\' not in file_path, f"Found backslash in normalized key: {file_path}"
+            assert '/' in file_path or file_path.count('/') == 0, \
+                f"Multi-part paths should use forward slashes: {file_path}"
+        
+        print(f"✅ Phase 5: All {len(reloaded_env_files)} file keys use forward slashes")
+        
+        # Phase 6: Verify file dependency keys are also normalized
+        for file_path, file_state in reloaded_env_files.items():
+            if file_state.file_dependencies:
+                for dep_path in file_state.file_dependencies.keys():
+                    assert '\\' not in dep_path, \
+                        f"Found backslash in dependency key: {dep_path} (in {file_path})"
+        
+        print("✅ Phase 6: All file dependency keys use forward slashes")
+        
+        # Phase 7: Verify we can perform operations on the reloaded state
+        # Try regenerating with the normalized state
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Regeneration with normalized state should succeed: {output}"
+        
+        print("✅ Phase 7: Operations on normalized state work correctly")
+        
+        # Phase 8: Verify state file is saved with forward slashes
+        with open(state_file, 'r') as f:
+            final_state_content = f.read()
+            # Count forward vs backslash occurrences in path contexts
+            # Note: JSON escapes backslashes as \\, so Windows paths would appear as \\\\
+            forward_slash_count = final_state_content.count('/')
+            # Look for escaped backslashes in path-like contexts (not JSON escapes)
+            path_backslash_count = final_state_content.count('\\\\')
+            
+            # We expect forward slashes but no Windows path separators
+            assert forward_slash_count > 0, "Should have forward slashes in paths"
+            # In a normalized state, we shouldn't see double-backslash sequences
+            # (which would indicate Windows paths)
+            assert path_backslash_count == 0, \
+                f"Should not have Windows-style paths (found {path_backslash_count} occurrences)"
+        
+        print("✅ Phase 8: Saved state file maintains forward slashes")
+        print("✅ Cross-platform state file compatibility test passed")

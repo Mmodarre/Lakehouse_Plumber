@@ -98,8 +98,8 @@ class DependencyTracker:
         if environment not in state.environments:
             state.environments[environment] = {}
 
-        # Track the file
-        state.environments[environment][str(rel_generated)] = file_state
+        # Track the file (normalize dictionary key for cross-platform lookups)
+        state.environments[environment][Path(str(rel_generated)).as_posix()] = file_state
 
         # Update global dependencies for this environment
         self.update_global_dependencies(state, environment)

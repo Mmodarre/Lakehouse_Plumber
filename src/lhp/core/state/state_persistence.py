@@ -69,10 +69,16 @@ class StatePersistence:
                         if file_state["file_dependencies"]:
                             file_deps = {}
                             for dep_path, dep_info in file_state["file_dependencies"].items():
-                                file_deps[dep_path] = DependencyInfo(**dep_info)
+                                # Normalize dependency keys for cross-platform compatibility
+                                # Replace backslashes first (for Unix systems where \ is literal)
+                                normalized_dep_key = dep_path.replace('\\', '/')
+                                file_deps[normalized_dep_key] = DependencyInfo(**dep_info)
                             file_state["file_dependencies"] = file_deps
                         
-                        environments[env_name][file_path] = FileState(**file_state)
+                        # Normalize file path key for cross-platform compatibility
+                        # Replace backslashes first (for Unix systems where \ is literal)
+                        normalized_key = file_path.replace('\\', '/')
+                        environments[env_name][normalized_key] = FileState(**file_state)
 
                 # Handle global dependencies
                 global_dependencies = {}

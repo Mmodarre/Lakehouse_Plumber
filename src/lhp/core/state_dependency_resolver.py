@@ -434,8 +434,10 @@ class StateDependencyResolver:
             checksum = self._calculate_checksum(substitution_file)
             last_modified = self._get_file_modification_time(substitution_file)
             
-            dependencies[str(substitution_file.relative_to(self.project_root))] = DependencyInfo(
-                path=str(substitution_file.relative_to(self.project_root)),
+            # Normalize path for cross-platform dictionary keys
+            rel_path = Path(str(substitution_file.relative_to(self.project_root))).as_posix()
+            dependencies[rel_path] = DependencyInfo(
+                path=rel_path,
                 checksum=checksum,
                 type="substitution",
                 last_modified=last_modified
@@ -447,8 +449,10 @@ class StateDependencyResolver:
             checksum = self._calculate_checksum(project_config_file)
             last_modified = self._get_file_modification_time(project_config_file)
             
-            dependencies[str(project_config_file.relative_to(self.project_root))] = DependencyInfo(
-                path=str(project_config_file.relative_to(self.project_root)),
+            # Normalize path for cross-platform dictionary keys
+            rel_path = Path(str(project_config_file.relative_to(self.project_root))).as_posix()
+            dependencies[rel_path] = DependencyInfo(
+                path=rel_path,
                 checksum=checksum,
                 type="project_config",
                 last_modified=last_modified

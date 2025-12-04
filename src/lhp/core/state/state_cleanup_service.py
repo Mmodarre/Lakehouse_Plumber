@@ -159,8 +159,8 @@ class StateCleanupService:
                             f"Deleted orphaned file: {file_state.generated_path}"
                         )
 
-                    # Remove from state
-                    del state.environments[environment][file_state.generated_path]
+                    # Remove from state (normalize lookup key to match stored keys)
+                    del state.environments[environment][Path(file_state.generated_path).as_posix()]
 
                 except Exception as e:
                     self.logger.error(
