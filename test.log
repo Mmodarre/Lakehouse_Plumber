@@ -1,0 +1,965 @@
+2025-12-04T11:11:11.5617233Z Current runner version: '2.329.0'
+2025-12-04T11:11:11.5642625Z ##[group]Runner Image Provisioner
+2025-12-04T11:11:11.5643379Z Hosted Compute Agent
+2025-12-04T11:11:11.5643828Z Version: 20251124.448
+2025-12-04T11:11:11.5644359Z Commit: fda5086b43ec66ade217e5fcd18146c879571177
+2025-12-04T11:11:11.5645388Z Build Date: 2025-11-24T21:16:26Z
+2025-12-04T11:11:11.5646035Z ##[endgroup]
+2025-12-04T11:11:11.5646453Z ##[group]Operating System
+2025-12-04T11:11:11.5647002Z Microsoft Windows Server 2025
+2025-12-04T11:11:11.5647509Z 10.0.26100
+2025-12-04T11:11:11.5647869Z Datacenter
+2025-12-04T11:11:11.5648291Z ##[endgroup]
+2025-12-04T11:11:11.5648676Z ##[group]Runner Image
+2025-12-04T11:11:11.5649122Z Image: windows-2025
+2025-12-04T11:11:11.5649570Z Version: 20251125.122.1
+2025-12-04T11:11:11.5650511Z Included Software: https://github.com/actions/runner-images/blob/win25/20251125.122/images/windows/Windows2025-Readme.md
+2025-12-04T11:11:11.5652220Z Image Release: https://github.com/actions/runner-images/releases/tag/win25%2F20251125.122
+2025-12-04T11:11:11.5653112Z ##[endgroup]
+2025-12-04T11:11:11.5654015Z ##[group]GITHUB_TOKEN Permissions
+2025-12-04T11:11:11.5655821Z Contents: read
+2025-12-04T11:11:11.5656267Z Metadata: read
+2025-12-04T11:11:11.5656666Z ##[endgroup]
+2025-12-04T11:11:11.5658727Z Secret source: Actions
+2025-12-04T11:11:11.5659313Z Prepare workflow directory
+2025-12-04T11:11:11.6146397Z Prepare all required actions
+2025-12-04T11:11:11.6205475Z Getting action download info
+2025-12-04T11:11:11.8992623Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2025-12-04T11:11:12.3872128Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2025-12-04T11:11:12.5244835Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+2025-12-04T11:11:12.7491456Z Complete job name: test-e2e-windows
+2025-12-04T11:11:12.8812170Z ##[group]Run actions/checkout@v4
+2025-12-04T11:11:12.8813910Z with:
+2025-12-04T11:11:12.8814392Z   repository: Mmodarre/Lakehouse_Plumber
+2025-12-04T11:11:12.8815239Z   token: ***
+2025-12-04T11:11:12.8815696Z   ssh-strict: true
+2025-12-04T11:11:12.8816114Z   ssh-user: git
+2025-12-04T11:11:12.8816506Z   persist-credentials: true
+2025-12-04T11:11:12.8816989Z   clean: true
+2025-12-04T11:11:12.8817377Z   sparse-checkout-cone-mode: true
+2025-12-04T11:11:12.8817866Z   fetch-depth: 1
+2025-12-04T11:11:12.8818236Z   fetch-tags: false
+2025-12-04T11:11:12.8818670Z   show-progress: true
+2025-12-04T11:11:12.8819046Z   lfs: false
+2025-12-04T11:11:12.8819429Z   submodules: false
+2025-12-04T11:11:12.8819879Z   set-safe-directory: true
+2025-12-04T11:11:12.8820573Z env:
+2025-12-04T11:11:12.8820960Z   LHP_DISABLE_ANALYTICS: 1
+2025-12-04T11:11:12.8821388Z ##[endgroup]
+2025-12-04T11:11:13.0624736Z Syncing repository: Mmodarre/Lakehouse_Plumber
+2025-12-04T11:11:13.0627559Z ##[group]Getting Git version info
+2025-12-04T11:11:13.0628630Z Working directory is 'D:\a\Lakehouse_Plumber\Lakehouse_Plumber'
+2025-12-04T11:11:13.1429638Z [command]"C:\Program Files\Git\bin\git.exe" version
+2025-12-04T11:11:13.5241326Z git version 2.52.0.windows.1
+2025-12-04T11:11:13.5301931Z ##[endgroup]
+2025-12-04T11:11:13.5324630Z Temporarily overriding HOME='D:\a\_temp\2b89166e-da84-4a41-828b-8bc91797db88' before making global git config changes
+2025-12-04T11:11:13.5326101Z Adding repository directory to the temporary git global config as a safe directory
+2025-12-04T11:11:13.5336845Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\Lakehouse_Plumber\Lakehouse_Plumber
+2025-12-04T11:11:13.5975354Z Deleting the contents of 'D:\a\Lakehouse_Plumber\Lakehouse_Plumber'
+2025-12-04T11:11:13.5983622Z ##[group]Initializing the repository
+2025-12-04T11:11:13.5993207Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\Lakehouse_Plumber\Lakehouse_Plumber
+2025-12-04T11:11:13.6811786Z Initialized empty Git repository in D:/a/Lakehouse_Plumber/Lakehouse_Plumber/.git/
+2025-12-04T11:11:13.6870970Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/Mmodarre/Lakehouse_Plumber
+2025-12-04T11:11:13.7799981Z ##[endgroup]
+2025-12-04T11:11:13.7800767Z ##[group]Disabling automatic garbage collection
+2025-12-04T11:11:13.7810061Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2025-12-04T11:11:13.8127791Z ##[endgroup]
+2025-12-04T11:11:13.8128524Z ##[group]Setting up auth
+2025-12-04T11:11:13.8148479Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2025-12-04T11:11:13.8470545Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2025-12-04T11:11:15.3069884Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-12-04T11:11:15.3388978Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2025-12-04T11:11:15.8927387Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2025-12-04T11:11:15.9261911Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2025-12-04T11:11:16.4815486Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2025-12-04T11:11:16.5134535Z ##[endgroup]
+2025-12-04T11:11:16.5135106Z ##[group]Fetching the repository
+2025-12-04T11:11:16.5150087Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +661cd6e1ff29b3d61c98cc54644206f52220695e:refs/remotes/pull/50/merge
+2025-12-04T11:11:17.8546365Z From https://github.com/Mmodarre/Lakehouse_Plumber
+2025-12-04T11:11:17.8547214Z  * [new ref]         661cd6e1ff29b3d61c98cc54644206f52220695e -> pull/50/merge
+2025-12-04T11:11:17.8866596Z ##[endgroup]
+2025-12-04T11:11:17.8867206Z ##[group]Determining the checkout info
+2025-12-04T11:11:17.8869474Z ##[endgroup]
+2025-12-04T11:11:17.8881497Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2025-12-04T11:11:17.9372485Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2025-12-04T11:11:17.9685029Z ##[group]Checking out the ref
+2025-12-04T11:11:17.9695793Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/50/merge
+2025-12-04T11:11:18.1873621Z Note: switching to 'refs/remotes/pull/50/merge'.
+2025-12-04T11:11:18.1874075Z 
+2025-12-04T11:11:18.1874896Z You are in 'detached HEAD' state. You can look around, make experimental
+2025-12-04T11:11:18.1876271Z changes and commit them, and you can discard any commits you make in this
+2025-12-04T11:11:18.1876742Z state without impacting any branches by switching back to a branch.
+2025-12-04T11:11:18.1877003Z 
+2025-12-04T11:11:18.1877171Z If you want to create a new branch to retain commits you create, you may
+2025-12-04T11:11:18.1877567Z do so (now or later) by using -c with the switch command. Example:
+2025-12-04T11:11:18.1877780Z 
+2025-12-04T11:11:18.1877930Z   git switch -c <new-branch-name>
+2025-12-04T11:11:18.1878093Z 
+2025-12-04T11:11:18.1878186Z Or undo this operation with:
+2025-12-04T11:11:18.1878327Z 
+2025-12-04T11:11:18.1878394Z   git switch -
+2025-12-04T11:11:18.1878500Z 
+2025-12-04T11:11:18.1878682Z Turn off this advice by setting config variable advice.detachedHead to false
+2025-12-04T11:11:18.1878936Z 
+2025-12-04T11:11:18.1879269Z HEAD is now at 661cd6e Merge ce276376e58533c32fbc3f9cb21554a035e819ee into 1147a12c492d515ebcbeb582fc77648668136e4c
+2025-12-04T11:11:18.1933808Z ##[endgroup]
+2025-12-04T11:11:18.2357784Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2025-12-04T11:11:18.2635989Z 661cd6e1ff29b3d61c98cc54644206f52220695e
+2025-12-04T11:11:18.3070991Z ##[group]Run actions/setup-python@v5
+2025-12-04T11:11:18.3071318Z with:
+2025-12-04T11:11:18.3071502Z   python-version: 3.12
+2025-12-04T11:11:18.3071699Z   check-latest: false
+2025-12-04T11:11:18.3072074Z   token: ***
+2025-12-04T11:11:18.3072261Z   update-environment: true
+2025-12-04T11:11:18.3072468Z   allow-prereleases: false
+2025-12-04T11:11:18.3072666Z   freethreaded: false
+2025-12-04T11:11:18.3072828Z env:
+2025-12-04T11:11:18.3072987Z   LHP_DISABLE_ANALYTICS: 1
+2025-12-04T11:11:18.3073167Z ##[endgroup]
+2025-12-04T11:11:18.5323468Z ##[group]Installed versions
+2025-12-04T11:11:18.5623443Z Successfully set up CPython (3.12.10)
+2025-12-04T11:11:18.5624285Z ##[endgroup]
+2025-12-04T11:11:18.8346032Z ##[group]Run actions/cache@v4
+2025-12-04T11:11:18.8346380Z with:
+2025-12-04T11:11:18.8346563Z   path: ~\AppData\Local\pip\Cache
+2025-12-04T11:11:18.8346980Z   key: Windows-pip-3.12-a66ed4fb058fddc34e96dec530a143b066ed680d4ce5277d86621203b69b8012
+2025-12-04T11:11:18.8347454Z   restore-keys: Windows-pip-3.12-
+Windows-pip-
+2025-12-04T11:11:18.8347710Z   enableCrossOsArchive: false
+2025-12-04T11:11:18.8347923Z   fail-on-cache-miss: false
+2025-12-04T11:11:18.8348117Z   lookup-only: false
+2025-12-04T11:11:18.8348283Z   save-always: false
+2025-12-04T11:11:18.8348442Z env:
+2025-12-04T11:11:18.8348587Z   LHP_DISABLE_ANALYTICS: 1
+2025-12-04T11:11:18.8348858Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:11:18.8349251Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2025-12-04T11:11:18.8349629Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:11:18.8350032Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:11:18.8350678Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:11:18.8351128Z ##[endgroup]
+2025-12-04T11:11:19.3227146Z Cache not found for input keys: Windows-pip-3.12-a66ed4fb058fddc34e96dec530a143b066ed680d4ce5277d86621203b69b8012, Windows-pip-3.12-, Windows-pip-
+2025-12-04T11:11:19.3488366Z ##[group]Run python -m pip install --upgrade pip
+2025-12-04T11:11:19.3488811Z python -m pip install --upgrade pip
+2025-12-04T11:11:19.3489123Z pip install flake8 pytest pytest-cov pytest-xdist
+2025-12-04T11:11:19.3489415Z pip install -e .
+2025-12-04T11:11:19.3489727Z if (Test-Path requirements.txt) { pip install -r requirements.txt }
+2025-12-04T11:11:19.3490190Z if (Test-Path requirements-dev.txt) { pip install -r requirements-dev.txt }
+2025-12-04T11:11:19.3973219Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2025-12-04T11:11:19.3973534Z env:
+2025-12-04T11:11:19.3973723Z   LHP_DISABLE_ANALYTICS: 1
+2025-12-04T11:11:19.3973999Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:11:19.3974598Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2025-12-04T11:11:19.3975088Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:11:19.3975511Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:11:19.3976081Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:11:19.3976363Z ##[endgroup]
+2025-12-04T11:11:28.5250296Z Requirement already satisfied: pip in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (25.3)
+2025-12-04T11:11:30.6954307Z Collecting flake8
+2025-12-04T11:11:30.9473326Z   Downloading flake8-7.3.0-py2.py3-none-any.whl.metadata (3.8 kB)
+2025-12-04T11:11:31.0540539Z Collecting pytest
+2025-12-04T11:11:31.0761331Z   Downloading pytest-9.0.1-py3-none-any.whl.metadata (7.6 kB)
+2025-12-04T11:11:31.1838735Z Collecting pytest-cov
+2025-12-04T11:11:31.2064752Z   Downloading pytest_cov-7.0.0-py3-none-any.whl.metadata (31 kB)
+2025-12-04T11:11:31.3343491Z Collecting pytest-xdist
+2025-12-04T11:11:31.3566061Z   Downloading pytest_xdist-3.8.0-py3-none-any.whl.metadata (3.0 kB)
+2025-12-04T11:11:31.4080419Z Collecting mccabe<0.8.0,>=0.7.0 (from flake8)
+2025-12-04T11:11:31.4288656Z   Downloading mccabe-0.7.0-py2.py3-none-any.whl.metadata (5.0 kB)
+2025-12-04T11:11:31.4808212Z Collecting pycodestyle<2.15.0,>=2.14.0 (from flake8)
+2025-12-04T11:11:31.5016303Z   Downloading pycodestyle-2.14.0-py2.py3-none-any.whl.metadata (4.5 kB)
+2025-12-04T11:11:31.5656593Z Collecting pyflakes<3.5.0,>=3.4.0 (from flake8)
+2025-12-04T11:11:31.5869982Z   Downloading pyflakes-3.4.0-py2.py3-none-any.whl.metadata (3.5 kB)
+2025-12-04T11:11:31.6336034Z Collecting colorama>=0.4 (from pytest)
+2025-12-04T11:11:31.6543575Z   Downloading colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+2025-12-04T11:11:31.7121438Z Collecting iniconfig>=1.0.1 (from pytest)
+2025-12-04T11:11:31.7346209Z   Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+2025-12-04T11:11:31.7808407Z Collecting packaging>=22 (from pytest)
+2025-12-04T11:11:31.8018901Z   Downloading packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+2025-12-04T11:11:31.8473377Z Collecting pluggy<2,>=1.5 (from pytest)
+2025-12-04T11:11:31.8694169Z   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+2025-12-04T11:11:31.9218742Z Collecting pygments>=2.7.2 (from pytest)
+2025-12-04T11:11:31.9435210Z   Downloading pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+2025-12-04T11:11:32.3210004Z Collecting coverage>=7.10.6 (from coverage[toml]>=7.10.6->pytest-cov)
+2025-12-04T11:11:32.3436395Z   Downloading coverage-7.12.0-cp312-cp312-win_amd64.whl.metadata (9.3 kB)
+2025-12-04T11:11:32.4001133Z Collecting execnet>=2.1 (from pytest-xdist)
+2025-12-04T11:11:32.4222944Z   Downloading execnet-2.1.2-py3-none-any.whl.metadata (2.9 kB)
+2025-12-04T11:11:32.4681451Z Downloading flake8-7.3.0-py2.py3-none-any.whl (57 kB)
+2025-12-04T11:11:32.5443063Z Downloading mccabe-0.7.0-py2.py3-none-any.whl (7.3 kB)
+2025-12-04T11:11:32.5812339Z Downloading pycodestyle-2.14.0-py2.py3-none-any.whl (31 kB)
+2025-12-04T11:11:32.6408060Z Downloading pyflakes-3.4.0-py2.py3-none-any.whl (63 kB)
+2025-12-04T11:11:32.7157866Z Downloading pytest-9.0.1-py3-none-any.whl (373 kB)
+2025-12-04T11:11:32.9644162Z Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+2025-12-04T11:11:33.0152220Z Downloading pytest_cov-7.0.0-py3-none-any.whl (22 kB)
+2025-12-04T11:11:33.0635339Z Downloading pytest_xdist-3.8.0-py3-none-any.whl (46 kB)
+2025-12-04T11:11:33.1274415Z Downloading colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+2025-12-04T11:11:33.1742956Z Downloading coverage-7.12.0-cp312-cp312-win_amd64.whl (221 kB)
+2025-12-04T11:11:33.3454621Z Downloading execnet-2.1.2-py3-none-any.whl (40 kB)
+2025-12-04T11:11:33.3995232Z Downloading iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+2025-12-04T11:11:33.4372217Z Downloading packaging-25.0-py3-none-any.whl (66 kB)
+2025-12-04T11:11:33.5043133Z Downloading pygments-2.19.2-py3-none-any.whl (1.2 MB)
+2025-12-04T11:11:34.3733071Z    ---------------------------------------- 1.2/1.2 MB 1.3 MB/s  0:00:00
+2025-12-04T11:11:34.4502379Z Installing collected packages: pygments, pyflakes, pycodestyle, pluggy, packaging, mccabe, iniconfig, execnet, coverage, colorama, pytest, flake8, pytest-xdist, pytest-cov
+2025-12-04T11:11:37.7135210Z 
+2025-12-04T11:11:37.7157823Z Successfully installed colorama-0.4.6 coverage-7.12.0 execnet-2.1.2 flake8-7.3.0 iniconfig-2.3.0 mccabe-0.7.0 packaging-25.0 pluggy-1.6.0 pycodestyle-2.14.0 pyflakes-3.4.0 pygments-2.19.2 pytest-9.0.1 pytest-cov-7.0.0 pytest-xdist-3.8.0
+2025-12-04T11:11:38.9462972Z Obtaining file:///D:/a/Lakehouse_Plumber/Lakehouse_Plumber
+2025-12-04T11:11:38.9501543Z   Installing build dependencies: started
+2025-12-04T11:11:42.2308299Z   Installing build dependencies: finished with status 'done'
+2025-12-04T11:11:42.2323977Z   Checking if build backend supports build_editable: started
+2025-12-04T11:11:42.6875886Z   Checking if build backend supports build_editable: finished with status 'done'
+2025-12-04T11:11:42.6900270Z   Getting requirements to build editable: started
+2025-12-04T11:11:43.1941446Z   Getting requirements to build editable: finished with status 'done'
+2025-12-04T11:11:43.1973729Z   Preparing editable metadata (pyproject.toml): started
+2025-12-04T11:11:43.5157238Z   Preparing editable metadata (pyproject.toml): finished with status 'done'
+2025-12-04T11:11:43.8280701Z Collecting click>=8.0.0 (from lakehouse-plumber==0.7.2)
+2025-12-04T11:11:44.0750626Z   Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+2025-12-04T11:11:44.2234970Z Collecting pyyaml>=6.0.0 (from lakehouse-plumber==0.7.2)
+2025-12-04T11:11:44.3021800Z   Downloading pyyaml-6.0.3-cp312-cp312-win_amd64.whl.metadata (2.4 kB)
+2025-12-04T11:11:44.5175466Z Collecting ruamel.yaml>=0.17.0 (from lakehouse-plumber==0.7.2)
+2025-12-04T11:11:44.5389315Z   Downloading ruamel.yaml-0.18.16-py3-none-any.whl.metadata (25 kB)
+2025-12-04T11:11:44.6437698Z Collecting jinja2>=3.0.0 (from lakehouse-plumber==0.7.2)
+2025-12-04T11:11:44.6653200Z   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+2025-12-04T11:11:44.7315478Z Collecting rich>=12.0.0 (from lakehouse-plumber==0.7.2)
+2025-12-04T11:11:44.7538564Z   Downloading rich-14.2.0-py3-none-any.whl.metadata (18 kB)
+2025-12-04T11:11:44.8944898Z Collecting pydantic>=2.0.0 (from lakehouse-plumber==0.7.2)
+2025-12-04T11:11:44.9187489Z   Downloading pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+2025-12-04T11:11:45.0040476Z Collecting jsonschema>=4.0.0 (from lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.0252213Z   Downloading jsonschema-4.25.1-py3-none-any.whl.metadata (7.6 kB)
+2025-12-04T11:11:45.0447272Z Requirement already satisfied: packaging>=23.2 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from lakehouse-plumber==0.7.2) (25.0)
+2025-12-04T11:11:45.1030248Z Collecting black>=23.0.0 (from lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.1241726Z   Downloading black-25.11.0-cp312-cp312-win_amd64.whl.metadata (85 kB)
+2025-12-04T11:11:45.1865577Z Collecting networkx>=3.0.0 (from lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.2076651Z   Downloading networkx-3.6-py3-none-any.whl.metadata (6.8 kB)
+2025-12-04T11:11:45.2564834Z Collecting mypy-extensions>=0.4.3 (from black>=23.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.2776829Z   Downloading mypy_extensions-1.1.0-py3-none-any.whl.metadata (1.1 kB)
+2025-12-04T11:11:45.3233380Z Collecting pathspec>=0.9.0 (from black>=23.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.3856430Z   Downloading pathspec-0.12.1-py3-none-any.whl.metadata (21 kB)
+2025-12-04T11:11:45.4397238Z Collecting platformdirs>=2 (from black>=23.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.4610336Z   Downloading platformdirs-4.5.0-py3-none-any.whl.metadata (12 kB)
+2025-12-04T11:11:45.5117055Z Collecting pytokens>=0.3.0 (from black>=23.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.5326512Z   Downloading pytokens-0.3.0-py3-none-any.whl.metadata (2.0 kB)
+2025-12-04T11:11:45.5637299Z Requirement already satisfied: colorama in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from click>=8.0.0->lakehouse-plumber==0.7.2) (0.4.6)
+2025-12-04T11:11:45.6302487Z Collecting MarkupSafe>=2.0 (from jinja2>=3.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.6513124Z   Downloading markupsafe-3.0.3-cp312-cp312-win_amd64.whl.metadata (2.8 kB)
+2025-12-04T11:11:45.6974293Z Collecting attrs>=22.2.0 (from jsonschema>=4.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.7180413Z   Downloading attrs-25.4.0-py3-none-any.whl.metadata (10 kB)
+2025-12-04T11:11:45.7650780Z Collecting jsonschema-specifications>=2023.03.6 (from jsonschema>=4.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.7859920Z   Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl.metadata (2.9 kB)
+2025-12-04T11:11:45.8377606Z Collecting referencing>=0.28.4 (from jsonschema>=4.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:45.8589180Z   Downloading referencing-0.37.0-py3-none-any.whl.metadata (2.8 kB)
+2025-12-04T11:11:46.1379368Z Collecting rpds-py>=0.7.1 (from jsonschema>=4.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:46.1587188Z   Downloading rpds_py-0.30.0-cp312-cp312-win_amd64.whl.metadata (4.2 kB)
+2025-12-04T11:11:46.2120730Z Collecting annotated-types>=0.6.0 (from pydantic>=2.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:46.2344205Z   Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+2025-12-04T11:11:46.8842600Z Collecting pydantic-core==2.41.5 (from pydantic>=2.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:46.9918344Z   Downloading pydantic_core-2.41.5-cp312-cp312-win_amd64.whl.metadata (7.4 kB)
+2025-12-04T11:11:47.2250275Z Collecting typing-extensions>=4.14.1 (from pydantic>=2.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:47.2508737Z   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+2025-12-04T11:11:47.4031835Z Collecting typing-inspection>=0.4.2 (from pydantic>=2.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:47.4299114Z   Downloading typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+2025-12-04T11:11:47.5788392Z Collecting markdown-it-py>=2.2.0 (from rich>=12.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:47.6006575Z   Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+2025-12-04T11:11:47.6532176Z Requirement already satisfied: pygments<3.0.0,>=2.13.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from rich>=12.0.0->lakehouse-plumber==0.7.2) (2.19.2)
+2025-12-04T11:11:47.7016108Z Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich>=12.0.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:47.7269569Z   Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+2025-12-04T11:11:47.8694827Z Collecting ruamel.yaml.clib>=0.2.7 (from ruamel.yaml>=0.17.0->lakehouse-plumber==0.7.2)
+2025-12-04T11:11:47.9076950Z   Downloading ruamel_yaml_clib-0.2.15-cp312-cp312-win_amd64.whl.metadata (3.6 kB)
+2025-12-04T11:11:47.9900207Z Downloading black-25.11.0-cp312-cp312-win_amd64.whl (1.4 MB)
+2025-12-04T11:11:48.1337187Z    ---------------------------------------- 1.4/1.4 MB 8.8 MB/s  0:00:00
+2025-12-04T11:11:48.1593313Z Downloading click-8.3.1-py3-none-any.whl (108 kB)
+2025-12-04T11:11:48.2357132Z Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+2025-12-04T11:11:48.3107056Z Downloading jsonschema-4.25.1-py3-none-any.whl (90 kB)
+2025-12-04T11:11:48.3713528Z Downloading attrs-25.4.0-py3-none-any.whl (67 kB)
+2025-12-04T11:11:48.4366846Z Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+2025-12-04T11:11:48.5226786Z Downloading markupsafe-3.0.3-cp312-cp312-win_amd64.whl (15 kB)
+2025-12-04T11:11:48.6180280Z Downloading mypy_extensions-1.1.0-py3-none-any.whl (5.0 kB)
+2025-12-04T11:11:48.6828189Z Downloading networkx-3.6-py3-none-any.whl (2.1 MB)
+2025-12-04T11:11:48.8306155Z    ---------------------------------------- 2.1/2.1 MB 11.5 MB/s  0:00:00
+2025-12-04T11:11:48.8514572Z Downloading pathspec-0.12.1-py3-none-any.whl (31 kB)
+2025-12-04T11:11:48.9143708Z Downloading platformdirs-4.5.0-py3-none-any.whl (18 kB)
+2025-12-04T11:11:48.9918656Z Downloading pydantic-2.12.5-py3-none-any.whl (463 kB)
+2025-12-04T11:11:49.0724939Z Downloading pydantic_core-2.41.5-cp312-cp312-win_amd64.whl (2.0 MB)
+2025-12-04T11:11:49.1732446Z    ---------------------------------------- 2.0/2.0 MB 16.1 MB/s  0:00:00
+2025-12-04T11:11:49.1939395Z Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+2025-12-04T11:11:49.2632084Z Downloading pytokens-0.3.0-py3-none-any.whl (12 kB)
+2025-12-04T11:11:49.3338739Z Downloading pyyaml-6.0.3-cp312-cp312-win_amd64.whl (154 kB)
+2025-12-04T11:11:49.4894728Z Downloading referencing-0.37.0-py3-none-any.whl (26 kB)
+2025-12-04T11:11:49.5679173Z Downloading rich-14.2.0-py3-none-any.whl (243 kB)
+2025-12-04T11:11:49.6665927Z Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+2025-12-04T11:11:49.7402250Z Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+2025-12-04T11:11:49.8322415Z Downloading rpds_py-0.30.0-cp312-cp312-win_amd64.whl (240 kB)
+2025-12-04T11:11:49.9139834Z Downloading ruamel.yaml-0.18.16-py3-none-any.whl (119 kB)
+2025-12-04T11:11:49.9760883Z Downloading ruamel_yaml_clib-0.2.15-cp312-cp312-win_amd64.whl (119 kB)
+2025-12-04T11:11:50.0538706Z Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+2025-12-04T11:11:50.1335431Z Downloading typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+2025-12-04T11:11:50.2917866Z Building wheels for collected packages: lakehouse-plumber
+2025-12-04T11:11:50.3072673Z   Building editable for lakehouse-plumber (pyproject.toml): started
+2025-12-04T11:11:50.8264123Z   Building editable for lakehouse-plumber (pyproject.toml): finished with status 'done'
+2025-12-04T11:11:50.8514463Z   Created wheel for lakehouse-plumber: filename=lakehouse_plumber-0.7.2-0.editable-py3-none-any.whl size=18766 sha256=dbdf9a5931fdeaa3a1c1a0eface4f68699e4c9e1e901ef0522fc57ccbb30490b
+2025-12-04T11:11:50.8516054Z   Stored in directory: C:\Users\runneradmin\AppData\Local\Temp\pip-ephem-wheel-cache-52gd7r7i\wheels\4f\b4\49\028eafa60561c60ce9b6598d31a3b2cda1e03f26fb6b11bd20
+2025-12-04T11:11:50.8581276Z Successfully built lakehouse-plumber
+2025-12-04T11:11:50.9169734Z Installing collected packages: typing-extensions, ruamel.yaml.clib, rpds-py, pyyaml, pytokens, platformdirs, pathspec, networkx, mypy-extensions, mdurl, MarkupSafe, click, attrs, annotated-types, typing-inspection, ruamel.yaml, referencing, pydantic-core, markdown-it-py, jinja2, black, rich, pydantic, jsonschema-specifications, jsonschema, lakehouse-plumber
+2025-12-04T11:11:59.8204160Z 
+2025-12-04T11:11:59.8245542Z Successfully installed MarkupSafe-3.0.3 annotated-types-0.7.0 attrs-25.4.0 black-25.11.0 click-8.3.1 jinja2-3.1.6 jsonschema-4.25.1 jsonschema-specifications-2025.9.1 lakehouse-plumber-0.7.2 markdown-it-py-4.0.0 mdurl-0.1.2 mypy-extensions-1.1.0 networkx-3.6 pathspec-0.12.1 platformdirs-4.5.0 pydantic-2.12.5 pydantic-core-2.41.5 pytokens-0.3.0 pyyaml-6.0.3 referencing-0.37.0 rich-14.2.0 rpds-py-0.30.0 ruamel.yaml-0.18.16 ruamel.yaml.clib-0.2.15 typing-extensions-4.15.0 typing-inspection-0.4.2
+2025-12-04T11:12:02.0177799Z Requirement already satisfied: pytest>=7.0.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 4)) (9.0.1)
+2025-12-04T11:12:02.0183597Z Requirement already satisfied: pytest-cov>=4.0.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 5)) (7.0.0)
+2025-12-04T11:12:02.3136027Z Collecting pytest-mock>=3.10.0 (from -r requirements-dev.txt (line 6))
+2025-12-04T11:12:02.5614222Z   Downloading pytest_mock-3.15.1-py3-none-any.whl.metadata (3.9 kB)
+2025-12-04T11:12:02.5787946Z Requirement already satisfied: pytest-xdist>=3.0.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 7)) (3.8.0)
+2025-12-04T11:12:02.5791659Z Requirement already satisfied: flake8>=6.0.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 10)) (7.3.0)
+2025-12-04T11:12:02.5796155Z Requirement already satisfied: black>=23.0.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 11)) (25.11.0)
+2025-12-04T11:12:02.6569418Z Collecting isort>=5.12.0 (from -r requirements-dev.txt (line 12))
+2025-12-04T11:12:02.6781117Z   Downloading isort-7.0.0-py3-none-any.whl.metadata (11 kB)
+2025-12-04T11:12:02.8757861Z Collecting mypy>=1.0.0 (from -r requirements-dev.txt (line 13))
+2025-12-04T11:12:02.8976526Z   Downloading mypy-1.19.0-cp312-cp312-win_amd64.whl.metadata (2.2 kB)
+2025-12-04T11:12:03.0054648Z Collecting sphinx>=5.0.0 (from -r requirements-dev.txt (line 16))
+2025-12-04T11:12:03.0267062Z   Downloading sphinx-9.0.4-py3-none-any.whl.metadata (5.8 kB)
+2025-12-04T11:12:03.0807424Z Collecting sphinx-rtd-theme>=1.2.0 (from -r requirements-dev.txt (line 17))
+2025-12-04T11:12:03.1019035Z   Downloading sphinx_rtd_theme-3.0.2-py2.py3-none-any.whl.metadata (4.4 kB)
+2025-12-04T11:12:03.1679371Z Collecting pre-commit>=3.0.0 (from -r requirements-dev.txt (line 20))
+2025-12-04T11:12:03.1891238Z   Downloading pre_commit-4.5.0-py2.py3-none-any.whl.metadata (1.2 kB)
+2025-12-04T11:12:03.2676829Z Collecting tox>=4.0.0 (from -r requirements-dev.txt (line 21))
+2025-12-04T11:12:03.2897716Z   Downloading tox-4.32.0-py3-none-any.whl.metadata (3.5 kB)
+2025-12-04T11:12:03.3324837Z Collecting build>=0.10.0 (from -r requirements-dev.txt (line 24))
+2025-12-04T11:12:03.3553825Z   Downloading build-1.3.0-py3-none-any.whl.metadata (5.6 kB)
+2025-12-04T11:12:03.4105269Z Collecting twine>=4.0.0 (from -r requirements-dev.txt (line 25))
+2025-12-04T11:12:03.4321652Z   Downloading twine-6.2.0-py3-none-any.whl.metadata (3.6 kB)
+2025-12-04T11:12:03.4562358Z Requirement already satisfied: pyyaml>=6.0.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 28)) (6.0.3)
+2025-12-04T11:12:03.4566489Z Requirement already satisfied: jinja2>=3.1.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 31)) (3.1.6)
+2025-12-04T11:12:03.4570549Z Requirement already satisfied: pydantic>=2.0.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 32)) (2.12.5)
+2025-12-04T11:12:03.4574794Z Requirement already satisfied: click>=8.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 38)) (8.3.1)
+2025-12-04T11:12:03.4579113Z Requirement already satisfied: jsonschema>=4.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from -r requirements-dev.txt (line 39)) (4.25.1)
+2025-12-04T11:12:03.4595185Z Requirement already satisfied: colorama>=0.4 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from pytest>=7.0.0->-r requirements-dev.txt (line 4)) (0.4.6)
+2025-12-04T11:12:03.4601107Z Requirement already satisfied: iniconfig>=1.0.1 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from pytest>=7.0.0->-r requirements-dev.txt (line 4)) (2.3.0)
+2025-12-04T11:12:03.4611623Z Requirement already satisfied: packaging>=22 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from pytest>=7.0.0->-r requirements-dev.txt (line 4)) (25.0)
+2025-12-04T11:12:03.4618196Z Requirement already satisfied: pluggy<2,>=1.5 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from pytest>=7.0.0->-r requirements-dev.txt (line 4)) (1.6.0)
+2025-12-04T11:12:03.4621802Z Requirement already satisfied: pygments>=2.7.2 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from pytest>=7.0.0->-r requirements-dev.txt (line 4)) (2.19.2)
+2025-12-04T11:12:03.4657094Z Requirement already satisfied: coverage>=7.10.6 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from coverage[toml]>=7.10.6->pytest-cov>=4.0.0->-r requirements-dev.txt (line 5)) (7.12.0)
+2025-12-04T11:12:03.4685686Z Requirement already satisfied: execnet>=2.1 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from pytest-xdist>=3.0.0->-r requirements-dev.txt (line 7)) (2.1.2)
+2025-12-04T11:12:03.4703346Z Requirement already satisfied: mccabe<0.8.0,>=0.7.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from flake8>=6.0.0->-r requirements-dev.txt (line 10)) (0.7.0)
+2025-12-04T11:12:03.4708634Z Requirement already satisfied: pycodestyle<2.15.0,>=2.14.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from flake8>=6.0.0->-r requirements-dev.txt (line 10)) (2.14.0)
+2025-12-04T11:12:03.4714584Z Requirement already satisfied: pyflakes<3.5.0,>=3.4.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from flake8>=6.0.0->-r requirements-dev.txt (line 10)) (3.4.0)
+2025-12-04T11:12:03.4767756Z Requirement already satisfied: mypy-extensions>=0.4.3 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from black>=23.0.0->-r requirements-dev.txt (line 11)) (1.1.0)
+2025-12-04T11:12:03.4773738Z Requirement already satisfied: pathspec>=0.9.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from black>=23.0.0->-r requirements-dev.txt (line 11)) (0.12.1)
+2025-12-04T11:12:03.4779101Z Requirement already satisfied: platformdirs>=2 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from black>=23.0.0->-r requirements-dev.txt (line 11)) (4.5.0)
+2025-12-04T11:12:03.4783885Z Requirement already satisfied: pytokens>=0.3.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from black>=23.0.0->-r requirements-dev.txt (line 11)) (0.3.0)
+2025-12-04T11:12:03.4807242Z Requirement already satisfied: typing_extensions>=4.6.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from mypy>=1.0.0->-r requirements-dev.txt (line 13)) (4.15.0)
+2025-12-04T11:12:03.5474433Z Collecting librt>=0.6.2 (from mypy>=1.0.0->-r requirements-dev.txt (line 13))
+2025-12-04T11:12:03.5686932Z   Downloading librt-0.6.3-cp312-cp312-win_amd64.whl.metadata (1.4 kB)
+2025-12-04T11:12:03.6194276Z Collecting sphinxcontrib-applehelp>=1.0.7 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:03.6403990Z   Downloading sphinxcontrib_applehelp-2.0.0-py3-none-any.whl.metadata (2.3 kB)
+2025-12-04T11:12:03.6836921Z Collecting sphinxcontrib-devhelp>=1.0.6 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:03.7054889Z   Downloading sphinxcontrib_devhelp-2.0.0-py3-none-any.whl.metadata (2.3 kB)
+2025-12-04T11:12:03.7594242Z Collecting sphinxcontrib-htmlhelp>=2.0.6 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:03.7805854Z   Downloading sphinxcontrib_htmlhelp-2.1.0-py3-none-any.whl.metadata (2.3 kB)
+2025-12-04T11:12:03.8372098Z Collecting sphinxcontrib-jsmath>=1.0.1 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:03.8585573Z   Downloading sphinxcontrib_jsmath-1.0.1-py2.py3-none-any.whl.metadata (1.4 kB)
+2025-12-04T11:12:03.9072997Z Collecting sphinxcontrib-qthelp>=1.0.6 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:03.9290031Z   Downloading sphinxcontrib_qthelp-2.0.0-py3-none-any.whl.metadata (2.3 kB)
+2025-12-04T11:12:03.9778950Z Collecting sphinxcontrib-serializinghtml>=1.1.9 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:03.9994475Z   Downloading sphinxcontrib_serializinghtml-2.0.0-py3-none-any.whl.metadata (2.4 kB)
+2025-12-04T11:12:04.0474816Z Collecting docutils<0.23,>=0.20 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:04.0694539Z   Downloading docutils-0.22.3-py3-none-any.whl.metadata (15 kB)
+2025-12-04T11:12:04.1151978Z Collecting snowballstemmer>=2.2 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:04.1374689Z   Downloading snowballstemmer-3.0.1-py3-none-any.whl.metadata (7.9 kB)
+2025-12-04T11:12:04.1860112Z Collecting babel>=2.13 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:04.2075768Z   Downloading babel-2.17.0-py3-none-any.whl.metadata (2.0 kB)
+2025-12-04T11:12:04.2539696Z Collecting alabaster>=0.7.14 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:04.2750116Z   Downloading alabaster-1.0.0-py3-none-any.whl.metadata (2.8 kB)
+2025-12-04T11:12:04.3504358Z Collecting imagesize>=1.3 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:04.3714649Z   Downloading imagesize-1.4.1-py2.py3-none-any.whl.metadata (1.5 kB)
+2025-12-04T11:12:04.4224647Z Collecting requests>=2.30.0 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:04.4446104Z   Downloading requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+2025-12-04T11:12:04.4932813Z Collecting roman-numerals>=1.0.0 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:04.5144659Z   Downloading roman_numerals-3.1.0-py3-none-any.whl.metadata (3.6 kB)
+2025-12-04T11:12:04.5503258Z Collecting sphinx>=5.0.0 (from -r requirements-dev.txt (line 16))
+2025-12-04T11:12:04.8322219Z   Downloading sphinx-8.2.3-py3-none-any.whl.metadata (7.0 kB)
+2025-12-04T11:12:04.8590281Z Collecting docutils<0.23,>=0.20 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:04.8803992Z   Downloading docutils-0.21.2-py3-none-any.whl.metadata (2.8 kB)
+2025-12-04T11:12:04.9388551Z Collecting sphinxcontrib-jquery<5,>=4 (from sphinx-rtd-theme>=1.2.0->-r requirements-dev.txt (line 17))
+2025-12-04T11:12:04.9608967Z   Downloading sphinxcontrib_jquery-4.1-py2.py3-none-any.whl.metadata (2.6 kB)
+2025-12-04T11:12:05.0141892Z Collecting roman-numerals-py>=1.0.0 (from sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:05.0352634Z   Downloading roman_numerals_py-3.1.0-py3-none-any.whl.metadata (3.6 kB)
+2025-12-04T11:12:05.1073414Z Collecting cfgv>=2.0.0 (from pre-commit>=3.0.0->-r requirements-dev.txt (line 20))
+2025-12-04T11:12:05.1291513Z   Downloading cfgv-3.5.0-py2.py3-none-any.whl.metadata (8.9 kB)
+2025-12-04T11:12:05.2079133Z Collecting identify>=1.0.0 (from pre-commit>=3.0.0->-r requirements-dev.txt (line 20))
+2025-12-04T11:12:05.2295046Z   Downloading identify-2.6.15-py2.py3-none-any.whl.metadata (4.4 kB)
+2025-12-04T11:12:05.2978787Z Collecting nodeenv>=0.11.1 (from pre-commit>=3.0.0->-r requirements-dev.txt (line 20))
+2025-12-04T11:12:05.3205796Z   Downloading nodeenv-1.9.1-py2.py3-none-any.whl.metadata (21 kB)
+2025-12-04T11:12:05.4003797Z Collecting virtualenv>=20.10.0 (from pre-commit>=3.0.0->-r requirements-dev.txt (line 20))
+2025-12-04T11:12:05.4217106Z   Downloading virtualenv-20.35.4-py3-none-any.whl.metadata (4.6 kB)
+2025-12-04T11:12:05.4711918Z Collecting cachetools>=6.2 (from tox>=4.0.0->-r requirements-dev.txt (line 21))
+2025-12-04T11:12:05.4922881Z   Downloading cachetools-6.2.2-py3-none-any.whl.metadata (5.6 kB)
+2025-12-04T11:12:05.5356253Z Collecting chardet>=5.2 (from tox>=4.0.0->-r requirements-dev.txt (line 21))
+2025-12-04T11:12:05.5571788Z   Downloading chardet-5.2.0-py3-none-any.whl.metadata (3.4 kB)
+2025-12-04T11:12:05.6015433Z Collecting filelock>=3.20 (from tox>=4.0.0->-r requirements-dev.txt (line 21))
+2025-12-04T11:12:05.6225823Z   Downloading filelock-3.20.0-py3-none-any.whl.metadata (2.1 kB)
+2025-12-04T11:12:05.6668795Z Collecting pyproject-api>=1.9.1 (from tox>=4.0.0->-r requirements-dev.txt (line 21))
+2025-12-04T11:12:05.6881543Z   Downloading pyproject_api-1.10.0-py3-none-any.whl.metadata (2.7 kB)
+2025-12-04T11:12:05.7386450Z Collecting pyproject_hooks (from build>=0.10.0->-r requirements-dev.txt (line 24))
+2025-12-04T11:12:05.7595690Z   Downloading pyproject_hooks-1.2.0-py3-none-any.whl.metadata (1.3 kB)
+2025-12-04T11:12:05.8071330Z Collecting readme-renderer>=35.0 (from twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:05.9303053Z   Downloading readme_renderer-44.0-py3-none-any.whl.metadata (2.8 kB)
+2025-12-04T11:12:05.9784511Z Collecting requests-toolbelt!=0.9.0,>=0.8.0 (from twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:05.9997316Z   Downloading requests_toolbelt-1.0.0-py2.py3-none-any.whl.metadata (14 kB)
+2025-12-04T11:12:06.0502514Z Collecting urllib3>=1.26.0 (from twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:06.0716701Z   Downloading urllib3-2.5.0-py3-none-any.whl.metadata (6.5 kB)
+2025-12-04T11:12:06.1415176Z Collecting keyring>=21.2.0 (from twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:06.1634829Z   Downloading keyring-25.7.0-py3-none-any.whl.metadata (21 kB)
+2025-12-04T11:12:06.2081218Z Collecting rfc3986>=1.4.0 (from twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:06.2296017Z   Downloading rfc3986-2.0.0-py2.py3-none-any.whl.metadata (6.6 kB)
+2025-12-04T11:12:06.2476531Z Requirement already satisfied: rich>=12.0.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from twine>=4.0.0->-r requirements-dev.txt (line 25)) (14.2.0)
+2025-12-04T11:12:06.2703814Z Collecting id (from twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:06.3915965Z   Downloading id-1.5.0-py3-none-any.whl.metadata (5.2 kB)
+2025-12-04T11:12:06.4134363Z Requirement already satisfied: MarkupSafe>=2.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from jinja2>=3.1.0->-r requirements-dev.txt (line 31)) (3.0.3)
+2025-12-04T11:12:06.4160227Z Requirement already satisfied: annotated-types>=0.6.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from pydantic>=2.0.0->-r requirements-dev.txt (line 32)) (0.7.0)
+2025-12-04T11:12:06.4165065Z Requirement already satisfied: pydantic-core==2.41.5 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from pydantic>=2.0.0->-r requirements-dev.txt (line 32)) (2.41.5)
+2025-12-04T11:12:06.4171897Z Requirement already satisfied: typing-inspection>=0.4.2 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from pydantic>=2.0.0->-r requirements-dev.txt (line 32)) (0.4.2)
+2025-12-04T11:12:06.4217050Z Requirement already satisfied: attrs>=22.2.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from jsonschema>=4.0->-r requirements-dev.txt (line 39)) (25.4.0)
+2025-12-04T11:12:06.4222219Z Requirement already satisfied: jsonschema-specifications>=2023.03.6 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from jsonschema>=4.0->-r requirements-dev.txt (line 39)) (2025.9.1)
+2025-12-04T11:12:06.4228892Z Requirement already satisfied: referencing>=0.28.4 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from jsonschema>=4.0->-r requirements-dev.txt (line 39)) (0.37.0)
+2025-12-04T11:12:06.4233698Z Requirement already satisfied: rpds-py>=0.7.1 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from jsonschema>=4.0->-r requirements-dev.txt (line 39)) (0.30.0)
+2025-12-04T11:12:06.4725259Z Collecting pywin32-ctypes>=0.2.0 (from keyring>=21.2.0->twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:06.4933427Z   Downloading pywin32_ctypes-0.2.3-py3-none-any.whl.metadata (3.9 kB)
+2025-12-04T11:12:06.5324455Z Collecting jaraco.classes (from keyring>=21.2.0->twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:06.5551314Z   Downloading jaraco.classes-3.4.0-py3-none-any.whl.metadata (2.6 kB)
+2025-12-04T11:12:06.5999514Z Collecting jaraco.functools (from keyring>=21.2.0->twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:06.6212714Z   Downloading jaraco_functools-4.3.0-py3-none-any.whl.metadata (2.9 kB)
+2025-12-04T11:12:06.6607097Z Collecting jaraco.context (from keyring>=21.2.0->twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:06.6824016Z   Downloading jaraco.context-6.0.1-py3-none-any.whl.metadata (4.1 kB)
+2025-12-04T11:12:06.7659609Z Collecting nh3>=0.2.14 (from readme-renderer>=35.0->twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:06.7871566Z   Downloading nh3-0.3.2-cp38-abi3-win_amd64.whl.metadata (2.0 kB)
+2025-12-04T11:12:06.9260773Z Collecting charset_normalizer<4,>=2 (from requests>=2.30.0->sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:06.9490431Z   Downloading charset_normalizer-3.4.4-cp312-cp312-win_amd64.whl.metadata (38 kB)
+2025-12-04T11:12:06.9987526Z Collecting idna<4,>=2.5 (from requests>=2.30.0->sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:07.0196622Z   Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+2025-12-04T11:12:07.1128343Z Collecting certifi>=2017.4.17 (from requests>=2.30.0->sphinx>=5.0.0->-r requirements-dev.txt (line 16))
+2025-12-04T11:12:07.1337643Z   Downloading certifi-2025.11.12-py3-none-any.whl.metadata (2.5 kB)
+2025-12-04T11:12:07.1747489Z Requirement already satisfied: markdown-it-py>=2.2.0 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from rich>=12.0.0->twine>=4.0.0->-r requirements-dev.txt (line 25)) (4.0.0)
+2025-12-04T11:12:07.1773276Z Requirement already satisfied: mdurl~=0.1 in c:\hostedtoolcache\windows\python\3.12.10\x64\lib\site-packages (from markdown-it-py>=2.2.0->rich>=12.0.0->twine>=4.0.0->-r requirements-dev.txt (line 25)) (0.1.2)
+2025-12-04T11:12:07.2285333Z Collecting distlib<1,>=0.3.7 (from virtualenv>=20.10.0->pre-commit>=3.0.0->-r requirements-dev.txt (line 20))
+2025-12-04T11:12:07.2495887Z   Downloading distlib-0.4.0-py2.py3-none-any.whl.metadata (5.2 kB)
+2025-12-04T11:12:07.3054211Z Collecting more-itertools (from jaraco.classes->keyring>=21.2.0->twine>=4.0.0->-r requirements-dev.txt (line 25))
+2025-12-04T11:12:07.3266542Z   Downloading more_itertools-10.8.0-py3-none-any.whl.metadata (39 kB)
+2025-12-04T11:12:07.3882309Z Downloading pytest_mock-3.15.1-py3-none-any.whl (10 kB)
+2025-12-04T11:12:07.4264773Z Downloading isort-7.0.0-py3-none-any.whl (94 kB)
+2025-12-04T11:12:07.4866387Z Downloading mypy-1.19.0-cp312-cp312-win_amd64.whl (10.1 MB)
+2025-12-04T11:12:07.6955037Z    ---------------------------------------- 10.1/10.1 MB 52.4 MB/s  0:00:00
+2025-12-04T11:12:07.7170185Z Downloading sphinx_rtd_theme-3.0.2-py2.py3-none-any.whl (7.7 MB)
+2025-12-04T11:12:07.8338596Z    ---------------------------------------- 7.7/7.7 MB 67.8 MB/s  0:00:00
+2025-12-04T11:12:07.8551905Z Downloading sphinx-8.2.3-py3-none-any.whl (3.6 MB)
+2025-12-04T11:12:07.9292239Z    ---------------------------------------- 3.6/3.6 MB 42.7 MB/s  0:00:00
+2025-12-04T11:12:07.9504930Z Downloading docutils-0.21.2-py3-none-any.whl (587 kB)
+2025-12-04T11:12:07.9797566Z    ---------------------------------------- 587.4/587.4 kB 20.3 MB/s  0:00:00
+2025-12-04T11:12:08.0006338Z Downloading sphinxcontrib_jquery-4.1-py2.py3-none-any.whl (121 kB)
+2025-12-04T11:12:08.0362986Z Downloading pre_commit-4.5.0-py2.py3-none-any.whl (226 kB)
+2025-12-04T11:12:08.0783611Z Downloading tox-4.32.0-py3-none-any.whl (175 kB)
+2025-12-04T11:12:08.1211542Z Downloading build-1.3.0-py3-none-any.whl (23 kB)
+2025-12-04T11:12:08.1847965Z Downloading twine-6.2.0-py3-none-any.whl (42 kB)
+2025-12-04T11:12:08.2218926Z Downloading alabaster-1.0.0-py3-none-any.whl (13 kB)
+2025-12-04T11:12:08.2616760Z Downloading babel-2.17.0-py3-none-any.whl (10.2 MB)
+2025-12-04T11:12:08.6973021Z    ---------------------------------------- 10.2/10.2 MB 22.6 MB/s  0:00:00
+2025-12-04T11:12:08.7181771Z Downloading cachetools-6.2.2-py3-none-any.whl (11 kB)
+2025-12-04T11:12:08.7559826Z Downloading cfgv-3.5.0-py2.py3-none-any.whl (7.4 kB)
+2025-12-04T11:12:08.7920007Z Downloading chardet-5.2.0-py3-none-any.whl (199 kB)
+2025-12-04T11:12:08.8310878Z Downloading filelock-3.20.0-py3-none-any.whl (16 kB)
+2025-12-04T11:12:08.8663693Z Downloading identify-2.6.15-py2.py3-none-any.whl (99 kB)
+2025-12-04T11:12:08.9075515Z Downloading imagesize-1.4.1-py2.py3-none-any.whl (8.8 kB)
+2025-12-04T11:12:08.9445318Z Downloading keyring-25.7.0-py3-none-any.whl (39 kB)
+2025-12-04T11:12:08.9886249Z Downloading librt-0.6.3-cp312-cp312-win_amd64.whl (21 kB)
+2025-12-04T11:12:09.0270227Z Downloading nodeenv-1.9.1-py2.py3-none-any.whl (22 kB)
+2025-12-04T11:12:09.0605319Z Downloading pyproject_api-1.10.0-py3-none-any.whl (13 kB)
+2025-12-04T11:12:09.0991745Z Downloading pywin32_ctypes-0.2.3-py3-none-any.whl (30 kB)
+2025-12-04T11:12:09.1364051Z Downloading readme_renderer-44.0-py3-none-any.whl (13 kB)
+2025-12-04T11:12:09.1750567Z Downloading nh3-0.3.2-cp38-abi3-win_amd64.whl (596 kB)
+2025-12-04T11:12:09.2015862Z    ---------------------------------------- 596.4/596.4 kB 20.9 MB/s  0:00:00
+2025-12-04T11:12:09.2222613Z Downloading requests-2.32.5-py3-none-any.whl (64 kB)
+2025-12-04T11:12:09.2586521Z Downloading charset_normalizer-3.4.4-cp312-cp312-win_amd64.whl (107 kB)
+2025-12-04T11:12:09.2983884Z Downloading idna-3.11-py3-none-any.whl (71 kB)
+2025-12-04T11:12:09.3419463Z Downloading urllib3-2.5.0-py3-none-any.whl (129 kB)
+2025-12-04T11:12:09.3826172Z Downloading certifi-2025.11.12-py3-none-any.whl (159 kB)
+2025-12-04T11:12:09.4298682Z Downloading requests_toolbelt-1.0.0-py2.py3-none-any.whl (54 kB)
+2025-12-04T11:12:09.4684362Z Downloading rfc3986-2.0.0-py2.py3-none-any.whl (31 kB)
+2025-12-04T11:12:09.5046281Z Downloading roman_numerals_py-3.1.0-py3-none-any.whl (7.7 kB)
+2025-12-04T11:12:09.5387032Z Downloading snowballstemmer-3.0.1-py3-none-any.whl (103 kB)
+2025-12-04T11:12:09.5758113Z Downloading sphinxcontrib_applehelp-2.0.0-py3-none-any.whl (119 kB)
+2025-12-04T11:12:09.6139996Z Downloading sphinxcontrib_devhelp-2.0.0-py3-none-any.whl (82 kB)
+2025-12-04T11:12:09.6523276Z Downloading sphinxcontrib_htmlhelp-2.1.0-py3-none-any.whl (98 kB)
+2025-12-04T11:12:09.6941873Z Downloading sphinxcontrib_jsmath-1.0.1-py2.py3-none-any.whl (5.1 kB)
+2025-12-04T11:12:09.7332625Z Downloading sphinxcontrib_qthelp-2.0.0-py3-none-any.whl (88 kB)
+2025-12-04T11:12:09.7700263Z Downloading sphinxcontrib_serializinghtml-2.0.0-py3-none-any.whl (92 kB)
+2025-12-04T11:12:09.8464684Z Downloading virtualenv-20.35.4-py3-none-any.whl (6.0 MB)
+2025-12-04T11:12:09.9590284Z    ---------------------------------------- 6.0/6.0 MB 52.7 MB/s  0:00:00
+2025-12-04T11:12:09.9801246Z Downloading distlib-0.4.0-py2.py3-none-any.whl (469 kB)
+2025-12-04T11:12:10.0320106Z Downloading id-1.5.0-py3-none-any.whl (13 kB)
+2025-12-04T11:12:10.0732544Z Downloading jaraco.classes-3.4.0-py3-none-any.whl (6.8 kB)
+2025-12-04T11:12:10.1178515Z Downloading jaraco.context-6.0.1-py3-none-any.whl (6.8 kB)
+2025-12-04T11:12:10.1589170Z Downloading jaraco_functools-4.3.0-py3-none-any.whl (10 kB)
+2025-12-04T11:12:10.2000215Z Downloading more_itertools-10.8.0-py3-none-any.whl (69 kB)
+2025-12-04T11:12:10.2756557Z Downloading pyproject_hooks-1.2.0-py3-none-any.whl (10 kB)
+2025-12-04T11:12:10.5678181Z Installing collected packages: distlib, urllib3, sphinxcontrib-serializinghtml, sphinxcontrib-qthelp, sphinxcontrib-jsmath, sphinxcontrib-htmlhelp, sphinxcontrib-devhelp, sphinxcontrib-applehelp, snowballstemmer, roman-numerals-py, rfc3986, pywin32-ctypes, pyproject_hooks, pyproject-api, nodeenv, nh3, more-itertools, librt, jaraco.context, isort, imagesize, idna, identify, filelock, docutils, charset_normalizer, chardet, cfgv, certifi, cachetools, babel, alabaster, virtualenv, requests, readme-renderer, pytest-mock, mypy, jaraco.functools, jaraco.classes, build, tox, sphinx, requests-toolbelt, pre-commit, keyring, id, twine, sphinxcontrib-jquery, sphinx-rtd-theme
+2025-12-04T11:12:22.2822465Z 
+2025-12-04T11:12:22.2898927Z Successfully installed alabaster-1.0.0 babel-2.17.0 build-1.3.0 cachetools-6.2.2 certifi-2025.11.12 cfgv-3.5.0 chardet-5.2.0 charset_normalizer-3.4.4 distlib-0.4.0 docutils-0.21.2 filelock-3.20.0 id-1.5.0 identify-2.6.15 idna-3.11 imagesize-1.4.1 isort-7.0.0 jaraco.classes-3.4.0 jaraco.context-6.0.1 jaraco.functools-4.3.0 keyring-25.7.0 librt-0.6.3 more-itertools-10.8.0 mypy-1.19.0 nh3-0.3.2 nodeenv-1.9.1 pre-commit-4.5.0 pyproject-api-1.10.0 pyproject_hooks-1.2.0 pytest-mock-3.15.1 pywin32-ctypes-0.2.3 readme-renderer-44.0 requests-2.32.5 requests-toolbelt-1.0.0 rfc3986-2.0.0 roman-numerals-py-3.1.0 snowballstemmer-3.0.1 sphinx-8.2.3 sphinx-rtd-theme-3.0.2 sphinxcontrib-applehelp-2.0.0 sphinxcontrib-devhelp-2.0.0 sphinxcontrib-htmlhelp-2.1.0 sphinxcontrib-jquery-4.1 sphinxcontrib-jsmath-1.0.1 sphinxcontrib-qthelp-2.0.0 sphinxcontrib-serializinghtml-2.0.0 tox-4.32.0 twine-6.2.0 urllib3-2.5.0 virtualenv-20.35.4
+2025-12-04T11:12:22.9643975Z ##[group]Run if (Test-Path tests\e2e) {
+2025-12-04T11:12:22.9644379Z if (Test-Path tests\e2e) {
+2025-12-04T11:12:22.9644889Z   pytest tests\e2e -m e2e -n auto --cov --cov-branch --cov-report=xml --junitxml=junit-e2e-windows.xml -o junit_family=legacy
+2025-12-04T11:12:22.9645356Z } else {
+2025-12-04T11:12:22.9645621Z   Write-Host "No e2e tests directory found, skipping tests"
+2025-12-04T11:12:22.9645916Z }
+2025-12-04T11:12:22.9711273Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2025-12-04T11:12:22.9711596Z env:
+2025-12-04T11:12:22.9711784Z   LHP_DISABLE_ANALYTICS: 1
+2025-12-04T11:12:22.9712071Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:12:22.9712477Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2025-12-04T11:12:22.9712888Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:12:22.9713319Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:12:22.9713666Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2025-12-04T11:12:22.9714176Z ##[endgroup]
+2025-12-04T11:12:26.4561893Z ============================= test session starts =============================
+2025-12-04T11:12:26.4568270Z platform win32 -- Python 3.12.10, pytest-9.0.1, pluggy-1.6.0
+2025-12-04T11:12:26.4573518Z rootdir: D:\a\Lakehouse_Plumber\Lakehouse_Plumber
+2025-12-04T11:12:26.4585106Z configfile: pyproject.toml
+2025-12-04T11:12:26.4589047Z plugins: cov-7.0.0, mock-3.15.1, xdist-3.8.0
+2025-12-04T11:12:26.4596093Z created: 4/4 workers
+2025-12-04T11:12:26.4602360Z 4 workers [38 items]
+2025-12-04T11:12:26.4608828Z 
+2025-12-04T11:13:50.0478853Z .........F.F..F..FFFF.................                                   [100%]
+2025-12-04T11:13:50.0479345Z ================================== FAILURES ===================================
+2025-12-04T11:13:50.0479762Z _____ TestBundleManagerE2E.test_baseline_hash_comparison_dev_environment ______
+2025-12-04T11:13:50.0480230Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2025-12-04T11:13:50.0480511Z 
+2025-12-04T11:13:50.0480708Z self = <e2e.test_bundle_manager_e2e.TestBundleManagerE2E object at 0x000002E4D0BC2BD0>
+2025-12-04T11:13:50.0480995Z 
+2025-12-04T11:13:50.0481128Z     def test_baseline_hash_comparison_dev_environment(self):
+2025-12-04T11:13:50.0481527Z         """Test that generate -e dev produces identical files to baseline using hashes."""
+2025-12-04T11:13:50.0481872Z         # Ensure baseline directory exists
+2025-12-04T11:13:50.0482187Z         baseline_dir = self.project_root / "generated_baseline" / "dev"
+2025-12-04T11:13:50.0482484Z         assert baseline_dir.exists(
+2025-12-04T11:13:50.0482771Z         ), "Baseline directory should exist for comparison"
+2025-12-04T11:13:50.0483019Z     
+2025-12-04T11:13:50.0483218Z         # Run generate command for dev environment
+2025-12-04T11:13:50.0483499Z         exit_code, output = self.run_bundle_sync()
+2025-12-04T11:13:50.0483801Z         assert exit_code == 0, f"Generate should succeed: {output}"
+2025-12-04T11:13:50.0484072Z     
+2025-12-04T11:13:50.0484268Z         # Use dev-specific directory for baseline comparison
+2025-12-04T11:13:50.0484597Z         dev_generated_dir = self.project_root / "generated" / "dev"
+2025-12-04T11:13:50.0484856Z     
+2025-12-04T11:13:50.0485071Z         # Normalize paths in generated files before comparison
+2025-12-04T11:13:50.0485428Z         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+2025-12-04T11:13:50.0485828Z         self._normalize_generated_file_paths(dev_generated_dir, fixture_path)
+2025-12-04T11:13:50.0486120Z     
+2025-12-04T11:13:50.0486433Z         # Compare generated files with baseline using hashes
+2025-12-04T11:13:50.0486726Z         hash_differences = self._compare_directory_hashes(
+2025-12-04T11:13:50.0487012Z             dev_generated_dir, baseline_dir)
+2025-12-04T11:13:50.0489355Z     
+2025-12-04T11:13:50.0489728Z         if hash_differences:
+2025-12-04T11:13:50.0489927Z             print(
+2025-12-04T11:13:50.0490238Z                 f"\n BASELINE HASH COMPARISON FAILURES ({len(hash_differences)} differences):"
+2025-12-04T11:13:50.0490586Z             )
+2025-12-04T11:13:50.0490772Z             for i, diff in enumerate(hash_differences, 1):
+2025-12-04T11:13:50.0491022Z                 print(f"  {i}. {diff}")
+2025-12-04T11:13:50.0491413Z >           assert False, f"Generated files differ from baseline: {len(hash_differences)} differences found"
+2025-12-04T11:13:50.0491984Z E           AssertionError: Generated files differ from baseline: 5 differences found
+2025-12-04T11:13:50.0492309Z E           assert False
+2025-12-04T11:13:50.0492423Z 
+2025-12-04T11:13:50.0492660Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:572: AssertionError
+2025-12-04T11:13:50.0493126Z ---------------------------- Captured stdout call -----------------------------
+2025-12-04T11:13:50.0493349Z 
+2025-12-04T11:13:50.0493459Z  BASELINE HASH COMPARISON FAILURES (5 differences):
+2025-12-04T11:13:50.0493893Z   1. Missing file from generated: sample_python_func_pipeline\custom_python_functions\__init__.py
+2025-12-04T11:13:50.0494654Z   2. Missing file from generated: sample_python_func_pipeline\custom_python_functions\sample_func.py
+2025-12-04T11:13:50.0495172Z   3. Missing file from generated: sample_python_func_pipeline\python_func_flowgroup.py
+2025-12-04T11:13:50.0495645Z   4. Content differs (hash mismatch): custom_datasource\custom_with_metadata.py
+2025-12-04T11:13:50.0496075Z     Generated: db23dff80472200bbbd2e9103d328111562d0db5a08c62751d2eda12d663afb2
+2025-12-04T11:13:50.0496525Z     Baseline:  a78cc3e8c5ff762993023017998b81cf70cf6b9f8337728d112a8e35d705c74a
+2025-12-04T11:13:50.0496848Z     Diff:
+2025-12-04T11:13:50.0497045Z --- baseline/custom_datasource\custom_with_metadata.py
+2025-12-04T11:13:50.0497377Z +++ generated/custom_datasource\custom_with_metadata.py
+2025-12-04T11:13:50.0497710Z @@ -15,7 +15,7 @@
+2025-12-04T11:13:50.0497902Z  # ============================================================================
+2025-12-04T11:13:50.0498066Z 
+2025-12-04T11:13:50.0498149Z  # CUSTOM DATA SOURCE IMPLEMENTATIONS
+2025-12-04T11:13:50.0498309Z 
+2025-12-04T11:13:50.0498709Z  # ============================================================================
+2025-12-04T11:13:50.0498949Z 
+2025-12-04T11:13:50.0499370Z -# The following code was automatically copied from: tests/e2e/fixtures/testing_project/py_functions/pyspark_custom_data_sources/api_with_wildcard.py
+2025-12-04T11:13:50.0499850Z 
+2025-12-04T11:13:50.0500328Z +# The following code was automatically copied from: C:\Users\runneradmin\AppData\Local\Temp\tmpxcxt1_03\test_project\py_functions\pyspark_custom_data_sources\api_with_wildcard.py
+2025-12-04T11:13:50.0500883Z 
+2025-12-04T11:13:50.0500957Z  # Used by action: unknown
+2025-12-04T11:13:50.0501083Z 
+2025-12-04T11:13:50.0501161Z  
+2025-12-04T11:13:50.0501246Z 
+2025-12-04T11:13:50.0501471Z  """Custom data source with wildcard imports to test operational metadata import consistency."""
+2025-12-04T11:13:50.0501792Z 
+2025-12-04T11:13:50.0501961Z   5. Content differs (hash mismatch): custom_datasource\sink_with_metadata.py
+2025-12-04T11:13:50.0502388Z     Generated: 9062935f9b75bf64abdd088282e45ab8d515bcebe92026a6077d243c19384640
+2025-12-04T11:13:50.0502833Z     Baseline:  ca8f5ab8a6f696d373219bf4c60eb0a8eb53fc31203749d35d31517c9e090bce
+2025-12-04T11:13:50.0503159Z     Diff:
+2025-12-04T11:13:50.0503351Z --- baseline/custom_datasource\sink_with_metadata.py
+2025-12-04T11:13:50.0503663Z +++ generated/custom_datasource\sink_with_metadata.py
+2025-12-04T11:13:50.0503909Z @@ -13,7 +13,7 @@
+2025-12-04T11:13:50.0504099Z  # ============================================================================
+2025-12-04T11:13:50.0504260Z 
+2025-12-04T11:13:50.0504351Z  # CUSTOM DATA SOURCE IMPLEMENTATIONS
+2025-12-04T11:13:50.0504523Z 
+2025-12-04T11:13:50.0505159Z  # ============================================================================
+2025-12-04T11:13:50.0505333Z 
+2025-12-04T11:13:50.0505756Z -# The following code was automatically copied from: tests/e2e/fixtures/testing_project/py_functions/pyspark_custom_data_sources/custom_sink_wildcard.py
+2025-12-04T11:13:50.0506242Z 
+2025-12-04T11:13:50.0506717Z +# The following code was automatically copied from: C:\Users\runneradmin\AppData\Local\Temp\tmpxcxt1_03\test_project\py_functions\pyspark_custom_data_sources\custom_sink_wildcard.py
+2025-12-04T11:13:50.0507275Z 
+2025-12-04T11:13:50.0507348Z  # Used by action: unknown
+2025-12-04T11:13:50.0507477Z 
+2025-12-04T11:13:50.0507551Z  
+2025-12-04T11:13:50.0507631Z 
+2025-12-04T11:13:50.0507872Z  """Custom data sink with wildcard imports to test BaseSinkWriteGenerator operational metadata."""
+2025-12-04T11:13:50.0508200Z 
+2025-12-04T11:13:50.0508387Z _____ TestBundleManagerE2E.test_BM8b_copied_python_function_regeneration ______
+2025-12-04T11:13:50.0508828Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2025-12-04T11:13:50.0509109Z 
+2025-12-04T11:13:50.0509308Z self = <e2e.test_bundle_manager_e2e.TestBundleManagerE2E object at 0x000002E4D0BC8410>
+2025-12-04T11:13:50.0509704Z 
+2025-12-04T11:13:50.0509847Z     def test_BM8b_copied_python_function_regeneration(self):
+2025-12-04T11:13:50.0510112Z         """
+2025-12-04T11:13:50.0510380Z         BM-8b: Copied Python function changes trigger selective regeneration.
+2025-12-04T11:13:50.0510671Z     
+2025-12-04T11:13:50.0510875Z         Tests the copied Python function pattern where:
+2025-12-04T11:13:50.0511223Z         - Python function is copied to custom_python_functions/ directory
+2025-12-04T11:13:50.0511611Z         - Main flowgroup imports the function via import statement
+2025-12-04T11:13:50.0512068Z         - Source: py_functions/sample_func.py \u2192 generated/dev/sample_python_func_pipeline/
+2025-12-04T11:13:50.0512495Z         - Uses transform_type: python with module_path configuration
+2025-12-04T11:13:50.0512861Z         - SHOULD regenerate 2 files when the Python function changes:
+2025-12-04T11:13:50.0513190Z           1. Main flowgroup file (import logic may change)
+2025-12-04T11:13:50.0513547Z           2. Copied function file (should be re-copied to reflect source changes)
+2025-12-04T11:13:50.0513861Z     
+2025-12-04T11:13:50.0514019Z         **CURRENT BEHAVIOR** (Potential Bug):
+2025-12-04T11:13:50.0514293Z         - \u2705 Main flowgroup regenerates correctly
+2025-12-04T11:13:50.0514629Z         - \u274c Copied function file is NOT re-copied (BUG - stays as old version)
+2025-12-04T11:13:50.0514945Z     
+2025-12-04T11:13:50.0515087Z         Validates that:
+2025-12-04T11:13:50.0515314Z         1. Python function checksum changes when modified
+2025-12-04T11:13:50.0515650Z         2. Main flowgroup file CONTENT actually changes (file checksum changes)
+2025-12-04T11:13:50.0516075Z         3. Copied function file SHOULD be re-copied (currently appears to be a bug)
+2025-12-04T11:13:50.0516456Z         4. Regeneration happens without needing --force flag
+2025-12-04T11:13:50.0516714Z         """
+2025-12-04T11:13:50.0517022Z         # Based on analysis: sample_func.py gets copied to custom_python_functions/ and imported
+2025-12-04T11:13:50.0517369Z     
+2025-12-04T11:13:50.0517621Z         # Phase 1: Initial generation and baseline state capture
+2025-12-04T11:13:50.0518077Z         exit_code, output = self.run_bundle_sync()
+2025-12-04T11:13:50.0518429Z         assert exit_code == 0, f"Initial generation should succeed: {output}"
+2025-12-04T11:13:50.0519488Z     
+2025-12-04T11:13:50.0519685Z         baseline_state = self._load_state_file()
+2025-12-04T11:13:50.0520046Z         assert baseline_state, "Baseline state file should exist after generation"
+2025-12-04T11:13:50.0520359Z     
+2025-12-04T11:13:50.0520544Z         print(" Phase 1: Baseline state captured")
+2025-12-04T11:13:50.0520791Z     
+2025-12-04T11:13:50.0521189Z         # Phase 2: Modify sample_func.py to change its hash
+2025-12-04T11:13:50.0521505Z         py_function_path = "py_functions/sample_func.py"
+2025-12-04T11:13:50.0521782Z >       self._modify_python_function(
+2025-12-04T11:13:50.0522092Z             py_function_path, "BM8b test modification - copied pattern")
+2025-12-04T11:13:50.0522315Z 
+2025-12-04T11:13:50.0522513Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1205: 
+2025-12-04T11:13:50.0522904Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2025-12-04T11:13:50.0523367Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1820: in _modify_python_function
+2025-12-04T11:13:50.0523804Z     original_content = py_file.read_text()
+2025-12-04T11:13:50.0524050Z                        ^^^^^^^^^^^^^^^^^^^
+2025-12-04T11:13:50.0524383Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\pathlib.py:1028: in read_text
+2025-12-04T11:13:50.0524737Z     return f.read()
+2025-12-04T11:13:50.0524903Z            ^^^^^^^^
+2025-12-04T11:13:50.0525109Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2025-12-04T11:13:50.0525392Z 
+2025-12-04T11:13:50.0525578Z self = <encodings.cp1252.IncrementalDecoder object at 0x000002E4D2F89430>
+2025-12-04T11:13:50.0526413Z input = b'from pyspark.sql.functions import (\r\n    col, explode, lit, when, size, current_timestamp, \r\n    date_format, fr...ss fields\r\n    df_validated = df_business_mapped.filter(col("Header_Count") >= 9)\r\n    \r\n    return df_validated'
+2025-12-04T11:13:50.0527162Z final = True
+2025-12-04T11:13:50.0527257Z 
+2025-12-04T11:13:50.0527352Z     def decode(self, input, final=False):
+2025-12-04T11:13:50.0527659Z >       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2025-12-04T11:13:50.0527987Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-04T11:13:50.0528411Z E       UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>
+2025-12-04T11:13:50.0528773Z 
+2025-12-04T11:13:50.0528992Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py:23: UnicodeDecodeError
+2025-12-04T11:13:50.0529514Z ---------------------------- Captured stdout call -----------------------------
+2025-12-04T11:13:50.0529819Z  Phase 1: Baseline state captured
+2025-12-04T11:13:50.0530151Z ________ TestBundleManagerE2E.test_BM10_staleness_analysis_diagnostic _________
+2025-12-04T11:13:50.0530601Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2025-12-04T11:13:50.0530857Z 
+2025-12-04T11:13:50.0531052Z self = <e2e.test_bundle_manager_e2e.TestBundleManagerE2E object at 0x000002E4D0BC8C80>
+2025-12-04T11:13:50.0531354Z 
+2025-12-04T11:13:50.0531471Z     def test_BM10_staleness_analysis_diagnostic(self):
+2025-12-04T11:13:50.0531851Z         """BM-10: Deep diagnostic of staleness analysis for Python function changes."""
+2025-12-04T11:13:50.0532184Z         # Phase 1: Initial generation
+2025-12-04T11:13:50.0532437Z         exit_code, output = self.run_bundle_sync()
+2025-12-04T11:13:50.0532752Z         assert exit_code == 0, f"Initial generation should succeed: {output}"
+2025-12-04T11:13:50.0533049Z     
+2025-12-04T11:13:50.0533219Z         baseline_state = self._load_state_file()
+2025-12-04T11:13:50.0533444Z     
+2025-12-04T11:13:50.0533596Z         # Phase 2: Modify sample_func.py
+2025-12-04T11:13:50.0533869Z         py_function_path = "py_functions/sample_func.py"
+2025-12-04T11:13:50.0534176Z >       self._modify_python_function(py_function_path,
+2025-12-04T11:13:50.0534448Z                                      "BM10 staleness diagnostic")
+2025-12-04T11:13:50.0534645Z 
+2025-12-04T11:13:50.0534842Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1368: 
+2025-12-04T11:13:50.0535210Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2025-12-04T11:13:50.0535749Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1820: in _modify_python_function
+2025-12-04T11:13:50.0536190Z     original_content = py_file.read_text()
+2025-12-04T11:13:50.0536424Z                        ^^^^^^^^^^^^^^^^^^^
+2025-12-04T11:13:50.0536755Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\pathlib.py:1028: in read_text
+2025-12-04T11:13:50.0537077Z     return f.read()
+2025-12-04T11:13:50.0537251Z            ^^^^^^^^
+2025-12-04T11:13:50.0537444Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2025-12-04T11:13:50.0537638Z 
+2025-12-04T11:13:50.0537810Z self = <encodings.cp1252.IncrementalDecoder object at 0x000002E4D0573920>
+2025-12-04T11:13:50.0538965Z input = b'from pyspark.sql.functions import (\r\n    col, explode, lit, when, size, current_timestamp, \r\n    date_format, fr...ss fields\r\n    df_validated = df_business_mapped.filter(col("Header_Count") >= 9)\r\n    \r\n    return df_validated'
+2025-12-04T11:13:50.0539725Z final = True
+2025-12-04T11:13:50.0539827Z 
+2025-12-04T11:13:50.0539917Z     def decode(self, input, final=False):
+2025-12-04T11:13:50.0540229Z >       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2025-12-04T11:13:50.0541269Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-04T11:13:50.0541693Z E       UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>
+2025-12-04T11:13:50.0542033Z 
+2025-12-04T11:13:50.0542245Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py:23: UnicodeDecodeError
+2025-12-04T11:13:50.0542727Z ____ TestBundleManagerE2E.test_BM8a_embedded_python_function_regeneration _____
+2025-12-04T11:13:50.0543163Z [gw1] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2025-12-04T11:13:50.0543417Z 
+2025-12-04T11:13:50.0543607Z self = <e2e.test_bundle_manager_e2e.TestBundleManagerE2E object at 0x00000218E747E8D0>
+2025-12-04T11:13:50.0543874Z 
+2025-12-04T11:13:50.0544015Z     def test_BM8a_embedded_python_function_regeneration(self):
+2025-12-04T11:13:50.0544269Z         """
+2025-12-04T11:13:50.0544522Z         BM-8a: Embedded Python function changes trigger selective regeneration.
+2025-12-04T11:13:50.0544807Z     
+2025-12-04T11:13:50.0544999Z         Tests the embedded Python function pattern where:
+2025-12-04T11:13:50.0545371Z         - Python function code is embedded directly into the generated flowgroup file
+2025-12-04T11:13:50.0545890Z         - Source: py_functions/partsupp_snapshot_func.py \u2192 generated/dev/acmi_edw_silver/partsupp_silver_dim.py
+2025-12-04T11:13:50.0546359Z         - Uses snapshot_cdc configuration with source_function
+2025-12-04T11:13:50.0546720Z         - Expects exactly 1 file to be regenerated when the Python function changes
+2025-12-04T11:13:50.0547031Z     
+2025-12-04T11:13:50.0547163Z         Validates that:
+2025-12-04T11:13:50.0547381Z         1. Python function checksum changes when modified
+2025-12-04T11:13:50.0547753Z         2. Dependent generated file's CONTENT actually changes (file checksum changes)
+2025-12-04T11:13:50.0548171Z         3. Only the directly dependent file is regenerated (selective regeneration)
+2025-12-04T11:13:50.0548545Z         4. Regeneration happens without needing --force flag
+2025-12-04T11:13:50.0548781Z         """
+2025-12-04T11:13:50.0549100Z         # Based on analysis: partsupp_snapshot_func.py gets embedded directly into partsupp_silver_dim.py
+2025-12-04T11:13:50.0549455Z     
+2025-12-04T11:13:50.0549654Z         # Phase 1: Initial generation and baseline state capture
+2025-12-04T11:13:50.0549941Z         exit_code, output = self.run_bundle_sync()
+2025-12-04T11:13:50.0550251Z         assert exit_code == 0, f"Initial generation should succeed: {output}"
+2025-12-04T11:13:50.0550585Z         print("\U0001f4ca Initial generation output:")
+2025-12-04T11:13:50.0550814Z         print(output)
+2025-12-04T11:13:50.0550978Z     
+2025-12-04T11:13:50.0551130Z         baseline_state = self._load_state_file()
+2025-12-04T11:13:50.0551905Z         assert baseline_state, "Baseline state file should exist after generation"
+2025-12-04T11:13:50.0552213Z     
+2025-12-04T11:13:50.0552390Z         print(" Phase 1: Baseline state captured")
+2025-12-04T11:13:50.0552610Z     
+2025-12-04T11:13:50.0552818Z         # Phase 2: Modify partsupp_snapshot_func.py to change its hash
+2025-12-04T11:13:50.0553169Z         py_function_path = "py_functions/partsupp_snapshot_func.py"
+2025-12-04T11:13:50.0553448Z         self._modify_python_function(
+2025-12-04T11:13:50.0553741Z             py_function_path, "BM8a test modification - embedded pattern")
+2025-12-04T11:13:50.0554002Z     
+2025-12-04T11:13:50.0554201Z         print(" Phase 2: Modified partsupp_snapshot_func.py")
+2025-12-04T11:13:50.0554449Z     
+2025-12-04T11:13:50.0554625Z         # Phase 3: Regenerate and capture updated state
+2025-12-04T11:13:50.0554896Z         exit_code, output = self.run_bundle_sync()
+2025-12-04T11:13:50.0555194Z         assert exit_code == 0, f"Regeneration should succeed: {output}"
+2025-12-04T11:13:50.0555492Z         print("\U0001f4ca Regeneration output:")
+2025-12-04T11:13:50.0555709Z         print(output)
+2025-12-04T11:13:50.0555956Z     
+2025-12-04T11:13:50.0556115Z         updated_state = self._load_state_file()
+2025-12-04T11:13:50.0556907Z         assert updated_state, "Updated state file should exist after regeneration"
+2025-12-04T11:13:50.0557204Z     
+2025-12-04T11:13:50.0557376Z         print(" Phase 3: Regeneration completed")
+2025-12-04T11:13:50.0557597Z     
+2025-12-04T11:13:50.0557777Z         # Phase 4: Validate selective regeneration occurred
+2025-12-04T11:13:50.0558039Z         expected_dependent_files = [
+2025-12-04T11:13:50.0558366Z             "acmi_edw_silver/partsupp_silver_dim.py"  # Only this file should be regenerated
+2025-12-04T11:13:50.0558700Z         ]
+2025-12-04T11:13:50.0558824Z     
+2025-12-04T11:13:50.0559053Z >       regenerated_count = self._validate_python_dependency_regeneration(
+2025-12-04T11:13:50.0559393Z             baseline_state, updated_state, py_function_path,
+2025-12-04T11:13:50.0559655Z             expected_dependent_files)
+2025-12-04T11:13:50.0559810Z 
+2025-12-04T11:13:50.0560016Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1158: 
+2025-12-04T11:13:50.0560375Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2025-12-04T11:13:50.0560557Z 
+2025-12-04T11:13:50.0560747Z self = <e2e.test_bundle_manager_e2e.TestBundleManagerE2E object at 0x00000218E747E8D0>
+2025-12-04T11:13:50.0561653Z baseline_state = {'environments': {'dev': {'generated\\dev\\acmi_edw_bronze\\customer_bronze.py': {'checksum': 'ddad1ef46905b975ab4ef43...time': None, 'path': 'substitutions\\dev.yaml', ...}}}, 'last_updated': '2025-12-04T11:13:16.005570', 'version': '1.0'}
+2025-12-04T11:13:50.0562915Z updated_state = {'environments': {'dev': {'generated\\dev\\acmi_edw_bronze\\customer_bronze.py': {'checksum': 'ddad1ef46905b975ab4ef43...time': None, 'path': 'substitutions\\dev.yaml', ...}}}, 'last_updated': '2025-12-04T11:13:25.117838', 'version': '1.0'}
+2025-12-04T11:13:50.0563692Z py_function_path = 'py_functions/partsupp_snapshot_func.py'
+2025-12-04T11:13:50.0564076Z expected_dependent_files = ['acmi_edw_silver/partsupp_silver_dim.py']
+2025-12-04T11:13:50.0564312Z 
+2025-12-04T11:13:50.0564418Z     def _validate_python_dependency_regeneration(
+2025-12-04T11:13:50.0564693Z             self, baseline_state: dict, updated_state: dict,
+2025-12-04T11:13:50.0565011Z             py_function_path: str, expected_dependent_files: list):
+2025-12-04T11:13:50.0565257Z         """
+2025-12-04T11:13:50.0565549Z         Validate that Python function change triggered regeneration of dependent files only.
+2025-12-04T11:13:50.0565882Z     
+2025-12-04T11:13:50.0566121Z         Uses file content checksum validation (actual regeneration) because:
+2025-12-04T11:13:50.0566553Z         - When Python function dependencies change, generated file content SHOULD change
+2025-12-04T11:13:50.0567165Z         - This validates that the system actually regenerates files, not just tracks dependencies
+2025-12-04T11:13:50.0567605Z         - Tests that regeneration works without needing --force flag
+2025-12-04T11:13:50.0568018Z         - Composite checksums are used for debugging but actual file content changes are required
+2025-12-04T11:13:50.0568361Z     
+2025-12-04T11:13:50.0568486Z         Args:
+2025-12-04T11:13:50.0568719Z             baseline_state: State before Python function modification
+2025-12-04T11:13:50.0569108Z             updated_state: State after Python function modification and regeneration
+2025-12-04T11:13:50.0569480Z             py_function_path: Path to the modified Python function
+2025-12-04T11:13:50.0569832Z             expected_dependent_files: List of files expected to be regenerated
+2025-12-04T11:13:50.0570153Z     
+2025-12-04T11:13:50.0570284Z         Returns:
+2025-12-04T11:13:50.0570487Z             int: Number of files that were actually regenerated
+2025-12-04T11:13:50.0570728Z         """
+2025-12-04T11:13:50.0570852Z     
+2025-12-04T11:13:50.0571027Z         # 1. Validate Python function checksum changed
+2025-12-04T11:13:50.0571429Z         baseline_py_checksum = self._extract_py_function_checksum(
+2025-12-04T11:13:50.0571710Z             baseline_state, py_function_path)
+2025-12-04T11:13:50.0571993Z         updated_py_checksum = self._extract_py_function_checksum(
+2025-12-04T11:13:50.0572276Z             updated_state, py_function_path)
+2025-12-04T11:13:50.0572479Z     
+2025-12-04T11:13:50.0572673Z         assert baseline_py_checksum != updated_py_checksum, \
+2025-12-04T11:13:50.0573008Z             f"Python function checksum should change: {py_function_path}"
+2025-12-04T11:13:50.0573271Z     
+2025-12-04T11:13:50.0573498Z         print(f"\u2705 Python function checksum changed: {py_function_path}")
+2025-12-04T11:13:50.0573840Z         print(f"   Baseline: {baseline_py_checksum[:12]}...")
+2025-12-04T11:13:50.0574122Z         print(f"   Updated:  {updated_py_checksum[:12]}...")
+2025-12-04T11:13:50.0574358Z     
+2025-12-04T11:13:50.0574538Z         # 2. Validate dependent generated files were regenerated
+2025-12-04T11:13:50.0574860Z         dependent_files = self._get_dependent_generated_files(
+2025-12-04T11:13:50.0575130Z             updated_state, py_function_path)
+2025-12-04T11:13:50.0575342Z     
+2025-12-04T11:13:50.0575510Z         for expected_file in expected_dependent_files:
+2025-12-04T11:13:50.0575833Z             matching_files = [f for f in dependent_files if expected_file in f]
+2025-12-04T11:13:50.0576157Z >           assert len(matching_files) > 0, \
+2025-12-04T11:13:50.0576426Z                 f"Expected dependent file not found: {expected_file}"
+2025-12-04T11:13:50.0577161Z E           AssertionError: Expected dependent file not found: acmi_edw_silver/partsupp_silver_dim.py
+2025-12-04T11:13:50.0577529Z E           assert 0 > 0
+2025-12-04T11:13:50.0577726Z E            +  where 0 = len([])
+2025-12-04T11:13:50.0577861Z 
+2025-12-04T11:13:50.0578113Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1919: AssertionError
+2025-12-04T11:13:50.0578559Z ---------------------------- Captured stdout call -----------------------------
+2025-12-04T11:13:50.0590869Z \U0001f4ca Initial generation output:\n\U0001f680 Generating pipeline code for environment: dev\nDetailed logs: C:\\Users\\runneradmin\\AppData\\Local\\Temp\\tmprhiijlwi\\test_project\\.lhp\\logs\\lhp.log\n\U0001f9f9 Checking for orphaned files in environment: dev\n\u2705 No orphaned files found\n\U0001f504 Force mode: regenerating all files regardless of changes\n\U0001f527 Analysis: 8 pipeline(s) need generation\n   \u2022 acmi_edw_silver: needs generation\n   \u2022 kafka_sample_pipeline: needs generation\n   \u2022 gold_load: needs generation\n   \u2022 acmi_edw_bronze: needs generation\n   \u2022 acmi_edw_modelled: needs generation\n   \u2022 acmi_edw_raw: needs generation\n   \u2022 sample_python_func_pipeline: needs generation\n   \u2022 custom_datasource: needs generation\n\u2705 acmi_edw_silver: Generated 4 file(s)\n\u2705 kafka_sample_pipeline: Generated 3 file(s)\n\u2705 gold_load: Generated 3 file(s)\n\u2705 acmi_edw_bronze: Generated 4 file(s)\n\u2705 acmi_edw_modelled: Generated 1 file(s)\n\u2705 acmi_edw_raw: Generated 9 file(s)\nERROR: Error generating flowgroup python_func_flowgroup: Error generating code for action 'customer_bronze_cleanse': 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>\nERROR: Pipeline generation failed: Error generating code for action 'customer_bronze_cleanse': 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>\n\u274c sample_python_func_pipeline: Generation failed - Error generating code for action 'customer_bronze_cleanse': 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>\n\u2705 custom_datasource: Generated 2 file(s)\nBundle support detected\n\U0001f517 Bundle support detected - syncing resource files...\n\U0001f4e6 Bundle resource files synchronized\n\u2705 Bundle resource files synchronized\n\u2705 Code generation completed successfully\n\U0001f4c2 Total files generated: 26\n\U0001f4c2 Output location: C:\\Users\\runneradmin\\AppData\\Local\\Temp\\tmprhiijlwi\\test_project\\generated\\dev\n\n Phase 1: Baseline state captured\n\u270f\ufe0f  Modified py_functions/partsupp_snapshot_func.py: Modified variable names and added SQL comment\n Phase 2: Modified partsupp_snapshot_func.py\n\U0001f4ca Regeneration output:\n\U0001f680 Generating pipeline code for environment: dev\nDetailed logs: C:\\Users\\runneradmin\\AppData\\Local\\Temp\\tmprhiijlwi\\test_project\\.lhp\\logs\\lhp.log\n\U0001f9f9 Checking for orphaned files in environment: dev\n\u2705 No orphaned files found\n\U0001f504 Force mode: regenerating all files regardless of changes\n\U0001f527 Analysis: 8 pipeline(s) need generation\n   \u2022 acmi_edw_silver: needs generation\n   \u2022 kafka_sample_pipeline: needs generation\n   \u2022 gold_load: needs generation\n   \u2022 acmi_edw_bronze: needs generation\n   \u2022 acmi_edw_modelled: needs generation\n   \u2022 acmi_edw_raw: needs generation\n   \u2022 sample_python_func_pipeline: needs generation\n   \u2022 custom_datasource: needs generation\n\u2705 acmi_edw_silver: Generated 4 file(s)\n\u2705 kafka_sample_pipeline: Generated 3 file(s)\n\u2705 gold_load: Generated 3 file(s)\n\u2705 acmi_edw_bronze: Generated 4 file(s)\n\u2705 acmi_edw_modelled: Generated 1 file(s)\n\u2705 acmi_edw_raw: Generated 9 file(s)\nERROR: Error generating flowgroup python_func_flowgroup: Error generating code for action 'customer_bronze_cleanse': 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>\nERROR: Pipeline generation failed: Error generating code for action 'customer_bronze_cleanse': 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>\n\u274c sample_python_func_pipeline: Generation failed - Error generating code for action 'customer_bronze_cleanse': 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>\n\u2705 custom_datasource: Generated 2 file(s)\nBundle support detected\n\U0001f517 Bundle support detected - syncing resource files...\n\U0001f4e6 Bundle resource files synchronized\n\u2705 Bundle resource files synchronized\n\u2705 Code generation completed successfully\n\U0001f4c2 Total files generated: 26\n\U0001f4c2 Output location: C:\\Users\\runneradmin\\AppData\\Local\\Temp\\tmprhiijlwi\\test_project\\generated\\dev\n\n Phase 3: Regeneration completed\n\u2705 Python function checksum changed: py_functions/partsupp_snapshot_func.py\n   Baseline: f72532c8f341...\n   Updated:  96f18a219415...
+2025-12-04T11:13:50.0603725Z ______ TestBundleManagerE2E.test_BM12_pipeline_decision_logic_comparison ______
+2025-12-04T11:13:50.0604179Z [gw3] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2025-12-04T11:13:50.0604435Z 
+2025-12-04T11:13:50.0604757Z self = <e2e.test_bundle_manager_e2e.TestBundleManagerE2E object at 0x000001D2365F9700>
+2025-12-04T11:13:50.0605040Z 
+2025-12-04T11:13:50.0605160Z     def test_BM12_pipeline_decision_logic_comparison(self):
+2025-12-04T11:13:50.0605488Z         """BM-12: Compare pipeline decision logic for both patterns."""
+2025-12-04T11:13:50.0605781Z         # Phase 1: Initial generation
+2025-12-04T11:13:50.0606012Z         exit_code, output = self.run_bundle_sync()
+2025-12-04T11:13:50.0606329Z         assert exit_code == 0, f"Initial generation should succeed: {output}"
+2025-12-04T11:13:50.0606615Z     
+2025-12-04T11:13:50.0606776Z         # Phase 2: Modify BOTH Python functions
+2025-12-04T11:13:50.0607108Z         self._modify_python_function("py_functions/partsupp_snapshot_func.py",
+2025-12-04T11:13:50.0607438Z                                      "BM12 embedded comparison")
+2025-12-04T11:13:50.0607749Z >       self._modify_python_function("py_functions/sample_func.py",
+2025-12-04T11:13:50.0608045Z                                      "BM12 copied comparison")
+2025-12-04T11:13:50.0608220Z 
+2025-12-04T11:13:50.0608418Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1509: 
+2025-12-04T11:13:50.0608874Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2025-12-04T11:13:50.0609302Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1820: in _modify_python_function
+2025-12-04T11:13:50.0609734Z     original_content = py_file.read_text()
+2025-12-04T11:13:50.0609952Z                        ^^^^^^^^^^^^^^^^^^^
+2025-12-04T11:13:50.0610278Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\pathlib.py:1028: in read_text
+2025-12-04T11:13:50.0610606Z     return f.read()
+2025-12-04T11:13:50.0610763Z            ^^^^^^^^
+2025-12-04T11:13:50.0610958Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2025-12-04T11:13:50.0611128Z 
+2025-12-04T11:13:50.0611301Z self = <encodings.cp1252.IncrementalDecoder object at 0x000001D237D392B0>
+2025-12-04T11:13:50.0612127Z input = b'from pyspark.sql.functions import (\r\n    col, explode, lit, when, size, current_timestamp, \r\n    date_format, fr...ss fields\r\n    df_validated = df_business_mapped.filter(col("Header_Count") >= 9)\r\n    \r\n    return df_validated'
+2025-12-04T11:13:50.0612839Z final = True
+2025-12-04T11:13:50.0612934Z 
+2025-12-04T11:13:50.0613021Z     def decode(self, input, final=False):
+2025-12-04T11:13:50.0613340Z >       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2025-12-04T11:13:50.0613657Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-04T11:13:50.0614082Z E       UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>
+2025-12-04T11:13:50.0614433Z 
+2025-12-04T11:13:50.0614645Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py:23: UnicodeDecodeError
+2025-12-04T11:13:50.0615066Z ---------------------------- Captured stdout call -----------------------------
+2025-12-04T11:13:50.0615559Z \u270f\ufe0f  Modified py_functions/partsupp_snapshot_func.py: Modified variable names and added SQL comment
+2025-12-04T11:13:50.0616092Z ______ TestBundleManagerE2E.test_BM14_python_function_overwrite_behavior ______
+2025-12-04T11:13:50.0616525Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2025-12-04T11:13:50.0617029Z 
+2025-12-04T11:13:50.0617287Z self = <e2e.test_bundle_manager_e2e.TestBundleManagerE2E object at 0x000002E4D0BC3050>
+2025-12-04T11:13:50.0617559Z 
+2025-12-04T11:13:50.0617680Z     def test_BM14_python_function_overwrite_behavior(self):
+2025-12-04T11:13:50.0618083Z         """BM-14: Test that same source file changes overwrite existing copied file correctly."""
+2025-12-04T11:13:50.0618484Z         # Phase 1: Initial generation to create copied file
+2025-12-04T11:13:50.0618761Z         exit_code, output = self.run_bundle_sync()
+2025-12-04T11:13:50.0619944Z         assert exit_code == 0, f"Initial generation should succeed: {output}"
+2025-12-04T11:13:50.0620236Z     
+2025-12-04T11:13:50.0620435Z         # Verify copied file exists with simple header
+2025-12-04T11:13:50.4035449Z         copied_file = self.generated_dir / "sample_python_func_pipeline" / "custom_python_functions" / "sample_func.py"
+2025-12-04T11:13:50.4036458Z >       assert copied_file.exists(), f"Copied file should exist: {copied_file}"
+2025-12-04T11:13:50.4037702Z E       AssertionError: Copied file should exist: C:\Users\RUNNER~1\AppData\Local\Temp\tmpnvzhtch2\test_project\generated\dev\sample_python_func_pipeline\custom_python_functions\sample_func.py
+2025-12-04T11:13:50.4038825Z E       assert False
+2025-12-04T11:13:50.4039141Z E        +  where False = exists()
+2025-12-04T11:13:50.4040319Z E        +    where exists = WindowsPath('C:/Users/RUNNER~1/AppData/Local/Temp/tmpnvzhtch2/test_project/generated/dev/sample_python_func_pipeline/custom_python_functions/sample_func.py').exists
+2025-12-04T11:13:50.4041359Z 
+2025-12-04T11:13:50.4041820Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1649: AssertionError
+2025-12-04T11:13:50.4042717Z ___ TestBundleManagerE2E.test_BM13_cli_vs_orchestrator_analysis_comparison ____
+2025-12-04T11:13:50.4043889Z [gw1] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2025-12-04T11:13:50.4044292Z 
+2025-12-04T11:13:50.4044624Z self = <e2e.test_bundle_manager_e2e.TestBundleManagerE2E object at 0x00000218E747FEF0>
+2025-12-04T11:13:50.4045113Z 
+2025-12-04T11:13:50.4045347Z     def test_BM13_cli_vs_orchestrator_analysis_comparison(self):
+2025-12-04T11:13:50.4046434Z         """BM-13: Compare CLI command behavior vs direct orchestrator analysis."""
+2025-12-04T11:13:50.4047010Z         # Phase 1: Initial generation
+2025-12-04T11:13:50.4047409Z         exit_code, output = self.run_bundle_sync()
+2025-12-04T11:13:50.4047933Z         assert exit_code == 0, f"Initial generation should succeed: {output}"
+2025-12-04T11:13:50.4048404Z     
+2025-12-04T11:13:50.4048691Z         # Phase 2: Modify sample_func.py only
+2025-12-04T11:13:50.4049181Z >       self._modify_python_function("py_functions/sample_func.py",
+2025-12-04T11:13:50.4049679Z                                      "BM13 CLI vs orchestrator")
+2025-12-04T11:13:50.4049965Z 
+2025-12-04T11:13:50.4050406Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1578: 
+2025-12-04T11:13:50.4051501Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2025-12-04T11:13:50.4052856Z D:\a\Lakehouse_Plumber\Lakehouse_Plumber\tests\e2e\test_bundle_manager_e2e.py:1820: in _modify_python_function
+2025-12-04T11:13:50.4054221Z     original_content = py_file.read_text()
+2025-12-04T11:13:50.4054889Z                        ^^^^^^^^^^^^^^^^^^^
+2025-12-04T11:13:50.4055845Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\pathlib.py:1028: in read_text
+2025-12-04T11:13:50.4056839Z     return f.read()
+2025-12-04T11:13:50.4057282Z            ^^^^^^^^
+2025-12-04T11:13:50.4057824Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2025-12-04T11:13:50.4058384Z 
+2025-12-04T11:13:50.4058892Z self = <encodings.cp1252.IncrementalDecoder object at 0x00000218E8DFBBC0>
+2025-12-04T11:13:50.4061519Z input = b'from pyspark.sql.functions import (\r\n    col, explode, lit, when, size, current_timestamp, \r\n    date_format, fr...ss fields\r\n    df_validated = df_business_mapped.filter(col("Header_Count") >= 9)\r\n    \r\n    return df_validated'
+2025-12-04T11:13:50.4063825Z final = True
+2025-12-04T11:13:50.4064088Z 
+2025-12-04T11:13:50.4064317Z     def decode(self, input, final=False):
+2025-12-04T11:13:50.4065250Z >       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2025-12-04T11:13:50.4066579Z                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-04T11:13:50.4067853Z E       UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>
+2025-12-04T11:13:50.4068890Z 
+2025-12-04T11:13:50.4069948Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py:23: UnicodeDecodeError
+2025-12-04T11:13:50.4071383Z - generated xml file: D:\a\Lakehouse_Plumber\Lakehouse_Plumber\junit-e2e-windows.xml -
+2025-12-04T11:13:50.4072450Z =============================== tests coverage ================================
+2025-12-04T11:13:50.4073372Z ______________ coverage: platform win32, python 3.12.10-final-0 _______________
+2025-12-04T11:13:50.4074086Z 
+2025-12-04T11:13:50.4074317Z Coverage XML written to file coverage.xml
+2025-12-04T11:13:50.4075057Z =========================== short test summary info ===========================
+2025-12-04T11:13:50.4077315Z FAILED tests/e2e/test_bundle_manager_e2e.py::TestBundleManagerE2E::test_baseline_hash_comparison_dev_environment - AssertionError: Generated files differ from baseline: 5 differences found
+2025-12-04T11:13:50.4079468Z assert False
+2025-12-04T11:13:50.4081652Z FAILED tests/e2e/test_bundle_manager_e2e.py::TestBundleManagerE2E::test_BM8b_copied_python_function_regeneration - UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>
+2025-12-04T11:13:50.4085874Z FAILED tests/e2e/test_bundle_manager_e2e.py::TestBundleManagerE2E::test_BM10_staleness_analysis_diagnostic - UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>
+2025-12-04T11:13:50.4090022Z FAILED tests/e2e/test_bundle_manager_e2e.py::TestBundleManagerE2E::test_BM8a_embedded_python_function_regeneration - AssertionError: Expected dependent file not found: acmi_edw_silver/partsupp_silver_dim.py
+2025-12-04T11:13:50.4092218Z assert 0 > 0
+2025-12-04T11:13:50.4092653Z  +  where 0 = len([])
+2025-12-04T11:13:50.4094782Z FAILED tests/e2e/test_bundle_manager_e2e.py::TestBundleManagerE2E::test_BM12_pipeline_decision_logic_comparison - UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>
+2025-12-04T11:13:50.4099399Z FAILED tests/e2e/test_bundle_manager_e2e.py::TestBundleManagerE2E::test_BM14_python_function_overwrite_behavior - AssertionError: Copied file should exist: C:\Users\RUNNER~1\AppData\Local\Temp\tmpnvzhtch2\test_project\generated\dev\sample_python_func_pipeline\custom_python_functions\sample_func.py
+2025-12-04T11:13:50.4102435Z assert False
+2025-12-04T11:13:50.4102863Z  +  where False = exists()
+2025-12-04T11:13:50.4104901Z  +    where exists = WindowsPath('C:/Users/RUNNER~1/AppData/Local/Temp/tmpnvzhtch2/test_project/generated/dev/sample_python_func_pipeline/custom_python_functions/sample_func.py').exists
+2025-12-04T11:13:50.4108988Z FAILED tests/e2e/test_bundle_manager_e2e.py::TestBundleManagerE2E::test_BM13_cli_vs_orchestrator_analysis_comparison - UnicodeDecodeError: 'charmap' codec can't decode byte 0x9d in position 1609: character maps to <undefined>
+2025-12-04T11:13:50.4111437Z =================== 7 failed, 31 passed in 85.54s (0:01:25) ===================
+2025-12-04T11:13:50.7806701Z ##[error]Process completed with exit code 1.
+2025-12-04T11:13:50.8022736Z Post job cleanup.
+2025-12-04T11:13:51.0149880Z [command]"C:\Program Files\Git\bin\git.exe" version
+2025-12-04T11:13:51.0432564Z git version 2.52.0.windows.1
+2025-12-04T11:13:51.0510382Z Temporarily overriding HOME='D:\a\_temp\33f7a557-8b34-4a91-873b-cb03ed166551' before making global git config changes
+2025-12-04T11:13:51.0511561Z Adding repository directory to the temporary git global config as a safe directory
+2025-12-04T11:13:51.0522042Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\Lakehouse_Plumber\Lakehouse_Plumber
+2025-12-04T11:13:51.0846633Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2025-12-04T11:13:51.1163644Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2025-12-04T11:13:51.6886041Z fatal: No url found for submodule path 'Example_Projects/acme_supermarkets_lhp' in .gitmodules
+2025-12-04T11:13:51.7009594Z ##[warning]The process 'C:\Program Files\Git\bin\git.exe' failed with exit code 128
+2025-12-04T11:13:51.7156204Z Cleaning up orphan processes
