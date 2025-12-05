@@ -44,7 +44,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest pytest-cov
+        pip install flake8 pytest pytest-cov black
         # Install the package in development mode
         pip install -e .
         # Install additional requirements if they exist
@@ -113,7 +113,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest pytest-cov pytest-xdist
+        pip install flake8 pytest pytest-cov pytest-xdist black
         pip install -e .
         if (Test-Path requirements.txt) { pip install -r requirements.txt }
         if (Test-Path requirements-dev.txt) { pip install -r requirements-dev.txt }
