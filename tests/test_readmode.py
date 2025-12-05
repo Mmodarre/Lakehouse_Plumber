@@ -329,7 +329,10 @@ environment:
             
             # Generate code
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev"
+            )
             
             # Get the generated code for test_flow
             generated_code = generated_files.get("test_flow.py", "")

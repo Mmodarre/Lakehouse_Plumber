@@ -38,7 +38,10 @@ class TestPresetTemplateCombination:
             
             # Generate code using orchestrator
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev"
+            )
             
             # Get generated code
             generated_code = generated_files.get("preset_template_test.py", "")
@@ -110,7 +113,10 @@ class TestPresetTemplateCombination:
             
             # Generate code
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev"
+            )
             
             # Get generated code
             generated_code = generated_files.get("preset_only_test.py", "")
@@ -153,7 +159,10 @@ class TestPresetTemplateCombination:
             
             # Generate code
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev"
+            )
             
             # Get generated code
             generated_code = generated_files.get("template_only_test.py", "")
@@ -241,7 +250,10 @@ class TestPresetTemplateCombination:
             
             # Generate code
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev"
+            )
             
             # Get generated code
             generated_code = generated_files.get("inheritance_test.py", "")
@@ -432,7 +444,10 @@ class TestPresetTemplateCombination:
                 yaml.dump(lhp_config, f)
             
             orchestrator = ActionOrchestrator(project_root, enforce_version=False)
-            result = orchestrator.generate_pipeline('test_pipeline', 'dev')
+            result = orchestrator.generate_pipeline_by_field(
+                pipeline_field='test_pipeline',
+                env='dev'
+            )
             generated_code = result.get('template_preset_test.py', '')
             
             assert 'template.preset.applied' in generated_code, \
@@ -533,7 +548,10 @@ class TestPresetTemplateCombination:
                 yaml.dump(lhp_config, f)
             
             orchestrator = ActionOrchestrator(project_root, enforce_version=False)
-            result = orchestrator.generate_pipeline('test_pipeline', 'dev')
+            result = orchestrator.generate_pipeline_by_field(
+                pipeline_field='test_pipeline',
+                env='dev'
+            )
             generated_code = result.get('combined_preset_test.py', '')
             
             # Both presets should be applied
@@ -598,7 +616,10 @@ class TestPresetTemplateCombination:
             orchestrator = ActionOrchestrator(project_root, enforce_version=False)
             
             with pytest.raises(ValueError) as exc_info:
-                orchestrator.generate_pipeline('test_pipeline', 'dev')
+                orchestrator.generate_pipeline_by_field(
+                    pipeline_field='test_pipeline',
+                    env='dev'
+                )
             
             assert 'non_existent_preset' in str(exc_info.value)
             assert 'not found' in str(exc_info.value).lower() 

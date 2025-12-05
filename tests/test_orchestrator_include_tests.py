@@ -45,12 +45,12 @@ project:
         if self.test_dir.exists():
             shutil.rmtree(self.test_dir)
     
-    def test_generate_pipeline_accepts_include_tests_parameter(self):
-        """Test that generate_pipeline method accepts include_tests parameter."""
+    def test_generate_pipeline_by_field_accepts_include_tests_parameter(self):
+        """Test that generate_pipeline_by_field method accepts include_tests parameter."""
         import inspect
         
         # Check method signature to verify include_tests parameter exists
-        signature = inspect.signature(self.orchestrator.generate_pipeline)
+        signature = inspect.signature(self.orchestrator.generate_pipeline_by_field)
         params = list(signature.parameters.keys())
         
         # Should have include_tests parameter

@@ -459,100 +459,6 @@ class ActionOrchestrator:
             detailed_staleness_info=staleness_info
         )
 
-    def generate_pipeline(
-        self,
-        pipeline_name: str,
-        env: str,
-        output_dir: Path = None,
-        state_manager=None,
-        force_all: bool = False,
-        specific_flowgroups: List[str] = None,
-        include_tests: bool = False,
-    ) -> Dict[str, str]:
-        """Generate complete pipeline from YAML configs.
-
-        Args:
-            pipeline_name: Name of the pipeline to generate
-            env: Environment to generate for (e.g., 'dev', 'prod')
-            output_dir: Optional output directory for generated files
-            state_manager: Optional state manager for tracking generated files
-            force_all: If True, generate all flowgroups regardless of changes
-            specific_flowgroups: If provided, only generate these specific flowgroups
-
-        Returns:
-            Dictionary mapping filename to generated code content
-        """
-        self.logger.info(f"Generating pipeline '{pipeline_name}' for environment '{env}'")
-
-        # 1. Discover and filter flowgroups
-        flowgroups = self._discover_and_filter_flowgroups(
-            env=env, pipeline_identifier=pipeline_name, include_tests=include_tests,
-            force_all=force_all, specific_flowgroups=specific_flowgroups,
-            state_manager=state_manager, use_directory_discovery=True
-        )
-
-        # 2. Setup dependencies
-        substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
-        substitution_mgr = self.dependencies.create_substitution_manager(substitution_file, env)
-        smart_writer = self.dependencies.create_file_writer()
-
-        # 3. Process all flowgroups (using helper)
-        processed_flowgroups = self._process_flowgroups_batch(flowgroups, substitution_mgr)
-
-        # 4. Validate table creation rules
-        try:
-            errors = self.config_validator.validate_table_creation_rules(processed_flowgroups)
-            if errors:
-                raise ValueError("Table creation validation failed:\n" + 
-                               "\n".join(f"  - {e}" for e in errors))
-        except Exception as e:
-            raise ValueError(f"Table creation validation failed:\n  - {str(e)}")
-
-        # 5. Generate code for each flowgroup
-        generated_files = {}
-        for flowgroup in processed_flowgroups:
-            self.logger.info(f"Generating code for flowgroup: {flowgroup.flowgroup}")
-            try:
-                source_yaml = self._find_source_yaml_for_flowgroup(flowgroup)
-                code = self.generate_flowgroup_code(
-                    flowgroup, substitution_mgr, output_dir, state_manager, 
-                    source_yaml, env, include_tests
-                )
-                formatted_code = format_code(code)
-                filename = f"{flowgroup.flowgroup}.py"
-                
-                # Handle empty content
-                if not formatted_code.strip():
-                    self._handle_empty_flowgroup(flowgroup, output_dir, filename, state_manager, env)
-                    continue
-
-                # Store and write generated code
-                generated_files[filename] = formatted_code
-                if output_dir:
-                    output_file = output_dir / filename
-                    smart_writer.write_if_changed(output_file, formatted_code)
-                    
-                    # Track in state manager (using helper)
-                    if state_manager and source_yaml:
-                        self._track_generated_file(
-                            flowgroup, output_file, source_yaml, env, 
-                            pipeline_name, include_tests, state_manager, substitution_mgr
-                        )
-
-            except Exception as e:
-                self.logger.debug(f"Error generating code for flowgroup {flowgroup.flowgroup}: {e}")
-                raise
-
-        # 6. Finalize
-        if state_manager:
-            state_manager.save()
-        if output_dir:
-            files_written, files_skipped = smart_writer.get_stats()
-            self.logger.info(f"Generation complete: {files_written} files written, "
-                           f"{files_skipped} files skipped (no changes)")
-
-        return generated_files
-
     def discover_flowgroups(self, pipeline_dir: Path) -> List[FlowGroup]:
         """
         Discover all flowgroups in a specific pipeline directory.
@@ -642,6 +548,11 @@ class ActionOrchestrator:
             force_all=force_all, specific_flowgroups=specific_flowgroups,
             state_manager=state_manager, use_directory_discovery=False
         )
+
+        # Early return if no flowgroups found
+        if not flowgroups:
+            self.logger.warning(f"No flowgroups found for pipeline field: {pipeline_field}")
+            return {}
 
         # 2. Setup output directory and dependencies
         pipeline_output_dir = output_dir / pipeline_field if output_dir else None

@@ -465,8 +465,8 @@ class TestStateCommandActions:
             os.chdir(str(project_with_state))
             
             # Mock the orchestrator to avoid actual generation
-            with patch('lhp.core.orchestrator.ActionOrchestrator.generate_pipeline') as mock_gen:
-                mock_gen.return_value = ["generated/bronze_layer/orders.py"]
+            with patch('lhp.core.orchestrator.ActionOrchestrator.generate_pipeline_by_field') as mock_gen:
+                mock_gen.return_value = {"orders.py": "# generated code"}
                 
                 result = runner.invoke(cli, ['state', '--env', 'dev', '--stale', '--regen'])
                 
@@ -538,7 +538,7 @@ class TestStateCommandEdgeCases:
             os.chdir(str(project_with_state))
             
             # Mock orchestrator to raise an error
-            with patch('lhp.core.orchestrator.ActionOrchestrator.generate_pipeline') as mock_gen:
+            with patch('lhp.core.orchestrator.ActionOrchestrator.generate_pipeline_by_field') as mock_gen:
                 mock_gen.side_effect = Exception("Generation failed")
                 
                 result = runner.invoke(cli, ['state', '--env', 'dev', '--stale', '--regen'])

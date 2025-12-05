@@ -90,7 +90,10 @@ def enrich_customers(df, spark, parameters):
         
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline("python_pipeline", "dev")
+        generated_files = orchestrator.generate_pipeline_by_field(
+            pipeline_field="python_pipeline",
+            env="dev"
+        )
         
         code = generated_files["python_processing.py"]
         
@@ -160,7 +163,10 @@ actions:
 """)
         
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline("temp_tables", "dev")
+        generated_files = orchestrator.generate_pipeline_by_field(
+            pipeline_field="temp_tables",
+            env="dev"
+        )
         
         code = generated_files["temp_processing.py"]
         
@@ -222,7 +228,10 @@ actions:
 """)
         
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline("schema_pipeline", "dev")
+        generated_files = orchestrator.generate_pipeline_by_field(
+            pipeline_field="schema_pipeline",
+            env="dev"
+        )
         
         code = generated_files["schema_application.py"]
         
@@ -314,7 +323,10 @@ actions:
 """)
         
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline("complex_flows", "dev")
+        generated_files = orchestrator.generate_pipeline_by_field(
+            pipeline_field="complex_flows",
+            env="dev"
+        )
         
         code = generated_files["many_to_many.py"]
         
@@ -401,7 +413,10 @@ actions:
         orchestrator = ActionOrchestrator(project_root)
         
         # Test preset metadata
-        files1 = orchestrator.generate_pipeline("metadata_test", "dev")
+        files1 = orchestrator.generate_pipeline_by_field(
+            pipeline_field="metadata_test",
+            env="dev"
+        )
         code1 = files1["with_preset_metadata.py"]
         
         # Should have metadata columns
@@ -410,7 +425,10 @@ actions:
         assert "_pipeline_name" in code1
         
         # Test override metadata
-        files2 = orchestrator.generate_pipeline("metadata_test", "dev")
+        files2 = orchestrator.generate_pipeline_by_field(
+            pipeline_field="metadata_test",
+            env="dev"
+        )
         code2 = files2["override_metadata.py"]
         
         # Should also have metadata columns
@@ -440,7 +458,10 @@ actions:
         
         # The orphaned transform error is more specific and helpful than "missing load action"
         with pytest.raises(ValueError, match="Unused transform action"):
-            orchestrator.generate_pipeline("invalid_no_load", "dev")
+            orchestrator.generate_pipeline_by_field(
+                pipeline_field="invalid_no_load",
+                env="dev"
+            )
         
         # Test 2: Circular dependency - Create separate pipeline
         pipeline_dir2 = project_root / "pipelines" / "invalid_circular"
@@ -486,7 +507,10 @@ actions:
         orchestrator2 = ActionOrchestrator(project_root)
         
         with pytest.raises(ValueError, match="Circular dependency"):
-            orchestrator2.generate_pipeline("invalid_circular", "dev")
+            orchestrator2.generate_pipeline_by_field(
+                pipeline_field="invalid_circular",
+                env="dev"
+            )
         
         # Test 3: Multiple table creators (rich error formatting)
         pipeline_dir3 = project_root / "pipelines" / "invalid_multiple_creators"
@@ -529,7 +553,10 @@ actions:
         
         # Should raise a ValueError containing the rich LHPError formatting
         with pytest.raises(ValueError) as exc_info:
-            orchestrator3.generate_pipeline("invalid_multiple_creators", "dev")
+            orchestrator3.generate_pipeline_by_field(
+                pipeline_field="invalid_multiple_creators",
+                env="dev"
+            )
         
         error_str = str(exc_info.value)
         # Verify it contains rich error formatting

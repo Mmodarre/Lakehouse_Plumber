@@ -160,27 +160,16 @@ class GeneratePipelineCommand(Command):
                 )
             
             # Delegate to orchestrator for actual generation
-            if hasattr(context.orchestrator, 'generate_pipeline_by_field'):
-                generated_files = context.orchestrator.generate_pipeline_by_field(
-                    pipeline_field=pipeline_identifier,
-                    env=context.env,
-                    output_dir=output_dir if not dry_run else None,
-                    state_manager=context.state_manager,
-                    force_all=force_all,
-                    specific_flowgroups=specific_flowgroups,
-                    include_tests=include_tests
-                )
-            else:
-                # Fallback to pipeline directory method
-                generated_files = context.orchestrator.generate_pipeline(
-                    pipeline_name=pipeline_identifier,
-                    env=context.env,
-                    output_dir=output_dir if not dry_run else None,
-                    state_manager=context.state_manager,
-                    force_all=force_all,
-                    specific_flowgroups=specific_flowgroups,
-                    include_tests=include_tests
-                )
+            # Always use generate_pipeline_by_field for consistent Python file handling
+            generated_files = context.orchestrator.generate_pipeline_by_field(
+                pipeline_field=pipeline_identifier,
+                env=context.env,
+                output_dir=output_dir if not dry_run else None,
+                state_manager=context.state_manager,
+                force_all=force_all,
+                specific_flowgroups=specific_flowgroups,
+                include_tests=include_tests
+            )
             
             return GenerationCommandResult(
                 success=True,

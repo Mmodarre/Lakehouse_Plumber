@@ -449,28 +449,32 @@ class TestActionOrchestratorFlowgroupDiscovery:
             # Configure validator to return empty errors for table creation validation
             # This allows tests to pass when testing other aspects of the orchestrator
             orchestrator.config_validator.validate_table_creation_rules.return_value = []
+            orchestrator.config_validator.validate_duplicate_pipeline_flowgroup.return_value = []
             
             # Store mock discoverer for test access
             orchestrator.mock_discoverer = mock_discoverer.return_value
             return orchestrator
 
-    def test_pipeline_directory_not_exist_raises_value_error(self, orchestrator_basic):
-        """Test pipeline directory does not exist raises ValueError."""
+    def test_pipeline_directory_not_exist_returns_empty_dict(self, orchestrator_basic):
+        """Test pipeline directory does not exist returns empty dict and logs warning."""
         # Arrange
         nonexistent_pipeline = "nonexistent_pipeline"
         pipeline_dir = orchestrator_basic.project_root / "pipelines" / nonexistent_pipeline
         
         # Mock path exists to return False
         with patch.object(Path, 'exists', return_value=False):
-            # Act & Assert
-            with pytest.raises(ValueError, match="Pipeline directory not found"):
-                orchestrator_basic.generate_pipeline(
-                    pipeline_name=nonexistent_pipeline,
-                    env="dev"
-                )
+            # Act
+            result = orchestrator_basic.generate_pipeline_by_field(
+                pipeline_field=nonexistent_pipeline,
+                env="dev"
+            )
+            
+            # Assert - should return empty dict, not raise exception
+            assert result == {}
+            assert isinstance(result, dict)
 
-    def test_no_flowgroups_found_raises_value_error(self, orchestrator_basic):
-        """Test no flowgroups found in pipeline directory raises ValueError."""
+    def test_no_flowgroups_found_returns_empty_dict(self, orchestrator_basic):
+        """Test no flowgroups found returns empty dict and logs warning."""
         # Arrange
         pipeline_name = "empty_pipeline"
         
@@ -478,12 +482,15 @@ class TestActionOrchestratorFlowgroupDiscovery:
         with patch.object(Path, 'exists', return_value=True):
             orchestrator_basic.mock_discoverer.discover_flowgroups.return_value = []
             
-            # Act & Assert
-            with pytest.raises(ValueError, match="No flowgroups found in pipeline"):
-                orchestrator_basic.generate_pipeline(
-                    pipeline_name=pipeline_name,
-                    env="dev"
-                )
+            # Act
+            result = orchestrator_basic.generate_pipeline_by_field(
+                pipeline_field=pipeline_name,
+                env="dev"
+            )
+            
+            # Assert - should return empty dict, not raise exception
+            assert result == {}
+            assert isinstance(result, dict)
 
     def test_include_patterns_filtering_applied_correctly(self, orchestrator_basic):
         """Test include patterns are applied correctly in filtering."""
