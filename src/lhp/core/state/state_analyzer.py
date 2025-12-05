@@ -1,12 +1,17 @@
 """State analysis service for LakehousePlumber."""
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import Dict, List, Set, Any, Optional
+from typing import Dict, List, Set, Any, Optional, TYPE_CHECKING
 from collections import defaultdict
 
 # Import state models from separate module
 from ..state_models import FileState, ProjectState, DependencyInfo
+
+if TYPE_CHECKING:
+    from ...parsers.yaml_parser import YAMLParser
 
 
 class StateAnalyzer:
@@ -17,19 +22,23 @@ class StateAnalyzer:
     file staleness analysis, statistics generation, and smart generation planning.
     """
     
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, yaml_parser: Optional[YAMLParser] = None):
         """
         Initialize state analyzer.
         
         Args:
             project_root: Root directory of the LakehousePlumber project
+            yaml_parser: Optional YAML parser for shared caching
         """
+        from ...parsers.yaml_parser import YAMLParser as YAMLParserClass
+        
         self.project_root = project_root
+        self.yaml_parser = yaml_parser or YAMLParserClass()
         self.logger = logging.getLogger(__name__)
         
         # Initialize dependency resolver (reused across all operations)
         from ..state_dependency_resolver import StateDependencyResolver
-        self.dependency_resolver = StateDependencyResolver(project_root)
+        self.dependency_resolver = StateDependencyResolver(project_root, self.yaml_parser)
         
         # Initialize dependency tracker (reused across all operations)
         from .dependency_tracker import DependencyTracker
@@ -154,14 +163,15 @@ class StateAnalyzer:
             True if file dependencies changed, False otherwise
         """
         try:
-            # Get current file dependencies
+            # Get current file dependencies with mtime optimization
             source_path = Path(file_state.source_yaml)
+            stored_deps = file_state.file_dependencies or {}
             current_deps = self.dependency_resolver.resolve_file_dependencies(
-                source_path, environment, file_state.pipeline, file_state.flowgroup
+                source_path, environment, file_state.pipeline, file_state.flowgroup,
+                stored_deps=stored_deps
             )
             
             # Compare with stored dependencies
-            stored_deps = file_state.file_dependencies or {}
             
             # Check if dependency sets are different
             if set(current_deps.keys()) != set(stored_deps.keys()):
@@ -306,10 +316,8 @@ class StateAnalyzer:
             # Parse each YAML file to check its pipeline field (supports multi-flowgroup files)
             for yaml_file in current_yamls:
                 try:
-                    from ...parsers.yaml_parser import YAMLParser
-                    yaml_parser = YAMLParser()
                     # Parse all flowgroups from file (supports multi-document and array syntax)
-                    flowgroups = yaml_parser.parse_flowgroups_from_file(yaml_file)
+                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
                     
                     # Check if ANY flowgroup in this file matches the requested pipeline
                     for fg in flowgroups:
@@ -373,10 +381,8 @@ class StateAnalyzer:
             # Parse each YAML file to check its pipeline field (supports multi-flowgroup files)
             for yaml_file in current_yamls:
                 try:
-                    from ...parsers.yaml_parser import YAMLParser
-                    yaml_parser = YAMLParser()
                     # Parse all flowgroups from file (supports multi-document and array syntax)
-                    flowgroups = yaml_parser.parse_flowgroups_from_file(yaml_file)
+                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
                     
                     # Check if ANY flowgroup in this file matches the requested pipeline
                     for fg in flowgroups:
@@ -595,12 +601,13 @@ class StateAnalyzer:
             else:
                 changes.append(f"Source YAML missing: {file_state.source_yaml}")
             
-            # Check file-specific dependencies
+            # Check file-specific dependencies with mtime optimization
             source_yaml_path = Path(file_state.source_yaml)
-            current_deps = self.dependency_resolver.resolve_file_dependencies(
-                source_yaml_path, environment, file_state.pipeline, file_state.flowgroup
-            )
             stored_deps = file_state.file_dependencies or {}
+            current_deps = self.dependency_resolver.resolve_file_dependencies(
+                source_yaml_path, environment, file_state.pipeline, file_state.flowgroup,
+                stored_deps=stored_deps
+            )
             
             # Check for added dependencies
             for dep_path in current_deps.keys() - stored_deps.keys():

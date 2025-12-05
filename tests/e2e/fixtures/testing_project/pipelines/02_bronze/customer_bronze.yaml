@@ -105,7 +105,7 @@ actions:
   - name: write_customer_migration
     type: write
     source: v_customer_migration_cleaned
-    readMode: batch
+    readMode: stream
     once: true # This is to ensure that the table is created only once
     write_target:
       create_table: false

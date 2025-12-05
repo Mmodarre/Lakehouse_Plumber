@@ -624,7 +624,7 @@ class MyCustomDataSink:
         assert "MyCustomDataSink" in code
         assert "spark.dataSource.register" in code
         assert self.generator.custom_sink_code is not None
-        assert self.generator.sink_file_path == sink_file
+        assert self.generator.sink_file_path == "sinks/my_sink.py"
     
     def test_generate_missing_module_path(self):
         """Test generation with missing module_path raises error."""
@@ -1023,7 +1023,7 @@ class MyCustomDataSink:
             assert self.generator.custom_sink_code is not None
             assert "MyCustomDataSink" in self.generator.custom_sink_code
             assert hasattr(self.generator, "sink_file_path")
-            assert self.generator.sink_file_path == sink_file
+            assert self.generator.sink_file_path == "sinks/my_sink.py"
         
         finally:
             shutil.rmtree(temp_dir)

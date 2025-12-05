@@ -12,6 +12,17 @@ prod:
   gold_schema: edw_gold
   modelled_schema: edw_gold
   
+
+  kafka_bootstrap_cluster: "pkc-921jm.us-east-2.aws.confluent.cloud:9092"
+  
+  # AWS MSK IAM configuration
+  msk_bootstrap_servers: "b-1.msk-cluster-example.abc123.kafka.us-east-1.amazonaws.com:9098,b-2.msk-cluster-example.abc123.kafka.us-east-1.amazonaws.com:9098"
+  msk_role_arn: "arn:aws:iam::123456789012:role/DatabricksMSKAccessRole"
+  
+  # Azure Event Hubs OAuth configuration
+  event_hubs_namespace: "my-namespace.servicebus.windows.net"
+  event_hubs_topic: "telemetry-hub"
+  azure_tenant_id: "12345678-1234-1234-1234-123456789012"
 secrets:
   default_scope: prod_secrets
   scopes:

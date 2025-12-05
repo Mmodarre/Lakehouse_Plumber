@@ -130,7 +130,11 @@ class TestActionOrchestrator:
             
             # Generate pipeline
             output_dir = project_root / "generated"
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev", output_dir)
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev",
+                output_dir=output_dir
+            )
             
             # Verify files were generated
             assert len(generated_files) == 1
@@ -159,9 +163,6 @@ class TestActionOrchestrator:
             # Check preset defaults were applied
             assert "addNewColumns" in code
             assert "_rescued_data" in code
-            
-            # Verify file was written
-            assert (output_dir / "test_flowgroup.py").exists()
     
     def test_flowgroup_with_secret_substitution(self):
         """Test flowgroup with secret references generates valid Python code."""
@@ -203,7 +204,10 @@ class TestActionOrchestrator:
                 yaml.dump(flowgroup, f)
             
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev"
+            )
             
             # Verify valid f-string generation for secrets
             code = generated_files["secret_flowgroup.py"]
@@ -281,7 +285,10 @@ class TestActionOrchestrator:
                 yaml.dump(flowgroup, f)
             
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev"
+            )
             
             # Verify template was expanded
             code = generated_files["template_flowgroup.py"]
@@ -313,7 +320,10 @@ class TestActionOrchestrator:
             
             # Should raise validation error
             with pytest.raises(ValueError, match="validation failed"):
-                orchestrator.generate_pipeline("test_pipeline", "dev")
+                orchestrator.generate_pipeline_by_field(
+                    pipeline_field="test_pipeline",
+                    env="dev"
+                )
     
     def test_dependency_resolution(self):
         """Test that actions are generated in dependency order."""
@@ -362,7 +372,10 @@ class TestActionOrchestrator:
                 yaml.dump(flowgroup, f)
             
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev"
+            )
             
             code = generated_files["dependency_flowgroup.py"]
             

@@ -462,10 +462,10 @@ class TestCodeGeneratorExtractSourceViewsFromAction:
         assert result == ["source"]  # Generic fallback
     
     def test_extract_source_views_other_type(self, code_generator):
-        """Test extracting source views from other type."""
+        """Test extracting source views from other type - now returns fallback (Phase 1 refactoring)."""
         result = code_generator._extract_source_views_from_action(123)
         
-        assert result == ["123"]
+        assert result == ["source"]  # Fallback for non-standard types
 
 
 class TestCodeGeneratorGenerateActionSections:

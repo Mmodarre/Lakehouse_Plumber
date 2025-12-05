@@ -1,1 +1,1 @@
-"""Lakehouse Plumber - YAML-driven framework for Databricks Lakeflow Declarative Pipelines."""
+"""Lakehouse Plumber - YAML-driven framework for Databricks Lakeflow Spark Declarative Pipelines."""

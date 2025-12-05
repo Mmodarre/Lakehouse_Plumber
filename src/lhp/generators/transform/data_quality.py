@@ -5,7 +5,6 @@ from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
-from ...utils.operational_metadata import OperationalMetadata
 from ...utils.external_file_loader import resolve_external_file_path
 import yaml
 
@@ -66,33 +65,9 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         source_view = self._extract_source_view(action.source)
 
         # Handle operational metadata
-        flowgroup = flowgroup_config.get("flowgroup")
-        preset_config = flowgroup_config.get("preset_config", {})
-        project_config = flowgroup_config.get("project_config")
-
-        # Initialize operational metadata handler
-        operational_metadata = OperationalMetadata(
-            project_config=(
-                project_config.operational_metadata if project_config else None
-            )
+        add_operational_metadata, metadata_columns = self._get_operational_metadata(
+            action, flowgroup_config
         )
-
-        # Update context for substitutions
-        if flowgroup:
-            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
-
-        # Resolve metadata selection
-        selection = operational_metadata.resolve_metadata_selection(
-            flowgroup, action, preset_config
-        )
-        metadata_columns = operational_metadata.get_selected_columns(
-            selection or {}, "view"
-        )
-
-        # Get required imports for metadata
-        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
-        for import_stmt in metadata_imports:
-            self.add_import(import_stmt)
 
         template_context = {
             "target_view": action.target,
@@ -103,7 +78,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             "warn_expectations": warn_expectations,
             "description": action.description
             or f"Data quality checks for {action.source}",
-            "add_operational_metadata": bool(metadata_columns),
+            "add_operational_metadata": add_operational_metadata,
             "metadata_columns": metadata_columns,
         }
 

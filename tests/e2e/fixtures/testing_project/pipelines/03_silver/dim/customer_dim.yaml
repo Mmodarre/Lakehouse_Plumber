@@ -1,0 +1,67 @@
+# Customer dimension with SCD Type 2
+# Parquet source from SFCC → Schema Transform → SCD Type 2
+
+pipeline: acmi_edw_silver
+flowgroup: customer_dim_sfcc
+#job_name: j_three
+
+actions:
+  # Step 1: Load customer data from bronze layer
+  - name: load_bronze_sfcc_cust
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{bronze_schema}"
+      table: bronze_sfcc_cust
+    target: v_bronze_sfcc_cust
+    description: "Load customer data from bronze layer"
+    
+  # Step 2: Schema transform - type casting to ensure correct data types
+  - name: transform_customer_schema
+    type: transform
+    transform_type: schema
+    source: v_bronze_sfcc_cust
+    enforcement: permissive
+    schema_inline: |
+      columns:
+        - "customer_id -> customer_id: BIGINT"
+        - "first_name -> first_name: STRING"
+        - "last_name -> last_name: STRING"
+        - "email -> email: STRING"
+        - "phone -> phone: STRING"
+        - "dob -> dob: DATE"
+        - "segment -> segment: STRING"
+        - "status -> status: STRING"
+        - "created_at -> created_at: TIMESTAMP"
+        - "updated_at -> updated_at: TIMESTAMP"
+        - "last_update_dttm -> last_update_dttm: TIMESTAMP"
+    target: v_customer_standardized
+    readMode: stream
+    description: "Apply type casting to customer data (keep original column names)"
+    
+  # Step 3: Write to dimension table with SCD Type 2
+  - name: write_customer_dim_scd2
+    type: write
+    source: v_customer_standardized
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{silver_schema}"
+      table: dim_sfcc_cust
+      mode: cdc
+      cdc_config:
+        keys: ["customer_id"]
+        sequence_by: "last_update_dttm"
+        scd_type: 2
+        track_history_except_column_list: 
+          - "_processing_timestamp"
+          - "_source_file_path"
+          - "created_at"
+          - "updated_at"
+          - "last_update_dttm"
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        table.type: "dimension"
+        scd.type: "2"
+    description: "Customer dimension with SCD Type 2 - tracks history of all attribute changes except audit columns"
+

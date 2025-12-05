@@ -190,8 +190,12 @@ class StateDisplayService:
         for pipeline_name, files in by_pipeline.items():
             try:
                 output_dir = self.project_root / "generated" / pipeline_name
-                generated_files = orchestrator.generate_pipeline(
-                    pipeline_name, env, output_dir, state_manager=self.state_manager
+                # Use generate_pipeline_by_field for consistent Python file handling
+                generated_files = orchestrator.generate_pipeline_by_field(
+                    pipeline_field=pipeline_name,
+                    env=env,
+                    output_dir=output_dir,
+                    state_manager=self.state_manager
                 )
                 regenerated_count += len(generated_files)
                 

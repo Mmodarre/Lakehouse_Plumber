@@ -123,7 +123,10 @@ actions:
         
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline("sales_bronze", "dev")
+        generated_files = orchestrator.generate_pipeline_by_field(
+            pipeline_field="sales_bronze",
+            env="dev"
+        )
         
         # Verify generated code
         assert "customer_ingestion.py" in generated_files
@@ -199,7 +202,10 @@ actions:
         
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline("customer_ingestion", "prod")
+        generated_files = orchestrator.generate_pipeline_by_field(
+            pipeline_field="customer_ingestion",
+            env="prod"
+        )
         
         # Verify generated code
         assert "external_customer_load.py" in generated_files
@@ -307,7 +313,10 @@ actions:
         
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline("sales_silver", "dev")
+        generated_files = orchestrator.generate_pipeline_by_field(
+            pipeline_field="sales_silver",
+            env="dev"
+        )
         
         # Verify generated code
         assert "customer_dimensions.py" in generated_files
@@ -405,7 +414,10 @@ template_parameters:
         
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline("orders_bronze", "dev")
+        generated_files = orchestrator.generate_pipeline_by_field(
+            pipeline_field="orders_bronze",
+            env="dev"
+        )
         
         # Verify generated code
         assert "order_ingestion.py" in generated_files
@@ -480,7 +492,10 @@ actions:
         
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline("customer_quality", "dev")
+        generated_files = orchestrator.generate_pipeline_by_field(
+            pipeline_field="customer_quality",
+            env="dev"
+        )
         
         # Verify generated code
         code = generated_files["customer_validation.py"]

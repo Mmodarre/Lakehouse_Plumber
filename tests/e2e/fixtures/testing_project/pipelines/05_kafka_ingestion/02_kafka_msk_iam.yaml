@@ -1,0 +1,68 @@
+# AWS MSK IAM Authentication Example
+# This flowgroup demonstrates loading data from AWS MSK using IAM authentication
+#
+# Prerequisites:
+# - AWS MSK cluster with IAM authentication enabled
+# - Databricks cluster with IAM role granting MSK access
+# - Substitution variables configured in substitutions/dev.yaml
+#
+# Note: This is an example configuration. Adjust for your MSK cluster.
+
+pipeline: kafka_sample_pipeline
+flowgroup: msk_iam_ingestion
+#job_name: j_seven
+actions:
+  - name: load_msk_orders
+    type: load
+    readMode: stream
+    operational_metadata: ["_processing_timestamp"]
+    source:
+      type: kafka
+      bootstrap_servers: "${msk_bootstrap_servers}"
+      subscribe: "orders"
+      options:
+        # MSK IAM authentication (uses instance profile)
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "AWS_MSK_IAM"
+        kafka.sasl.jaas.config: "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;"
+        kafka.sasl.client.callback.handler.class: "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+        
+        # Kafka consumer options
+        startingOffsets: "earliest"
+        failOnDataLoss: "false"
+        kafka.client.id: "databricks-msk-orders-pipeline"
+        kafka.session.timeout.ms: 30000
+    target: v_msk_orders_raw
+    description: "Load orders from AWS MSK using IAM authentication"
+    
+  - name: parse_msk_orders
+    type: transform
+    transform_type: sql
+    source: v_msk_orders_raw
+    target: v_msk_orders_parsed
+    description: "Parse Kafka binary data to structured format"
+    sql: |
+      SELECT 
+        CAST(key AS STRING) as order_key,
+        CAST(value AS STRING) as order_json,
+        topic,
+        partition,
+        offset,
+        timestamp as kafka_timestamp,
+        _processing_timestamp
+      FROM stream(v_msk_orders_raw)
+    
+  - name: write_msk_orders_bronze
+    type: write
+    source: v_msk_orders_parsed
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: msk_orders_bronze
+      create_table: true
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        quality: "bronze"
+        data_source: "aws_msk"
+    description: "Write MSK orders to bronze layer"
+

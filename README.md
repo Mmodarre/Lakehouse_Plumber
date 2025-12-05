@@ -20,15 +20,15 @@
 
 - Metadata-driven frameworks that does not want to become your next enterprise blackbox.
 
-- The YAML-driven Metadata framework for Databricks Lakeflow Declarative Pipelines (formerly Lakeflow Pipeliness).
+- The YAML-driven Metadata framework for Databricks Lakeflow Spark Declarative Pipelines (formerly Lakeflow Pipeliness).
 
-- The only Metadata framework that generates production ready Pyspark code for Lakeflow Declarative Pipelines
+- The only Metadata framework that generates production ready Pyspark code for Lakeflow Spark Declarative Pipelines
 
 ## 🆕 What's New
 
-- **Long live Spark Declarative Pipelines!**: LHP now fully refactored to use Spark Declarative Pipelines (SDP) instead of Lakeflow Declarative Pipelines (LDP) API, as per Databricks latest update to unify the API for both Lakeflow and Spark Declarative Pipelines.
+- **Long live Lakeflow Spark Declarative Pipelines!**: LHP now fully refactored to use Lakeflow Spark Declarative Pipelines (SDP) instead of Lakeflow Spark Declarative Pipelines (SDP) API, as per Databricks latest update to unify the API for both Lakeflow and Lakeflow Spark Declarative Pipelines (Formerly Delta Live Tables).
 
-- **Spark Declarative Pipelines Sink Support**: Write data to external systems (JDBC, REST APIs, Kafka) and Delta tables. Perfect for integrating your lakehouse with downstream systems.
+- **Lakeflow Spark Declarative Pipelines Sink Support**: Write data to external systems (JDBC, REST APIs, Kafka) and Delta tables. Perfect for integrating your lakehouse with downstream systems.
 
 - **Multi-FlowGroup Support**: Organize your data pipelines with multiple flowgroup YAML files within a single pipeline. (e.g., `customers.yaml`, `orders.yaml`, `products.yaml`) Perfect for when multiple flows are usign the same template to further avoide boilerplate config and reduce file count.
 
@@ -177,9 +177,9 @@ The execution model is deliberately simple:
 
 ## What is the output of Lakehouse Plumber?
 
-LHP is designed as a transparent "white box" system, ensuring that all generated code and logic are fully accessible and easy to understand. This approach allows users to leverage the advantages of Databricks Lakeflow Declarative Pipelines (LDP) while upholding enterprise-level code quality avoid repetitive boilerplate code...
+LHP is designed as a transparent "white box" system, ensuring that all generated code and logic are fully accessible and easy to understand. This approach allows users to leverage the advantages of Databricks Lakeflow Spark Declarative Pipelines (LDP) while upholding enterprise-level code quality avoid repetitive boilerplate code...
 
-As such, the output of LHP is a set of Python files that can be used to create Databricks Lakeflow Declarative Pipelines.
+As such, the output of LHP is a set of Python files that can be used to create Databricks Lakeflow Spark Declarative Pipelines.
 
 ```python
 
@@ -265,7 +265,7 @@ As such, the output of LHP is a set of Python files that can be used to create D
 
 ### Action-Based Architecture
 
-LHP has 100% coverage of Databricks Lakeflow Declarative Pipelines (ETL) through **Load**, **Transform**, **Write**, and **Test** actions:
+LHP has 100% coverage of Databricks Lakeflow Spark Declarative Pipelines (ETL) through **Load**, **Transform**, **Write**, and **Test** actions:
 
 #### Load Actions
 
@@ -685,6 +685,6 @@ We welcome contributions from the community! See our [development guide](https:/
 
 <div align="center">
 
-Built with ❤️ for Databricks Lakeflow Declarative Pipelines(LDP).
+Built with ❤️ for Lakeflow Spark Declarative Pipelines(SDP).
 
 </div>

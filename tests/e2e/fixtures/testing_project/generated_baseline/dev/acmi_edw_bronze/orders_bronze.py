@@ -354,7 +354,7 @@ def f_orders_middle_east_bronze():
 )
 def f_orders_migration():
     """Append flow to acme_edw_dev.edw_bronze.orders"""
-    # One-time flow (backfill)
-    df = spark.read.table("v_orders_migration_cleaned")
+    # Streaming flow
+    df = spark.readStream.table("v_orders_migration_cleaned")
 
     return df

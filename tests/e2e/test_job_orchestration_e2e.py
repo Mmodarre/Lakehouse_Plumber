@@ -15,6 +15,7 @@ from click.testing import CliRunner
 from lhp.cli.main import cli
 
 
+@pytest.mark.e2e
 class TestJobOrchestrationE2E:
     """E2E tests for job orchestration file generation."""
 

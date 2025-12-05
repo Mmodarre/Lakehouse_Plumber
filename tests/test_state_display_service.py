@@ -167,15 +167,15 @@ class TestStateDisplayService:
         # Mock orchestrator
         mock_orchestrator = Mock()
         mock_orchestrator_class.return_value = mock_orchestrator
-        mock_orchestrator.generate_pipeline.side_effect = [
-            ["file1.py", "file2.py"],  # bronze pipeline - 2 files
-            ["file3.py"]               # silver pipeline - 1 file
+        mock_orchestrator.generate_pipeline_by_field.side_effect = [
+            {"file1.py": "code1", "file2.py": "code2"},  # bronze pipeline - 2 files
+            {"file3.py": "code3"}               # silver pipeline - 1 file
         ]
         
         result = service.regenerate_stale_files("dev", stale_files, dry_run=False)
         
         assert result == 3  # Total files regenerated
-        assert mock_orchestrator.generate_pipeline.call_count == 2
+        assert mock_orchestrator.generate_pipeline_by_field.call_count == 2
     
     @patch('lhp.core.orchestrator.ActionOrchestrator')
     def test_regenerate_stale_files_error(self, mock_orchestrator_class, service, mock_state_manager):

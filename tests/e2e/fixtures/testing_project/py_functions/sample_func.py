@@ -28,7 +28,7 @@ def transform_lrc_data_streaming(df_input: DataFrame, spark, parameters) -> Data
     # ====================================================================
     # STEP 2: YEAR EXTRACTION (Original lines 27 & 73)
     # ====================================================================
-    # Original: year = df_output.select(explode(col("columns")).alias("year")).first()["year"] ❌ Not streaming compatible
+    # Original: year = df_output.select(explode(col("columns")).alias("year")).first()["year"] Not streaming compatible
     # Streaming: Extract year directly without .first() action
     df_with_year = df_with_metadata.withColumn(
         "year_value", 

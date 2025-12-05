@@ -75,7 +75,7 @@ actions:
     type: write
     source: v_lineitem_middle_east_bronze_DQE
     write_target:
-      create_table: false
+      #create_table: true
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: "lineitem"

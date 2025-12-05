@@ -7,7 +7,7 @@
 **Package Information** (from pyproject.toml:6-8)
 - Name: `lakehouse-plumber`
 - Version: `0.5.9`
-- Description: "A framework for building and managing enterprise Lakeflow Declaritive Pipelines"
+- Description: "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 
 **Key Dependencies** (from pyproject.toml:26-37)
 - `click>=8.0.0` - CLI framework

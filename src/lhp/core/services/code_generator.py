@@ -8,6 +8,7 @@ from pathlib import Path
 from ...models.config import FlowGroup, Action, ActionType
 from ...utils.substitution import EnhancedSubstitutionManager
 from ...utils.error_formatter import LHPError
+from ...utils.source_extractor import extract_source_views_from_action
 
 
 class CodeGenerator:
@@ -40,7 +41,7 @@ class CodeGenerator:
     def generate_flowgroup_code(self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager,
                                output_dir: Optional[Path] = None, state_manager=None, 
                                source_yaml: Optional[Path] = None, env: Optional[str] = None,
-                               include_tests: bool = False) -> str:
+                               include_tests: bool = False, python_file_copier=None) -> str:
         """
         Generate complete Python code for a flowgroup.
         
@@ -52,6 +53,7 @@ class CodeGenerator:
             source_yaml: Source YAML path for file tracking
             env: Environment name for file tracking
             include_tests: Whether to include test actions
+            python_file_copier: Thread-safe Python file copier (for parallel mode)
             
         Returns:
             Complete Python code for the flowgroup
@@ -75,7 +77,7 @@ class CodeGenerator:
         # 4. Generate code sections
         generated_sections, all_imports, custom_source_sections = self._generate_action_sections(
             flowgroup, ordered_actions, substitution_mgr, preset_config, 
-            output_dir, state_manager, source_yaml, env, include_tests
+            output_dir, state_manager, source_yaml, env, include_tests, python_file_copier
         )
         
         # 5. Apply secret substitutions to generated code
@@ -89,7 +91,7 @@ class CodeGenerator:
     def _generate_action_sections(self, flowgroup: FlowGroup, ordered_actions: List[Action],
                                  substitution_mgr: EnhancedSubstitutionManager, preset_config: Dict[str, Any],
                                  output_dir: Optional[Path], state_manager, source_yaml: Optional[Path],
-                                 env: Optional[str], include_tests: bool) -> Tuple[List[str], Set[str], List[Dict]]:
+                                 env: Optional[str], include_tests: bool, python_file_copier=None) -> Tuple[List[str], Set[str], List[Dict]]:
         """Generate code sections for all actions."""
         # Group actions by type while preserving order
         action_groups = defaultdict(list)
@@ -131,12 +133,12 @@ class CodeGenerator:
                 if action_type == ActionType.WRITE:
                     sections, imports, custom = self._generate_write_actions(
                         action_groups[action_type], flowgroup, substitution_mgr,
-                        preset_config, output_dir, state_manager, source_yaml, env
+                        preset_config, output_dir, state_manager, source_yaml, env, python_file_copier
                     )
                 else:
                     sections, imports, custom = self._generate_regular_actions(
                         action_groups[action_type], flowgroup, substitution_mgr,
-                        preset_config, output_dir, state_manager, source_yaml, env
+                        preset_config, output_dir, state_manager, source_yaml, env, python_file_copier
                     )
                 
                 generated_sections.extend(sections)
@@ -148,7 +150,7 @@ class CodeGenerator:
     def _generate_write_actions(self, write_actions: List[Action], flowgroup: FlowGroup,
                                substitution_mgr: EnhancedSubstitutionManager, preset_config: Dict[str, Any],
                                output_dir: Optional[Path], state_manager, source_yaml: Optional[Path],
-                               env: Optional[str]) -> Tuple[List[str], Set[str], List[Dict]]:
+                               env: Optional[str], python_file_copier=None) -> Tuple[List[str], Set[str], List[Dict]]:
         """Generate code for write actions with target grouping."""
         sections = []
         imports = set()
@@ -170,7 +172,7 @@ class CodeGenerator:
                 # Generate code
                 context = self._build_generation_context(
                     flowgroup, substitution_mgr, preset_config, 
-                    output_dir, state_manager, source_yaml, env
+                    output_dir, state_manager, source_yaml, env, python_file_copier
                 )
                 action_code = generator.generate(combined_action, context)
                 sections.append(action_code)
@@ -191,7 +193,7 @@ class CodeGenerator:
     def _generate_regular_actions(self, actions: List[Action], flowgroup: FlowGroup,
                                  substitution_mgr: EnhancedSubstitutionManager, preset_config: Dict[str, Any],
                                  output_dir: Optional[Path], state_manager, source_yaml: Optional[Path],
-                                 env: Optional[str]) -> Tuple[List[str], Set[str], List[Dict]]:
+                                 env: Optional[str], python_file_copier=None) -> Tuple[List[str], Set[str], List[Dict]]:
         """Generate code for regular (non-write) actions."""
         sections = []
         imports = set()
@@ -208,7 +210,7 @@ class CodeGenerator:
                 # Generate code
                 context = self._build_generation_context(
                     flowgroup, substitution_mgr, preset_config,
-                    output_dir, state_manager, source_yaml, env
+                    output_dir, state_manager, source_yaml, env, python_file_copier
                 )
                 action_code = generator.generate(action, context)
                 sections.append(action_code)
@@ -227,7 +229,8 @@ class CodeGenerator:
     
     def _build_generation_context(self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager,
                                  preset_config: Dict[str, Any], output_dir: Optional[Path], 
-                                 state_manager, source_yaml: Optional[Path], env: Optional[str]) -> Dict[str, Any]:
+                                 state_manager, source_yaml: Optional[Path], env: Optional[str],
+                                 python_file_copier=None) -> Dict[str, Any]:
         """Build context dictionary for generator execution."""
         project_root = self.project_root or Path.cwd()
         return {
@@ -242,6 +245,7 @@ class CodeGenerator:
             "source_yaml": source_yaml,
             "environment": env,
             "secret_references": set(),  # Track secret references from file processing
+            "python_file_copier": python_file_copier,  # Thread-safe copier for parallel mode
         }
     
     def _collect_generator_outputs(self, generator) -> Tuple[Set[str], List[Dict]]:
@@ -264,7 +268,7 @@ class CodeGenerator:
         if hasattr(generator, 'custom_source_code') and generator.custom_source_code:
             custom_sources.append({
                 'content': generator.custom_source_code,
-                'source_file': generator.source_file_path,
+                'source_file': Path(str(generator.source_file_path)).as_posix() if generator.source_file_path else None,
                 'action_name': generator.action_name if hasattr(generator, 'action_name') else 'unknown'
             })
         
@@ -272,7 +276,7 @@ class CodeGenerator:
         if hasattr(generator, 'custom_sink_code') and generator.custom_sink_code:
             custom_sources.append({
                 'content': generator.custom_sink_code,
-                'source_file': generator.sink_file_path,
+                'source_file': Path(str(generator.sink_file_path)).as_posix() if generator.sink_file_path else None,
                 'action_name': generator.action_name if hasattr(generator, 'action_name') else 'unknown'
             })
         
@@ -407,14 +411,12 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
         Returns:
             Combined action with individual action metadata
         """
-        from ...core.validator import ConfigValidator
-        
         # Determine which action should create the table based on existing validation logic
+        from ..validators import TableCreationValidator
         table_creator = None
+        table_creation_validator = TableCreationValidator()
         for action in actions:
-            # Create a temporary config validator to use its logic
-            config_validator = ConfigValidator(Path.cwd())  # Temporary instance
-            if config_validator._action_creates_table(action):
+            if table_creation_validator._action_creates_table(action):
                 table_creator = action
                 break
         
@@ -442,6 +444,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                         "action_name": f"{action.name}_{i+1}",
                         "source_view": source_view,
                         "once": action.once or False,
+                        "readMode": action.readMode,  # Preserve individual readMode
                         "flow_name": flow_name,
                         "description": action.description or f"Append flow to {target_table} from {source_view}",
                     })
@@ -452,6 +455,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                     "action_name": action.name,
                     "source_view": source_view,
                     "once": action.once or False,
+                    "readMode": action.readMode,  # Preserve individual readMode
                     "flow_name": base_flow_name,
                     "description": action.description or f"Append flow to {target_table}",
                 })
@@ -493,37 +497,12 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
         """
         Extract all source views from an action source configuration.
         
+        Delegates to utility function for consistency across codebase.
+        
         Args:
             source: Source configuration (string, list, or dict)
             
         Returns:
             List of source view names
         """
-        if isinstance(source, str):
-            return [source]
-        elif isinstance(source, list):
-            result = []
-            for item in source:
-                if isinstance(item, str):
-                    result.append(item)
-                elif isinstance(item, dict):
-                    database = item.get("database")
-                    table = item.get("table") or item.get("view") or item.get("name", "")
-                    if database and table:
-                        result.append(f"{database}.{table}")
-                    elif table:
-                        result.append(table)
-                else:
-                    result.append(str(item))
-            return result
-        elif isinstance(source, dict):
-            database = source.get("database")
-            table = source.get("table") or source.get("view") or source.get("name", "")
-            if database and table:
-                return [f"{database}.{table}"]
-            elif table:
-                return [table]
-            else:
-                return ["source"]  # Generic fallback
-        else:
-            return [str(source)]
+        return extract_source_views_from_action(source)

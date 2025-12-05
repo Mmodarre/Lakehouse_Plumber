@@ -40,3 +40,4 @@ wip.md
 src/lhp/utils/substitution.py.bkup
 tests/test_substitution.py.bkup_map_sub
 tests/test_flowgroup_processor_map_lookup.py.bkup
+test.log

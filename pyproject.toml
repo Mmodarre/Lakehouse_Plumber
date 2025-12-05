@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.7.1"
-description = "A framework for building and managing enterprise Lakeflow Declaritive Pipelines"
+version = "0.7.2"
+description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
@@ -92,6 +92,8 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
+    "e2e: marks tests as end-to-end tests",
+    "performance: marks tests as performance tests (skipped in CI, run locally with '-m performance')",
 ]
 
 [tool.coverage.run]

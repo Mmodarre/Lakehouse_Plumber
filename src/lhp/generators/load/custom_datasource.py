@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.operational_metadata import OperationalMetadata
 from ...utils.error_formatter import ErrorFormatter
 
 
@@ -112,7 +111,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             raise FileNotFoundError(f"Custom data source file not found: {source_path}")
         
         raw_source_code = source_path.read_text()
-        self.source_file_path = source_path
+        self.source_file_path = Path(module_path).as_posix()
 
         # Apply substitutions to the raw source code if substitution_manager is available
         if context and "substitution_manager" in context:
@@ -137,41 +136,10 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         # Get readMode from action or default to stream
         readMode = action.readMode or "stream"
 
-        # Handle operational metadata (using ImportManager for enhanced import handling)
-        flowgroup = context.get("flowgroup")
-        preset_config = context.get("preset_config", {})
-        project_config = context.get("project_config")
-
-        # Initialize operational metadata handler
-        operational_metadata = OperationalMetadata(
-            project_config=(
-                project_config.operational_metadata if project_config else None
-            )
+        # Handle operational metadata
+        add_operational_metadata, metadata_columns = self._get_operational_metadata(
+            action, context
         )
-
-        # ENHANCED: Adapt expressions based on available imports
-        operational_metadata.adapt_expressions_for_imports(self.get_import_manager())
-
-        # Update context for substitutions
-        if flowgroup:
-            operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
-
-        # Resolve metadata selection
-        selection = operational_metadata.resolve_metadata_selection(
-            flowgroup, action, preset_config
-        )
-        metadata_columns = operational_metadata.get_selected_columns(
-            selection or {}, "view"
-        )
-
-        # Use ImportManager for operational metadata imports (enhanced functionality)
-        for column_name, expression in metadata_columns.items():
-            self.add_imports_from_expression(expression)
-
-        # Also add any additional imports from metadata configuration
-        metadata_imports = operational_metadata.get_required_imports(metadata_columns)
-        for import_stmt in metadata_imports:
-            self.add_import(import_stmt)
 
         template_context = {
             "action_name": action.name,
@@ -182,9 +150,9 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             "options": parameters or {},  # Ensure it's never None
             "description": action.description
             or f"Load data from custom data source: {custom_datasource_class}",
-            "add_operational_metadata": bool(metadata_columns),
+            "add_operational_metadata": add_operational_metadata,
             "metadata_columns": metadata_columns,
-            "flowgroup": flowgroup,
+            "flowgroup": context.get("flowgroup"),
         }
 
         return self.render_template("load/custom_datasource.py.j2", template_context) 

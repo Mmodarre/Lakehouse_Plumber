@@ -3,7 +3,7 @@
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime
 
 # Import state models from separate module
@@ -33,7 +33,8 @@ class DependencyTracker:
         self.dependency_resolver = StateDependencyResolver(project_root)
     
     def track_generated_file(self, state: ProjectState, generated_path: Path, source_yaml: Path,
-                           environment: str, pipeline: str, flowgroup: str, generation_context: str = "") -> None:
+                           environment: str, pipeline: str, flowgroup: str, generation_context: str = "",
+                           used_substitution_keys: Optional[List[str]] = None) -> None:
         """
         Track a generated file in the state with dependency resolution.
         
@@ -44,6 +45,8 @@ class DependencyTracker:
             environment: Environment name
             pipeline: Pipeline name
             flowgroup: FlowGroup name
+            generation_context: Optional context string for parameter-sensitive hashing
+            used_substitution_keys: Optional list of substitution keys used during generation
         """
         # Calculate relative paths from project root
         try:
@@ -76,10 +79,10 @@ class DependencyTracker:
             dep_paths.append(generation_context)
         composite_checksum = self.dependency_resolver.calculate_composite_checksum(dep_paths)
 
-        # Create file state
+        # Create file state (normalize paths for cross-platform state files)
         file_state = FileState(
-            source_yaml=str(rel_source),
-            generated_path=str(rel_generated),
+            source_yaml=Path(str(rel_source)).as_posix(),
+            generated_path=Path(str(rel_generated)).as_posix(),
             checksum=generated_checksum,
             source_yaml_checksum=source_checksum,
             timestamp=datetime.now().isoformat(),
@@ -88,14 +91,15 @@ class DependencyTracker:
             flowgroup=flowgroup,
             file_dependencies=file_dependencies,
             file_composite_checksum=composite_checksum,
+            used_substitution_keys=used_substitution_keys
         )
 
         # Ensure environment exists in state
         if environment not in state.environments:
             state.environments[environment] = {}
 
-        # Track the file
-        state.environments[environment][str(rel_generated)] = file_state
+        # Track the file (normalize dictionary key for cross-platform lookups)
+        state.environments[environment][Path(str(rel_generated)).as_posix()] = file_state
 
         # Update global dependencies for this environment
         self.update_global_dependencies(state, environment)
@@ -171,10 +175,11 @@ class DependencyTracker:
             rel_source = str(source_yaml)
 
         env_files = state.environments.get(environment, {})
+        # Normalize paths for comparison to handle cross-platform differences
         return [
             file_state
             for file_state in env_files.values()
-            if file_state.source_yaml == rel_source
+            if Path(file_state.source_yaml).as_posix() == Path(rel_source).as_posix()
         ]
 
     def calculate_checksum(self, file_path: Path) -> str:

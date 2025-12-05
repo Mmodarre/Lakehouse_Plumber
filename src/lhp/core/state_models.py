@@ -1,7 +1,7 @@
 """State management data models for LakehousePlumber."""
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 
 @dataclass
@@ -12,6 +12,7 @@ class DependencyInfo:
     checksum: str          # SHA256 checksum of dependency
     type: str             # 'preset', 'template', 'substitution', 'project_config'
     last_modified: str    # ISO timestamp of last modification
+    mtime: Optional[float] = None  # Unix timestamp for fast comparison
 
 
 @dataclass
@@ -37,6 +38,7 @@ class FileState:
     # New dependency tracking fields
     file_dependencies: Optional[Dict[str, DependencyInfo]] = None  # File-specific dependencies
     file_composite_checksum: str = ""
+    used_substitution_keys: Optional[List[str]] = None  # Substitution keys used during generation
 
 
 @dataclass
