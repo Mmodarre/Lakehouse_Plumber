@@ -252,8 +252,9 @@ class StateDependencyResolver:
         if not preset_file.exists():
             self.logger.warning(f"Preset file not found: {preset_file}")
             # Still create dependency info with empty checksum for missing files
-            dependencies[str(preset_file.relative_to(self.project_root))] = DependencyInfo(
-                path=str(preset_file.relative_to(self.project_root)),
+            rel_path = Path(str(preset_file.relative_to(self.project_root))).as_posix()
+            dependencies[rel_path] = DependencyInfo(
+                path=rel_path,
                 checksum="",
                 type="preset",
                 last_modified=""
@@ -264,8 +265,9 @@ class StateDependencyResolver:
         checksum = self._calculate_checksum(preset_file)
         last_modified = self._get_file_modification_time(preset_file)
         
-        dependencies[str(preset_file.relative_to(self.project_root))] = DependencyInfo(
-            path=str(preset_file.relative_to(self.project_root)),
+        rel_path = Path(str(preset_file.relative_to(self.project_root))).as_posix()
+        dependencies[rel_path] = DependencyInfo(
+            path=rel_path,
             checksum=checksum,
             type="preset",
             last_modified=last_modified
@@ -304,8 +306,9 @@ class StateDependencyResolver:
         if not template_file.exists():
             self.logger.warning(f"Template file not found: {template_file}")
             # Still create dependency info with empty checksum for missing files
-            dependencies[str(template_file.relative_to(self.project_root))] = DependencyInfo(
-                path=str(template_file.relative_to(self.project_root)),
+            rel_path = Path(str(template_file.relative_to(self.project_root))).as_posix()
+            dependencies[rel_path] = DependencyInfo(
+                path=rel_path,
                 checksum="",
                 type="template",
                 last_modified=""
@@ -316,8 +319,9 @@ class StateDependencyResolver:
         checksum = self._calculate_checksum(template_file)
         last_modified = self._get_file_modification_time(template_file)
         
-        dependencies[str(template_file.relative_to(self.project_root))] = DependencyInfo(
-            path=str(template_file.relative_to(self.project_root)),
+        rel_path = Path(str(template_file.relative_to(self.project_root))).as_posix()
+        dependencies[rel_path] = DependencyInfo(
+            path=rel_path,
             checksum=checksum,
             type="template",
             last_modified=last_modified
@@ -526,8 +530,9 @@ class StateDependencyResolver:
                     checksum = self._calculate_checksum(module_file)
                     last_modified = self._get_file_modification_time(module_file)
                     
-                    dependencies[module_path] = DependencyInfo(
-                        path=module_path,
+                    normalized_path = Path(module_path).as_posix()
+                    dependencies[normalized_path] = DependencyInfo(
+                        path=normalized_path,
                         checksum=checksum,
                         type="custom_datasource_module",
                         last_modified=last_modified

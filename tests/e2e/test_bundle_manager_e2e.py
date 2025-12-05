@@ -555,10 +555,6 @@ resources:
         # Use dev-specific directory for baseline comparison
         dev_generated_dir = self.project_root / "generated" / "dev"
 
-        # Normalize paths in generated files before comparison
-        fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
-        self._normalize_generated_file_paths(dev_generated_dir, fixture_path)
-
         # Compare generated files with baseline using hashes
         hash_differences = self._compare_directory_hashes(
             dev_generated_dir, baseline_dir)
@@ -619,10 +615,6 @@ resources:
             ), f"acmi_edw_raw directory should be generated: {generated_raw_dir}"
             assert baseline_raw_dir.exists(
             ), f"acmi_edw_raw baseline should exist: {baseline_raw_dir}"
-
-            # Normalize paths in generated files before comparison
-            fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
-            self._normalize_generated_file_paths(dev_generated_dir, fixture_path)
 
             # Hash comparison for generated files
             hash_differences = self._compare_directory_hashes(
@@ -803,51 +795,6 @@ resources:
     # ========================================================================
     # HELPER METHODS FOR NEW TESTS
     # ========================================================================
-
-    def _normalize_generated_file_paths(self, generated_dir: Path, fixture_path: Path):
-        """Normalize absolute paths in generated files to relative paths.
-        
-        Converts any absolute paths to the fixture directory (whether in temp or actual location)
-        into relative paths for environment-independent comparison.
-        
-        Args:
-            generated_dir: Directory containing generated files (in temp location)
-            fixture_path: Original fixture directory path to normalize to
-        """
-        import re
-        
-        # Get the temp project root path (where test copied fixture to)
-        temp_project_root = str(self.project_root.resolve())
-        fixture_root = str(fixture_path.resolve())
-        
-        # Create regex patterns that match absolute paths to test fixture content
-        # Pattern 1: Matches temp directory paths (e.g., /tmp/xyz/test_project/py_functions/...)
-        temp_pattern = re.compile(
-            r'(/[^\s:]+)?/test_project/'
-        )
-        
-        # Pattern 2: Matches real fixture paths (e.g., /Users/.../tests/e2e/fixtures/testing_project/...)
-        fixture_pattern = re.compile(
-            r'(/[^\s:]+)?/tests/e2e/fixtures/testing_project/'
-        )
-        
-        # Replacement string - use relative path from repository root
-        replacement = 'tests/e2e/fixtures/testing_project/'
-        
-        # Process all .py files in generated directory
-        for py_file in generated_dir.rglob("*.py"):
-            try:
-                content = py_file.read_text()
-                
-                # Normalize temp paths first, then real fixture paths
-                normalized_content = temp_pattern.sub(replacement, content)
-                normalized_content = fixture_pattern.sub(replacement, normalized_content)
-                
-                if normalized_content != content:
-                    py_file.write_text(normalized_content)
-            except (OSError, UnicodeDecodeError) as e:
-                # Log but don't fail - let hash comparison catch it
-                print(f"Warning: Could not normalize paths in {py_file}: {e}")
 
     def _compare_directory_hashes(self, generated_dir: Path,
                                   baseline_dir: Path) -> list:

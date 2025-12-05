@@ -111,7 +111,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             raise FileNotFoundError(f"Custom data source file not found: {source_path}")
         
         raw_source_code = source_path.read_text()
-        self.source_file_path = source_path
+        self.source_file_path = Path(module_path).as_posix()
 
         # Apply substitutions to the raw source code if substitution_manager is available
         if context and "substitution_manager" in context:

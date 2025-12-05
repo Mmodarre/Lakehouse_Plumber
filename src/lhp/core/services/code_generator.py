@@ -268,7 +268,7 @@ class CodeGenerator:
         if hasattr(generator, 'custom_source_code') and generator.custom_source_code:
             custom_sources.append({
                 'content': generator.custom_source_code,
-                'source_file': generator.source_file_path,
+                'source_file': Path(str(generator.source_file_path)).as_posix() if generator.source_file_path else None,
                 'action_name': generator.action_name if hasattr(generator, 'action_name') else 'unknown'
             })
         
@@ -276,7 +276,7 @@ class CodeGenerator:
         if hasattr(generator, 'custom_sink_code') and generator.custom_sink_code:
             custom_sources.append({
                 'content': generator.custom_sink_code,
-                'source_file': generator.sink_file_path,
+                'source_file': Path(str(generator.sink_file_path)).as_posix() if generator.sink_file_path else None,
                 'action_name': generator.action_name if hasattr(generator, 'action_name') else 'unknown'
             })
         
