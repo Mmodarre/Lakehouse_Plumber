@@ -549,9 +549,10 @@ class ActionOrchestrator:
             state_manager=state_manager, use_directory_discovery=False
         )
 
-        # Early return if no flowgroups found
+        # Early return if no flowgroups to generate
+        # Note: Empty list can be due to smart filtering (everything up-to-date), not an error
+        # Discovery failures are already logged in _discover_and_filter_flowgroups()
         if not flowgroups:
-            self.logger.warning(f"No flowgroups found for pipeline field: {pipeline_field}")
             return {}
 
         # 2. Setup output directory and dependencies
@@ -844,10 +845,12 @@ class ActionOrchestrator:
         else:
             all_flowgroups = self.discover_flowgroups_by_pipeline_field(pipeline_identifier)
         
+        # Check if discovery truly failed (no flowgroups exist for this pipeline)
         if not all_flowgroups:
             if use_directory_discovery:
                 raise ValueError(f"No flowgroups found in pipeline: {pipeline_identifier}")
             else:
+                # This is a real discovery failure - no YAML files match this pipeline field
                 self.logger.warning(f"No flowgroups found for pipeline field: {pipeline_identifier}")
                 return []
         
