@@ -425,11 +425,11 @@ class TestActionOrchestratorFlowgroupDiscovery:
              patch('lhp.core.orchestrator.TemplateEngine'), \
              patch('lhp.core.orchestrator.ProjectConfigLoader') as mock_config_loader, \
              patch('lhp.core.orchestrator.ActionRegistry'), \
-             patch('lhp.core.orchestrator.ConfigValidator'), \
+             patch('lhp.core.orchestrator.ConfigValidator') as mock_config_validator, \
              patch('lhp.core.orchestrator.SecretValidator'), \
              patch('lhp.core.orchestrator.DependencyResolver'), \
              patch('lhp.core.orchestrator.FlowgroupDiscoverer') as mock_discoverer, \
-             patch('lhp.core.orchestrator.FlowgroupProcessor'), \
+             patch('lhp.core.orchestrator.FlowgroupProcessor') as mock_processor, \
              patch('lhp.core.orchestrator.CodeGenerator'), \
              patch('lhp.core.orchestrator.PipelineValidator'):
             
@@ -441,27 +441,40 @@ class TestActionOrchestratorFlowgroupDiscovery:
             # Create orchestrator without version enforcement
             orchestrator = ActionOrchestrator(mock_project_root, enforce_version=False)
             
+            # Configure processor to pass flowgroups through unchanged
+            # This supports the new batch processing + validation flow
+            mock_processor_instance = mock_processor.return_value
+            mock_processor_instance.process_flowgroup.side_effect = lambda fg, sub: fg
+            
+            # Configure validator to return empty errors for table creation validation
+            # This allows tests to pass when testing other aspects of the orchestrator
+            orchestrator.config_validator.validate_table_creation_rules.return_value = []
+            orchestrator.config_validator.validate_duplicate_pipeline_flowgroup.return_value = []
+            
             # Store mock discoverer for test access
             orchestrator.mock_discoverer = mock_discoverer.return_value
             return orchestrator
 
-    def test_pipeline_directory_not_exist_raises_value_error(self, orchestrator_basic):
-        """Test pipeline directory does not exist raises ValueError."""
+    def test_pipeline_directory_not_exist_returns_empty_dict(self, orchestrator_basic):
+        """Test pipeline directory does not exist returns empty dict and logs warning."""
         # Arrange
         nonexistent_pipeline = "nonexistent_pipeline"
         pipeline_dir = orchestrator_basic.project_root / "pipelines" / nonexistent_pipeline
         
         # Mock path exists to return False
         with patch.object(Path, 'exists', return_value=False):
-            # Act & Assert
-            with pytest.raises(ValueError, match="Pipeline directory not found"):
-                orchestrator_basic.generate_pipeline(
-                    pipeline_name=nonexistent_pipeline,
-                    env="dev"
-                )
+            # Act
+            result = orchestrator_basic.generate_pipeline_by_field(
+                pipeline_field=nonexistent_pipeline,
+                env="dev"
+            )
+            
+            # Assert - should return empty dict, not raise exception
+            assert result == {}
+            assert isinstance(result, dict)
 
-    def test_no_flowgroups_found_raises_value_error(self, orchestrator_basic):
-        """Test no flowgroups found in pipeline directory raises ValueError."""
+    def test_no_flowgroups_found_returns_empty_dict(self, orchestrator_basic):
+        """Test no flowgroups found returns empty dict and logs warning."""
         # Arrange
         pipeline_name = "empty_pipeline"
         
@@ -469,12 +482,15 @@ class TestActionOrchestratorFlowgroupDiscovery:
         with patch.object(Path, 'exists', return_value=True):
             orchestrator_basic.mock_discoverer.discover_flowgroups.return_value = []
             
-            # Act & Assert
-            with pytest.raises(ValueError, match="No flowgroups found in pipeline"):
-                orchestrator_basic.generate_pipeline(
-                    pipeline_name=pipeline_name,
-                    env="dev"
-                )
+            # Act
+            result = orchestrator_basic.generate_pipeline_by_field(
+                pipeline_field=pipeline_name,
+                env="dev"
+            )
+            
+            # Assert - should return empty dict, not raise exception
+            assert result == {}
+            assert isinstance(result, dict)
 
     def test_include_patterns_filtering_applied_correctly(self, orchestrator_basic):
         """Test include patterns are applied correctly in filtering."""
@@ -899,14 +915,14 @@ class TestActionOrchestratorActionAnalysis:
         # Test empty list
         assert orchestrator_action_analysis._extract_source_views_from_action([]) == []
         
-        # Test empty dict
-        assert orchestrator_action_analysis._extract_source_views_from_action({}) == []
+        # Test empty dict - now returns ["source"] as fallback (Phase 1 refactoring)
+        assert orchestrator_action_analysis._extract_source_views_from_action({}) == ["source"]
         
-        # Test None
-        assert orchestrator_action_analysis._extract_source_views_from_action(None) == []
+        # Test None - now returns ["source"] as fallback (Phase 1 refactoring)
+        assert orchestrator_action_analysis._extract_source_views_from_action(None) == ["source"]
         
-        # Test number
-        assert orchestrator_action_analysis._extract_source_views_from_action(123) == []
+        # Test number - now returns ["source"] as fallback (Phase 1 refactoring)
+        assert orchestrator_action_analysis._extract_source_views_from_action(123) == ["source"]
 
 
 class TestActionOrchestratorBundleSynchronization:
@@ -1243,24 +1259,6 @@ class TestActionOrchestratorValidationWithoutGeneration:
             
             return orchestrator
 
-    def test_missing_discover_flowgroups_method_returns_error(self, orchestrator_validation):
-        """Test that missing _discover_flowgroups method returns error (bug detection)."""
-        # Arrange
-        pipeline_name = "test_pipeline"
-        env = "dev"
-        
-        # Act - should catch AttributeError and return it in errors list
-        errors, warnings = orchestrator_validation.validate_pipeline(pipeline_name, env)
-        
-        # Assert
-        assert len(errors) == 1  # One error collected
-        assert warnings == []  # No warnings
-        
-        # Error should include the AttributeError details
-        error_message = errors[0]
-        assert "Pipeline validation failed" in error_message
-        assert "_discover_flowgroups" in error_message
-
     def test_pipeline_field_validation_no_flowgroups_returns_specific_error(self, orchestrator_validation):
         """Test pipeline field validation finds no flowgroups returns specific error."""
         # Arrange
@@ -1409,7 +1407,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         
         # Should delegate to generator service with all correct arguments
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests, None
         )
 
     def test_generate_flowgroup_code_fails_propagates_exception(self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr):
@@ -1432,7 +1430,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         
         # Should still call generator service
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests, None
         )
 
     def test_substitution_mgr_none_still_delegates_to_services(self, orchestrator_processing, mock_flowgroup):
@@ -1458,7 +1456,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         # Should still delegate to services with None as parameter
         orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, None)
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, None, None, None, None, None, False
+            mock_flowgroup, None, None, None, None, None, False, None
         )
 
     def test_include_tests_true_passes_to_code_generator(self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr):
@@ -1483,7 +1481,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         
         # Should pass include_tests=True to generator service
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, True
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, True, None
         )
 
     def test_include_tests_false_passes_to_code_generator(self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr):
@@ -1508,7 +1506,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         
         # Should pass include_tests=False to generator service
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, False
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, False, None
         )
 
 
@@ -1588,7 +1586,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
         # Should have attempted to call both services despite failures
         orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, mock_substitution_mgr)
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, None, None, None, None, False
+            mock_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
         )
 
     def test_logging_operations_fail_does_not_break_main_functionality(self, orchestrator_error_handling, mock_flowgroup):
@@ -1619,7 +1617,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Services should still be called successfully
             orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, mock_substitution_mgr)
             orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
-                mock_flowgroup, mock_substitution_mgr, None, None, None, None, False
+                mock_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
             )
 
     def test_invalid_parameters_passed_delegates_to_services(self, orchestrator_error_handling):
@@ -1787,7 +1785,7 @@ class TestActionOrchestratorIntegrationScenarios:
         # But generator fails due to dependency conflict
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, mock_substitution_mgr)
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            processed_flowgroup, mock_substitution_mgr, None, None, None, None, False
+            processed_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
         )
 
     def test_service_coordination_with_complex_data_flow(self, orchestrator_integration):
@@ -1829,7 +1827,7 @@ class TestActionOrchestratorIntegrationScenarios:
         
         # Verify proper data flow: original -> processor -> generator
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(original_flowgroup, mock_substitution_mgr)
-        orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(transformed_flowgroup, mock_substitution_mgr, None, None, None, None, False)
+        orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(transformed_flowgroup, mock_substitution_mgr, None, None, None, None, False, None)
 
     def test_service_integration_error_propagation_and_recovery(self, orchestrator_integration):
         """Test service integration shows proper error propagation and recovery patterns."""
@@ -1899,5 +1897,5 @@ class TestActionOrchestratorIntegrationScenarios:
         # Verify parameter passing
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(mock_flowgroup, mock_substitution_mgr)
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests
+            mock_flowgroup, mock_substitution_mgr, output_dir, state_manager, source_yaml, env, include_tests, None
         )

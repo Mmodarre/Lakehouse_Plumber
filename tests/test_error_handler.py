@@ -345,7 +345,7 @@ class TestErrorHandlerFormatting:
         """Test terminal width fallback when exception occurs."""
         handler = ErrorHandler()
         with patch('shutil.get_terminal_size') as mock_get_size:
-            mock_get_size.side_effect = Exception("Terminal not available")
+            mock_get_size.side_effect = OSError("Terminal not available")
             width = handler._get_terminal_width()
             assert width == 80  # Fallback width
 

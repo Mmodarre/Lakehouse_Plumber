@@ -8,7 +8,7 @@ from ..models.config import FlowGroup
 from ..parsers.yaml_parser import YAMLParser
 from ..presets.preset_manager import PresetManager
 from ..core.template_engine import TemplateEngine
-from .state_manager import DependencyInfo
+from .state_models import DependencyInfo
 
 
 class StateDependencyResolver:
@@ -18,15 +18,16 @@ class StateDependencyResolver:
     while always recalculating checksums (cheap validation) to preserve change detection.
     """
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, yaml_parser: Optional[YAMLParser] = None):
         """Initialize dependency resolver.
         
         Args:
             project_root: Root directory of the LakehousePlumber project
+            yaml_parser: Optional YAML parser for shared caching
         """
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
-        self.yaml_parser = YAMLParser()
+        self.yaml_parser = yaml_parser or YAMLParser()
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
         
@@ -36,20 +37,23 @@ class StateDependencyResolver:
         self._dependency_paths_cache: Dict[Tuple[str, str, str, str, str], Dict[str, Tuple[str, str]]] = {}
 
     def resolve_file_dependencies(self, yaml_file: Path, environment: str, 
-                                  pipeline: str = None, flowgroup_name: str = None) -> Dict[str, DependencyInfo]:
+                                  pipeline: str = None, flowgroup_name: str = None,
+                                  stored_deps: Optional[Dict[str, DependencyInfo]] = None) -> Dict[str, DependencyInfo]:
         """Resolve all dependencies for a YAML file with safe caching.
         
         Supports multi-flowgroup files. If pipeline and flowgroup_name are provided,
         resolves dependencies for that specific flowgroup only.
         
         Caches dependency discovery (which files are referenced) but always recalculates
-        checksums to preserve change detection accuracy.
+        checksums to preserve change detection accuracy. If stored_deps is provided,
+        uses mtime optimization to avoid recalculating unchanged checksums.
         
         Args:
             yaml_file: Path to the YAML file (relative to project_root)
             environment: Environment name for dependency resolution
             pipeline: Optional pipeline name to identify specific flowgroup in multi-flowgroup files
             flowgroup_name: Optional flowgroup name to identify specific flowgroup in multi-flowgroup files
+            stored_deps: Previously stored dependencies for mtime optimization
             
         Returns:
             Dictionary mapping dependency paths to DependencyInfo objects with CURRENT checksums
@@ -70,7 +74,7 @@ class StateDependencyResolver:
             if cache_key in self._dependency_paths_cache:
                 # Cache hit: reuse discovered paths but recalculate checksums
                 cached_paths = self._dependency_paths_cache[cache_key]
-                dependencies = self._recalculate_dependency_checksums(cached_paths)
+                dependencies = self._recalculate_dependency_checksums(cached_paths, stored_deps)
                 self.logger.debug(f"Cache hit: Reused {len(dependencies)} dependency paths for {yaml_file}")
             else:
                 # Cache miss: full discovery and resolution
@@ -135,36 +139,66 @@ class StateDependencyResolver:
         }
         self._dependency_paths_cache[cache_key] = cached_paths
     
-    def _recalculate_dependency_checksums(self, cached_paths: Dict[str, Tuple[str, str]]) -> Dict[str, DependencyInfo]:
-        """Recalculate current checksums for cached dependency paths.
+    def _recalculate_dependency_checksums(
+        self, 
+        cached_paths: Dict[str, Tuple[str, str]],
+        stored_deps: Optional[Dict[str, DependencyInfo]] = None
+    ) -> Dict[str, DependencyInfo]:
+        """Recalculate current checksums for cached dependency paths, using mtime as optimization hint.
         
         Args:
             cached_paths: Dict mapping paths to (type, last_modified) tuples
+            stored_deps: Previously stored dependencies with checksums and mtimes
             
         Returns:
             Dict mapping paths to DependencyInfo with CURRENT checksums
         """
         dependencies = {}
+        stored_deps = stored_deps or {}
+        
         for path, (dep_type, _) in cached_paths.items():
             file_path = self.project_root / path
-            if file_path.exists():
-                # Always recalculate current checksum and modification time
-                current_checksum = self._calculate_checksum(file_path)
-                current_modified = self._get_file_modification_time(file_path)
-                dependencies[path] = DependencyInfo(
-                    path=path,
-                    checksum=current_checksum,  # ALWAYS FRESH
-                    type=dep_type,
-                    last_modified=current_modified  # ALWAYS FRESH
-                )
-            else:
+            
+            if not file_path.exists():
                 # File no longer exists - include with empty checksum
                 dependencies[path] = DependencyInfo(
                     path=path,
                     checksum="",
                     type=dep_type,
-                    last_modified=""
+                    last_modified="",
+                    mtime=None
                 )
+                continue
+            
+            current_mtime = file_path.stat().st_mtime
+            stored_dep = stored_deps.get(path)
+            
+            # Fast path: if mtime matches, trust stored checksum
+            if (stored_dep and stored_dep.mtime and
+                abs(current_mtime - stored_dep.mtime) < 0.001):  # Float comparison tolerance
+                dependencies[path] = DependencyInfo(
+                    path=path,
+                    checksum=stored_dep.checksum,  # Reuse stored
+                    type=dep_type,
+                    last_modified=self._get_file_modification_time(file_path),
+                    mtime=current_mtime
+                )
+                self.logger.debug(f"mtime cache hit for {path}")
+                continue
+            
+            # Slow path: recalculate checksum
+            current_checksum = self._calculate_checksum(file_path)
+            current_modified = self._get_file_modification_time(file_path)
+            
+            dependencies[path] = DependencyInfo(
+                path=path,
+                checksum=current_checksum,
+                type=dep_type,
+                last_modified=current_modified,
+                mtime=current_mtime
+            )
+            self.logger.debug(f"mtime cache miss for {path}")
+        
         return dependencies
     
     def clear_cache(self) -> None:
@@ -218,8 +252,9 @@ class StateDependencyResolver:
         if not preset_file.exists():
             self.logger.warning(f"Preset file not found: {preset_file}")
             # Still create dependency info with empty checksum for missing files
-            dependencies[str(preset_file.relative_to(self.project_root))] = DependencyInfo(
-                path=str(preset_file.relative_to(self.project_root)),
+            rel_path = Path(str(preset_file.relative_to(self.project_root))).as_posix()
+            dependencies[rel_path] = DependencyInfo(
+                path=rel_path,
                 checksum="",
                 type="preset",
                 last_modified=""
@@ -230,8 +265,9 @@ class StateDependencyResolver:
         checksum = self._calculate_checksum(preset_file)
         last_modified = self._get_file_modification_time(preset_file)
         
-        dependencies[str(preset_file.relative_to(self.project_root))] = DependencyInfo(
-            path=str(preset_file.relative_to(self.project_root)),
+        rel_path = Path(str(preset_file.relative_to(self.project_root))).as_posix()
+        dependencies[rel_path] = DependencyInfo(
+            path=rel_path,
             checksum=checksum,
             type="preset",
             last_modified=last_modified
@@ -270,8 +306,9 @@ class StateDependencyResolver:
         if not template_file.exists():
             self.logger.warning(f"Template file not found: {template_file}")
             # Still create dependency info with empty checksum for missing files
-            dependencies[str(template_file.relative_to(self.project_root))] = DependencyInfo(
-                path=str(template_file.relative_to(self.project_root)),
+            rel_path = Path(str(template_file.relative_to(self.project_root))).as_posix()
+            dependencies[rel_path] = DependencyInfo(
+                path=rel_path,
                 checksum="",
                 type="template",
                 last_modified=""
@@ -282,12 +319,24 @@ class StateDependencyResolver:
         checksum = self._calculate_checksum(template_file)
         last_modified = self._get_file_modification_time(template_file)
         
-        dependencies[str(template_file.relative_to(self.project_root))] = DependencyInfo(
-            path=str(template_file.relative_to(self.project_root)),
+        rel_path = Path(str(template_file.relative_to(self.project_root))).as_posix()
+        dependencies[rel_path] = DependencyInfo(
+            path=rel_path,
             checksum=checksum,
             type="template",
             last_modified=last_modified
         )
+        
+        # Resolve external files from template_parameters (e.g., schema_file)
+        if hasattr(flowgroup, 'template_parameters') and flowgroup.template_parameters:
+            param_external_files = self._extract_files_from_template_parameters(flowgroup.template_parameters)
+            
+            # Track each external file as a dependency
+            for file_path in param_external_files:
+                external_dep = self._create_external_file_dependency(file_path)
+                if external_dep:
+                    dependencies[file_path] = external_dep
+                    self.logger.debug(f"Tracked external file from template_parameters: {file_path}")
         
         # Resolve transitive preset dependencies AND external files from template
         try:
@@ -329,25 +378,25 @@ class StateDependencyResolver:
         for action in template_actions:
             # Expectations files (data quality)
             if action.get('expectations_file'):
-                files.add(action['expectations_file'])
+                files.add(Path(action['expectations_file']).as_posix())
             
             # Python transform files
             if action.get('type') == 'transform' and action.get('transform_type') == 'python':
                 if action.get('module_path'):
-                    files.add(action['module_path'])
+                    files.add(Path(action['module_path']).as_posix())
             
             # Python load files
             if action.get('type') == 'load':
                 source = action.get('source', {})
                 if isinstance(source, dict):
                     if source.get('type') == 'python' and source.get('module_path'):
-                        files.add(source['module_path'])
+                        files.add(Path(source['module_path']).as_posix())
                     if source.get('sql_path'):
-                        files.add(source['sql_path'])
+                        files.add(Path(source['sql_path']).as_posix())
             
             # SQL files (load and transform)
             if action.get('sql_path'):
-                files.add(action['sql_path'])
+                files.add(Path(action['sql_path']).as_posix())
             
             # Snapshot CDC source function files
             if action.get('type') == 'write':
@@ -356,7 +405,7 @@ class StateDependencyResolver:
                     snapshot_config = write_target.get('snapshot_cdc_config', {})
                     source_function = snapshot_config.get('source_function', {})
                     if source_function.get('file'):
-                        files.add(source_function['file'])
+                        files.add(Path(source_function['file']).as_posix())
             
             # Schema files from cloudFiles.schemaHints in templates
             if action.get('type') == 'load':
@@ -365,13 +414,13 @@ class StateDependencyResolver:
                     options = source.get('options', {})
                     schema_hints = options.get('cloudFiles.schemaHints')
                     if schema_hints and self._is_file_path(schema_hints):
-                        files.add(schema_hints)
+                        files.add(Path(schema_hints).as_posix())
             
             # Schema files from transform schema_file in templates
             if action.get('type') == 'transform' and action.get('transform_type') == 'schema':
                 schema_file = action.get('schema_file')
                 if schema_file:
-                    files.add(schema_file)
+                    files.add(Path(schema_file).as_posix())
             
             # Table schema files from write actions in templates
             if action.get('type') == 'write':
@@ -379,7 +428,33 @@ class StateDependencyResolver:
                 if isinstance(write_target, dict):
                     table_schema = write_target.get('table_schema') or write_target.get('schema')
                     if table_schema and self._is_file_path(table_schema):
-                        files.add(table_schema)
+                        files.add(Path(table_schema).as_posix())
+        
+        return files
+
+    def _extract_files_from_template_parameters(self, template_params: Dict[str, Any]) -> Set[str]:
+        """Extract file paths from template parameters.
+        
+        Scans template parameter values and identifies file paths using heuristics.
+        Common use case: schema_file parameters pointing to YAML/JSON schema files.
+        
+        Args:
+            template_params: Dictionary of template parameters from flowgroup
+            
+        Returns:
+            Set of file paths found in template parameters
+        """
+        files = set()
+        
+        for param_value in template_params.values():
+            # Check if the value is a string that looks like a file path
+            if isinstance(param_value, str) and self._is_file_path(param_value):
+                files.add(Path(param_value).as_posix())
+            # Handle lists of file paths (if any templates use this pattern)
+            elif isinstance(param_value, list):
+                for item in param_value:
+                    if isinstance(item, str) and self._is_file_path(item):
+                        files.add(Path(item).as_posix())
         
         return files
 
@@ -400,8 +475,10 @@ class StateDependencyResolver:
             checksum = self._calculate_checksum(substitution_file)
             last_modified = self._get_file_modification_time(substitution_file)
             
-            dependencies[str(substitution_file.relative_to(self.project_root))] = DependencyInfo(
-                path=str(substitution_file.relative_to(self.project_root)),
+            # Normalize path for cross-platform dictionary keys
+            rel_path = Path(str(substitution_file.relative_to(self.project_root))).as_posix()
+            dependencies[rel_path] = DependencyInfo(
+                path=rel_path,
                 checksum=checksum,
                 type="substitution",
                 last_modified=last_modified
@@ -413,8 +490,10 @@ class StateDependencyResolver:
             checksum = self._calculate_checksum(project_config_file)
             last_modified = self._get_file_modification_time(project_config_file)
             
-            dependencies[str(project_config_file.relative_to(self.project_root))] = DependencyInfo(
-                path=str(project_config_file.relative_to(self.project_root)),
+            # Normalize path for cross-platform dictionary keys
+            rel_path = Path(str(project_config_file.relative_to(self.project_root))).as_posix()
+            dependencies[rel_path] = DependencyInfo(
+                path=rel_path,
                 checksum=checksum,
                 type="project_config",
                 last_modified=last_modified
@@ -488,8 +567,9 @@ class StateDependencyResolver:
                     checksum = self._calculate_checksum(module_file)
                     last_modified = self._get_file_modification_time(module_file)
                     
-                    dependencies[module_path] = DependencyInfo(
-                        path=module_path,
+                    normalized_path = Path(module_path).as_posix()
+                    dependencies[normalized_path] = DependencyInfo(
+                        path=normalized_path,
                         checksum=checksum,
                         type="custom_datasource_module",
                         last_modified=last_modified
@@ -545,25 +625,25 @@ class StateDependencyResolver:
             if (hasattr(action, 'type') and action.type == 'transform' and
                 hasattr(action, 'transform_type') and action.transform_type == 'python' and
                 hasattr(action, 'module_path') and action.module_path):
-                files.add(action.module_path)
+                files.add(Path(action.module_path).as_posix())
             
             # Python load files
             elif (hasattr(action, 'type') and action.type == 'load' and
                   hasattr(action, 'source') and isinstance(action.source, dict) and
                   action.source.get('type') == 'python' and
                   action.source.get('module_path')):
-                files.add(action.source['module_path'])
+                files.add(Path(action.source['module_path']).as_posix())
             
             # SQL files (load and transform with sql_path)
             if (hasattr(action, 'sql_path') and action.sql_path):
-                files.add(action.sql_path)
+                files.add(Path(action.sql_path).as_posix())
             elif (hasattr(action, 'source') and isinstance(action.source, dict) and
                   action.source.get('sql_path')):
-                files.add(action.source['sql_path'])
+                files.add(Path(action.source['sql_path']).as_posix())
             
             # Expectation files (data quality)
             if (hasattr(action, 'expectations_file') and action.expectations_file):
-                files.add(action.expectations_file)
+                files.add(Path(action.expectations_file).as_posix())
             
             # Snapshot CDC source function files
             if (hasattr(action, 'type') and action.type == 'write' and
@@ -572,7 +652,7 @@ class StateDependencyResolver:
                 snapshot_config = action.write_target.get('snapshot_cdc_config', {})
                 source_function = snapshot_config.get('source_function', {})
                 if source_function.get('file'):
-                    files.add(source_function['file'])
+                    files.add(Path(source_function['file']).as_posix())
             
             # Schema files from cloudFiles.schemaHints
             if (hasattr(action, 'type') and action.type == 'load' and
@@ -580,26 +660,26 @@ class StateDependencyResolver:
                 options = action.source.get('options', {})
                 schema_hints = options.get('cloudFiles.schemaHints')
                 if schema_hints and self._is_file_path(schema_hints):
-                    files.add(schema_hints)
+                    files.add(Path(schema_hints).as_posix())
             
             # Schema files from transform schema_file
             if (hasattr(action, 'type') and action.type == 'transform' and
                 hasattr(action, 'transform_type') and action.transform_type == 'schema'):
                 schema_file = getattr(action, 'schema_file', None)
                 if schema_file:
-                    files.add(schema_file)
+                    files.add(Path(schema_file).as_posix())
             
             # Table schema files from write actions
             if (hasattr(action, 'type') and action.type == 'write' and
                 hasattr(action, 'write_target') and isinstance(action.write_target, dict)):
                 table_schema = action.write_target.get('table_schema') or action.write_target.get('schema')
                 if table_schema and self._is_file_path(table_schema):
-                    files.add(table_schema)
+                    files.add(Path(table_schema).as_posix())
                 
                 # SQL files from materialized view sql_path
                 sql_path = action.write_target.get('sql_path')
                 if sql_path:
-                    files.add(sql_path)
+                    files.add(Path(sql_path).as_posix())
         
         return files
 
@@ -625,7 +705,7 @@ class StateDependencyResolver:
             self.logger.debug(f"Found external file dependency: {file_path}")
             
             return DependencyInfo(
-                path=file_path,
+                path=Path(file_path).as_posix(),  # Normalize for cross-platform state files
                 checksum=checksum,
                 type="external_file",
                 last_modified=last_modified
@@ -652,17 +732,19 @@ class StateDependencyResolver:
             sorted_deps = sorted(dependencies)
             
             for dep_path in sorted_deps:
-                file_path = self.project_root / dep_path
+                # Normalize path: replace backslashes with forward slashes for cross-platform consistency
+                normalized_path = dep_path.replace('\\', '/')
+                file_path = self.project_root / normalized_path
                 if file_path.exists():
-                    # Add file path to hash
-                    sha256_hash.update(dep_path.encode('utf-8'))
+                    # Add file path to hash (normalized)
+                    sha256_hash.update(normalized_path.encode('utf-8'))
                     # Add file content to hash
                     with open(file_path, "rb") as f:
                         for chunk in iter(lambda: f.read(4096), b""):
                             sha256_hash.update(chunk)
                 else:
-                    # Add path with placeholder for missing files
-                    sha256_hash.update(f"{dep_path}:MISSING".encode('utf-8'))
+                    # Add path with placeholder for missing files (normalized)
+                    sha256_hash.update(f"{normalized_path}:MISSING".encode('utf-8'))
                     
             return sha256_hash.hexdigest()
             

@@ -49,12 +49,13 @@ def test_streaming_table_with_backfill():
     """Test streaming table with one-time flow (backfill)."""
     generator = StreamingTableWriteGenerator()
     
-    # Create action with once=True for backfill
+    # Create action with once=True for backfill and explicit readMode: batch
     action = Action(
         name="backfill_historical",
         type="write",
         source="v_historical_orders",
         once=True,
+        readMode="batch",  # Explicitly set batch mode for backfill
         write_target={
             "type": "streaming_table",
             "database": "silver",
@@ -73,8 +74,8 @@ def test_streaming_table_with_backfill():
     assert 'spark.read.table("v_historical_orders")' in code
     assert 'spark.readStream.' not in code
     
-    # Check comment indicates backfill
-    assert "One-time flow (backfill)" in code
+    # Check comment indicates batch mode
+    assert "Batch mode" in code
 
 
 def test_streaming_table_cdc_mode():
@@ -199,6 +200,7 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
         type="write",
         source="v_lineitem_historical",
         once=True,  # One-time backfill
+        readMode="batch",  # Explicit batch mode for backfill
         write_target={
             "type": "streaming_table",
             "database": "catalog.schema", 
@@ -372,6 +374,7 @@ def test_backward_compatibility_single_action():
         type="write",
         source="v_events",
         once=True,
+        readMode="batch",  # Explicit batch mode for once=True backfill
         write_target={
             "type": "streaming_table",
             "database": "silver",
@@ -388,7 +391,7 @@ def test_backward_compatibility_single_action():
     assert "@dp.append_flow(" in code
     assert "once=True" in code
     assert "def f_single_events():" in code
-    assert 'spark.read.table("v_events")' in code  # Batch for once=True
+    assert 'spark.read.table("v_events")' in code  # Batch for readMode="batch"
 
 
 def test_orchestrator_preserves_table_creation_logic():

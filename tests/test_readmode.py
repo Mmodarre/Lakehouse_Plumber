@@ -12,6 +12,7 @@ from lhp.generators.load.delta import DeltaLoadGenerator
 from lhp.generators.transform.data_quality import DataQualityTransformGenerator
 from lhp.generators.transform.schema import SchemaTransformGenerator
 from lhp.generators.transform.python import PythonTransformGenerator
+from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 
 
 class TestReadMode:
@@ -328,7 +329,10 @@ environment:
             
             # Generate code
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline("test_pipeline", "dev")
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field="test_pipeline",
+                env="dev"
+            )
             
             # Get the generated code for test_flow
             generated_code = generated_files.get("test_flow.py", "")
@@ -363,9 +367,160 @@ environment:
             
             assert load_section_found, "Load action not found in generated code"
             assert transform_section_found, "Transform action not found in generated code"
-            
-            # Note: Streaming tables always use spark.readStream for their append flows,
-            # regardless of the readMode of the actions feeding them
+    
+    def test_streaming_table_default_readmode(self):
+        """Test that streaming table defaults to spark.readStream when readMode not specified."""
+        generator = StreamingTableWriteGenerator()
+        
+        action = Action(
+            name="write_customers",
+            type=ActionType.WRITE,
+            source="v_customers",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "customers",
+                "create_table": True
+            }
+        )
+        
+        code = generator.generate(action, {"flowgroup": FlowGroup(
+            pipeline="test", flowgroup="test", actions=[]
+        )})
+        
+        # Should use spark.readStream by default
+        assert "spark.readStream.table" in code
+        assert "spark.read.table" not in code or code.count("spark.read.table") == 0
+    
+    def test_streaming_table_explicit_stream_readmode(self):
+        """Test that streaming table uses spark.readStream with explicit readMode: stream."""
+        generator = StreamingTableWriteGenerator()
+        
+        action = Action(
+            name="write_customers",
+            type=ActionType.WRITE,
+            source="v_customers",
+            readMode="stream",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "customers",
+                "create_table": True
+            }
+        )
+        
+        code = generator.generate(action, {"flowgroup": FlowGroup(
+            pipeline="test", flowgroup="test", actions=[]
+        )})
+        
+        # Should use spark.readStream
+        assert "spark.readStream.table" in code
+    
+    def test_streaming_table_batch_readmode(self):
+        """Test that streaming table uses spark.read with readMode: batch."""
+        generator = StreamingTableWriteGenerator()
+        
+        action = Action(
+            name="write_customers",
+            type=ActionType.WRITE,
+            source="v_customers",
+            readMode="batch",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "customers",
+                "create_table": True
+            }
+        )
+        
+        code = generator.generate(action, {"flowgroup": FlowGroup(
+            pipeline="test", flowgroup="test", actions=[]
+        )})
+        
+        # Should use spark.read
+        assert "spark.read.table" in code
+        assert "spark.readStream" not in code
+    
+    def test_streaming_table_once_flag_with_default_readmode(self):
+        """Test that once flag doesn't affect read method - readMode controls it."""
+        generator = StreamingTableWriteGenerator()
+        
+        # once=True with default readMode should still use spark.readStream
+        action = Action(
+            name="write_customers",
+            type=ActionType.WRITE,
+            source="v_customers",
+            once=True,
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "customers",
+                "create_table": True
+            }
+        )
+        
+        code = generator.generate(action, {"flowgroup": FlowGroup(
+            pipeline="test", flowgroup="test", actions=[]
+        )})
+        
+        # Should use spark.readStream (default readMode)
+        assert "spark.readStream.table" in code
+        # Should have once=True in decorator
+        assert "once=True" in code
+    
+    def test_streaming_table_once_flag_with_batch_readmode(self):
+        """Test that readMode: batch overrides default even with once flag."""
+        generator = StreamingTableWriteGenerator()
+        
+        action = Action(
+            name="write_customers",
+            type=ActionType.WRITE,
+            source="v_customers",
+            once=True,
+            readMode="batch",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "customers",
+                "create_table": True
+            }
+        )
+        
+        code = generator.generate(action, {"flowgroup": FlowGroup(
+            pipeline="test", flowgroup="test", actions=[]
+        )})
+        
+        # Should use spark.read (explicit readMode: batch)
+        assert "spark.read.table" in code
+        assert "spark.readStream" not in code
+        # Should have once=True in decorator
+        assert "once=True" in code
+    
+    def test_streaming_table_once_false_with_batch_readmode(self):
+        """Test that readMode: batch works with once=False."""
+        generator = StreamingTableWriteGenerator()
+        
+        action = Action(
+            name="write_customers",
+            type=ActionType.WRITE,
+            source="v_customers",
+            once=False,
+            readMode="batch",
+            write_target={
+                "type": "streaming_table",
+                "database": "silver",
+                "table": "customers",
+                "create_table": True
+            }
+        )
+        
+        code = generator.generate(action, {"flowgroup": FlowGroup(
+            pipeline="test", flowgroup="test", actions=[]
+        )})
+        
+        # Should use spark.read (explicit readMode: batch)
+        assert "spark.read.table" in code
+        assert "spark.readStream" not in code
 
 
 if __name__ == "__main__":

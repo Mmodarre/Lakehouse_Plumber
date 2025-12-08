@@ -1,6 +1,7 @@
 """Schema parser for converting YAML schema files to Spark formats."""
 
 import logging
+import re
 from pathlib import Path
 from typing import Dict, List, Any, Tuple
 from ..parsers.yaml_parser import YAMLParser
@@ -147,8 +148,6 @@ class SchemaParser:
         Returns:
             Spark type code string
         """
-        import re
-
         col_type = col_type.upper().strip()
 
         # Handle DECIMAL types specially

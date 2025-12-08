@@ -362,7 +362,7 @@ prod:
                 
                 # Create flowgroup
                 flowgroup_dict = {
-                    "pipeline": "raw_ingestions",
+                    "pipeline": "test",  # Match the search term
                     "flowgroup": "customer_ingestion",
                     "actions": [
                         {
@@ -400,14 +400,17 @@ prod:
                 
                 # Generate code
                 orchestrator = ActionOrchestrator(project_root)
-                generated_files = orchestrator.generate_pipeline("test", "dev")
+                generated_files = orchestrator.generate_pipeline_by_field(
+                    pipeline_field="test",
+                    env="dev"
+                )
                 
                 # Get generated code
                 assert len(generated_files) == 1
                 code = list(generated_files.values())[0]
                 
                 # Verify the fixed behavior where constants have correct values
-                assert 'PIPELINE_ID = "raw_ingestions"' in code  # Should be pipeline field
+                assert 'PIPELINE_ID = "test"' in code  # Should be pipeline field from YAML
                 assert 'FLOWGROUP_ID = "customer_ingestion"' in code
             finally:
                 os.chdir(original_cwd)  # Should be flowgroup field 

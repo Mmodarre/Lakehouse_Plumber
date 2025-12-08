@@ -120,7 +120,7 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
             raise FileNotFoundError(f"Custom sink file not found: {sink_path}")
         
         raw_sink_code = sink_path.read_text()
-        self.sink_file_path = sink_path
+        self.sink_file_path = Path(module_path).as_posix()
         
         # Apply substitutions to the raw sink code if substitution_manager is available
         if context and "substitution_manager" in context:

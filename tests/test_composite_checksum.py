@@ -329,4 +329,29 @@ actions: []
             # Should return a valid checksum
             assert composite_checksum
             assert isinstance(composite_checksum, str)
-            assert len(composite_checksum) > 0 
+            assert len(composite_checksum) > 0
+    
+    def test_calculate_composite_checksum_path_separator_independent(self):
+        """Test that path separator doesn't affect checksum - ensures Mac/Windows compatibility."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            
+            # Create test files
+            (project_root / "src").mkdir()
+            (project_root / "src" / "file.py").write_text("content1")
+            (project_root / "other").mkdir()
+            (project_root / "other" / "file.sql").write_text("content2")
+            
+            resolver = StateDependencyResolver(project_root)
+            
+            # Test with forward slashes (Mac/Linux)
+            deps_forward = ["src/file.py", "other/file.sql"]
+            checksum1 = resolver.calculate_composite_checksum(deps_forward)
+            
+            # Test with backslashes (Windows)
+            deps_back = ["src\\file.py", "other\\file.sql"]
+            checksum2 = resolver.calculate_composite_checksum(deps_back)
+            
+            # Should produce identical checksums for cross-platform collaboration
+            assert checksum1 == checksum2
+            assert checksum1  # Not empty 

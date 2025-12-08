@@ -7,6 +7,7 @@ from lhp.models.config import Action, TestActionType, ViolationAction
 
 class TestActionGenerator(BaseActionGenerator):
     """Generator for test actions using existing transform infrastructure."""
+    __test__ = False  # Tell pytest this is not a test class
     
     # SQL templates for each test type
     TEST_SQL_TEMPLATES = {

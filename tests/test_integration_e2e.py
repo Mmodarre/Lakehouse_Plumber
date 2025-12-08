@@ -21,6 +21,7 @@ from lhp.bundle.manager import BundleManager
 from lhp.utils.bundle_detection import should_enable_bundle_support
 
 
+@pytest.mark.e2e
 class TestEndToEndBundleWorkflow:
     """Test complete bundle workflow from initialization to generation."""
 

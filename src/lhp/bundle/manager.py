@@ -6,6 +6,7 @@ resource operations including resource file synchronization and management.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import List, Dict, Optional, Union, Any
 
@@ -804,8 +805,6 @@ class BundleManager:
         Returns:
             List of catalog.schema strings found in the content
         """
-        import re
-        
         # Regex patterns for table creation (only patterns that create new tables)
         patterns = [
             r'dp\.create_streaming_table\(\s*\n?\s*name="([^"]+)"',  # streaming tables

@@ -256,37 +256,8 @@
                                     "additionalProperties": true
                                 },
                                 "schema": {
-                                    "oneOf": [
-                                        {
-                                            "type": "string",
-                                            "description": "Schema definition (DDL or path)"
-                                        },
-                                        {
-                                            "type": "object",
-                                            "description": "Inline schema transform configuration (legacy format)",
-                                            "properties": {
-                                                "enforcement": {
-                                                    "type": "string",
-                                                    "enum": ["strict", "permissive"],
-                                                    "description": "Schema enforcement mode: 'strict' drops unmapped columns, 'permissive' keeps all columns (must be literal value, not template variable)"
-                                                },
-                                                "column_mapping": {
-                                                    "type": "object",
-                                                    "description": "Column renaming: old_name -> new_name",
-                                                    "additionalProperties": {
-                                                        "type": "string"
-                                                    }
-                                                },
-                                                "type_casting": {
-                                                    "type": "object",
-                                                    "description": "Type casting: column_name -> type",
-                                                    "additionalProperties": {
-                                                        "type": "string"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    ]
+                                    "type": "string",
+                                    "description": "Schema definition (DDL or path). Note: For schema transforms, use 'schema_inline' or 'schema_file' at action level instead."
                                 },
                                 "schema_file": {
                                     "type": "string",

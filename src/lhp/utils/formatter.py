@@ -127,7 +127,7 @@ class CodeFormatter:
             # Clean up temp file
             try:
                 Path(temp_file).unlink()
-            except:
+            except (OSError, FileNotFoundError):
                 pass
 
     def organize_imports(self, code: str) -> str:

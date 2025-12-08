@@ -1,0 +1,67 @@
+pipeline: kafka_sample_pipeline
+flowgroup: kafka_orders_ingestion
+#job_name: j_seven
+description: "Ingest orders from Kafka using pattern-based subscription"
+
+actions:
+  # Load raw Kafka data (returns binary key/value)
+  - name: load_kafka_orders_raw
+    type: load
+    readMode: stream
+    source:
+      type: kafka
+      bootstrap_servers: "${kafka_bootstrap_cluster}"
+      subscribe: "sample_data_orders"
+      options:
+        # Offset and error handling
+        startingOffsets: "earliest"
+        failOnDataLoss: false
+        
+        # Kafka security configuration
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "PLAIN"
+        kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username="${secret:kafka_secrets/kafka_api_key}" password="${secret:kafka_secrets/kafka_api_secret}";'
+        kafka.ssl.endpoint.identification.algorithm: "https"
+        kafka.client.id: "acme-supermarkets-kafka-orders-ingestion"
+    target: v_kafka_orders_raw
+    description: "Load orders from Kafka topics matching pattern"
+
+  # Deserialize the binary Kafka data
+  - name: deserialize_kafka_orders
+    type: transform
+    transform_type: sql
+    source: v_kafka_orders_raw
+    target: v_kafka_orders_deserialized
+    sql: |
+      SELECT 
+        -- Kafka metadata
+        topic,
+        partition,
+        offset,
+        timestamp as kafka_timestamp,
+        timestampType,
+        
+        -- Deserialize key and value
+        CAST(key AS STRING) as message_key,
+        CAST(value AS STRING) as message_value_json
+        
+        -- Note: For Avro, you would typically use from_avro() function
+        -- Example: from_avro(value, avro_schema) as order_data
+        
+      FROM $source
+    description: "Deserialize Kafka binary data to strings"
+
+  # Write to bronze streaming table
+  - name: write_kafka_orders_bronze
+    type: write
+    source: v_kafka_orders_deserialized
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: kafka_orders_raw
+      comment: "Raw Kafka orders data with metadata"
+      table_properties:
+        "delta.autoOptimize.optimizeWrite": "true"
+        "delta.enableChangeDataFeed": "true"
+    description: "Write deserialized Kafka orders to bronze table"
+
