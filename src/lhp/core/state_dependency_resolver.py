@@ -327,6 +327,17 @@ class StateDependencyResolver:
             last_modified=last_modified
         )
         
+        # Resolve external files from template_parameters (e.g., schema_file)
+        if hasattr(flowgroup, 'template_parameters') and flowgroup.template_parameters:
+            param_external_files = self._extract_files_from_template_parameters(flowgroup.template_parameters)
+            
+            # Track each external file as a dependency
+            for file_path in param_external_files:
+                external_dep = self._create_external_file_dependency(file_path)
+                if external_dep:
+                    dependencies[file_path] = external_dep
+                    self.logger.debug(f"Tracked external file from template_parameters: {file_path}")
+        
         # Resolve transitive preset dependencies AND external files from template
         try:
             template = self.template_engine.get_template(template_name)
@@ -418,6 +429,32 @@ class StateDependencyResolver:
                     table_schema = write_target.get('table_schema') or write_target.get('schema')
                     if table_schema and self._is_file_path(table_schema):
                         files.add(Path(table_schema).as_posix())
+        
+        return files
+
+    def _extract_files_from_template_parameters(self, template_params: Dict[str, Any]) -> Set[str]:
+        """Extract file paths from template parameters.
+        
+        Scans template parameter values and identifies file paths using heuristics.
+        Common use case: schema_file parameters pointing to YAML/JSON schema files.
+        
+        Args:
+            template_params: Dictionary of template parameters from flowgroup
+            
+        Returns:
+            Set of file paths found in template parameters
+        """
+        files = set()
+        
+        for param_value in template_params.values():
+            # Check if the value is a string that looks like a file path
+            if isinstance(param_value, str) and self._is_file_path(param_value):
+                files.add(Path(param_value).as_posix())
+            # Handle lists of file paths (if any templates use this pattern)
+            elif isinstance(param_value, list):
+                for item in param_value:
+                    if isinstance(item, str) and self._is_file_path(item):
+                        files.add(Path(item).as_posix())
         
         return files
 
