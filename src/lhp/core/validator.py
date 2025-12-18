@@ -11,6 +11,7 @@ from ..models.config import FlowGroup, Action, ActionType, WriteTargetType
 from .action_registry import ActionRegistry
 from .dependency_resolver import DependencyResolver
 from .config_field_validator import ConfigFieldValidator
+from ..utils.error_formatter import LHPError
 from .validators import (
     LoadActionValidator,
     TransformActionValidator,
@@ -135,6 +136,9 @@ class ConfigValidator:
         try:
             action_dict = action.model_dump()
             self.field_validator.validate_action_fields(action_dict, action.name)
+        except LHPError:
+            # Re-raise LHPError as-is (it's already well-formatted)
+            raise
         except Exception as e:
             errors.append(str(e))
             return errors  # Stop validation if field validation fails

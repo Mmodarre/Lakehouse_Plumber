@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ...models.config import FlowGroup
 from ...utils.substitution import EnhancedSubstitutionManager
+from ...utils.error_formatter import LHPError
 
 
 class PipelineValidator:
@@ -147,9 +148,13 @@ class PipelineValidator:
             ValueError: If validation fails
         """
         if self.config_validator:
-            errors = self.config_validator.validate_flowgroup(flowgroup)
-            if errors:
-                raise ValueError(f"Flowgroup validation failed: {errors}")
+            try:
+                errors = self.config_validator.validate_flowgroup(flowgroup)
+                if errors:
+                    raise ValueError(f"Flowgroup validation failed:\n" + "\n\n".join(errors))
+            except LHPError:
+                # Re-raise LHPError as-is (it's already well-formatted)
+                raise
         else:
             # Minimal validation if no config validator available
             if not flowgroup.actions:

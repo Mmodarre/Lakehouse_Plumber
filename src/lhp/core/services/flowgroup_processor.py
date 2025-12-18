@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from ...models.config import FlowGroup
 from ...utils.substitution import EnhancedSubstitutionManager
+from ...utils.error_formatter import LHPError
 
 
 class FlowgroupProcessor:
@@ -76,7 +77,7 @@ class FlowgroupProcessor:
         if not substitution_mgr.skip_validation:
             validation_errors = substitution_mgr.validate_no_unresolved_tokens(substituted_dict)
             if validation_errors:
-                from ...utils.error_formatter import LHPError, ErrorCategory
+                from ...utils.error_formatter import ErrorCategory
                 raise LHPError(
                     category=ErrorCategory.CONFIG,
                     code_number="010",
@@ -101,16 +102,22 @@ class FlowgroupProcessor:
         processed_flowgroup = FlowGroup(**substituted_dict)
         
         # Step 4: Validate individual flowgroup
-        errors = self.config_validator.validate_flowgroup(processed_flowgroup)
-        if errors:
-            raise ValueError(f"Flowgroup validation failed: {errors}")
+        try:
+            errors = self.config_validator.validate_flowgroup(processed_flowgroup)
+            if errors:
+                # Join multiple string errors properly
+                raise ValueError(f"Flowgroup validation failed:\n" + "\n\n".join(errors))
+        except LHPError:
+            # Re-raise LHPError as-is (it's already well-formatted)
+            raise
         
         # Step 5: Validate secret references
         secret_errors = self.secret_validator.validate_secret_references(
             substitution_mgr.get_secret_references()
         )
         if secret_errors:
-            raise ValueError(f"Secret validation failed: {secret_errors}")
+            # Join multiple string errors properly
+            raise ValueError(f"Secret validation failed:\n" + "\n\n".join(secret_errors))
         
         return processed_flowgroup
     
