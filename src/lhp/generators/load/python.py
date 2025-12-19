@@ -21,6 +21,12 @@ class PythonLoadGenerator(BaseActionGenerator):
         if isinstance(source_config, str):
             raise ValueError("Python source must be a configuration object")
 
+        # Process source config through substitution manager first if available
+        if "substitution_manager" in context:
+            source_config = context["substitution_manager"].substitute_yaml(
+                source_config
+            )
+
         # Extract module and function information
         module_path = source_config.get("module_path")
         function_name = source_config.get("function_name", "get_df")

@@ -887,6 +887,21 @@ Python load actions call custom Python functions that return DataFrames. This al
   **File Organization**: When using ``module_path``, the path is relative to your YAML file location.
   Common practice is to create an ``extractors/`` or ``functions/`` folder alongside your pipeline YAML files.
 
+.. note::
+  **Parameter Substitution**: The ``parameters`` dictionary supports both ``${token}`` 
+  (preferred) and ``{token}`` (legacy) substitution for environment-specific values:
+  
+  .. code-block:: yaml
+  
+     parameters:
+       catalog: "${catalog}"                # Preferred syntax
+       table_name: "${schema}.users"        # Preferred syntax
+       api_endpoint: "{api_url}"            # Legacy (still works)
+       batch_size: 1000                     # No substitution needed
+  
+  All tokens are replaced with values from ``substitutions/{env}.yaml`` at generation time.
+  Secret references (``${secret:scope/key}``) are converted to ``dbutils.secrets.get()`` calls.
+
 **The above YAML translates to the following PySpark code**
 
 .. code-block:: python
@@ -3367,6 +3382,256 @@ The row filter format is: ``"ROW FILTER function_name ON (column_names)"``
 
 .. seealso::
   - For complete row filter documentation see the `Databricks Row Filters and Column Masks documentation <https://docs.databricks.com/aws/en/ldp/unity-catalog#publish-tables-with-row-filters-and-column-masks>`_.
+
+
+ForEachBatch Sink
++++++++++++++++++
+
+Process streaming data with custom Python logic for each micro-batch, enabling advanced use cases like 
+merging into Delta tables, writing to multiple destinations, or implementing complex upsert logic.
+
+**Use Cases:**
+
+- Merge streaming data into Delta Lake tables with custom logic
+- Write each micro-batch to multiple destinations simultaneously
+- Implement complex upsert patterns with conditional logic
+- Apply custom transformations or validations per batch
+
+.. Important::
+  **ForEachBatch sinks are for advanced streaming use cases.** Unlike other sinks that use ``dp.create_sink()``,
+  ForEachBatch uses the ``@dp.foreach_batch_sink()`` decorator pattern. You provide the batch processing logic
+  (function body), and LHP wraps it with the decorator and generates the append_flow.
+
+**Configuration Options**
+
+ForEachBatch sinks support two modes:
+
+1. **External Python file**: Batch handler code in a separate file (recommended for complex logic)
+2. **Inline code**: Batch handler code directly in YAML (suitable for simple cases)
+
+**Option 1: External Python File**
+
+.. code-block:: yaml
+
+  # Example: Merge streaming data into target table
+  actions:
+    - name: merge_customer_updates
+      type: write
+      source: v_customer_changes
+      write_target:
+        type: sink
+        sink_type: foreachbatch
+        sink_name: customer_merge_sink
+        module_path: "batch_handlers/merge_customers.py"
+        comment: "Merge customer updates using custom logic"
+
+**User's Python file** (``batch_handlers/merge_customers.py``):
+
+.. code-block:: python
+
+  # Function body only - no decorator, no function signature
+  # LHP will wrap this with @dp.foreach_batch_sink decorator
+  
+  df.createOrReplaceTempView("batch_view")
+  df.sparkSession.sql("""
+      MERGE INTO ${target_table} AS tgt
+      USING batch_view AS src
+      ON tgt.customer_id = src.customer_id
+      WHEN MATCHED THEN 
+          UPDATE SET 
+              tgt.email = src.email,
+              tgt.phone = src.phone,
+              tgt.updated_at = src.updated_at
+      WHEN NOT MATCHED THEN 
+          INSERT (customer_id, email, phone, created_at, updated_at)
+          VALUES (src.customer_id, src.email, src.phone, src.created_at, src.updated_at)
+  """)
+
+**Option 2: Inline Batch Handler**
+
+.. code-block:: yaml
+
+  # Example: Simple append to Delta table
+  actions:
+    - name: append_events
+      type: write
+      source: v_events
+      write_target:
+        type: sink
+        sink_type: foreachbatch
+        sink_name: events_sink
+        batch_handler: |
+          df.write.format("delta").mode("append").saveAsTable("${events_table}")
+
+**Generated Code Output**
+
+LHP generates the complete ForEachBatch sink code:
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark import pipelines as dp
+  
+  @dp.foreach_batch_sink(name="customer_merge_sink")
+  def customer_merge_sink(df, batch_id):
+      """ForEachBatch sink: merge_customer_updates"""
+      df.createOrReplaceTempView("batch_view")
+      df.sparkSession.sql("""
+          MERGE INTO catalog.schema.customers AS tgt
+          USING batch_view AS src
+          ON tgt.customer_id = src.customer_id
+          WHEN MATCHED THEN 
+              UPDATE SET 
+                  tgt.email = src.email,
+                  tgt.phone = src.phone,
+                  tgt.updated_at = src.updated_at
+          WHEN NOT MATCHED THEN 
+              INSERT (customer_id, email, phone, created_at, updated_at)
+              VALUES (src.customer_id, src.email, src.phone, src.created_at, src.updated_at)
+      """)
+      return
+  
+  @dp.append_flow(target="customer_merge_sink", name="f_customer_merge_sink_1")
+  def f_customer_merge_sink_1():
+      df = spark.readStream.table("v_customer_changes")
+      return df
+
+**Anatomy of a ForEachBatch sink write action:**
+
+- **write_target.type**: Must be ``sink``
+- **write_target.sink_type**: Must be ``foreachbatch``
+- **write_target.sink_name**: Unique identifier for this sink (used in decorator name)
+- **write_target.module_path**: Path to Python file with batch handler body (Option 1)
+- **write_target.batch_handler**: Inline batch handler code (Option 2)
+- **write_target.comment**: Optional description
+- **source**: Single source view (string) - ForEachBatch sinks support only one source
+
+.. Important::
+  **You must provide EITHER ``module_path`` OR ``batch_handler``, not both.**
+
+**Writing to Multiple Destinations**
+
+ForEachBatch excels at writing each batch to multiple destinations:
+
+.. code-block:: yaml
+
+  actions:
+    - name: multi_destination_write
+      type: write
+      source: v_processed_data
+      write_target:
+        type: sink
+        sink_type: foreachbatch
+        sink_name: multi_write_sink
+        batch_handler: |
+          # Write to Delta table
+          df.write.format("delta").mode("append") \
+            .option("txnVersion", batch_id) \
+            .option("txnAppId", "my-app") \
+            .saveAsTable("${primary_table}")
+          
+          # Also write to backup location
+          df.write.format("delta").mode("append") \
+            .option("txnVersion", batch_id) \
+            .option("txnAppId", "my-app-backup") \
+            .save("/mnt/backup/data")
+          
+          # And write summary to monitoring table
+          summary = df.groupBy().count()
+          summary.write.format("delta").mode("append") \
+            .saveAsTable("${monitoring_table}")
+
+.. Note::
+  **Idempotent Writes**: Use ``txnVersion`` and ``txnAppId`` options to make Delta writes idempotent.
+  This ensures that if a batch is re-run, duplicate writes are prevented. See 
+  `Databricks documentation on idempotent writes <https://docs.databricks.com/structured-streaming/foreach-batch.html#idempotent-table-writes-in-foreachbatch>`_.
+
+**Full Refresh Handling**
+
+ForEachBatch sinks track checkpoints per flow. On **full refresh**, the checkpoint resets and ``batch_id`` 
+starts from 0. You are responsible for handling downstream data cleanup:
+
+.. code-block:: python
+
+  # Example: Handle full refresh in your batch handler
+  if batch_id == 0:
+      # Full refresh - clean up target table
+      df.sparkSession.sql("TRUNCATE TABLE ${target_table}")
+  
+  # Then process the batch normally
+  df.write.format("delta").mode("append").saveAsTable("${target_table}")
+
+**Operational Metadata Support**
+
+ForEachBatch sinks support operational metadata columns (like other sinks):
+
+.. code-block:: yaml
+
+  # In lhp.yaml
+  operational_metadata:
+    columns:
+      _ingestion_timestamp:
+        expression: "F.current_timestamp()"
+      _batch_id:
+        expression: "F.lit(batch_id)"
+  
+  # In flowgroup YAML
+  operational_metadata: [_ingestion_timestamp, _batch_id]
+  
+  actions:
+    - name: batch_with_metadata
+      type: write
+      source: v_data
+      write_target:
+        type: sink
+        sink_type: foreachbatch
+        sink_name: my_sink
+        batch_handler: |
+          # df already has _ingestion_timestamp and _batch_id columns
+          df.write.format("delta").mode("append").saveAsTable("target")
+
+**Substitution Token Support**
+
+Use ``${token}`` substitutions in your batch handler code:
+
+.. code-block:: yaml
+
+  # In substitutions.yaml
+  dev:
+    target_table: "dev_catalog.bronze.customers"
+  prod:
+    target_table: "prod_catalog.bronze.customers"
+  
+  # In flowgroup YAML
+  actions:
+    - name: write_customers
+      type: write
+      source: v_customers
+      write_target:
+        type: sink
+        sink_type: foreachbatch
+        sink_name: customer_sink
+        module_path: "batch_handlers/merge.py"  # Uses ${target_table}
+
+**Best Practices**
+
+1. **Keep batch handlers focused**: Each handler should have a single responsibility
+2. **Use external files for complex logic**: Easier to test and maintain
+3. **Handle errors gracefully**: Consider try-catch blocks for resilience
+4. **Make writes idempotent**: Use ``txnVersion`` and ``txnAppId`` for Delta writes
+5. **Test with small batches first**: Validate logic before full-scale deployment
+6. **Monitor batch processing**: Log batch_id and record counts for observability
+
+**Limitations**
+
+- **Single source only**: ForEachBatch sinks support one source view (not lists)
+- **No automatic housekeeping**: You manage downstream data cleanup
+- **Serialization requirements**: For Databricks Connect, avoid ``dbutils`` in handlers
+- **No parameters**: Use substitution tokens instead of parameter dicts
+
+.. seealso::
+  - `Databricks ForEachBatch documentation <https://docs.databricks.com/aws/en/ldp/for-each-batch>`_
+  - `Idempotent writes in ForEachBatch <https://docs.databricks.com/structured-streaming/foreach-batch.html#idempotent-table-writes-in-foreachbatch>`_
 
 
 Test Actions (Data Quality Unit Tests)

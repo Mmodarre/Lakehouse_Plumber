@@ -23,6 +23,10 @@ class PythonTransformGenerator(BaseActionGenerator):
         function_name = getattr(action, 'function_name', None)
         parameters = getattr(action, 'parameters', {})
 
+        # Apply substitution to parameters if available
+        if parameters and "substitution_manager" in context:
+            parameters = context["substitution_manager"].substitute_yaml(parameters)
+
         if not module_path:
             raise ValueError("Python transform must have 'module_path'")
         if not function_name:

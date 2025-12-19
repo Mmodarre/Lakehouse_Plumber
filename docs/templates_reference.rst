@@ -746,9 +746,14 @@ Substitution Types
 .. important::
    **Syntax Distinction:**
    
-   - ``{catalog}`` or ``${catalog}`` = Environment substitution (from substitutions/env.yaml)
+   - ``${token}`` = Environment substitution (**preferred**, new syntax)
+   - ``{token}`` = Environment substitution (legacy, backward compatible)
    - ``${secret:scope/key}`` = Secret reference (Databricks secrets)
-   - ``{{ table_name }}`` = Template parameter (from template_parameters)
+   - ``{{ parameter }}`` = Template parameter (Jinja2)
+
+.. warning::
+   In Python code files (batch handlers, Python transforms), always use 
+   ``${token}`` syntax to avoid conflicts with Python string formatting.
 
 .. note::
    **Processing Order**: LHP processes substitutions in this order:
