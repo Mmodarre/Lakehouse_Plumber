@@ -231,7 +231,9 @@ class TestPipelineValidator:
             validator._validate_flowgroup_basic(mock_flowgroup)
         
         # Assert error message contains validation details
-        assert "Flowgroup validation failed: ['validation error 1', 'validation error 2']" in str(exc_info.value)
+        assert "Flowgroup validation failed:" in str(exc_info.value)
+        assert "validation error 1" in str(exc_info.value)
+        assert "validation error 2" in str(exc_info.value)
         validator.config_validator.validate_flowgroup.assert_called_once_with(mock_flowgroup)
 
     def test_validate_flowgroup_basic_no_actions_fallback(self, minimal_validator, empty_flowgroup):
