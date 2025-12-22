@@ -276,7 +276,7 @@ class TestForEachBatchSinkWriteGenerator:
             self.generator.generate(action, context)
     
     def test_generate_with_substitution(self):
-        """Test that substitution tokens are replaced."""
+        """Test that substitution tokens are replaced in file-based handlers."""
         # Create handler file with substitution token
         handler_dir = self.project_root / "batch_handlers"
         handler_dir.mkdir()
@@ -309,6 +309,38 @@ class TestForEachBatchSinkWriteGenerator:
         # Token should be replaced
         assert "catalog.schema.my_table" in code
         assert "${target_table}" not in code
+
+    def test_generate_with_inline_substitution(self):
+        """Test that substitution tokens are replaced in inline batch_handler."""
+        # Create substitution manager
+        substitution_mgr = EnhancedSubstitutionManager(substitution_file=None, env="dev")
+        substitution_mgr.mappings["events_table"] = "catalog.bronze.events"
+        substitution_mgr.mappings["backup_path"] = "/mnt/backup/events"
+        
+        action = Action(
+            name="test_inline_action",
+            type=ActionType.WRITE,
+            source="v_events",
+            write_target={
+                "type": "sink",
+                "sink_type": "foreachbatch",
+                "sink_name": "inline_sink",
+                "batch_handler": """df.write.format("delta").mode("append").saveAsTable("${events_table}")
+df.write.format("delta").save("${backup_path}")"""
+            }
+        )
+        
+        context = {
+            "substitution_manager": substitution_mgr
+        }
+        
+        code = self.generator.generate(action, context)
+        
+        # Tokens should be replaced
+        assert "catalog.bronze.events" in code
+        assert "/mnt/backup/events" in code
+        assert "${events_table}" not in code
+        assert "${backup_path}" not in code
     
     def test_generate_comment_from_description(self):
         """Test that action description is used in docstring."""

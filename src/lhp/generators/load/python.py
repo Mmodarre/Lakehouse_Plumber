@@ -52,11 +52,22 @@ class PythonLoadGenerator(BaseActionGenerator):
             )
 
         # Extract module name from path
-        # For dotted paths like "my_project.loaders.customer_loader", use the full path
-        if "." in module_path:
-            # Full dotted path provided
+        # Handle three cases:
+        # 1. File path with .py extension: "custom_python/loaders/loader.py"
+        # 2. Dotted import path: "my_project.loaders.customer_loader"
+        # 3. Simple module name: "loader"
+        
+        if module_path.endswith('.py'):
+            # File path with extension - strip .py and convert to dotted import
+            module_path_no_ext = module_path[:-3]  # Remove .py
+            # Convert path separators to dots (handle both / and \)
+            import_path = module_path_no_ext.replace('/', '.').replace('\\', '.')
+            # Module name is the last component
+            module_name = import_path.split('.')[-1]
+        elif "." in module_path:
+            # Dotted import path (no .py extension)
             module_parts = module_path.split(".")
-            module_name = module_parts[-1]  # Last part is the module name
+            module_name = module_parts[-1]
             import_path = module_path
         else:
             # Simple module name

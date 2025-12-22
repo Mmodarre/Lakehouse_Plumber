@@ -306,3 +306,184 @@ class TestPythonLoadSubstitution:
         assert "mixed_catalog.mixed_schema.table1" in code
         assert '"environment": "test"' in code
 
+
+class TestPythonLoadModulePathParsing:
+    """Test module_path parsing with different formats after substitution."""
+
+    def test_module_path_substitution_with_py_extension(self):
+        """Test file path with .py extension after substitution."""
+        # Create substitution manager
+        substitution_mgr = EnhancedSubstitutionManager()
+        substitution_mgr.mappings.update({
+            "loader_dir": "custom_python/loaders"
+        })
+        
+        # Create action with substitution that resolves to file path
+        action = Action(
+            name="load_data",
+            type=ActionType.LOAD,
+            target="v_data",
+            source={
+                "type": "python",
+                "module_path": "${loader_dir}/loader.py",
+                "function_name": "load_data",
+                "parameters": {}
+            }
+        )
+        
+        # Create context
+        context = {
+            "substitution_manager": substitution_mgr,
+            "secret_references": set()
+        }
+        
+        generator = PythonLoadGenerator()
+        code = generator.generate(action, context)
+        
+        # Verify import statement is valid Python (no forward slashes) - check imports property
+        assert "from custom_python.loaders.loader import load_data" in generator.imports
+        # Ensure no path separators in imports
+        for import_stmt in generator.imports:
+            assert "custom_python/loaders" not in import_stmt
+            assert "custom_python\\loaders" not in import_stmt
+        # Verify function is called correctly in code
+        assert "load_data(spark, parameters)" in code
+
+    def test_module_path_nested_directory_with_py(self):
+        """Test nested directory path with .py extension after substitution."""
+        # Create substitution manager
+        substitution_mgr = EnhancedSubstitutionManager()
+        substitution_mgr.mappings.update({
+            "base_dir": "my_project/extractors"
+        })
+        
+        # Create action with nested path substitution
+        action = Action(
+            name="extract_customers",
+            type=ActionType.LOAD,
+            target="v_customers",
+            source={
+                "type": "python",
+                "module_path": "${base_dir}/subdir/customer_loader.py",
+                "function_name": "extract",
+                "parameters": {}
+            }
+        )
+        
+        # Create context
+        context = {
+            "substitution_manager": substitution_mgr,
+            "secret_references": set()
+        }
+        
+        generator = PythonLoadGenerator()
+        code = generator.generate(action, context)
+        
+        # Verify import statement is valid Python with proper dotted notation - check imports property
+        assert "from my_project.extractors.subdir.customer_loader import extract" in generator.imports
+        # Ensure no path separators in imports
+        for import_stmt in generator.imports:
+            assert "my_project/extractors" not in import_stmt
+            assert "my_project\\extractors" not in import_stmt
+        # Verify function call
+        assert "extract(spark, parameters)" in code
+
+    def test_module_path_dotted_import_no_extension(self):
+        """Test dotted import path without .py extension (no substitution needed)."""
+        # Create action with dotted import path
+        action = Action(
+            name="load_data",
+            type=ActionType.LOAD,
+            target="v_data",
+            source={
+                "type": "python",
+                "module_path": "my_project.loaders.customer_loader",
+                "function_name": "load_customers",
+                "parameters": {}
+            }
+        )
+        
+        # Create context (no substitution manager needed)
+        context = {
+            "secret_references": set()
+        }
+        
+        generator = PythonLoadGenerator()
+        code = generator.generate(action, context)
+        
+        # Verify dotted import is preserved as-is - check imports property
+        assert "from my_project.loaders.customer_loader import load_customers" in generator.imports
+        # Ensure no path separators in imports
+        for import_stmt in generator.imports:
+            assert "my_project/loaders" not in import_stmt
+            assert "my_project\\loaders" not in import_stmt
+
+    def test_module_path_simple_module_name(self):
+        """Test simple module name without path or extension."""
+        # Create action with simple module name
+        action = Action(
+            name="load_data",
+            type=ActionType.LOAD,
+            target="v_data",
+            source={
+                "type": "python",
+                "module_path": "loader",
+                "function_name": "get_data",
+                "parameters": {}
+            }
+        )
+        
+        # Create context
+        context = {
+            "secret_references": set()
+        }
+        
+        generator = PythonLoadGenerator()
+        code = generator.generate(action, context)
+        
+        # Verify simple import - check imports property
+        assert "from loader import get_data" in generator.imports
+        # Ensure no path separators in imports
+        for import_stmt in generator.imports:
+            assert "/" not in import_stmt or "://" in import_stmt  # Allow URLs
+            assert "\\" not in import_stmt
+
+    def test_module_path_windows_path_separator(self):
+        """Test Windows-style path separator in module_path."""
+        # Create substitution manager
+        substitution_mgr = EnhancedSubstitutionManager()
+        substitution_mgr.mappings.update({
+            "loader_base": "loaders"
+        })
+        
+        # Create action with Windows-style path
+        action = Action(
+            name="load_data",
+            type=ActionType.LOAD,
+            target="v_data",
+            source={
+                "type": "python",
+                "module_path": "${loader_base}\\data_loader.py",
+                "function_name": "load_data",
+                "parameters": {}
+            }
+        )
+        
+        # Create context
+        context = {
+            "substitution_manager": substitution_mgr,
+            "secret_references": set()
+        }
+        
+        generator = PythonLoadGenerator()
+        code = generator.generate(action, context)
+        
+        # Verify Windows backslash is converted to dot notation - check imports property
+        assert "from loaders.data_loader import load_data" in generator.imports
+        # Ensure no path separators in imports
+        for import_stmt in generator.imports:
+            assert "loaders\\data_loader" not in import_stmt
+            assert "loaders/data_loader" not in import_stmt
+        # Verify function call
+        assert "load_data(spark, parameters)" in code
+

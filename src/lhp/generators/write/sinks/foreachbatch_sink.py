@@ -74,6 +74,16 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
                 f"ForEachBatch sink '{action.name}' must have either 'module_path' or 'batch_handler'"
             )
         
+        # Apply substitutions to batch handler code (both inline and file-based)
+        if batch_handler_code and context and "substitution_manager" in context:
+            substitution_mgr = context["substitution_manager"]
+            batch_handler_code = substitution_mgr._process_string(batch_handler_code)
+            
+            # Track secret references if they exist
+            secret_refs = substitution_mgr.get_secret_references()
+            if "secret_references" in context and context["secret_references"] is not None:
+                context["secret_references"].update(secret_refs)
+        
         # Extract source view (single source only)
         if not action.source:
             raise ValueError(f"ForEachBatch sink '{action.name}' must have a source")
@@ -131,12 +141,5 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
                 f"ForEachBatch sink batch handler file not found: {handler_path}"
             )
         
-        raw_handler_code = handler_path.read_text()
-        
-        # Apply substitutions to the raw handler code if substitution_manager is available
-        if context and "substitution_manager" in context:
-            substitution_mgr = context["substitution_manager"]
-            raw_handler_code = substitution_mgr._process_string(raw_handler_code)
-        
-        return raw_handler_code
+        return handler_path.read_text()
 
