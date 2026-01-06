@@ -346,3 +346,280 @@ def transform_mixed(df, spark, parameters):
         # Cleanup
         transform_file.unlink()
 
+
+class TestPythonTransformModulePathFunctionNameSubstitution:
+    """Test substitution of module_path and function_name in Python Transform actions."""
+
+    def test_module_path_substitution(self):
+        """Test that module_path is substituted before file loading."""
+        # Create a temporary directory structure
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            
+            # Create subdirectory structure
+            transform_dir = tmpdir_path / "custom_transforms"
+            transform_dir.mkdir()
+            
+            # Create Python file
+            transform_file = transform_dir / "customer_transform.py"
+            transform_file.write_text("""
+def transform_customers(df, spark, parameters):
+    return df.limit(100)
+""")
+            
+            # Create substitution manager
+            substitution_mgr = EnhancedSubstitutionManager()
+            substitution_mgr.mappings.update({
+                "transform_dir": "custom_transforms"
+            })
+            
+            # Create action with substitution in module_path
+            action = Action(
+                name="transform_customers",
+                type=ActionType.TRANSFORM,
+                source="v_customers",
+                target="v_customers_transformed",
+                module_path="${transform_dir}/customer_transform.py",
+                function_name="transform_customers",
+                parameters={}
+            )
+            
+            # Create FlowGroup
+            flowgroup = FlowGroup(
+                pipeline="test_pipeline",
+                flowgroup="test_flowgroup"
+            )
+            
+            # Create context
+            context = {
+                "substitution_manager": substitution_mgr,
+                "secret_references": set(),
+                "spec_dir": tmpdir_path,
+                "output_dir": tmpdir_path / "output",
+                "flowgroup": flowgroup
+            }
+            
+            # Generate - should succeed without FileNotFoundError
+            generator = PythonTransformGenerator()
+            code = generator.generate(action, context)
+            
+            # Verify function is called (with dataframe argument)
+            assert "transform_customers(v_customers_df, spark, parameters)" in code
+
+    def test_function_name_substitution(self):
+        """Test that function_name is substituted."""
+        # Create a temporary Python file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write("""
+def process_customer_data(df, spark, parameters):
+    return df.limit(100)
+""")
+            transform_file = Path(f.name)
+        
+        # Create substitution manager
+        substitution_mgr = EnhancedSubstitutionManager()
+        substitution_mgr.mappings.update({
+            "func_name": "process_customer_data"
+        })
+        
+        # Create action with substitution in function_name
+        action = Action(
+            name="process_customers",
+            type=ActionType.TRANSFORM,
+            source="v_customers",
+            target="v_customers_processed",
+            module_path=str(transform_file),
+            function_name="${func_name}",
+            parameters={}
+        )
+        
+        # Create FlowGroup
+        flowgroup = FlowGroup(
+            pipeline="test_pipeline",
+            flowgroup="test_flowgroup"
+        )
+        
+        # Create context
+        context = {
+            "substitution_manager": substitution_mgr,
+            "secret_references": set(),
+            "spec_dir": transform_file.parent,
+            "output_dir": transform_file.parent / "output",
+            "flowgroup": flowgroup
+        }
+        
+        # Generate
+        generator = PythonTransformGenerator()
+        code = generator.generate(action, context)
+        
+        # Verify substituted function name is used (with dataframe argument)
+        assert "process_customer_data(v_customers_df, spark, parameters)" in code
+        assert "${func_name}" not in code
+        
+        # Cleanup
+        transform_file.unlink()
+
+    def test_module_path_with_nested_substitution(self):
+        """Test module_path with multiple substitution tokens."""
+        # Create temporary directory structure
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            
+            # Create nested directory structure
+            base_dir = tmpdir_path / "my_project"
+            transform_dir = base_dir / "transforms"
+            transform_dir.mkdir(parents=True)
+            
+            # Create Python file
+            transform_file = transform_dir / "processor.py"
+            transform_file.write_text("""
+def process_data(df, spark, parameters):
+    return df
+""")
+            
+            # Create substitution manager
+            substitution_mgr = EnhancedSubstitutionManager()
+            substitution_mgr.mappings.update({
+                "base_dir": "my_project",
+                "transform_subdir": "transforms",
+                "module_name": "processor"
+            })
+            
+            # Create action with multiple substitutions
+            action = Action(
+                name="process_data",
+                type=ActionType.TRANSFORM,
+                source="v_input",
+                target="v_output",
+                module_path="${base_dir}/${transform_subdir}/${module_name}.py",
+                function_name="process_data",
+                parameters={}
+            )
+            
+            # Create FlowGroup
+            flowgroup = FlowGroup(
+                pipeline="test_pipeline",
+                flowgroup="test_flowgroup"
+            )
+            
+            # Create context
+            context = {
+                "substitution_manager": substitution_mgr,
+                "secret_references": set(),
+                "spec_dir": tmpdir_path,
+                "output_dir": tmpdir_path / "output",
+                "flowgroup": flowgroup
+            }
+            
+            # Generate - should succeed
+            generator = PythonTransformGenerator()
+            code = generator.generate(action, context)
+            
+            # Verify generation succeeded (with dataframe argument)
+            assert "process_data(v_input_df, spark, parameters)" in code
+
+    def test_module_path_and_function_name_both_substituted(self):
+        """Test that both module_path and function_name are substituted together."""
+        # Create temporary directory
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            
+            # Create subdirectory
+            loaders_dir = tmpdir_path / "loaders"
+            loaders_dir.mkdir()
+            
+            # Create Python file
+            loader_file = loaders_dir / "data_loader.py"
+            loader_file.write_text("""
+def load_and_transform(df, spark, parameters):
+    return df.limit(50)
+""")
+            
+            # Create substitution manager
+            substitution_mgr = EnhancedSubstitutionManager()
+            substitution_mgr.mappings.update({
+                "loader_dir": "loaders",
+                "loader_file": "data_loader",
+                "func_name": "load_and_transform"
+            })
+            
+            # Create action with both substitutions
+            action = Action(
+                name="load_transform",
+                type=ActionType.TRANSFORM,
+                source="v_raw",
+                target="v_processed",
+                module_path="${loader_dir}/${loader_file}.py",
+                function_name="${func_name}",
+                parameters={"limit": 50}
+            )
+            
+            # Create FlowGroup
+            flowgroup = FlowGroup(
+                pipeline="test_pipeline",
+                flowgroup="test_flowgroup"
+            )
+            
+            # Create context
+            context = {
+                "substitution_manager": substitution_mgr,
+                "secret_references": set(),
+                "spec_dir": tmpdir_path,
+                "output_dir": tmpdir_path / "output",
+                "flowgroup": flowgroup
+            }
+            
+            # Generate
+            generator = PythonTransformGenerator()
+            code = generator.generate(action, context)
+            
+            # Verify both substitutions worked (with dataframe argument)
+            assert "load_and_transform(v_raw_df, spark, parameters)" in code
+            assert "${func_name}" not in code
+            assert "${loader_dir}" not in code
+
+    def test_no_substitution_when_no_manager(self):
+        """Test that transform works when no substitution manager is available."""
+        # Create a temporary Python file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write("""
+def simple_transform(df, spark, parameters):
+    return df
+""")
+            transform_file = Path(f.name)
+        
+        # Create action without substitution tokens
+        action = Action(
+            name="simple_transform",
+            type=ActionType.TRANSFORM,
+            source="v_input",
+            target="v_output",
+            module_path=str(transform_file),
+            function_name="simple_transform",
+            parameters={}
+        )
+        
+        # Create FlowGroup
+        flowgroup = FlowGroup(
+            pipeline="test_pipeline",
+            flowgroup="test_flowgroup"
+        )
+        
+        # Create context WITHOUT substitution manager
+        context = {
+            "secret_references": set(),
+            "spec_dir": transform_file.parent,
+            "output_dir": transform_file.parent / "output",
+            "flowgroup": flowgroup
+        }
+        
+        # Generate - should work without substitution
+        generator = PythonTransformGenerator()
+        code = generator.generate(action, context)
+        
+        # Verify generation succeeded (with dataframe argument)
+        assert "simple_transform(v_input_df, spark, parameters)" in code
+        
+        # Cleanup
+        transform_file.unlink()
+
