@@ -250,6 +250,7 @@ class FlowGroup(BaseModel):
     operational_metadata: Optional[Union[bool, List[str]]] = (
         None  # Simplified: bool or list of column names
     )
+    spark_config: Optional[Dict[str, Any]] = None  # Notebook-level Spark configuration
 
 
 class Template(BaseModel):

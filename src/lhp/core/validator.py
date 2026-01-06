@@ -108,6 +108,10 @@ class ConfigValidator:
                 f"FlowGroup uses template '{flowgroup.use_template}' but no parameters provided"
             )
 
+        # Validate spark_config if specified
+        if flowgroup.spark_config:
+            errors.extend(self._validate_spark_config(flowgroup.spark_config))
+        
         return errors
 
     def validate_action(self, action: Action, index: int) -> List[str]:
@@ -244,3 +248,33 @@ class ConfigValidator:
                 
         return errors
 
+    def _validate_spark_config(self, spark_config: Dict[str, Any]) -> List[str]:
+        """Validate Spark configuration at the flowgroup level.
+        
+        Args:
+            spark_config: Dictionary of Spark configuration settings
+            
+        Returns:
+            List of validation error messages
+        """
+        errors = []
+        
+        if not isinstance(spark_config, dict):
+            errors.append("Spark configuration must be a dictionary")
+            return errors
+        
+        # Validate each configuration entry
+        for key, value in spark_config.items():
+            # Key must be a string
+            if not isinstance(key, str):
+                errors.append(f"Spark config key must be string, got {type(key).__name__}")
+                continue
+            
+            # Value must be a supported type (string, bool, int, float)
+            if not isinstance(value, (str, bool, int, float)):
+                errors.append(
+                    f"Spark config value for '{key}' must be string, bool, int, or float, "
+                    f"got {type(value).__name__}"
+                )
+        
+        return errors

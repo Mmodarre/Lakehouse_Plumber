@@ -67,6 +67,42 @@ When ``job_name`` is used:
 .. seealso::
    For complete details on multi-job orchestration, job configuration, and the master orchestration job, see :doc:`databricks_bundles`.
 
+Notebook-Level Spark Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can configure **Spark settings at the flowgroup (notebook) level** using the ``spark_config`` field. This allows you to set notebook-wide Spark configurations that will be automatically injected into the generated Python code as ``spark.conf.set()`` calls.
+
+.. code-block:: yaml
+   :caption: pipelines/streaming/events.yaml
+
+   pipeline: streaming_pipeline
+   flowgroup: event_streaming
+   spark_config:
+     pipelines.incompatibleViewCheck.enabled: false
+     spark.sql.streaming.stateStore.stateSchemaCheck: false
+     spark.sql.shuffle.partitions: 200
+
+   actions:
+     - name: load_events
+       type: load
+       source:
+         type: delta
+         table: raw.events
+       target: v_events
+
+**Supported value types:**
+
+* Strings: ``"value"``
+* Booleans: ``true``, ``false``
+* Integers: ``200``
+* Floats: ``1.5``
+
+**Common use cases:**
+
+* Enable streaming view compatibility for ``spark.sql()`` references
+* Configure state store behavior for stateful operations
+* Tune shuffle partitions and streaming checkpoints
+
 .. note::
    **FlowGroup vs Pipeline:**
    - A **FlowGroup** represents a logical slice of your pipeline often a single source table or business entity.
