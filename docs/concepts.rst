@@ -92,10 +92,23 @@ You can configure **Spark settings at the flowgroup (notebook) level** using the
 
 **Supported value types:**
 
-* Strings: ``"value"``
-* Booleans: ``true``, ``false``
-* Integers: ``200``
-* Floats: ``1.5``
+YAML type determines the Python type in generated code:
+
+* Strings (YAML): ``"value"`` → Python ``str`` → ``spark.conf.set("key", "value")``
+* Booleans (YAML): ``true``, ``false`` → Python ``bool`` → ``spark.conf.set("key", True/False)``
+* Integers (YAML): ``200`` → Python ``int`` → ``spark.conf.set("key", 200)``
+* Floats (YAML): ``1.5`` → Python ``float`` → ``spark.conf.set("key", 1.5)``
+
+.. note::
+   **YAML type matters**: Use unquoted values for booleans and numbers, quoted values for strings:
+   
+   .. code-block:: yaml
+   
+      spark_config:
+        pipelines.incompatibleViewCheck.enabled: false    # YAML boolean → False
+        spark.sql.shuffle.partitions: 200                 # YAML integer → 200
+        my.feature.flag: "false"                          # YAML string → "false"
+        my.partition.count: "200"                         # YAML string → "200"
 
 **Common use cases:**
 

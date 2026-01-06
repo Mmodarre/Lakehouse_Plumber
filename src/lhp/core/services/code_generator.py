@@ -319,21 +319,21 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
         if flowgroup.spark_config:
             spark_config_section = "\n# Spark Configuration (Notebook-level)"
             for key, value in flowgroup.spark_config.items():
-                # Handle different value types
+                # Type-aware formatting based on Python type:
+                # - str: Always quoted as string literal
+                # - bool: Python True/False without quotes
+                # - int/float: Numeric without quotes
                 if isinstance(value, str):
-                    # Check if value looks like a Python expression or string literal
-                    if value.lower() in ['true', 'false']:
-                        spark_config_section += f'\nspark.conf.set("{key}", {value})'
-                    elif value.isdigit():
-                        spark_config_section += f'\nspark.conf.set("{key}", {value})'
-                    else:
-                        spark_config_section += f'\nspark.conf.set("{key}", "{value}")'
+                    # All string values are quoted to preserve type
+                    spark_config_section += f'\nspark.conf.set("{key}", "{value}")'
                 elif isinstance(value, bool):
+                    # Boolean values rendered as Python bool
                     spark_config_section += f'\nspark.conf.set("{key}", {str(value)})'
                 elif isinstance(value, (int, float)):
+                    # Numeric values rendered without quotes
                     spark_config_section += f'\nspark.conf.set("{key}", {value})'
                 else:
-                    # For other types, convert to string representation
+                    # Fallback for unexpected types (should not occur with validation)
                     spark_config_section += f'\nspark.conf.set("{key}", "{str(value)}")'
         
         # Build header

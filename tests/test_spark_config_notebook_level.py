@@ -502,6 +502,41 @@ class TestSparkConfigCodeGeneration:
             # Verify no spark.conf.set calls are in the code
             assert 'spark.conf.set(' not in code
 
+    def test_spark_config_string_values_as_literals(self, code_generator):
+        """Test that string values that look like booleans/numbers are quoted."""
+        flowgroup = FlowGroup(
+            pipeline="test_pipeline",
+            flowgroup="test_flowgroup",
+            spark_config={
+                "spark.sql.shuffle.partitions": "123",
+                "spark.debug.enabled": "false",
+                "spark.test.string_numeric": "456.78",
+            },
+            actions=[
+                Action(
+                    name="load_data",
+                    type=ActionType.LOAD,
+                    target="v_data",
+                    source={"type": "delta", "table": "raw.data"}
+                )
+            ]
+        )
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            substitution_mgr = EnhancedSubstitutionManager({}, {})
+            
+            code = code_generator.generate_flowgroup_code(
+                flowgroup,
+                substitution_mgr,
+                output_dir=project_root
+            )
+            
+            # Verify string values are quoted (not interpreted as literals)
+            assert 'spark.conf.set("spark.sql.shuffle.partitions", "123")' in code
+            assert 'spark.conf.set("spark.debug.enabled", "false")' in code
+            assert 'spark.conf.set("spark.test.string_numeric", "456.78")' in code
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

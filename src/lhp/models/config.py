@@ -250,7 +250,15 @@ class FlowGroup(BaseModel):
     operational_metadata: Optional[Union[bool, List[str]]] = (
         None  # Simplified: bool or list of column names
     )
-    spark_config: Optional[Dict[str, Any]] = None  # Notebook-level Spark configuration
+    spark_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Notebook- or flowgroup-level Spark configuration. These values are "
+            "applied via spark.conf.set() when the flowgroup runs. "
+            "Not to be confused with action-level write_target.spark_conf, "
+            "which is passed to Delta Live Tables table/view decorators."
+        ),
+    )
 
 
 class Template(BaseModel):

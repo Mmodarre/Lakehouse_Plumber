@@ -263,6 +263,9 @@ class ConfigValidator:
             errors.append("Spark configuration must be a dictionary")
             return errors
         
+        # Characters that would break Spark conf.set() syntax (code injection risk)
+        INVALID_KEY_CHARS = {'"', "'", ';', '(', ')', '\n', '\t'}
+        
         # Validate each configuration entry
         for key, value in spark_config.items():
             # Key must be a string
@@ -270,11 +273,24 @@ class ConfigValidator:
                 errors.append(f"Spark config key must be string, got {type(key).__name__}")
                 continue
             
+            # Check for special characters that could enable code injection
+            invalid_chars = INVALID_KEY_CHARS & set(key)
+            if invalid_chars:
+                errors.append(
+                    f"Spark config key '{key}' contains invalid characters: {', '.join(sorted(invalid_chars))}"
+                )
+            
             # Value must be a supported type (string, bool, int, float)
             if not isinstance(value, (str, bool, int, float)):
                 errors.append(
                     f"Spark config value for '{key}' must be string, bool, int, or float, "
                     f"got {type(value).__name__}"
+                )
+            # Validate string values don't contain unescaped quotes that would break syntax
+            elif isinstance(value, str) and '"' in value:
+                errors.append(
+                    f"Spark config string value for '{key}' contains unescaped double quotes, "
+                    f"which may break generated code"
                 )
         
         return errors
