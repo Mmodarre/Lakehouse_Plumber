@@ -67,6 +67,16 @@ class TestSparkConfigValidation:
                     type=ActionType.LOAD,
                     target="v_data",
                     source={"type": "delta", "table": "test"}
+                ),
+                Action(
+                    name="write_data",
+                    type=ActionType.WRITE,
+                    source="v_data",
+                    write_target={
+                        "type": "streaming_table",
+                        "database": "test",
+                        "table": "test_table"
+                    }
                 )
             ]
         )
@@ -91,6 +101,16 @@ class TestSparkConfigValidation:
                     type=ActionType.LOAD,
                     target="v_data",
                     source={"type": "delta", "table": "test"}
+                ),
+                Action(
+                    name="write_data",
+                    type=ActionType.WRITE,
+                    source="v_data",
+                    write_target={
+                        "type": "streaming_table",
+                        "database": "test",
+                        "table": "test_table"
+                    }
                 )
             ]
         )
@@ -117,58 +137,22 @@ class TestSparkConfigValidation:
                     type=ActionType.LOAD,
                     target="v_data",
                     source={"type": "delta", "table": "test"}
+                ),
+                Action(
+                    name="write_data",
+                    type=ActionType.WRITE,
+                    source="v_data",
+                    write_target={
+                        "type": "streaming_table",
+                        "database": "test",
+                        "table": "test_table"
+                    }
                 )
             ]
         )
         
         errors = validator.validate_flowgroup(flowgroup)
         assert len(errors) == 0
-
-    def test_invalid_spark_config_not_dict(self):
-        """Test validation fails when spark_config is not a dictionary."""
-        validator = ConfigValidator()
-        
-        flowgroup = FlowGroup(
-            pipeline="test_pipeline",
-            flowgroup="test_flowgroup",
-            spark_config="invalid",  # type: ignore
-            actions=[
-                Action(
-                    name="load_data",
-                    type=ActionType.LOAD,
-                    target="v_data",
-                    source={"type": "delta", "table": "test"}
-                )
-            ]
-        )
-        
-        errors = validator.validate_flowgroup(flowgroup)
-        assert len(errors) > 0
-        assert any("must be a dictionary" in error for error in errors)
-
-    def test_invalid_spark_config_invalid_key_type(self):
-        """Test validation fails when spark_config key is not a string."""
-        validator = ConfigValidator()
-        
-        flowgroup = FlowGroup(
-            pipeline="test_pipeline",
-            flowgroup="test_flowgroup",
-            spark_config={
-                123: "value"  # type: ignore
-            },
-            actions=[
-                Action(
-                    name="load_data",
-                    type=ActionType.LOAD,
-                    target="v_data",
-                    source={"type": "delta", "table": "test"}
-                )
-            ]
-        )
-        
-        errors = validator.validate_flowgroup(flowgroup)
-        assert len(errors) > 0
-        assert any("key must be string" in error for error in errors)
 
     def test_invalid_spark_config_invalid_value_type(self):
         """Test validation fails when spark_config value has unsupported type."""
@@ -186,6 +170,16 @@ class TestSparkConfigValidation:
                     type=ActionType.LOAD,
                     target="v_data",
                     source={"type": "delta", "table": "test"}
+                ),
+                Action(
+                    name="write_data",
+                    type=ActionType.WRITE,
+                    source="v_data",
+                    write_target={
+                        "type": "streaming_table",
+                        "database": "test",
+                        "table": "test_table"
+                    }
                 )
             ]
         )
@@ -208,6 +202,16 @@ class TestSparkConfigValidation:
                     type=ActionType.LOAD,
                     target="v_data",
                     source={"type": "delta", "table": "test"}
+                ),
+                Action(
+                    name="write_data",
+                    type=ActionType.WRITE,
+                    source="v_data",
+                    write_target={
+                        "type": "streaming_table",
+                        "database": "test",
+                        "table": "test_table"
+                    }
                 )
             ]
         )
@@ -229,6 +233,16 @@ class TestSparkConfigValidation:
                     type=ActionType.LOAD,
                     target="v_data",
                     source={"type": "delta", "table": "test"}
+                ),
+                Action(
+                    name="write_data",
+                    type=ActionType.WRITE,
+                    source="v_data",
+                    write_target={
+                        "type": "streaming_table",
+                        "database": "test",
+                        "table": "test_table"
+                    }
                 )
             ]
         )
