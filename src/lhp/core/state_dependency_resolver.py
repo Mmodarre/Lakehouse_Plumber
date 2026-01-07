@@ -429,6 +429,13 @@ class StateDependencyResolver:
                     table_schema = write_target.get('table_schema') or write_target.get('schema')
                     if table_schema and self._is_file_path(table_schema):
                         files.add(Path(table_schema).as_posix())
+                    
+                    # Sink module_path from write actions in templates
+                    sink_type = write_target.get('sink_type')
+                    if sink_type in ('foreachbatch', 'custom'):
+                        sink_module_path = write_target.get('module_path')
+                        if sink_module_path:
+                            files.add(Path(sink_module_path).as_posix())
         
         return files
 
@@ -680,6 +687,13 @@ class StateDependencyResolver:
                 sql_path = action.write_target.get('sql_path')
                 if sql_path:
                     files.add(Path(sql_path).as_posix())
+                
+                # Sink module_path files (foreachbatch and custom sinks)
+                sink_type = action.write_target.get('sink_type')
+                if sink_type in ('foreachbatch', 'custom'):
+                    sink_module_path = action.write_target.get('module_path')
+                    if sink_module_path:
+                        files.add(Path(sink_module_path).as_posix())
         
         return files
 

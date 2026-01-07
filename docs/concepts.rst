@@ -894,6 +894,58 @@ Both Python and SQL files support secret substitutions with the same syntax as Y
        return df
 
 
+Substitution Syntax
+~~~~~~~~~~~~~~~~~~~
+
+LakehousePlumber supports two substitution syntaxes for environment tokens:
+
+**Preferred Syntax (Recommended):** ``${token}``
+
+.. code-block:: yaml
+
+   catalog: ${my_catalog}
+   table: ${catalog}.${schema}.customers
+
+**Legacy Syntax (Backward Compatible):** ``{token}``
+
+.. code-block:: yaml
+
+   catalog: {my_catalog}
+   table: {catalog}.{schema}.customers
+
+.. note::
+   Both syntaxes work identically for environment substitution. The ``${}`` 
+   syntax is preferred because:
+   
+   - It's visually distinct from Python f-string syntax
+   - It avoids confusion when tokens appear in SQL or Python strings
+   - It matches shell/environment variable conventions
+
+.. warning::
+   **Python Code Context:** When using substitution tokens inside Python code
+   (e.g., in batch handlers or Python transform files), always use ``${}`` 
+   syntax to avoid conflicts with Python f-strings and SQL placeholders.
+   
+   .. code-block:: python
+      :caption: Correct usage in Python files
+      
+      # Use ${} for LHP substitution (replaced at generation time)
+      table = "${catalog}.${schema}.customers"
+      
+      # Then use Python f-string for runtime formatting
+      spark.sql(f"SELECT * FROM {table}")
+   
+   .. code-block:: python
+      :caption: Incorrect usage (causes SQL syntax errors)
+      
+      # DON'T use {} in non-f-strings - generates invalid SQL
+      spark.sql("""
+          SELECT * FROM {catalog}.{schema}.customers
+      """)
+      # After substitution: SELECT * FROM {acme_catalog}.{bronze}.customers
+      # This is INVALID SQL!
+
+
 Operational Metadata
 ---------------------
 

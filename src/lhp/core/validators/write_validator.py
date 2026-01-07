@@ -189,6 +189,8 @@ class WriteActionValidator(BaseActionValidator):
             errors.extend(self._validate_kafka_sink(action, prefix))
         elif sink_type == "custom":
             errors.extend(self._validate_custom_sink(action, prefix))
+        elif sink_type == "foreachbatch":
+            errors.extend(self._validate_foreachbatch_sink(action, prefix))
         else:
             errors.append(f"{prefix}: Unknown sink_type '{sink_type}'")
         
@@ -267,6 +269,38 @@ class WriteActionValidator(BaseActionValidator):
         
         if not sink_config.get("custom_sink_class"):
             errors.append(f"{prefix}: Custom sink must have 'custom_sink_class'")
+        
+        return errors
+    
+    def _validate_foreachbatch_sink(self, action: Action, prefix: str) -> List[str]:
+        """Validate ForEachBatch sink configuration."""
+        errors = []
+        sink_config = action.write_target
+        
+        # ForEachBatch sinks only support single source view (string)
+        if action.source and not isinstance(action.source, str):
+            errors.append(
+                f"{prefix}: ForEachBatch sink only supports single source view (string), not list or dict"
+            )
+        
+        # Must have either module_path OR batch_handler (not both, not neither)
+        has_module_path = bool(sink_config.get("module_path"))
+        has_batch_handler = bool(sink_config.get("batch_handler"))
+        
+        if has_module_path and has_batch_handler:
+            errors.append(
+                f"{prefix}: ForEachBatch sink must have either 'module_path' or 'batch_handler', not both"
+            )
+        elif not has_module_path and not has_batch_handler:
+            errors.append(
+                f"{prefix}: ForEachBatch sink must have either 'module_path' or 'batch_handler'"
+            )
+        
+        # Validate batch_handler is not empty if provided
+        if has_batch_handler:
+            batch_handler = sink_config.get("batch_handler", "").strip()
+            if not batch_handler:
+                errors.append(f"{prefix}: ForEachBatch sink 'batch_handler' cannot be empty")
         
         return errors
 

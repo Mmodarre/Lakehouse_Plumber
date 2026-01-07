@@ -127,7 +127,7 @@ class WriteTarget(BaseModel):
     sql: Optional[str] = None
     
     # Sink-specific fields
-    sink_type: Optional[str] = None  # delta, kafka, custom
+    sink_type: Optional[str] = None  # delta, kafka, custom, foreachbatch
     sink_name: Optional[str] = None
     
     # Kafka/Event Hubs sink fields
@@ -137,6 +137,9 @@ class WriteTarget(BaseModel):
     # Custom sink fields
     module_path: Optional[str] = None
     custom_sink_class: Optional[str] = None
+    
+    # ForEachBatch sink fields
+    batch_handler: Optional[str] = None  # Inline batch handler code
     
     # Common sink options
     options: Optional[Dict[str, Any]] = None

@@ -6,7 +6,8 @@ from ...models.config import Action
 from .sinks import (
     DeltaSinkWriteGenerator,
     KafkaSinkWriteGenerator,
-    CustomSinkWriteGenerator
+    CustomSinkWriteGenerator,
+    ForEachBatchSinkWriteGenerator
 )
 
 
@@ -18,7 +19,8 @@ class SinkWriteGenerator(BaseActionGenerator):
         self.generators = {
             "delta": DeltaSinkWriteGenerator(),
             "kafka": KafkaSinkWriteGenerator(),
-            "custom": CustomSinkWriteGenerator()
+            "custom": CustomSinkWriteGenerator(),
+            "foreachbatch": ForEachBatchSinkWriteGenerator()
         }
     
     def generate(self, action: Action, context: Dict[str, Any]) -> str:

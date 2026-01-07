@@ -130,6 +130,8 @@ class ConfigFieldValidator:
                 # Custom sink fields
                 "module_path",
                 "custom_sink_class",
+                # ForEachBatch sink fields
+                "batch_handler",
                 # Common fields
                 "options",
             },
