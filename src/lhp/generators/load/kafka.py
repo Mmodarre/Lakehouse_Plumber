@@ -56,9 +56,17 @@ class KafkaLoadGenerator(BaseActionGenerator):
 
         # Process additional options from options dict
         if source_config.get("options"):
+            options = source_config["options"]
+            # Validate options is a dictionary
+            if not isinstance(options, dict):
+                raise ValueError(
+                    f"Kafka load action '{action.name}': 'options' must be a dictionary, "
+                    f"got {type(options).__name__}. "
+                    f"Use YAML dictionary syntax: options:\\n  key: value"
+                )
             reader_options.update(
                 self.kafka_validator.process_options(
-                    source_config["options"], action.name, is_source=True
+                    options, action.name, is_source=True
                 )
             )
 

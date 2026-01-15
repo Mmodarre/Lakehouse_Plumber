@@ -48,6 +48,13 @@ class DeltaLoadGenerator(BaseActionGenerator):
         reader_options = {}
         if source_config.get("options"):
             options = source_config["options"]
+            # Validate options is a dictionary
+            if not isinstance(options, dict):
+                raise ValueError(
+                    f"Delta load action '{action.name}': 'options' must be a dictionary, "
+                    f"got {type(options).__name__}. "
+                    f"Use YAML dictionary syntax: options:\\n  key: value"
+                )
             for key, value in options.items():
                 # Validate option values
                 if value is None or value == "":

@@ -547,6 +547,28 @@ class TestDeltaLoadOptions:
         assert "startingTimestamp" in str(exc_info.value)
         assert "invalid value" in str(exc_info.value)
 
+    def test_delta_options_non_dict_raises_error(self):
+        """Test that non-dict options value raises user-friendly error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_error",
+            type=ActionType.LOAD,
+            target="v_error",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": "not_a_dict"  # Invalid: should be a dict
+            },
+            readMode="stream"
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+        
+        assert "options" in str(exc_info.value)
+        assert "must be a dictionary" in str(exc_info.value)
+        assert "str" in str(exc_info.value)
+
     def test_delta_readchangefeed_requires_stream_mode(self):
         """Test that readChangeFeed option requires stream mode."""
         generator = DeltaLoadGenerator()
