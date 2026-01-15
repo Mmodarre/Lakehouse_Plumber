@@ -66,8 +66,8 @@ jobs:
         if [ -d "tests" ]; then
           # Run unit tests sequentially (fast anyway)
           pytest tests/ --ignore=tests/e2e --cov --cov-branch --junitxml=junit-unit.xml -o junit_family=legacy
-          # Run e2e tests in parallel with auto-detected CPU count
-          pytest tests/e2e -n auto --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit-e2e.xml -o junit_family=legacy
+          # Run e2e tests sequentially to avoid race conditions with Black formatter
+          pytest tests/e2e --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit-e2e.xml -o junit_family=legacy
         else
           echo "No tests directory found, skipping tests"
         fi
@@ -121,7 +121,7 @@ jobs:
     - name: Test with pytest (e2e only)
       run: |
         if (Test-Path tests\e2e) {
-          pytest tests\e2e -n auto --cov --cov-branch --cov-report=xml --junitxml=junit-e2e-windows.xml -o junit_family=legacy
+          pytest tests\e2e --cov --cov-branch --cov-report=xml --junitxml=junit-e2e-windows.xml -o junit_family=legacy
         } else {
           Write-Host "No e2e tests directory found, skipping tests"
         }
