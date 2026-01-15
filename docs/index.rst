@@ -166,6 +166,7 @@ Features at a Glance
 * **Actions** – Load | Transform | Write with many sub-types (see :doc:`actions_reference`).
 * **Sinks** – Stream to external destinations: Delta tables, Kafka, Event Hubs, custom APIs.
 * **Presets & Templates** – reuse patterns without copy-paste.
+* **Local Variables** – flowgroup-scoped variables (``%{var}``) reduce repetition within a flowgroup.
 * **Substitutions** – environment-aware tokens & secret references.
 * **CDC & SCD** – change-data capture SCD type 1 and 2 and snapshot ingestion.
 * **Append Flows** – append data to existing streaming tables.(multi source write to single target table)

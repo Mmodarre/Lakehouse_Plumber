@@ -186,10 +186,11 @@ actions:
       schema_evolution_mode: "addNewColumns"
       rescue_data_column: "_rescued_data"
       max_files_per_trigger: 100
-      reader_options:
+      options:
+        cloudFiles.maxFilesPerTrigger: 100
+      format_options:
         multiline: true
         allowComments: true
-      format_options:
         timestampFormat: "yyyy-MM-dd HH:mm:ss"
         dateFormat: "yyyy-MM-dd"
     target: v_raw_json_data

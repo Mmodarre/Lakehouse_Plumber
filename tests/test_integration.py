@@ -274,11 +274,13 @@ presets:
 actions:
   - name: load_customer_changes
     type: load
+    readMode: stream
     source:
       type: delta
       database: "{env}_{bronze_schema}_sales"
       table: customer_raw
-      read_change_feed: true
+      options:
+        readChangeFeed: "true"
     target: v_customer_changes
     
   - name: cleanse_customer

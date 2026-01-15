@@ -245,11 +245,6 @@
                                     "description": "Reader options",
                                     "additionalProperties": true
                                 },
-                                "reader_options": {
-                                    "type": "object",
-                                    "description": "Reader-specific options",
-                                    "additionalProperties": true
-                                },
                                 "format_options": {
                                     "type": "object",
                                     "description": "Format-specific options",
@@ -288,19 +283,6 @@
                                 "rescue_data_column": {
                                     "type": "string",
                                     "description": "Column for rescued data"
-                                },
-                                "cdf_enabled": {
-                                    "type": "boolean",
-                                    "description": "Whether change data feed is enabled"
-                                },
-                                "read_change_feed": {
-                                    "type": "boolean",
-                                    "description": "Whether to read change feed"
-                                },
-                                "cdc_options": {
-                                    "type": "object",
-                                    "description": "CDC options",
-                                    "additionalProperties": true
                                 },
                                 "where_clause": {
                                     "type": "string",

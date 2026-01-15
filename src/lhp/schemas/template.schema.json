@@ -184,11 +184,6 @@
                                     ],
                                     "description": "Reader options (can use template parameters with {{ }})"
                                 },
-                                "reader_options": {
-                                    "type": "object",
-                                    "description": "Reader-specific options (can use template parameters with {{ }})",
-                                    "additionalProperties": true
-                                },
                                 "format_options": {
                                     "type": "object",
                                     "description": "Format-specific options (can use template parameters with {{ }})",
@@ -230,30 +225,6 @@
                                 "rescue_data_column": {
                                     "type": "string",
                                     "description": "Column for rescued data (can use template parameters with {{ }})"
-                                },
-                                "cdf_enabled": {
-                                    "oneOf": [
-                                        {"type": "boolean"},
-                                        {"type": "string"}
-                                    ],
-                                    "description": "Whether change data feed is enabled (can use template parameters with {{ }})"
-                                },
-                                "read_change_feed": {
-                                    "oneOf": [
-                                        {"type": "boolean"},
-                                        {"type": "string"}
-                                    ],
-                                    "description": "Whether to read change feed (can use template parameters with {{ }})"
-                                },
-                                "cdc_options": {
-                                    "oneOf": [
-                                        {
-                                            "type": "object",
-                                            "additionalProperties": true
-                                        },
-                                        {"type": "string"}
-                                    ],
-                                    "description": "CDC options (can use template parameters with {{ }})"
                                 },
                                 "where_clause": {
                                     "type": "string",

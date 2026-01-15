@@ -1,0 +1,71 @@
+# ==============================================================================
+# Example demonstrating local variables feature
+# ==============================================================================
+# This flowgroup shows how %{var} syntax reduces repetition and improves
+# maintainability by defining reusable values in the variables section.
+#
+# Compare this to customer_bronze.yaml to see the difference!
+# ==============================================================================
+
+pipeline: acmi_edw_bronze
+flowgroup: customer_bronze_with_variables
+
+# NEW: Local variables section
+# These are resolved BEFORE templates, presets, and environment substitution
+variables:
+  entity: customer
+  source_table: customer_raw
+  target_table: customer
+
+presets:
+  - default_delta_properties
+
+actions:
+  # Load action - notice how %{entity} is used throughout
+  - name: "%{entity}_raw_incremental_load"
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"  # Environment tokens still work!
+      table: "%{source_table}"
+    target: "v_%{entity}_raw"
+    description: "Load %{entity} table from raw schema" 
+
+  # Transform action - cleansing
+  - name: "%{entity}_bronze_incremental_cleanse"
+    type: transform
+    transform_type: sql
+    source: "v_%{entity}_raw"
+    target: "v_%{entity}_bronze_cleaned"
+    sql_path: "sql/brz/%{entity}_bronze_incremental_cleanse.sql"
+
+  # Transform action - data quality
+  - name: "%{entity}_bronze_incremental_DQE"
+    type: transform
+    transform_type: data_quality
+    source: "v_%{entity}_bronze_cleaned"
+    target: "v_%{entity}_bronze_DQE"
+    readMode: stream  
+    expectations_file: "expectations/%{entity}_quality.json"
+    description: "Apply data quality checks to %{entity}"
+
+  # Write action
+  - name: "write_%{entity}_bronze_incremental"
+    type: write
+    source: "v_%{entity}_bronze_DQE"
+    write_target:
+      create_table: true
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "%{target_table}"
+
+# ==============================================================================
+# Benefits of using local variables:
+# ==============================================================================
+# 1. Single source of truth: Change "customer" to "order" in one place
+# 2. Consistency: All action names follow the same pattern
+# 3. Readability: Clear intent with meaningful variable names
+# 4. Maintainability: Easy to refactor or template
+# ==============================================================================

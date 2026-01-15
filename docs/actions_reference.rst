@@ -232,8 +232,76 @@ delta
   Delta load actions can read from both regular Delta tables and Change Data Feed (CDC) enabled tables.
   Use readMode: stream for real-time processing or readMode: batch for one-time loads.
 
+**Delta Options**
+
+Delta load actions support the ``options`` field to configure Delta-specific reader options:
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_orders_cdc
+      type: load
+      readMode: stream
+      source:
+        type: delta
+        database: "{catalog}.bronze"
+        table: orders
+        options:
+          readChangeFeed: "true"
+          startingVersion: "0"
+          ignoreDeletes: "true"
+      target: v_orders_changes
+      description: "Stream order changes using Delta Change Data Feed"
+
+**Supported Delta Options:**
+
++-------------------------+------------------+---------------------------------------------------+
+| Option                  | Type             | Description                                       |
++=========================+==================+===================================================+
+| **readChangeFeed**      | string/boolean   | Enable Change Data Feed (requires stream mode)    |
++-------------------------+------------------+---------------------------------------------------+
+| **startingVersion**     | string           | Starting version for CDC or time travel           |
++-------------------------+------------------+---------------------------------------------------+
+| **startingTimestamp**   | string           | Starting timestamp for CDC (ISO 8601 format)      |
++-------------------------+------------------+---------------------------------------------------+
+| **versionAsOf**         | string           | Read specific table version (time travel)         |
++-------------------------+------------------+---------------------------------------------------+
+| **timestampAsOf**       | string           | Read table at specific timestamp (time travel)    |
++-------------------------+------------------+---------------------------------------------------+
+| **ignoreDeletes**       | boolean          | Ignore delete operations in CDC                   |
++-------------------------+------------------+---------------------------------------------------+
+| **skipChangeCommits**   | string/boolean   | Skip change commits in CDC stream                 |
++-------------------------+------------------+---------------------------------------------------+
+| **maxFilesPerTrigger**  | number           | Maximum files to process per trigger              |
++-------------------------+------------------+---------------------------------------------------+
+
+.. note::
+  - The ``readChangeFeed`` option requires ``readMode: stream`` and will raise an error if used with batch mode
+  - All option values are validated and cannot be ``None`` or empty strings
+  - Options work in both streaming and batch modes (except ``readChangeFeed`` which is streaming-only)
+
+**Time Travel Example:**
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_customers_snapshot
+      type: load
+      readMode: batch
+      source:
+        type: delta
+        database: "{catalog}.silver"
+        table: customers
+        options:
+          versionAsOf: "10"
+        where_clause: ["status = 'active'"]
+        select_columns: ["customer_id", "name", "email"]
+      target: v_customers_snapshot
+      description: "Load customers at version 10"
+
 .. seealso::
-  - For ``stream`` readMode seet the Databricks documentation on `Change Data Feed <https://docs.databricks.com/en/data/data-sources/delta/change-data-feed.html>`_
+  - For ``stream`` readMode see the Databricks documentation on `Change Data Feed <https://docs.databricks.com/en/data/data-sources/delta/change-data-feed.html>`_
+  - For time travel see `Delta Time Travel <https://docs.databricks.com/en/delta/history.html>`_
   - Operational metadata: :doc:`concepts`
 
 

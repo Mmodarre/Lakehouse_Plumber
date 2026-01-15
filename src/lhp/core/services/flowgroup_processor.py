@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from ...models.config import FlowGroup
 from ...utils.substitution import EnhancedSubstitutionManager
+from ...utils.local_variables import LocalVariableResolver
 from ...utils.error_formatter import LHPError
 
 
@@ -49,7 +50,17 @@ class FlowgroupProcessor:
         Returns:
             Processed flowgroup
         """
-        # Step 1: Expand templates first
+        # Step 0.5: Resolve local variables FIRST (before templates)
+        if flowgroup.variables:
+            resolver = LocalVariableResolver(flowgroup.variables)
+            flowgroup_dict = flowgroup.model_dump()
+            # Don't resolve variables in the 'variables' section itself
+            variables_backup = flowgroup_dict.pop('variables', None)
+            resolved_dict = resolver.resolve(flowgroup_dict)
+            resolved_dict['variables'] = variables_backup  # Preserve for debugging
+            flowgroup = FlowGroup(**resolved_dict)
+        
+        # Step 1: Expand templates
         if flowgroup.use_template:
             template = self.template_engine.get_template(flowgroup.use_template)
             template_actions = self.template_engine.render_template(
