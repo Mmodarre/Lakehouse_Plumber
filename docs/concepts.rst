@@ -28,7 +28,10 @@ Optional keys in a FlowGroup YAML file
 
 .. code-block:: yaml
 
-   job_name: NCR  # Optional: Assign flowgroup to a specific orchestration job
+   job_name: NCR      # Optional: Assign flowgroup to a specific orchestration job
+   variables:         # Optional: Define local variables for this flowgroup
+     entity: customer
+     table: customer_raw
 
 The ``job_name`` property enables **multi-job orchestration**, allowing you to split your flowgroups into separate Databricks jobs rather than a single monolithic orchestration job. This is useful for:
 
@@ -754,6 +757,55 @@ configurations while keeping pipeline definitions portable.
        api_secrets: dev_external_apis
 
 
+Local Variables
+~~~~~~~~~~~~~~~
+
+**Local variables** allow you to define reusable values within a single flowgroup, reducing repetition and improving maintainability. They are resolved **before** templates and environment substitutions.
+
+**Syntax:** ``%{variable_name}``
+
+**Key Features:**
+
+- **Flowgroup-scoped**: Variables are only accessible within the flowgroup where they're defined
+- **Inline substitution**: Supports patterns like ``prefix_%{var}_suffix``
+- **Strict validation**: Undefined variables cause immediate errors with clear messages
+- **Processed first**: Resolved before templates, presets, and environment substitutions
+
+**Example:**
+
+.. code-block:: yaml
+   :caption: pipelines/customer_bronze.yaml
+   :linenos:
+   :emphasize-lines: 4-7,12,17,20
+
+   pipeline: acmi_edw_bronze
+   flowgroup: customer_pipeline
+
+   variables:
+     entity: customer
+     source_table: customer_raw
+     target_table: customer
+
+   actions:
+     - name: "load_%{entity}_raw"
+       type: load
+       source:
+         type: delta
+         database: "{catalog}.{raw_schema}"  # Environment tokens still work!
+         table: "%{source_table}"
+       target: "v_%{entity}_raw"
+
+     - name: "write_%{entity}_bronze"
+       type: write
+       source: "v_%{entity}_cleaned"
+       write_target:
+         type: streaming_table
+         database: "{catalog}.{bronze_schema}"
+         table: "%{target_table}"
+
+.. seealso::
+   For complete details on local variables, see :doc:`templates_reference`.
+
 Secret Management
 ~~~~~~~~~~~~~~~~~
 
@@ -897,28 +949,70 @@ Both Python and SQL files support secret substitutions with the same syntax as Y
 Substitution Syntax
 ~~~~~~~~~~~~~~~~~~~
 
-LakehousePlumber supports two substitution syntaxes for environment tokens:
+LakehousePlumber supports multiple substitution syntaxes for different purposes:
 
-**Preferred Syntax (Recommended):** ``${token}``
+**Local Variables (Flowgroup-scoped):** ``%{variable}``
+
+.. code-block:: yaml
+
+   variables:
+     entity: customer
+   
+   actions:
+     - name: "load_%{entity}_raw"
+       target: "v_%{entity}_raw"
+
+**Environment Substitution (Preferred):** ``${token}``
 
 .. code-block:: yaml
 
    catalog: ${my_catalog}
    table: ${catalog}.${schema}.customers
 
-**Legacy Syntax (Backward Compatible):** ``{token}``
+**Environment Substitution (Legacy):** ``{token}``
 
 .. code-block:: yaml
 
    catalog: {my_catalog}
    table: {catalog}.{schema}.customers
 
+**Secret References:** ``${secret:scope/key}``
+
+.. code-block:: yaml
+
+   password: ${secret:database/db_password}
+
+**Template Parameters:** ``{{ parameter }}``
+
+.. code-block:: yaml
+
+   use_template: my_template
+   template_parameters:
+     table_name: customer
+   # In template: table: "{{ table_name }}"
+
 .. note::
-   Both syntaxes work identically for environment substitution. The ``${}`` 
-   syntax is preferred because:
+   **Syntax Distinction:**
+   
+   - ``%{var}`` = Local variable (flowgroup-scoped)
+   - ``${token}`` = Environment substitution (preferred)
+   - ``{token}`` = Environment substitution (legacy, backward compatible)
+   - ``${secret:scope/key}`` = Secret reference
+   - ``{{ parameter }}`` = Template parameter (Jinja2)
+   
+   The ``${}`` syntax is preferred for environment substitution because:
    
    - It's visually distinct from Python f-string syntax
    - It avoids confusion when tokens appear in SQL or Python strings
+   - It clearly differentiates from local variables (``%{}``) and template parameters (``{{ }}``)
+
+.. note::
+   **Processing Order:**
+   
+   1. **Local variables** (``%{var}``) are resolved first within the flowgroup
+   2. **Template parameters** (``{{ }}``) are resolved when templates are applied
+   3. **Environment substitutions** (``{ }`` and ``${ }``) are resolved at generation time
+   4. **Secret references** (``${secret:}``) are converted to ``dbutils.secrets.get()`` calls
    - It matches shell/environment variable conventions
 
 .. warning::

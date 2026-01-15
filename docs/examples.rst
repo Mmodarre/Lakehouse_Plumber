@@ -93,6 +93,130 @@ Use one file ``sap_master_data.yaml``:
 See :doc:`multi_flowgroup_guide` for complete documentation with inheritance rules,
 syntax options, migration guides, and real-world examples.
 
+Local Variables
+---------------
+
+Local variables reduce repetition within a single flowgroup by defining reusable values. They use ``%{variable}`` syntax and are resolved before templates and environment substitutions.
+
+Simple Example
+~~~~~~~~~~~~~~
+
+Instead of repeating "customer" throughout your flowgroup:
+
+.. code-block:: yaml
+   :caption: Without local variables (repetitive)
+
+   pipeline: acmi_edw_bronze
+   flowgroup: customer_pipeline
+
+   actions:
+     - name: "load_customer_raw"
+       source:
+         table: "customer_raw"
+       target: "v_customer_raw"
+     
+     - name: "customer_cleanse"
+       source: "v_customer_raw"
+       target: "v_customer_cleaned"
+     
+     - name: "write_customer_bronze"
+       source: "v_customer_cleaned"
+       write_target:
+         table: "customer"
+
+Use local variables to define it once:
+
+.. code-block:: yaml
+   :caption: With local variables (DRY principle)
+   :emphasize-lines: 4-7,10,11,14,17,18,21,24
+
+   pipeline: acmi_edw_bronze
+   flowgroup: customer_pipeline
+
+   variables:
+     entity: customer
+     source_table: customer_raw
+     target_table: customer
+
+   actions:
+     - name: "load_%{entity}_raw"
+       source:
+         table: "%{source_table}"
+       target: "v_%{entity}_raw"
+     
+     - name: "%{entity}_cleanse"
+       source: "v_%{entity}_raw"
+       target: "v_%{entity}_cleaned"
+     
+     - name: "write_%{entity}_bronze"
+       source: "v_%{entity}_cleaned"
+       write_target:
+         table: "%{target_table}"
+
+**Benefits:**
+
+- **Single source of truth**: Change "customer" to "order" in one place
+- **Reduced errors**: No risk of inconsistent naming across actions
+- **Better readability**: Intent is clear from the variables section
+- **Works everywhere**: Inline patterns like ``prefix_%{var}_suffix`` supported
+
+Real-World Example
+~~~~~~~~~~~~~~~~~~
+
+Here's a production pattern combining local variables with environment substitutions:
+
+.. code-block:: yaml
+   :caption: pipelines/bronze/product_ingestion.yaml
+   :linenos:
+   :emphasize-lines: 4-8,13,16,17,21,22,27,28,31
+
+   pipeline: acmi_edw_bronze
+   flowgroup: product_pipeline
+
+   variables:
+     entity: product
+     source_table: product_raw
+     target_table: product
+     schema_file: product_schema.yaml
+
+   actions:
+     - name: "load_%{entity}_raw"
+       type: load
+       operational_metadata: ["_processing_timestamp"]
+       readMode: stream
+       source:
+         type: delta
+         database: "{catalog}.{raw_schema}"  # Environment token
+         table: "%{source_table}"            # Local variable
+       target: "v_%{entity}_raw"
+       description: "Load %{entity} table from raw schema"
+
+     - name: "%{entity}_quality_check"
+       type: transform
+       transform_type: sql
+       source: "v_%{entity}_raw"
+       target: "v_%{entity}_validated"
+       sql_path: "sql/quality_checks/%{entity}_check.sql"
+       expectations_path: "expectations/%{entity}_expectations.json"
+
+     - name: "write_%{entity}_bronze"
+       type: write
+       source: "v_%{entity}_validated"
+       write_target:
+         type: streaming_table
+         database: "{catalog}.{bronze_schema}"  # Environment token
+         table: "%{target_table}"               # Local variable
+         schema_hints_path: "schemas/%{schema_file}"
+
+**Notice:** Local variables (``%{entity}``) and environment tokens (``{catalog}``) work together seamlessly.
+
+See :doc:`templates_reference` for complete documentation on local variables, including:
+
+- Recursive variable definitions
+- Error handling for undefined variables
+- Interaction with templates and presets
+- Processing order details
+
 Sink Examples
 -------------
 

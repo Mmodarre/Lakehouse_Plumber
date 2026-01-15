@@ -1,0 +1,37 @@
+# Test flowgroup demonstrating local variables feature
+pipeline: acmi_edw_bronze
+flowgroup: local_variables_example
+#job_name: j_two
+
+variables:
+  entity: test_customer
+  source_table: customer_raw
+  target_table: test_customer
+
+actions:
+  - name: "%{entity}_raw_load"
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: "%{source_table}"
+    target: "v_%{entity}_raw"
+    description: "Load %{entity} table from raw schema"
+
+  - name: "%{entity}_cleanse"
+    type: transform
+    transform_type: sql
+    source: "v_%{entity}_raw"
+    target: "v_%{entity}_cleaned"
+    sql: |
+      SELECT * FROM v_%{entity}_raw
+
+  - name: "write_%{entity}_bronze"
+    type: write
+    source: "v_%{entity}_cleaned"
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "%{target_table}"
