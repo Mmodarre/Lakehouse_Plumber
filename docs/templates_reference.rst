@@ -670,17 +670,18 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
        default: true
        description: "Ignore updates where all tracked columns are null"
 
-   actions:
-     - name: "load_{{ table_name }}_changes"
-       type: load
-       readMode: stream
-       source:
-         type: delta
-         database: "{catalog}.{bronze_schema}"
-         table: "{{ source_table }}"
-         read_change_feed: true
-       target: "v_{{ table_name }}_changes"
-       description: "Load change data from {{ source_table }}"
+  actions:
+    - name: "load_{{ table_name }}_changes"
+      type: load
+      readMode: stream
+      source:
+        type: delta
+        database: "{catalog}.{bronze_schema}"
+        table: "{{ source_table }}"
+        options:
+          readChangeFeed: "true"
+      target: "v_{{ table_name }}_changes"
+      description: "Load change data from {{ source_table }}"
 
      - name: "write_{{ table_name }}_dimension"
        type: write

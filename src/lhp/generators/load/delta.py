@@ -16,6 +16,21 @@ class DeltaLoadGenerator(BaseActionGenerator):
         """Generate Delta load code."""
         source_config = action.source if isinstance(action.source, dict) else {}
 
+        # Check for removed fields and raise errors
+        removed_fields = {
+            "cdf_enabled": "Use 'options: {readChangeFeed: \"true\"}' instead",
+            "read_change_feed": "Use 'options: {readChangeFeed: \"true\"}' instead",
+            "reader_options": "Use 'options' field instead",
+            "cdc_options": "Use 'options: {startingVersion: \"X\", startingTimestamp: \"Y\"}' instead"
+        }
+        
+        for field, message in removed_fields.items():
+            if field in source_config:
+                raise ValueError(
+                    f"Delta load action '{action.name}': Field '{field}' is no longer supported. "
+                    f"{message}"
+                )
+
         # Extract configuration
         table = source_config.get("table")
         catalog = source_config.get("catalog")
@@ -29,17 +44,29 @@ class DeltaLoadGenerator(BaseActionGenerator):
         else:
             table_ref = table
 
-        # Check for CDC configuration
-        cdf_enabled = source_config.get("cdf_enabled", False) or source_config.get(
-            "read_change_feed", False
-        )
-        cdc_options = source_config.get("cdc_options", {})
+        # Process options first to check for CDC requirements
+        reader_options = {}
+        if source_config.get("options"):
+            options = source_config["options"]
+            for key, value in options.items():
+                # Validate option values
+                if value is None or value == "":
+                    raise ValueError(
+                        f"Delta load action '{action.name}': Option '{key}' has invalid value. "
+                        f"Value cannot be None or empty string."
+                    )
+                reader_options[key] = value
 
-        # Determine readMode - CDC requires streaming
-        # First check action.readMode, then source config, then default
-        readMode = action.readMode or source_config.get(
-            "readMode", "stream" if cdf_enabled else "batch"
-        )
+        # Determine readMode
+        readMode = action.readMode or source_config.get("readMode", "batch")
+
+        # Validate: readChangeFeed requires streaming mode
+        if reader_options.get("readChangeFeed") in ("true", "True", True) and readMode != "stream":
+            raise ValueError(
+                f"Delta load action '{action.name}': Option 'readChangeFeed' requires "
+                f"readMode='stream', but got readMode='{readMode}'. "
+                f"Add 'readMode: stream' to your action configuration."
+            )
 
         # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
@@ -57,14 +84,9 @@ class DeltaLoadGenerator(BaseActionGenerator):
             "target": action.target,
             "table_ref": table_ref,
             "readMode": readMode,
-            "cdf_enabled": cdf_enabled,
-            "starting_version": (
-                cdc_options.get("starting_version", 0) if cdf_enabled else None
-            ),
-            "starting_timestamp": cdc_options.get("starting_timestamp"),
+            "reader_options": reader_options,
             "where_clauses": source_config.get("where_clause", []),
             "select_columns": source_config.get("select_columns"),
-            "reader_options": source_config.get("reader_options", {}),
             "description": action.description or f"Delta source: {table_ref}",
             "add_operational_metadata": add_operational_metadata,
             "metadata_columns": metadata_columns,

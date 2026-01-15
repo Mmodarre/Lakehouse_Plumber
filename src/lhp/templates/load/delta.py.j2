@@ -2,11 +2,11 @@
 def {{ target }}():
     """{{ description }}"""
     {% if readMode == "stream" %}
-    df = spark.readStream{% if cdf_enabled %} \
-        .option("readChangeFeed", "true"){% endif %} \
-        .table("{{ table_ref }}")
+    df = spark.readStream{% if reader_options %}{% for key, value in reader_options.items() %} \
+        .option("{{ key }}", {% if value is boolean %}{{ value|string|title }}{% elif value is number %}{{ value }}{% else %}"{{ value|replace('\\', '\\\\')|replace('"', '\\"') }}"{% endif %}){% endfor %}{% endif %}.table("{{ table_ref }}")
     {% else %}
-    df = spark.read.table("{{ table_ref }}")
+    df = spark.read{% if reader_options %}{% for key, value in reader_options.items() %} \
+        .option("{{ key }}", {% if value is boolean %}{{ value|string|title }}{% elif value is number %}{{ value }}{% else %}"{{ value|replace('\\', '\\\\')|replace('"', '\\"') }}"{% endif %}){% endfor %}{% endif %}.table("{{ table_ref }}")
     {% endif %}
     {% if where_clauses %}
     {% for clause in where_clauses %}

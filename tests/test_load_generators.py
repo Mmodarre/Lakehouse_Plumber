@@ -45,7 +45,7 @@ class TestLoadGenerators:
         assert 'multiLine", "true"' in code
     
     def test_delta_generator(self):
-        """Test Delta load generator."""
+        """Test Delta load generator with basic options."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_customers",
@@ -57,7 +57,9 @@ class TestLoadGenerators:
                 "database": "bronze",
                 "table": "customers",
                 "readMode": "stream",
-                "read_change_feed": True,
+                "options": {
+                    "readChangeFeed": "true"
+                },
                 "where_clause": ["active = true"],
                 "select_columns": ["id", "name", "email"]
             }
@@ -69,7 +71,7 @@ class TestLoadGenerators:
         assert "@dp.temporary_view()" in code
         assert "v_customers" in code
         assert "spark.readStream" in code
-        assert "readChangeFeed" in code
+        assert '.option("readChangeFeed", "true")' in code
         assert "main.bronze.customers" in code
         assert 'where("active = true")' in code
         assert "select([" in code
@@ -284,6 +286,342 @@ class TestLoadGenerators:
         assert "load_custom_data(spark, parameters)" in code
         assert '"start_date": "2024-01-01"' in code
         assert "from custom_loaders import load_custom_data" in generator.imports
+
+
+class TestDeltaLoadOptions:
+    """Comprehensive tests for Delta load options feature."""
+
+    def test_delta_stream_with_multiple_options(self):
+        """Test Delta streaming load with multiple options."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_orders",
+            type=ActionType.LOAD,
+            target="v_orders",
+            source={
+                "type": "delta",
+                "database": "catalog.bronze",
+                "table": "orders",
+                "options": {
+                    "skipChangeCommits": "true",
+                    "startingTimestamp": "2018-10-18",
+                    "readChangeFeed": "true"
+                }
+            },
+            readMode="stream"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Verify all options are rendered
+        assert '.option("skipChangeCommits", "true")' in code
+        assert '.option("startingTimestamp", "2018-10-18")' in code
+        assert '.option("readChangeFeed", "true")' in code
+        assert "spark.readStream" in code
+        assert "catalog.bronze.orders" in code
+
+    def test_delta_batch_with_options(self):
+        """Test Delta batch load with options."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_snapshot",
+            type=ActionType.LOAD,
+            target="v_snapshot",
+            source={
+                "type": "delta",
+                "database": "main.archive",
+                "table": "snapshot",
+                "options": {
+                    "versionAsOf": "10",
+                    "timestampAsOf": "2023-12-01 00:00:00"
+                }
+            },
+            readMode="batch"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Verify batch mode and options
+        assert "spark.read" in code
+        assert "spark.readStream" not in code
+        assert '.option("versionAsOf", "10")' in code
+        assert '.option("timestampAsOf", "2023-12-01 00:00:00")' in code
+
+    def test_delta_option_value_types(self):
+        """Test different option value types: boolean, number, string."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_test",
+            type=ActionType.LOAD,
+            target="v_test",
+            source={
+                "type": "delta",
+                "table": "test_table",
+                "options": {
+                    "ignoreDeletes": True,  # boolean
+                    "maxFilesPerTrigger": 100,  # number
+                    "startingVersion": "0"  # string
+                }
+            },
+            readMode="stream"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Verify proper rendering of different types
+        assert '.option("ignoreDeletes", True)' in code
+        assert '.option("maxFilesPerTrigger", 100)' in code
+        assert '.option("startingVersion", "0")' in code
+
+    def test_delta_options_with_where_and_select(self):
+        """Test options combined with where_clause and select_columns."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_filtered",
+            type=ActionType.LOAD,
+            target="v_filtered",
+            source={
+                "type": "delta",
+                "database": "main.bronze",
+                "table": "transactions",
+                "options": {
+                    "readChangeFeed": "true"
+                },
+                "where_clause": ["status = 'active'"],
+                "select_columns": ["id", "amount", "date"]
+            },
+            readMode="stream"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Verify options work with other features
+        assert '.option("readChangeFeed", "true")' in code
+        assert 'where("status = \'active\'")' in code
+        assert "select([" in code
+
+    def test_delta_no_options(self):
+        """Test Delta load without options (backward compatibility)."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_simple",
+            type=ActionType.LOAD,
+            target="v_simple",
+            source={
+                "type": "delta",
+                "database": "main.bronze",
+                "table": "simple"
+            },
+            readMode="stream"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Verify basic load works without options
+        assert "spark.readStream" in code
+        assert ".table(" in code
+        assert ".option(" not in code
+
+    def test_delta_removed_cdf_enabled_raises_error(self):
+        """Test that using removed cdf_enabled field raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_error",
+            type=ActionType.LOAD,
+            target="v_error",
+            source={
+                "type": "delta",
+                "table": "test",
+                "cdf_enabled": True
+            }
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+        
+        assert "cdf_enabled" in str(exc_info.value)
+        assert "no longer supported" in str(exc_info.value)
+        assert "readChangeFeed" in str(exc_info.value)
+
+    def test_delta_removed_read_change_feed_raises_error(self):
+        """Test that using removed read_change_feed field raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_error",
+            type=ActionType.LOAD,
+            target="v_error",
+            source={
+                "type": "delta",
+                "table": "test",
+                "read_change_feed": True
+            }
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+        
+        assert "read_change_feed" in str(exc_info.value)
+        assert "no longer supported" in str(exc_info.value)
+
+    def test_delta_removed_reader_options_raises_error(self):
+        """Test that using removed reader_options field raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_error",
+            type=ActionType.LOAD,
+            target="v_error",
+            source={
+                "type": "delta",
+                "table": "test",
+                "reader_options": {"versionAsOf": "10"}
+            }
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+        
+        assert "reader_options" in str(exc_info.value)
+        assert "no longer supported" in str(exc_info.value)
+
+    def test_delta_removed_cdc_options_raises_error(self):
+        """Test that using removed cdc_options field raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_error",
+            type=ActionType.LOAD,
+            target="v_error",
+            source={
+                "type": "delta",
+                "table": "test",
+                "cdc_options": {"starting_version": "0"}
+            }
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+        
+        assert "cdc_options" in str(exc_info.value)
+        assert "no longer supported" in str(exc_info.value)
+
+    def test_delta_option_none_value_raises_error(self):
+        """Test that None option value raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_error",
+            type=ActionType.LOAD,
+            target="v_error",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "startingVersion": None
+                }
+            }
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+        
+        assert "startingVersion" in str(exc_info.value)
+        assert "invalid value" in str(exc_info.value)
+
+    def test_delta_option_empty_string_raises_error(self):
+        """Test that empty string option value raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_error",
+            type=ActionType.LOAD,
+            target="v_error",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "startingTimestamp": ""
+                }
+            }
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+        
+        assert "startingTimestamp" in str(exc_info.value)
+        assert "invalid value" in str(exc_info.value)
+
+    def test_delta_readchangefeed_requires_stream_mode(self):
+        """Test that readChangeFeed option requires stream mode."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_error",
+            type=ActionType.LOAD,
+            target="v_error",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "readChangeFeed": "true"
+                }
+            },
+            readMode="batch"  # Wrong mode for CDC!
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+        
+        assert "readChangeFeed" in str(exc_info.value)
+        assert "readMode='stream'" in str(exc_info.value)
+
+    def test_delta_readchangefeed_without_readmode_raises_error(self):
+        """Test that readChangeFeed without explicit readMode raises error (defaults to batch)."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_error",
+            type=ActionType.LOAD,
+            target="v_error",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "readChangeFeed": "true"
+                }
+            }
+            # No readMode specified - defaults to batch which is wrong for CDC
+        )
+        
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+        
+        assert "readChangeFeed" in str(exc_info.value)
+        assert "readMode='stream'" in str(exc_info.value)
+
+    def test_delta_options_combined_features(self):
+        """Test options work combined with where clause and select."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_combined",
+            type=ActionType.LOAD,
+            target="v_combined",
+            source={
+                "type": "delta",
+                "catalog": "main",
+                "database": "bronze",
+                "table": "data",
+                "options": {
+                    "readChangeFeed": "true",
+                    "ignoreDeletes": True
+                },
+                "where_clause": ["date > '2024-01-01'"],
+                "select_columns": ["id", "name", "date"]
+            },
+            readMode="stream"
+        )
+        
+        code = generator.generate(action, {})
+        
+        # Verify options work with other features
+        assert '.option("readChangeFeed", "true")' in code
+        assert '.option("ignoreDeletes", True)' in code
+        assert 'where("date > \'2024-01-01\'")' in code
+        assert "select([" in code
 
 
 def test_generator_imports():
