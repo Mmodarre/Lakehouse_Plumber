@@ -183,12 +183,14 @@ class TestJobOrchestrationE2E:
         # Assert command succeeded
         assert exit_code == 0, f"Command should succeed: {output}"
         
-        # Expected files: 5 individual job files + 1 master job
+        # Expected files: 7 individual job files + 1 master job
         expected_files = [
             "j_one.job.yml",
             "j_two.job.yml",
             "j_three.job.yml",
             "j_four.job.yml",
+            "j_six.job.yml",
+            "j_seven.job.yml",
             "j_nine.job.yml",
             "acme_edw_master.job.yml"  # Default master job name
         ]
@@ -229,12 +231,14 @@ class TestJobOrchestrationE2E:
         # Assert command succeeded
         assert exit_code == 0, f"Command should succeed: {output}"
         
-        # Expected files: 5 individual job files + 1 custom-named master job
+        # Expected files: 7 individual job files + 1 custom-named master job
         expected_files = [
             "j_one.job.yml",
             "j_two.job.yml",
             "j_three.job.yml",
             "j_four.job.yml",
+            "j_six.job.yml",
+            "j_seven.job.yml",
             "j_nine.job.yml",
             "mehdi_master_job.job.yml"  # Custom master job name
         ]
@@ -275,12 +279,14 @@ class TestJobOrchestrationE2E:
         # Assert command succeeded
         assert exit_code == 0, f"Command should succeed: {output}"
         
-        # Expected files: 5 individual job files only (NO master job)
+        # Expected files: 7 individual job files only (NO master job)
         expected_files = [
             "j_one.job.yml",
             "j_two.job.yml",
             "j_three.job.yml",
             "j_four.job.yml",
+            "j_six.job.yml",
+            "j_seven.job.yml",
             "j_nine.job.yml"
         ]
         

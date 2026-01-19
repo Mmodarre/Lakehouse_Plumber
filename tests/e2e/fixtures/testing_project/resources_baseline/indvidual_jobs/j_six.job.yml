@@ -4,7 +4,7 @@ resources:
   jobs:
     j_six:
       name: j_six
-      max_concurrent_runs: 2
+      max_concurrent_runs: 3
       tasks:
         - task_key: custom_datasource_pipeline
           pipeline_task:
@@ -13,6 +13,7 @@ resources:
       queue:
         enabled: false
       performance_target: PERFORMANCE_OPTIMIZED
+      timeout_seconds: 14400
       tags:
         environment: "dev"
         project: "acme_supermarkets"
@@ -21,6 +22,21 @@ resources:
         data_domain: "retail"
         pipeline_type: "medallion_architecture"
         managed_by: "lakehouse_plumber"
+        source_systems: "SAP_and_SFCC"
+        data_type: "erp_and_ecommerce"
+        frequency: "daily"
+        criticality: "medium"
+        layer: "raw_to_silver"
+      email_notifications:
+        on_success:
+          - data-team@acme-supermarkets.com
+        on_failure:
+          - sap-sfcc-team@acme-supermarkets.com
+          - data-team@acme-supermarkets.com
+      schedule:
+        quartz_cron_expression: "0 0 3 * * ?"
+        timezone_id: America/New_York
+        pause_status: UNPAUSED
 
       # Additional job configuration options (add to you job_config.yaml as needed):
 

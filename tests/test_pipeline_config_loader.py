@@ -279,3 +279,246 @@ project_defaults:
         assert isinstance(config["clusters"], list)
         assert len(config["clusters"]) == 1
 
+
+class TestPipelineAsList:
+    """Test list-based pipeline syntax for applying config to multiple pipelines."""
+    
+    def test_pipeline_as_list_expands_to_multiple_configs(self, tmp_path):
+        """Test that pipeline as list expands to multiple pipeline configs."""
+        config_content = """project_defaults:
+  serverless: true
+  edition: ADVANCED
+---
+pipeline:
+  - pipeline_1
+  - pipeline_2
+serverless: false
+edition: PRO
+clusters:
+  - label: default
+    node_type_id: Standard_D16ds_v5
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        # Both pipelines should exist
+        assert "pipeline_1" in loader.pipeline_configs
+        assert "pipeline_2" in loader.pipeline_configs
+        
+        # Both should have the same config values
+        assert loader.pipeline_configs["pipeline_1"]["serverless"] is False
+        assert loader.pipeline_configs["pipeline_2"]["serverless"] is False
+        assert loader.pipeline_configs["pipeline_1"]["edition"] == "PRO"
+        assert loader.pipeline_configs["pipeline_2"]["edition"] == "PRO"
+    
+    def test_pipeline_list_with_single_item(self, tmp_path):
+        """Test that pipeline list with single item works correctly."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline:
+  - solo_pipeline
+serverless: false
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        assert "solo_pipeline" in loader.pipeline_configs
+        assert loader.pipeline_configs["solo_pipeline"]["serverless"] is False
+    
+    def test_pipeline_empty_list_raises_error(self, tmp_path):
+        """Test that empty pipeline list raises LHPError."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline: []
+serverless: false
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        from lhp.utils.error_formatter import LHPError
+        
+        with pytest.raises(LHPError) as exc_info:
+            PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        error_str = str(exc_info.value)
+        assert "Empty pipeline list" in error_str or "empty pipeline" in error_str.lower()
+        assert "At least one" in error_str or "required" in error_str.lower()
+    
+    def test_pipeline_duplicate_in_same_list_raises_error(self, tmp_path):
+        """Test that duplicate pipeline in same list raises LHPError."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline:
+  - duplicate_pipeline
+  - duplicate_pipeline
+serverless: false
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        from lhp.utils.error_formatter import LHPError
+        
+        with pytest.raises(LHPError) as exc_info:
+            PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        error_str = str(exc_info.value)
+        assert "Duplicate" in error_str or "duplicate" in error_str.lower()
+        assert "duplicate_pipeline" in error_str
+    
+    def test_pipeline_duplicate_across_documents_raises_error(self, tmp_path):
+        """Test that duplicate pipeline across documents raises LHPError."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline: bronze_pipeline
+serverless: false
+---
+pipeline:
+  - silver_pipeline
+  - bronze_pipeline
+edition: PRO
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        from lhp.utils.error_formatter import LHPError
+        
+        with pytest.raises(LHPError) as exc_info:
+            PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        error_str = str(exc_info.value)
+        assert "Duplicate" in error_str or "duplicate" in error_str.lower()
+        assert "bronze_pipeline" in error_str
+    
+    def test_pipeline_string_still_works(self, tmp_path):
+        """Test backward compatibility - string pipeline still works."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline: bronze_pipeline
+serverless: false
+edition: PRO
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        assert "bronze_pipeline" in loader.pipeline_configs
+        assert loader.pipeline_configs["bronze_pipeline"]["serverless"] is False
+        assert loader.pipeline_configs["bronze_pipeline"]["edition"] == "PRO"
+    
+    def test_pipeline_list_deep_copies_config(self, tmp_path):
+        """Test that each pipeline gets independent deep copy of config."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline:
+  - pipe1
+  - pipe2
+tags:
+  env: dev
+  nested:
+    key: value
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        # Modify one config
+        loader.pipeline_configs["pipe1"]["tags"]["modified"] = "yes"
+        loader.pipeline_configs["pipe1"]["tags"]["nested"]["key"] = "changed"
+        
+        # Other config should not be affected
+        assert "modified" not in loader.pipeline_configs["pipe2"]["tags"]
+        assert loader.pipeline_configs["pipe2"]["tags"]["nested"]["key"] == "value"
+    
+    def test_pipeline_error_shows_document_numbers(self, tmp_path):
+        """Test that error messages show which documents have conflicts."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline: duplicate_pipeline
+serverless: false
+---
+pipeline: duplicate_pipeline
+edition: PRO
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        from lhp.utils.error_formatter import LHPError
+        
+        with pytest.raises(LHPError) as exc_info:
+            PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        error_message = str(exc_info.value)
+        assert "document" in error_message.lower()
+        # Should mention document numbers
+        assert "2" in error_message or "3" in error_message
+    
+    def test_pipeline_invalid_type_skipped_with_warning(self, tmp_path, caplog):
+        """Test that invalid pipeline types are skipped with a warning."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline: 456
+serverless: false
+---
+pipeline: valid_pipeline
+edition: PRO
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        # Invalid type should be skipped, but valid_pipeline should be loaded
+        assert "valid_pipeline" in loader.pipeline_configs
+        assert loader.pipeline_configs["valid_pipeline"]["edition"] == "PRO"
+        
+        # Should have warning in log
+        assert "invalid pipeline type" in caplog.text.lower() or "invalid" in caplog.text.lower()
+    
+    def test_pipeline_mixed_types_in_same_config(self, tmp_path):
+        """Test mixing string and list pipeline in different documents."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline: string_pipeline
+serverless: false
+tags:
+  type: string
+---
+pipeline:
+  - list_pipeline_1
+  - list_pipeline_2
+edition: PRO
+tags:
+  type: list
+"""
+        config_file = tmp_path / "pipeline_config.yaml"
+        config_file.write_text(config_content)
+        
+        loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
+        
+        # All three pipelines should exist
+        assert "string_pipeline" in loader.pipeline_configs
+        assert "list_pipeline_1" in loader.pipeline_configs
+        assert "list_pipeline_2" in loader.pipeline_configs
+        
+        # Verify configs
+        assert loader.pipeline_configs["string_pipeline"]["serverless"] is False
+        assert loader.pipeline_configs["string_pipeline"]["tags"]["type"] == "string"
+        assert loader.pipeline_configs["list_pipeline_1"]["edition"] == "PRO"
+        assert loader.pipeline_configs["list_pipeline_1"]["tags"]["type"] == "list"
+        assert loader.pipeline_configs["list_pipeline_2"]["edition"] == "PRO"
+
