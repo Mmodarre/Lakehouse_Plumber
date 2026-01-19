@@ -670,17 +670,18 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
        default: true
        description: "Ignore updates where all tracked columns are null"
 
-   actions:
-     - name: "load_{{ table_name }}_changes"
-       type: load
-       readMode: stream
-       source:
-         type: delta
-         database: "{catalog}.{bronze_schema}"
-         table: "{{ source_table }}"
-         read_change_feed: true
-       target: "v_{{ table_name }}_changes"
-       description: "Load change data from {{ source_table }}"
+  actions:
+    - name: "load_{{ table_name }}_changes"
+      type: load
+      readMode: stream
+      source:
+        type: delta
+        database: "{catalog}.{bronze_schema}"
+        table: "{{ source_table }}"
+        options:
+          readChangeFeed: "true"
+      target: "v_{{ table_name }}_changes"
+      description: "Load change data from {{ source_table }}"
 
      - name: "write_{{ table_name }}_dimension"
        type: write
@@ -734,6 +735,9 @@ In addition to template parameters, both template definitions and flowgroup YAML
 Substitution Types
 ~~~~~~~~~~~~~~~~~~
 
+**Local Variables**: ``%{variable}``
+   Defined in the ``variables`` section of a flowgroup, scoped to that flowgroup only
+
 **Environment Substitutions**: ``{token}`` or ``${token}``
    Replaced with values from ``substitutions/{env}.yaml`` files
 
@@ -746,6 +750,7 @@ Substitution Types
 .. important::
    **Syntax Distinction:**
    
+   - ``%{var}`` = Local variable (flowgroup-scoped, **new in v1.x**)
    - ``${token}`` = Environment substitution (**preferred**, new syntax)
    - ``{token}`` = Environment substitution (legacy, backward compatible)
    - ``${secret:scope/key}`` = Secret reference (Databricks secrets)
@@ -758,11 +763,112 @@ Substitution Types
 .. note::
    **Processing Order**: LHP processes substitutions in this order:
    
-   1. **Template parameters** (``{{ }}``) are resolved first when templates are applied
-   2. **Environment substitutions** (``{ }``) are resolved at generation time  
-   3. **Secret references** (``${secret:}``) are converted to ``dbutils.secrets.get()`` calls
+   1. **Local variables** (``%{var}``) are resolved first within the flowgroup
+   2. **Template parameters** (``{{ }}``) are resolved when templates are applied
+   3. **Environment substitutions** (``{ }``) are resolved at generation time  
+   4. **Secret references** (``${secret:}``) are converted to ``dbutils.secrets.get()`` calls
    
-   This allows templates to dynamically reference environment-specific values and secrets.
+   This allows flowgroups to define reusable values, templates to be dynamic, and 
+   environment-specific values and secrets to be injected at the right time.
+
+Local Variables
+~~~~~~~~~~~~~~~
+
+Local variables allow you to define reusable values within a single flowgroup, reducing repetition and improving maintainability. They are scoped to the flowgroup and resolved before templates, presets, and environment substitution.
+
+**Syntax**: ``%{variable_name}``
+
+**Definition**: Add a ``variables`` section to your flowgroup YAML:
+
+.. code-block:: yaml
+   :caption: pipelines/bronze/customer_pipeline.yaml
+   :linenos:
+
+   pipeline: acme_bronze
+   flowgroup: customer_pipeline
+
+   # Define local variables
+   variables:
+     entity: customer
+     source_table: customer_raw
+     target_table: customer
+
+   actions:
+     # Use variables throughout the flowgroup
+     - name: "load_%{entity}_raw"
+       type: load
+       source:
+         type: delta
+         database: "{catalog}.{raw_schema}"  # Environment tokens still work!
+         table: "%{source_table}"
+       target: "v_%{entity}_raw"
+       description: "Load %{entity} table from raw schema"
+
+     - name: "%{entity}_cleanse"
+       type: transform
+       transform_type: sql
+       source: "v_%{entity}_raw"
+       target: "v_%{entity}_cleaned"
+       sql_path: "sql/brz/%{entity}_cleanse.sql"
+
+     - name: "write_%{entity}_bronze"
+       type: write
+       source: "v_%{entity}_cleaned"
+       write_target:
+         type: streaming_table
+         database: "{catalog}.{bronze_schema}"
+         table: "%{target_table}"
+
+**Key Features:**
+
+- **Inline Substitution**: Supports ``prefix_%{var}_suffix`` patterns
+- **Recursive Variables**: Variables can reference other variables
+- **Strict Validation**: Undefined variables cause immediate errors
+- **Flowgroup-Scoped**: Variables are NOT shared across flowgroups
+
+**Benefits:**
+
++------------------------+--------------------------------------------------------+
+| Benefit                | Description                                            |
++========================+========================================================+
+|| **Single Source**     || Change "customer" to "order" in one place            |
+|| **of Truth**          ||                                                       |
++------------------------+--------------------------------------------------------+
+|| **Consistency**       || All action names follow the same pattern             |
++------------------------+--------------------------------------------------------+
+|| **Readability**       || Clear intent with meaningful variable names          |
++------------------------+--------------------------------------------------------+
+|| **Maintainability**   || Easy to refactor or convert to templates             |
++------------------------+--------------------------------------------------------+
+
+**Example - Before and After:**
+
+.. code-block:: yaml
+   :caption: Before (repetitive)
+
+   actions:
+     - name: "load_customer_raw"
+       target: "v_customer_raw"
+     - name: "customer_cleanse"
+       source: "v_customer_raw"
+       target: "v_customer_cleaned"
+     - name: "write_customer_bronze"
+       source: "v_customer_cleaned"
+
+.. code-block:: yaml
+   :caption: After (with local variables)
+
+   variables:
+     entity: customer
+
+   actions:
+     - name: "load_%{entity}_raw"
+       target: "v_%{entity}_raw"
+     - name: "%{entity}_cleanse"
+       source: "v_%{entity}_raw"
+       target: "v_%{entity}_cleaned"
+     - name: "write_%{entity}_bronze"
+       source: "v_%{entity}_cleaned"
 
 Using Substitutions in Templates
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

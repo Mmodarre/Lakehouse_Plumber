@@ -1143,3 +1143,273 @@ class TestDependencyOutputManagerIntegration:
         
         # Verify the setting
         assert job_generator.should_generate_master_job() is False
+
+
+class TestJobNameAsList:
+    """Test list-based job_name syntax for applying config to multiple jobs."""
+    
+    def test_job_name_as_list_expands_to_multiple_configs(self, tmp_path):
+        """Test that job_name as list expands to multiple job configs."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name:
+  - bronze_job
+  - silver_job
+max_concurrent_runs: 3
+tags:
+  layer: multi
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        generator = JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        # Both jobs should exist
+        assert "bronze_job" in generator.job_specific_configs
+        assert "silver_job" in generator.job_specific_configs
+        
+        # Both should have the same config values
+        assert generator.job_specific_configs["bronze_job"]["max_concurrent_runs"] == 3
+        assert generator.job_specific_configs["silver_job"]["max_concurrent_runs"] == 3
+        assert generator.job_specific_configs["bronze_job"]["tags"]["layer"] == "multi"
+        assert generator.job_specific_configs["silver_job"]["tags"]["layer"] == "multi"
+    
+    def test_job_name_list_with_single_item(self, tmp_path):
+        """Test that job_name list with single item works correctly."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name:
+  - solo_job
+max_concurrent_runs: 2
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        generator = JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        assert "solo_job" in generator.job_specific_configs
+        assert generator.job_specific_configs["solo_job"]["max_concurrent_runs"] == 2
+    
+    def test_job_name_empty_list_raises_error(self, tmp_path):
+        """Test that empty job_name list raises LHPError."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name: []
+max_concurrent_runs: 2
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        from lhp.utils.error_formatter import LHPError
+        
+        with pytest.raises(LHPError) as exc_info:
+            JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        error_str = str(exc_info.value)
+        assert "Empty job_name list" in error_str
+        assert "At least one job name" in error_str and "required" in error_str
+    
+    def test_job_name_duplicate_in_same_list_raises_error(self, tmp_path):
+        """Test that duplicate job_name in same list raises LHPError."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name:
+  - bronze_job
+  - bronze_job
+max_concurrent_runs: 2
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        from lhp.utils.error_formatter import LHPError
+        
+        with pytest.raises(LHPError) as exc_info:
+            JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        assert "Duplicate job_name" in str(exc_info.value)
+        assert "bronze_job" in str(exc_info.value)
+    
+    def test_job_name_duplicate_across_documents_raises_error(self, tmp_path):
+        """Test that duplicate job_name across documents raises LHPError."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name: bronze_job
+max_concurrent_runs: 2
+---
+job_name:
+  - silver_job
+  - bronze_job
+max_concurrent_runs: 3
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        from lhp.utils.error_formatter import LHPError
+        
+        with pytest.raises(LHPError) as exc_info:
+            JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        assert "Duplicate job_name" in str(exc_info.value)
+        assert "bronze_job" in str(exc_info.value)
+    
+    def test_job_name_string_still_works(self, tmp_path):
+        """Test backward compatibility - string job_name still works."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name: bronze_job
+max_concurrent_runs: 2
+tags:
+  layer: bronze
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        generator = JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        assert "bronze_job" in generator.job_specific_configs
+        assert generator.job_specific_configs["bronze_job"]["max_concurrent_runs"] == 2
+        assert generator.job_specific_configs["bronze_job"]["tags"]["layer"] == "bronze"
+    
+    def test_job_name_list_deep_copies_config(self, tmp_path):
+        """Test that each job gets independent deep copy of config."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name:
+  - job1
+  - job2
+tags:
+  env: dev
+  nested:
+    key: value
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        generator = JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        # Modify one config
+        generator.job_specific_configs["job1"]["tags"]["modified"] = "yes"
+        generator.job_specific_configs["job1"]["tags"]["nested"]["key"] = "changed"
+        
+        # Other config should not be affected
+        assert "modified" not in generator.job_specific_configs["job2"]["tags"]
+        assert generator.job_specific_configs["job2"]["tags"]["nested"]["key"] == "value"
+    
+    def test_job_name_error_shows_document_numbers(self, tmp_path):
+        """Test that error messages show which documents have conflicts."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name: duplicate_job
+max_concurrent_runs: 2
+---
+job_name: duplicate_job
+max_concurrent_runs: 3
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        from lhp.utils.error_formatter import LHPError
+        
+        with pytest.raises(LHPError) as exc_info:
+            JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        error_message = str(exc_info.value)
+        assert "document" in error_message.lower()
+        # Should mention document numbers (2 and 3 in this case)
+        assert "2" in error_message or "3" in error_message
+    
+    def test_job_name_invalid_type_skipped_with_warning(self, tmp_path, caplog):
+        """Test that invalid job_name types are skipped with a warning."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Use integer as job_name (invalid type)
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name: 123
+max_concurrent_runs: 2
+---
+job_name: valid_job
+max_concurrent_runs: 3
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        generator = JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        # Invalid type should be skipped, but valid_job should be loaded
+        assert "valid_job" in generator.job_specific_configs
+        assert generator.job_specific_configs["valid_job"]["max_concurrent_runs"] == 3
+        
+        # Should have warning in log
+        assert "invalid job_name type" in caplog.text.lower()
+    
+    def test_job_name_mixed_types_in_same_config(self, tmp_path):
+        """Test mixing string and list job_name in different documents."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        config_content = """project_defaults:
+  max_concurrent_runs: 1
+---
+job_name: string_job
+max_concurrent_runs: 2
+tags:
+  type: string
+---
+job_name:
+  - list_job_1
+  - list_job_2
+max_concurrent_runs: 3
+tags:
+  type: list
+"""
+        config_file = config_dir / "job_config.yaml"
+        config_file.write_text(config_content)
+        
+        generator = JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
+        
+        # All three jobs should exist
+        assert "string_job" in generator.job_specific_configs
+        assert "list_job_1" in generator.job_specific_configs
+        assert "list_job_2" in generator.job_specific_configs
+        
+        # Verify configs
+        assert generator.job_specific_configs["string_job"]["max_concurrent_runs"] == 2
+        assert generator.job_specific_configs["string_job"]["tags"]["type"] == "string"
+        assert generator.job_specific_configs["list_job_1"]["max_concurrent_runs"] == 3
+        assert generator.job_specific_configs["list_job_1"]["tags"]["type"] == "list"
+        assert generator.job_specific_configs["list_job_2"]["max_concurrent_runs"] == 3

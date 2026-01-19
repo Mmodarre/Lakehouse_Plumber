@@ -26,9 +26,7 @@ part_cloudfiles_schema_hints = """
     p_retailprice DECIMAL(18,2) NOT NULL,
     p_comment STRING,
     last_modified_dt TIMESTAMP
-""".strip().replace(
-    "\n", " "
-)
+""".strip().replace("\n", " ")
 
 
 @dp.temporary_view()

@@ -158,6 +158,22 @@ tags:
 #     - analytics-team@company.com
 #     - data-ops@company.com
 
+# ==============================================================================
+# EXAMPLE: List-based job_name (Apply same config to multiple jobs)
+# ==============================================================================
+# NEW FEATURE: Use list syntax to apply the same configuration to multiple jobs
+# ---
+# job_name:
+#   - bronze_ingestion_job
+#   - bronze_validation_job
+# max_concurrent_runs: 3
+# tags:
+#   layer: bronze
+#   type: ingestion
+# 
+# This is equivalent to defining two separate documents with identical configs.
+# Each job gets an independent deep copy of the configuration.
+
 # =============================================================================
 # Notes on Multi-Job Configuration
 # =============================================================================

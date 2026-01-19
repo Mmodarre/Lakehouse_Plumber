@@ -25,9 +25,7 @@ customer_cloudfiles_schema_hints = """
     c_mktsegment STRING,
     c_comment STRING,
     last_modified_dt TIMESTAMP
-""".strip().replace(
-    "\n", " "
-)
+""".strip().replace("\n", " ")
 
 
 @dp.temporary_view()

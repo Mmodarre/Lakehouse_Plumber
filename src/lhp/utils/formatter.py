@@ -84,7 +84,12 @@ class CodeFormatter:
             self.logger.warning("Black not available, trying command line")
             return self._format_with_black_cli(code, line_length)
         except Exception as e:
-            self.logger.warning(f"Black formatting failed: {e}")
+            import traceback
+            self.logger.error(f"Black formatting failed: {e}")
+            self.logger.error(f"Black error type: {type(e).__name__}")
+            self.logger.error(f"Black traceback:\n{traceback.format_exc()}")
+            # Log first 500 chars of code that caused the failure
+            self.logger.error(f"Code snippet (first 500 chars):\n{code[:500]}")
             # Return organized code even if Black fails
             return self.organize_imports(code)
 

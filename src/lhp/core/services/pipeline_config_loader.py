@@ -109,8 +109,10 @@ class PipelineConfigLoader:
         # Parse documents
         project_defaults = {}
         pipeline_configs = {}
+        seen_pipelines = set()
+        first_seen = {}  # Track which document first defined each pipeline
         
-        for doc in documents:
+        for idx, doc in enumerate(documents):
             # Skip None/empty documents
             if doc is None:
                 continue
@@ -128,13 +130,76 @@ class PipelineConfigLoader:
             
             # Check if it's a pipeline-specific config
             elif "pipeline" in doc:
-                pipeline_name = doc["pipeline"]
+                pipeline_names_raw = doc["pipeline"]
+                
+                # Normalize to list (support both string and list)
+                if isinstance(pipeline_names_raw, str):
+                    pipeline_names = [pipeline_names_raw]
+                elif isinstance(pipeline_names_raw, list):
+                    pipeline_names = pipeline_names_raw
+                else:
+                    self.logger.warning(
+                        f"Document {idx+1} has invalid pipeline type: {type(pipeline_names_raw)}. "
+                        f"Expected string or list. Skipping."
+                    )
+                    continue
+                
+                # Validate non-empty list
+                if not pipeline_names:
+                    from ...utils.error_formatter import LHPError, ErrorCategory
+                    raise LHPError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="005",
+                        title="Empty pipeline list",
+                        details=(
+                            f"Document {idx+1} in pipeline config has an empty pipeline list. "
+                            f"At least one pipeline name is required."
+                        ),
+                        suggestions=[
+                            "Add at least one pipeline name to the list",
+                            "Use 'pipeline: my_pipeline' for a single pipeline",
+                            "Use 'pipeline: [pipeline1, pipeline2]' for multiple pipelines"
+                        ]
+                    )
+                
                 # Extract all keys except 'pipeline'
                 pipeline_config = {k: v for k, v in doc.items() if k != "pipeline"}
-                pipeline_configs[pipeline_name] = pipeline_config
-                self.logger.debug(f"Loaded config for pipeline '{pipeline_name}': {list(pipeline_config.keys())}")
-                # Validate pipeline config
+                
+                # Validate the config before processing
                 self._validate_config(pipeline_config)
+                
+                # Process each pipeline_name in the list
+                for pipeline_name in pipeline_names:
+                    # Validate for duplicates
+                    if pipeline_name in seen_pipelines:
+                        from ...utils.error_formatter import LHPError, ErrorCategory
+                        raise LHPError(
+                            category=ErrorCategory.VALIDATION,
+                            code_number="006",
+                            title="Duplicate pipeline name",
+                            details=(
+                                f"pipeline '{pipeline_name}' in document {idx+1} was already defined "
+                                f"in document {first_seen[pipeline_name]}. Each pipeline must be unique "
+                                f"across all documents in the config file."
+                            ),
+                            suggestions=[
+                                f"Remove the duplicate '{pipeline_name}' from one of the documents",
+                                "Ensure each pipeline name appears only once in the entire config file",
+                                "If you want to override a config, use the same pipeline name with different values"
+                            ],
+                            context={
+                                "duplicate_pipeline": pipeline_name,
+                                "first_defined_in_document": first_seen[pipeline_name],
+                                "duplicate_in_document": idx + 1
+                            }
+                        )
+                    
+                    seen_pipelines.add(pipeline_name)
+                    first_seen[pipeline_name] = idx + 1
+                    
+                    # Deep copy config for each pipeline to ensure independence
+                    pipeline_configs[pipeline_name] = deepcopy(pipeline_config)
+                    self.logger.debug(f"Loaded config for pipeline '{pipeline_name}': {list(pipeline_config.keys())}")
             
             else:
                 self.logger.warning(f"Document has neither 'project_defaults' nor 'pipeline' key, ignoring")

@@ -83,11 +83,11 @@ actions:
       # Alternative: path: "/mnt/data/delta/customers"
       where_clause: "status = 'active' AND created_date >= '2023-01-01'"
       select_columns: ["customer_id", "name", "email", "status", "created_date", "region"]
-      reader_options:
+      options:
         versionAsOf: "10"
         # Alternative: timestampAsOf: "2023-12-01 00:00:00"
     target: "v_customers_active"
-    description: "Load active customers from Delta table with version"
+    description: "Load active customers from Delta table with time travel"
   
   # 5. Delta table with CDC (Change Data Feed)
   - name: "load_orders_cdc"
@@ -98,12 +98,13 @@ actions:
       table: "orders"
       database: "bronze"
       catalog: "main"
-      cdf_enabled: true  # Enable Change Data Feed
-      cdc_options:
-        starting_version: "0"
-        # Alternative: starting_timestamp: "2023-01-01 00:00:00"
+      options:
+        readChangeFeed: "true"  # Enable Change Data Feed
+        startingVersion: "0"
+        # Alternative: startingTimestamp: "2023-01-01 00:00:00"
+        skipChangeCommits: "false"  # Optional: process change commits
     target: "v_orders_changes"
-    description: "Stream order changes using Delta Change Data Feed"
+    description: "Stream order changes using Delta Change Data Feed with options"
   
   # 6. SQL query load (inline SQL)
   - name: "load_sales_summary"

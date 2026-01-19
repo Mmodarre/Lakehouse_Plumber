@@ -18,8 +18,7 @@ FLOWGROUP_ID = "customer_segmentation_mv"
 @dp.temporary_view()
 def v_customer_segmentation_mv_sql():
     """SQL source: customer_segmentation_mv_sql"""
-    df = spark.sql(
-        """WITH customer_scores AS (
+    df = spark.sql("""WITH customer_scores AS (
   SELECT
     customer_id,
     customer_name,
@@ -105,8 +104,7 @@ SELECT
 
 FROM customer_scores
 ORDER BY segment_priority, lifetime_value DESC
-"""
-    )
+""")
 
     return df
 

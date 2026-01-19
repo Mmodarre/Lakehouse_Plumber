@@ -102,43 +102,9 @@ timeout_seconds: 14400
 # ==============================================================================
 # Job-Specific Configuration - j_three 
 # ==============================================================================
-job_name: j_three
-
-# SAP/SFCC jobs handle batch data loads - can run concurrently
-max_concurrent_runs: 3
-
-# Performance optimized for large batch loads
-performance_target: PERFORMANCE_OPTIMIZED
-
-# Schedule: Daily at 3:00 AM EST (after SAP/SFCC nightly batch)
-schedule:
-  quartz_cron_expression: "0 0 3 * * ?"
-  timezone_id: "America/New_York"
-  pause_status: UNPAUSED
-
-# Job-specific tags (deep-merged with project_defaults.tags)
-tags:
-  source_systems: SAP_and_SFCC
-  data_type: erp_and_ecommerce
-  frequency: daily
-  criticality: medium
-  layer: raw_to_silver
-
-# Email notifications for SAP_SFCC job
-email_notifications:
-  on_failure:
-    - sap-sfcc-team@acme-supermarkets.com
-    - data-team@acme-supermarkets.com
-  on_success:
-    - data-team@acme-supermarkets.com
-
-# Timeout for large batch jobs (4 hours)
-timeout_seconds: 14400
----
-# ==============================================================================
-# Job-Specific Configuration - j_th
-# ==============================================================================
-job_name: j_three
+job_name:
+  - j_three
+  - j_seven
 
 # SAP/SFCC jobs handle batch data loads - can run concurrently
 max_concurrent_runs: 3
@@ -174,7 +140,9 @@ timeout_seconds: 14400
 # ==============================================================================
 # Job-Specific Configuration - j_four 
 # ==============================================================================
-job_name: j_four
+job_name: 
+  - j_four
+  - j_six
 
 # SAP/SFCC jobs handle batch data loads - can run concurrently
 max_concurrent_runs: 3

@@ -18,8 +18,7 @@ FLOWGROUP_ID = "partsupp_modelled_fct"
 @dp.temporary_view()
 def v_partsupp_modelled_fct():
     """Load partsupp table with surrogate keys"""
-    df = spark.sql(
-        """select
+    df = spark.sql("""select
 p.part_key,
 s.supplier_key,
 ps.* except(end_week_key,start_week_key)
@@ -55,8 +54,7 @@ from
         acme_edw_dev.edw_silver.part_dim
     ) p
     on ps.part_id = p.part_id
-"""
-    )
+""")
 
     return df
 

@@ -362,7 +362,61 @@ For environment management, Lakehouse Plumber uses substitution files and Databr
 .. seealso::
    For more information on Databricks Asset Bundles see :doc:`databricks_bundles`.
 
+Environment-Specific Configuration Files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+In addition to substitution files, LHP supports environment-specific **pipeline and job configuration files** 
+for fine-grained control over compute resources, notifications, and scheduling per environment.
+
+**Recommended file structure:**
+
+.. code-block:: text
+
+   config/
+   ├── pipeline_config-dev.yaml    # Dev: smaller clusters, no notifications
+   ├── pipeline_config-prod.yaml   # Prod: larger clusters, full alerting
+   ├── job_config-dev.yaml         # Dev: relaxed timeouts
+   └── job_config-prod.yaml        # Prod: strict SLAs, schedules
+
+**Common environment-specific differences:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 35 40
+
+   * - Setting
+     - Development
+     - Production
+   * - Cluster size
+     - Smaller nodes (cost efficiency)
+     - Larger nodes (performance)
+   * - Concurrency
+     - 1-2 concurrent runs
+     - 3+ concurrent runs
+   * - Notifications
+     - Minimal or none
+     - Full alerting to ops teams
+   * - Timeouts
+     - Relaxed (for debugging)
+     - Strict (SLA enforcement)
+   * - Performance target
+     - ``STANDARD``
+     - ``PERFORMANCE_OPTIMIZED``
+
+**Usage in CI/CD:**
+
+.. code-block:: bash
+
+   # Development deployment
+   lhp generate -e dev -pc config/pipeline_config-dev.yaml
+   lhp deps -jc config/job_config-dev.yaml --bundle-output
+   
+   # Production deployment  
+   lhp generate -e prod -pc config/pipeline_config-prod.yaml
+   lhp deps -jc config/job_config-prod.yaml --bundle-output
+
+.. seealso::
+   For complete configuration options and examples, see the Configuration Management section in :doc:`databricks_bundles`.
 
 Deployment overview using Databricks Asset Bundles
 --------------------------------------------------

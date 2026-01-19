@@ -167,7 +167,8 @@ The ``job_name`` property (used for multi-job orchestration) is also inherited b
 .. code-block:: yaml
 
    pipeline: raw_ingestions_sap
-   job_name: SAP_SFCC  # Inherited by all flowgroups below
+   job_name:
+     - SAP_SFCC  # Inherited by all flowgroups below
    use_template: TMPL003_parquet_ingestion_template
    
    flowgroups:
@@ -318,7 +319,8 @@ Here's a complete example combining multiple concepts:
 
    # Bronze Layer - NCR Transaction Data
    pipeline: bronze_ncr
-   job_name: NCR  # Multi-job orchestration (optional)
+   job_name:
+     - NCR  # Multi-job orchestration (optional)
    use_template: TMPL004_raw_to_bronze_standard
    presets:
      - bronze_layer

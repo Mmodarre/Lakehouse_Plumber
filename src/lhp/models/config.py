@@ -246,6 +246,7 @@ class FlowGroup(BaseModel):
     pipeline: str
     flowgroup: str
     job_name: Optional[str] = None
+    variables: Optional[Dict[str, str]] = None  # Local variable definitions
     presets: List[str] = []
     use_template: Optional[str] = None
     template_parameters: Optional[Dict[str, Any]] = None

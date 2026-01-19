@@ -204,8 +204,7 @@ def v_orders_asia_bronze_cleaned():
 @dp.temporary_view(comment="SQL transform: orders_europe_bronze_cleanse")
 def v_orders_europe_bronze_cleaned():
     """SQL transform: orders_europe_bronze_cleanse"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   o_orderkey as order_id,
   o_custkey as customer_id,
   o_orderstatus as order_status,
@@ -217,8 +216,7 @@ def v_orders_europe_bronze_cleaned():
   o_comment as comment,
   cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
   * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
-FROM stream(v_orders_europe_raw)"""
-    )
+FROM stream(v_orders_europe_raw)""")
 
     return df
 
@@ -226,8 +224,7 @@ FROM stream(v_orders_europe_raw)"""
 @dp.temporary_view(comment="SQL transform: orders_middle_east_bronze_cleanse")
 def v_orders_middle_east_bronze_cleaned():
     """SQL transform: orders_middle_east_bronze_cleanse"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   o_orderkey as order_id,
   o_custkey as customer_id,
   o_orderstatus as order_status,
@@ -239,8 +236,7 @@ def v_orders_middle_east_bronze_cleaned():
   o_comment as comment,
   cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
   * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt,_rescued_data)
-FROM stream(v_orders_middle_east_raw)"""
-    )
+FROM stream(v_orders_middle_east_raw)""")
 
     return df
 
@@ -248,8 +244,7 @@ FROM stream(v_orders_middle_east_raw)"""
 @dp.temporary_view(comment="SQL transform: orders_migration_cleanse")
 def v_orders_migration_cleaned():
     """SQL transform: orders_migration_cleanse"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   o_orderkey as order_id,
   o_custkey as customer_id,
   o_orderstatus as order_status,
@@ -262,8 +257,7 @@ def v_orders_migration_cleaned():
   cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
   'MIGRATION' as _source_file_path,
   * EXCEPT(o_orderkey, o_custkey, o_orderstatus, o_totalprice, o_orderdate, o_orderpriority, o_clerk, o_shippriority, o_comment, last_modified_dt)
-FROM v_orders_migration"""
-    )
+FROM v_orders_migration""")
 
     return df
 

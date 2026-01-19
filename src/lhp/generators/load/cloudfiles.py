@@ -90,9 +90,17 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         # Process options (new approach)
         reader_options = {}
         if source_config.get("options"):
+            options = source_config["options"]
+            # Validate options is a dictionary
+            if not isinstance(options, dict):
+                raise ValueError(
+                    f"CloudFiles load action '{action.name}': 'options' must be a dictionary, "
+                    f"got {type(options).__name__}. "
+                    f"Use YAML dictionary syntax: options:\\n  key: value"
+                )
             reader_options.update(
                 self._process_options(
-                    source_config["options"], action.name, context.get("spec_dir")
+                    options, action.name, context.get("spec_dir")
                 )
             )
 

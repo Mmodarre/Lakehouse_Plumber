@@ -24,8 +24,21 @@
                     "description": "Name of the flowgroup"
                 },
                 "job_name": {
-                    "type": "string",
-                    "description": "Optional job name for grouping flowgroups into separate orchestration jobs"
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "description": "Single job name for grouping flowgroups"
+                        },
+                        {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "minItems": 1,
+                            "description": "Multiple job names (for use in job_config.yaml, not flowgroup YAMLs)"
+                        }
+                    ],
+                    "description": "Optional job name(s) for grouping flowgroups into separate orchestration jobs"
                 },
                 "presets": {
                     "$ref": "#/definitions/Presets"
@@ -78,8 +91,21 @@
                                 "description": "Override pipeline name for this flowgroup (optional, inherits from document level)"
                             },
                             "job_name": {
-                                "type": "string",
-                                "description": "Optional job name for grouping flowgroups into separate orchestration jobs"
+                                "oneOf": [
+                                    {
+                                        "type": "string",
+                                        "description": "Single job name for grouping flowgroups"
+                                    },
+                                    {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "minItems": 1,
+                                        "description": "Multiple job names (for use in job_config.yaml, not flowgroup YAMLs)"
+                                    }
+                                ],
+                                "description": "Optional job name(s) for grouping flowgroups into separate orchestration jobs"
                             },
                             "use_template": {
                                 "$ref": "#/definitions/UseTemplate"
@@ -245,11 +271,6 @@
                                     "description": "Reader options",
                                     "additionalProperties": true
                                 },
-                                "reader_options": {
-                                    "type": "object",
-                                    "description": "Reader-specific options",
-                                    "additionalProperties": true
-                                },
                                 "format_options": {
                                     "type": "object",
                                     "description": "Format-specific options",
@@ -288,19 +309,6 @@
                                 "rescue_data_column": {
                                     "type": "string",
                                     "description": "Column for rescued data"
-                                },
-                                "cdf_enabled": {
-                                    "type": "boolean",
-                                    "description": "Whether change data feed is enabled"
-                                },
-                                "read_change_feed": {
-                                    "type": "boolean",
-                                    "description": "Whether to read change feed"
-                                },
-                                "cdc_options": {
-                                    "type": "object",
-                                    "description": "CDC options",
-                                    "additionalProperties": true
                                 },
                                 "where_clause": {
                                     "type": "string",

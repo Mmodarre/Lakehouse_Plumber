@@ -45,8 +45,7 @@ def v_customer_migration():
 @dp.temporary_view(comment="SQL transform: customer_bronze_incremental_cleanse")
 def v_customer_bronze_cleaned():
     """SQL transform: customer_bronze_incremental_cleanse"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   xxhash64(c_custkey,c_name,c_address,c_nationkey,c_phone,c_acctbal,c_mktsegment,c_comment,last_modified_dt) as customer_key,
   c_custkey as customer_id,
   c_name as name,
@@ -58,8 +57,7 @@ def v_customer_bronze_cleaned():
   c_comment as comment,
   last_modified_dt,
   * EXCEPT(c_custkey, c_name, c_address, c_nationkey, c_phone, c_acctbal, c_mktsegment, c_comment,last_modified_dt,_rescued_data)
-FROM stream(v_customer_raw)"""
-    )
+FROM stream(v_customer_raw)""")
 
     return df
 
@@ -67,8 +65,7 @@ FROM stream(v_customer_raw)"""
 @dp.temporary_view(comment="SQL transform: customer_migration_cleanse")
 def v_customer_migration_cleaned():
     """SQL transform: customer_migration_cleanse"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   xxhash64(c_custkey,c_name,c_address,c_nationkey,c_phone,c_acctbal,c_mktsegment,c_comment,cast(last_modified_dt as TIMESTAMP)) as customer_key,
   c_custkey as customer_id,
   c_name as name,
@@ -81,8 +78,7 @@ def v_customer_migration_cleaned():
   cast(last_modified_dt as TIMESTAMP) as last_modified_dt,
   'MIGRATION' as _source_file_path,
   * EXCEPT(c_custkey, c_name, c_address, c_nationkey, c_phone, c_acctbal, c_mktsegment, c_comment,last_modified_dt)
-FROM v_customer_migration"""
-    )
+FROM v_customer_migration""")
 
     return df
 

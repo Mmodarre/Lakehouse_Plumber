@@ -166,12 +166,13 @@ Features at a Glance
 * **Actions** – Load | Transform | Write with many sub-types (see :doc:`actions_reference`).
 * **Sinks** – Stream to external destinations: Delta tables, Kafka, Event Hubs, custom APIs.
 * **Presets & Templates** – reuse patterns without copy-paste.
+* **Local Variables** – flowgroup-scoped variables (``%{var}``) reduce repetition within a flowgroup.
 * **Substitutions** – environment-aware tokens & secret references.
 * **CDC & SCD** – change-data capture SCD type 1 and 2 and snapshot ingestion.
 * **Append Flows** – append data to existing streaming tables.(multi source write to single target table)
 * **Data-Quality** – declarative expectations integrated into transforms.
 * **Operational Metadata** – custom audit columns and metadata.
-* **Dependency Analysis** – automatic pipeline dependency detection and orchestration job generation (see :doc:`databricks_bundles`).
+* **Dependency Analysis** – automatic pipeline dependency detection and orchestration job generation (see :doc:`dependency_analysis`).
 * **Smart State Management** – regenerate only what changed; cleanup orphaned code. (Terraform-like state management)
 * **IntelliSense** – VS Code schema hints & YAML completion (automatically configured).
 * **Seeding** – seed data from existing tables using Lakeflow native features. 
@@ -273,6 +274,7 @@ Next Steps
 * :doc:`multi_flowgroup_guide` – reduce file proliferation with multiple flowgroups per YAML file.
 * :doc:`templates_reference` – comprehensive guide to creating and using templates with natural YAML syntax.
 * :doc:`databricks_bundles` – integrate with Databricks Asset Bundles for production deployments.
+* :doc:`dependency_analysis` – pipeline dependency analysis and orchestration job generation.
 * :doc:`cicd_reference` – comprehensive CI/CD patterns, deployment strategies, and DataOps best practices.
 * :doc:`cli` – command-line reference.
 
@@ -287,6 +289,7 @@ Next Steps
    templates_reference
    presets_reference
    databricks_bundles
+   dependency_analysis
    cicd_reference
    advanced
    cli

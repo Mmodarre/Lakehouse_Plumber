@@ -34,15 +34,13 @@ def v_region_raw():
 @dp.temporary_view(comment="SQL transform: region_bronze_incremental_cleanse")
 def v_region_bronze_cleaned():
     """SQL transform: region_bronze_incremental_cleanse"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   xxhash64(r_regionkey,r_name,r_comment) as region_key,
   r_regionkey as region_id,
   r_name as name,
   r_comment as comment,
   * EXCEPT(r_regionkey, r_name, r_comment,_rescued_data)
-FROM stream(v_region_raw)"""
-    )
+FROM stream(v_region_raw)""")
 
     return df
 

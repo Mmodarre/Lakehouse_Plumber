@@ -154,6 +154,8 @@ class JobGenerator:
             # Multi-document format
             project_defaults = {}
             job_specific_configs = {}
+            seen_job_names = set()
+            first_seen = {}  # Track which document first defined each job_name
             
             for idx, doc in enumerate(documents):
                 if "project_defaults" in doc:
@@ -163,11 +165,74 @@ class JobGenerator:
                     
                 elif "job_name" in doc:
                     # This is a job-specific config
-                    job_name = doc["job_name"]
+                    job_names_raw = doc["job_name"]
+                    
+                    # Normalize to list (support both string and list)
+                    if isinstance(job_names_raw, str):
+                        job_names = [job_names_raw]
+                    elif isinstance(job_names_raw, list):
+                        job_names = job_names_raw
+                    else:
+                        self.logger.warning(
+                            f"Document {idx+1} has invalid job_name type: {type(job_names_raw)}. "
+                            f"Expected string or list. Skipping."
+                        )
+                        continue
+                    
+                    # Validate non-empty list
+                    if not job_names:
+                        from ...utils.error_formatter import LHPError, ErrorCategory
+                        raise LHPError(
+                            category=ErrorCategory.VALIDATION,
+                            code_number="003",
+                            title="Empty job_name list",
+                            details=(
+                                f"Document {idx+1} in {full_config_path} has an empty job_name list. "
+                                f"At least one job name is required."
+                            ),
+                            suggestions=[
+                                "Add at least one job name to the list",
+                                "Use 'job_name: my_job' for a single job",
+                                "Use 'job_name: [job1, job2]' for multiple jobs"
+                            ]
+                        )
+                    
                     # Extract all fields except job_name
                     job_config = {k: v for k, v in doc.items() if k != "job_name"}
-                    job_specific_configs[job_name] = job_config
-                    self.logger.info(f"Loaded job-specific config for '{job_name}' from document {idx+1}")
+                    
+                    # Process each job_name in the list
+                    for job_name in job_names:
+                        # Validate for duplicates
+                        if job_name in seen_job_names:
+                            from ...utils.error_formatter import LHPError, ErrorCategory
+                            raise LHPError(
+                                category=ErrorCategory.VALIDATION,
+                                code_number="004",
+                                title="Duplicate job_name",
+                                details=(
+                                    f"job_name '{job_name}' in document {idx+1} was already defined "
+                                    f"in document {first_seen[job_name]}. Each job_name must be unique "
+                                    f"across all documents in {full_config_path}."
+                                ),
+                                suggestions=[
+                                    f"Remove the duplicate '{job_name}' from one of the documents",
+                                    "Ensure each job_name appears only once in the entire config file",
+                                    "If you want to override a config, use the same job_name with different values"
+                                ],
+                                context={
+                                    "duplicate_job_name": job_name,
+                                    "first_defined_in_document": first_seen[job_name],
+                                    "duplicate_in_document": idx + 1
+                                }
+                            )
+                        
+                        seen_job_names.add(job_name)
+                        first_seen[job_name] = idx + 1
+                        
+                        # Deep copy config for each job to ensure independence
+                        from copy import deepcopy
+                        job_specific_configs[job_name] = deepcopy(job_config)
+                        self.logger.info(f"Loaded job-specific config for '{job_name}' from document {idx+1}")
                     
                 else:
                     self.logger.warning(
