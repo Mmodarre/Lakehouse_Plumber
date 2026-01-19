@@ -18,8 +18,7 @@ FLOWGROUP_ID = "customer_lifetime_value"
 @dp.temporary_view()
 def v_customer_lifetime_value_sql():
     """SQL source: customer_lifetime_value_sql"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   c.customer_id,
   c.name as customer_name,
   c.market_segment,
@@ -38,8 +37,7 @@ JOIN acme_edw_dev.edw_silver.nation_dim n ON c.nation_id = n.nation_id
   AND o.order_date >= n.__start_at
   AND (o.order_date < n.__end_at OR n.__end_at IS NULL)
 GROUP BY c.customer_id, c.name, c.market_segment, n.name
-"""
-    )
+""")
 
     return df
 

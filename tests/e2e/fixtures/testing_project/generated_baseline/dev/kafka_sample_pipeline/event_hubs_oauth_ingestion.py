@@ -57,8 +57,7 @@ def v_event_hubs_telemetry_raw():
 @dp.temporary_view(comment="Parse Event Hubs binary data to structured format")
 def v_event_hubs_telemetry_parsed():
     """Parse Event Hubs binary data to structured format"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   CAST(key AS STRING) as telemetry_key,
   CAST(value AS STRING) as telemetry_json,
   topic,
@@ -66,8 +65,7 @@ def v_event_hubs_telemetry_parsed():
   offset,
   timestamp as event_hubs_timestamp,
   _processing_timestamp
-FROM stream(v_event_hubs_telemetry_raw)"""
-    )
+FROM stream(v_event_hubs_telemetry_raw)""")
 
     return df
 

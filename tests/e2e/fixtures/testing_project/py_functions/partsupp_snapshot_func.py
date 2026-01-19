@@ -3,7 +3,7 @@ from pyspark.sql import DataFrame
 
 
 def next_snapshot_and_version(
-        latest_snapshot_version: Optional[int]
+    latest_snapshot_version: Optional[int],
 ) -> Optional[Tuple[DataFrame, int]]:
 
     if latest_snapshot_version is None:

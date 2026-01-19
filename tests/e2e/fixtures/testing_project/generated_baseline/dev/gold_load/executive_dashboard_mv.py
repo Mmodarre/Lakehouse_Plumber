@@ -18,8 +18,7 @@ FLOWGROUP_ID = "executive_dashboard_mv"
 @dp.temporary_view()
 def v_monthly_sales_sql():
     """SQL source: monthly_sales_sql"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   year,
   month,
   monthly_revenue,
@@ -29,8 +28,7 @@ def v_monthly_sales_sql():
   LAG(monthly_revenue, 1) OVER (ORDER BY year, month) as prev_month_revenue,
   LAG(monthly_orders, 1) OVER (ORDER BY year, month) as prev_month_orders
 FROM acme_edw_dev.edw_gold.sales_summary_monthly_mv
-"""
-    )
+""")
 
     return df
 
@@ -38,8 +36,7 @@ FROM acme_edw_dev.edw_gold.sales_summary_monthly_mv
 @dp.temporary_view()
 def v_regional_performance_sql():
     """SQL source: regional_performance_sql"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   month,
   COUNT(DISTINCT region_name) as active_regions,
   SUM(region_revenue) as total_regional_revenue,
@@ -48,8 +45,7 @@ def v_regional_performance_sql():
   AVG(region_revenue) as avg_regional_revenue
 FROM acme_edw_dev.edw_gold.revenue_by_region_mv
 GROUP BY month
-"""
-    )
+""")
 
     return df
 
@@ -57,8 +53,7 @@ GROUP BY month
 @dp.temporary_view()
 def v_customer_metrics_sql():
     """SQL source: customer_metrics_sql"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   COUNT(*) as total_customers,
   AVG(lifetime_value) as avg_customer_lifetime_value,
   AVG(total_orders) as avg_orders_per_customer,
@@ -66,8 +61,7 @@ def v_customer_metrics_sql():
   SUM(CASE WHEN total_orders = 1 THEN 1 ELSE 0 END) as one_time_customers,
   SUM(CASE WHEN total_orders > 5 THEN 1 ELSE 0 END) as loyal_customers
 FROM acme_edw_dev.edw_gold.customer_lifetime_value_mv
-"""
-    )
+""")
 
     return df
 
@@ -75,8 +69,7 @@ FROM acme_edw_dev.edw_gold.customer_lifetime_value_mv
 @dp.temporary_view()
 def v_top_products_sql():
     """SQL source: top_products_sql"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   month,
   COUNT(DISTINCT part_id) as active_products,
   SUM(total_revenue) as product_revenue,
@@ -84,8 +77,7 @@ def v_top_products_sql():
   SUM(total_quantity_sold) as total_units_sold
 FROM acme_edw_dev.edw_gold.product_performance_mv
 GROUP BY month
-"""
-    )
+""")
 
     return df
 
@@ -93,8 +85,7 @@ GROUP BY month
 @dp.temporary_view()
 def v_executive_dashboard_mv_sql():
     """SQL source: executive_dashboard_mv_sql"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   ms.year,
   ms.month,
   CONCAT(ms.year, '-', LPAD(ms.month, 2, '0')) as year_month,
@@ -151,8 +142,7 @@ LEFT JOIN v_top_products_sql tp ON ms.year = YEAR(tp.month) AND ms.month = MONTH
 CROSS JOIN v_customer_metrics_sql cm
 WHERE ms.year >= YEAR(add_months(CURRENT_DATE(), -24))
 ORDER BY ms.year, ms.month
-"""
-    )
+""")
 
     return df
 

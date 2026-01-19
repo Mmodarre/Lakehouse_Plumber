@@ -56,8 +56,7 @@ def v_msk_orders_raw():
 @dp.temporary_view(comment="Parse Kafka binary data to structured format")
 def v_msk_orders_parsed():
     """Parse Kafka binary data to structured format"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   CAST(key AS STRING) as order_key,
   CAST(value AS STRING) as order_json,
   topic,
@@ -65,8 +64,7 @@ def v_msk_orders_parsed():
   offset,
   timestamp as kafka_timestamp,
   _processing_timestamp
-FROM stream(v_msk_orders_raw)"""
-    )
+FROM stream(v_msk_orders_raw)""")
 
     return df
 

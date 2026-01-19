@@ -47,8 +47,7 @@ def v_kafka_orders_raw():
 @dp.temporary_view(comment="Deserialize Kafka binary data to strings")
 def v_kafka_orders_deserialized():
     """Deserialize Kafka binary data to strings"""
-    df = spark.sql(
-        """SELECT
+    df = spark.sql("""SELECT
   -- Kafka metadata
   topic,
   partition,
@@ -63,8 +62,7 @@ def v_kafka_orders_deserialized():
   -- Note: For Avro, you would typically use from_avro() function
   -- Example: from_avro(value, avro_schema) as order_data
 
-FROM $source"""
-    )
+FROM $source""")
 
     return df
 
