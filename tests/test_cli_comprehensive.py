@@ -136,35 +136,39 @@ actions:
                 cleanup_logging()
     
     def test_init_command(self, runner):
-        """Test project initialization command."""
+        """Test project initialization command in CWD with bundle default."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_name = "my_new_project"
-            project_path = Path(tmpdir) / project_name
-            
-            # Run init command
-            result = runner.invoke(cli, ['init', str(project_path)])
-            
-            assert result.exit_code == 0
-            assert "Initialized LakehousePlumber project" in result.output
-            assert project_path.exists()
-            
-            # Check created structure
-            assert (project_path / "lhp.yaml").exists()
-            assert (project_path / "presets").exists()
-            assert (project_path / "templates").exists()
-            assert (project_path / "pipelines").exists()
-            assert (project_path / "substitutions").exists()
-            
-            # Check example files were created
-            assert (project_path / "substitutions" / "dev.yaml.tmpl").exists()
-            assert (project_path / "presets" / "bronze_layer.yaml.tmpl").exists()
-    
-    def test_init_existing_directory(self, runner, temp_project):
-        """Test init command on existing directory."""
-        result = runner.invoke(cli, ['init', str(temp_project)])
-        
-        assert result.exit_code != 0
-        assert "already exists" in result.output
+            with runner.isolated_filesystem(temp_dir=Path(tmpdir)):
+                result = runner.invoke(cli, ['init', 'my_new_project'])
+
+                assert result.exit_code == 0
+                assert "Initialized Databricks Asset Bundle project" in result.output
+
+                # Check created structure in CWD
+                assert Path("lhp.yaml").exists()
+                assert Path("presets").exists()
+                assert Path("templates").exists()
+                assert Path("pipelines").exists()
+                assert Path("substitutions").exists()
+
+                # Check example files were created
+                assert Path("substitutions/dev.yaml.tmpl").exists()
+                assert Path("presets/bronze_layer.yaml.tmpl").exists()
+
+                # Bundle files present by default
+                assert Path("databricks.yml").exists()
+                assert Path("resources").exists()
+
+    def test_init_existing_lhp_yaml(self, runner):
+        """Test init command when lhp.yaml already exists."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with runner.isolated_filesystem(temp_dir=Path(tmpdir)):
+                Path("lhp.yaml").write_text("name: existing\n")
+
+                result = runner.invoke(cli, ['init', 'test_project'])
+
+                assert result.exit_code != 0
+                assert "already exists" in result.output
     
     def test_validate_command_success(self, runner, temp_project):
         """Test validate command with valid configuration."""

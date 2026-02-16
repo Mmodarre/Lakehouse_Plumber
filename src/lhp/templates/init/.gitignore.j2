@@ -1,6 +1,8 @@
 # LakehousePlumber
 generated/
+.lhp/
 .lhp_state.json
+*.tmpl
 *.pyc
 __pycache__/
 .pytest_cache/
@@ -12,8 +14,10 @@ build/
 .venv/
 venv/
 
+# Databricks Asset Bundle
+.bundle/
+
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -22,4 +26,4 @@ venv/
 # Secrets
 *.key
 *.pem
-secrets/ 
+secrets/

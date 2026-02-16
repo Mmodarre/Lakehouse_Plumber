@@ -191,11 +191,15 @@ def cli(verbose):
 
 @cli.command()
 @click.argument("project_name")
-@click.option("--bundle", is_flag=True, help="Initialize as a Databricks Asset Bundle project")
-def init(project_name, bundle):
-    """Initialize a new LakehousePlumber project with automatic VS Code IntelliSense setup"""
+@click.option("--no-bundle", is_flag=True, help="Skip Databricks Asset Bundle setup (bundle is enabled by default)")
+def init(project_name, no_bundle):
+    """Initialize a new LakehousePlumber project in the current directory.
+
+    PROJECT_NAME is used for template rendering (e.g. bundle name, lhp.yaml).
+    All files are created in the current working directory.
+    """
     from .commands.init_command import InitCommand
-    InitCommand().execute(project_name, bundle)
+    InitCommand().execute(project_name, bundle=not no_bundle)
 
 
 @cli.command()

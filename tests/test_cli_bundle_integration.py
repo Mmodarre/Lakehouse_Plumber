@@ -139,173 +139,148 @@ class TestCLIInitBundleCommand:
         self.temp_dir = windows_safe_tempdir
         self.runner = CliRunner()
 
-    def test_init_bundle_creates_bundle_structure(self):
-        """Should create bundle project structure with --bundle flag."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            result = self.runner.invoke(cli, ['init', '--bundle', 'test_bundle_project'])
-            
+    def test_init_creates_bundle_structure_by_default(self):
+        """Should create bundle project structure by default (no flag needed)."""
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            result = self.runner.invoke(cli, ['init', 'test_bundle_project'])
+
             assert result.exit_code == 0
-            
-            project_path = self.temp_dir / "test_bundle_project"
-            
-            # Verify standard LHP files exist
-            assert (project_path / "lhp.yaml").exists()
-            assert (project_path / "substitutions").exists()
-            assert (project_path / "pipelines").exists()
-            
-            # Verify bundle-specific files exist
-            assert (project_path / "databricks.yml").exists()
-            assert (project_path / "resources").exists()
-            
+
+            # Verify standard LHP files exist in CWD
+            assert Path("lhp.yaml").exists()
+            assert Path("substitutions").exists()
+            assert Path("pipelines").exists()
+
+            # Verify bundle-specific files exist in CWD
+            assert Path("databricks.yml").exists()
+            assert Path("resources").exists()
+
             # Verify databricks.yml content
-            bundle_content = yaml.safe_load((project_path / "databricks.yml").read_text())
+            bundle_content = yaml.safe_load(Path("databricks.yml").read_text())
             assert "bundle" in bundle_content
             assert bundle_content["bundle"]["name"] == "test_bundle_project"
+            assert "uuid" in bundle_content["bundle"]
 
-    def test_init_without_bundle_flag_creates_standard_project(self):
-        """Should create standard project without bundle files when no --bundle flag."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            result = self.runner.invoke(cli, ['init', 'test_standard_project'])
-            
+    def test_init_no_bundle_creates_standard_project(self):
+        """Should create standard project without bundle files with --no-bundle."""
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            result = self.runner.invoke(cli, ['init', '--no-bundle', 'test_standard_project'])
+
             assert result.exit_code == 0
-            
-            project_path = self.temp_dir / "test_standard_project"
-            
-            # Verify standard LHP files exist
-            assert (project_path / "lhp.yaml").exists()
-            assert (project_path / "substitutions").exists()
-            
-            # Verify bundle files do NOT exist
-            assert not (project_path / "databricks.yml").exists()
-            assert not (project_path / "resources").exists()
 
-    def test_init_bundle_help_text(self):
-        """Should display help text for --bundle flag in init command."""
+            # Verify standard LHP files exist in CWD
+            assert Path("lhp.yaml").exists()
+            assert Path("substitutions").exists()
+
+            # Verify bundle files do NOT exist
+            assert not Path("databricks.yml").exists()
+            assert not Path("resources").exists()
+
+    def test_init_no_bundle_help_text(self):
+        """Should display help text for --no-bundle flag in init command."""
         result = self.runner.invoke(cli, ['init', '--help'])
-        
+
         assert result.exit_code == 0
-        assert '--bundle' in result.output
+        assert '--no-bundle' in result.output
         assert 'bundle' in result.output.lower()
 
     def test_init_bundle_integrates_with_template_fetcher(self):
         """Should use template fetcher to create bundle files."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-
-            result = self.runner.invoke(cli, ['init', '--bundle', 'test_template_project'])
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            result = self.runner.invoke(cli, ['init', 'test_template_project'])
 
             assert result.exit_code == 0
 
             # Verify bundle files were created using local template processing
-            project_path = self.temp_dir / "test_template_project"
-            assert (project_path / "databricks.yml").exists()
-            assert (project_path / "resources").exists()
-            
+            assert Path("databricks.yml").exists()
+            assert Path("resources").exists()
+
             # Verify template processing worked (project name substitution)
-            content = (project_path / "databricks.yml").read_text()
+            content = Path("databricks.yml").read_text()
             assert "name: test_template_project" in content
 
-    def test_init_bundle_handles_existing_directory_error(self):
-        """Should handle error when directory already exists."""
-        existing_project = self.temp_dir / "existing_project"
-        existing_project.mkdir()
-        
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            result = self.runner.invoke(cli, ['init', '--bundle', 'existing_project'])
-            
+    def test_init_handles_existing_lhp_yaml_error(self):
+        """Should handle error when lhp.yaml already exists."""
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            Path("lhp.yaml").write_text("name: existing\n")
+
+            result = self.runner.invoke(cli, ['init', 'existing_project'])
+
             assert result.exit_code == 1
             assert "already exists" in result.output
 
     def test_init_bundle_handles_template_processing_errors(self):
         """Should handle template processing errors gracefully."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
             # This test verifies that the init command can handle basic scenarios
             # Since we're using local templates, most errors would be file permission issues
-            result = self.runner.invoke(cli, ['init', '--bundle', 'test_error_project'])
+            result = self.runner.invoke(cli, ['init', 'test_error_project'])
 
             # Should create project successfully with local template
             assert result.exit_code == 0
 
-            project_path = self.temp_dir / "test_error_project"
-            assert (project_path / "databricks.yml").exists()
-            assert (project_path / "resources").exists()
+            assert Path("databricks.yml").exists()
+            assert Path("resources").exists()
 
     def test_init_bundle_creates_resources_directory(self):
         """Should create resources/lhp directory for bundle resource files."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            result = self.runner.invoke(cli, ['init', '--bundle', 'test_resources_project'])
-            
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            result = self.runner.invoke(cli, ['init', 'test_resources_project'])
+
             assert result.exit_code == 0
-            
-            project_path = self.temp_dir / "test_resources_project"
-            resources_dir = project_path / "resources"
-            resources_lhp_dir = project_path / "resources" / "lhp"
-            
-            assert resources_dir.exists()
-            assert resources_dir.is_dir()
-            assert resources_lhp_dir.exists()
-            assert resources_lhp_dir.is_dir()
+
+            assert Path("resources").exists()
+            assert Path("resources").is_dir()
+            assert Path("resources/lhp").exists()
+            assert Path("resources/lhp").is_dir()
 
     def test_init_bundle_uses_local_template_no_network(self):
         """Should create bundle files using local template without network calls."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
             # Mock network to ensure no network calls are made
             with patch('requests.get') as mock_get:
-                result = self.runner.invoke(cli, ['init', '--bundle', 'local_template_project'])
-                
+                result = self.runner.invoke(cli, ['init', 'local_template_project'])
+
                 # Should succeed without any network calls
                 assert result.exit_code == 0
                 mock_get.assert_not_called()
-                
-                project_path = self.temp_dir / "local_template_project"
-                
-                # Verify bundle files created locally
-                assert (project_path / "databricks.yml").exists()
-                assert (project_path / "resources").exists()
-                
+
+                # Verify bundle files created locally in CWD
+                assert Path("databricks.yml").exists()
+                assert Path("resources").exists()
+
                 # Verify databricks.yml contains correct project name
-                content = (project_path / "databricks.yml").read_text()
+                content = Path("databricks.yml").read_text()
                 assert "name: local_template_project" in content
-                
+
     def test_init_bundle_template_content_accuracy(self):
-        """Should generate databricks.yml with accurate template content."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            result = self.runner.invoke(cli, ['init', '--bundle', 'template_accuracy_test'])
-            
+        """Should generate databricks.yml with accurate template content including UUID."""
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            result = self.runner.invoke(cli, ['init', 'template_accuracy_test'])
+
             assert result.exit_code == 0
-            
-            project_path = self.temp_dir / "template_accuracy_test"
-            databricks_yml = project_path / "databricks.yml"
-            
-            assert databricks_yml.exists()
-            content = databricks_yml.read_text()
-            
+
+            content = Path("databricks.yml").read_text()
+
             # Check essential template elements
             assert "bundle:" in content
             assert "name: template_accuracy_test" in content
+            assert "uuid:" in content
             assert "include:" in content
             assert "resources/*.yml" in content  # User-managed resources
-            assert "resources/lhp/*.yml" in content  # Root-level LHP resources (new behavior)
+            assert "resources/lhp/*.yml" in content  # Root-level LHP resources
             assert "targets:" in content
             assert "dev:" in content
             assert "prod:" in content
             assert "mode: development" in content
             assert "mode: production" in content
-            
+
+            # Verify UUID format
+            import re
+            uuid_match = re.search(r'uuid:\s+([0-9a-f-]+)', content)
+            assert uuid_match, "UUID not found in databricks.yml"
+            assert len(uuid_match.group(1)) == 36  # Standard UUID length
+
     def test_init_bundle_with_special_project_names(self):
         """Should handle special characters in project names correctly."""
         special_names = [
@@ -313,34 +288,24 @@ class TestCLIInitBundleCommand:
             "project_with_underscores",
             "MixedCaseProject"
         ]
-        
+
         for project_name in special_names:
-            with self.runner.isolated_filesystem():
-                os.chdir(str(self.temp_dir))
-                
-                result = self.runner.invoke(cli, ['init', '--bundle', project_name])
-                
+            with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+                result = self.runner.invoke(cli, ['init', project_name])
+
                 assert result.exit_code == 0, f"Failed for project name: {project_name}"
-                
-                project_path = self.temp_dir / project_name
-                databricks_yml = project_path / "databricks.yml"
-                
-                assert databricks_yml.exists()
-                content = databricks_yml.read_text()
+
+                content = Path("databricks.yml").read_text()
                 assert f"name: {project_name}" in content
 
     def test_init_bundle_complete_project_structure(self):
-        """Should create complete LHP + Bundle project structure."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            result = self.runner.invoke(cli, ['init', '--bundle', 'complete_structure_test'])
-            
+        """Should create complete LHP + Bundle project structure in CWD."""
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            result = self.runner.invoke(cli, ['init', 'complete_structure_test'])
+
             assert result.exit_code == 0
-            
-            project_path = self.temp_dir / "complete_structure_test"
-            
-            # Verify complete directory structure
+
+            # Verify complete directory structure in CWD
             expected_structure = [
                 "lhp.yaml",                    # LHP project config
                 "databricks.yml",              # Bundle config
@@ -351,61 +316,50 @@ class TestCLIInitBundleCommand:
                 "presets",                     # LHP presets directory
                 "templates"                    # LHP templates directory
             ]
-            
+
             for path in expected_structure:
-                full_path = project_path / path
-                assert full_path.exists(), f"Missing: {path}"
-                
+                assert Path(path).exists(), f"Missing: {path}"
+
             # Verify directories are actually directories
             directory_paths = ["substitutions", "pipelines", "resources", "presets", "templates"]
             for dir_path in directory_paths:
-                full_path = project_path / dir_path
-                assert full_path.is_dir(), f"Not a directory: {dir_path}"
-                
+                assert Path(dir_path).is_dir(), f"Not a directory: {dir_path}"
+
     def test_init_bundle_preserves_lhp_content(self):
         """Should preserve LHP-specific file contents when adding bundle support."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            result = self.runner.invoke(cli, ['init', '--bundle', 'lhp_content_test'])
-            
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            result = self.runner.invoke(cli, ['init', 'lhp_content_test'])
+
             assert result.exit_code == 0
-            
-            project_path = self.temp_dir / "lhp_content_test"
-            
+
             # Verify LHP config content
-            lhp_config = yaml.safe_load((project_path / "lhp.yaml").read_text())
+            lhp_config = yaml.safe_load(Path("lhp.yaml").read_text())
             assert lhp_config["name"] == "lhp_content_test"
             assert "version" in lhp_config
-            
+
             # Create dev.yaml for testing by copying the template
             import shutil
-            shutil.copy(str(project_path / "substitutions" / "dev.yaml.tmpl"), 
-                       str(project_path / "substitutions" / "dev.yaml"))
-            
+            shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
+
             # Verify substitution file content
-            dev_subs = yaml.safe_load((project_path / "substitutions" / "dev.yaml").read_text())
+            dev_subs = yaml.safe_load(Path("substitutions/dev.yaml").read_text())
             assert "dev" in dev_subs  # Should have dev environment section
             assert "catalog" in dev_subs["dev"]  # Should have standard substitution variables
-            
+
     def test_init_bundle_resources_directory_empty(self):
         """Should create empty resources/lhp directory for bundle resource files."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            result = self.runner.invoke(cli, ['init', '--bundle', 'empty_resources_test'])
-            
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            result = self.runner.invoke(cli, ['init', 'empty_resources_test'])
+
             assert result.exit_code == 0
-            
-            project_path = self.temp_dir / "empty_resources_test"
-            resources_dir = project_path / "resources"
-            resources_lhp_dir = project_path / "resources" / "lhp"
-            
-            assert resources_dir.exists()
-            assert resources_dir.is_dir()
+
+            resources_lhp_dir = Path("resources/lhp")
+
+            assert Path("resources").exists()
+            assert Path("resources").is_dir()
             assert resources_lhp_dir.exists()
             assert resources_lhp_dir.is_dir()
-            
+
             # LHP subdirectory should be empty initially
             lhp_contents = list(resources_lhp_dir.iterdir())
             assert len(lhp_contents) == 0, f"LHP resources directory should be empty, found: {lhp_contents}"
@@ -629,32 +583,27 @@ class TestCLIBundleErrorHandling:
 
     def test_init_bundle_validates_project_name(self):
         """Should validate project name for bundle initialization."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
             # Test with invalid project name characters
-            result = self.runner.invoke(cli, ['init', '--bundle', 'invalid/project/name'])
-            
+            result = self.runner.invoke(cli, ['init', 'invalid/project/name'])
+
             # Should handle invalid characters appropriately
             # Implementation may vary - could create directory or reject
 
     def test_init_bundle_works_offline(self):
         """Should work offline using local templates."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
             # Since we're using local templates, no network is required
-            result = self.runner.invoke(cli, ['init', '--bundle', 'test_offline_project'])
+            result = self.runner.invoke(cli, ['init', 'test_offline_project'])
 
             # Should create project successfully without any network calls
             assert result.exit_code == 0
 
-            project_path = self.temp_dir / "test_offline_project"
-            assert (project_path / "databricks.yml").exists()
-            assert (project_path / "resources").exists()
-            
+            assert Path("databricks.yml").exists()
+            assert Path("resources").exists()
+
             # Verify project name was processed correctly in template
-            content = (project_path / "databricks.yml").read_text()
+            content = Path("databricks.yml").read_text()
             assert "name: test_offline_project" in content
 
 
@@ -669,25 +618,18 @@ class TestCLIBundleIntegrationEndToEnd:
 
     def test_complete_bundle_workflow(self):
         """Test complete workflow: init bundle project, add pipeline, generate with bundle sync."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            # Step 1: Initialize bundle project
-            result = self.runner.invoke(cli, ['init', '--bundle', 'test_workflow'])
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            # Step 1: Initialize bundle project (default)
+            result = self.runner.invoke(cli, ['init', 'test_workflow'])
             assert result.exit_code == 0
-            
-            project_path = self.temp_dir / "test_workflow"
-            assert (project_path / "databricks.yml").exists()
-            
+            assert Path("databricks.yml").exists()
+
             # Step 2: Add a pipeline configuration
-            os.chdir(str(project_path))
-            
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
-            
-            pipeline_file = project_path / "pipelines" / "test_pipeline.yaml"
-            pipeline_file.write_text("""pipeline: test_pipeline
+
+            Path("pipelines/test_pipeline.yaml").write_text("""pipeline: test_pipeline
 flowgroup: test_pipeline
 actions:
   - name: test_load
@@ -705,31 +647,27 @@ actions:
       database: "{catalog}.{bronze_schema}"
       table: test_table
 """)
-            
+
             # Step 3: Generate with bundle sync (dry run)
             result = self.runner.invoke(cli, [
                 'generate', '--env', 'dev', '--dry-run'
             ])
-            
+
             # Should complete successfully
             assert result.exit_code == 0
 
     def test_bundle_sync_integration_with_multiple_pipelines(self):
         """Test bundle sync with multiple pipelines."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
             # Initialize project
-            result = self.runner.invoke(cli, ['init', '--bundle', 'multi_pipeline_project'])
-            project_path = self.temp_dir / "multi_pipeline_project"
-            os.chdir(str(project_path))
-            
+            result = self.runner.invoke(cli, ['init', 'multi_pipeline_project'])
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
-            
+
             # Add multiple pipelines
-            (project_path / "pipelines" / "raw.yaml").write_text("""pipeline: raw
+            Path("pipelines/raw.yaml").write_text("""pipeline: raw
 flowgroup: raw
 actions:
   - name: customer_load
@@ -747,7 +685,7 @@ actions:
       database: "{catalog}.{bronze_schema}"
       table: customer
 """)
-            (project_path / "pipelines" / "bronze.yaml").write_text("""pipeline: bronze
+            Path("pipelines/bronze.yaml").write_text("""pipeline: bronze
 flowgroup: bronze
 actions:
   - name: customer_bronze_load
@@ -765,32 +703,28 @@ actions:
       database: "{catalog}.{silver_schema}"
       table: customer
 """)
-            
+
             # Generate with bundle sync
             result = self.runner.invoke(cli, [
                 '--verbose', 'generate', '--env', 'dev', '--dry-run'
             ])
-            
+
             # Should complete successfully with bundle sync
             assert result.exit_code == 0
             assert "Bundle support detected" in result.output
 
     def test_no_bundle_flag_overrides_bundle_project(self):
         """Test that --no-bundle flag works even in bundle projects."""
-        with self.runner.isolated_filesystem():
-            os.chdir(str(self.temp_dir))
-            
-            # Initialize bundle project
-            result = self.runner.invoke(cli, ['init', '--bundle', 'bundle_override_test'])
-            project_path = self.temp_dir / "bundle_override_test"
-            os.chdir(str(project_path))
-            
+        with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
+            # Initialize bundle project (default)
+            result = self.runner.invoke(cli, ['init', 'bundle_override_test'])
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
-            
+
             # Add pipeline
-            (project_path / "pipelines" / "test.yaml").write_text("""pipeline: test
+            Path("pipelines/test.yaml").write_text("""pipeline: test
 flowgroup: test
 actions:
   - name: test_load
@@ -808,10 +742,10 @@ actions:
       database: "{catalog}.{bronze_schema}"
       table: test_table
 """)
-            
+
             # Generate with --no-bundle should work
             result = self.runner.invoke(cli, [
                 'generate', '--env', 'dev', '--no-bundle', '--dry-run'
             ])
-            
+
             assert result.exit_code == 0 

@@ -91,7 +91,8 @@ class InitTemplateLoader:
                 'project_name': context.project_name,
                 'current_date': context.current_date,
                 'author': context.author,
-                'bundle_enabled': context.bundle_enabled
+                'bundle_enabled': context.bundle_enabled,
+                'bundle_uuid': context.bundle_uuid,
             }
             
             return template.render(**context_dict)

@@ -31,36 +31,53 @@ class TestCLI:
         assert expected_version in result.output
     
     def test_init_command(self, runner, temp_project):
-        """Test project initialization."""
+        """Test project initialization in CWD with bundle as default."""
         project_name = "test_project"
-        
+
         with runner.isolated_filesystem(temp_dir=temp_project):
             result = runner.invoke(cli, ['init', project_name])
-            
+
+            assert result.exit_code == 0
+            assert "✅ Initialized Databricks Asset Bundle project" in result.output
+
+            # Check project structure created in CWD
+            assert Path("lhp.yaml").exists()
+            assert Path("pipelines").exists()
+            assert Path("presets").exists()
+            assert Path("templates").exists()
+            assert Path("substitutions").exists()
+            assert Path("substitutions/dev.yaml.tmpl").exists()
+            assert Path("README.md").exists()
+            assert Path(".gitignore").exists()
+            # Bundle files present by default
+            assert Path("databricks.yml").exists()
+            assert Path("resources").exists()
+
+    def test_init_existing_lhp_yaml(self, runner, temp_project):
+        """Test init when lhp.yaml already exists in CWD."""
+        with runner.isolated_filesystem(temp_dir=temp_project):
+            Path("lhp.yaml").write_text("name: existing\n")
+
+            result = runner.invoke(cli, ['init', 'test_project'])
+
+            assert result.exit_code == 1
+            assert "already exists" in result.output
+
+    def test_init_no_bundle(self, runner, temp_project):
+        """Test init with --no-bundle flag skips bundle files."""
+        with runner.isolated_filesystem(temp_dir=temp_project):
+            result = runner.invoke(cli, ['init', '--no-bundle', 'test_project'])
+
             assert result.exit_code == 0
             assert "✅ Initialized LakehousePlumber project" in result.output
-            
-            # Check project structure
-            project_path = Path(project_name)
-            assert project_path.exists()
-            assert (project_path / "lhp.yaml").exists()
-            assert (project_path / "pipelines").exists()
-            assert (project_path / "presets").exists()
-            assert (project_path / "templates").exists()
-            assert (project_path / "substitutions").exists()
-            assert (project_path / "substitutions" / "dev.yaml.tmpl").exists()
-            assert (project_path / "README.md").exists()
-            assert (project_path / ".gitignore").exists()
-    
-    def test_init_existing_directory(self, runner, temp_project):
-        """Test init with existing directory."""
-        with runner.isolated_filesystem(temp_dir=temp_project):
-            Path("existing_project").mkdir()
-            
-            result = runner.invoke(cli, ['init', 'existing_project'])
-            
-            assert result.exit_code == 1
-            assert "❌ Directory existing_project already exists" in result.output
+
+            # Standard files present
+            assert Path("lhp.yaml").exists()
+            assert Path("pipelines").exists()
+
+            # Bundle files NOT present
+            assert not Path("databricks.yml").exists()
+            assert not Path("resources").exists()
     
     def test_validate_not_in_project(self, runner):
         """Test validate when not in a project directory."""
@@ -72,20 +89,16 @@ class TestCLI:
     def test_validate_empty_project(self, runner, temp_project):
         """Test validate with empty project."""
         with runner.isolated_filesystem(temp_dir=temp_project):
-            # Initialize project
+            # Initialize project in CWD
             runner.invoke(cli, ['init', 'test_project'])
-            
-            # Change to project directory
-            import os
-            os.chdir('test_project')
-            
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
-            
+
             # Run validate
             result = runner.invoke(cli, ['validate'])
-            
+
             assert result.exit_code == 1
             assert "❌ No flowgroups found in project" in result.output
 
@@ -93,10 +106,7 @@ class TestCLI:
         """Test stats command with non-existent pipeline."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
-            import os
-            os.chdir('test_project')
-            
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
@@ -134,21 +144,12 @@ class TestCLI:
         """Test bundle sync detection in dry-run mode."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
-            import os
-            os.chdir('test_project')
-            
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
-            
-            # Create databricks.yml to enable bundle support
-            databricks_yml_content = """
-bundle:
-  name: test_bundle
-"""
-            with open("databricks.yml", 'w') as f:
-                f.write(databricks_yml_content)
+
+            # databricks.yml already created by default bundle init
             
             # Create a pipeline
             pipeline_dir = Path("pipelines/test_pipeline")
@@ -195,9 +196,6 @@ bundle:
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
             
-            import os
-            os.chdir('test_project')
-            
             # Create malformed lhp.yaml
             with open("lhp.yaml", 'w') as f:
                 f.write("name: test\nversion: 1.0\ninvalid_yaml: [unclosed list")
@@ -219,12 +217,9 @@ bundle:
     def test_validate_with_pipeline(self, runner, temp_project):
         """Test validate with a valid pipeline."""
         with runner.isolated_filesystem(temp_dir=temp_project):
-            # Initialize project
+            # Initialize project in CWD
             runner.invoke(cli, ['init', 'test_project'])
-    
-            import os
-            os.chdir('test_project')
-            
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
@@ -275,10 +270,7 @@ bundle:
         """Test list-presets command."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
-            import os
-            os.chdir('test_project')
-            
+
             result = runner.invoke(cli, ['list-presets'])
             
             assert result.exit_code == 0
@@ -289,10 +281,7 @@ bundle:
         """Test list-templates command."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
-            import os
-            os.chdir('test_project')
-            
+
             result = runner.invoke(cli, ['list-templates'])
             
             assert result.exit_code == 0
@@ -303,10 +292,7 @@ bundle:
         """Test generate command with dry-run."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-    
-            import os
-            os.chdir('test_project')
-            
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
@@ -356,10 +342,7 @@ bundle:
         """Test generate command with --force flag."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-    
-            import os
-            os.chdir('test_project')
-            
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
@@ -408,12 +391,9 @@ bundle:
         """Test show command."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
-            import os
-            import shutil
-            os.chdir('test_project')
-            
+
             # Copy template to actual substitution file
+            import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
             
             # Create a pipeline with flowgroup
@@ -462,10 +442,7 @@ bundle:
         """Test validate with secret references."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-    
-            import os
-            os.chdir('test_project')
-            
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
@@ -588,10 +565,7 @@ description = "Test package"
         """Test list-templates command with no template files."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
-            import os
-            os.chdir('test_project')
-            
+
             # Remove all template files from the templates directory
             templates_dir = Path("templates")
             if templates_dir.exists():
@@ -611,10 +585,7 @@ description = "Test package"
         """Test list-presets command with no preset files."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
-            import os
-            os.chdir('test_project')
-            
+
             # Remove all preset files from the presets directory
             presets_dir = Path("presets")
             if presets_dir.exists():
@@ -634,10 +605,7 @@ description = "Test package"
         """Test generate command when no flowgroups found in project."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ['init', 'test_project'])
-            
-            import os
-            os.chdir('test_project')
-            
+
             # Create dev.yaml for testing by copying the template
             import shutil
             shutil.copy('substitutions/dev.yaml.tmpl', 'substitutions/dev.yaml')
