@@ -48,6 +48,9 @@ resources:
       
       configuration:
         bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
+{% for key, value in pipeline_config.get('configuration', {}).items() if key != 'bundle.sourcePath' %}
+        {{ key }}: "{{ value }}"
+{% endfor %}
 {%- if pipeline_config.get('continuous') %}
       
       continuous: {{ pipeline_config.continuous | lower }}
@@ -151,6 +154,12 @@ resources:
       # environment:
       #   dependencies:
       #     - "msal==1.31.0"
+
+      # Pipeline-level Spark/DLT configuration
+      # All values must be quoted strings
+      # configuration:
+      #   "pipelines.incompatibleViewCheck.enabled": "false"
+      #   "spark.databricks.delta.minFileSize": "134217728"
 
       # permissions:
       #   - service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d

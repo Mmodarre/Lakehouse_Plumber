@@ -388,6 +388,9 @@ Create a multi-document YAML file with project-level defaults and per-pipeline o
    * - ``environment``
      - dict
      - Runtime environment config (dependencies, etc.). Passed through as-is to Databricks.
+   * - ``configuration``
+     - dict
+     - Pipeline-level Spark/DLT configuration key-value pairs. All values must be strings.
 
 **Usage**
 
@@ -488,6 +491,50 @@ as-is to the generated bundle resource.
    The ``environment`` section supports LHP token substitution just like all other
    pipeline config fields. For example, you can use ``"msal=={msal_version}"`` and
    define ``msal_version`` in your ``substitutions/{env}.yaml`` files.
+
+Pipeline Configuration Entries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Databricks DLT pipelines support a ``configuration`` block for setting pipeline-level
+Spark and DLT configuration properties (e.g., ``pipelines.incompatibleViewCheck.enabled``).
+LHP renders user-defined configuration entries alongside the mandatory ``bundle.sourcePath``
+entry in the generated bundle resource.
+
+**Input Configuration**
+
+.. code-block:: yaml
+   :caption: config/pipeline_config.yaml
+
+   ---
+   pipeline: my_pipeline
+   catalog: "{catalog}"
+   schema: "{schema}"
+   serverless: true
+   configuration:
+     "pipelines.incompatibleViewCheck.enabled": "false"
+     "spark.databricks.delta.minFileSize": "134217728"
+
+**Generated Output**
+
+.. code-block:: yaml
+   :caption: resources/lhp/my_pipeline.pipeline.yml (excerpt)
+
+   configuration:
+     bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
+     pipelines.incompatibleViewCheck.enabled: "false"
+     spark.databricks.delta.minFileSize: "134217728"
+
+.. note::
+   The ``configuration`` section supports LHP token substitution just like all other
+   pipeline config fields. For example, you can use ``"{min_file_size}"`` and
+   define ``min_file_size`` in your ``substitutions/{env}.yaml`` files.
+
+.. warning::
+   - The ``bundle.sourcePath`` entry is managed by LHP and cannot be overridden.
+     If included in user configuration, it will be silently ignored.
+   - All configuration values **must be quoted strings** in the YAML input.
+     Unquoted booleans (``false``) or numbers (``134217728``) will be rejected
+     during validation.
 
 Job Configuration
 ~~~~~~~~~~~~~~~~~

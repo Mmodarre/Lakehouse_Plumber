@@ -6,6 +6,8 @@ project_defaults:
   #environment:
   #  dependencies:
   #    - "msal=={msal_version}"
+  #configuration:
+  #  "pipelines.incompatibleViewCheck.enabled": "false"
 
 
 ---
@@ -63,4 +65,24 @@ pipeline: env_deps_inherited
 catalog: "{catalog}"
 schema: "{raw_schema}"
 
+---
+# Configuration block E2E test pipelines
+pipeline: config_basic
+catalog: "{catalog}"
+schema: "{raw_schema}"
+#configuration:
+#  "pipelines.incompatibleViewCheck.enabled": "false"
+#  "spark.databricks.delta.minFileSize": "134217728"
 
+---
+pipeline: config_substitution
+catalog: "{catalog}"
+schema: "{raw_schema}"
+#configuration:
+#  "spark.databricks.delta.minFileSize": "{min_file_size}"
+
+---
+# Pipeline with no configuration — inherits from project_defaults when uncommented there
+pipeline: config_inherited
+catalog: "{catalog}"
+schema: "{raw_schema}"
