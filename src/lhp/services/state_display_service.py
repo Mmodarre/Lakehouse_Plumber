@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 from ..core.state_manager import StateManager
-from ..utils.error_handler import ErrorHandler
 
 
 class StateDisplayService:
@@ -37,7 +36,6 @@ class StateDisplayService:
         self.project_root = project_root
         self.verbose = verbose
         self.log_file = log_file
-        self.error_handler = ErrorHandler(verbose)
 
     def get_overall_stats(self) -> Dict[str, Any]:
         """Get overall state statistics across all environments.
@@ -168,11 +166,7 @@ class StateDisplayService:
         Returns:
             List of deleted file paths
         """
-        try:
-            return self.state_manager.cleanup_orphaned_files(env, dry_run=dry_run)
-        except Exception as e:
-            # Use existing error handling framework
-            raise self.error_handler.handle_file_error(e, "orphaned files", "cleanup")
+        return self.state_manager.cleanup_orphaned_files(env, dry_run=dry_run)
 
     def regenerate_stale_files(
         self, env: str, stale_files: List[Any], dry_run: bool = False
@@ -202,31 +196,20 @@ class StateDisplayService:
             by_pipeline[file_state.pipeline].append(file_state)
 
         for pipeline_name, files in by_pipeline.items():
-            try:
-                output_dir = self.project_root / "generated" / pipeline_name
-                # Use generate_pipeline_by_field for consistent Python file handling
-                generated_files = orchestrator.generate_pipeline_by_field(
-                    pipeline_field=pipeline_name,
-                    env=env,
-                    output_dir=output_dir,
-                    state_manager=self.state_manager,
+            output_dir = self.project_root / "generated" / pipeline_name
+            # Use generate_pipeline_by_field for consistent Python file handling
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field=pipeline_name,
+                env=env,
+                output_dir=output_dir,
+                state_manager=self.state_manager,
+            )
+            regenerated_count += len(generated_files)
+
+            if self.verbose:
+                logger.info(
+                    f"Regenerated {len(generated_files)} file(s) for {pipeline_name}"
                 )
-                regenerated_count += len(generated_files)
-
-                # Log success
-                if self.verbose:
-                    self.error_handler.logger.info(
-                        f"Regenerated {len(generated_files)} file(s) for {pipeline_name}"
-                    )
-
-            except Exception as e:
-                # Use existing error handling framework
-                error_handler = ErrorHandler(self.verbose)
-                error_handler.with_pipeline_context(
-                    pipeline_name, env
-                ).handle_cli_error(e, f"Regeneration for pipeline '{pipeline_name}'")
-                # Re-raise to let CLI handle the display
-                raise
 
         return regenerated_count
 

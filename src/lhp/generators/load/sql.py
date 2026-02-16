@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import ErrorFormatter
 from ...utils.external_file_loader import load_external_file_text
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,15 @@ class SQLLoadGenerator(BaseActionGenerator):
                 source_config, context.get("spec_dir"), context
             )
         else:
-            raise ValueError("SQL source must be a string or configuration object")
+            raise ErrorFormatter.invalid_source_format(
+                action_name=action.name,
+                action_type="sql load",
+                expected_formats=[
+                    "A string containing inline SQL: source: 'SELECT * FROM table'",
+                    "A configuration object with 'sql' or 'sql_path': source:\n  sql: 'SELECT * FROM table'",
+                    "A configuration object with sql_path: source:\n  sql_path: 'queries/my_query.sql'",
+                ],
+            )
 
         # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
@@ -76,7 +85,16 @@ class SQLLoadGenerator(BaseActionGenerator):
                 source_config["sql_path"], project_root, file_type="SQL file"
             ).strip()
         else:
-            raise ValueError("SQL source must have 'sql' or 'sql_path'")
+            raise ErrorFormatter.missing_required_field(
+                field_name="sql/sql_path",
+                component_type="SQL load action",
+                component_name="sql source config",
+                field_description="SQL source configuration must specify either inline 'sql' or an external 'sql_path'.",
+                example_config="""source:
+  sql: | "SELECT * FROM my_table"
+  # OR
+  sql_path: "queries/my_query.sql" """,
+            )
 
         # Apply substitutions to the SQL content if substitution_manager is available
         if context and "substitution_manager" in context:

@@ -6,7 +6,8 @@ from pathlib import Path
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter
+from ...utils.error_formatter import ErrorFormatter, LHPFileError, LHPValidationError
+from ...utils.error_formatter import ErrorCategory
 
 
 class CustomDataSourceLoadGenerator(BaseActionGenerator):
@@ -54,7 +55,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
                 )
                 return class_name  # Fallback to class name
 
-        except Exception as e:
+        except (re.error, AttributeError, IndexError) as e:
             self.logger.warning(
                 f"Error extracting format name from {class_name}: {e}, using class name as fallback"
             )
@@ -65,7 +66,14 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         # Extract configuration from source (following cloudfiles pattern)
         source_config = action.source
         if isinstance(source_config, str):
-            raise ValueError("Custom data source must be a configuration object")
+            raise ErrorFormatter.invalid_source_format(
+                action_name=action.name,
+                action_type="custom_datasource",
+                expected_formats=[
+                    "A configuration object (dict) with 'module_path' and 'custom_datasource_class'",
+                    "source:\n  type: custom_datasource\n  module_path: 'path/to/source.py'\n  custom_datasource_class: 'MyDataSource'",
+                ],
+            )
         self.logger.debug(
             f"Generating custom datasource load for target '{action.target}', action '{action.name}'"
         )
@@ -122,7 +130,13 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         source_path = project_root / module_path
 
         if not source_path.exists():
-            raise FileNotFoundError(f"Custom data source file not found: {source_path}")
+            raise ErrorFormatter.file_not_found(
+                file_path=str(source_path),
+                search_locations=[
+                    f"Relative to project root: {project_root / module_path}",
+                ],
+                file_type="custom data source file",
+            )
 
         raw_source_code = source_path.read_text()
         self.source_file_path = Path(module_path).as_posix()

@@ -137,14 +137,10 @@ class StateCommand(BaseCommand):
         )
 
         if regen and stale_files and not dry_run:
-            try:
-                regenerated_count = service.regenerate_stale_files(
-                    env, stale_files, dry_run
-                )
-                StateDisplayUtils.display_regeneration_results(regenerated_count)
-            except Exception as e:
-                logger.debug(f"Regeneration error (handled by service layer): {e}")
-                pass
+            regenerated_count = service.regenerate_stale_files(
+                env, stale_files, dry_run
+            )
+            StateDisplayUtils.display_regeneration_results(regenerated_count)
 
     def _handle_new_files_operation(
         self,

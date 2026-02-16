@@ -7,6 +7,12 @@ from typing import Optional
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPFileError,
+    LHPValidationError,
+)
 from .python_file_copier import PythonFunctionConflictError
 
 logger = logging.getLogger(__name__)
@@ -40,9 +46,35 @@ class PythonTransformGenerator(BaseActionGenerator):
                 parameters = substitution_mgr.substitute_yaml(parameters)
 
         if not module_path:
-            raise ValueError("Python transform must have 'module_path'")
+            raise ErrorFormatter.missing_required_field(
+                field_name="module_path",
+                component_type="Python transform action",
+                component_name=action.name,
+                field_description="This field specifies the Python module containing the transform function.",
+                example_config="""actions:
+  - name: transform_data
+    type: transform
+    sub_type: python
+    source: v_raw_data
+    target: v_transformed
+    module_path: "custom_python/my_transform.py"  # Required
+    function_name: "transform"                     # Required""",
+            )
         if not function_name:
-            raise ValueError("Python transform must have 'function_name'")
+            raise ErrorFormatter.missing_required_field(
+                field_name="function_name",
+                component_type="Python transform action",
+                component_name=action.name,
+                field_description="This field specifies the name of the Python function to call for the transformation.",
+                example_config="""actions:
+  - name: transform_data
+    type: transform
+    sub_type: python
+    source: v_raw_data
+    target: v_transformed
+    module_path: "custom_python/my_transform.py"  # Required
+    function_name: "transform"                     # Required""",
+            )
 
         logger.debug(
             f"Python transform '{action.name}': module_path='{module_path}', function='{function_name}', readMode='{action.readMode or 'batch'}'"
@@ -89,16 +121,35 @@ class PythonTransformGenerator(BaseActionGenerator):
     def _extract_source_views_from_action_source(self, source) -> list:
         """Extract source view names from action.source field."""
         if source is None:
-            raise ValueError(
-                "Python transform source cannot be None - transforms require input data"
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="014",
+                title="Missing source for Python transform",
+                details="Python transform source cannot be None - transforms require input data.",
+                suggestions=[
+                    "Add a 'source' field specifying the input view name(s)",
+                    "Use a string for single source or a list for multiple sources",
+                ],
+                context={"Source": "None"},
             )
         elif isinstance(source, str):
             return [source]  # Single source view
         elif isinstance(source, list):
             return source  # Multiple source views
         else:
-            raise ValueError(
-                "Python transform source must be a string or list of strings"
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="014",
+                title="Invalid source type for Python transform",
+                details=(
+                    f"Python transform source must be a string or list of strings, "
+                    f"got {type(source).__name__}."
+                ),
+                suggestions=[
+                    "Use a string for single source: source: v_raw_data",
+                    "Use a list for multiple sources: source: [v_data1, v_data2]",
+                ],
+                context={"Source Type": type(source).__name__},
             )
 
     def _copy_python_file(
@@ -111,7 +162,13 @@ class PythonTransformGenerator(BaseActionGenerator):
         source_file = project_root / module_path
 
         if not source_file.exists():
-            raise FileNotFoundError(f"Python module file not found: {source_file}")
+            raise ErrorFormatter.file_not_found(
+                file_path=str(source_file),
+                search_locations=[
+                    f"Relative to project root: {project_root / module_path}",
+                ],
+                file_type="Python module file",
+            )
 
         # Extract module name from path (strip .py extension)
         module_name = Path(module_path).stem
@@ -119,7 +176,17 @@ class PythonTransformGenerator(BaseActionGenerator):
         # Determine output directory for the current flowgroup
         flowgroup = context.get("flowgroup")
         if not flowgroup:
-            raise ValueError("Flowgroup context required for Python file copying")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="015",
+                title="Missing flowgroup context for Python file copying",
+                details="Flowgroup context is required for Python file copying but was not provided.",
+                suggestions=[
+                    "Ensure the action is executed within a flowgroup context",
+                    "Check that the flowgroup configuration is valid",
+                ],
+                context={"Module Path": module_path},
+            )
 
         # Get output directory
         output_dir = context.get("output_dir")

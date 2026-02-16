@@ -130,8 +130,8 @@ actions: [missing bracket
         try:
             with pytest.raises(ValueError) as exc_info:
                 load_yaml_documents_all(yaml_file)
-            
-            assert "Invalid YAML" in str(exc_info.value)
+
+            assert "YAML parsing error" in str(exc_info.value)
             assert str(yaml_file) in str(exc_info.value)
         finally:
             yaml_file.unlink()
@@ -140,10 +140,10 @@ actions: [missing bracket
         """Test that missing file raises ValueError."""
         non_existent_file = Path("/tmp/non_existent_file_xyz123.yaml")
         
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises((ValueError, FileNotFoundError)) as exc_info:
             load_yaml_documents_all(non_existent_file)
-        
-        assert "File not found" in str(exc_info.value)
+
+        assert "not found" in str(exc_info.value).lower()
     
     def test_multiple_documents_different_structures(self):
         """Test loading documents with different structures."""
@@ -446,6 +446,6 @@ class TestLoadYAMLDocumentsAllLHPError:
         
         with pytest.raises(ValueError) as exc_info:
             load_yaml_documents_all(bad_file)
-        
-        assert "Invalid YAML" in str(exc_info.value)
+
+        assert "YAML parsing error" in str(exc_info.value)
 

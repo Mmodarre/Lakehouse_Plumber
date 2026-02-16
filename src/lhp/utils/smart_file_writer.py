@@ -28,8 +28,9 @@ class SmartFileWriter:
         with self._lock:
             return self._files_skipped
 
-    def write_if_changed(self, file_path: Path, new_content: str, 
-                        stored_checksum: Optional[str] = None) -> bool:
+    def write_if_changed(
+        self, file_path: Path, new_content: str, stored_checksum: Optional[str] = None
+    ) -> bool:
         """Write file only if content differs from existing file.
 
         Args:
@@ -77,8 +78,7 @@ class SmartFileWriter:
                 self._files_written += 1
             return True
 
-        except Exception as e:
-            self.logger.error(f"Failed to write {file_path}: {e}")
+        except Exception:
             raise
 
     def _normalize_content(self, content: str) -> str:
@@ -111,11 +111,11 @@ class SmartFileWriter:
 
     def _calculate_checksum(self, content: str) -> str:
         """Calculate SHA256 checksum of content.
-        
+
         Args:
             content: Content string
-            
+
         Returns:
             SHA256 checksum as hex string
         """
-        return hashlib.sha256(content.encode('utf-8')).hexdigest()
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()

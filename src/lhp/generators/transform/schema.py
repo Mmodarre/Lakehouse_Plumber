@@ -6,6 +6,11 @@ from typing import Any, Dict
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPValidationError,
+)
 from ...utils.external_file_loader import resolve_external_file_path
 from ...utils.schema_transform_parser import SchemaTransformParser
 
@@ -30,18 +35,28 @@ class SchemaTransformGenerator(BaseActionGenerator):
         # Validate source format - must be a string (view name only)
         if isinstance(action.source, dict):
             # Old format detected - raise clear error
-            raise ValueError(
-                f"Schema transform action '{action.name}' uses deprecated nested format. "
-                "The 'source' field must be a simple view name (string). "
-                "Move 'schema' or 'schema_file' to top-level action fields. "
-                "\nOld format: source: {{view: v_name, schema_file: path}} "
-                "\nNew format: source: v_name\n            schema_file: path\n            enforcement: strict"
+            raise ErrorFormatter.deprecated_field(
+                action_name=action.name,
+                field_name="source (nested dict format)",
+                replacement="source as a simple view name string, with schema_file/schema_inline at action level",
+                example="""Old format (deprecated):
+  source:
+    view: v_name
+    schema_file: path
+
+New format:
+  source: v_name
+  schema_file: path
+  enforcement: strict""",
             )
 
         if not isinstance(action.source, str):
-            raise ValueError(
-                f"Schema transform action '{action.name}' must have a string source (view name). "
-                f"Got: {type(action.source).__name__}"
+            raise ErrorFormatter.invalid_field_type(
+                action_name=action.name,
+                field_name="source",
+                expected_type="a string (view name)",
+                actual_type=type(action.source).__name__,
+                example="""source: v_raw_data  # Simple view name string""",
             )
 
         # Validate exactly one of schema_inline or schema_file is specified
@@ -49,15 +64,41 @@ class SchemaTransformGenerator(BaseActionGenerator):
         has_schema_file = action.schema_file is not None
 
         if has_schema_inline and has_schema_file:
-            raise ValueError(
-                f"Schema transform action '{action.name}' cannot specify both 'schema_inline' and 'schema_file'. "
-                "Use either inline schema or external schema file, not both."
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="013",
+                title=f"Conflicting schema definitions in action '{action.name}'",
+                details=(
+                    f"Schema transform action '{action.name}' specifies both 'schema_inline' "
+                    f"and 'schema_file'. Only one schema source is allowed."
+                ),
+                suggestions=[
+                    "Use either 'schema_inline' for inline schema OR 'schema_file' for external file",
+                    "Remove one of the two schema definitions",
+                ],
+                context={
+                    "Action": action.name,
+                    "Has schema_inline": str(has_schema_inline),
+                    "Has schema_file": str(has_schema_file),
+                },
             )
 
         if not has_schema_inline and not has_schema_file:
-            raise ValueError(
-                f"Schema transform action '{action.name}' must specify either 'schema_inline' (inline) or "
-                "'schema_file' (external). Schema transforms require a schema definition."
+            raise ErrorFormatter.missing_required_field(
+                field_name="schema_inline or schema_file",
+                component_type="Schema transform action",
+                component_name=action.name,
+                field_description="Schema transforms require a schema definition via either 'schema_inline' (inline) or 'schema_file' (external file).",
+                example_config="""actions:
+  - name: apply_schema
+    type: transform
+    sub_type: schema
+    source: v_raw_data
+    schema_file: "schemas/my_schema.yaml"  # Option 1: external file
+    # schema_inline:                       # Option 2: inline
+    #   column_mapping:
+    #     old_col: new_col
+    enforcement: strict""",
             )
 
         # Load schema configuration
@@ -88,9 +129,13 @@ class SchemaTransformGenerator(BaseActionGenerator):
 
         # Validate enforcement value
         if enforcement not in ["strict", "permissive"]:
-            raise ValueError(
-                f"Schema transform action '{action.name}' has invalid enforcement '{enforcement}'. "
-                "Must be 'strict' or 'permissive'."
+            raise ErrorFormatter.invalid_field_value(
+                action_name=action.name,
+                field_name="enforcement",
+                value=enforcement,
+                valid_values=["strict", "permissive"],
+                example="""enforcement: strict   # Only keep defined columns
+enforcement: permissive  # Keep all columns, apply transforms""",
             )
 
         # Get readMode from action or default to stream

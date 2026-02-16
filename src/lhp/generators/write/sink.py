@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import ErrorFormatter
 from .sinks import (
     CustomSinkWriteGenerator,
     DeltaSinkWriteGenerator,
@@ -47,7 +48,14 @@ class SinkWriteGenerator(BaseActionGenerator):
         )
 
         if sink_type not in self.generators:
-            raise ValueError(f"Unsupported sink_type: {sink_type}")
+            raise ErrorFormatter.unknown_type_with_suggestion(
+                value_type="sink_type",
+                provided_value=str(sink_type),
+                valid_values=list(self.generators.keys()),
+                example_usage="""write_target:
+  type: sink
+  sink_type: delta    # or: kafka, custom, foreachbatch""",
+            )
 
         # Delegate to specific generator
         generator = self.generators[sink_type]

@@ -3,9 +3,15 @@
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Any, Tuple
+from typing import Any, Dict, List, Tuple, Union
+
 from ..parsers.yaml_parser import YAMLParser
-from .error_formatter import LHPError
+from .error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPError,
+    LHPValidationError,
+)
 
 
 class SchemaParser:
@@ -52,7 +58,12 @@ class SchemaParser:
             schema_file_path = spec_dir / schema_file_path
 
         if not schema_file_path.exists():
-            raise FileNotFoundError(f"Schema file not found: {schema_file_path}")
+            raise ErrorFormatter.file_not_found(
+                file_path=str(schema_file_path),
+                search_locations=[str(schema_file_path.parent)]
+                + ([str(spec_dir)] if spec_dir else []),
+                file_type="schema file",
+            )
 
         try:
             schema_data = self.yaml_parser.parse_file(schema_file_path)
@@ -62,7 +73,18 @@ class SchemaParser:
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
         except Exception as e:
-            raise ValueError(f"Error parsing schema file {schema_file_path}: {e}")
+            raise LHPValidationError(
+                category=ErrorCategory.CONFIG,
+                code_number="007",
+                title="Schema file parsing error",
+                details=f"Error parsing schema file {schema_file_path}: {e}",
+                suggestions=[
+                    "Check the schema YAML syntax",
+                    "Ensure the file contains 'name' and 'columns' keys",
+                    "Verify column definitions have 'name' and 'type' fields",
+                ],
+                context={"file": str(schema_file_path)},
+            )
 
     def to_struct_type_code(self, schema_data: Dict[str, Any]) -> Tuple[str, List[str]]:
         """Convert schema data to Spark StructType code.
@@ -74,7 +96,18 @@ class SchemaParser:
             Tuple of (variable_name, code_lines)
         """
         if "columns" not in schema_data:
-            raise ValueError("Schema must have 'columns' field")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="016",
+                title="Missing 'columns' field in schema",
+                details="Schema must have a 'columns' field defining the column structure.",
+                suggestions=[
+                    "Add a 'columns' key with a list of column definitions",
+                    "Each column needs 'name' and 'type' fields",
+                ],
+                example="columns:\n  - name: id\n    type: BIGINT\n  - name: name\n    type: STRING",
+                context={"schema": str(schema_data.get("name", "<unknown>"))},
+            )
 
         schema_name = schema_data.get("name", "schema")
         variable_name = f"{schema_name}_schema"
@@ -103,14 +136,25 @@ class SchemaParser:
             Schema hints string for Auto Loader
         """
         if "columns" not in schema_data:
-            raise ValueError("Schema must have 'columns' field")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="016",
+                title="Missing 'columns' field in schema",
+                details="Schema must have a 'columns' field to generate schema hints.",
+                suggestions=[
+                    "Add a 'columns' key with a list of column definitions",
+                    "Each column needs 'name' and 'type' fields",
+                ],
+                example="columns:\n  - name: id\n    type: BIGINT\n  - name: name\n    type: STRING",
+                context={"schema": str(schema_data.get("name", "<unknown>"))},
+            )
 
         hints = []
         for column in schema_data["columns"]:
             name = column["name"]
             col_type = column["type"]
             nullable = column.get("nullable", True)
-            
+
             # Add NOT NULL constraint if column is not nullable
             constraint = "" if nullable else " NOT NULL"
             hints.append(f"{name} {col_type}{constraint}")
@@ -164,7 +208,9 @@ class SchemaParser:
         self.logger.warning(f"Unknown type '{col_type}', defaulting to StringType")
         return "StringType()"
 
-    def validate_schema(self, schema_data: Dict[str, Any]) -> List[str]:
+    def validate_schema(
+        self, schema_data: Dict[str, Any]
+    ) -> List[Union[str, LHPError]]:
         """Validate schema structure.
 
         Args:

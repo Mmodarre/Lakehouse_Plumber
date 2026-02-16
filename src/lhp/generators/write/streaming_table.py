@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Tuple
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
-from ...utils.error_formatter import ErrorCategory, LHPError
+from ...utils.error_formatter import ErrorCategory, ErrorFormatter, LHPError
 from ...utils.external_file_loader import (
     is_file_path,
     load_external_file_text,
@@ -31,8 +31,19 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         """Generate streaming table code."""
         target_config = action.write_target
         if not target_config:
-            raise ValueError(
-                "Streaming table action must have write_target configuration"
+            raise ErrorFormatter.missing_required_field(
+                field_name="write_target",
+                component_type="Streaming table write action",
+                component_name=action.name,
+                field_description="The write_target configuration is required for streaming table actions.",
+                example_config="""actions:
+  - name: write_data
+    type: write
+    sub_type: streaming_table
+    source: v_transformed
+    write_target:
+      table: my_table
+      database: my_database""",
             )
         logger.debug(f"Generating streaming table write for action '{action.name}'")
 
@@ -346,15 +357,16 @@ snapshot_cdc_config:
             )
 
         # Find the function file - try multiple locations
+        project_root = (
+            context.get("project_root", Path.cwd()) if context else Path.cwd()
+        )
         possible_paths = [
-            # Relative to current pipeline directory
-            Path("pipelines") / "bronze_dimensions" / file_name,
-            # Relative to project root
+            # Relative to project root (most common)
+            project_root / file_name,
+            # As absolute/relative path directly
             Path(file_name),
             # In current working directory
             Path.cwd() / file_name,
-            # In tpch_lakehouse directory (if we're in subdirectory)
-            Path.cwd() / "tpch_lakehouse" / file_name,
         ]
 
         function_file_path = None
@@ -382,13 +394,12 @@ snapshot_cdc_config:
                 details=f"Cannot locate the Python file containing your snapshot function: '{file_name}'",
                 suggestions=[
                     "Create the function file in one of these locations:",
-                    f"   • pipelines/bronze_dimensions/{file_name}",
-                    f"   • {file_name} (project root)",
+                    f"   • {file_name} (relative to project root)",
                     "",
                     "Ensure the file contains your snapshot function definition",
                     "Check the file path in your YAML configuration for typos",
                 ],
-                example=f"""1. Create the file: pipelines/bronze_dimensions/{file_name}
+                example=f"""1. Create the file: {file_name}
 
 2. Add your function:
    from typing import Optional, Tuple
@@ -411,7 +422,7 @@ snapshot_cdc_config:
             )
 
         # Read and parse the Python file
-        with open(function_file_path, "r") as f:
+        with open(function_file_path, "r", encoding="utf-8") as f:
             source_code = f.read()
 
         # Apply substitutions to the source code if substitution_manager is available

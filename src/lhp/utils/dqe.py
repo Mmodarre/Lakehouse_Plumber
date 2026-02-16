@@ -6,6 +6,8 @@ from typing import Dict, List, Tuple
 
 import yaml
 
+from .error_formatter import ErrorFormatter, LHPError
+
 
 class DQEParser:
     """Parse and validate Data Quality Expectations for DLT."""
@@ -78,14 +80,20 @@ class DQEParser:
             List of expectation dictionaries
         """
         if not expectations_file.exists():
-            raise FileNotFoundError(f"Expectations file not found: {expectations_file}")
+            raise ErrorFormatter.file_not_found(
+                file_path=str(expectations_file),
+                search_locations=[str(expectations_file.parent)],
+                file_type="expectations file",
+            )
 
         from .yaml_loader import load_yaml_file
 
         try:
             data = load_yaml_file(expectations_file, error_context="expectations file")
-        except ValueError:
-            # yaml_loader already provides clear error context, re-raise as-is
+        except (LHPError, ValueError):
+            # yaml_loader raises LHPError (which also extends ValueError via
+            # LHPConfigError). Catch both for safety — re-raise as-is since
+            # the error already has clear context.
             raise
 
         expectations = data.get("expectations", [])

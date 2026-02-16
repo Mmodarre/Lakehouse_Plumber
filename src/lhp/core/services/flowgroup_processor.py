@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict
 
 from ...models.config import FlowGroup
-from ...utils.error_formatter import LHPError
+from ...utils.error_formatter import LHPError, LHPValidationError
 from ...utils.local_variables import LocalVariableResolver
 from ...utils.substitution import EnhancedSubstitutionManager
 
@@ -147,9 +147,22 @@ class FlowgroupProcessor:
         try:
             errors = self.config_validator.validate_flowgroup(processed_flowgroup)
             if errors:
-                # Join multiple string errors properly
-                raise ValueError(
-                    f"Flowgroup validation failed:\n" + "\n\n".join(errors)
+                from ...utils.error_formatter import ErrorCategory
+
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="007",
+                    title="FlowGroup validation failed",
+                    details="\n\n".join(str(e) for e in errors),
+                    suggestions=[
+                        "Check flowgroup configuration for the errors listed above",
+                        "Run 'lhp validate' for detailed diagnostics",
+                    ],
+                    context={
+                        "Pipeline": processed_flowgroup.pipeline,
+                        "FlowGroup": processed_flowgroup.flowgroup,
+                        "Error Count": len(errors),
+                    },
                 )
         except LHPError:
             # Re-raise LHPError as-is (it's already well-formatted)
@@ -160,9 +173,23 @@ class FlowgroupProcessor:
             substitution_mgr.get_secret_references()
         )
         if secret_errors:
-            # Join multiple string errors properly
-            raise ValueError(
-                f"Secret validation failed:\n" + "\n\n".join(secret_errors)
+            from ...utils.error_formatter import ErrorCategory
+
+            raise LHPError(
+                category=ErrorCategory.VALIDATION,
+                code_number="008",
+                title="Secret validation failed",
+                details="\n\n".join(secret_errors),
+                suggestions=[
+                    "Verify secret scope and key names are correct",
+                    "Check that referenced secrets exist in your Databricks workspace",
+                    "Use the format ${secret:scope/key}",
+                ],
+                context={
+                    "Pipeline": processed_flowgroup.pipeline,
+                    "FlowGroup": processed_flowgroup.flowgroup,
+                    "Error Count": len(secret_errors),
+                },
             )
 
         self.logger.debug(

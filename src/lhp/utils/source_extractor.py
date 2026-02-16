@@ -5,10 +5,10 @@ from typing import List, Union, Dict, Any
 
 def extract_single_source_view(source: Union[str, List, Dict]) -> str:
     """Extract a single source view from various source formats.
-    
+
     Args:
         source: Source configuration (string, list, or dict)
-        
+
     Returns:
         Source view name as string, or empty string if not found
     """
@@ -20,7 +20,11 @@ def extract_single_source_view(source: Union[str, List, Dict]) -> str:
             return first_item
         elif isinstance(first_item, dict):
             database = first_item.get("database")
-            table = first_item.get("table") or first_item.get("view") or first_item.get("name", "")
+            table = (
+                first_item.get("table")
+                or first_item.get("view")
+                or first_item.get("name", "")
+            )
             return f"{database}.{table}" if database and table else table
         else:
             return str(first_item)
@@ -34,14 +38,14 @@ def extract_single_source_view(source: Union[str, List, Dict]) -> str:
 
 def extract_source_views_from_action(source: Union[str, List, Dict]) -> List[str]:
     """Extract all source views from an action source configuration.
-    
+
     This function handles various source formats and always returns a list.
     For sources without explicit table names (e.g., Kafka topics), returns
     a generic "source" placeholder to maintain consistency in code generation.
-    
+
     Args:
         source: Source configuration (string, list, or dict)
-        
+
     Returns:
         List of source view names, or ["source"] as fallback for non-table sources
     """
@@ -75,4 +79,3 @@ def extract_source_views_from_action(source: Union[str, List, Dict]) -> List[str
             return ["source"]
     else:
         return ["source"]  # Fallback for unknown types
-

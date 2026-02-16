@@ -4,6 +4,10 @@ import logging
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import (
+    ErrorCategory,
+    LHPValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,4 +60,17 @@ class TempTableTransformGenerator(BaseActionGenerator):
         elif isinstance(source, dict):
             return source.get("view", source.get("source", ""))
         else:
-            raise ValueError("Temp table transform must have a source view")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="016",
+                title="Missing source view for temp table transform",
+                details=(
+                    f"Temp table transform must have a source view, "
+                    f"but got {type(source).__name__}."
+                ),
+                suggestions=[
+                    "Add a 'source' field with a view name string",
+                    "Example: source: v_raw_data",
+                ],
+                context={"Source Type": type(source).__name__},
+            )

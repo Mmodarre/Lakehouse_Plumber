@@ -7,9 +7,7 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-import yaml
-
-from .error_formatter import LHPError
+from .error_formatter import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -103,11 +101,18 @@ class EnhancedSubstitutionManager:
         except LHPError:
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
-        except ValueError as e:
-            # yaml_loader provides clear context, keep as ValueError for existing error handling
-            raise ValueError(str(e))
         except Exception as e:
-            raise ValueError(f"Error loading substitution file {file_path}: {e}")
+            raise LHPConfigError(
+                category=ErrorCategory.CONFIG,
+                code_number="020",
+                title=f"Failed to load substitution file",
+                details=f"Error loading substitution file {file_path}: {e}",
+                suggestions=[
+                    "Check the substitution file for YAML syntax errors",
+                    "Ensure the file is readable and not corrupted",
+                ],
+                context={"File": str(file_path), "Environment": env},
+            ) from e
 
         if not config:
             return
@@ -216,8 +221,17 @@ class EnhancedSubstitutionManager:
                 scope = self.default_secret_scope
                 key = secret_ref
                 if not scope:
-                    raise ValueError(
-                        f"No default secret scope configured for secret: {secret_ref}"
+                    raise LHPValidationError(
+                        category=ErrorCategory.CONFIG,
+                        code_number="008",
+                        title="Missing default secret scope",
+                        details=f"No default secret scope configured for secret reference: {secret_ref}",
+                        suggestions=[
+                            "Add a 'secrets.default_scope' to your substitutions YAML file",
+                            "Or use the full scope/key format: ${secret:scope/key}",
+                        ],
+                        example="secrets:\n  default_scope: my-scope\n\n# Then use: ${secret:my_key}\n# Or explicit: ${secret:my-scope/my_key}",
+                        context={"secret_ref": secret_ref, "env": self.env},
                     )
 
             # Resolve scope alias if it exists

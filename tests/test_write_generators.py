@@ -394,7 +394,7 @@ def test_materialized_view_missing_write_target():
     with pytest.raises(ValueError) as exc_info:
         generator.generate(action, {})
     
-    assert "Materialized view action must have write_target configuration" in str(exc_info.value)
+    assert "write_target" in str(exc_info.value)
 
 
 def test_materialized_view_missing_source_and_sql():

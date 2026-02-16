@@ -483,7 +483,7 @@ class TestStateCommandEdgeCases:
         with runner.isolated_filesystem():
             result = runner.invoke(cli, ['state'])
             
-            assert result.exit_code == 1
+            assert result.exit_code != 0
             assert "Not in a LakehousePlumber project directory" in result.output
     
     def test_corrupted_state_file(self, runner, sample_project):
@@ -527,24 +527,24 @@ class TestStateCommandEdgeCases:
             # Should include detailed logs
     
     def test_regen_pipeline_error(self, runner, project_with_state):
-        """Test regeneration when pipeline generation fails."""
+        """Test regeneration errors propagate to error boundary (non-zero exit)."""
         # Make a file stale
         orders_yaml = project_with_state / "pipelines/bronze_layer/orders.yaml"
         content = orders_yaml.read_text()
         orders_yaml.write_text(content + "\n# Modified")
-        
+
         with runner.isolated_filesystem():
             import os
             os.chdir(str(project_with_state))
-            
+
             # Mock orchestrator to raise an error
             with patch('lhp.core.orchestrator.ActionOrchestrator.generate_pipeline_by_field') as mock_gen:
                 mock_gen.side_effect = Exception("Generation failed")
-                
+
                 result = runner.invoke(cli, ['state', '--env', 'dev', '--stale', '--regen'])
-                
-                assert result.exit_code == 0  # Should handle error gracefully
-                assert "Regeneration for pipeline 'bronze_layer' failed" in result.output
+
+                # Errors now propagate to CLI error boundary instead of being swallowed
+                assert result.exit_code != 0
 
 
 class TestStateCommandOutputFormatting:

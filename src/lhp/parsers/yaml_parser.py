@@ -6,7 +6,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from ..models.config import FlowGroup, Preset, Template
-from ..utils.error_formatter import LHPError
+from ..utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPConfigError,
+    LHPError,
+    LHPValidationError,
+)
 from ..utils.yaml_loader import load_yaml_file
 
 
@@ -25,15 +31,36 @@ class YAMLParser:
             return content or {}
         except Exception as e:
             # Check if it's an LHPError that should be re-raised
-            if LHPError and isinstance(e, LHPError):
+            if isinstance(e, LHPError):
                 raise  # Re-raise LHPError as-is
             elif isinstance(e, ValueError):
                 # For backward compatibility, convert back to generic error for non-LHPErrors
                 if "File not found" in str(e):
-                    raise ValueError(f"Error reading {file_path}: {e}")
+                    raise LHPConfigError(
+                        category=ErrorCategory.IO,
+                        code_number="004",
+                        title="Error reading YAML file",
+                        details=f"Error reading {file_path}: {e}",
+                        suggestions=[
+                            "Check the file path is correct",
+                            "Ensure the file exists and is readable",
+                        ],
+                        context={"file": str(file_path)},
+                    )
                 raise  # Re-raise ValueError as-is for YAML errors
             else:
-                raise ValueError(f"Error reading {file_path}: {e}")
+                raise LHPConfigError(
+                    category=ErrorCategory.IO,
+                    code_number="004",
+                    title="Error reading YAML file",
+                    details=f"Error reading {file_path}: {e}",
+                    suggestions=[
+                        "Check the file path is correct",
+                        "Ensure the file exists and is readable",
+                        "Verify the YAML syntax is correct",
+                    ],
+                    context={"file": str(file_path)},
+                )
 
     def parse_flowgroups_from_file(self, file_path: Path) -> List[FlowGroup]:
         """Parse one or more FlowGroups from a YAML file.
@@ -61,7 +88,18 @@ class YAMLParser:
             raise
 
         if not documents:
-            raise ValueError(f"No content found in {file_path}")
+            raise LHPConfigError(
+                category=ErrorCategory.CONFIG,
+                code_number="005",
+                title="Empty flowgroup file",
+                details=f"No content found in {file_path}",
+                suggestions=[
+                    "Ensure the file contains valid YAML content",
+                    "Check that the file is not empty",
+                    "Verify the file has a 'flowgroup' key at the top level",
+                ],
+                context={"file": str(file_path)},
+            )
 
         is_multi_doc = len(documents) > 1
         self.logger.debug(
@@ -100,8 +138,16 @@ class YAMLParser:
                     # Check for duplicate flowgroup name
                     fg_name = fg_config.get("flowgroup")
                     if fg_name in seen_flowgroup_names:
-                        raise ValueError(
-                            f"Duplicate flowgroup name '{fg_name}' in file {file_path}"
+                        raise LHPValidationError(
+                            category=ErrorCategory.VALIDATION,
+                            code_number="013",
+                            title=f"Duplicate flowgroup name '{fg_name}'",
+                            details=f"Duplicate flowgroup name '{fg_name}' in file {file_path}. Each flowgroup must have a unique name.",
+                            suggestions=[
+                                f"Rename one of the '{fg_name}' flowgroups to a unique name",
+                                "Check for copy-paste errors in the flowgroups array",
+                            ],
+                            context={"file": str(file_path), "flowgroup": fg_name},
                         )
                     if fg_name:
                         seen_flowgroup_names.add(fg_name)
@@ -109,9 +155,20 @@ class YAMLParser:
                     # Parse flowgroup
                     try:
                         flowgroups.append(FlowGroup(**fg_config))
+                    except LHPError:
+                        raise  # Re-raise LHPError as-is
                     except Exception as e:
-                        raise ValueError(
-                            f"Error parsing flowgroup in document {doc_index} of {file_path}: {e}"
+                        raise LHPConfigError(
+                            category=ErrorCategory.CONFIG,
+                            code_number="006",
+                            title="Flowgroup parsing error",
+                            details=f"Error parsing flowgroup in document {doc_index} of {file_path}: {e}",
+                            suggestions=[
+                                "Check the flowgroup YAML syntax and required fields",
+                                "Ensure 'flowgroup' and 'actions' keys are present",
+                                "Review field types match expected formats",
+                            ],
+                            context={"file": str(file_path), "document": doc_index},
                         )
             else:
                 # Regular syntax (one flowgroup per document)
@@ -120,8 +177,16 @@ class YAMLParser:
                 # Check for duplicate flowgroup name
                 fg_name = doc.get("flowgroup")
                 if fg_name in seen_flowgroup_names:
-                    raise ValueError(
-                        f"Duplicate flowgroup name '{fg_name}' in file {file_path}"
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="013",
+                        title=f"Duplicate flowgroup name '{fg_name}'",
+                        details=f"Duplicate flowgroup name '{fg_name}' in file {file_path}. Each flowgroup must have a unique name.",
+                        suggestions=[
+                            f"Rename one of the '{fg_name}' flowgroups to a unique name",
+                            "Check for copy-paste errors in the multi-document YAML",
+                        ],
+                        context={"file": str(file_path), "flowgroup": fg_name},
                     )
                 if fg_name:
                     seen_flowgroup_names.add(fg_name)
@@ -129,9 +194,20 @@ class YAMLParser:
                 # Parse flowgroup
                 try:
                     flowgroups.append(FlowGroup(**doc))
+                except LHPError:
+                    raise  # Re-raise LHPError as-is
                 except Exception as e:
-                    raise ValueError(
-                        f"Error parsing flowgroup in document {doc_index} of {file_path}: {e}"
+                    raise LHPConfigError(
+                        category=ErrorCategory.CONFIG,
+                        code_number="006",
+                        title="Flowgroup parsing error",
+                        details=f"Error parsing flowgroup in document {doc_index} of {file_path}: {e}",
+                        suggestions=[
+                            "Check the flowgroup YAML syntax and required fields",
+                            "Ensure 'flowgroup' and 'actions' keys are present",
+                            "Review field types match expected formats",
+                        ],
+                        context={"file": str(file_path), "document": doc_index},
                     )
 
         self.logger.debug(
@@ -141,9 +217,17 @@ class YAMLParser:
 
         # Check for mixed syntax
         if uses_array_syntax and uses_regular_syntax:
-            raise ValueError(
-                f"Mixed syntax detected in {file_path}: cannot use both multi-document (---) "
-                "and flowgroups array syntax in the same file"
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="014",
+                title="Mixed flowgroup syntax",
+                details=f"Mixed syntax detected in {file_path}: cannot use both multi-document (---) and flowgroups array syntax in the same file.",
+                suggestions=[
+                    "Use multi-document syntax (--- separators) OR flowgroups array syntax, not both",
+                    "Multi-document: separate flowgroups with '---' on its own line",
+                    "Array syntax: use 'flowgroups:' key with a list of flowgroups",
+                ],
+                context={"file": str(file_path)},
             )
 
         return flowgroups
@@ -170,16 +254,30 @@ class YAMLParser:
 
         # Check for multiple documents
         if len(documents) > 1:
-            raise ValueError(
-                f"File {file_path} contains multiple flowgroups (multiple documents). "
-                "Use parse_flowgroups_from_file() instead."
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="015",
+                title="Multiple documents in single-flowgroup parse",
+                details=f"File {file_path} contains multiple flowgroups (multiple documents). Use parse_flowgroups_from_file() instead.",
+                suggestions=[
+                    "Use parse_flowgroups_from_file() for multi-document YAML files",
+                    "Split into separate files if single-flowgroup parsing is needed",
+                ],
+                context={"file": str(file_path)},
             )
 
         # Check for array syntax
         if documents and "flowgroups" in documents[0]:
-            raise ValueError(
-                f"File {file_path} contains multiple flowgroups (array syntax). "
-                "Use parse_flowgroups_from_file() instead."
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="015",
+                title="Array syntax in single-flowgroup parse",
+                details=f"File {file_path} contains multiple flowgroups (array syntax). Use parse_flowgroups_from_file() instead.",
+                suggestions=[
+                    "Use parse_flowgroups_from_file() for array-syntax YAML files",
+                    "Split into separate files if single-flowgroup parsing is needed",
+                ],
+                context={"file": str(file_path)},
             )
 
         # Single flowgroup - use original parsing

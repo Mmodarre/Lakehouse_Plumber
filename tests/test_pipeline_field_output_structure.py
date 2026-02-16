@@ -463,6 +463,6 @@ dev:
         # This should fail validation due to duplicate pipeline+flowgroup
         orchestrator = ActionOrchestrator(project_root)
         
-        with pytest.raises(ValueError, match="Duplicate.*raw_ingestions.customer_ingestion"):
+        with pytest.raises(ValueError, match="(?s)Duplicate.*raw_ingestions.customer_ingestion"):
             all_flowgroups = orchestrator.discover_all_flowgroups()
             orchestrator.validate_duplicate_pipeline_flowgroup_combinations(all_flowgroups) 

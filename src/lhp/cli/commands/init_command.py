@@ -1,7 +1,6 @@
 """Init command implementation for LakehousePlumber CLI."""
 
 import logging
-import sys
 from pathlib import Path
 from typing import List
 
@@ -40,10 +39,19 @@ class InitCommand(BaseCommand):
 
         # Check for existing LHP project
         if (project_path / "lhp.yaml").exists():
-            click.echo(
-                "❌ An LHP project already exists in this directory (lhp.yaml found)"
+            from ...utils.error_formatter import ErrorCategory, LHPFileError
+
+            raise LHPFileError(
+                category=ErrorCategory.IO,
+                code_number="007",
+                title="LHP project already exists",
+                details="An lhp.yaml file already exists in this directory.",
+                suggestions=[
+                    "Use a different directory to create a new project",
+                    "Remove the existing lhp.yaml if you want to reinitialize",
+                ],
+                context={"Directory": str(project_path)},
             )
-            sys.exit(1)
 
         created_items: List[Path] = []
         try:
@@ -69,17 +77,17 @@ class InitCommand(BaseCommand):
 
         except Exception as e:
             self.logger.error(f"Failed to create project: {e}")
-            click.echo(f"❌ Failed to create project files: {e}")
 
             # Selective cleanup: only remove items we created
             for item in reversed(created_items):
                 try:
                     if item.is_dir() and not any(item.iterdir()):
                         item.rmdir()
-                except OSError as e:
-                    logger.debug(f"Could not remove directory {item} during cleanup: {e}")
-                    pass
-            sys.exit(1)
+                except OSError as cleanup_err:
+                    logger.debug(
+                        f"Could not remove directory {item} during cleanup: {cleanup_err}"
+                    )
+            raise  # Let cli_error_boundary handle the error
 
     def _create_project_structure(self, project_path: Path, bundle: bool) -> List[Path]:
         """

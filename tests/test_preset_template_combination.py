@@ -622,4 +622,4 @@ class TestPresetTemplateCombination:
                 )
             
             assert 'non_existent_preset' in str(exc_info.value)
-            assert 'not found' in str(exc_info.value).lower() 
+            assert 'unknown' in str(exc_info.value).lower() or 'not found' in str(exc_info.value).lower()

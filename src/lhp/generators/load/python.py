@@ -20,7 +20,14 @@ class PythonLoadGenerator(BaseActionGenerator):
         """Generate Python load code."""
         source_config = action.source
         if isinstance(source_config, str):
-            raise ValueError("Python source must be a configuration object")
+            raise ErrorFormatter.invalid_source_format(
+                action_name=action.name,
+                action_type="python load",
+                expected_formats=[
+                    "A configuration object (dict) with 'module_path'",
+                    "source:\n  module_path: 'transformations/custom_loader.py'\n  function_name: 'load_data'",
+                ],
+            )
         self.logger.debug(
             f"Generating Python load for target '{action.target}', action '{action.name}'"
         )

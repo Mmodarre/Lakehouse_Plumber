@@ -1,8 +1,11 @@
 """Data models for dependency analysis in LakehousePlumber."""
 
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import networkx as nx
+
+from ..utils.error_formatter import ErrorCategory, LHPValidationError
 
 
 @dataclass
@@ -19,10 +22,19 @@ class DependencyGraphs:
         level_map = {
             "action": self.action_graph,
             "flowgroup": self.flowgroup_graph,
-            "pipeline": self.pipeline_graph
+            "pipeline": self.pipeline_graph,
         }
         if level not in level_map:
-            raise ValueError(f"Unknown level: {level}. Must be one of: {list(level_map.keys())}")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="020",
+                title="Unknown dependency graph level",
+                details=f"Unknown level: '{level}'.",
+                suggestions=[
+                    f"Use one of: {', '.join(level_map.keys())}",
+                ],
+                context={"Level": level},
+            )
         return level_map[level]
 
 

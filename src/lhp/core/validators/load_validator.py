@@ -4,7 +4,8 @@ import logging
 from typing import List
 
 from ...models.config import Action, ActionType, LoadSourceType
-from .base_validator import BaseActionValidator
+from ...utils.error_formatter import LHPError
+from .base_validator import BaseActionValidator, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 class LoadActionValidator(BaseActionValidator):
     """Validator for load actions."""
 
-    def validate(self, action: Action, prefix: str) -> List[str]:
+    def validate(self, action: Action, prefix: str) -> List[ValidationError]:
         """Validate load action configuration."""
         logger.debug(f"Validating load action '{action.name}'")
         errors = []
@@ -49,6 +50,9 @@ class LoadActionValidator(BaseActionValidator):
         # Strict field validation for source configuration
         try:
             self.field_validator.validate_load_source(action.source, action.name)
+        except LHPError as e:
+            errors.append(e)
+            return errors
         except Exception as e:
             errors.append(str(e))
             return errors

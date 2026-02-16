@@ -1,7 +1,6 @@
 """Clean Architecture generate command implementation."""
 
 import logging
-import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -99,8 +98,19 @@ class GenerateCommand(BaseCommand):
         )
 
         if not pipelines_to_generate:
-            click.echo("❌ No flowgroups found in project")
-            sys.exit(1)
+            from ...utils.error_formatter import ErrorCategory, LHPConfigError
+
+            raise LHPConfigError(
+                category=ErrorCategory.CONFIG,
+                code_number="014",
+                title="No flowgroups found in project",
+                details="No flowgroup YAML files were found in the pipelines/ directory.",
+                suggestions=[
+                    "Create flowgroup YAML files in pipelines/<pipeline_name>/",
+                    "Check that pipeline YAML files have the correct extension (.yaml or .yml)",
+                    "Run 'lhp init <name>' to create a new project with example files",
+                ],
+            )
 
         logger.debug(f"Pipelines discovered for generation: {pipelines_to_generate}")
 
@@ -318,22 +328,14 @@ class GenerateCommand(BaseCommand):
             return [pipeline]
         else:
             # Discover all available pipelines
-            try:
-                # Use orchestrator through facade for discovery
-                all_flowgroups = (
-                    application_facade.orchestrator.discover_all_flowgroups()
-                )
-                pipeline_fields = {fg.pipeline for fg in all_flowgroups}
+            # Use orchestrator through facade for discovery
+            all_flowgroups = application_facade.orchestrator.discover_all_flowgroups()
+            pipeline_fields = {fg.pipeline for fg in all_flowgroups}
 
-                if not pipeline_fields:
-                    click.echo("❌ No flowgroups found in project")
-                    return []
-
-                return list(pipeline_fields)
-
-            except Exception as e:
-                click.echo(f"❌ Error discovering pipelines: {e}")
+            if not pipeline_fields:
                 return []
+
+            return list(pipeline_fields)
 
     def _display_generation_analysis(
         self,
@@ -440,11 +442,7 @@ class GenerateCommand(BaseCommand):
                     if self.verbose:
                         click.echo("Dry run: Bundle sync would be performed")
 
-        except BundleResourceError as e:
-            logger.error(f"Bundle sync failed: {e}")
-            click.echo(f"❌ Bundle sync failed: {e}")
-            sys.exit(1)
-        except Exception as e:
-            logger.error(f"Unexpected bundle error: {e}")
-            click.echo(f"❌ Unexpected bundle error: {e}")
-            sys.exit(1)
+        except BundleResourceError:
+            raise  # Let cli_error_boundary handle BundleResourceError
+        except Exception:
+            raise  # Let cli_error_boundary handle unexpected errors

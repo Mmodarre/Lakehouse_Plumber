@@ -6,7 +6,12 @@ from typing import Any, Dict, List
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter, LHPError
+from ...utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPError,
+    LHPValidationError,
+)
 from ...utils.kafka_validator import KafkaOptionsValidator
 
 
@@ -32,15 +37,29 @@ class KafkaLoadGenerator(BaseActionGenerator):
         # Kafka is always streaming
         readMode = action.readMode or source_config.get("readMode", "stream")
         if readMode != "stream":
-            raise ValueError(
-                f"Kafka action '{action.name}' requires readMode='stream', got '{readMode}'"
+            raise ErrorFormatter.invalid_read_mode(
+                action_name=action.name,
+                action_type="kafka",
+                provided=readMode,
+                valid_modes=["stream"],
             )
 
         # Extract configuration
         bootstrap_servers = source_config.get("bootstrap_servers")
         if not bootstrap_servers:
-            raise ValueError(
-                f"Kafka action '{action.name}' must have 'bootstrap_servers'"
+            raise ErrorFormatter.missing_required_field(
+                field_name="bootstrap_servers",
+                component_type="Kafka load action",
+                component_name=action.name,
+                field_description="The Kafka bootstrap servers address is required to connect to the Kafka cluster.",
+                example_config="""actions:
+  - name: load_kafka_events
+    type: load
+    sub_type: kafka
+    target: v_events
+    source:
+      bootstrap_servers: "broker1:9092,broker2:9092"
+      subscribe: "my-topic" """,
             )
 
         # Determine subscription method for logging
@@ -77,10 +96,14 @@ class KafkaLoadGenerator(BaseActionGenerator):
             options = source_config["options"]
             # Validate options is a dictionary
             if not isinstance(options, dict):
-                raise ValueError(
-                    f"Kafka load action '{action.name}': 'options' must be a dictionary, "
-                    f"got {type(options).__name__}. "
-                    f"Use YAML dictionary syntax: options:\\n  key: value"
+                raise ErrorFormatter.invalid_field_type(
+                    action_name=action.name,
+                    field_name="options",
+                    expected_type="a dictionary (mapping)",
+                    actual_type=type(options).__name__,
+                    example="""options:
+  kafka.group.id: "my-consumer-group"
+  startingOffsets: "earliest" """,
                 )
             reader_options.update(
                 self.kafka_validator.process_options(
@@ -129,14 +152,34 @@ class KafkaLoadGenerator(BaseActionGenerator):
         provided_methods = [k for k, v in subscription_methods.items() if v is not None]
 
         if len(provided_methods) == 0:
-            raise ValueError(
-                f"Kafka action '{action_name}' must have one of: 'subscribe', "
-                f"'subscribePattern', or 'assign'"
+            raise ErrorFormatter.missing_required_field(
+                field_name="subscribe/subscribePattern/assign",
+                component_type="Kafka load action",
+                component_name=action_name,
+                field_description="Exactly one Kafka subscription method must be specified.",
+                example_config="""source:
+  bootstrap_servers: "broker:9092"
+  subscribe: "my-topic"            # Option 1: specific topic(s)
+  # subscribePattern: "topic-.*"   # Option 2: topic pattern
+  # assign: '{"topic": [0, 1]}'   # Option 3: specific partitions""",
             )
         elif len(provided_methods) > 1:
-            raise ValueError(
-                f"Kafka action '{action_name}' can only have ONE of: 'subscribe', "
-                f"'subscribePattern', or 'assign'. Found: {', '.join(provided_methods)}"
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="009",
+                title=f"Multiple subscription methods in Kafka action '{action_name}'",
+                details=(
+                    f"Kafka action '{action_name}' specifies multiple subscription methods: "
+                    f"{', '.join(provided_methods)}. Only one is allowed."
+                ),
+                suggestions=[
+                    "Use only ONE of: 'subscribe', 'subscribePattern', or 'assign'",
+                    "Remove the extra subscription method(s) from your configuration",
+                ],
+                context={
+                    "Action": action_name,
+                    "Provided Methods": ", ".join(provided_methods),
+                },
             )
 
     def _add_subscription_method(
@@ -176,6 +219,12 @@ class KafkaLoadGenerator(BaseActionGenerator):
         """
         # Check for mandatory kafka.bootstrap.servers
         if "kafka.bootstrap.servers" not in reader_options:
-            raise ValueError(
-                f"Kafka action '{action_name}' must have 'kafka.bootstrap.servers' option"
+            raise ErrorFormatter.missing_required_field(
+                field_name="kafka.bootstrap.servers",
+                component_type="Kafka load action",
+                component_name=action_name,
+                field_description="The 'kafka.bootstrap.servers' option must be present in the final reader options.",
+                example_config="""source:
+  bootstrap_servers: "broker1:9092,broker2:9092"
+  subscribe: "my-topic" """,
             )

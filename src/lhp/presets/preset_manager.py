@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from ..models.config import Preset
 from ..parsers.yaml_parser import YAMLParser
+from ..utils.error_formatter import ErrorFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -41,24 +42,47 @@ class PresetManager:
         logger.debug(f"Preset chain resolved with {len(resolved)} top-level keys")
         return resolved
 
-    def _resolve_preset_inheritance(self, preset_name: str) -> Dict[str, Any]:
+    def _resolve_preset_inheritance(
+        self, preset_name: str, visited: Optional[set] = None
+    ) -> Dict[str, Any]:
         """Resolve preset inheritance chain.
 
         Args:
             preset_name: Name of the preset to resolve
+            visited: Set of already-visited preset names (cycle detection)
 
         Returns:
             Merged preset configuration
 
         Raises:
-            ValueError: If preset is not found
+            LHPConfigError: If preset is not found or circular inheritance detected
         """
-        if preset_name not in self.presets:
-            available = (
-                ", ".join(sorted(self.presets.keys())) if self.presets else "none"
+        if visited is None:
+            visited = set()
+
+        # Cycle detection
+        if preset_name in visited:
+            from ..utils.error_formatter import ErrorCategory, LHPConfigError
+
+            cycle_path = " -> ".join(list(visited) + [preset_name])
+            raise LHPConfigError(
+                category=ErrorCategory.DEPENDENCY,
+                code_number="022",
+                title="Circular preset inheritance detected",
+                details=(
+                    f"Preset '{preset_name}' creates a circular inheritance chain: {cycle_path}"
+                ),
+                suggestions=[
+                    "Remove the circular 'extends' reference in one of the presets",
+                    "Review the preset inheritance chain for unintended cycles",
+                ],
+                context={"Preset": preset_name, "Chain": cycle_path},
             )
-            raise ValueError(
-                f"Preset '{preset_name}' not found. " f"Available presets: {available}"
+
+        if preset_name not in self.presets:
+            raise ErrorFormatter.preset_not_found(
+                preset_name=preset_name,
+                available_presets=sorted(self.presets.keys()),
             )
 
         preset = self.presets[preset_name]
@@ -69,7 +93,9 @@ class PresetManager:
             logger.debug(
                 f"Preset '{preset_name}' extends '{preset.extends}', resolving parent"
             )
-            parent_config = self._resolve_preset_inheritance(preset.extends)
+            parent_config = self._resolve_preset_inheritance(
+                preset.extends, visited | {preset_name}
+            )
             result = self._deep_merge(parent_config, result)
 
         return result

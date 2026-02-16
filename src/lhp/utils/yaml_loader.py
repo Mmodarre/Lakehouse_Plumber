@@ -13,7 +13,13 @@ from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
-from .error_formatter import MultiDocumentError
+from .error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPConfigError,
+    LHPError,
+    MultiDocumentError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,24 +75,36 @@ def load_yaml_file(
         return content
 
     except yaml.YAMLError as e:
-        context = error_context or f"YAML file {file_path}"
-        raise ValueError(f"Invalid YAML in {context}: {e}")
+        raise ErrorFormatter.yaml_parse_error(
+            file_path=str(file_path),
+            error_message=str(e),
+            context=error_context,
+        ) from e
     except FileNotFoundError as e:
-        context = error_context or f"file {file_path}"
-        raise ValueError(f"File not found: {context}")
+        if isinstance(e, LHPError):
+            raise  # Already an LHPFileError
+        raise ErrorFormatter.file_not_found(
+            file_path=str(file_path),
+            search_locations=[str(file_path.parent)],
+            file_type="YAML file",
+        ) from e
     except Exception as e:
-        # Check if it's an LHPError that should be re-raised
-        # Import here to avoid circular imports
-        try:
-            from ..utils.error_formatter import LHPError
-
-            if isinstance(e, LHPError):
-                raise  # Re-raise LHPError as-is
-        except ImportError:
-            pass  # LHPError not available, continue with ValueError
+        if isinstance(e, LHPError):
+            raise  # Re-raise LHPError as-is
 
         context = error_context or f"file {file_path}"
-        raise ValueError(f"Error reading {context}: {e}")
+        raise LHPConfigError(
+            category=ErrorCategory.IO,
+            code_number="002",
+            title="Error reading YAML file",
+            details=f"Error reading {context}: {e}",
+            suggestions=[
+                "Check the file exists and is readable",
+                "Verify the file encoding is UTF-8",
+                "Ensure the file is valid YAML",
+            ],
+            context={"file": str(file_path)},
+        ) from e
 
 
 def load_yaml_if_exists(
@@ -213,20 +231,33 @@ def load_yaml_documents_all(
         return documents
 
     except yaml.YAMLError as e:
-        context = error_context or f"YAML file {file_path}"
-        raise ValueError(f"Invalid YAML in {context}: {e}")
+        raise ErrorFormatter.yaml_parse_error(
+            file_path=str(file_path),
+            error_message=str(e),
+            context=error_context,
+        ) from e
     except FileNotFoundError as e:
-        context = error_context or f"file {file_path}"
-        raise ValueError(f"File not found: {context}")
+        if isinstance(e, LHPError):
+            raise  # Already an LHPFileError
+        raise ErrorFormatter.file_not_found(
+            file_path=str(file_path),
+            search_locations=[str(file_path.parent)],
+            file_type="YAML file",
+        ) from e
     except Exception as e:
-        # Check if it's an LHPError that should be re-raised
-        try:
-            from ..utils.error_formatter import LHPError
-
-            if isinstance(e, LHPError):
-                raise  # Re-raise LHPError as-is
-        except ImportError:
-            pass  # LHPError not available, continue with ValueError
+        if isinstance(e, LHPError):
+            raise  # Re-raise LHPError as-is
 
         context = error_context or f"file {file_path}"
-        raise ValueError(f"Error reading {context}: {e}")
+        raise LHPConfigError(
+            category=ErrorCategory.IO,
+            code_number="002",
+            title="Error reading YAML file",
+            details=f"Error reading {context}: {e}",
+            suggestions=[
+                "Check the file exists and is readable",
+                "Verify the file encoding is UTF-8",
+                "Ensure the file is valid YAML",
+            ],
+            context={"file": str(file_path)},
+        ) from e

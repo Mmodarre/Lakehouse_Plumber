@@ -6,7 +6,7 @@
 
 __all__ = [
     "BaseCommand",
-    "InitCommand", 
+    "InitCommand",
     "GenerateCommand",
     "ValidateCommand",
     "StateCommand",

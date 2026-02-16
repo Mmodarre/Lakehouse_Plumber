@@ -12,7 +12,7 @@ from collections import defaultdict
 
 class StateDisplayUtils:
     """Utilities for displaying state information in the CLI."""
-    
+
     @staticmethod
     def display_overall_stats(stats: Dict[str, Any]) -> None:
         """Display overall state statistics."""
@@ -33,19 +33,19 @@ class StateDisplayUtils:
                     click.echo(f"     • {pipeline_name}: {file_count} files")
 
         click.echo("\n💡 Use --env <environment> to see detailed file information")
-    
+
     @staticmethod
     def display_no_tracked_files_message() -> None:
         """Display message when no tracked files are found."""
         click.echo("📭 No tracked files found")
         click.echo("\n💡 Generate code to start tracking files")
-    
+
     @staticmethod
     def display_environment_header(env: str) -> None:
         """Display environment-specific header."""
         click.echo(f"📊 State for Environment: {env}")
         click.echo("=" * 60)
-    
+
     @staticmethod
     def display_missing_tracked_files(env: str, pipeline: Optional[str] = None) -> None:
         """Display message when no tracked files are found for environment/pipeline."""
@@ -55,9 +55,11 @@ class StateDisplayUtils:
             )
         else:
             click.echo("📭 No tracked files found for this environment")
-    
+
     @staticmethod
-    def display_orphaned_files(orphaned_files: List[Any], cleanup: bool, dry_run: bool) -> None:
+    def display_orphaned_files(
+        orphaned_files: List[Any], cleanup: bool, dry_run: bool
+    ) -> None:
         """Display orphaned files information."""
         if not orphaned_files:
             click.echo("✅ No orphaned files found")
@@ -83,15 +85,19 @@ class StateDisplayUtils:
                 click.echo("🗑️  Cleaning up orphaned files...")
         else:
             click.echo("💡 Use --cleanup flag to remove these orphaned files")
-    
+
     @staticmethod
     def display_cleanup_results(deleted_files: List[str]) -> None:
         """Display cleanup operation results."""
         click.echo(f"✅ Deleted {len(deleted_files)} orphaned files")
-    
+
     @staticmethod
-    def display_stale_files(stale_files: List[Any], staleness_info: Dict[str, Any], 
-                           regen: bool, dry_run: bool) -> None:
+    def display_stale_files(
+        stale_files: List[Any],
+        staleness_info: Dict[str, Any],
+        regen: bool,
+        dry_run: bool,
+    ) -> None:
         """Display stale files information."""
         if not stale_files:
             click.echo("✅ No stale files found")
@@ -113,14 +119,14 @@ class StateDisplayUtils:
             click.echo(f"  Pipeline: {file_state.pipeline}")
             click.echo(f"  FlowGroup: {file_state.flowgroup}")
             click.echo(f"  Last generated: {file_state.timestamp}")
-            
+
             # Show detailed dependency changes
             if file_state.generated_path in staleness_info["files"]:
                 file_info = staleness_info["files"][file_state.generated_path]
                 click.echo(f"  Changes detected:")
                 for detail in file_info["details"]:
                     click.echo(f"    - {detail}")
-            
+
             click.echo()
 
         if regen:
@@ -132,29 +138,37 @@ class StateDisplayUtils:
                 click.echo("🔄 Regenerating stale files...")
         else:
             click.echo("💡 Use --regen flag to regenerate these stale files")
-    
+
     @staticmethod
     def display_regeneration_progress(pipeline_name: str, file_count: int) -> None:
         """Display regeneration progress for a pipeline."""
         click.echo(f"   ✅ Regenerated {file_count} file(s) for {pipeline_name}")
-    
+
     @staticmethod
-    def display_regeneration_error(pipeline_name: str, env: str, log_file: Optional[str] = None) -> None:
+    def display_regeneration_error(
+        pipeline_name: str, env: str, log_file: Optional[str] = None
+    ) -> None:
         """Display regeneration error for a pipeline."""
         if log_file:
             click.echo(f"   📝 Check detailed logs: {log_file}")
-        
+
         click.echo(f"   ❌ Failed to regenerate {pipeline_name}")
-        click.echo(f"   💡 Try running 'lhp validate --env {env} --pipeline {pipeline_name}' first")
-    
+        click.echo(
+            f"   💡 Try running 'lhp validate --env {env} --pipeline {pipeline_name}' first"
+        )
+
     @staticmethod
     def display_regeneration_results(regenerated_count: int) -> None:
         """Display final regeneration results."""
         click.echo(f"✅ Regenerated {regenerated_count} stale files")
-    
+
     @staticmethod
-    def display_new_files(new_files: List[Path], project_root: Path, env: str, 
-                         by_pipeline: Dict[str, List[Path]]) -> None:
+    def display_new_files(
+        new_files: List[Path],
+        project_root: Path,
+        env: str,
+        by_pipeline: Dict[str, List[Path]],
+    ) -> None:
         """Display new YAML files information."""
         if not new_files:
             click.echo("✅ No new YAML files found")
@@ -175,10 +189,11 @@ class StateDisplayUtils:
         click.echo(
             f"\n💡 Use 'lhp generate --env {env}' to generate code for these files"
         )
-    
+
     @staticmethod
-    def display_tracked_files(tracked_files: Dict[str, Any], project_root: Path, 
-                             file_status_calculator) -> None:
+    def display_tracked_files(
+        tracked_files: Dict[str, Any], project_root: Path, file_status_calculator
+    ) -> None:
         """Display all tracked files with their status."""
         click.echo(f"📁 Tracked Files ({len(tracked_files)} total)")
         click.echo("─" * 60)
@@ -192,7 +207,9 @@ class StateDisplayUtils:
             click.echo(f"\n🔧 Pipeline: {pipeline_name} ({len(files)} files)")
 
             for file_state in sorted(files, key=lambda f: f.flowgroup):
-                source_exists, generated_exists, change_status = file_status_calculator(file_state)
+                source_exists, generated_exists, change_status = file_status_calculator(
+                    file_state
+                )
 
                 source_status = "✅" if source_exists else "❌"
                 generated_status = "✅" if generated_exists else "❌"
@@ -203,13 +220,17 @@ class StateDisplayUtils:
                 )
                 click.echo(f"    FlowGroup: {file_state.flowgroup}")
                 click.echo(f"    Generated: {file_state.timestamp}")
-    
+
     @staticmethod
-    def display_new_files_in_summary(new_files: List[Path], project_root: Path, env: str,
-                                   by_pipeline: Dict[str, List[Path]]) -> None:
+    def display_new_files_in_summary(
+        new_files: List[Path],
+        project_root: Path,
+        env: str,
+        by_pipeline: Dict[str, List[Path]],
+    ) -> None:
         """Display new files section in comprehensive summary."""
         new_count = len(new_files)
-        
+
         if new_count > 0:
             click.echo(f"\n📄 New YAML Files ({new_count} found)")
             click.echo("─" * 60)
@@ -226,33 +247,40 @@ class StateDisplayUtils:
             click.echo(
                 f"\n💡 Use 'lhp generate --env {env}' to generate code for these files"
             )
-    
+
     @staticmethod
     def display_comprehensive_summary(counts: Dict[str, int], env: str) -> None:
         """Display comprehensive summary with counts and tips."""
         click.echo("\n📊 Summary:")
         click.echo(f"   🟢 {counts['up_to_date_count']} files up-to-date")
 
-        if counts['new_count'] > 0:
-            click.echo(f"   🆕 {counts['new_count']} new YAML files (not generated yet)")
+        if counts["new_count"] > 0:
+            click.echo(
+                f"   🆕 {counts['new_count']} new YAML files (not generated yet)"
+            )
             click.echo(f"      Use 'lhp generate --env {env}' to generate them")
 
-        if counts['stale_count'] > 0:
+        if counts["stale_count"] > 0:
             click.echo(f"   🟡 {counts['stale_count']} files stale (YAML changed)")
             click.echo("      Use --stale flag to see details")
             click.echo("      Use --stale --regen to regenerate them")
 
-        if counts['orphaned_count'] > 0:
-            click.echo(f"   🔴 {counts['orphaned_count']} files orphaned (YAML deleted)")
+        if counts["orphaned_count"] > 0:
+            click.echo(
+                f"   🔴 {counts['orphaned_count']} files orphaned (YAML deleted)"
+            )
             click.echo("      Use --orphaned flag to see details")
             click.echo("      Use --orphaned --cleanup to remove them")
 
-        if (counts['orphaned_count'] == 0 and counts['stale_count'] == 0 and 
-            counts['new_count'] == 0):
+        if (
+            counts["orphaned_count"] == 0
+            and counts["stale_count"] == 0
+            and counts["new_count"] == 0
+        ):
             click.echo("   ✨ Everything is in perfect sync!")
 
         StateDisplayUtils.display_smart_tips(env)
-    
+
     @staticmethod
     def display_smart_tips(env: str) -> None:
         """Display smart generation tips."""
@@ -260,6 +288,4 @@ class StateDisplayUtils:
         click.echo(
             f"   • lhp generate --env {env}    # Only process changed files (default)"
         )
-        click.echo(
-            f"   • lhp generate --env {env} --force  # Force regenerate all"
-        ) 
+        click.echo(f"   • lhp generate --env {env} --force  # Force regenerate all")

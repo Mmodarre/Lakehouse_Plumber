@@ -72,7 +72,7 @@ class TestReadMode:
         
         with pytest.raises(ValueError) as exc:
             generator.generate(action_batch, {})
-        assert "requires readMode='stream'" in str(exc.value)
+        assert "Invalid readMode" in str(exc.value)
     
     def test_data_quality_requires_stream(self):
         """Test that data quality transforms enforce stream readMode."""
@@ -116,7 +116,7 @@ class TestReadMode:
         
         with pytest.raises(ValueError) as exc:
             generator.generate(action_batch, {"spec_dir": Path(expectations_file).parent})
-        assert "requires readMode='stream'" in str(exc.value)
+        assert "Invalid readMode" in str(exc.value)
         
         # Clean up
         Path(expectations_file).unlink()

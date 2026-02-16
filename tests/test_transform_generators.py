@@ -1321,7 +1321,7 @@ columns:
         
         context = {"spec_dir": tmp_path}
         
-        with pytest.raises(ValueError, match="cannot specify both.*schema_inline.*and.*schema_file"):
+        with pytest.raises(ValueError, match="(?s)schema_inline.*schema_file"):
             generator.generate(action, context)
     
     def test_schema_transform_file_not_found_error(self, tmp_path):

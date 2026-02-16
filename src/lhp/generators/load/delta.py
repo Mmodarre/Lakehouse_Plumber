@@ -5,6 +5,11 @@ from typing import Any, Dict
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +38,16 @@ class DeltaLoadGenerator(BaseActionGenerator):
 
         for field, message in removed_fields.items():
             if field in source_config:
-                raise ValueError(
-                    f"Delta load action '{action.name}': Field '{field}' is no longer supported. "
-                    f"{message}"
+                raise ErrorFormatter.deprecated_field(
+                    action_name=action.name,
+                    field_name=field,
+                    replacement=message,
+                    example="""source:
+  type: delta
+  table: my_table
+  options:
+    readChangeFeed: "true"
+    startingVersion: "5" """,
                 )
 
         # Extract configuration
@@ -57,17 +69,36 @@ class DeltaLoadGenerator(BaseActionGenerator):
             options = source_config["options"]
             # Validate options is a dictionary
             if not isinstance(options, dict):
-                raise ValueError(
-                    f"Delta load action '{action.name}': 'options' must be a dictionary, "
-                    f"got {type(options).__name__}. "
-                    f"Use YAML dictionary syntax: options:\\n  key: value"
+                raise ErrorFormatter.invalid_field_type(
+                    action_name=action.name,
+                    field_name="options",
+                    expected_type="a dictionary (mapping)",
+                    actual_type=type(options).__name__,
+                    example="""options:
+  readChangeFeed: "true"
+  startingVersion: "5" """,
                 )
             for key, value in options.items():
                 # Validate option values
                 if value is None or value == "":
-                    raise ValueError(
-                        f"Delta load action '{action.name}': Option '{key}' has invalid value. "
-                        f"Value cannot be None or empty string."
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="010",
+                        title=f"Invalid option value in action '{action.name}'",
+                        details=(
+                            f"Delta load action '{action.name}': option '{key}' has an "
+                            f"invalid value (None or empty string). All options must have "
+                            f"non-empty values."
+                        ),
+                        suggestions=[
+                            f"Provide a valid value for option '{key}'",
+                            "Remove the option if it is not needed",
+                        ],
+                        context={
+                            "Action": action.name,
+                            "Option": key,
+                            "Value": repr(value),
+                        },
                     )
                 reader_options[key] = value
 
@@ -82,10 +113,11 @@ class DeltaLoadGenerator(BaseActionGenerator):
             reader_options.get("readChangeFeed") in ("true", "True", True)
             and readMode != "stream"
         ):
-            raise ValueError(
-                f"Delta load action '{action.name}': Option 'readChangeFeed' requires "
-                f"readMode='stream', but got readMode='{readMode}'. "
-                f"Add 'readMode: stream' to your action configuration."
+            raise ErrorFormatter.invalid_read_mode(
+                action_name=action.name,
+                action_type="delta (with readChangeFeed)",
+                provided=readMode,
+                valid_modes=["stream"],
             )
 
         # Handle operational metadata

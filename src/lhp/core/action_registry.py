@@ -37,7 +37,11 @@ from ..models.config import (
     TransformType,
     WriteTargetType,
 )
-from ..utils.error_formatter import ErrorFormatter
+from ..utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -115,13 +119,34 @@ class ActionRegistry:
         )
         # Add error handling and validation
         if not isinstance(action_type, ActionType):
-            raise ValueError(
-                f"Invalid action type: {action_type}. Must be an ActionType enum."
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="009",
+                title="Invalid action type",
+                details=f"Invalid action type: {action_type}. Must be an ActionType enum.",
+                suggestions=[
+                    f"Use one of the valid ActionType values: {[t.value for t in ActionType]}",
+                    "Check that the 'type' field in your action configuration is correct",
+                ],
+                context={"Provided": str(action_type)},
             )
 
         if action_type == ActionType.LOAD:
             if not sub_type:
-                raise ValueError("Load actions require a sub_type")
+                raise ErrorFormatter.missing_required_field(
+                    field_name="sub_type",
+                    component_type="action",
+                    component_name="load action",
+                    field_description="Load actions require a sub_type to determine the data source.",
+                    example_config="""actions:
+  - name: load_data
+    type: load
+    sub_type: cloudfiles  # Required for load actions
+    target: v_raw_data
+    source:
+      type: cloudfiles
+      path: /path/to/files""",
+                )
 
             # Convert string to enum if needed
             if isinstance(sub_type, str):
@@ -145,7 +170,16 @@ class ActionRegistry:
                     )
 
             if sub_type not in self._load_generators:
-                raise ValueError(f"No generator registered for load type: {sub_type}")
+                raise LHPValidationError(
+                    category=ErrorCategory.ACTION,
+                    code_number="001",
+                    title=f"No generator for load type: {sub_type}",
+                    details=f"No generator is registered for load type '{sub_type}'.",
+                    suggestions=[
+                        f"Use a valid load sub_type: {[t.value for t in self._load_generators.keys()]}",
+                    ],
+                    context={"Sub Type": str(sub_type)},
+                )
 
             logger.debug(
                 f"Resolved load generator: {self._load_generators[sub_type].__name__}"
@@ -154,7 +188,20 @@ class ActionRegistry:
 
         elif action_type == ActionType.TRANSFORM:
             if not sub_type:
-                raise ValueError("Transform actions require a sub_type")
+                raise ErrorFormatter.missing_required_field(
+                    field_name="sub_type",
+                    component_type="action",
+                    component_name="transform action",
+                    field_description="Transform actions require a sub_type to determine the transform method.",
+                    example_config="""actions:
+  - name: transform_data
+    type: transform
+    sub_type: sql  # Required for transform actions
+    source: v_raw_data
+    target: v_transformed_data
+    sql: |
+      SELECT * FROM $source""",
+                )
 
             # Convert string to enum if needed
             if isinstance(sub_type, str):
@@ -177,8 +224,15 @@ class ActionRegistry:
                     )
 
             if sub_type not in self._transform_generators:
-                raise ValueError(
-                    f"No generator registered for transform type: {sub_type}"
+                raise LHPValidationError(
+                    category=ErrorCategory.ACTION,
+                    code_number="001",
+                    title=f"No generator for transform type: {sub_type}",
+                    details=f"No generator is registered for transform type '{sub_type}'.",
+                    suggestions=[
+                        f"Use a valid transform sub_type: {[t.value for t in self._transform_generators.keys()]}",
+                    ],
+                    context={"Sub Type": str(sub_type)},
                 )
 
             logger.debug(
@@ -188,7 +242,21 @@ class ActionRegistry:
 
         elif action_type == ActionType.WRITE:
             if not sub_type:
-                raise ValueError("Write actions require a sub_type")
+                raise ErrorFormatter.missing_required_field(
+                    field_name="sub_type",
+                    component_type="action",
+                    component_name="write action",
+                    field_description="Write actions require a sub_type to determine the target type.",
+                    example_config="""actions:
+  - name: write_to_table
+    type: write
+    sub_type: streaming_table  # Required for write actions
+    source: v_transformed_data
+    write_target:
+      type: streaming_table
+      database: catalog.schema
+      table: my_table""",
+                )
 
             # Convert string to enum if needed
             if isinstance(sub_type, str):
@@ -213,7 +281,16 @@ class ActionRegistry:
                     )
 
             if sub_type not in self._write_generators:
-                raise ValueError(f"No generator registered for write type: {sub_type}")
+                raise LHPValidationError(
+                    category=ErrorCategory.ACTION,
+                    code_number="001",
+                    title=f"No generator for write type: {sub_type}",
+                    details=f"No generator is registered for write type '{sub_type}'.",
+                    suggestions=[
+                        f"Use a valid write sub_type: {[t.value for t in self._write_generators.keys()]}",
+                    ],
+                    context={"Sub Type": str(sub_type)},
+                )
 
             logger.debug(
                 f"Resolved write generator: {self._write_generators[sub_type].__name__}"
@@ -245,7 +322,16 @@ class ActionRegistry:
                     )
 
             if sub_type not in self._test_generators:
-                raise ValueError(f"No generator registered for test type: {sub_type}")
+                raise LHPValidationError(
+                    category=ErrorCategory.ACTION,
+                    code_number="001",
+                    title=f"No generator for test type: {sub_type}",
+                    details=f"No generator is registered for test type '{sub_type}'.",
+                    suggestions=[
+                        f"Use a valid test type: {[t.value for t in self._test_generators.keys()]}",
+                    ],
+                    context={"Sub Type": str(sub_type)},
+                )
 
             logger.debug(
                 f"Resolved test generator: {self._test_generators[sub_type].__name__}"
@@ -253,7 +339,14 @@ class ActionRegistry:
             return self._test_generators[sub_type]()
 
         else:
-            raise ValueError(f"Unknown action type: {action_type}")
+            raise ErrorFormatter.unknown_type_with_suggestion(
+                value_type="action type",
+                provided_value=str(action_type),
+                valid_values=[t.value for t in ActionType],
+                example_usage="""actions:
+  - name: my_action
+    type: load  # Valid types: load, transform, write, test""",
+            )
 
     def list_generators(self) -> Dict[str, list]:
         """List all available generators."""

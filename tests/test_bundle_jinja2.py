@@ -477,30 +477,23 @@ dev:
         """Should handle Jinja2 errors gracefully (missing variables, etc.)"""
         from unittest.mock import patch
         from jinja2 import TemplateNotFound, UndefinedError
-        
-        # Test 1: Missing template file
+
+        from lhp.utils.error_formatter import LHPConfigError
+
+        # Test 1: Missing template file — should raise LHPConfigError (wrapping TemplateNotFound)
         with patch.object(self.manager.template_renderer.env, 'get_template') as mock_get_template:
             mock_get_template.side_effect = TemplateNotFound("bundle/missing_template.yml.j2")
-            
-            # Should handle template not found gracefully
-            try:
+
+            with pytest.raises(LHPConfigError, match="Template .* not found"):
                 self.manager.template_renderer.render_template("bundle/missing_template.yml.j2", {"pipeline_name": "test"})
-                pytest.fail("Expected TemplateNotFound error")
-            except TemplateNotFound:
-                pass  # Expected behavior
-                
-        # Test 2: Test with missing context variables
-        # Create a template that requires more variables than provided
+
+        # Test 2: Test with missing context variables — should raise LHPConfigError (wrapping UndefinedError)
         with patch.object(self.manager.template_renderer.env, 'get_template') as mock_get_template:
             mock_template = mock_get_template.return_value
             mock_template.render.side_effect = UndefinedError("'missing_var' is undefined")
-            
-            # Should handle undefined variables gracefully
-            try:
+
+            with pytest.raises(LHPConfigError, match="undefined variable"):
                 self.manager.template_renderer.render_template("bundle/pipeline_resource.yml.j2", {})
-                pytest.fail("Expected UndefinedError")
-            except UndefinedError:
-                pass  # Expected behavior
                 
         # Test 3: Verify normal operation still works
         # This confirms our error handling doesn't break normal functionality
@@ -710,16 +703,15 @@ dev:
         assert pipeline_name in content
         
         # Test 2: Template corruption scenario (missing template file)
+        # TemplateNotFound is now wrapped in LHPConfigError by the template renderer
+        from lhp.utils.error_formatter import LHPConfigError
         with patch.object(self.manager.template_renderer.env, 'get_template') as mock_get_template:
             from jinja2 import TemplateNotFound
             mock_get_template.side_effect = TemplateNotFound("bundle/pipeline_resource.yml.j2")
-            
-            # Should handle missing template gracefully
-            try:
+
+            # Should raise LHPConfigError wrapping the TemplateNotFound
+            with pytest.raises(LHPConfigError, match="not found"):
                 self.manager.generate_resource_file_content("test_pipeline", self.generated_dir, "dev")
-                pytest.fail("Expected TemplateNotFound to be raised")
-            except TemplateNotFound:
-                pass  # Expected behavior - let caller handle the error
                 
         # Test 3: Template rendering corruption (context issues)
         with patch.object(self.manager.template_renderer, 'render_template') as mock_render:

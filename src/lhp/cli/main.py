@@ -7,6 +7,8 @@ from typing import List, Optional
 
 import click
 
+from .error_boundary import cli_error_boundary
+
 # Import for dynamic version detection
 try:
     from importlib.metadata import version
@@ -115,20 +117,28 @@ def _find_project_root() -> Optional[Path]:
 
 
 def _ensure_project_root() -> Path:
-    """Find project root or exit with error."""
+    """Find project root or raise LHPError."""
+    from ..utils.error_formatter import ErrorCategory, LHPError
+
     project_root = _find_project_root()
     if not project_root:
-        click.echo("❌ Not in a LakehousePlumber project directory")
-        click.echo("💡 Run 'lhp init <project_name>' to create a new project")
-        click.echo("💡 Or navigate to an existing project directory")
-        sys.exit(1)
+        raise LHPError(
+            category=ErrorCategory.CONFIG,
+            code_number="011",
+            title="Not in a LakehousePlumber project directory",
+            details="No lhp.yaml file found in the current directory or any parent.",
+            suggestions=[
+                "Run 'lhp init <project_name>' to create a new project",
+                "Navigate to an existing project directory",
+            ],
+        )
 
     return project_root
 
 
 def _load_project_config(project_root: Path) -> dict:
     """Load project configuration from lhp.yaml."""
-    import yaml
+    import yaml  # noqa: F401
 
     config_file = project_root / "lhp.yaml"
     if not config_file.exists():
@@ -211,6 +221,7 @@ def cli(verbose):
     is_flag=True,
     help="Skip Databricks Asset Bundle setup (bundle is enabled by default)",
 )
+@cli_error_boundary("Project initialization")
 def init(project_name, no_bundle):
     """Initialize a new LakehousePlumber project in the current directory.
 
@@ -254,6 +265,7 @@ def init(project_name, no_bundle):
     "-pc",
     help="Custom pipeline config file path (relative to project root)",
 )
+@cli_error_boundary("Code generation")
 def generate(
     env,
     pipeline,
@@ -285,6 +297,7 @@ def generate(
 @click.option("--env", "-e", default="dev", help="Environment")
 @click.option("--pipeline", "-p", help="Specific pipeline to validate")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@cli_error_boundary("Pipeline validation")
 def validate(env, pipeline, verbose):
     """Validate pipeline configurations"""
     from .commands.validate_command import ValidateCommand
@@ -303,6 +316,7 @@ def validate(env, pipeline, verbose):
 )
 @click.option("--cleanup", is_flag=True, help="Clean up orphaned files")
 @click.option("--regen", is_flag=True, help="Regenerate stale files")
+@cli_error_boundary("State management")
 def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
     """Show or manage the current state of generated files."""
     from .commands.state_command import StateCommand
@@ -312,6 +326,7 @@ def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
 
 @cli.command()
 @click.option("--pipeline", "-p", help="Specific pipeline to analyze")
+@cli_error_boundary("Pipeline statistics")
 def stats(pipeline):
     """Display pipeline statistics and complexity metrics."""
     from .commands.stats_command import StatsCommand
@@ -320,6 +335,7 @@ def stats(pipeline):
 
 
 @cli.command()
+@cli_error_boundary("List presets")
 def list_presets():
     """List available presets"""
     from .commands.list_commands import ListCommand
@@ -328,6 +344,7 @@ def list_presets():
 
 
 @cli.command()
+@cli_error_boundary("List templates")
 def list_templates():
     """List available templates"""
     from .commands.list_commands import ListCommand
@@ -338,6 +355,7 @@ def list_templates():
 @cli.command()
 @click.argument("flowgroup")
 @click.option("--env", "-e", default="dev", help="Environment")
+@cli_error_boundary("Show flowgroup")
 def show(flowgroup, env):
     """Show resolved configuration for a flowgroup in table format"""
     from .commands.show_command import ShowCommand
@@ -347,6 +365,7 @@ def show(flowgroup, env):
 
 @cli.command()
 @click.option("--env", "-e", default="dev", help="Environment")
+@cli_error_boundary("Show substitutions")
 def substitutions(env):
     """Show available substitution tokens for an environment"""
     from .commands.show_command import ShowCommand
@@ -355,6 +374,7 @@ def substitutions(env):
 
 
 @cli.command()
+@cli_error_boundary("Project info")
 def info():
     """Display project information and statistics."""
     from .commands.show_command import ShowCommand
@@ -394,6 +414,7 @@ def info():
     help="Save job file to resources/ directory for Databricks bundle integration",
 )
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@cli_error_boundary("Dependency analysis")
 def deps(format, output, pipeline, job_name, job_config, bundle_output, verbose):
     """Analyze and visualize pipeline dependencies for orchestration planning."""
     from .commands.dependencies_command import DependenciesCommand

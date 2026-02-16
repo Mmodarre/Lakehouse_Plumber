@@ -12,6 +12,7 @@ class ActionType(str, Enum):
 
 class TestActionType(str, Enum):
     """Types of test actions available."""
+
     __test__ = False  # Tell pytest this is not a test class
     ROW_COUNT = "row_count"
     UNIQUENESS = "uniqueness"
@@ -26,6 +27,7 @@ class TestActionType(str, Enum):
 
 class ViolationAction(str, Enum):
     """Actions to take when test expectations are violated."""
+
     FAIL = "fail"
     WARN = "warn"
 
@@ -106,7 +108,7 @@ class WriteTarget(BaseModel):
     """Write target configuration for streaming tables, materialized views, and sinks."""
 
     type: WriteTargetType
-    
+
     # Streaming table and materialized view fields
     database: Optional[str] = None
     table: Optional[str] = None
@@ -125,22 +127,22 @@ class WriteTarget(BaseModel):
     # Materialized view specific
     refresh_schedule: Optional[str] = None
     sql: Optional[str] = None
-    
+
     # Sink-specific fields
     sink_type: Optional[str] = None  # delta, kafka, custom, foreachbatch
     sink_name: Optional[str] = None
-    
+
     # Kafka/Event Hubs sink fields
     bootstrap_servers: Optional[str] = None
     topic: Optional[str] = None
-    
+
     # Custom sink fields
     module_path: Optional[str] = None
     custom_sink_class: Optional[str] = None
-    
+
     # ForEachBatch sink fields
     batch_handler: Optional[str] = None  # Inline batch handler code
-    
+
     # Common sink options
     options: Optional[Dict[str, Any]] = None
 
@@ -179,11 +181,15 @@ class Action(BaseModel):
     )
     expectations_file: Optional[str] = None  # For data quality transforms
     # Schema transform specific fields
-    schema_inline: Optional[str] = None  # Inline schema definition (arrow or YAML format)
+    schema_inline: Optional[str] = (
+        None  # Inline schema definition (arrow or YAML format)
+    )
     schema_file: Optional[str] = None  # External schema file path
     enforcement: Optional[str] = None  # Schema enforcement mode: strict or permissive
     # Python transform specific fields
-    module_path: Optional[str] = None  # Path to Python module (relative to project root)
+    module_path: Optional[str] = (
+        None  # Path to Python module (relative to project root)
+    )
     function_name: Optional[str] = None  # Python function name to call
     parameters: Optional[Dict[str, Any]] = None  # Parameters passed to Python function
     # Custom data source specific fields
@@ -211,35 +217,42 @@ class Action(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         """Post-initialization processing - normalize all path fields for cross-platform compatibility."""
         # List of path fields that need normalization
-        path_fields = ['module_path', 'sql_path', 'expectations_file', 'schema_file']
-        
+        path_fields = ["module_path", "sql_path", "expectations_file", "schema_file"]
+
         # Normalize direct path fields
         for field in path_fields:
             value = getattr(self, field, None)
             if value and isinstance(value, str):
-                setattr(self, field, value.replace('\\', '/'))
-        
+                setattr(self, field, value.replace("\\", "/"))
+
         # Normalize paths in source dict if present
         if isinstance(self.source, dict):
             for field in path_fields:
                 if field in self.source and isinstance(self.source[field], str):
-                    self.source[field] = self.source[field].replace('\\', '/')
-        
+                    self.source[field] = self.source[field].replace("\\", "/")
+
         # Normalize paths in write_target dict if present
         if isinstance(self.write_target, dict):
             # Handle snapshot_cdc source function file paths
-            if 'snapshot_cdc_config' in self.write_target:
-                snapshot_config = self.write_target['snapshot_cdc_config']
-                if isinstance(snapshot_config, dict) and 'source_function' in snapshot_config:
-                    source_func = snapshot_config['source_function']
-                    if isinstance(source_func, dict) and 'file' in source_func:
-                        if isinstance(source_func['file'], str):
-                            source_func['file'] = source_func['file'].replace('\\', '/')
-            
+            if "snapshot_cdc_config" in self.write_target:
+                snapshot_config = self.write_target["snapshot_cdc_config"]
+                if (
+                    isinstance(snapshot_config, dict)
+                    and "source_function" in snapshot_config
+                ):
+                    source_func = snapshot_config["source_function"]
+                    if isinstance(source_func, dict) and "file" in source_func:
+                        if isinstance(source_func["file"], str):
+                            source_func["file"] = source_func["file"].replace("\\", "/")
+
             # Handle table_schema and schema paths
-            for schema_field in ['table_schema', 'schema', 'sql_path', 'module_path']:
-                if schema_field in self.write_target and isinstance(self.write_target[schema_field], str):
-                    self.write_target[schema_field] = self.write_target[schema_field].replace('\\', '/')
+            for schema_field in ["table_schema", "schema", "sql_path", "module_path"]:
+                if schema_field in self.write_target and isinstance(
+                    self.write_target[schema_field], str
+                ):
+                    self.write_target[schema_field] = self.write_target[
+                        schema_field
+                    ].replace("\\", "/")
 
 
 class FlowGroup(BaseModel):
@@ -264,11 +277,11 @@ class Template(BaseModel):
     parameters: List[Dict[str, Any]] = []
     actions: Union[List[Action], List[Dict[str, Any]]] = []
     _raw_actions: bool = False  # Internal flag to track if actions are raw dictionaries
-    
+
     def has_raw_actions(self) -> bool:
         """Check if template contains raw action dictionaries (not validated Action objects)."""
         return self._raw_actions
-    
+
     def get_actions_as_dicts(self) -> List[Dict[str, Any]]:
         """Get actions as dictionaries, converting from Action objects if needed."""
         if self._raw_actions:

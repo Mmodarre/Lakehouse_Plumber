@@ -440,7 +440,6 @@ class TestDeltaLoadOptions:
             generator.generate(action, {})
         
         assert "cdf_enabled" in str(exc_info.value)
-        assert "no longer supported" in str(exc_info.value)
         assert "readChangeFeed" in str(exc_info.value)
 
     def test_delta_removed_read_change_feed_raises_error(self):
@@ -461,7 +460,7 @@ class TestDeltaLoadOptions:
             generator.generate(action, {})
         
         assert "read_change_feed" in str(exc_info.value)
-        assert "no longer supported" in str(exc_info.value)
+        assert "removed" in str(exc_info.value)
 
     def test_delta_removed_reader_options_raises_error(self):
         """Test that using removed reader_options field raises error."""
@@ -481,7 +480,7 @@ class TestDeltaLoadOptions:
             generator.generate(action, {})
         
         assert "reader_options" in str(exc_info.value)
-        assert "no longer supported" in str(exc_info.value)
+        assert "removed" in str(exc_info.value)
 
     def test_delta_removed_cdc_options_raises_error(self):
         """Test that using removed cdc_options field raises error."""
@@ -501,7 +500,7 @@ class TestDeltaLoadOptions:
             generator.generate(action, {})
         
         assert "cdc_options" in str(exc_info.value)
-        assert "no longer supported" in str(exc_info.value)
+        assert "removed" in str(exc_info.value)
 
     def test_delta_option_none_value_raises_error(self):
         """Test that None option value raises error."""
@@ -566,7 +565,7 @@ class TestDeltaLoadOptions:
             generator.generate(action, {})
         
         assert "options" in str(exc_info.value)
-        assert "must be a dictionary" in str(exc_info.value)
+        assert "dictionary" in str(exc_info.value)
         assert "str" in str(exc_info.value)
 
     def test_delta_readchangefeed_requires_stream_mode(self):
@@ -588,9 +587,9 @@ class TestDeltaLoadOptions:
         
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
-        
+
         assert "readChangeFeed" in str(exc_info.value)
-        assert "readMode='stream'" in str(exc_info.value)
+        assert "stream" in str(exc_info.value)
 
     def test_delta_readchangefeed_without_readmode_raises_error(self):
         """Test that readChangeFeed without explicit readMode raises error (defaults to batch)."""
@@ -611,9 +610,9 @@ class TestDeltaLoadOptions:
         
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
-        
+
         assert "readChangeFeed" in str(exc_info.value)
-        assert "readMode='stream'" in str(exc_info.value)
+        assert "stream" in str(exc_info.value)
 
     def test_delta_options_combined_features(self):
         """Test options work combined with where clause and select."""

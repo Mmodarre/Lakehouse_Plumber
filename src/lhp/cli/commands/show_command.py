@@ -2,10 +2,9 @@
 
 import logging
 import os
-import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import click
 import yaml
@@ -48,8 +47,27 @@ class ShowCommand(BaseCommand):
         logger.debug(f"Searching for flowgroup file: {flowgroup}")
         flowgroup_file = self._find_flowgroup_file(flowgroup, project_root)
         if not flowgroup_file:
-            click.echo(f"❌ Flowgroup '{flowgroup}' not found")
-            sys.exit(1)
+            from ...utils.error_formatter import ErrorCategory, LHPError
+
+            available = self._collect_available_flowgroups(project_root)
+            suggestions = [
+                "Check the flowgroup name for typos",
+                "Ensure a YAML file with this flowgroup exists in pipelines/",
+            ]
+            if available:
+                suggestions.insert(
+                    0,
+                    f"Available flowgroups: {', '.join(sorted(available))}",
+                )
+
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="013",
+                title=f"Flowgroup '{flowgroup}' not found",
+                details=f"No flowgroup named '{flowgroup}' was found in the project.",
+                suggestions=suggestions,
+                context={"Flowgroup": flowgroup},
+            )
 
         # Parse and process flowgroup
         logger.debug(f"Found flowgroup file: {flowgroup_file}")
@@ -133,6 +151,38 @@ class ShowCommand(BaseCommand):
 
         return None
 
+    def _collect_available_flowgroups(self, project_root: Path) -> List[str]:
+        """Collect available flowgroup names from the project."""
+        pipelines_dir = project_root / "pipelines"
+        if not pipelines_dir.exists():
+            return []
+
+        available = []
+        include_patterns = self._get_include_patterns(project_root)
+        yaml_files = self._discover_yaml_files_with_include(
+            pipelines_dir, include_patterns
+        )
+
+        for yaml_file in yaml_files:
+            try:
+                with open(yaml_file, "r", encoding="utf-8") as f:
+                    documents = list(yaml.safe_load_all(f))
+                for doc in documents:
+                    if doc is None:
+                        continue
+                    fg_name = doc.get("flowgroup")
+                    if fg_name:
+                        available.append(fg_name)
+                    if "flowgroups" in doc:
+                        for fg_config in doc["flowgroups"]:
+                            fg_name = fg_config.get("flowgroup")
+                            if fg_name:
+                                available.append(fg_name)
+            except Exception:
+                continue
+
+        return available
+
     def _get_include_patterns(self, project_root: Path) -> list[str]:
         """Get include patterns from project configuration."""
         try:
@@ -167,11 +217,7 @@ class ShowCommand(BaseCommand):
     def _parse_flowgroup(self, flowgroup_file: Path):
         """Parse flowgroup file."""
         parser = YAMLParser()
-        try:
-            return parser.parse_flowgroup(flowgroup_file)
-        except Exception as e:
-            click.echo(f"❌ Error parsing flowgroup: {e}")
-            sys.exit(1)
+        return parser.parse_flowgroup(flowgroup_file)
 
     def _load_substitution_manager(self, project_root: Path, env: str):
         """Load substitution manager for environment."""
@@ -185,11 +231,7 @@ class ShowCommand(BaseCommand):
     def _process_flowgroup(self, fg, substitution_mgr, project_root: Path):
         """Process flowgroup with templates and presets."""
         orchestrator = ActionOrchestrator(project_root, enforce_version=False)
-        try:
-            return orchestrator.process_flowgroup(fg, substitution_mgr)
-        except Exception as e:
-            click.echo(f"❌ Error processing flowgroup: {e}")
-            sys.exit(1)
+        return orchestrator.process_flowgroup(fg, substitution_mgr)
 
     def _display_flowgroup_configuration(
         self, processed_fg, flowgroup_file: Path, project_root: Path, env: str
@@ -413,8 +455,31 @@ class ShowCommand(BaseCommand):
         # Load substitutions
         sub_file = project_root / "substitutions" / f"{env}.yaml"
         if not sub_file.exists():
-            click.echo(f"❌ Substitution file not found: {sub_file}")
-            sys.exit(1)
+            from ...utils.error_formatter import ErrorCategory, LHPError
+
+            # Discover available environments for suggestions
+            sub_dir = project_root / "substitutions"
+            available_envs = []
+            if sub_dir.exists():
+                available_envs = sorted(f.stem for f in sub_dir.glob("*.yaml"))
+
+            suggestions = [
+                f"Create the substitution file: substitutions/{env}.yaml",
+            ]
+            if available_envs:
+                suggestions.insert(
+                    0,
+                    f"Available environments: {', '.join(available_envs)}",
+                )
+
+            raise LHPError(
+                category=ErrorCategory.IO,
+                code_number="006",
+                title=f"Substitution file not found for environment '{env}'",
+                details=f"Expected file: {sub_file}",
+                suggestions=suggestions,
+                context={"Environment": env},
+            )
 
         mgr = EnhancedSubstitutionManager(sub_file, env=env)
 

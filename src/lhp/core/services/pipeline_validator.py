@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 from ...models.config import FlowGroup
-from ...utils.error_formatter import LHPError
+from ...utils.error_formatter import ErrorCategory, LHPError, LHPValidationError
 from ...utils.substitution import EnhancedSubstitutionManager
 
 
@@ -168,8 +168,20 @@ class PipelineValidator:
             try:
                 errors = self.config_validator.validate_flowgroup(flowgroup)
                 if errors:
-                    raise ValueError(
-                        f"Flowgroup validation failed:\n" + "\n\n".join(errors)
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title="FlowGroup validation failed",
+                        details="Flowgroup validation failed:\n"
+                        + "\n\n".join(str(e) for e in errors),
+                        suggestions=[
+                            "Check flowgroup configuration for the errors listed above",
+                            "Run 'lhp validate' for detailed diagnostics",
+                        ],
+                        context={
+                            "FlowGroup": flowgroup.flowgroup,
+                            "Error Count": len(errors),
+                        },
                     )
             except LHPError:
                 # Re-raise LHPError as-is (it's already well-formatted)
@@ -177,7 +189,17 @@ class PipelineValidator:
         else:
             # Minimal validation if no config validator available
             if not flowgroup.actions:
-                raise ValueError("Flowgroup must have at least one action")
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Empty flowgroup",
+                    details="Flowgroup must have at least one action.",
+                    suggestions=[
+                        "Add at least one action to the flowgroup",
+                        "Check the flowgroup YAML file for missing actions",
+                    ],
+                    context={"FlowGroup": flowgroup.flowgroup},
+                )
 
     def validate_action_dependencies(self, actions: List) -> List[str]:
         """

@@ -5,7 +5,11 @@ from collections import defaultdict, deque
 from typing import Dict, List, Optional, Tuple
 
 from ..models.config import Action, ActionType
-from ..utils.error_formatter import ErrorCategory, LHPError
+from ..utils.error_formatter import (
+    ErrorCategory,
+    LHPConfigError,
+    LHPValidationError,
+)
 
 
 class DependencyResolver:
@@ -89,8 +93,8 @@ class DependencyResolver:
         orphaned = self._find_orphaned_actions(actions, graph, targets)
         for action in orphaned:
             if action.type == ActionType.TRANSFORM:
-                # Create a proper LHPError for orphaned transform actions
-                raise LHPError(
+                # Create a proper LHPConfigError for orphaned transform actions
+                raise LHPConfigError(
                     category=ErrorCategory.CONFIG,
                     code_number="003",
                     title=f"Unused transform action: '{action.name}'",
@@ -318,7 +322,19 @@ Or reference it in another transform:
         # Check if all actions were processed
         if len(result) != len(actions):
             unprocessed = [name for name, degree in in_degree.items() if degree > 0]
-            raise ValueError(f"Circular dependency detected involving: {unprocessed}")
+            cycle_visual = " -> ".join(unprocessed + [unprocessed[0]])
+            raise LHPValidationError(
+                category=ErrorCategory.DEPENDENCY,
+                code_number="001",
+                title="Circular dependency detected",
+                details=f"Circular dependency detected involving: {unprocessed}\n\n{cycle_visual}",
+                suggestions=[
+                    "Review the dependency chain and remove one of the dependencies",
+                    "Consider splitting complex transformations into separate stages",
+                    "Use materialized views to break dependency cycles",
+                ],
+                context={"Cycle": cycle_visual, "Components": ", ".join(unprocessed)},
+            )
 
         self.logger.debug(f"Topological sort complete: {[a.name for a in result]}")
         return result

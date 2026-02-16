@@ -18,6 +18,7 @@ class InitTemplateContext:
         bundle_enabled: Whether bundle support is enabled
         bundle_uuid: UUID for the Databricks Asset Bundle
     """
+
     project_name: str
     current_date: str
     author: str = ""
@@ -25,7 +26,9 @@ class InitTemplateContext:
     bundle_uuid: str = ""
 
     @classmethod
-    def create(cls, project_name: str, bundle_enabled: bool = False, author: str = "") -> InitTemplateContext:
+    def create(
+        cls, project_name: str, bundle_enabled: bool = False, author: str = ""
+    ) -> InitTemplateContext:
         """Create a new template context with current timestamp.
 
         Args:
@@ -42,4 +45,4 @@ class InitTemplateContext:
             author=author,
             bundle_enabled=bundle_enabled,
             bundle_uuid=str(uuid.uuid4()),
-        ) 
+        )

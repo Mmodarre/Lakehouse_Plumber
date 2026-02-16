@@ -77,7 +77,7 @@ class TableCreationValidator:
                 creator_names = [f"{c['flowgroup']}.{c['action']}" for c in creators]
 
                 # Create a proper LHPError for multiple table creators
-                from ...utils.error_formatter import ErrorCategory, LHPError
+                from ...utils.error_formatter import ErrorCategory, LHPConfigError
 
                 # Build example configuration string
                 db_name = table_name.split(".")[0]
@@ -104,7 +104,7 @@ class TableCreationValidator:
                     "    create_table: false   # ← All others should have this"
                 )
 
-                raise LHPError(
+                raise LHPConfigError(
                     category=ErrorCategory.CONFIG,
                     code_number="004",
                     title=f"Multiple table creators detected: '{table_name}'",

@@ -12,7 +12,13 @@ from ..models.config import Action, ActionType, FlowGroup
 # Component imports (for service initialization)
 from ..parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ..presets.preset_manager import PresetManager
-from ..utils.error_formatter import ErrorCategory, LHPError
+from ..utils.error_formatter import (
+    ErrorCategory,
+    LHPConfigError,
+    LHPError,
+    LHPFileError,
+    LHPValidationError,
+)
 from ..utils.formatter import format_code
 from ..utils.smart_file_writer import SmartFileWriter
 from ..utils.source_extractor import (
@@ -542,8 +548,18 @@ class ActionOrchestrator:
         """
         errors = self.config_validator.validate_duplicate_pipeline_flowgroup(flowgroups)
         if errors:
-            raise ValueError(
-                f"Duplicate pipeline+flowgroup combinations found: {errors}"
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="009",
+                title="Duplicate pipeline+flowgroup combinations found",
+                details=f"Duplicate pipeline+flowgroup combinations found:\n"
+                + "\n".join(f"  - {e}" for e in errors),
+                suggestions=[
+                    "Ensure each pipeline+flowgroup combination is unique",
+                    "Check for duplicate flowgroup names within the same pipeline",
+                    "Rename one of the duplicate flowgroups",
+                ],
+                context={"Duplicates": len(errors)},
             )
 
     def generate_pipeline_by_field(
@@ -625,8 +641,16 @@ class ActionOrchestrator:
             processed_flowgroups = []
             for result in results:
                 if not result.success:
-                    raise ValueError(
-                        f"Failed to generate {result.flowgroup_name}: {result.error}"
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title=f"Failed to generate flowgroup '{result.flowgroup_name}'",
+                        details=f"Failed to generate {result.flowgroup_name}: {result.error}",
+                        suggestions=[
+                            "Check the flowgroup configuration for errors",
+                            "Run 'lhp validate' for detailed diagnostics",
+                        ],
+                        context={"Flowgroup": result.flowgroup_name},
                     )
                 if result.processed_flowgroup:
                     processed_flowgroups.append(result.processed_flowgroup)
@@ -647,12 +671,33 @@ class ActionOrchestrator:
                 processed_flowgroups
             )
             if errors:
-                raise ValueError(
-                    "Table creation validation failed:\n"
-                    + "\n".join(f"  - {e}" for e in errors)
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Table creation validation failed",
+                    details="Table creation validation failed:\n"
+                    + "\n".join(f"  - {e}" for e in errors),
+                    suggestions=[
+                        "Ensure each target table has exactly one action with create_table: true",
+                        "Check for conflicting table creation settings across flowgroups",
+                        "Run 'lhp validate' for detailed diagnostics",
+                    ],
+                    context={"Pipeline": pipeline_field, "Error Count": len(errors)},
                 )
+        except LHPError:
+            raise
         except Exception as e:
-            raise ValueError(f"Table creation validation failed:\n  - {str(e)}")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="009",
+                title="Table creation validation failed",
+                details=f"Table creation validation failed:\n  - {str(e)}",
+                suggestions=[
+                    "Ensure each target table has exactly one action with create_table: true",
+                    "Check for conflicting table creation settings across flowgroups",
+                ],
+                context={"Pipeline": pipeline_field},
+            )
 
         # 5. Generate code for each flowgroup
         generated_files = {}
@@ -772,8 +817,6 @@ class ActionOrchestrator:
                         self.logger.info(f"Would generate: {filename}")
 
                 except Exception as e:
-                    from ..utils.error_formatter import LHPError
-
                     if isinstance(e, LHPError):
                         self.logger.debug(
                             f"Error generating flowgroup {processed_flowgroup.flowgroup}"
@@ -968,7 +1011,21 @@ class ActionOrchestrator:
         if use_directory_discovery:
             pipeline_dir = self.project_root / "pipelines" / pipeline_identifier
             if not pipeline_dir.exists():
-                raise ValueError(f"Pipeline directory not found: {pipeline_dir}")
+                raise LHPFileError(
+                    category=ErrorCategory.IO,
+                    code_number="001",
+                    title="Pipeline directory not found",
+                    details=f"Pipeline directory not found: {pipeline_dir}",
+                    suggestions=[
+                        f"Check that the directory '{pipeline_dir}' exists",
+                        "Verify the pipeline name is correct",
+                        "Run 'lhp info' to see available pipelines",
+                    ],
+                    context={
+                        "Pipeline": pipeline_identifier,
+                        "Directory": str(pipeline_dir),
+                    },
+                )
             all_flowgroups = self.discoverer.discover_flowgroups(pipeline_dir)
         else:
             all_flowgroups = self.discover_flowgroups_by_pipeline_field(
@@ -978,8 +1035,17 @@ class ActionOrchestrator:
         # Check if discovery truly failed (no flowgroups exist for this pipeline)
         if not all_flowgroups:
             if use_directory_discovery:
-                raise ValueError(
-                    f"No flowgroups found in pipeline: {pipeline_identifier}"
+                raise LHPConfigError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="014",
+                    title="No flowgroups found",
+                    details=f"No flowgroups found in pipeline: {pipeline_identifier}",
+                    suggestions=[
+                        "Check that the pipeline directory contains YAML flowgroup files",
+                        "Verify the pipeline name is correct",
+                        "Run 'lhp info' to see project configuration",
+                    ],
+                    context={"Pipeline": pipeline_identifier},
                 )
             else:
                 # This is a real discovery failure - no YAML files match this pipeline field

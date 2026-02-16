@@ -56,7 +56,7 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
                 )
                 return class_name  # Fallback to class name
 
-        except Exception as e:
+        except (re.error, AttributeError, IndexError) as e:
             self.logger.warning(
                 f"Error extracting format name from {class_name}: {e}, using class name as fallback"
             )
@@ -131,7 +131,13 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
         sink_path = project_root / module_path
 
         if not sink_path.exists():
-            raise FileNotFoundError(f"Custom sink file not found: {sink_path}")
+            raise ErrorFormatter.file_not_found(
+                file_path=str(sink_path),
+                search_locations=[
+                    f"Relative to project root: {project_root / module_path}",
+                ],
+                file_type="custom sink file",
+            )
 
         raw_sink_code = sink_path.read_text()
         self.sink_file_path = Path(module_path).as_posix()

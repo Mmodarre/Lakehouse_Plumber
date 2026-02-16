@@ -5,7 +5,11 @@ from pathlib import Path
 from typing import Any, Dict
 
 from ....models.config import Action
-from ....utils.error_formatter import ErrorFormatter
+from ....utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPValidationError,
+)
 from .base_sink import BaseSinkWriteGenerator
 
 
@@ -77,8 +81,18 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
         elif batch_handler:
             batch_handler_code = batch_handler
         else:
-            raise ValueError(
-                f"ForEachBatch sink '{action.name}' must have either 'module_path' or 'batch_handler'"
+            raise ErrorFormatter.missing_required_field(
+                field_name="module_path or batch_handler",
+                component_type="ForEachBatch sink write action",
+                component_name=action.name,
+                field_description="ForEachBatch sinks require either 'module_path' (external file) or 'batch_handler' (inline code).",
+                example_config=f"""write_target:
+  type: sink
+  sink_type: foreachbatch
+  sink_name: "my_batch_sink"
+  module_path: "batch_handlers/my_handler.py"  # Option 1
+  # batch_handler: |                           # Option 2
+  #   df.write.format("delta").save("/path")""",
             )
 
         # Apply substitutions to batch handler code (both inline and file-based)
@@ -96,12 +110,28 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
 
         # Extract source view (single source only)
         if not action.source:
-            raise ValueError(f"ForEachBatch sink '{action.name}' must have a source")
+            raise ErrorFormatter.missing_required_field(
+                field_name="source",
+                component_type="ForEachBatch sink write action",
+                component_name=action.name,
+                field_description="ForEachBatch sinks require a source view to read data from.",
+                example_config=f"""actions:
+  - name: {action.name}
+    type: write
+    source: v_data  # Required: source view name
+    write_target:
+      type: sink
+      sink_type: foreachbatch
+      sink_name: "my_batch_sink" """,
+            )
 
         if not isinstance(action.source, str):
-            raise ValueError(
-                f"ForEachBatch sink '{action.name}' only supports single source view (string), "
-                f"not list or dict"
+            raise ErrorFormatter.invalid_field_type(
+                action_name=action.name,
+                field_name="source",
+                expected_type="a string (single view name)",
+                actual_type=type(action.source).__name__,
+                example="""source: v_data  # ForEachBatch sinks only support single source view""",
             )
 
         source_view = action.source
@@ -153,8 +183,12 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
         handler_path = project_root / module_path
 
         if not handler_path.exists():
-            raise FileNotFoundError(
-                f"ForEachBatch sink batch handler file not found: {handler_path}"
+            raise ErrorFormatter.file_not_found(
+                file_path=str(handler_path),
+                search_locations=[
+                    f"Relative to project root: {project_root / module_path}",
+                ],
+                file_type="ForEachBatch batch handler file",
             )
 
         return handler_path.read_text()

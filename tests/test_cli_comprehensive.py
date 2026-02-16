@@ -400,9 +400,8 @@ actions:
             result = runner.invoke(cli, ['validate'])
             
             # Should show helpful error message
-            assert result.exit_code == 1
-            assert "❌ Not in a LakehousePlumber project directory" in result.output
-            assert "💡 Run 'lhp init <project_name>' to create a new project" in result.output
+            assert result.exit_code != 0
+            assert "Not in a LakehousePlumber project directory" in result.output
     
     def test_verbose_flag(self, runner, temp_project):
         """Test verbose flag for detailed output."""

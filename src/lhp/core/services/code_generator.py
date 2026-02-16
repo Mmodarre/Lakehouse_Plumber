@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ...models.config import Action, ActionType, FlowGroup
-from ...utils.error_formatter import LHPError
+from ...utils.error_formatter import ErrorCategory, LHPError, LHPValidationError
 from ...utils.source_extractor import extract_source_views_from_action
 from ...utils.substitution import EnhancedSubstitutionManager
 
@@ -280,9 +280,24 @@ class CodeGenerator:
                 raise  # Re-raise LHPError as-is
             except Exception as e:
                 action_names = [a.name for a in actions]
-                raise ValueError(
-                    f"Error generating code for write actions {action_names}: {e}"
-                )
+                raise LHPError(
+                    category=ErrorCategory.ACTION,
+                    code_number="002",
+                    title="Write action code generation failed",
+                    details=(
+                        f"Error generating code for write actions "
+                        f"{action_names}: {e}"
+                    ),
+                    suggestions=[
+                        "Check write action configuration for the target table",
+                        "Verify source views and write target settings",
+                        "Run 'lhp validate' for detailed diagnostics",
+                    ],
+                    context={
+                        "Target Table": target_table,
+                        "Actions": action_names,
+                    },
+                ) from e
 
         return sections, imports, custom_sources
 
@@ -335,9 +350,21 @@ class CodeGenerator:
             except LHPError:
                 raise  # Re-raise LHPError as-is
             except Exception as e:
-                raise ValueError(
-                    f"Error generating code for action '{action.name}': {e}"
-                )
+                raise LHPError(
+                    category=ErrorCategory.ACTION,
+                    code_number="002",
+                    title=f"Action code generation failed for '{action.name}'",
+                    details=f"Error generating code for action '{action.name}': {e}",
+                    suggestions=[
+                        "Check the action configuration for errors",
+                        "Verify source and target references are correct",
+                        "Run 'lhp validate' for detailed diagnostics",
+                    ],
+                    context={
+                        "Action": action.name,
+                        "Action Type": str(action.type),
+                    },
+                ) from e
 
         return sections, imports, custom_sources
 
@@ -521,7 +548,17 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
             return action.test_type or "row_count"  # Default to row_count test
 
         else:
-            raise ValueError(f"Unknown action type: {action.type}")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="009",
+                title=f"Unknown action type: {action.type}",
+                details=f"Cannot determine sub-type for unknown action type '{action.type}'.",
+                suggestions=[
+                    "Use a valid action type: load, transform, write, test",
+                    "Check the 'type' field in your action configuration",
+                ],
+                context={"Action": action.name, "Type": str(action.type)},
+            )
 
     def group_write_actions_by_target(
         self, write_actions: List[Action]

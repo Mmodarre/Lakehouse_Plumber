@@ -477,14 +477,12 @@ class TestGenerateCommandHelperMethods:
         assert result == []
     
     def test_discover_pipelines_for_generation_error(self, generate_command):
-        """Test discovering pipelines when error occurs."""
+        """Test discovering pipelines when error occurs — now propagates."""
         mock_facade = Mock()
         mock_facade.orchestrator.discover_all_flowgroups.side_effect = Exception("Discovery error")
-        
-        with patch('click.echo'):
-            result = generate_command._discover_pipelines_for_generation(None, mock_facade)
-        
-        assert result == []
+
+        with pytest.raises(Exception, match="Discovery error"):
+            generate_command._discover_pipelines_for_generation(None, mock_facade)
     
     def test_display_generation_analysis_force_mode(self, generate_command):
         """Test displaying generation analysis with force mode."""
@@ -635,47 +633,35 @@ class TestGenerateCommandHelperMethods:
         """Test handling bundle operations when bundle error occurs."""
         output_dir = temp_project / "generated" / "dev"
         output_dir.mkdir(parents=True)
-        
+
         (temp_project / "databricks.yml").write_text("targets:\n  dev: {}")
-        
-        with patch('click.echo') as mock_echo, \
-             patch('lhp.cli.commands.generate_command.BundleManager') as mock_bundle_manager, \
-             patch('sys.exit') as mock_exit:
+
+        with patch('lhp.cli.commands.generate_command.BundleManager') as mock_bundle_manager:
             mock_manager_instance = Mock()
             mock_bundle_manager.return_value = mock_manager_instance
             mock_manager_instance.sync_resources_with_generated_files.side_effect = BundleResourceError("Bundle error")
-            
-            generate_command._handle_bundle_operations(
-                temp_project, output_dir, "dev",
-                no_bundle=False, dry_run=False, force=False, pipeline_config_path=None
-            )
-            
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Bundle sync failed" in str(call) for call in calls)
-            mock_exit.assert_called_once_with(1)
+
+            with pytest.raises(BundleResourceError, match="Bundle error"):
+                generate_command._handle_bundle_operations(
+                    temp_project, output_dir, "dev",
+                    no_bundle=False, dry_run=False, force=False, pipeline_config_path=None
+                )
     
     def test_handle_bundle_operations_unexpected_error(self, generate_command, temp_project):
         """Test handling bundle operations when unexpected error occurs."""
         output_dir = temp_project / "generated" / "dev"
         output_dir.mkdir(parents=True)
-        
+
         (temp_project / "databricks.yml").write_text("targets:\n  dev: {}")
-        
-        with patch('click.echo') as mock_echo, \
-             patch('lhp.cli.commands.generate_command.BundleManager') as mock_bundle_manager, \
-             patch('sys.exit') as mock_exit:
+
+        with patch('lhp.cli.commands.generate_command.BundleManager') as mock_bundle_manager:
             mock_bundle_manager.side_effect = Exception("Unexpected error")
-            
-            generate_command._handle_bundle_operations(
-                temp_project, output_dir, "dev",
-                no_bundle=False, dry_run=False, force=False, pipeline_config_path=None
-            )
-            
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Unexpected bundle error" in str(call) for call in calls)
-            mock_exit.assert_called_once_with(1)
+
+            with pytest.raises(Exception, match="Unexpected error"):
+                generate_command._handle_bundle_operations(
+                    temp_project, output_dir, "dev",
+                    no_bundle=False, dry_run=False, force=False, pipeline_config_path=None
+                )
     
     def test_get_user_input(self, generate_command):
         """Test getting user input."""
@@ -689,19 +675,18 @@ class TestGenerateCommandExecute:
     
     def test_execute_no_pipelines_found(self, generate_command, temp_project):
         """Test execute when no pipelines are found."""
+        from lhp.utils.error_formatter import LHPConfigError
+
         with patch.object(generate_command, 'setup_from_context'), \
              patch.object(generate_command, 'ensure_project_root', return_value=temp_project), \
              patch.object(generate_command, '_display_startup_message'), \
              patch.object(generate_command, 'check_substitution_file', return_value=temp_project / "substitutions" / "dev.yaml"), \
              patch.object(generate_command, '_create_application_facade') as mock_facade, \
              patch.object(generate_command, '_discover_pipelines_for_generation', return_value=[]), \
-             patch('click.echo'), \
-             patch('sys.exit') as mock_exit:
-            
-            # Should exit before reaching other methods, so no need to mock them fully
-            generate_command.execute("dev")
-            
-            mock_exit.assert_called_once_with(1)
+             patch('click.echo'):
+
+            with pytest.raises(LHPConfigError, match="No flowgroups found"):
+                generate_command.execute("dev")
     
     def test_execute_basic_flow(self, generate_command, temp_project):
         """Test basic execute flow."""

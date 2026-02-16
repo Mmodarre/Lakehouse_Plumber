@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
+from ...utils.error_formatter import ErrorCategory, LHPConfigError
 from .dependency_analyzer import DependencyAnalyzer
 from .job_generator import JobGenerator
 
@@ -72,8 +73,19 @@ class DependencyOutputManager:
         valid_formats = {"dot", "json", "text", "job"}
         invalid_formats = set(output_formats) - valid_formats
         if invalid_formats:
-            raise ValueError(
-                f"Invalid output formats: {invalid_formats}. Valid formats: {valid_formats}"
+            raise LHPConfigError(
+                category=ErrorCategory.CONFIG,
+                code_number="014",
+                title="Invalid output format(s)",
+                details=f"Invalid output formats: {invalid_formats}. Valid formats: {valid_formats}",
+                suggestions=[
+                    f"Use one or more of: {', '.join(sorted(valid_formats))}",
+                    "Use 'all' to generate all formats",
+                ],
+                context={
+                    "Invalid": list(invalid_formats),
+                    "Valid": sorted(valid_formats),
+                },
             )
 
         generated_files = {}

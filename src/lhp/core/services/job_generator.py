@@ -13,6 +13,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from ...models.dependencies import DependencyAnalysisResult
+from ...utils.error_formatter import (
+    ErrorCategory,
+    LHPFileError,
+    LHPValidationError,
+)
 from ...utils.template_renderer import TemplateRenderer
 
 logger = logging.getLogger(__name__)
@@ -125,9 +130,20 @@ class JobGenerator:
             # Custom path specified
             full_config_path = project_root / config_file_path
             if not full_config_path.exists():
-                raise FileNotFoundError(
-                    f"Job config file not found: {config_file_path} "
-                    f"(looking in {project_root})"
+                raise LHPFileError(
+                    category=ErrorCategory.IO,
+                    code_number="001",
+                    title="Job config file not found",
+                    details=f"Job config file not found: {config_file_path} (looking in {project_root})",
+                    suggestions=[
+                        f"Ensure the file exists at: {full_config_path}",
+                        "Check the file path for typos",
+                        "Create the job config file if it doesn't exist",
+                    ],
+                    context={
+                        "File Path": str(config_file_path),
+                        "Project Root": str(project_root),
+                    },
                 )
         else:
             # Default path
@@ -198,7 +214,7 @@ class JobGenerator:
 
                     # Validate non-empty list
                     if not job_names:
-                        from ...utils.error_formatter import ErrorCategory, LHPError
+                        from ...utils.error_formatter import LHPError
 
                         raise LHPError(
                             category=ErrorCategory.VALIDATION,
@@ -222,7 +238,7 @@ class JobGenerator:
                     for job_name in job_names:
                         # Validate for duplicates
                         if job_name in seen_job_names:
-                            from ...utils.error_formatter import ErrorCategory, LHPError
+                            from ...utils.error_formatter import LHPError
 
                             raise LHPError(
                                 category=ErrorCategory.VALIDATION,
@@ -380,7 +396,18 @@ class JobGenerator:
             ValueError: If no pipelines found in dependency results
         """
         if not dependency_result.execution_stages:
-            raise ValueError("No pipeline execution stages found in dependency results")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="009",
+                title="No pipeline execution stages found",
+                details="No pipeline execution stages found in dependency results.",
+                suggestions=[
+                    "Ensure the project has flowgroups with pipeline definitions",
+                    "Run 'lhp deps' to check pipeline dependencies",
+                    "Verify that flowgroup YAML files exist and are valid",
+                ],
+                context={},
+            )
 
         # Set defaults
         if not project_name:
@@ -587,9 +614,19 @@ class JobGenerator:
 
         # STRICT VALIDATION (Decision 3.b)
         if global_result is None:
-            raise ValueError(
-                "global_result is required for generate_master_job(). "
-                "Pass the global DependencyAnalysisResult from analyze_dependencies_by_job()."
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="009",
+                title="Missing global_result for master job generation",
+                details=(
+                    "global_result is required for generate_master_job(). "
+                    "Pass the global DependencyAnalysisResult from analyze_dependencies_by_job()."
+                ),
+                suggestions=[
+                    "Provide the global DependencyAnalysisResult when calling generate_master_job()",
+                    "Use analyze_dependencies_by_job() to get the global result",
+                ],
+                context={"Master Job Name": master_job_name},
             )
 
         self.logger.info(f"Generating master orchestration job: {master_job_name}")

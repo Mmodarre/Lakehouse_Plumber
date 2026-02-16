@@ -45,22 +45,26 @@ class SQLParser:
         tables.update(self._extract_from_function_wrappers(cleaned_sql))
 
         # Filter out invalid references
-        valid_tables = [table for table in tables if self._is_valid_table_reference(table)]
+        valid_tables = [
+            table for table in tables if self._is_valid_table_reference(table)
+        ]
 
         return sorted(valid_tables)
 
     def _clean_sql(self, sql_content: str) -> str:
         """Clean SQL content by removing comments and normalizing whitespace."""
         # Remove SQL comments
-        sql_content = re.sub(r'--.*$', '', sql_content, flags=re.MULTILINE)
-        sql_content = re.sub(r'/\*.*?\*/', '', sql_content, flags=re.DOTALL)
+        sql_content = re.sub(r"--.*$", "", sql_content, flags=re.MULTILINE)
+        sql_content = re.sub(r"/\*.*?\*/", "", sql_content, flags=re.DOTALL)
 
         # Normalize whitespace
-        sql_content = re.sub(r'\s+', ' ', sql_content.strip())
+        sql_content = re.sub(r"\s+", " ", sql_content.strip())
 
         return sql_content
 
-    def _extract_from_from_clauses(self, sql_content: str, cte_names: Set[str] = None) -> Set[str]:
+    def _extract_from_from_clauses(
+        self, sql_content: str, cte_names: Set[str] = None
+    ) -> Set[str]:
         """Extract table references from FROM clauses, excluding CTE names and function wrappers."""
         tables = set()
         if cte_names is None:
@@ -69,15 +73,17 @@ class SQLParser:
         # Pattern for FROM clauses
         # Matches: FROM table, FROM schema.table, FROM {catalog}.{schema}.table
         # Also handles aliases: FROM table AS alias, FROM table alias
-        from_pattern = r'\bFROM\s+((?:(?:\{[^}]+\}|\w+)(?:\.(?:\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?'
+        from_pattern = r"\bFROM\s+((?:(?:\{[^}]+\}|\w+)(?:\.(?:\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?"
 
         for match in re.finditer(from_pattern, sql_content, re.IGNORECASE):
             table_ref = match.group(1).strip()
             # Remove alias if present
-            table_ref = re.sub(r'\s+(?:AS\s+)?\w+$', '', table_ref, flags=re.IGNORECASE)
+            table_ref = re.sub(r"\s+(?:AS\s+)?\w+$", "", table_ref, flags=re.IGNORECASE)
 
             # Skip function wrappers - check if this match is followed by an opening parenthesis
-            if match.end() < len(sql_content) and re.match(r'\s*\(', sql_content[match.end():]):
+            if match.end() < len(sql_content) and re.match(
+                r"\s*\(", sql_content[match.end() :]
+            ):
                 continue
 
             # Skip if this is a CTE name
@@ -86,20 +92,25 @@ class SQLParser:
 
         # Handle comma-separated tables in FROM clause
         # e.g., FROM table1, table2, table3
-        comma_pattern = r'\bFROM\s+(.*?)(?:\s+\bWHERE\b|\s+\bGROUP\b|\s+\bORDER\b|\s+\bHAVING\b|\s+\bLIMIT\b|;|\)|$)'
-        comma_matches = re.findall(comma_pattern, sql_content, re.IGNORECASE | re.DOTALL)
+        comma_pattern = r"\bFROM\s+(.*?)(?:\s+\bWHERE\b|\s+\bGROUP\b|\s+\bORDER\b|\s+\bHAVING\b|\s+\bLIMIT\b|;|\)|$)"
+        comma_matches = re.findall(
+            comma_pattern, sql_content, re.IGNORECASE | re.DOTALL
+        )
 
         for match in comma_matches:
-            if ',' in match:
+            if "," in match:
                 # Split by comma and extract table names
-                parts = [part.strip() for part in match.split(',')]
+                parts = [part.strip() for part in match.split(",")]
                 for part in parts:
                     # Skip function calls
-                    if '(' in part:
+                    if "(" in part:
                         continue
 
                     # Extract table reference, remove alias
-                    table_match = re.match(r'((?:(?:\{[^}]+\}|\w+)(?:\.(?:\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?', part.strip())
+                    table_match = re.match(
+                        r"((?:(?:\{[^}]+\}|\w+)(?:\.(?:\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?",
+                        part.strip(),
+                    )
                     if table_match:
                         table_ref = table_match.group(1)
                         # Skip if this is a CTE name
@@ -108,22 +119,26 @@ class SQLParser:
 
         return tables
 
-    def _extract_from_join_clauses(self, sql_content: str, cte_names: Set[str] = None) -> Set[str]:
+    def _extract_from_join_clauses(
+        self, sql_content: str, cte_names: Set[str] = None
+    ) -> Set[str]:
         """Extract table references from JOIN clauses, excluding CTE names."""
         tables = set()
         if cte_names is None:
             cte_names = set()
 
         # Pattern for all types of JOIN clauses
-        join_pattern = r'\b(?:INNER\s+|LEFT\s+|RIGHT\s+|FULL\s+|CROSS\s+)?JOIN\s+((?:(?:\{[^}]+\}|\w+)(?:\.(?:\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?'
+        join_pattern = r"\b(?:INNER\s+|LEFT\s+|RIGHT\s+|FULL\s+|CROSS\s+)?JOIN\s+((?:(?:\{[^}]+\}|\w+)(?:\.(?:\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?"
 
         for match in re.finditer(join_pattern, sql_content, re.IGNORECASE):
             table_ref = match.group(1).strip()
             # Remove alias if present
-            table_ref = re.sub(r'\s+(?:AS\s+)?\w+$', '', table_ref, flags=re.IGNORECASE)
+            table_ref = re.sub(r"\s+(?:AS\s+)?\w+$", "", table_ref, flags=re.IGNORECASE)
 
             # Skip function wrappers - check if this match is followed by an opening parenthesis
-            if match.end() < len(sql_content) and re.match(r'\s*\(', sql_content[match.end():]):
+            if match.end() < len(sql_content) and re.match(
+                r"\s*\(", sql_content[match.end() :]
+            ):
                 continue
 
             # Skip if this is a CTE name
@@ -143,17 +158,19 @@ class SQLParser:
 
         # Extract all CTE names using multiple patterns
         # First, find the initial CTE after WITH
-        first_cte_pattern = r'\bWITH\s+(\w+)\s+AS\s*\('
+        first_cte_pattern = r"\bWITH\s+(\w+)\s+AS\s*\("
         first_cte_matches = re.findall(first_cte_pattern, sql_content, re.IGNORECASE)
         cte_names.update(first_cte_matches)
 
         # Then find subsequent CTEs after commas
-        subsequent_cte_pattern = r',\s*(\w+)\s+AS\s*\('
-        subsequent_cte_matches = re.findall(subsequent_cte_pattern, sql_content, re.IGNORECASE)
+        subsequent_cte_pattern = r",\s*(\w+)\s+AS\s*\("
+        subsequent_cte_matches = re.findall(
+            subsequent_cte_pattern, sql_content, re.IGNORECASE
+        )
         cte_names.update(subsequent_cte_matches)
 
         # Find WITH clauses to extract table references from their definitions
-        with_pattern = r'\bWITH\b.*?(?=\bSELECT\s+.*?\bFROM\s+(?!.*\bAS\s*\())'
+        with_pattern = r"\bWITH\b.*?(?=\bSELECT\s+.*?\bFROM\s+(?!.*\bAS\s*\())"
         with_match = re.search(with_pattern, sql_content, re.IGNORECASE | re.DOTALL)
 
         if with_match:
@@ -170,7 +187,7 @@ class SQLParser:
 
         # Pattern for function-wrapped table references
         # Matches: stream(table), live(table), snapshot(table)
-        function_pattern = r'\b(?:stream|STREAM|live|LIVE|snapshot|SNAPSHOT)\s*\(\s*((?:\{[^}]+\}\.)?(?:\{[^}]+\}\.)?(?:\{[^}]+\}|\w+(?:\.\w+)*))\s*\)'
+        function_pattern = r"\b(?:stream|STREAM|live|LIVE|snapshot|SNAPSHOT)\s*\(\s*((?:\{[^}]+\}\.)?(?:\{[^}]+\}\.)?(?:\{[^}]+\}|\w+(?:\.\w+)*))\s*\)"
 
         for match in re.finditer(function_pattern, sql_content):
             table_ref = match.group(1).strip()
@@ -185,10 +202,37 @@ class SQLParser:
 
         # Filter out SQL keywords that might be mistakenly matched
         sql_keywords = {
-            'AS', 'ON', 'INNER', 'LEFT', 'RIGHT', 'OUTER', 'CROSS', 'FULL',
-            'JOIN', 'WHERE', 'GROUP', 'ORDER', 'HAVING', 'LIMIT', 'USING',
-            'AND', 'OR', 'NOT', 'IN', 'EXISTS', 'BETWEEN', 'LIKE', 'IS',
-            'NULL', 'TRUE', 'FALSE', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END'
+            "AS",
+            "ON",
+            "INNER",
+            "LEFT",
+            "RIGHT",
+            "OUTER",
+            "CROSS",
+            "FULL",
+            "JOIN",
+            "WHERE",
+            "GROUP",
+            "ORDER",
+            "HAVING",
+            "LIMIT",
+            "USING",
+            "AND",
+            "OR",
+            "NOT",
+            "IN",
+            "EXISTS",
+            "BETWEEN",
+            "LIKE",
+            "IS",
+            "NULL",
+            "TRUE",
+            "FALSE",
+            "CASE",
+            "WHEN",
+            "THEN",
+            "ELSE",
+            "END",
         }
 
         # Check if the reference is just a SQL keyword
@@ -196,7 +240,7 @@ class SQLParser:
             return False
 
         # Simple validation - must contain alphanumeric characters or substitution tokens
-        if not re.search(r'[\w{}]', table_ref):
+        if not re.search(r"[\w{}]", table_ref):
             return False
 
         return True

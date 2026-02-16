@@ -4,6 +4,7 @@ import logging
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import ErrorFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,14 @@ class JDBCLoadGenerator(BaseActionGenerator):
         """Generate JDBC load code with secret substitution."""
         source_config = action.source
         if isinstance(source_config, str):
-            raise ValueError("JDBC source must be a configuration object")
+            raise ErrorFormatter.invalid_source_format(
+                action_name=action.name,
+                action_type="jdbc load",
+                expected_formats=[
+                    "A configuration object (dict) with JDBC connection details",
+                    "source:\n  type: jdbc\n  url: 'jdbc:postgresql://host:5432/db'\n  table: 'my_table'\n  driver: 'org.postgresql.Driver'",
+                ],
+            )
         logger.debug(
             f"Generating JDBC load for target '{action.target}', action '{action.name}'"
         )

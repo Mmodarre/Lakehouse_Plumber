@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ..models.config import FlowGroup
+from ..utils.error_formatter import ErrorCategory, LHPConfigError
 from .services.generation_planning_service import GenerationPlan
 from .state_manager import StateManager
 
@@ -362,8 +363,16 @@ class CommandFactory:
         }
 
         if command_type not in commands:
-            raise ValueError(
-                f"Unknown command type: {command_type}. Available: {list(commands.keys())}"
+            raise LHPConfigError(
+                category=ErrorCategory.CONFIG,
+                code_number="014",
+                title=f"Unknown command type: '{command_type}'",
+                details=f"Unknown command type: '{command_type}'. Available: {list(commands.keys())}",
+                suggestions=[
+                    f"Use one of the available command types: {list(commands.keys())}",
+                    "Check for typos in the command name",
+                ],
+                context={"Provided": command_type, "Available": list(commands.keys())},
             )
 
         return commands[command_type]()

@@ -9,6 +9,12 @@ from jinja2 import Environment
 from ..models.config import Action
 from ..models.config import Template as TemplateModel
 from ..parsers.yaml_parser import YAMLParser
+from ..utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPConfigError,
+    LHPValidationError,
+)
 
 
 class TemplateEngine:
@@ -103,7 +109,11 @@ class TemplateEngine:
         """
         template = self.get_template(template_name)
         if not template:
-            raise ValueError(f"Template not found: {template_name}")
+            raise ErrorFormatter.template_not_found(
+                template_name=template_name,
+                available_templates=sorted(self._available_templates),
+                templates_dir=str(self.templates_dir) if self.templates_dir else None,
+            )
 
         # Validate required parameters
         self._validate_parameters(template, parameters)
@@ -146,8 +156,11 @@ class TemplateEngine:
         missing_params = required_params - provided_params
 
         if missing_params:
-            raise ValueError(
-                f"Missing required parameters for template '{template.name}': {missing_params}"
+            all_param_names = [p["name"] for p in template.parameters]
+            raise ErrorFormatter.missing_template_parameters(
+                template_name=template.name,
+                missing_params=sorted(missing_params),
+                available_params=all_param_names,
             )
 
     def _apply_parameter_defaults(
@@ -234,7 +247,16 @@ class TemplateEngine:
 
                 result = json.loads(rendered)
                 if not isinstance(result, list):
-                    raise ValueError(f"Expected array but got {type(result).__name__}")
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title="Invalid template parameter type",
+                        details=f"Expected array but got {type(result).__name__}.",
+                        suggestions=[
+                            "Ensure the template parameter value is a list/array"
+                        ],
+                        context={"Rendered Value": rendered[:100]},
+                    )
                 return result
             except json.JSONDecodeError:
                 # JSON failed, try Python literal eval (for single quotes)
@@ -243,20 +265,46 @@ class TemplateEngine:
 
                     result = ast.literal_eval(rendered)
                     if not isinstance(result, list):
-                        raise ValueError(
-                            f"Expected array but got {type(result).__name__}"
+                        raise LHPValidationError(
+                            category=ErrorCategory.VALIDATION,
+                            code_number="009",
+                            title="Invalid template parameter type",
+                            details=f"Expected array but got {type(result).__name__}.",
+                            suggestions=[
+                                "Ensure the template parameter value is a list/array"
+                            ],
+                            context={"Rendered Value": rendered[:100]},
                         )
                     return result
                 except (ValueError, SyntaxError) as e:
-                    raise ValueError(
-                        f"Invalid array template parameter: '{rendered}'. "
-                        f"Arrays must be valid JSON format like ['item1', 'item2'] "
-                        f"or Python format like ['item1', 'item2']. "
-                        f"Error: {e}"
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title="Invalid array template parameter",
+                        details=(
+                            f"Invalid array template parameter: '{rendered}'. "
+                            f"Arrays must be valid JSON format like ['item1', 'item2'] "
+                            f"or Python format like ['item1', 'item2']. "
+                            f"Error: {e}"
+                        ),
+                        suggestions=[
+                            'Use valid JSON array syntax: ["item1", "item2"]',
+                            "Or Python list syntax: ['item1', 'item2']",
+                        ],
+                        context={"Rendered Value": rendered[:100]},
                     )
+            except LHPValidationError:
+                raise
             except Exception as e:
-                raise ValueError(
-                    f"Failed to parse array template parameter: '{rendered}'. Error: {e}"
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Failed to parse array template parameter",
+                    details=f"Failed to parse array template parameter: '{rendered}'. Error: {e}",
+                    suggestions=[
+                        "Ensure the array parameter is valid JSON or Python format",
+                    ],
+                    context={"Rendered Value": rendered[:100]},
                 )
 
         # Try object conversion (JSON format, then Python literal) - but be more selective
@@ -272,7 +320,16 @@ class TemplateEngine:
 
                 result = json.loads(rendered)
                 if not isinstance(result, dict):
-                    raise ValueError(f"Expected object but got {type(result).__name__}")
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title="Invalid template parameter type",
+                        details=f"Expected object but got {type(result).__name__}.",
+                        suggestions=[
+                            "Ensure the template parameter value is a dictionary/object"
+                        ],
+                        context={"Rendered Value": rendered[:100]},
+                    )
                 return result
             except json.JSONDecodeError:
                 # JSON failed, try Python literal eval (for single quotes)
@@ -281,20 +338,46 @@ class TemplateEngine:
 
                     result = ast.literal_eval(rendered)
                     if not isinstance(result, dict):
-                        raise ValueError(
-                            f"Expected object but got {type(result).__name__}"
+                        raise LHPValidationError(
+                            category=ErrorCategory.VALIDATION,
+                            code_number="009",
+                            title="Invalid template parameter type",
+                            details=f"Expected object but got {type(result).__name__}.",
+                            suggestions=[
+                                "Ensure the template parameter value is a dictionary/object"
+                            ],
+                            context={"Rendered Value": rendered[:100]},
                         )
                     return result
                 except (ValueError, SyntaxError) as e:
-                    raise ValueError(
-                        f"Invalid object template parameter: '{rendered}'. "
-                        f"Objects must be valid JSON format like {{'key': 'value'}} "
-                        f"or Python format like {{'key': 'value'}}. "
-                        f"Error: {e}"
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title="Invalid object template parameter",
+                        details=(
+                            f"Invalid object template parameter: '{rendered}'. "
+                            f"Objects must be valid JSON format like {{'key': 'value'}} "
+                            f"or Python format like {{'key': 'value'}}. "
+                            f"Error: {e}"
+                        ),
+                        suggestions=[
+                            'Use valid JSON object syntax: {"key": "value"}',
+                            "Or Python dict syntax: {'key': 'value'}",
+                        ],
+                        context={"Rendered Value": rendered[:100]},
                     )
+            except LHPValidationError:
+                raise
             except Exception as e:
-                raise ValueError(
-                    f"Failed to parse object template parameter: '{rendered}'. Error: {e}"
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Failed to parse object template parameter",
+                    details=f"Failed to parse object template parameter: '{rendered}'. Error: {e}",
+                    suggestions=[
+                        "Ensure the object parameter is valid JSON or Python format",
+                    ],
+                    context={"Rendered Value": rendered[:100]},
                 )
 
         # Try boolean conversion (strict true/false only)
@@ -306,8 +389,16 @@ class TemplateEngine:
             try:
                 return int(rendered)
             except (ValueError, OverflowError) as e:
-                raise ValueError(
-                    f"Invalid integer template parameter: '{rendered}'. " f"Error: {e}"
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Invalid integer template parameter",
+                    details=f"Invalid integer template parameter: '{rendered}'. Error: {e}",
+                    suggestions=[
+                        "Ensure the template parameter is a valid integer",
+                        "Check that the value does not exceed integer limits",
+                    ],
+                    context={"Rendered Value": rendered[:100]},
                 )
 
         # Return as string if no conversion needed

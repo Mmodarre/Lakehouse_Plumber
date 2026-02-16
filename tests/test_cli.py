@@ -60,7 +60,7 @@ class TestCLI:
 
             result = runner.invoke(cli, ['init', 'test_project'])
 
-            assert result.exit_code == 1
+            assert result.exit_code != 0
             assert "already exists" in result.output
 
     def test_init_no_bundle(self, runner, temp_project):
@@ -83,7 +83,7 @@ class TestCLI:
         """Test validate when not in a project directory."""
         result = runner.invoke(cli, ['validate'])
         
-        assert result.exit_code == 1
+        assert result.exit_code != 0
         assert "Not in a LakehousePlumber project directory" in result.output
     
     def test_validate_empty_project(self, runner, temp_project):
@@ -99,8 +99,8 @@ class TestCLI:
             # Run validate
             result = runner.invoke(cli, ['validate'])
 
-            assert result.exit_code == 1
-            assert "❌ No flowgroups found in project" in result.output
+            assert result.exit_code != 0
+            assert "No flowgroups found in project" in result.output
 
     def test_stats_invalid_pipeline(self, runner, temp_project):
         """Test stats command with non-existent pipeline."""
@@ -617,5 +617,5 @@ description = "Test package"
             # Run generate - should exit with error when no flowgroups found
             result = runner.invoke(cli, ['generate', '--env', 'dev'])
             
-            assert result.exit_code == 1
-            assert "❌ No flowgroups found in project" in result.output 
+            assert result.exit_code != 0
+            assert "No flowgroups found in project" in result.output

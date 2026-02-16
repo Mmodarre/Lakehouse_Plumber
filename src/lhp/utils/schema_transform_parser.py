@@ -8,6 +8,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from ..parsers.yaml_parser import YAMLParser
+from ..utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPFileError,
+    LHPValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +61,11 @@ class SchemaTransformParser:
             ValueError: If file format is invalid.
         """
         if not file_path.exists():
-            raise FileNotFoundError(f"Schema transform file not found: {file_path}")
+            raise ErrorFormatter.file_not_found(
+                file_path=str(file_path),
+                search_locations=[str(file_path.parent)],
+                file_type="schema transform file",
+            )
 
         logger.debug(f"Parsing schema transform file: {file_path}")
         data = self.yaml_parser.parse_file(file_path)
@@ -83,7 +93,12 @@ class SchemaTransformParser:
             ValueError: If format is invalid.
         """
         if not schema_str or not schema_str.strip():
-            raise ValueError("Inline schema cannot be empty.")
+            raise ErrorFormatter.schema_syntax_error(
+                file_path="<inline>",
+                line_content=None,
+                expected_format="Non-empty schema with column definitions",
+                example="schema_inline: |\n  old_col -> new_col: TYPE\n  col: TYPE",
+            )
 
         # Try to parse as YAML
         try:
@@ -132,7 +147,12 @@ class SchemaTransformParser:
         lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
 
         if not lines:
-            raise ValueError("No column definitions found in inline schema.")
+            raise ErrorFormatter.schema_syntax_error(
+                file_path="<inline>",
+                line_content=None,
+                expected_format="One or more column definition lines",
+                example="old_col -> new_col: TYPE\ncol: TYPE",
+            )
 
         # Create a pseudo-dict for parse_arrow_format
         # Note: enforcement is not part of inline arrow format
@@ -169,9 +189,11 @@ class SchemaTransformParser:
         has_legacy = "column_mapping" in data or "type_casting" in data
 
         if has_columns and has_legacy:
-            raise ValueError(
-                "Cannot mix arrow format and legacy format. "
-                "Use either 'columns' (arrow format) or 'column_mapping'/'type_casting' (legacy format)."
+            raise ErrorFormatter.schema_syntax_error(
+                file_path="<schema>",
+                line_content="Found both 'columns' and 'column_mapping'/'type_casting'",
+                expected_format="Either 'columns' (arrow format) OR 'column_mapping'/'type_casting' (legacy format), not both",
+                example="# Arrow format (recommended):\ncolumns:\n  - old_col -> new_col: TYPE\n\n# Legacy format:\ncolumn_mapping:\n  old_col: new_col\ntype_casting:\n  col: TYPE",
             )
 
         if has_columns:
@@ -182,9 +204,11 @@ class SchemaTransformParser:
         elif has_legacy:
             return self.parse_legacy_format(data)
         else:
-            raise ValueError(
-                "Unable to detect schema transform format. "
-                "Expected either 'columns' (arrow format) or 'column_mapping'/'type_casting' (legacy format)."
+            raise ErrorFormatter.schema_syntax_error(
+                file_path="<schema>",
+                line_content=str(list(data.keys())),
+                expected_format="'columns' (arrow format) or 'column_mapping'/'type_casting' (legacy format)",
+                example="columns:\n  - old_col -> new_col: TYPE\n  - col: TYPE",
             )
 
     def parse_arrow_format(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -210,7 +234,12 @@ class SchemaTransformParser:
 
         # Validate columns exist
         if not columns:
-            raise ValueError("No columns defined in schema transform.")
+            raise ErrorFormatter.schema_syntax_error(
+                file_path="<schema>",
+                line_content=None,
+                expected_format="At least one column definition in 'columns' list",
+                example='columns:\n  - "old_col -> new_col: TYPE"',
+            )
 
         column_mapping: Dict[str, str] = {}
         type_casting: Dict[str, str] = {}
@@ -222,8 +251,11 @@ class SchemaTransformParser:
 
         for col_def in columns:
             if not isinstance(col_def, str):
-                raise ValueError(
-                    f"Invalid column definition: {col_def}. Must be a string."
+                raise ErrorFormatter.schema_syntax_error(
+                    file_path="<schema>",
+                    line_content=str(col_def),
+                    expected_format="String column definition",
+                    example='columns:\n  - "old_col -> new_col: TYPE"\n  - "col: TYPE"',
                 )
 
             # Try to match arrow syntax (rename + optional cast)
@@ -235,17 +267,21 @@ class SchemaTransformParser:
 
                 # Check for duplicate source column
                 if source_col in source_columns_seen:
-                    raise ValueError(
-                        f"Duplicate source column '{source_col}' in schema transform. "
-                        "Each source column can only be mapped once."
+                    raise ErrorFormatter.schema_syntax_error(
+                        file_path="<schema>",
+                        line_content=col_def,
+                        expected_format="Each source column can only be mapped once",
+                        example=f"# Remove the duplicate mapping for '{source_col}'",
                     )
                 source_columns_seen.add(source_col)
 
                 # Check for duplicate target column
                 if target_col in target_columns_seen:
-                    raise ValueError(
-                        f"Duplicate target column '{target_col}' in schema transform. "
-                        "Column '{target_col}' appears multiple times."
+                    raise ErrorFormatter.schema_syntax_error(
+                        file_path="<schema>",
+                        line_content=col_def,
+                        expected_format="Each target column must be unique",
+                        example=f"# Remove or rename the duplicate target column '{target_col}'",
                     )
                 target_columns_seen.add(target_col)
 
@@ -266,15 +302,20 @@ class SchemaTransformParser:
 
                 # Check if this column already has a type cast defined
                 if col_name in type_casting:
-                    raise ValueError(
-                        f"Duplicate type casting for column '{col_name}' in schema transform. "
-                        "Column '{col_name}' already has a type defined."
+                    raise ErrorFormatter.schema_syntax_error(
+                        file_path="<schema>",
+                        line_content=col_def,
+                        expected_format="Each column can only have one type cast",
+                        example=f"# Remove duplicate type cast for '{col_name}'",
                     )
 
                 # Check if this column was used as source in rename operation
                 if col_name in source_columns_seen:
-                    raise ValueError(
-                        f"Invalid column '{col_name}': cannot cast a column that is used as source in rename operation."
+                    raise ErrorFormatter.schema_syntax_error(
+                        file_path="<schema>",
+                        line_content=col_def,
+                        expected_format="Cannot cast a column that is used as source in a rename operation",
+                        example=f"# '{col_name}' was already renamed above; cast the target column instead",
                     )
 
                 # Add to target_columns_seen if not already there (from rename)
@@ -293,8 +334,11 @@ class SchemaTransformParser:
                 # Pass-through columns are allowed (enforcement will be validated at action level)
                 # Check for duplicate
                 if col_name in target_columns_seen:
-                    raise ValueError(
-                        f"Duplicate column '{col_name}' in schema transform."
+                    raise ErrorFormatter.schema_syntax_error(
+                        file_path="<schema>",
+                        line_content=col_def,
+                        expected_format="Each column must appear only once",
+                        example=f"# Remove the duplicate reference to '{col_name}'",
                     )
                 target_columns_seen.add(col_name)
 
@@ -302,9 +346,11 @@ class SchemaTransformParser:
                 continue
 
             # If no pattern matched, it's invalid syntax
-            raise ValueError(
-                f"Invalid arrow format syntax: '{col_def}'. "
-                "Expected formats: 'old -> new: TYPE', 'old -> new', 'col: TYPE', or 'col' (pass-through)."
+            raise ErrorFormatter.schema_syntax_error(
+                file_path="<schema>",
+                line_content=col_def,
+                expected_format="'old -> new: TYPE', 'old -> new', 'col: TYPE', or 'col' (pass-through)",
+                example='columns:\n  - "c_custkey -> customer_id: BIGINT"\n  - "c_name -> customer_name"\n  - "account_balance: DECIMAL(18,2)"\n  - "address"',
             )
 
         return {

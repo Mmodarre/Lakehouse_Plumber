@@ -110,7 +110,7 @@ class TestKafkaLoadGenerator:
             readMode="stream"
         )
 
-        with pytest.raises(ValueError, match="can only have ONE of"):
+        with pytest.raises(ValueError, match="Multiple subscription methods"):
             self.generator.generate(action, {})
 
     def test_missing_bootstrap_servers_error(self):
@@ -126,7 +126,7 @@ class TestKafkaLoadGenerator:
             readMode="stream"
         )
 
-        with pytest.raises(ValueError, match="must have 'bootstrap_servers'"):
+        with pytest.raises(ValueError, match="Missing required field 'bootstrap_servers'"):
             self.generator.generate(action, {})
 
     def test_missing_subscription_method_error(self):
@@ -142,7 +142,7 @@ class TestKafkaLoadGenerator:
             readMode="stream"
         )
 
-        with pytest.raises(ValueError, match="must have one of"):
+        with pytest.raises(ValueError, match="subscribe/subscribePattern/assign"):
             self.generator.generate(action, {})
 
     def test_options_with_kafka_prefix(self):
@@ -408,7 +408,7 @@ class TestKafkaLoadGenerator:
             readMode="batch"
         )
 
-        with pytest.raises(ValueError, match="requires readMode='stream'"):
+        with pytest.raises(ValueError, match="Invalid readMode"):
             self.generator.generate(action, {})
 
     def test_imports_generated(self):
@@ -644,7 +644,7 @@ class TestKafkaLoadGenerator:
             target="v_test",
             readMode="stream"
         )
-        with pytest.raises(ValueError, match="must have 'bootstrap_servers'"):
+        with pytest.raises(ValueError, match="bootstrap_servers"):
             self.generator.generate(action, {})
 
 

@@ -4,13 +4,14 @@ import logging
 from typing import List
 
 from ...models.config import Action, ActionType, WriteTargetType
+from ...utils.error_formatter import LHPError
 from ..dlt_cdc_validators import (
     CdcConfigValidator,
     CdcSchemaValidator,
     DltTableOptionsValidator,
     SnapshotCdcConfigValidator,
 )
-from .base_validator import BaseActionValidator
+from .base_validator import BaseActionValidator, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class WriteActionValidator(BaseActionValidator):
         self.snapshot_cdc_validator = SnapshotCdcConfigValidator()
         self.cdc_schema_validator = CdcSchemaValidator()
 
-    def validate(self, action: Action, prefix: str) -> List[str]:
+    def validate(self, action: Action, prefix: str) -> List[ValidationError]:
         """Validate write action configuration."""
         logger.debug(f"Validating write action '{action.name}'")
         errors = []
@@ -69,6 +70,9 @@ class WriteActionValidator(BaseActionValidator):
         # Strict field validation for write target configuration
         try:
             self.field_validator.validate_write_target(action.write_target, action.name)
+        except LHPError as e:
+            errors.append(e)
+            return errors
         except Exception as e:
             errors.append(str(e))
             return errors

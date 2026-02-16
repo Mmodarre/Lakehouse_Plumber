@@ -2,4 +2,4 @@
 
 from .test_generator import TestActionGenerator
 
-__all__ = ['TestActionGenerator']
+__all__ = ["TestActionGenerator"]

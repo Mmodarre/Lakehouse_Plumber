@@ -11,6 +11,7 @@ from ..utils.error_formatter import LHPError
 from .action_registry import ActionRegistry
 from .config_field_validator import ConfigFieldValidator
 from .dependency_resolver import DependencyResolver
+from .validators.base_validator import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +56,14 @@ class ConfigValidator:
         )
         self.table_creation_validator = TableCreationValidator()
 
-    def validate_flowgroup(self, flowgroup: FlowGroup) -> List[str]:
+    def validate_flowgroup(self, flowgroup: FlowGroup) -> List[ValidationError]:
         """Validate flowgroups and actions.
 
         Args:
             flowgroup: FlowGroup to validate
 
         Returns:
-            List of validation error messages
+            List of validation errors (strings or LHPError objects)
         """
         errors = []
 
@@ -104,6 +105,9 @@ class ConfigValidator:
                     flowgroup.actions
                 )
                 errors.extend(dependency_errors)
+            except LHPError as e:
+                logger.debug(f"Dependency validation error: {e.title}")
+                errors.append(e)
             except Exception as e:
                 logger.debug(f"Dependency validation error: {e}")
                 errors.append(str(e))
@@ -116,7 +120,7 @@ class ConfigValidator:
 
         return errors
 
-    def validate_action(self, action: Action, index: int) -> List[str]:
+    def validate_action(self, action: Action, index: int) -> List[ValidationError]:
         """Validate action types and required fields.
 
         Args:
@@ -124,7 +128,7 @@ class ConfigValidator:
             index: Action index in the flowgroup
 
         Returns:
-            List of validation error messages
+            List of validation errors (strings or LHPError objects)
         """
         errors = []
         prefix = f"Action[{index}] '{action.name}'"
@@ -147,7 +151,7 @@ class ConfigValidator:
             raise
         except Exception as e:
             errors.append(str(e))
-            return errors  # Stop validation if field validation fails
+            return errors
 
         # Type-specific validation using action validators
         if action.type == ActionType.LOAD:

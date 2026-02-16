@@ -5,6 +5,11 @@ from pathlib import Path
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPValidationError,
+)
 from ...utils.external_file_loader import (
     is_file_path,
     load_external_file_text,
@@ -28,8 +33,19 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         """Generate materialized view code."""
         target_config = action.write_target
         if not target_config:
-            raise ValueError(
-                "Materialized view action must have write_target configuration"
+            raise ErrorFormatter.missing_required_field(
+                field_name="write_target",
+                component_type="Materialized view write action",
+                component_name=action.name,
+                field_description="The write_target configuration is required for materialized view actions.",
+                example_config="""actions:
+  - name: write_mv
+    type: write
+    sub_type: materialized_view
+    source: v_transformed
+    write_target:
+      table: my_materialized_view
+      database: my_database""",
             )
 
         # Extract configuration
@@ -181,4 +197,18 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             else:
                 return str(first_item)
         else:
-            raise ValueError("Invalid source configuration for materialized view write")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="017",
+                title="Invalid source configuration for materialized view write",
+                details=(
+                    "Materialized view write requires a valid source configuration. "
+                    "Source must be a string (view name), dict, or non-empty list."
+                ),
+                suggestions=[
+                    "Provide a source view name: source: v_transformed",
+                    "Or provide a source dict with table/view/name keys",
+                    "Or provide a list of source views",
+                ],
+                context={"Source Type": type(source).__name__},
+            )

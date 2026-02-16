@@ -15,4 +15,3 @@ __all__ = [
     "TestActionValidator",
     "TableCreationValidator",
 ]
-

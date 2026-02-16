@@ -206,7 +206,7 @@ class TestCLIInitBundleCommand:
 
             result = self.runner.invoke(cli, ['init', 'existing_project'])
 
-            assert result.exit_code == 1
+            assert result.exit_code != 0
             assert "already exists" in result.output
 
     def test_init_bundle_handles_template_processing_errors(self):

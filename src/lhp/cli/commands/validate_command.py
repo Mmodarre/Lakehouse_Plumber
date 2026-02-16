@@ -1,13 +1,12 @@
 """Validate command implementation for LakehousePlumber CLI."""
 
 import logging
-import sys
 from typing import List, Optional, Tuple
 
 import click
 
 from ...core.orchestrator import ActionOrchestrator
-from ...utils.error_handler import ErrorHandler
+from ...utils.exit_codes import ExitCode
 from .base_command import BaseCommand
 
 logger = logging.getLogger(__name__)
@@ -62,15 +61,21 @@ class ValidateCommand(BaseCommand):
             pipelines_to_validate, env, orchestrator
         )
 
-        # Display summary and exit with appropriate code
+        # Display summary
         self._display_validation_summary(
             env, len(pipelines_to_validate), total_errors, total_warnings
         )
+
+        # Exit with appropriate code (let error boundary handle it)
+        if total_errors > 0:
+            raise SystemExit(ExitCode.DATA_ERROR)
 
     def _determine_pipelines_to_validate(
         self, pipeline: Optional[str], orchestrator: ActionOrchestrator
     ) -> List[str]:
         """Determine which pipelines to validate based on user input."""
+        from ...utils.error_formatter import ErrorCategory, LHPConfigError
+
         if pipeline:
             # Check if specific pipeline exists
             logger.debug(f"Validating specific pipeline: {pipeline}")
@@ -78,19 +83,38 @@ class ValidateCommand(BaseCommand):
             pipeline_fields = {fg.pipeline for fg in all_flowgroups}
 
             if pipeline not in pipeline_fields:
-                click.echo(f"❌ Pipeline field '{pipeline}' not found in any flowgroup")
+                suggestions = [
+                    "Check the pipeline name for typos",
+                ]
                 if pipeline_fields:
-                    click.echo(
-                        f"💡 Available pipeline fields: {sorted(pipeline_fields)}"
+                    suggestions.insert(
+                        0,
+                        f"Available pipelines: {', '.join(sorted(pipeline_fields))}",
                     )
-                sys.exit(1)
+                raise LHPConfigError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="015",
+                    title=f"Pipeline '{pipeline}' not found",
+                    details=f"No flowgroup with pipeline field '{pipeline}' was found.",
+                    suggestions=suggestions,
+                    context={"Pipeline": pipeline},
+                )
             return [pipeline]
         else:
             # Discover all pipeline fields from flowgroups
             all_flowgroups = orchestrator.discover_all_flowgroups()
             if not all_flowgroups:
-                click.echo("❌ No flowgroups found in project")
-                sys.exit(1)
+                raise LHPConfigError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="014",
+                    title="No flowgroups found in project",
+                    details="No flowgroup YAML files were found in the pipelines/ directory.",
+                    suggestions=[
+                        "Create flowgroup YAML files in pipelines/<pipeline_name>/",
+                        "Check that pipeline YAML files have the correct extension (.yaml or .yml)",
+                        "Run 'lhp init <name>' to create a new project with example files",
+                    ],
+                )
 
             pipeline_fields = {fg.pipeline for fg in all_flowgroups}
             return sorted(pipeline_fields)
@@ -137,10 +161,7 @@ class ValidateCommand(BaseCommand):
 
             except Exception as e:
                 logger.warning(f"Validation error for pipeline '{pipeline_name}': {e}")
-                error_handler = ErrorHandler(self.verbose)
-                error_handler.with_pipeline_context(
-                    pipeline_name, env
-                ).handle_cli_error(e, f"Validation for pipeline '{pipeline_name}'")
+                click.echo(f"❌ Validation for pipeline '{pipeline_name}' failed: {e}")
                 if self.log_file:
                     click.echo(f"📝 Check detailed logs: {self.log_file}")
                 total_errors += 1
@@ -195,7 +216,5 @@ class ValidateCommand(BaseCommand):
 
         if total_errors == 0:
             click.echo("\n✅ All configurations are valid")
-            sys.exit(0)
         else:
             click.echo(f"\n❌ Validation failed with {total_errors} error(s)")
-            sys.exit(1)

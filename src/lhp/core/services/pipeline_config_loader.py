@@ -7,6 +7,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from ...utils.error_formatter import (
+    ErrorCategory,
+    LHPError,
+    LHPFileError,
+    LHPValidationError,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,19 +102,30 @@ class PipelineConfigLoader:
 
         # Check file exists
         if not config_path.exists():
-            raise FileNotFoundError(
-                f"Pipeline config file not found: {config_file_path}"
+            raise LHPFileError(
+                category=ErrorCategory.IO,
+                code_number="001",
+                title="Pipeline config file not found",
+                details=f"Pipeline config file not found: {config_file_path}",
+                suggestions=[
+                    f"Ensure the file exists at: {config_path}",
+                    "Check the file path for typos",
+                    "Create the pipeline_config.yaml file if it doesn't exist",
+                ],
+                context={
+                    "File Path": str(config_file_path),
+                    "Resolved Path": str(config_path),
+                },
             )
 
         self.logger.info(f"Loading pipeline config from: {config_path}")
 
-        # Load all YAML documents
-        try:
-            with open(config_path, "r") as f:
-                documents = list(yaml.safe_load_all(f))
-        except yaml.YAMLError as e:
-            self.logger.error(f"Invalid YAML in config file: {e}")
-            raise
+        # Load all YAML documents (including empty ones for project_defaults handling)
+        from ...utils.yaml_loader import load_yaml_documents_all
+
+        documents = load_yaml_documents_all(
+            config_path, error_context="pipeline configuration"
+        )
 
         # Parse documents
         project_defaults = {}
@@ -151,8 +169,6 @@ class PipelineConfigLoader:
 
                 # Validate non-empty list
                 if not pipeline_names:
-                    from ...utils.error_formatter import ErrorCategory, LHPError
-
                     raise LHPError(
                         category=ErrorCategory.VALIDATION,
                         code_number="005",
@@ -178,8 +194,6 @@ class PipelineConfigLoader:
                 for pipeline_name in pipeline_names:
                     # Validate for duplicates
                     if pipeline_name in seen_pipelines:
-                        from ...utils.error_formatter import ErrorCategory, LHPError
-
                         raise LHPError(
                             category=ErrorCategory.VALIDATION,
                             code_number="006",
@@ -266,43 +280,95 @@ class PipelineConfigLoader:
         # Validate edition
         if "edition" in config:
             if config["edition"] not in self.ALLOWED_EDITIONS:
-                raise ValueError(
-                    f"Invalid edition '{config['edition']}'. "
-                    f"Allowed values: {', '.join(sorted(self.ALLOWED_EDITIONS))}"
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Invalid pipeline edition",
+                    details=(
+                        f"Invalid edition '{config['edition']}'. "
+                        f"Allowed values: {', '.join(sorted(self.ALLOWED_EDITIONS))}"
+                    ),
+                    suggestions=[
+                        f"Use one of: {', '.join(sorted(self.ALLOWED_EDITIONS))}",
+                        "Check spelling and case sensitivity",
+                    ],
+                    context={"Provided": config["edition"]},
                 )
 
         # Validate channel
         if "channel" in config:
             if config["channel"] not in self.ALLOWED_CHANNELS:
-                raise ValueError(
-                    f"Invalid channel '{config['channel']}'. "
-                    f"Allowed values: {', '.join(sorted(self.ALLOWED_CHANNELS))}"
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Invalid pipeline channel",
+                    details=(
+                        f"Invalid channel '{config['channel']}'. "
+                        f"Allowed values: {', '.join(sorted(self.ALLOWED_CHANNELS))}"
+                    ),
+                    suggestions=[
+                        f"Use one of: {', '.join(sorted(self.ALLOWED_CHANNELS))}",
+                        "Check spelling and case sensitivity",
+                    ],
+                    context={"Provided": config["channel"]},
                 )
 
         # Validate environment (if present, must be a dict)
         if "environment" in config:
             if not isinstance(config["environment"], dict):
-                raise ValueError(
-                    f"Invalid 'environment' value: expected a dictionary, "
-                    f"got {type(config['environment']).__name__}. "
-                    f"Example: environment: {{dependencies: ['package==1.0.0']}}"
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Invalid 'environment' field type",
+                    details=(
+                        f"Invalid 'environment' value: expected a dictionary, "
+                        f"got {type(config['environment']).__name__}."
+                    ),
+                    suggestions=[
+                        "Use a dictionary format for the environment field",
+                        "Example: environment: {dependencies: ['package==1.0.0']}",
+                    ],
+                    context={"Actual Type": type(config["environment"]).__name__},
+                    example="environment:\n  dependencies:\n    - package==1.0.0",
                 )
 
         # Validate configuration (if present, must be a dict with string values)
         if "configuration" in config:
             if not isinstance(config["configuration"], dict):
-                raise ValueError(
-                    f"Invalid 'configuration' value: expected a dictionary, "
-                    f"got {type(config['configuration']).__name__}. "
-                    f'Example: configuration: {{"pipelines.incompatibleViewCheck.enabled": "false"}}'
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Invalid 'configuration' field type",
+                    details=(
+                        f"Invalid 'configuration' value: expected a dictionary, "
+                        f"got {type(config['configuration']).__name__}."
+                    ),
+                    suggestions=[
+                        "Use a dictionary format for configuration entries",
+                        'Example: configuration: {"pipelines.incompatibleViewCheck.enabled": "false"}',
+                    ],
+                    context={"Actual Type": type(config["configuration"]).__name__},
                 )
             for key, value in config["configuration"].items():
                 if not isinstance(value, str):
-                    raise ValueError(
-                        f"Invalid configuration value for key '{key}': expected a string, "
-                        f"got {type(value).__name__} ({value!r}). "
-                        f"All Databricks pipeline configuration values must be strings. "
-                        f'Use: "{key}": "{value}"'
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title=f"Invalid configuration value for key '{key}'",
+                        details=(
+                            f"Invalid configuration value for key '{key}': expected a string, "
+                            f"got {type(value).__name__} ({value!r}). "
+                            f"All Databricks pipeline configuration values must be strings."
+                        ),
+                        suggestions=[
+                            f'Use: "{key}": "{value}"',
+                            "All pipeline configuration values must be quoted strings",
+                        ],
+                        context={
+                            "Key": key,
+                            "Value": repr(value),
+                            "Actual Type": type(value).__name__,
+                        },
                     )
 
         # Note: We intentionally do NOT validate:

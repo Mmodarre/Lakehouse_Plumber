@@ -1,7 +1,6 @@
 """Base command class with shared utilities for LakehousePlumber CLI commands."""
 
 import logging
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -43,16 +42,24 @@ class BaseCommand:
             Path to project root
 
         Raises:
-            SystemExit: If not in a LakehousePlumber project
+            LHPError: If not in a LakehousePlumber project
         """
+        from ...utils.error_formatter import ErrorCategory, LHPError
+
         if self._project_root is None:
             self._project_root = self._find_project_root()
 
         if not self._project_root:
-            click.echo("❌ Not in a LakehousePlumber project directory")
-            click.echo("💡 Run 'lhp init <project_name>' to create a new project")
-            click.echo("💡 Or navigate to an existing project directory")
-            sys.exit(1)
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="011",
+                title="Not in a LakehousePlumber project directory",
+                details="No lhp.yaml file found in the current directory or any parent.",
+                suggestions=[
+                    "Run 'lhp init <project_name>' to create a new project",
+                    "Navigate to an existing project directory",
+                ],
+            )
 
         return self._project_root
 
@@ -85,14 +92,37 @@ class BaseCommand:
             Path to substitution file
 
         Raises:
-            SystemExit: If substitution file doesn't exist
+            LHPFileError: If substitution file doesn't exist
         """
+        from ...utils.error_formatter import ErrorCategory, LHPFileError
+
         project_root = self.ensure_project_root()
         substitution_file = project_root / "substitutions" / f"{env}.yaml"
 
         if not substitution_file.exists():
-            click.echo(f"❌ Substitution file not found: {substitution_file}")
-            sys.exit(1)
+            # Discover available environments for suggestions
+            sub_dir = project_root / "substitutions"
+            available_envs = []
+            if sub_dir.exists():
+                available_envs = sorted(f.stem for f in sub_dir.glob("*.yaml"))
+
+            suggestions = [
+                f"Create the substitution file: substitutions/{env}.yaml",
+            ]
+            if available_envs:
+                suggestions.insert(
+                    0,
+                    f"Available environments: {', '.join(available_envs)}",
+                )
+
+            raise LHPFileError(
+                category=ErrorCategory.IO,
+                code_number="006",
+                title=f"Substitution file not found for environment '{env}'",
+                details=f"Expected file: {substitution_file}",
+                suggestions=suggestions,
+                context={"Environment": env},
+            )
 
         return substitution_file
 
@@ -102,21 +132,3 @@ class BaseCommand:
             click.echo(f"{message}")
             if "Detailed logs:" not in message:
                 click.echo(f"Detailed logs: {self.log_file}")
-
-    def handle_error(self, error: Exception, context: str, exit_code: int = 1) -> None:
-        """
-        Handle errors with consistent formatting and exit.
-
-        Args:
-            error: Exception that occurred
-            context: Context description for the error
-            exit_code: Exit code to use (default: 1)
-        """
-        if self.verbose:
-            click.echo(f"{context}: {error}")
-            if self.log_file:
-                click.echo(f"See detailed logs: {self.log_file}")
-        else:
-            click.echo(f"{context}")
-
-        sys.exit(exit_code)
