@@ -81,6 +81,11 @@ resources:
       #   schema: _meta
       #   catalog: acmi_edw_dev
 
+      # Environment dependencies (pip packages for the pipeline)
+      # environment:
+      #   dependencies:
+      #     - "msal==1.31.0"
+
       # permissions:
       #   - service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d
       #     level: CAN_MANAGE

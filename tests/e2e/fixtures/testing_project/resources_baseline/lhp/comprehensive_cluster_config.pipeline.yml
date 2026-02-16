@@ -102,4 +102,9 @@ resources:
       #   schema: _meta
       #   catalog: acmi_edw_dev
 
+      # Environment dependencies (pip packages for the pipeline)
+      # environment:
+      #   dependencies:
+      #     - "msal==1.31.0"
+
 

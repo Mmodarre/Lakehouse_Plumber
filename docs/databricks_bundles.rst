@@ -385,6 +385,9 @@ Create a multi-document YAML file with project-level defaults and per-pipeline o
    * - ``event_log``
      - dict
      - Event logging configuration
+   * - ``environment``
+     - dict
+     - Runtime environment config (dependencies, etc.). Passed through as-is to Databricks.
 
 **Usage**
 
@@ -448,6 +451,43 @@ All fields in ``pipeline_config.yaml`` support LHP token substitution, not just 
      environment: "{environment_name}"         # Token for env tag
 
 This enables complete environment-specific configuration from your ``substitutions/{env}.yaml`` files.
+
+Environment Dependencies
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Databricks DLT pipelines support an ``environment`` section for specifying pip package
+dependencies that are installed at pipeline startup. LHP passes this section through
+as-is to the generated bundle resource.
+
+**Input Configuration**
+
+.. code-block:: yaml
+   :caption: config/pipeline_config.yaml
+
+   ---
+   pipeline: my_pipeline
+   catalog: "{catalog}"
+   schema: "{schema}"
+   serverless: true
+   environment:
+     dependencies:
+       - "msal==1.31.0"
+       - "requests>=2.28.0"
+
+**Generated Output**
+
+.. code-block:: yaml
+   :caption: resources/lhp/my_pipeline.pipeline.yml (excerpt)
+
+   environment:
+     dependencies:
+       - msal==1.31.0
+       - requests>=2.28.0
+
+.. note::
+   The ``environment`` section supports LHP token substitution just like all other
+   pipeline config fields. For example, you can use ``"msal=={msal_version}"`` and
+   define ``msal_version`` in your ``substitutions/{env}.yaml`` files.
 
 Job Configuration
 ~~~~~~~~~~~~~~~~~

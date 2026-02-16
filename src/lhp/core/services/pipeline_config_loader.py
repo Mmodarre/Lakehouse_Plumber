@@ -264,6 +264,15 @@ class PipelineConfigLoader:
                     f"Allowed values: {', '.join(sorted(self.ALLOWED_CHANNELS))}"
                 )
         
+        # Validate environment (if present, must be a dict)
+        if 'environment' in config:
+            if not isinstance(config['environment'], dict):
+                raise ValueError(
+                    f"Invalid 'environment' value: expected a dictionary, "
+                    f"got {type(config['environment']).__name__}. "
+                    f"Example: environment: {{dependencies: ['package==1.0.0']}}"
+                )
+
         # Note: We intentionally do NOT validate:
         # - cluster structures
         # - notification formats
