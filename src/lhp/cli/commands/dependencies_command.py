@@ -45,125 +45,97 @@ class DependenciesCommand(BaseCommand):
             bundle_output: If True, save job file to resources/ directory
             verbose: Enable verbose output
         """
-        try:
-            self.setup_from_context()
-            project_root = self.ensure_project_root()
+        self.setup_from_context()
+        project_root = self.ensure_project_root()
 
-            if verbose:
-                self._setup_verbose_logging()
+        if verbose:
+            self._setup_verbose_logging()
 
-            logger.debug(
-                f"Dependencies request: format={output_format}, pipeline={pipeline}, "
-                f"job_name={job_name}, bundle_output={bundle_output}"
-            )
+        logger.debug(
+            f"Dependencies request: format={output_format}, pipeline={pipeline}, "
+            f"job_name={job_name}, bundle_output={bundle_output}"
+        )
 
-            click.echo("🔍 Analyzing Pipeline Dependencies")
-            click.echo("=" * 60)
+        click.echo("🔍 Analyzing Pipeline Dependencies")
+        click.echo("=" * 60)
 
-            # Initialize services
-            config_loader = ProjectConfigLoader(project_root)
-            analyzer = DependencyAnalyzer(project_root, config_loader)
-            output_manager = DependencyOutputManager()
+        # Initialize services
+        config_loader = ProjectConfigLoader(project_root)
+        analyzer = DependencyAnalyzer(project_root, config_loader)
+        output_manager = DependencyOutputManager()
 
-            # Validate pipeline filter with job_name usage
-            if pipeline:
-                self._validate_pipeline_exists(analyzer, pipeline)
-                # Check if job_name is used - error out if so
-                flowgroups = analyzer._get_flowgroups()
-                if any(fg.job_name for fg in flowgroups):
-                    raise LHPError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="003",
-                        title="Pipeline filter not supported with job_name",
-                        details=(
-                            "Cannot use --pipeline filter when job_name is defined in flowgroups.\n\n"
-                            f"You specified: --pipeline {pipeline}\n"
-                            "However, your flowgroups use job_name property which enables multi-job mode.\n\n"
-                            "A single pipeline may span multiple jobs, making filtering ambiguous."
+        # Validate pipeline filter with job_name usage
+        if pipeline:
+            flowgroups = self._validate_pipeline_exists(analyzer, pipeline)
+            # Check if job_name is used - error out if so
+            if any(fg.job_name for fg in flowgroups):
+                raise LHPError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="003",
+                    title="Pipeline filter not supported with job_name",
+                    details=(
+                        "Cannot use --pipeline filter when job_name is defined in flowgroups.\n\n"
+                        f"You specified: --pipeline {pipeline}\n"
+                        "However, your flowgroups use job_name property which enables multi-job mode.\n\n"
+                        "A single pipeline may span multiple jobs, making filtering ambiguous."
+                    ),
+                    suggestions=[
+                        "Remove the --pipeline filter to analyze all jobs",
+                        "Or remove job_name from flowgroups to use single-job mode",
+                        "Use separate lhp deps runs for different projects if needed",
+                    ],
+                    context={
+                        "Pipeline Filter": pipeline,
+                        "Flowgroups with job_name": len(
+                            [fg for fg in flowgroups if fg.job_name]
                         ),
-                        suggestions=[
-                            "Remove the --pipeline filter to analyze all jobs",
-                            "Or remove job_name from flowgroups to use single-job mode",
-                            "Use separate lhp deps runs for different projects if needed",
-                        ],
-                        context={
-                            "Pipeline Filter": pipeline,
-                            "Flowgroups with job_name": len(
-                                [fg for fg in flowgroups if fg.job_name]
-                            ),
-                        },
-                    )
-
-            # Perform dependency analysis
-            click.echo("📊 Building dependency graphs...")
-            result = analyzer.analyze_dependencies(pipeline_filter=pipeline)
-
-            # Display analysis summary
-            self._display_analysis_summary(result, pipeline)
-
-            # Handle output generation
-            output_formats = self._parse_output_formats(output_format)
-            output_path = self._resolve_output_path(output_dir, project_root)
-
-            # Adjust message if using bundle output
-            if bundle_output:
-                click.echo(f"\n💾 Generating output files...")
-                click.echo(
-                    f"   Job file will be saved to resources/ directory for bundle integration"
+                    },
                 )
-            else:
-                click.echo(f"\n💾 Generating output files in {output_path}...")
 
-            generated_files = output_manager.save_outputs(
-                analyzer,
-                result,
-                output_formats,
-                output_path,
-                job_name,
-                job_config_path,
-                bundle_output,
+        # Perform dependency analysis
+        click.echo("📊 Building dependency graphs...")
+        result = analyzer.analyze_dependencies(pipeline_filter=pipeline)
+
+        # Display analysis summary
+        self._display_analysis_summary(result, pipeline)
+
+        # Handle output generation
+        output_formats = self._parse_output_formats(output_format)
+        output_path = self._resolve_output_path(output_dir, project_root)
+
+        # Adjust message if using bundle output
+        if bundle_output:
+            click.echo(f"\n💾 Generating output files...")
+            click.echo(
+                f"   Job file will be saved to resources/ directory for bundle integration"
             )
+        else:
+            click.echo(f"\n💾 Generating output files in {output_path}...")
 
-            # Display generated files
-            self._display_generated_files(generated_files)
+        generated_files = output_manager.save_outputs(
+            analyzer,
+            result,
+            output_formats,
+            output_path,
+            job_name,
+            job_config_path,
+            bundle_output,
+        )
 
-            # Show execution order if pipelines found
-            if result.execution_stages:
-                self._display_execution_order(result)
+        # Display generated files
+        self._display_generated_files(generated_files)
 
-            # Show warnings if any issues detected
-            self._display_warnings(result)
+        # Show execution order if pipelines found
+        if result.execution_stages:
+            self._display_execution_order(result)
 
-            logger.info(
-                f"Dependency analysis complete: {len(result.execution_stages)} stages"
-            )
-            click.echo("\n✅ Dependency analysis complete!")
+        # Show warnings if any issues detected
+        self._display_warnings(result)
 
-        except LHPError:
-            # LHPError is already formatted, just re-raise
-            raise
-        except Exception as e:
-            logger.error(f"Dependency analysis failed: {e}")
-            raise LHPError(
-                category=ErrorCategory.DEPENDENCY,
-                code_number="001",
-                title="Dependency analysis failed",
-                details=f"An error occurred during dependency analysis: {str(e)}",
-                suggestions=[
-                    "Check that you're in a valid LakehousePlumber project directory",
-                    "Ensure all YAML files are valid and parseable",
-                    "Verify project configuration (lhp.yaml) is correct",
-                    "Check file permissions for the output directory",
-                ],
-                context={
-                    "Error Type": type(e).__name__,
-                    "Error Message": str(e),
-                    "Pipeline Filter": pipeline,
-                    "Output Format": output_format,
-                    "Job Config Path": job_config_path,
-                    "Bundle Output": bundle_output,
-                },
-            ) from e
+        logger.info(
+            f"Dependency analysis complete: {len(result.execution_stages)} stages"
+        )
+        click.echo("\n✅ Dependency analysis complete!")
 
     def _setup_verbose_logging(self) -> None:
         """Enable verbose logging for detailed analysis output."""
@@ -175,18 +147,14 @@ class DependenciesCommand(BaseCommand):
         out_logger = logging.getLogger("lhp.core.services.dependency_output_manager")
         out_logger.setLevel(logging.DEBUG)
 
-    def _validate_pipeline_exists(
-        self, analyzer: DependencyAnalyzer, pipeline: str
-    ) -> None:
-        """Validate that the specified pipeline exists."""
-        # Get available pipelines
-        available_pipelines = set()
-        try:
-            flowgroups = analyzer._get_flowgroups()
-            available_pipelines = set(fg.pipeline for fg in flowgroups)
-        except Exception as e:
-            logger.warning(f"Could not validate pipeline existence: {e}")
-            return  # Continue anyway
+    def _validate_pipeline_exists(self, analyzer: DependencyAnalyzer, pipeline: str):
+        """Validate that the specified pipeline exists.
+
+        Returns:
+            List of flowgroups (reusable by caller to avoid redundant calls)
+        """
+        flowgroups = analyzer.get_flowgroups()
+        available_pipelines = set(fg.pipeline for fg in flowgroups)
 
         if available_pipelines and pipeline not in available_pipelines:
             raise LHPError(
@@ -206,6 +174,8 @@ class DependenciesCommand(BaseCommand):
                     "Total Available": len(available_pipelines),
                 },
             )
+
+        return flowgroups
 
     def _parse_output_formats(self, output_format: str) -> List[str]:
         """Parse and validate output format specification."""
@@ -311,6 +281,10 @@ class DependenciesCommand(BaseCommand):
                 "   This may indicate circular dependencies or missing pipelines."
             )
 
+        self._display_info(result)
+
+    def _display_info(self, result) -> None:
+        """Display informational messages about dependency analysis results."""
         if result.total_external_sources > 0:
             click.echo(f"\n💡 Info:")
             click.echo(f"   {result.total_external_sources} external sources detected.")
@@ -323,59 +297,3 @@ class DependenciesCommand(BaseCommand):
                 click.echo(
                     "   Use generated files to see complete list of external sources."
                 )
-
-
-# Command function for CLI registration
-def create_dependencies_command():
-    """Create and return the dependencies command function for CLI registration."""
-
-    @click.command()
-    @click.option(
-        "--format",
-        "-f",
-        "output_format",
-        type=click.Choice(["dot", "json", "text", "all"], case_sensitive=False),
-        default="all",
-        help="Output format(s) to generate",
-    )
-    @click.option(
-        "--output",
-        "-o",
-        "output_dir",
-        type=click.Path(),
-        help="Output directory (defaults to .lhp/dependencies/)",
-    )
-    @click.option("--pipeline", "-p", help="Analyze specific pipeline only")
-    @click.option("--job-name", "-j", help="Custom name for orchestration job")
-    @click.option(
-        "--job-config", "-jc", "job_config_path", help="Custom job config file path"
-    )
-    @click.option(
-        "--bundle-output",
-        "-b",
-        is_flag=True,
-        help="Save job file to resources/ directory",
-    )
-    @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-    def deps(
-        output_format,
-        output_dir,
-        pipeline,
-        job_name,
-        job_config_path,
-        bundle_output,
-        verbose,
-    ):
-        """Analyze and visualize pipeline dependencies for orchestration planning."""
-        command = DependenciesCommand()
-        command.execute(
-            output_format,
-            output_dir,
-            pipeline,
-            job_name,
-            job_config_path,
-            bundle_output,
-            verbose,
-        )
-
-    return deps

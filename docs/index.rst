@@ -293,5 +293,6 @@ Next Steps
    cicd_reference
    advanced
    cli
+   errors_reference
    examples
    api 

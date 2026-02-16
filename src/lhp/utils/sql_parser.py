@@ -1,8 +1,8 @@
 """SQL parser utility for extracting table references from SQL queries."""
 
-import re
 import logging
-from typing import List, Set
+import re
+from typing import List, Optional, Set
 
 
 class SQLParser:
@@ -19,6 +19,8 @@ class SQLParser:
         - FROM/JOIN clauses with catalog.schema.table
         - stream() function wrappers
         - CTEs (WITH clauses) - extracts tables from CTEs but excludes CTE names
+        - Subqueries in WHERE/HAVING clauses
+        - UNION/INTERSECT/EXCEPT set operations
         - Preserves substitution tokens like {catalog}.{schema}
 
         Args:
@@ -42,7 +44,8 @@ class SQLParser:
         # Extract tables from various SQL constructs, excluding CTE names
         tables.update(self._extract_from_from_clauses(cleaned_sql, cte_names))
         tables.update(self._extract_from_join_clauses(cleaned_sql, cte_names))
-        tables.update(self._extract_from_function_wrappers(cleaned_sql))
+        tables.update(self._extract_from_function_wrappers(cleaned_sql, cte_names))
+        tables.update(self._extract_from_subqueries(cleaned_sql, cte_names))
 
         # Filter out invalid references
         valid_tables = [
@@ -63,7 +66,7 @@ class SQLParser:
         return sql_content
 
     def _extract_from_from_clauses(
-        self, sql_content: str, cte_names: Set[str] = None
+        self, sql_content: str, cte_names: Optional[Set[str]] = None
     ) -> Set[str]:
         """Extract table references from FROM clauses, excluding CTE names and function wrappers."""
         tables = set()
@@ -120,7 +123,7 @@ class SQLParser:
         return tables
 
     def _extract_from_join_clauses(
-        self, sql_content: str, cte_names: Set[str] = None
+        self, sql_content: str, cte_names: Optional[Set[str]] = None
     ) -> Set[str]:
         """Extract table references from JOIN clauses, excluding CTE names."""
         tables = set()
@@ -150,6 +153,9 @@ class SQLParser:
     def _extract_from_ctes(self, sql_content: str) -> tuple[Set[str], Set[str]]:
         """Extract table references from CTE (WITH) clauses and return CTE names.
 
+        Handles incremental CTE name resolution: CTE 'b' can reference CTE 'a'
+        without 'a' being flagged as an external table.
+
         Returns:
             Tuple of (table_references, cte_names)
         """
@@ -175,15 +181,19 @@ class SQLParser:
 
         if with_match:
             with_clause = with_match.group(0)
-            # Extract FROM clauses within CTE definitions (don't pass cte_names to avoid circular filtering)
-            tables.update(self._extract_from_from_clauses(with_clause))
-            tables.update(self._extract_from_join_clauses(with_clause))
+            # Pass cte_names so references between CTEs are filtered out
+            tables.update(self._extract_from_from_clauses(with_clause, cte_names))
+            tables.update(self._extract_from_join_clauses(with_clause, cte_names))
 
         return tables, cte_names
 
-    def _extract_from_function_wrappers(self, sql_content: str) -> Set[str]:
+    def _extract_from_function_wrappers(
+        self, sql_content: str, cte_names: Optional[Set[str]] = None
+    ) -> Set[str]:
         """Extract table references from function wrappers like stream()."""
         tables = set()
+        if cte_names is None:
+            cte_names = set()
 
         # Pattern for function-wrapped table references
         # Matches: stream(table), live(table), snapshot(table)
@@ -191,7 +201,46 @@ class SQLParser:
 
         for match in re.finditer(function_pattern, sql_content):
             table_ref = match.group(1).strip()
-            tables.add(table_ref)
+            if table_ref not in cte_names:
+                tables.add(table_ref)
+
+        return tables
+
+    def _extract_from_subqueries(
+        self, sql_content: str, cte_names: Optional[Set[str]] = None
+    ) -> Set[str]:
+        """Extract table references from subqueries and set operations.
+
+        Handles:
+        - Subqueries in WHERE/HAVING: WHERE x IN (SELECT * FROM other_table)
+        - UNION/INTERSECT/EXCEPT: SELECT FROM t1 UNION ALL SELECT FROM t2
+        """
+        tables = set()
+        if cte_names is None:
+            cte_names = set()
+
+        # Extract tables from subqueries in WHERE/HAVING/parenthesized contexts
+        # Find all parenthesized SELECT statements
+        subquery_pattern = r"\(\s*SELECT\b(.*?)\)"
+        for match in re.finditer(
+            subquery_pattern, sql_content, re.IGNORECASE | re.DOTALL
+        ):
+            subquery_body = match.group(1)
+            tables.update(self._extract_from_from_clauses(subquery_body, cte_names))
+            tables.update(self._extract_from_join_clauses(subquery_body, cte_names))
+
+        # Extract tables from UNION/INTERSECT/EXCEPT branches
+        # Split by set operations and extract from each branch
+        set_op_pattern = (
+            r"\bUNION\s+(?:ALL\s+)?|\bINTERSECT\s+(?:ALL\s+)?|\bEXCEPT\s+(?:ALL\s+)?"
+        )
+        if re.search(set_op_pattern, sql_content, re.IGNORECASE):
+            branches = re.split(set_op_pattern, sql_content, flags=re.IGNORECASE)
+            for branch in branches:
+                branch = branch.strip()
+                if branch:
+                    tables.update(self._extract_from_from_clauses(branch, cte_names))
+                    tables.update(self._extract_from_join_clauses(branch, cte_names))
 
         return tables
 
@@ -233,6 +282,12 @@ class SQLParser:
             "THEN",
             "ELSE",
             "END",
+            "SELECT",
+            "ALL",
+            "DISTINCT",
+            "UNION",
+            "INTERSECT",
+            "EXCEPT",
         }
 
         # Check if the reference is just a SQL keyword

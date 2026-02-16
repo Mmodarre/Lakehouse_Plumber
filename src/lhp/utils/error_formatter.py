@@ -46,7 +46,7 @@ class LHPError(Exception):
         self.example = example
         self.context = context or {}
         self.doc_link = (
-            doc_link or f"https://docs.lakehouseplumber.com/errors/{self.code.lower()}"
+            doc_link or "https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html"
         )
 
         # Format the complete error message

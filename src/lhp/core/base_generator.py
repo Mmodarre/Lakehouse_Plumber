@@ -108,7 +108,7 @@ class BaseActionGenerator(ABC):
         return template.render(**context)
 
     def _get_operational_metadata(
-        self, action: "Action", context: Dict[str, Any], target_type: str = "view"
+        self, action: Action, context: Dict[str, Any], target_type: str = "view"
     ) -> tuple:
         """Get operational metadata configuration.
 

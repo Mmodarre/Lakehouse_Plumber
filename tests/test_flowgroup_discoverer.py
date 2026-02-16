@@ -254,7 +254,7 @@ flowgroup: flowgroup3
     # (existing feature) not multi-flowgroup support specifically. Include pattern 
     # filtering works with multi-flowgroup files automatically.
     
-    def test_get_flowgroups_summary_with_multi_files(self):
+    def testget_flowgroups_summary_with_multi_files(self):
         """Test get_flowgroups_summary() counts correctly with multi-flowgroup files."""
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir)

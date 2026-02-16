@@ -30,11 +30,11 @@ class TestMultiJobWorkflow:
     # 3. test_backward_compat_single_job_no_master - Tests YAML validity, not actual behavior
     # 
     # TODO: Rewrite these tests using real project structures and YAML files instead of mocks
-    @patch('lhp.core.services.dependency_analyzer.DependencyAnalyzer._get_flowgroups')
-    def test_validation_failure_stops_workflow(self, mock_get_flowgroups,
+    @patch('lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups')
+    def test_validation_failure_stops_workflow(self, mockget_flowgroups,
                                                sample_flowgroups_mixed_job_name):
         """Test that validation failure stops the workflow early."""
-        mock_get_flowgroups.return_value = sample_flowgroups_mixed_job_name
+        mockget_flowgroups.return_value = sample_flowgroups_mixed_job_name
         
         analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
         

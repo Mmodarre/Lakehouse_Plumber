@@ -1,23 +1,25 @@
 """Dependency analysis service for LakehousePlumber using NetworkX."""
 
 import logging
-from pathlib import Path
-from typing import Dict, List, Set, Tuple, Optional, Any
 from collections import defaultdict
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+
 import networkx as nx
 
-from ...models.config import FlowGroup, Action, ActionType
+from ...models.config import Action, ActionType, FlowGroup
 from ...models.dependencies import (
-    DependencyGraphs,
-    DependencyAnalysisResult,
-    PipelineDependency,
     ActionDependencyInfo,
+    DependencyAnalysisResult,
+    DependencyGraphs,
     FlowgroupDependencyInfo,
+    PipelineDependency,
 )
 from ...parsers.yaml_parser import YAMLParser
-from .flowgroup_discoverer import FlowgroupDiscoverer
+from ...utils.error_formatter import ErrorCategory, LHPError
+from ...utils.source_extractor import extract_action_sources
 from ..project_config_loader import ProjectConfigLoader
-from ...utils.error_formatter import LHPError, ErrorCategory
+from .flowgroup_discoverer import FlowgroupDiscoverer
 
 
 class DependencyAnalyzer:
@@ -47,12 +49,12 @@ class DependencyAnalyzer:
         self.logger = logging.getLogger(__name__)
 
         # Initialize components for template expansion
-        from ..template_engine import TemplateEngine
         from ...presets.preset_manager import PresetManager
-        from .flowgroup_processor import FlowgroupProcessor
-        from ..validator import ConfigValidator
-        from ..secret_validator import SecretValidator
         from ...utils.substitution import EnhancedSubstitutionManager
+        from ..secret_validator import SecretValidator
+        from ..template_engine import TemplateEngine
+        from ..validator import ConfigValidator
+        from .flowgroup_processor import FlowgroupProcessor
 
         self.template_engine = TemplateEngine(project_root / "templates")
         self.preset_manager = PresetManager(project_root / "presets")
@@ -105,7 +107,7 @@ class DependencyAnalyzer:
         self.logger.info("Building dependency graphs...")
 
         # Discover all flowgroups
-        flowgroups = self._get_flowgroups(pipeline_filter)
+        flowgroups = self.get_flowgroups(pipeline_filter)
 
         if not flowgroups:
             self.logger.warning("No flowgroups found for analysis")
@@ -215,7 +217,7 @@ class DependencyAnalyzer:
         self.logger.info("Starting multi-job dependency analysis...")
 
         # Get all flowgroups
-        flowgroups = self._get_flowgroups()
+        flowgroups = self.get_flowgroups()
 
         if not flowgroups:
             self.logger.warning("No flowgroups found for analysis")
@@ -306,6 +308,133 @@ class DependencyAnalyzer:
         )
 
         return job_results, global_result  # Return tuple: (job_results, global_result)
+
+    def partition_result_by_job(
+        self,
+        global_result: DependencyAnalysisResult,
+        flowgroups: List[FlowGroup],
+    ) -> Dict[str, DependencyAnalysisResult]:
+        """Partition a global dependency analysis result by job_name.
+
+        Instead of re-running analyze_dependencies() for each job, this method
+        filters the existing graphs by the flowgroups belonging to each job.
+        This is significantly faster for multi-job pipelines.
+
+        Args:
+            global_result: The complete dependency analysis result
+            flowgroups: All flowgroups (used to determine job grouping)
+
+        Returns:
+            Dictionary mapping job_name to per-job DependencyAnalysisResult
+        """
+        # Group flowgroups by job_name
+        job_groups: Dict[str, List[FlowGroup]] = {}
+        for fg in flowgroups:
+            job_name = fg.job_name or "_default"
+            if job_name not in job_groups:
+                job_groups[job_name] = []
+            job_groups[job_name].append(fg)
+
+        global_external_sources = set(global_result.external_sources)
+        job_results: Dict[str, DependencyAnalysisResult] = {}
+
+        for job_name in sorted(job_groups.keys()):
+            job_flowgroups = job_groups[job_name]
+            job_fg_names = {fg.flowgroup for fg in job_flowgroups}
+            job_pipeline_names = {fg.pipeline for fg in job_flowgroups}
+
+            # Filter action graph: keep nodes belonging to this job's flowgroups
+            job_action_graph = nx.DiGraph()
+            for node, data in global_result.graphs.action_graph.nodes(data=True):
+                if data.get("flowgroup") in job_fg_names:
+                    job_action_graph.add_node(node, **data)
+
+            # Keep edges where both nodes are in the filtered graph
+            for u, v, data in global_result.graphs.action_graph.edges(data=True):
+                if u in job_action_graph and v in job_action_graph:
+                    job_action_graph.add_edge(u, v, **data)
+
+            # Filter flowgroup graph
+            job_fg_graph = nx.DiGraph()
+            for node, data in global_result.graphs.flowgroup_graph.nodes(data=True):
+                if node in job_fg_names:
+                    job_fg_graph.add_node(node, **data)
+
+            for u, v, data in global_result.graphs.flowgroup_graph.edges(data=True):
+                if u in job_fg_graph and v in job_fg_graph:
+                    job_fg_graph.add_edge(u, v, **data)
+
+            # Filter pipeline graph
+            job_pipeline_graph = nx.DiGraph()
+            for node, data in global_result.graphs.pipeline_graph.nodes(data=True):
+                if node in job_pipeline_names:
+                    job_pipeline_graph.add_node(node, **data)
+
+            for u, v, data in global_result.graphs.pipeline_graph.edges(data=True):
+                if u in job_pipeline_graph and v in job_pipeline_graph:
+                    job_pipeline_graph.add_edge(u, v, **data)
+
+            # Build partitioned graphs
+            job_graphs = DependencyGraphs(
+                action_graph=job_action_graph,
+                flowgroup_graph=job_fg_graph,
+                pipeline_graph=job_pipeline_graph,
+                metadata={
+                    "total_pipelines": len(job_pipeline_names),
+                    "total_flowgroups": len(job_fg_names),
+                    "job_name": job_name,
+                },
+            )
+
+            # Filter pipeline dependencies, keeping only intra-job depends_on
+            # (cross-job dependencies are handled by the master job)
+            job_pipeline_deps = {}
+            for name, dep in global_result.pipeline_dependencies.items():
+                if name in job_pipeline_names:
+                    job_pipeline_deps[name] = PipelineDependency(
+                        pipeline=dep.pipeline,
+                        depends_on=[
+                            d for d in dep.depends_on if d in job_pipeline_names
+                        ],
+                        flowgroup_count=dep.flowgroup_count,
+                        action_count=dep.action_count,
+                        external_sources=dep.external_sources,
+                    )
+
+            # Detect circular deps for this partition
+            job_circular_deps = self._detect_circular_dependencies(job_graphs)
+
+            # Compute execution order for this partition
+            if job_circular_deps:
+                job_execution_stages = []
+            else:
+                job_execution_stages = self._get_execution_order(job_pipeline_graph)
+
+            # Collect external sources for this job
+            job_external = self._collect_external_sources(job_graphs)
+
+            # Log cross-job dependencies
+            cross_job_sources = set(job_external) - global_external_sources
+            if cross_job_sources:
+                self.logger.info(
+                    f"Job '{job_name}' depends on {len(cross_job_sources)} source(s) "
+                    f"from other jobs: {', '.join(sorted(list(cross_job_sources)[:5]))}"
+                )
+
+            job_results[job_name] = DependencyAnalysisResult(
+                graphs=job_graphs,
+                pipeline_dependencies=job_pipeline_deps,
+                execution_stages=job_execution_stages,
+                circular_dependencies=job_circular_deps,
+                external_sources=job_external,
+            )
+
+            self.logger.debug(
+                f"Partitioned job '{job_name}': {len(job_fg_names)} flowgroups, "
+                f"{job_action_graph.number_of_nodes()} actions"
+            )
+
+        return job_results
 
     def get_execution_order(self, graphs: DependencyGraphs) -> List[List[str]]:
         """
@@ -423,7 +552,7 @@ class DependencyAnalyzer:
 
     # Private helper methods
 
-    def _get_flowgroups(self, pipeline_filter: Optional[str] = None) -> List[FlowGroup]:
+    def get_flowgroups(self, pipeline_filter: Optional[str] = None) -> List[FlowGroup]:
         """Get flowgroups, optionally filtered by pipeline."""
         if self._flowgroups is None:
             # Discover raw flowgroups with their file paths
@@ -662,38 +791,8 @@ class DependencyAnalyzer:
             )
             return python_sources
 
-        # Priority 3: Fall back to explicit source field extraction
-        sources = []
-        if action.source:
-            if isinstance(action.source, str):
-                sources.append(action.source)
-            elif isinstance(action.source, list):
-                for source in action.source:
-                    if isinstance(source, str):
-                        sources.append(source)
-            elif isinstance(action.source, dict):
-                # For dict sources, look for view/source keys
-                if "view" in action.source:
-                    sources.append(action.source["view"])
-                elif "source" in action.source:
-                    source_val = action.source["source"]
-                    if isinstance(source_val, str):
-                        sources.append(source_val)
-                    elif isinstance(source_val, list):
-                        sources.extend(source_val)
-                # For transform actions with multiple sources
-                elif "sources" in action.source:
-                    sources.extend(action.source["sources"])
-                # Handle load actions with database/table format (delta tables, etc.)
-                elif "database" in action.source and "table" in action.source:
-                    database = action.source.get("database", "")
-                    table = action.source.get("table", "")
-                    if database and table:
-                        sources.append(f"{database}.{table}")
-                # Handle SQL source type - delegate to SQL extraction (already done in priority 1)
-                elif action.source.get("type") == "sql":
-                    # SQL sources are already handled in priority 1, no need to extract here
-                    pass
+        # Priority 3: Fall back to shared explicit source extraction
+        sources = extract_action_sources(action)
 
         if sources:
             self.logger.debug(
@@ -809,24 +908,6 @@ class DependencyAnalyzer:
             else:
                 self.logger.warning(
                     f"No YAML file path found for flowgroup {flowgroup_name} - cannot resolve SQL file {sql_path}"
-                )
-
-        # Handle test actions with custom SQL
-        elif (
-            action.type == ActionType.TEST
-            and hasattr(action, "test_type")
-            and action.test_type == "custom_sql"
-            and hasattr(action, "sql")
-            and action.sql
-        ):
-            try:
-                sources.extend(extract_tables_from_sql(action.sql))
-                self.logger.debug(
-                    f"Extracted {len(sources)} sources from test SQL in {flowgroup_name}.{action.name}"
-                )
-            except Exception as e:
-                self.logger.warning(
-                    f"Could not parse test SQL in {flowgroup_name}.{action.name}: {e}"
                 )
 
         return sources
@@ -1030,10 +1111,14 @@ class DependencyAnalyzer:
     def _detect_circular_dependencies(
         self, graphs: DependencyGraphs
     ) -> List[List[str]]:
-        """Detect circular dependencies at all levels and collect them for reporting."""
-        circular_dependencies = []
+        """Detect all circular dependencies at all graph levels.
 
-        # Check each level for cycles
+        Uses nx.simple_cycles() to find ALL cycles (not just the first one),
+        capped at 20 cycles to avoid overwhelming output.
+        """
+        MAX_CYCLES = 20
+        circular_dependencies: List[List[str]] = []
+
         for level_name, graph in [
             ("action", graphs.action_graph),
             ("flowgroup", graphs.flowgroup_graph),
@@ -1042,26 +1127,27 @@ class DependencyAnalyzer:
             self.logger.debug(
                 f"Checking {level_name} graph for cycles ({graph.number_of_nodes()} nodes, {graph.number_of_edges()} edges)"
             )
-            try:
-                # NetworkX will raise exception if cycles exist during topological sort
-                list(nx.topological_sort(graph))
-            except (nx.NetworkXError, nx.NetworkXAlgorithmError) as e:
-                self.logger.debug(
-                    f"Detected cycle in {level_name} graph: {type(e).__name__}: {e}"
-                )
-                # Find actual cycles
-                try:
-                    cycle = nx.find_cycle(graph, orientation="original")
-                    cycle_nodes = [edge[0] for edge in cycle] + [cycle[-1][1]]
-                    cycle_description = (
-                        f"{level_name} level: {' -> '.join(cycle_nodes)}"
-                    )
-                    circular_dependencies.append([cycle_description])
+
+            cycles_found = 0
+            for cycle_nodes in nx.simple_cycles(graph):
+                if len(circular_dependencies) >= MAX_CYCLES:
                     self.logger.warning(
-                        f"Circular dependency detected: {cycle_description}"
+                        f"Reached maximum cycle reporting limit ({MAX_CYCLES}). "
+                        "Additional cycles may exist."
                     )
-                except nx.NetworkXNoCycle:
-                    pass  # No cycle found despite error
+                    return circular_dependencies
+
+                # Format cycle: [A, B, C] -> "A -> B -> C -> A"
+                cycle_path = list(cycle_nodes) + [cycle_nodes[0]]
+                cycle_description = f"{level_name} level: {' -> '.join(cycle_path)}"
+                circular_dependencies.append([cycle_description])
+                cycles_found += 1
+                self.logger.warning(
+                    f"Circular dependency detected: {cycle_description}"
+                )
+
+            if cycles_found:
+                self.logger.info(f"Found {cycles_found} cycle(s) at {level_name} level")
 
         return circular_dependencies
 

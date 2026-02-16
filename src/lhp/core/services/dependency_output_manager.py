@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
 from ...utils.error_formatter import ErrorCategory, LHPConfigError
@@ -67,7 +67,6 @@ class DependencyOutputManager:
         # Expand "all" format
         if "all" in output_formats:
             output_formats = ["dot", "json", "text", "job"]
-            output_formats = [fmt for fmt in output_formats if fmt != "all"]
 
         # Validate formats
         valid_formats = {"dot", "json", "text", "job"}
@@ -91,20 +90,26 @@ class DependencyOutputManager:
         generated_files = {}
 
         # Generate each requested format
-        try:
-            if "dot" in output_formats:
-                dot_file = self._save_dot_format(analyzer, result.graphs, target_dir)
-                generated_files["dot"] = dot_file
+        if "dot" in output_formats:
+            dot_file = self._save_dot_format(analyzer, result.graphs, target_dir)
+            generated_files["dot"] = dot_file
 
-            if "json" in output_formats:
-                json_file = self._save_json_format(analyzer, result, target_dir)
-                generated_files["json"] = json_file
+        if "json" in output_formats:
+            json_file = self._save_json_format(analyzer, result, target_dir)
+            generated_files["json"] = json_file
 
-            if "text" in output_formats:
-                text_file = self._save_text_format(result, target_dir)
-                generated_files["text"] = text_file
+        if "text" in output_formats:
+            text_file = self._save_text_format(result, target_dir)
+            generated_files["text"] = text_file
 
-            if "job" in output_formats:
+        if "job" in output_formats:
+            if result.circular_dependencies:
+                self.logger.warning(
+                    "Skipping job format generation due to circular dependencies. "
+                    "Circular dependencies must be resolved before orchestration "
+                    "job generation is possible."
+                )
+            else:
                 job_file = self._save_job_format(
                     analyzer,
                     result,
@@ -115,14 +120,10 @@ class DependencyOutputManager:
                 )
                 generated_files["job"] = job_file
 
-            self.logger.info(
-                f"Generated {len(generated_files)} output files in {target_dir}"
-            )
-            return generated_files
-
-        except Exception as e:
-            self.logger.error(f"Error generating output files: {e}")
-            raise IOError(f"Failed to save dependency outputs: {e}") from e
+        self.logger.info(
+            f"Generated {len(generated_files)} output files in {target_dir}"
+        )
+        return generated_files
 
     def save_dot_format(
         self,
@@ -450,7 +451,7 @@ class DependencyOutputManager:
         # Check if flowgroups have job_name property
         # Defensive: handle case where analyzer is mocked in tests
         try:
-            flowgroups = analyzer._get_flowgroups()
+            flowgroups = analyzer.get_flowgroups()
             has_job_name = any(fg.job_name for fg in flowgroups)
         except (TypeError, AttributeError) as e:
             # If we can't check flowgroups (mocked analyzer), assume single-job mode
@@ -484,8 +485,9 @@ class DependencyOutputManager:
             "job_name detected - generating multiple jobs + master orchestration job"
         )
 
-        # Get per-job dependency results and global analysis
-        job_results, global_result = analyzer.analyze_dependencies_by_job()
+        # Partition existing result by job instead of re-analyzing
+        job_results = analyzer.partition_result_by_job(result, flowgroups)
+        global_result = result
 
         # Determine output directory (flat structure)
         if bundle_output:
