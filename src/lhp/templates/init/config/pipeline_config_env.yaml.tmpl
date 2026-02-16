@@ -77,6 +77,17 @@ project_defaults:
   #       - on-update-success
   #       - on-flow-failure
 
+  # -----------------------------------------------------------------------------
+  # Pipeline-level Spark/DLT Configuration
+  # -----------------------------------------------------------------------------
+
+  # Arbitrary key-value pairs passed to the DLT pipeline configuration.
+  # All values MUST be quoted strings.
+  # Uncomment and customize as needed
+  # configuration:
+  #   "pipelines.incompatibleViewCheck.enabled": "false"
+  #   "spark.databricks.delta.minFileSize": "134217728"
+
 ---
 # ==============================================================================
 # EXAMPLE: Raw Ingestion Pipeline - Non-serverless with dedicated clusters
@@ -106,6 +117,10 @@ project_defaults:
 #       mode: ENHANCED
 #     # Optional: Cluster policy ID for governance
 #     policy_id: YOUR_POLICY_ID_HERE
+#
+# # Pipeline-level Spark/DLT configuration (all values must be strings)
+# configuration:
+#   "pipelines.incompatibleViewCheck.enabled": "false"
 
 ---
 # ==============================================================================
@@ -359,6 +374,8 @@ project_defaults:
 #   - Empty catalog/schema values raise errors
 #   - Unresolved tokens raise errors
 #   - Lists (notifications, clusters, tags) are REPLACED during merge, not appended
+#   - configuration: Must be a dict with string values (all values quoted)
+#   - bundle.sourcePath in configuration is LHP-managed and cannot be overridden
 #
 # Best Practices:
 #   - Use serverless for most workloads (cost-effective, auto-scaling)

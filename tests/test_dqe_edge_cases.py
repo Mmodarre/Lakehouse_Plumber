@@ -259,7 +259,7 @@ class TestDQELoadExpectationsFromFile:
             with pytest.raises(ValueError) as exc_info:
                 parser.load_expectations_from_file(yaml_file)
             
-            assert "Invalid YAML in expectations file" in str(exc_info.value)
+            assert "YAML parsing error" in str(exc_info.value)
         finally:
             yaml_file.unlink()
 

@@ -169,14 +169,14 @@ actions:
                 "target_table": "orders"  # missing source_path
             }
             
-            with pytest.raises(ValueError, match="Missing required parameters"):
+            with pytest.raises(ValueError, match="(?i)missing.*parameters"):
                 engine.render_template("bronze_ingestion", parameters)
     
     def test_render_template_not_found(self):
         """Test rendering non-existent template."""
         engine = TemplateEngine()
         
-        with pytest.raises(ValueError, match="Template not found"):
+        with pytest.raises(ValueError, match="(?i)template.*not found"):
             engine.render_template("non_existent", {})
     
     def test_list_templates(self):
@@ -446,7 +446,7 @@ actions:
             # Error test cases: (parameter_value, expected_error_substring)
             error_cases = [
                 ('[invalid syntax here]', "Invalid array template parameter"),
-                ('[1, 2, invalid]', "Arrays must be valid JSON format"),
+                ('[1, 2, invalid]', "Invalid array template parameter"),
             ]
             
             for param_value, expected_error in error_cases:

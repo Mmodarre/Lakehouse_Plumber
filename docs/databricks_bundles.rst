@@ -385,6 +385,12 @@ Create a multi-document YAML file with project-level defaults and per-pipeline o
    * - ``event_log``
      - dict
      - Event logging configuration
+   * - ``environment``
+     - dict
+     - Runtime environment config (dependencies, etc.). Passed through as-is to Databricks.
+   * - ``configuration``
+     - dict
+     - Pipeline-level Spark/DLT configuration key-value pairs. All values must be strings.
 
 **Usage**
 
@@ -448,6 +454,87 @@ All fields in ``pipeline_config.yaml`` support LHP token substitution, not just 
      environment: "{environment_name}"         # Token for env tag
 
 This enables complete environment-specific configuration from your ``substitutions/{env}.yaml`` files.
+
+Environment Dependencies
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Databricks DLT pipelines support an ``environment`` section for specifying pip package
+dependencies that are installed at pipeline startup. LHP passes this section through
+as-is to the generated bundle resource.
+
+**Input Configuration**
+
+.. code-block:: yaml
+   :caption: config/pipeline_config.yaml
+
+   ---
+   pipeline: my_pipeline
+   catalog: "{catalog}"
+   schema: "{schema}"
+   serverless: true
+   environment:
+     dependencies:
+       - "msal==1.31.0"
+       - "requests>=2.28.0"
+
+**Generated Output**
+
+.. code-block:: yaml
+   :caption: resources/lhp/my_pipeline.pipeline.yml (excerpt)
+
+   environment:
+     dependencies:
+       - msal==1.31.0
+       - requests>=2.28.0
+
+.. note::
+   The ``environment`` section supports LHP token substitution just like all other
+   pipeline config fields. For example, you can use ``"msal=={msal_version}"`` and
+   define ``msal_version`` in your ``substitutions/{env}.yaml`` files.
+
+Pipeline Configuration Entries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Databricks DLT pipelines support a ``configuration`` block for setting pipeline-level
+Spark and DLT configuration properties (e.g., ``pipelines.incompatibleViewCheck.enabled``).
+LHP renders user-defined configuration entries alongside the mandatory ``bundle.sourcePath``
+entry in the generated bundle resource.
+
+**Input Configuration**
+
+.. code-block:: yaml
+   :caption: config/pipeline_config.yaml
+
+   ---
+   pipeline: my_pipeline
+   catalog: "{catalog}"
+   schema: "{schema}"
+   serverless: true
+   configuration:
+     "pipelines.incompatibleViewCheck.enabled": "false"
+     "spark.databricks.delta.minFileSize": "134217728"
+
+**Generated Output**
+
+.. code-block:: yaml
+   :caption: resources/lhp/my_pipeline.pipeline.yml (excerpt)
+
+   configuration:
+     bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
+     pipelines.incompatibleViewCheck.enabled: "false"
+     spark.databricks.delta.minFileSize: "134217728"
+
+.. note::
+   The ``configuration`` section supports LHP token substitution just like all other
+   pipeline config fields. For example, you can use ``"{min_file_size}"`` and
+   define ``min_file_size`` in your ``substitutions/{env}.yaml`` files.
+
+.. warning::
+   - The ``bundle.sourcePath`` entry is managed by LHP and cannot be overridden.
+     If included in user configuration, it will be silently ignored.
+   - All configuration values **must be quoted strings** in the YAML input.
+     Unquoted booleans (``false``) or numbers (``134217728``) will be rejected
+     during validation.
 
 Job Configuration
 ~~~~~~~~~~~~~~~~~

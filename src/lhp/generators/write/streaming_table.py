@@ -1,14 +1,22 @@
-"""Streaming table write generator """
+"""Streaming table write generator"""
 
 import ast
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
-from ...utils.error_formatter import LHPError, ErrorCategory
-from ...utils.external_file_loader import load_external_file_text, is_file_path, resolve_external_file_path
+from ...utils.error_formatter import ErrorCategory, ErrorFormatter, LHPError
+from ...utils.external_file_loader import (
+    is_file_path,
+    load_external_file_text,
+    resolve_external_file_path,
+)
 from ...utils.schema_parser import SchemaParser
+
+logger = logging.getLogger(__name__)
 
 
 class StreamingTableWriteGenerator(BaseActionGenerator):
@@ -23,9 +31,21 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         """Generate streaming table code."""
         target_config = action.write_target
         if not target_config:
-            raise ValueError(
-                "Streaming table action must have write_target configuration"
+            raise ErrorFormatter.missing_required_field(
+                field_name="write_target",
+                component_type="Streaming table write action",
+                component_name=action.name,
+                field_description="The write_target configuration is required for streaming table actions.",
+                example_config="""actions:
+  - name: write_data
+    type: write
+    sub_type: streaming_table
+    source: v_transformed
+    write_target:
+      table: my_table
+      database: my_database""",
             )
+        logger.debug(f"Generating streaming table write for action '{action.name}'")
 
         # Extract source views as a list
         source_views = self._extract_source_views(action.source)
@@ -50,6 +70,9 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
 
         # Build full table name
         full_table_name = f"{database}.{table}" if database else table
+        logger.debug(
+            f"Streaming table '{action.name}': target='{full_table_name}', mode='{mode}', readMode='{readMode}', sources={source_views}"
+        )
 
         # Table properties
         properties = {}
@@ -62,29 +85,25 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         # Schema definition (SQL DDL string or StructType)
         schema_value = target_config.get("table_schema") or target_config.get("schema")
         schema = None
-        
+
         if schema_value:
             # Check if it's a file path
             if is_file_path(schema_value):
                 # Load from external file
                 project_root = context.get("project_root", Path.cwd())
                 file_ext = Path(schema_value).suffix.lower()
-                
-                if file_ext in ['.yaml', '.yml', '.json']:
+
+                if file_ext in [".yaml", ".yml", ".json"]:
                     # YAML/JSON schema - parse and convert to DDL
                     resolved_path = resolve_external_file_path(
-                        schema_value,
-                        project_root,
-                        file_type="table schema file"
+                        schema_value, project_root, file_type="table schema file"
                     )
                     schema_data = self.schema_parser.parse_schema_file(resolved_path)
                     schema = self.schema_parser.to_schema_hints(schema_data)
                 else:
                     # DDL/SQL file - load as plain text
                     schema = load_external_file_text(
-                        schema_value,
-                        project_root,
-                        file_type="table schema file"
+                        schema_value, project_root, file_type="table schema file"
                     ).strip()
             else:
                 # Inline DDL
@@ -260,7 +279,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             action.source["read_change_feed"] = True
 
         return self.render_template("write/streaming_table.py.j2", template_context)
-    
+
     def _extract_source_views(self, source) -> List[str]:
         """Extract source views as a list from action source."""
         if isinstance(source, str):
@@ -338,15 +357,16 @@ snapshot_cdc_config:
             )
 
         # Find the function file - try multiple locations
+        project_root = (
+            context.get("project_root", Path.cwd()) if context else Path.cwd()
+        )
         possible_paths = [
-            # Relative to current pipeline directory
-            Path("pipelines") / "bronze_dimensions" / file_name,
-            # Relative to project root
+            # Relative to project root (most common)
+            project_root / file_name,
+            # As absolute/relative path directly
             Path(file_name),
             # In current working directory
             Path.cwd() / file_name,
-            # In tpch_lakehouse directory (if we're in subdirectory)
-            Path.cwd() / "tpch_lakehouse" / file_name,
         ]
 
         function_file_path = None
@@ -374,13 +394,12 @@ snapshot_cdc_config:
                 details=f"Cannot locate the Python file containing your snapshot function: '{file_name}'",
                 suggestions=[
                     "Create the function file in one of these locations:",
-                    f"   • pipelines/bronze_dimensions/{file_name}",
-                    f"   • {file_name} (project root)",
+                    f"   • {file_name} (relative to project root)",
                     "",
                     "Ensure the file contains your snapshot function definition",
                     "Check the file path in your YAML configuration for typos",
                 ],
-                example=f"""1. Create the file: pipelines/bronze_dimensions/{file_name}
+                example=f"""1. Create the file: {file_name}
 
 2. Add your function:
    from typing import Optional, Tuple
@@ -403,17 +422,20 @@ snapshot_cdc_config:
             )
 
         # Read and parse the Python file
-        with open(function_file_path, "r") as f:
+        with open(function_file_path, "r", encoding="utf-8") as f:
             source_code = f.read()
 
         # Apply substitutions to the source code if substitution_manager is available
         if context and "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
             source_code = substitution_mgr._process_string(source_code)
-            
+
             # Track secret references if they exist
             secret_refs = substitution_mgr.get_secret_references()
-            if "secret_references" in context and context["secret_references"] is not None:
+            if (
+                "secret_references" in context
+                and context["secret_references"] is not None
+            ):
                 context["secret_references"].update(secret_refs)
 
         try:
@@ -530,14 +552,16 @@ def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, 
             # Skip ONLY the imports that are truly available in DLT context
             # Keep pyspark.sql.functions, pyspark.sql.types, pyspark.sql, and other specific imports
             skip_import = False
-            
+
             # Skip base pyspark session imports (these are redundant in DLT)
-            if imp.startswith("from pyspark import") or imp.startswith("import pyspark"):
+            if imp.startswith("from pyspark import") or imp.startswith(
+                "import pyspark"
+            ):
                 skip_import = True
             # Skip spark session imports (spark is available in DLT)
             elif "SparkSession" in imp or "getOrCreate" in imp:
                 skip_import = True
-            
+
             if not skip_import and imp not in unique_imports:
                 unique_imports.append(imp)
 

@@ -1,10 +1,23 @@
 """Materialized view write generator for LakehousePlumber."""
 
+import logging
 from pathlib import Path
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.external_file_loader import load_external_file_text, is_file_path, resolve_external_file_path
+from ...utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPValidationError,
+)
+from ...utils.external_file_loader import (
+    is_file_path,
+    load_external_file_text,
+    resolve_external_file_path,
+)
 from ...utils.schema_parser import SchemaParser
+
+logger = logging.getLogger(__name__)
 
 
 class MaterializedViewWriteGenerator(BaseActionGenerator):
@@ -20,8 +33,19 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         """Generate materialized view code."""
         target_config = action.write_target
         if not target_config:
-            raise ValueError(
-                "Materialized view action must have write_target configuration"
+            raise ErrorFormatter.missing_required_field(
+                field_name="write_target",
+                component_type="Materialized view write action",
+                component_name=action.name,
+                field_description="The write_target configuration is required for materialized view actions.",
+                example_config="""actions:
+  - name: write_mv
+    type: write
+    sub_type: materialized_view
+    source: v_transformed
+    write_target:
+      table: my_materialized_view
+      database: my_database""",
             )
 
         # Extract configuration
@@ -30,6 +54,9 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
 
         # Build full table name
         full_table_name = f"{database}.{table}" if database else table
+        logger.debug(
+            f"Generating materialized view write for target '{full_table_name}', action '{action.name}'"
+        )
 
         # Table properties with defaults
         properties = target_config.get("table_properties", {})
@@ -40,29 +67,25 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         # Schema definition (SQL DDL string or StructType)
         schema_value = target_config.get("table_schema") or target_config.get("schema")
         schema = None
-        
+
         if schema_value:
             # Check if it's a file path
             if is_file_path(schema_value):
                 # Load from external file
                 project_root = context.get("project_root", Path.cwd())
                 file_ext = Path(schema_value).suffix.lower()
-                
-                if file_ext in ['.yaml', '.yml', '.json']:
+
+                if file_ext in [".yaml", ".yml", ".json"]:
                     # YAML/JSON schema - parse and convert to DDL
                     resolved_path = resolve_external_file_path(
-                        schema_value,
-                        project_root,
-                        file_type="table schema file"
+                        schema_value, project_root, file_type="table schema file"
                     )
                     schema_data = self.schema_parser.parse_schema_file(resolved_path)
                     schema = self.schema_parser.to_schema_hints(schema_data)
                 else:
                     # DDL/SQL file - load as plain text
                     schema = load_external_file_text(
-                        schema_value,
-                        project_root,
-                        file_type="table schema file"
+                        schema_value, project_root, file_type="table schema file"
                     ).strip()
             else:
                 # Inline DDL
@@ -76,6 +99,10 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
 
         # Refresh schedule
         refresh_schedule = target_config.get("refresh_schedule")
+        has_sql = "sql" in target_config or "sql_path" in target_config
+        logger.debug(
+            f"Materialized view '{action.name}': has_sql={has_sql}, has_schema={schema is not None}, refresh_schedule={refresh_schedule}"
+        )
 
         # Get SQL query if provided directly in write_target
         sql_query = None
@@ -85,19 +112,20 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             # Load from external SQL file
             project_root = context.get("project_root", Path.cwd())
             sql_query = load_external_file_text(
-                target_config["sql_path"],
-                project_root,
-                file_type="SQL file"
+                target_config["sql_path"], project_root, file_type="SQL file"
             ).strip()
-        
+
         # Apply substitutions to SQL content (both inline and file-based)
         if sql_query and "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
             sql_query = substitution_mgr._process_string(sql_query)
-            
+
             # Track secret references
             secret_refs = substitution_mgr.get_secret_references()
-            if "secret_references" in context and context["secret_references"] is not None:
+            if (
+                "secret_references" in context
+                and context["secret_references"] is not None
+            ):
                 context["secret_references"].update(secret_refs)
 
         # If no SQL in write_target, must have source view
@@ -169,4 +197,18 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             else:
                 return str(first_item)
         else:
-            raise ValueError("Invalid source configuration for materialized view write")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="017",
+                title="Invalid source configuration for materialized view write",
+                details=(
+                    "Materialized view write requires a valid source configuration. "
+                    "Source must be a string (view name), dict, or non-empty list."
+                ),
+                suggestions=[
+                    "Provide a source view name: source: v_transformed",
+                    "Or provide a source dict with table/view/name keys",
+                    "Or provide a list of source views",
+                ],
+                context={"Source Type": type(source).__name__},
+            )

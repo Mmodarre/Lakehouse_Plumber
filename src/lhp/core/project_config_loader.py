@@ -3,7 +3,6 @@
 Loads project-level configuration from lhp.yaml including operational metadata definitions.
 """
 
-import yaml
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -39,10 +38,11 @@ class ProjectConfigLoader:
 
         try:
             from ..utils.yaml_loader import load_yaml_file
+
             config_data = load_yaml_file(
-                self.config_file, 
+                self.config_file,
                 allow_empty=False,
-                error_context="project configuration file"
+                error_context="project configuration file",
             )
 
             if not config_data:
@@ -61,12 +61,12 @@ class ProjectConfigLoader:
             # yaml_loader converts YAML and file errors to ValueError with clear context
             error_msg = str(e)
             self.logger.error(f"Project configuration loading failed: {error_msg}")
-            
+
             # Determine if it's a YAML syntax error or file error
             if "Invalid YAML" in error_msg:
                 raise LHPError(
                     category=ErrorCategory.CONFIG,
-                    code_number="001", 
+                    code_number="001",
                     title="Invalid project configuration YAML",
                     details=error_msg,
                     suggestions=[
@@ -197,7 +197,7 @@ class ProjectConfigLoader:
         """
         # Import here to avoid circular imports
         from ..utils.file_pattern_matcher import validate_pattern
-        
+
         return validate_pattern(pattern)
 
     def _parse_operational_metadata_config(

@@ -2,8 +2,12 @@
 Specialized validators for DLT table options and CDC configurations.
 """
 
-from typing import List, Dict, Any
+import logging
+from typing import Any, Dict, List
+
 from ..models.config import Action
+
+logger = logging.getLogger(__name__)
 
 
 class DltTableOptionsValidator:
@@ -11,6 +15,7 @@ class DltTableOptionsValidator:
 
     def validate(self, action: Action, prefix: str) -> List[str]:
         """Validate DLT table options."""
+        logger.debug(f"Validating DLT table options for {prefix}")
         errors = []
 
         if not action.write_target:
@@ -123,6 +128,7 @@ class CdcConfigValidator:
 
     def validate(self, action: Action, prefix: str) -> List[str]:
         """Validate CDC configuration."""
+        logger.debug(f"Validating CDC configuration for {prefix}")
         errors = []
 
         if not action.write_target:
@@ -237,13 +243,16 @@ class CdcConfigValidator:
         # Validate track_history_column_list and track_history_except_column_list for SCD Type 2
         track_history_column_list = cdc_config.get("track_history_column_list")
         track_history_except_list = cdc_config.get("track_history_except_column_list")
-        
+
         # Check they are mutually exclusive
-        if track_history_column_list is not None and track_history_except_list is not None:
+        if (
+            track_history_column_list is not None
+            and track_history_except_list is not None
+        ):
             errors.append(
                 f"{prefix}: cannot have both 'track_history_column_list' and 'track_history_except_column_list'"
             )
-        
+
         # Validate track_history_column_list
         if track_history_column_list is not None:
             if not isinstance(track_history_column_list, list):
@@ -254,11 +263,13 @@ class CdcConfigValidator:
                         errors.append(
                             f"{prefix}: track_history_column_list[{i}] must be a string"
                         )
-        
+
         # Validate track_history_except_column_list
         if track_history_except_list is not None:
             if not isinstance(track_history_except_list, list):
-                errors.append(f"{prefix}: 'track_history_except_column_list' must be a list")
+                errors.append(
+                    f"{prefix}: 'track_history_except_column_list' must be a list"
+                )
             else:
                 for i, col in enumerate(track_history_except_list):
                     if not isinstance(col, str):
@@ -320,6 +331,7 @@ class SnapshotCdcConfigValidator:
 
     def validate(self, action: Action, prefix: str) -> List[str]:
         """Validate snapshot CDC configuration."""
+        logger.debug(f"Validating snapshot CDC configuration for {prefix}")
         errors = []
 
         if not action.write_target:

@@ -3,6 +3,7 @@
 import ast
 import logging
 from typing import List, Set
+
 from .sql_parser import extract_tables_from_sql
 
 
@@ -28,6 +29,9 @@ class PythonParser:
         if not python_code or not isinstance(python_code, str):
             return []
 
+        self.logger.debug(
+            f"Extracting table references from Python code ({len(python_code)} chars)"
+        )
         tables = set()
 
         # Extract SQL queries from spark.sql() and related methods
@@ -39,6 +43,7 @@ class PythonParser:
         direct_tables = self._extract_direct_table_references(python_code)
         tables.update(direct_tables)
 
+        self.logger.debug(f"Found {len(tables)} table reference(s) in Python code")
         return sorted(list(tables))
 
     def extract_sql_from_python(self, python_code: str) -> List[str]:
@@ -113,15 +118,19 @@ class PythonParser:
     def _extract_sql_from_call(self, node: ast.Call) -> str:
         """Extract SQL string from a function call node."""
         # Check for spark.sql() calls
-        if (isinstance(node.func, ast.Attribute) and
-            node.func.attr == 'sql' and
-            self._is_spark_object(node.func.value)):
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "sql"
+            and self._is_spark_object(node.func.value)
+        ):
 
             return self._get_string_argument(node, 0)
 
         # Check for createOrReplaceTempView() calls (they might contain SQL in subqueries)
-        elif (isinstance(node.func, ast.Attribute) and
-              node.func.attr in ['createOrReplaceTempView', 'createGlobalTempView']):
+        elif isinstance(node.func, ast.Attribute) and node.func.attr in [
+            "createOrReplaceTempView",
+            "createGlobalTempView",
+        ]:
 
             # These methods don't directly contain SQL, but we might want to track them
             # for completeness in future enhancements
@@ -132,30 +141,36 @@ class PythonParser:
     def _extract_table_from_call(self, node: ast.Call) -> str:
         """Extract table reference from a function call node."""
         # Check for spark.table() calls
-        if (isinstance(node.func, ast.Attribute) and
-            node.func.attr == 'table' and
-            self._is_spark_object(node.func.value)):
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "table"
+            and self._is_spark_object(node.func.value)
+        ):
 
             return self._get_string_argument(node, 0)
 
         # Check for spark.read.table() calls
-        elif (isinstance(node.func, ast.Attribute) and
-              node.func.attr == 'table' and
-              isinstance(node.func.value, ast.Attribute) and
-              node.func.value.attr == 'read' and
-              self._is_spark_object(node.func.value.value)):
+        elif (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "table"
+            and isinstance(node.func.value, ast.Attribute)
+            and node.func.value.attr == "read"
+            and self._is_spark_object(node.func.value.value)
+        ):
 
             return self._get_string_argument(node, 0)
 
         # Check for catalog methods that reference tables
-        elif (isinstance(node.func, ast.Attribute) and
-              isinstance(node.func.value, ast.Attribute) and
-              node.func.value.attr == 'catalog' and
-              self._is_spark_object(node.func.value.value) and
-              node.func.attr in ['tableExists', 'dropTempView', 'listTables']):
+        elif (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Attribute)
+            and node.func.value.attr == "catalog"
+            and self._is_spark_object(node.func.value.value)
+            and node.func.attr in ["tableExists", "dropTempView", "listTables"]
+        ):
 
             # These methods take table names as first argument
-            if node.func.attr in ['tableExists', 'dropTempView']:
+            if node.func.attr in ["tableExists", "dropTempView"]:
                 return self._get_string_argument(node, 0)
 
         return None
@@ -163,12 +178,11 @@ class PythonParser:
     def _is_spark_object(self, node: ast.AST) -> bool:
         """Check if an AST node represents a spark object."""
         # Direct spark reference: spark
-        if isinstance(node, ast.Name) and node.id == 'spark':
+        if isinstance(node, ast.Name) and node.id == "spark":
             return True
 
         # Attribute access: self.spark, obj.spark
-        if (isinstance(node, ast.Attribute) and
-            node.attr == 'spark'):
+        if isinstance(node, ast.Attribute) and node.attr == "spark":
             return True
 
         return False
@@ -190,7 +204,9 @@ class PythonParser:
 
         # Handle simple variable names (we can't resolve these)
         elif isinstance(arg, ast.Name):
-            self.logger.debug(f"Found variable reference '{arg.id}' in SQL call - cannot resolve")
+            self.logger.debug(
+                f"Found variable reference '{arg.id}' in SQL call - cannot resolve"
+            )
             return None
 
         return None
@@ -210,16 +226,22 @@ class PythonParser:
                 parts.append(value.value)
             elif isinstance(value, ast.FormattedValue):
                 # For formatted values, try to preserve substitution tokens
-                if (isinstance(value.value, ast.Name) and
-                    value.value.id in ['catalog', 'schema', 'table', 'bronze_schema',
-                                      'silver_schema', 'gold_schema', 'migration_schema',
-                                      'old_schema']):
-                    parts.append(f'{{{value.value.id}}}')
+                if isinstance(value.value, ast.Name) and value.value.id in [
+                    "catalog",
+                    "schema",
+                    "table",
+                    "bronze_schema",
+                    "silver_schema",
+                    "gold_schema",
+                    "migration_schema",
+                    "old_schema",
+                ]:
+                    parts.append(f"{{{value.value.id}}}")
                 else:
                     # For other variables, use a generic placeholder
-                    parts.append('{var}')
+                    parts.append("{var}")
 
-        return ''.join(parts)
+        return "".join(parts)
 
     def _normalize_python_code(self, python_code: str) -> str:
         """
@@ -237,6 +259,7 @@ class PythonParser:
             return ""
 
         import textwrap
+
         return textwrap.dedent(python_code).strip()
 
 

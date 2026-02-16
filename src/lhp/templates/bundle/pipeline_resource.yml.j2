@@ -48,6 +48,9 @@ resources:
       
       configuration:
         bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
+{% for key, value in pipeline_config.get('configuration', {}).items() if key != 'bundle.sourcePath' %}
+        {{ key }}: "{{ value }}"
+{% endfor %}
 {%- if pipeline_config.get('continuous') %}
       
       continuous: {{ pipeline_config.continuous | lower }}
@@ -86,11 +89,16 @@ resources:
 {% endfor %}
 {%- endif %}
 {%- if pipeline_config.get('event_log') %}
-      
+
       event_log:
         name: {{ pipeline_config.event_log.name }}
         schema: {{ pipeline_config.event_log.schema }}
         catalog: {{ pipeline_config.event_log.catalog }}
+{%- endif %}
+{%- if pipeline_config.get('environment') %}
+
+      environment:
+{{ pipeline_config.environment | toyaml | indent(8, first=True) -}}
 {%- endif %}
 
       # Additional pipeline configuration options 
@@ -141,6 +149,17 @@ resources:
       #   name: pipeline_evenlog
       #   schema: _meta
       #   catalog: acmi_edw_dev
+
+      # Environment dependencies (pip packages for the pipeline)
+      # environment:
+      #   dependencies:
+      #     - "msal==1.31.0"
+
+      # Pipeline-level Spark/DLT configuration
+      # All values must be quoted strings
+      # configuration:
+      #   "pipelines.incompatibleViewCheck.enabled": "false"
+      #   "spark.databricks.delta.minFileSize": "134217728"
 
       # permissions:
       #   - service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d

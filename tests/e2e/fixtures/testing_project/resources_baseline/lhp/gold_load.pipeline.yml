@@ -18,7 +18,8 @@ resources:
       root_path: ${workspace.file_path}/generated/${bundle.target}/gold_load
       
       configuration:
-        bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}      
+        bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
+      
       channel: CURRENT
       # Additional pipeline configuration options 
       # Add to your pipeline_config-<env>.yaml as needed and pass the file path through the --pipeline-config flag:
@@ -68,6 +69,17 @@ resources:
       #   name: pipeline_evenlog
       #   schema: _meta
       #   catalog: acmi_edw_dev
+
+      # Environment dependencies (pip packages for the pipeline)
+      # environment:
+      #   dependencies:
+      #     - "msal==1.31.0"
+
+      # Pipeline-level Spark/DLT configuration
+      # All values must be quoted strings
+      # configuration:
+      #   "pipelines.incompatibleViewCheck.enabled": "false"
+      #   "spark.databricks.delta.minFileSize": "134217728"
 
       # permissions:
       #   - service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d

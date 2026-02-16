@@ -57,8 +57,9 @@ class TestDependencyGraphs:
         with pytest.raises(ValueError) as exc_info:
             self.graphs.get_graph_by_level('invalid_level')
 
-        assert "Unknown level: invalid_level" in str(exc_info.value)
-        assert "Must be one of: ['action', 'flowgroup', 'pipeline']" in str(exc_info.value)
+        error_msg = str(exc_info.value)
+        assert "invalid_level" in error_msg
+        assert "Unknown dependency graph level" in error_msg
 
     def test_get_graph_by_level_case_sensitive(self):
         """Test that level names are case sensitive."""

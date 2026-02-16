@@ -6,7 +6,7 @@
 
 __all__ = [
     "FlowgroupDiscoverer",
-    "FlowgroupProcessor", 
+    "FlowgroupProcessor",
     "CodeGenerator",
     "PipelineValidator",
 ]

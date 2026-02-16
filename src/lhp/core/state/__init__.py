@@ -6,7 +6,7 @@
 
 __all__ = [
     "StatePersistence",
-    "StateAnalyzer", 
+    "StateAnalyzer",
     "StateCleanupService",
     "DependencyTracker",
 ]

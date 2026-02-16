@@ -218,7 +218,7 @@ class TestCommandFactory:
     
     def test_create_unknown_command(self):
         """Test creating unknown command type raises error."""
-        with pytest.raises(ValueError, match="Unknown command type: unknown"):
+        with pytest.raises(ValueError, match="Unknown command type.*unknown"):
             CommandFactory.create_command("unknown")
     
     def test_get_available_commands(self):

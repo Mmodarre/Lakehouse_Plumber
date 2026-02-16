@@ -1,9 +1,14 @@
 """Preset management with hierarchical inheritance."""
 
+import logging
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
+
 from ..models.config import Preset
 from ..parsers.yaml_parser import YAMLParser
+from ..utils.error_formatter import ErrorFormatter
+
+logger = logging.getLogger(__name__)
 
 
 class PresetManager:
@@ -18,37 +23,66 @@ class PresetManager:
     def _load_presets(self):
         """Load all presets from the presets directory."""
         if not self.presets_dir.exists():
+            logger.debug(f"Presets directory does not exist: {self.presets_dir}")
             return
 
         presets = self.parser.discover_presets(self.presets_dir)
         for preset in presets:
+            logger.debug(f"Loaded preset '{preset.name}' from {self.presets_dir}")
             self.presets[preset.name] = preset
+        logger.info(f"Discovered {len(self.presets)} preset(s) from {self.presets_dir}")
 
     def resolve_preset_chain(self, preset_names: List[str]) -> Dict[str, Any]:
         """Resolve a chain of presets with inheritance."""
+        logger.debug(f"Resolving preset chain: {preset_names}")
         resolved = {}
         for preset_name in preset_names:
             preset_config = self._resolve_preset_inheritance(preset_name)
             resolved = self._deep_merge(resolved, preset_config)
+        logger.debug(f"Preset chain resolved with {len(resolved)} top-level keys")
         return resolved
 
-    def _resolve_preset_inheritance(self, preset_name: str) -> Dict[str, Any]:
+    def _resolve_preset_inheritance(
+        self, preset_name: str, visited: Optional[set] = None
+    ) -> Dict[str, Any]:
         """Resolve preset inheritance chain.
-        
+
         Args:
             preset_name: Name of the preset to resolve
-            
+            visited: Set of already-visited preset names (cycle detection)
+
         Returns:
             Merged preset configuration
-            
+
         Raises:
-            ValueError: If preset is not found
+            LHPConfigError: If preset is not found or circular inheritance detected
         """
+        if visited is None:
+            visited = set()
+
+        # Cycle detection
+        if preset_name in visited:
+            from ..utils.error_formatter import ErrorCategory, LHPConfigError
+
+            cycle_path = " -> ".join(list(visited) + [preset_name])
+            raise LHPConfigError(
+                category=ErrorCategory.DEPENDENCY,
+                code_number="022",
+                title="Circular preset inheritance detected",
+                details=(
+                    f"Preset '{preset_name}' creates a circular inheritance chain: {cycle_path}"
+                ),
+                suggestions=[
+                    "Remove the circular 'extends' reference in one of the presets",
+                    "Review the preset inheritance chain for unintended cycles",
+                ],
+                context={"Preset": preset_name, "Chain": cycle_path},
+            )
+
         if preset_name not in self.presets:
-            available = ', '.join(sorted(self.presets.keys())) if self.presets else 'none'
-            raise ValueError(
-                f"Preset '{preset_name}' not found. "
-                f"Available presets: {available}"
+            raise ErrorFormatter.preset_not_found(
+                preset_name=preset_name,
+                available_presets=sorted(self.presets.keys()),
             )
 
         preset = self.presets[preset_name]
@@ -56,7 +90,12 @@ class PresetManager:
 
         # If extends another preset, merge parent first
         if preset.extends:
-            parent_config = self._resolve_preset_inheritance(preset.extends)
+            logger.debug(
+                f"Preset '{preset_name}' extends '{preset.extends}', resolving parent"
+            )
+            parent_config = self._resolve_preset_inheritance(
+                preset.extends, visited | {preset_name}
+            )
             result = self._deep_merge(parent_config, result)
 
         return result
@@ -64,7 +103,7 @@ class PresetManager:
     def _deep_merge(
         self, base: Dict[str, Any], override: Dict[str, Any]
     ) -> Dict[str, Any]:
-        
+
         result = base.copy()
         for key, value in override.items():
             if (
@@ -72,6 +111,7 @@ class PresetManager:
                 and isinstance(result[key], dict)
                 and isinstance(value, dict)
             ):
+                logger.debug(f"Deep merging nested dict for key '{key}'")
                 result[key] = self._deep_merge(result[key], value)
             elif (
                 key == "operational_metadata"
@@ -80,6 +120,9 @@ class PresetManager:
             ):
                 # Special handling for operational_metadata lists - combine them
                 result[key] = list(set(result[key] + value))  # Merge and deduplicate
+                logger.debug(
+                    f"Merged operational_metadata lists: {len(result[key])} entries after dedup"
+                )
             else:
                 result[key] = value
         return result
@@ -118,10 +161,16 @@ class PresetManager:
         Returns:
             List of validation errors (empty if valid)
         """
+        logger.debug(
+            f"Validating operational metadata references for presets: {preset_names}"
+        )
         errors = []
 
         for preset_name in preset_names:
             if preset_name not in self.presets:
+                logger.debug(
+                    f"Preset '{preset_name}' not found during metadata validation"
+                )
                 errors.append(f"Preset '{preset_name}' not found")
                 continue
 

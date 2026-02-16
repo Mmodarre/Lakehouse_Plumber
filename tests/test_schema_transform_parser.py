@@ -146,7 +146,7 @@ class TestSchemaTransformParserArrowFormat:
             ]
         }
         
-        with pytest.raises(ValueError, match="Duplicate source column"):
+        with pytest.raises(ValueError, match="Schema syntax error"):
             parser.parse_arrow_format(data)
     
     def test_parse_arrow_rename_then_cast_separate_lines(self):
@@ -175,9 +175,9 @@ class TestSchemaTransformParserArrowFormat:
             ]
         }
         
-        with pytest.raises(ValueError, match="Invalid arrow format"):
+        with pytest.raises(ValueError, match="Schema syntax error"):
             parser.parse_arrow_format(data)
-    
+
     def test_parse_arrow_invalid_syntax_missing_source(self):
         """Test that missing source column raises an error."""
         parser = SchemaTransformParser()
@@ -188,9 +188,9 @@ class TestSchemaTransformParserArrowFormat:
             ]
         }
         
-        with pytest.raises(ValueError, match="Invalid arrow format"):
+        with pytest.raises(ValueError, match="Schema syntax error"):
             parser.parse_arrow_format(data)
-    
+
     def test_parse_arrow_invalid_syntax_missing_target(self):
         """Test that missing target column raises an error."""
         parser = SchemaTransformParser()
@@ -201,9 +201,9 @@ class TestSchemaTransformParserArrowFormat:
             ]
         }
         
-        with pytest.raises(ValueError, match="Invalid arrow format"):
+        with pytest.raises(ValueError, match="Schema syntax error"):
             parser.parse_arrow_format(data)
-    
+
     def test_parse_arrow_invalid_syntax_missing_type(self):
         """Test that colon without type raises an error."""
         parser = SchemaTransformParser()
@@ -214,9 +214,9 @@ class TestSchemaTransformParserArrowFormat:
             ]
         }
         
-        with pytest.raises(ValueError, match="Invalid arrow format"):
+        with pytest.raises(ValueError, match="Schema syntax error"):
             parser.parse_arrow_format(data)
-    
+
     def test_parse_arrow_default_enforcement_permissive(self):
         """Test that enforcement is not returned by parser (action-level only)."""
         parser = SchemaTransformParser()
@@ -409,7 +409,7 @@ class TestSchemaTransformParserValidation:
             }
         }
         
-        with pytest.raises(ValueError, match="Cannot mix arrow format and legacy format"):
+        with pytest.raises(ValueError, match="Schema syntax error"):
             parser.parse_file_data(data)
     
     def test_empty_mappings_in_strict_mode_error(self):
@@ -422,9 +422,9 @@ class TestSchemaTransformParserValidation:
         }
         
         # Empty columns should always raise an error
-        with pytest.raises(ValueError, match="No columns defined"):
+        with pytest.raises(ValueError, match="Schema syntax error"):
             parser.parse_arrow_format(data_arrow)
-    
+
     def test_empty_columns_permissive_mode_error(self):
         """Test that empty columns in permissive mode also raises an error."""
         parser = SchemaTransformParser()
@@ -435,9 +435,9 @@ class TestSchemaTransformParserValidation:
         }
         
         # Should error even in permissive mode
-        with pytest.raises(ValueError, match="No columns defined"):
+        with pytest.raises(ValueError, match="Schema syntax error"):
             parser.parse_arrow_format(data)
-    
+
     def test_unknown_format_error(self):
         """Test that unknown format raises an error."""
         parser = SchemaTransformParser()
@@ -446,7 +446,7 @@ class TestSchemaTransformParserValidation:
             "some_other_field": "value"
         }
         
-        with pytest.raises(ValueError, match="Unable to detect schema transform format"):
+        with pytest.raises(ValueError, match="Schema syntax error"):
             parser.parse_file_data(data)
     
     def test_pass_through_in_permissive_mode_error(self):

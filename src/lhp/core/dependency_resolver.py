@@ -1,10 +1,16 @@
 """Dependency resolution for LakehousePlumber actions."""
 
 import logging
-from typing import List, Dict, Tuple, Optional
 from collections import defaultdict, deque
+from typing import Dict, List, Optional, Tuple
+
 from ..models.config import Action, ActionType
-from ..utils.error_formatter import LHPError, ErrorCategory
+from ..utils.error_formatter import (
+    ErrorCategory,
+    LHPConfigError,
+    LHPValidationError,
+)
+from ..utils.source_extractor import extract_action_sources, is_cdc_write_action
 
 
 class DependencyResolver:
@@ -25,6 +31,7 @@ class DependencyResolver:
         Raises:
             ValueError: If circular dependencies detected
         """
+        self.logger.debug(f"Resolving dependencies for {len(actions)} action(s)")
         # Build dependency graph
         graph, targets = self._build_dependency_graph(actions)
 
@@ -40,6 +47,7 @@ class DependencyResolver:
         Returns:
             List of validation error messages
         """
+        self.logger.debug(f"Validating relationships for {len(actions)} action(s)")
         errors = []
 
         # Build graphs
@@ -69,13 +77,12 @@ class DependencyResolver:
 
         # Check if there are self-contained snapshot CDC actions that provide data
         has_self_contained_snapshot_cdc = any(
-            self._is_self_contained_snapshot_cdc(action)
-            for action in actions
+            self._is_self_contained_snapshot_cdc(action) for action in actions
         )
 
         # Test-only flowgroups are allowed (for data quality testing)
         is_test_only_flowgroup = test_actions and not (load_actions or write_actions)
-        
+
         if not is_test_only_flowgroup:
             if not load_actions and not has_self_contained_snapshot_cdc:
                 errors.append("FlowGroup must have at least one Load action")
@@ -87,8 +94,8 @@ class DependencyResolver:
         orphaned = self._find_orphaned_actions(actions, graph, targets)
         for action in orphaned:
             if action.type == ActionType.TRANSFORM:
-                # Create a proper LHPError for orphaned transform actions
-                raise LHPError(
+                # Create a proper LHPConfigError for orphaned transform actions
+                raise LHPConfigError(
                     category=ErrorCategory.CONFIG,
                     code_number="003",
                     title=f"Unused transform action: '{action.name}'",
@@ -159,6 +166,9 @@ Or reference it in another transform:
             if action.target:
                 targets[action.target] = action
 
+        self.logger.debug(
+            f"Dependency graph: {len(targets)} target(s), {len(actions)} action(s)"
+        )
         # Build dependency graph - who depends on whom
         for action in actions:
             sources = self._get_action_sources(action)
@@ -173,99 +183,23 @@ Or reference it in another transform:
     def _get_action_sources(self, action: Action) -> List[str]:
         """Extract source names from action.
 
-        Different action types have sources in different places:
-        - Load: Usually no sources (external data)
-        - Transform: source field contains view names
-        - Write: source field contains view to write from
-        - CDC Write Actions: source comes from CDC config, not action.source
-
-        For CDC modes, the precedence order is:
-        1. source_function (snapshot_cdc only) -> no external dependencies
-        2. cdc_config.source / snapshot_cdc_config.source -> explicit CDC source
-        3. action.source -> fallback for malformed CDC configs
+        Delegates to the shared extract_action_sources() function in source_extractor.py.
         """
-        sources = []
-
-        # Special handling for CDC write actions
-        if self._is_cdc_write_action(action):
-            cdc_sources = self._extract_cdc_sources(action)
-            if cdc_sources is not None:  # None means fallback to action.source
-                return cdc_sources
-        
-        # Standard source extraction for all other cases
-        if action.source:
-            if isinstance(action.source, str):
-                # Simple string source
-                sources.append(action.source)
-            elif isinstance(action.source, list):
-                # List of sources
-                for source in action.source:
-                    if isinstance(source, str):
-                        sources.append(source)
-            elif isinstance(action.source, dict):
-                # For dict sources, look for view/source keys
-                if "view" in action.source:
-                    sources.append(action.source["view"])
-                elif "source" in action.source:
-                    source_val = action.source["source"]
-                    if isinstance(source_val, str):
-                        sources.append(source_val)
-                    elif isinstance(source_val, list):
-                        sources.extend(source_val)
-                # For transform actions with multiple sources
-                elif "sources" in action.source:
-                    sources.extend(action.source["sources"])
-
-        return sources
-
-    def _is_cdc_write_action(self, action: Action) -> bool:
-        """Check if action is a CDC write action (cdc or snapshot_cdc mode)."""
-        return (action.type == ActionType.WRITE and 
-                action.write_target and 
-                isinstance(action.write_target, dict) and
-                action.write_target.get("mode") in ["cdc", "snapshot_cdc"])
-
-    def _extract_cdc_sources(self, action: Action) -> List[str] | None:
-        """Extract sources from CDC write actions.
-        
-        Returns:
-            List of source names, empty list for self-contained actions,
-            or None to fallback to action.source
-        """
-        mode = action.write_target.get("mode")
-        
-        if mode == "cdc":
-            # For CDC mode, source comes from cdc_config
-            cdc_config = action.write_target.get("cdc_config", {})
-            if cdc_config.get("source"):
-                return [cdc_config["source"]]
-        
-        elif mode == "snapshot_cdc":
-            # For snapshot CDC mode, check source configuration precedence
-            snapshot_config = action.write_target.get("snapshot_cdc_config", {})
-            
-            # Priority 1: source_function (self-contained, no external dependencies)
-            if snapshot_config.get("source_function"):
-                return []  # Source function is internal - no external dependencies
-            
-            # Priority 2: snapshot_cdc_config.source (explicit CDC source reference)
-            elif snapshot_config.get("source"):
-                return [snapshot_config["source"]]
-        
-        # No CDC-specific source found, fallback to action.source
-        return None
+        return extract_action_sources(action)
 
     def _is_self_contained_snapshot_cdc(self, action: Action) -> bool:
         """Check if action is a self-contained snapshot CDC action with source_function.
-        
+
         These actions provide their own data via source functions and don't require
-        external load actions.
+        external load actions. Uses the shared is_cdc_write_action check, then
+        verifies the snapshot_cdc source_function configuration.
         """
-        return (action.type == ActionType.WRITE and
-                action.write_target and
-                isinstance(action.write_target, dict) and
-                action.write_target.get("mode") == "snapshot_cdc" and
-                action.write_target.get("snapshot_cdc_config", {}).get("source_function"))
+        if not is_cdc_write_action(action):
+            return False
+        if action.write_target.get("mode") != "snapshot_cdc":
+            return False
+        snapshot_config = action.write_target.get("snapshot_cdc_config", {})
+        return bool(snapshot_config.get("source_function"))
 
     def _topological_sort(
         self,
@@ -307,8 +241,21 @@ Or reference it in another transform:
         # Check if all actions were processed
         if len(result) != len(actions):
             unprocessed = [name for name, degree in in_degree.items() if degree > 0]
-            raise ValueError(f"Circular dependency detected involving: {unprocessed}")
+            cycle_visual = " -> ".join(unprocessed + [unprocessed[0]])
+            raise LHPValidationError(
+                category=ErrorCategory.DEPENDENCY,
+                code_number="001",
+                title="Circular dependency detected",
+                details=f"Circular dependency detected involving: {unprocessed}\n\n{cycle_visual}",
+                suggestions=[
+                    "Review the dependency chain and remove one of the dependencies",
+                    "Consider splitting complex transformations into separate stages",
+                    "Use materialized views to break dependency cycles",
+                ],
+                context={"Cycle": cycle_visual, "Components": ", ".join(unprocessed)},
+            )
 
+        self.logger.debug(f"Topological sort complete: {[a.name for a in result]}")
         return result
 
     def _detect_cycle(self, graph: Dict[str, List[str]]) -> Optional[List[str]]:

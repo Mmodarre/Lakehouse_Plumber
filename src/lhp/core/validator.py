@@ -3,21 +3,24 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Dict, Any, Optional, Union, TYPE_CHECKING
-
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-from ..models.config import FlowGroup, Action, ActionType, WriteTargetType
-from .action_registry import ActionRegistry
-from .dependency_resolver import DependencyResolver
-from .config_field_validator import ConfigFieldValidator
+from ..models.config import Action, ActionType, FlowGroup, WriteTargetType
 from ..utils.error_formatter import LHPError
+from .action_registry import ActionRegistry
+from .config_field_validator import ConfigFieldValidator
+from .dependency_resolver import DependencyResolver
+from .validators.base_validator import ValidationError
+
+logger = logging.getLogger(__name__)
+
 from .validators import (
     LoadActionValidator,
+    TableCreationValidator,
+    TestActionValidator,
     TransformActionValidator,
     WriteActionValidator,
-    TestActionValidator,
-    TableCreationValidator,
 )
 
 if TYPE_CHECKING:
@@ -40,7 +43,10 @@ class ConfigValidator:
             self.action_registry, self.field_validator
         )
         self.transform_validator = TransformActionValidator(
-            self.action_registry, self.field_validator, self.project_root, self.project_config
+            self.action_registry,
+            self.field_validator,
+            self.project_root,
+            self.project_config,
         )
         self.write_validator = WriteActionValidator(
             self.action_registry, self.field_validator, self.logger
@@ -50,14 +56,14 @@ class ConfigValidator:
         )
         self.table_creation_validator = TableCreationValidator()
 
-    def validate_flowgroup(self, flowgroup: FlowGroup) -> List[str]:
+    def validate_flowgroup(self, flowgroup: FlowGroup) -> List[ValidationError]:
         """Validate flowgroups and actions.
 
         Args:
             flowgroup: FlowGroup to validate
 
         Returns:
-            List of validation error messages
+            List of validation errors (strings or LHPError objects)
         """
         errors = []
 
@@ -99,7 +105,11 @@ class ConfigValidator:
                     flowgroup.actions
                 )
                 errors.extend(dependency_errors)
+            except LHPError as e:
+                logger.debug(f"Dependency validation error: {e.title}")
+                errors.append(e)
             except Exception as e:
+                logger.debug(f"Dependency validation error: {e}")
                 errors.append(str(e))
 
         # Validate template usage
@@ -110,7 +120,7 @@ class ConfigValidator:
 
         return errors
 
-    def validate_action(self, action: Action, index: int) -> List[str]:
+    def validate_action(self, action: Action, index: int) -> List[ValidationError]:
         """Validate action types and required fields.
 
         Args:
@@ -118,7 +128,7 @@ class ConfigValidator:
             index: Action index in the flowgroup
 
         Returns:
-            List of validation error messages
+            List of validation errors (strings or LHPError objects)
         """
         errors = []
         prefix = f"Action[{index}] '{action.name}'"
@@ -141,7 +151,7 @@ class ConfigValidator:
             raise
         except Exception as e:
             errors.append(str(e))
-            return errors  # Stop validation if field validation fails
+            return errors
 
         # Type-specific validation using action validators
         if action.type == ActionType.LOAD:
@@ -218,22 +228,24 @@ class ConfigValidator:
         """
         return self.table_creation_validator.validate(flowgroups)
 
-    def validate_duplicate_pipeline_flowgroup(self, flowgroups: List[FlowGroup]) -> List[str]:
+    def validate_duplicate_pipeline_flowgroup(
+        self, flowgroups: List[FlowGroup]
+    ) -> List[str]:
         """Validate that there are no duplicate pipeline+flowgroup combinations.
-        
+
         Args:
             flowgroups: List of all flowgroups to validate
-            
+
         Returns:
             List of validation error messages
         """
         errors = []
         seen_combinations = set()
-        
+
         for flowgroup in flowgroups:
             # Create a unique key from pipeline and flowgroup
             combination_key = f"{flowgroup.pipeline}.{flowgroup.flowgroup}"
-            
+
             if combination_key in seen_combinations:
                 errors.append(
                     f"Duplicate pipeline+flowgroup combination: '{combination_key}'. "
@@ -241,6 +253,5 @@ class ConfigValidator:
                 )
             else:
                 seen_combinations.add(combination_key)
-                
-        return errors
 
+        return errors

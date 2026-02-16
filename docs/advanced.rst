@@ -131,6 +131,11 @@ The complete pipeline generation process follows this workflow:
 Troubleshooting
 ---------------
 
+.. seealso::
+
+   :doc:`errors_reference` for a complete reference of all LHP error codes with
+   causes, resolution steps, and YAML examples.
+
 **Common state management issues:**
 
 .. code-block:: bash

@@ -21,6 +21,9 @@ dev:
   photon: false
   continuous: true
 
+  msal_version: "1.31.0"
+  min_file_size: "134217728"
+
   kafka_bootstrap_cluster: "pkc-921jm.us-east-2.aws.confluent.cloud:9092"
   
   # AWS MSK IAM configuration

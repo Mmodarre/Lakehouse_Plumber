@@ -1,9 +1,14 @@
-"""SQL load generator """
+"""SQL load generator"""
 
+import logging
 from pathlib import Path
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import ErrorFormatter
 from ...utils.external_file_loader import load_external_file_text
+
+logger = logging.getLogger(__name__)
 
 
 class SQLLoadGenerator(BaseActionGenerator):
@@ -20,10 +25,29 @@ class SQLLoadGenerator(BaseActionGenerator):
         # Get SQL query
         if isinstance(source_config, str):
             sql_query = source_config
+            logger.debug(
+                f"SQL load '{action.name}': using inline SQL string for target '{action.target}'"
+            )
         elif isinstance(source_config, dict):
-            sql_query = self._get_sql_query(source_config, context.get("spec_dir"), context)
+            sql_source_type = (
+                "sql_path" if "sql_path" in source_config else "inline sql"
+            )
+            logger.debug(
+                f"SQL load '{action.name}': source type='{sql_source_type}', target='{action.target}'"
+            )
+            sql_query = self._get_sql_query(
+                source_config, context.get("spec_dir"), context
+            )
         else:
-            raise ValueError("SQL source must be a string or configuration object")
+            raise ErrorFormatter.invalid_source_format(
+                action_name=action.name,
+                action_type="sql load",
+                expected_formats=[
+                    "A string containing inline SQL: source: 'SELECT * FROM table'",
+                    "A configuration object with 'sql' or 'sql_path': source:\n  sql: 'SELECT * FROM table'",
+                    "A configuration object with sql_path: source:\n  sql_path: 'queries/my_query.sql'",
+                ],
+            )
 
         # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
@@ -42,31 +66,47 @@ class SQLLoadGenerator(BaseActionGenerator):
 
         return self.render_template("load/sql.py.j2", template_context)
 
-    def _get_sql_query(self, source_config: dict, spec_dir: Path = None, context: dict = None) -> str:
+    def _get_sql_query(
+        self, source_config: dict, spec_dir: Path = None, context: dict = None
+    ) -> str:
         """Extract SQL query from configuration."""
         sql_content = None
-        
+
         if "sql" in source_config:
             sql_content = source_config["sql"]
         elif "sql_path" in source_config:
             # Use common utility for file loading
-            project_root = context.get("project_root", Path.cwd()) if context else (spec_dir or Path.cwd())
+            project_root = (
+                context.get("project_root", Path.cwd())
+                if context
+                else (spec_dir or Path.cwd())
+            )
             sql_content = load_external_file_text(
-                source_config["sql_path"],
-                project_root,
-                file_type="SQL file"
+                source_config["sql_path"], project_root, file_type="SQL file"
             ).strip()
         else:
-            raise ValueError("SQL source must have 'sql' or 'sql_path'")
-        
+            raise ErrorFormatter.missing_required_field(
+                field_name="sql/sql_path",
+                component_type="SQL load action",
+                component_name="sql source config",
+                field_description="SQL source configuration must specify either inline 'sql' or an external 'sql_path'.",
+                example_config="""source:
+  sql: | "SELECT * FROM my_table"
+  # OR
+  sql_path: "queries/my_query.sql" """,
+            )
+
         # Apply substitutions to the SQL content if substitution_manager is available
         if context and "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
             sql_content = substitution_mgr._process_string(sql_content)
-            
+
             # Track secret references if they exist
             secret_refs = substitution_mgr.get_secret_references()
-            if "secret_references" in context and context["secret_references"] is not None:
+            if (
+                "secret_references" in context
+                and context["secret_references"] is not None
+            ):
                 context["secret_references"].update(secret_refs)
-        
+
         return sql_content

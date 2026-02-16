@@ -3,7 +3,10 @@
 import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
+
 import yaml
+
+from .error_formatter import ErrorFormatter, LHPError
 
 
 class DQEParser:
@@ -21,6 +24,9 @@ class DQEParser:
         Returns:
             Tuple of (expect_all, expect_all_or_drop, expect_all_or_fail)
         """
+        self.logger.debug(
+            f"Parsing {len(expectations)} expectation(s) into DLT categories"
+        )
         expect_all = {}
         expect_all_or_drop = {}
         expect_all_or_fail = {}
@@ -74,13 +80,20 @@ class DQEParser:
             List of expectation dictionaries
         """
         if not expectations_file.exists():
-            raise FileNotFoundError(f"Expectations file not found: {expectations_file}")
+            raise ErrorFormatter.file_not_found(
+                file_path=str(expectations_file),
+                search_locations=[str(expectations_file.parent)],
+                file_type="expectations file",
+            )
 
         from .yaml_loader import load_yaml_file
+
         try:
             data = load_yaml_file(expectations_file, error_context="expectations file")
-        except ValueError:
-            # yaml_loader already provides clear error context, re-raise as-is
+        except (LHPError, ValueError):
+            # yaml_loader raises LHPError (which also extends ValueError via
+            # LHPConfigError). Catch both for safety — re-raise as-is since
+            # the error already has clear context.
             raise
 
         expectations = data.get("expectations", [])
@@ -99,6 +112,7 @@ class DQEParser:
         Returns:
             List of validation error messages
         """
+        self.logger.debug(f"Validating {len(expectations)} expectation definition(s)")
         errors = []
 
         for i, expectation in enumerate(expectations):

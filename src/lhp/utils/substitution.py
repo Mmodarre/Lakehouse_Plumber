@@ -1,12 +1,15 @@
 """Enhanced token and secret substitution for LakehousePlumber."""
 
+import logging
 import os
 import re
 import threading
-import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional, Set, List
-from .error_formatter import LHPError
+from typing import Any, Dict, List, Optional, Set
+
+from .error_formatter import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class SecretReference:
@@ -37,28 +40,42 @@ class EnhancedSubstitutionManager:
     DOLLAR_TOKEN_PATTERN = re.compile(r"\$\{(\w+)\}")
     DOLLAR_TOKEN_SIMPLE_PATTERN = re.compile(r"\$(\w+)")
     SECRET_PATTERN = re.compile(r"\$\{secret:([^}]+)\}")
-    UNRESOLVED_TOKEN_PATTERN = re.compile(r'\{(?!dbutils\.)([^}]+)\}')
+    UNRESOLVED_TOKEN_PATTERN = re.compile(r"\{(?!dbutils\.)([^}]+)\}")
 
-    def __init__(self, substitution_file: Path = None, env: str = "dev", skip_validation: bool = False):
+    def __init__(
+        self,
+        substitution_file: Path = None,
+        env: str = "dev",
+        skip_validation: bool = False,
+    ):
         self.env = env
-        self.skip_validation = skip_validation  # Flag to skip unresolved token validation
+        self.skip_validation = (
+            skip_validation  # Flag to skip unresolved token validation
+        )
         self.mappings: Dict[str, str] = {}
         self.prefix_suffix_rules: Dict[str, Dict[str, str]] = {}
         self.secret_scopes: Dict[str, str] = {}
         self.default_secret_scope: Optional[str] = None
         self.secret_references: Set[SecretReference] = set()  # Thread-safe with lock
-        
+
         # Key access tracking for granular dependency detection (thread-safe)
         self._accessed_keys: Dict[str, Set[str]] = {}
         self._accessed_keys_lock = threading.RLock()  # Lock for thread-safe dict access
-        self._secret_references_lock = threading.RLock()  # Lock for thread-safe secret references
-        self._thread_local = threading.local()  # Per-thread storage for current flowgroup
+        self._secret_references_lock = (
+            threading.RLock()
+        )  # Lock for thread-safe secret references
+        self._thread_local = (
+            threading.local()
+        )  # Per-thread storage for current flowgroup
 
         # Add reserved tokens
         self._add_reserved_tokens()
 
         # Load substitutions and secret configuration
         if substitution_file and substitution_file.exists():
+            logger.debug(
+                f"Loading substitution file: {substitution_file} for env '{env}'"
+            )
             self._load_config_from_file(substitution_file, env)
 
         # Recursively expand tokens
@@ -79,15 +96,23 @@ class EnhancedSubstitutionManager:
         """Load tokens, secrets, and rules from YAML file."""
         try:
             from .yaml_loader import load_yaml_file
+
             config = load_yaml_file(file_path, error_context="substitution file")
         except LHPError:
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
-        except ValueError as e:
-            # yaml_loader provides clear context, keep as ValueError for existing error handling
-            raise ValueError(str(e))
         except Exception as e:
-            raise ValueError(f"Error loading substitution file {file_path}: {e}")
+            raise LHPConfigError(
+                category=ErrorCategory.CONFIG,
+                code_number="020",
+                title=f"Failed to load substitution file",
+                details=f"Error loading substitution file {file_path}: {e}",
+                suggestions=[
+                    "Check the substitution file for YAML syntax errors",
+                    "Ensure the file is readable and not corrupted",
+                ],
+                context={"File": str(file_path), "Environment": env},
+            ) from e
 
         if not config:
             return
@@ -98,6 +123,10 @@ class EnhancedSubstitutionManager:
 
         # Merge tokens (environment-specific overrides global)
         # Convert primitive types to strings for text substitution
+        logger.debug(
+            f"Loaded {len(env_tokens) if isinstance(env_tokens, dict) else 0} env-specific "
+            f"and {len(global_tokens) if isinstance(global_tokens, dict) else 0} global token(s)"
+        )
         if isinstance(env_tokens, dict):
             for key, value in env_tokens.items():
                 # Convert primitive types to strings for text-based substitution
@@ -140,9 +169,6 @@ class EnhancedSubstitutionManager:
 
     def _expand_recursive_tokens(self):
         """Recursively expand tokens that reference other tokens."""
-        import logging
-        logger = logging.getLogger(__name__)
-        
         max_iterations = 10
         for iteration in range(max_iterations):
             changed = False
@@ -165,6 +191,9 @@ class EnhancedSubstitutionManager:
 
     def substitute_yaml(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Recursively substitute tokens and collect secret references."""
+        logger.debug(
+            f"Substituting tokens in YAML data ({len(self.mappings)} mapping(s) available)"
+        )
         return self._substitute_recursive(data)
 
     def _substitute_recursive(self, obj: Any) -> Any:
@@ -192,8 +221,17 @@ class EnhancedSubstitutionManager:
                 scope = self.default_secret_scope
                 key = secret_ref
                 if not scope:
-                    raise ValueError(
-                        f"No default secret scope configured for secret: {secret_ref}"
+                    raise LHPValidationError(
+                        category=ErrorCategory.CONFIG,
+                        code_number="008",
+                        title="Missing default secret scope",
+                        details=f"No default secret scope configured for secret reference: {secret_ref}",
+                        suggestions=[
+                            "Add a 'secrets.default_scope' to your substitutions YAML file",
+                            "Or use the full scope/key format: ${secret:scope/key}",
+                        ],
+                        example="secrets:\n  default_scope: my-scope\n\n# Then use: ${secret:my_key}\n# Or explicit: ${secret:my-scope/my_key}",
+                        context={"secret_ref": secret_ref, "env": self.env},
                     )
 
             # Resolve scope alias if it exists
@@ -211,9 +249,9 @@ class EnhancedSubstitutionManager:
 
     def set_tracking_context(self, flowgroup_name: str) -> None:
         """Set current flowgroup for key access tracking.
-        
+
         Thread-safe: Uses thread-local storage for current flowgroup.
-        
+
         Args:
             flowgroup_name: Name of the flowgroup being processed
         """
@@ -224,19 +262,19 @@ class EnhancedSubstitutionManager:
 
     def clear_tracking_context(self) -> None:
         """Clear current tracking context.
-        
+
         Thread-safe: Clears thread-local storage.
         """
         self._thread_local.current_flowgroup = None
 
     def get_accessed_keys(self, flowgroup_name: str) -> Set[str]:
         """Get keys accessed by a flowgroup.
-        
+
         Thread-safe: Uses lock for reading shared state.
-        
+
         Args:
             flowgroup_name: Name of the flowgroup
-            
+
         Returns:
             Set of keys accessed by the flowgroup (copy for safety)
         """
@@ -249,7 +287,7 @@ class EnhancedSubstitutionManager:
         def default_replacer(match):
             token = match.group(1)
             # Track key access (thread-safe)
-            current_fg = getattr(self._thread_local, 'current_flowgroup', None)
+            current_fg = getattr(self._thread_local, "current_flowgroup", None)
             if current_fg:
                 with self._accessed_keys_lock:
                     if current_fg in self._accessed_keys:
@@ -259,7 +297,7 @@ class EnhancedSubstitutionManager:
         def dollar_replacer(match):
             token = match.group(1)
             # Track key access (thread-safe)
-            current_fg = getattr(self._thread_local, 'current_flowgroup', None)
+            current_fg = getattr(self._thread_local, "current_flowgroup", None)
             if current_fg:
                 with self._accessed_keys_lock:
                     if current_fg in self._accessed_keys:
@@ -274,28 +312,30 @@ class EnhancedSubstitutionManager:
 
     def get_secret_references(self) -> Set[SecretReference]:
         """Get all secret references found during substitution.
-        
+
         Thread-safe: Uses lock for reading shared state.
-        
+
         Returns:
             Set of secret references (copy for safety)
         """
         with self._secret_references_lock:
             return self.secret_references.copy()
 
-    def validate_no_unresolved_tokens(self, data: Any, path: str = "config") -> List[str]:
+    def validate_no_unresolved_tokens(
+        self, data: Any, path: str = "config"
+    ) -> List[str]:
         """Detect unresolved tokens after substitution.
-        
+
         Scans configuration for any remaining {token} patterns that weren't
         resolved during substitution, indicating missing values in substitutions file.
-        
+
         Args:
             data: Configuration data to validate (dict, list, str, or other)
             path: Current path in config tree for error reporting
-            
+
         Returns:
             List of error messages describing unresolved tokens with their locations
-            
+
         Examples:
             >>> mgr = EnhancedSubstitutionManager()
             >>> mgr.mappings = {"catalog": "main"}
@@ -305,7 +345,7 @@ class EnhancedSubstitutionManager:
             "Unresolved token '{missing}' found at config.path. Check substitutions/dev.yaml"
         """
         errors = []
-        
+
         if isinstance(data, str):
             # Find all unresolved tokens except dbutils expressions
             matches = self.UNRESOLVED_TOKEN_PATTERN.findall(data)
@@ -318,10 +358,12 @@ class EnhancedSubstitutionManager:
                 )
         elif isinstance(data, dict):
             for key, value in data.items():
-                errors.extend(self.validate_no_unresolved_tokens(value, f"{path}.{key}"))
+                errors.extend(
+                    self.validate_no_unresolved_tokens(value, f"{path}.{key}")
+                )
         elif isinstance(data, list):
             for i, item in enumerate(data):
                 errors.extend(self.validate_no_unresolved_tokens(item, f"{path}[{i}]"))
         # For other types (int, bool, None, etc.), nothing to validate
-        
+
         return errors

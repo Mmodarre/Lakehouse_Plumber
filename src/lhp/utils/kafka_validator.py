@@ -1,12 +1,12 @@
 """Shared Kafka options validator for sources and sinks."""
 
 from typing import Dict, Any
-from .error_formatter import ErrorFormatter
+from .error_formatter import ErrorCategory, ErrorFormatter, LHPValidationError
 
 
 class KafkaOptionsValidator:
     """Validate Kafka and Event Hubs options for both sources and sinks."""
-    
+
     # Known kafka options (from Databricks Kafka connector documentation)
     KNOWN_KAFKA_OPTIONS = {
         "bootstrap.servers",
@@ -66,7 +66,7 @@ class KafkaOptionsValidator:
         "client.dns.lookup",
         "client.rack",
     }
-    
+
     # Source-only options (for subscription methods and reading)
     SOURCE_ONLY_OPTIONS = {
         "subscribe",
@@ -79,20 +79,20 @@ class KafkaOptionsValidator:
         "maxOffsetsPerTrigger",
         "includeHeaders",
     }
-    
+
     # Sink-only options (for writing)
     SINK_ONLY_OPTIONS = {
         "topic",  # Sinks use single topic, sources use subscribe/subscribePattern/assign
     }
-    
+
     @staticmethod
     def validate_msk_iam_auth(options: Dict[str, Any], action_name: str) -> None:
         """Validate AWS MSK IAM authentication configuration.
-        
+
         Args:
             options: Options dictionary with kafka.* prefixed keys
             action_name: Name of the action for error messages
-            
+
         Raises:
             ValueError: If required MSK IAM options are missing
         """
@@ -100,22 +100,34 @@ class KafkaOptionsValidator:
             required_msk_options = {
                 "kafka.sasl.jaas.config",
                 "kafka.security.protocol",
-                "kafka.sasl.client.callback.handler.class"
+                "kafka.sasl.client.callback.handler.class",
             }
             missing = required_msk_options - set(options.keys())
             if missing:
-                raise ValueError(
-                    f"Kafka action '{action_name}': AWS MSK IAM authentication requires: {', '.join(sorted(missing))}"
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="017",
+                    title=f"Missing MSK IAM options in action '{action_name}'",
+                    details=f"Kafka action '{action_name}': AWS MSK IAM authentication requires: {', '.join(sorted(missing))}",
+                    suggestions=[
+                        f"Add the missing options to your Kafka action: {', '.join(sorted(missing))}",
+                        "See Databricks Kafka connector documentation for MSK IAM configuration",
+                    ],
+                    example='options:\n  kafka.sasl.mechanism: AWS_MSK_IAM\n  kafka.sasl.jaas.config: "..."\n  kafka.security.protocol: SASL_SSL\n  kafka.sasl.client.callback.handler.class: "software.amazon.msk.auth.iam.IAMClientCallbackHandler"',
+                    context={
+                        "action": action_name,
+                        "missing_options": ", ".join(sorted(missing)),
+                    },
                 )
-    
+
     @staticmethod
     def validate_event_hubs_oauth(options: Dict[str, Any], action_name: str) -> None:
         """Validate Azure Event Hubs OAuth configuration.
-        
+
         Args:
             options: Options dictionary with kafka.* prefixed keys
             action_name: Name of the action for error messages
-            
+
         Raises:
             ValueError: If required OAuth options are missing
         """
@@ -124,46 +136,54 @@ class KafkaOptionsValidator:
                 "kafka.sasl.jaas.config",
                 "kafka.sasl.oauthbearer.token.endpoint.url",
                 "kafka.security.protocol",
-                "kafka.sasl.login.callback.handler.class"
+                "kafka.sasl.login.callback.handler.class",
             }
             missing = required_oauth_options - set(options.keys())
             if missing:
-                raise ValueError(
-                    f"Kafka action '{action_name}': OAuth authentication requires: {', '.join(sorted(missing))}"
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="018",
+                    title=f"Missing OAuth options in action '{action_name}'",
+                    details=f"Kafka action '{action_name}': OAuth authentication requires: {', '.join(sorted(missing))}",
+                    suggestions=[
+                        f"Add the missing options to your Kafka action: {', '.join(sorted(missing))}",
+                        "See Databricks Kafka connector documentation for Event Hubs OAuth configuration",
+                    ],
+                    example='options:\n  kafka.sasl.mechanism: OAUTHBEARER\n  kafka.sasl.jaas.config: "..."\n  kafka.security.protocol: SASL_SSL\n  kafka.sasl.oauthbearer.token.endpoint.url: "https://..."\n  kafka.sasl.login.callback.handler.class: "..."',
+                    context={
+                        "action": action_name,
+                        "missing_options": ", ".join(sorted(missing)),
+                    },
                 )
-    
+
     @classmethod
     def process_options(
-        cls, 
-        options: Dict[str, Any], 
-        action_name: str,
-        is_source: bool = True
+        cls, options: Dict[str, Any], action_name: str, is_source: bool = True
     ) -> Dict[str, Any]:
         """Process and validate Kafka options.
-        
+
         Args:
             options: Options dictionary from YAML
             action_name: Name of the action for error messages
             is_source: True for sources (subscribe/subscribePattern/assign allowed),
                       False for sinks (topic allowed)
-        
+
         Returns:
             Processed options dictionary
-            
+
         Raises:
             ValueError: If invalid options are found
         """
         processed_options = {}
-        
+
         # Determine which special options are allowed
-        allowed_special = cls.SOURCE_ONLY_OPTIONS if is_source else cls.SINK_ONLY_OPTIONS
-        
+        allowed_special = (
+            cls.SOURCE_ONLY_OPTIONS if is_source else cls.SINK_ONLY_OPTIONS
+        )
+
         for key, value in options.items():
             # Check if this looks like a kafka option without prefix
-            if (
-                not key.startswith("kafka.")
-                and key not in allowed_special
-            ):
+            if not key.startswith("kafka.") and key not in allowed_special:
                 # Check if it's a known kafka option that should have prefix
                 if key in cls.KNOWN_KAFKA_OPTIONS:
                     raise ErrorFormatter.configuration_conflict(
@@ -171,17 +191,16 @@ class KafkaOptionsValidator:
                         field_pairs=[(key, f"kafka.{key}")],
                         preset_name=None,
                     )
-            
+
             # Preserve original type for all options
             processed_options[key] = value
-        
+
         # Validate MSK IAM if configured
         if processed_options.get("kafka.sasl.mechanism") == "AWS_MSK_IAM":
             cls.validate_msk_iam_auth(processed_options, action_name)
-        
+
         # Validate Event Hubs OAuth if configured
         if processed_options.get("kafka.sasl.mechanism") == "OAUTHBEARER":
             cls.validate_event_hubs_oauth(processed_options, action_name)
-        
-        return processed_options
 
+        return processed_options

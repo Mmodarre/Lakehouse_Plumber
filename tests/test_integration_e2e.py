@@ -38,19 +38,20 @@ class TestEndToEndBundleWorkflow:
 
     def test_complete_bundle_project_lifecycle(self):
         """Test complete lifecycle: init -> configure -> generate -> sync."""
-        os.chdir(self.temp_dir)
-        
-        # Step 1: Initialize bundle project
+        # Create the project subdirectory and cd into it so CWD-based init works
+        self.project_root.mkdir(parents=True, exist_ok=True)
+        os.chdir(self.project_root)
+
+        # Step 1: Initialize bundle project (bundle is default)
         with patch('lhp.bundle.template_fetcher.DatabricksTemplateFetcher.fetch_and_apply_template') as mock_fetch:
             mock_fetch.return_value = None
-            
+
             from click.testing import CliRunner
             runner = CliRunner()
-            
-            # Test project initialization with bundle
-            result = runner.invoke(cli, ['init', '--bundle', 'e2e_test_project'])
+
+            # Test project initialization with bundle (default)
+            result = runner.invoke(cli, ['init', 'e2e_test_project'])
             assert result.exit_code == 0
-            assert self.project_root.exists()
             assert (self.project_root / "databricks.yml").exists()
             assert (self.project_root / "resources").exists()
 

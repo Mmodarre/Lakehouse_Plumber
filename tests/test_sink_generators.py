@@ -958,7 +958,7 @@ class MyCustomDataSink:
         with pytest.raises(ValueError) as exc_info:
             self.generator.generate(action, {})
         
-        assert "Unsupported sink_type" in str(exc_info.value)
+        assert "unknown" in str(exc_info.value).lower() or "sink_type" in str(exc_info.value)
         assert "unknown" in str(exc_info.value)
     
     def test_import_merging(self):

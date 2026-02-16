@@ -78,10 +78,11 @@ class TestConfigLoading:
         assert nonexistent_path in str(exc_info.value)
     
     def test_invalid_yaml_raises_error(self, tmp_path):
-        """yaml.YAMLError for invalid YAML syntax."""
+        """LHPConfigError for invalid YAML syntax (wraps yaml.YAMLError)."""
+        from lhp.utils.error_formatter import LHPConfigError
         fixture_path = Path(__file__).parent / "fixtures/pipeline_configs/invalid_yaml.yaml"
-        
-        with pytest.raises(yaml.YAMLError):
+
+        with pytest.raises(LHPConfigError, match="YAML"):
             PipelineConfigLoader(tmp_path, config_file_path=str(fixture_path))
     
     def test_empty_config_file_uses_defaults(self, tmp_path):

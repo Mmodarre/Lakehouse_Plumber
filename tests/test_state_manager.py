@@ -149,20 +149,17 @@ class TestStateManagerSaveState:
             # The facade delegates to StatePersistence - verify save was called (no specific log check needed)
     
     def test_save_state_error(self, caplog):
-        """Test error handling during state saving (lines 99-101)."""
+        """Test error handling during state saving — raises LHPFileError."""
+        from lhp.utils.error_formatter import LHPFileError
+
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             state_manager = StateManager(project_root)
-            
+
             # Mock open to raise PermissionError
             with patch('builtins.open', side_effect=PermissionError("Permission denied")):
-                with pytest.raises(Exception):
-                    with caplog.at_level(logging.ERROR):
-                        state_manager.save()
-                
-                # Should log error
-                assert "Failed to save state file" in caplog.text
-                assert "Permission denied" in caplog.text
+                with pytest.raises(LHPFileError, match="Failed to save state file"):
+                    state_manager.save()
 
 
 class TestStateManagerChecksumCalculation:

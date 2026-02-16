@@ -1,30 +1,34 @@
 """Base generator for all sink types."""
 
+import logging
 from abc import abstractmethod
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 from ....core.base_generator import BaseActionGenerator
 from ....models.config import Action
+
+logger = logging.getLogger(__name__)
 
 
 class BaseSinkWriteGenerator(BaseActionGenerator):
     """Base class for sink write generators."""
-    
+
     def __init__(self):
         super().__init__(use_import_manager=True)
         self.add_import("from pyspark import pipelines as dp")
         self.add_import("from pyspark.sql import functions as F")
-    
+
     @abstractmethod
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate sink code - must be implemented by subclasses."""
         pass
-    
+
     def _extract_source_views(self, source) -> List[str]:
         """Extract source views from source configuration.
-        
+
         Args:
             source: Source configuration (string, list, or dict)
-            
+
         Returns:
             List of source view names
         """
@@ -44,4 +48,3 @@ class BaseSinkWriteGenerator(BaseActionGenerator):
             if "view" in source:
                 return [source["view"]]
         return []
-

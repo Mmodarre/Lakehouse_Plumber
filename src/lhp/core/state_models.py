@@ -7,19 +7,20 @@ from typing import Dict, Optional, List
 @dataclass
 class DependencyInfo:
     """Information about a dependency file."""
-    
-    path: str              # Relative path to dependency file
-    checksum: str          # SHA256 checksum of dependency
-    type: str             # 'preset', 'template', 'substitution', 'project_config'
-    last_modified: str    # ISO timestamp of last modification
+
+    path: str  # Relative path to dependency file
+    checksum: str  # SHA256 checksum of dependency
+    type: str  # 'preset', 'template', 'substitution', 'project_config'
+    last_modified: str  # ISO timestamp of last modification
     mtime: Optional[float] = None  # Unix timestamp for fast comparison
 
 
 @dataclass
 class GlobalDependencies:
     """Dependencies that affect all files in scope."""
+
     substitution_file: Optional[DependencyInfo] = None  # Per environment
-    project_config: Optional[DependencyInfo] = None     # Global across environments
+    project_config: Optional[DependencyInfo] = None  # Global across environments
 
 
 @dataclass
@@ -34,11 +35,15 @@ class FileState:
     environment: str  # Environment name
     pipeline: str  # Pipeline name
     flowgroup: str  # FlowGroup name
-    
+
     # New dependency tracking fields
-    file_dependencies: Optional[Dict[str, DependencyInfo]] = None  # File-specific dependencies
+    file_dependencies: Optional[Dict[str, DependencyInfo]] = (
+        None  # File-specific dependencies
+    )
     file_composite_checksum: str = ""
-    used_substitution_keys: Optional[List[str]] = None  # Substitution keys used during generation
+    used_substitution_keys: Optional[List[str]] = (
+        None  # Substitution keys used during generation
+    )
 
 
 @dataclass
@@ -50,9 +55,11 @@ class ProjectState:
     environments: Dict[str, Dict[str, FileState]] = (
         None  # env -> file_path -> FileState
     )
-    
+
     # Global dependencies per environment
-    global_dependencies: Optional[Dict[str, GlobalDependencies]] = None  # env -> GlobalDependencies
+    global_dependencies: Optional[Dict[str, GlobalDependencies]] = (
+        None  # env -> GlobalDependencies
+    )
 
     def __post_init__(self):
         if self.environments is None:

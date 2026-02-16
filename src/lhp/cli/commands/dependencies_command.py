@@ -2,14 +2,15 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
+
 import click
 
-from .base_command import BaseCommand
+from ...core.project_config_loader import ProjectConfigLoader
 from ...core.services.dependency_analyzer import DependencyAnalyzer
 from ...core.services.dependency_output_manager import DependencyOutputManager
-from ...core.project_config_loader import ProjectConfigLoader
-from ...utils.error_formatter import LHPError, ErrorCategory
+from ...utils.error_formatter import ErrorCategory, LHPError
+from .base_command import BaseCommand
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +23,16 @@ class DependenciesCommand(BaseCommand):
     planning and execution order determination using NetworkX graphs.
     """
 
-    def execute(self, output_format: str = "all", output_dir: Optional[str] = None,
-                pipeline: Optional[str] = None, job_name: Optional[str] = None,
-                job_config_path: Optional[str] = None, bundle_output: bool = False,
-                verbose: bool = False) -> None:
+    def execute(
+        self,
+        output_format: str = "all",
+        output_dir: Optional[str] = None,
+        pipeline: Optional[str] = None,
+        job_name: Optional[str] = None,
+        job_config_path: Optional[str] = None,
+        bundle_output: bool = False,
+        verbose: bool = False,
+    ) -> None:
         """
         Execute the dependencies command.
 
@@ -38,108 +45,97 @@ class DependenciesCommand(BaseCommand):
             bundle_output: If True, save job file to resources/ directory
             verbose: Enable verbose output
         """
-        try:
-            self.setup_from_context()
-            project_root = self.ensure_project_root()
+        self.setup_from_context()
+        project_root = self.ensure_project_root()
 
-            if verbose:
-                self._setup_verbose_logging()
+        if verbose:
+            self._setup_verbose_logging()
 
-            click.echo("🔍 Analyzing Pipeline Dependencies")
-            click.echo("=" * 60)
+        logger.debug(
+            f"Dependencies request: format={output_format}, pipeline={pipeline}, "
+            f"job_name={job_name}, bundle_output={bundle_output}"
+        )
 
-            # Initialize services
-            config_loader = ProjectConfigLoader(project_root)
-            analyzer = DependencyAnalyzer(project_root, config_loader)
-            output_manager = DependencyOutputManager()
+        click.echo("🔍 Analyzing Pipeline Dependencies")
+        click.echo("=" * 60)
 
-            # Validate pipeline filter with job_name usage
-            if pipeline:
-                self._validate_pipeline_exists(analyzer, pipeline)
-                # Check if job_name is used - error out if so
-                flowgroups = analyzer._get_flowgroups()
-                if any(fg.job_name for fg in flowgroups):
-                    raise LHPError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="003",
-                        title="Pipeline filter not supported with job_name",
-                        details=(
-                            "Cannot use --pipeline filter when job_name is defined in flowgroups.\n\n"
-                            f"You specified: --pipeline {pipeline}\n"
-                            "However, your flowgroups use job_name property which enables multi-job mode.\n\n"
-                            "A single pipeline may span multiple jobs, making filtering ambiguous."
+        # Initialize services
+        config_loader = ProjectConfigLoader(project_root)
+        analyzer = DependencyAnalyzer(project_root, config_loader)
+        output_manager = DependencyOutputManager()
+
+        # Validate pipeline filter with job_name usage
+        if pipeline:
+            flowgroups = self._validate_pipeline_exists(analyzer, pipeline)
+            # Check if job_name is used - error out if so
+            if any(fg.job_name for fg in flowgroups):
+                raise LHPError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="003",
+                    title="Pipeline filter not supported with job_name",
+                    details=(
+                        "Cannot use --pipeline filter when job_name is defined in flowgroups.\n\n"
+                        f"You specified: --pipeline {pipeline}\n"
+                        "However, your flowgroups use job_name property which enables multi-job mode.\n\n"
+                        "A single pipeline may span multiple jobs, making filtering ambiguous."
+                    ),
+                    suggestions=[
+                        "Remove the --pipeline filter to analyze all jobs",
+                        "Or remove job_name from flowgroups to use single-job mode",
+                        "Use separate lhp deps runs for different projects if needed",
+                    ],
+                    context={
+                        "Pipeline Filter": pipeline,
+                        "Flowgroups with job_name": len(
+                            [fg for fg in flowgroups if fg.job_name]
                         ),
-                        suggestions=[
-                            "Remove the --pipeline filter to analyze all jobs",
-                            "Or remove job_name from flowgroups to use single-job mode",
-                            "Use separate lhp deps runs for different projects if needed"
-                        ],
-                        context={
-                            "Pipeline Filter": pipeline,
-                            "Flowgroups with job_name": len([fg for fg in flowgroups if fg.job_name])
-                        }
-                    )
+                    },
+                )
 
-            # Perform dependency analysis
-            click.echo("📊 Building dependency graphs...")
-            result = analyzer.analyze_dependencies(pipeline_filter=pipeline)
+        # Perform dependency analysis
+        click.echo("📊 Building dependency graphs...")
+        result = analyzer.analyze_dependencies(pipeline_filter=pipeline)
 
-            # Display analysis summary
-            self._display_analysis_summary(result, pipeline)
+        # Display analysis summary
+        self._display_analysis_summary(result, pipeline)
 
-            # Handle output generation
-            output_formats = self._parse_output_formats(output_format)
-            output_path = self._resolve_output_path(output_dir, project_root)
+        # Handle output generation
+        output_formats = self._parse_output_formats(output_format)
+        output_path = self._resolve_output_path(output_dir, project_root)
 
-            # Adjust message if using bundle output
-            if bundle_output:
-                click.echo(f"\n💾 Generating output files...")
-                click.echo(f"   Job file will be saved to resources/ directory for bundle integration")
-            else:
-                click.echo(f"\n💾 Generating output files in {output_path}...")
-            
-            generated_files = output_manager.save_outputs(
-                analyzer, result, output_formats, output_path, job_name,
-                job_config_path, bundle_output
+        # Adjust message if using bundle output
+        if bundle_output:
+            click.echo(f"\n💾 Generating output files...")
+            click.echo(
+                f"   Job file will be saved to resources/ directory for bundle integration"
             )
+        else:
+            click.echo(f"\n💾 Generating output files in {output_path}...")
 
-            # Display generated files
-            self._display_generated_files(generated_files)
+        generated_files = output_manager.save_outputs(
+            analyzer,
+            result,
+            output_formats,
+            output_path,
+            job_name,
+            job_config_path,
+            bundle_output,
+        )
 
-            # Show execution order if pipelines found
-            if result.execution_stages:
-                self._display_execution_order(result)
+        # Display generated files
+        self._display_generated_files(generated_files)
 
-            # Show warnings if any issues detected
-            self._display_warnings(result)
+        # Show execution order if pipelines found
+        if result.execution_stages:
+            self._display_execution_order(result)
 
-            click.echo("\n✅ Dependency analysis complete!")
+        # Show warnings if any issues detected
+        self._display_warnings(result)
 
-        except LHPError:
-            # LHPError is already formatted, just re-raise
-            raise
-        except Exception as e:
-            logger.error(f"Dependency analysis failed: {e}")
-            raise LHPError(
-                category=ErrorCategory.DEPENDENCY,
-                code_number="001",
-                title="Dependency analysis failed",
-                details=f"An error occurred during dependency analysis: {str(e)}",
-                suggestions=[
-                    "Check that you're in a valid LakehousePlumber project directory",
-                    "Ensure all YAML files are valid and parseable",
-                    "Verify project configuration (lhp.yaml) is correct",
-                    "Check file permissions for the output directory"
-                ],
-                context={
-                    "Error Type": type(e).__name__,
-                    "Error Message": str(e),
-                    "Pipeline Filter": pipeline,
-                    "Output Format": output_format,
-                    "Job Config Path": job_config_path,
-                    "Bundle Output": bundle_output
-                }
-            ) from e
+        logger.info(
+            f"Dependency analysis complete: {len(result.execution_stages)} stages"
+        )
+        click.echo("\n✅ Dependency analysis complete!")
 
     def _setup_verbose_logging(self) -> None:
         """Enable verbose logging for detailed analysis output."""
@@ -151,16 +147,14 @@ class DependenciesCommand(BaseCommand):
         out_logger = logging.getLogger("lhp.core.services.dependency_output_manager")
         out_logger.setLevel(logging.DEBUG)
 
-    def _validate_pipeline_exists(self, analyzer: DependencyAnalyzer, pipeline: str) -> None:
-        """Validate that the specified pipeline exists."""
-        # Get available pipelines
-        available_pipelines = set()
-        try:
-            flowgroups = analyzer._get_flowgroups()
-            available_pipelines = set(fg.pipeline for fg in flowgroups)
-        except Exception as e:
-            logger.warning(f"Could not validate pipeline existence: {e}")
-            return  # Continue anyway
+    def _validate_pipeline_exists(self, analyzer: DependencyAnalyzer, pipeline: str):
+        """Validate that the specified pipeline exists.
+
+        Returns:
+            List of flowgroups (reusable by caller to avoid redundant calls)
+        """
+        flowgroups = analyzer.get_flowgroups()
+        available_pipelines = set(fg.pipeline for fg in flowgroups)
 
         if available_pipelines and pipeline not in available_pipelines:
             raise LHPError(
@@ -172,14 +166,16 @@ class DependenciesCommand(BaseCommand):
                     f"Use one of the available pipelines: {', '.join(sorted(available_pipelines))}",
                     "Check the 'pipeline' field in your flowgroup YAML files",
                     "Verify that flowgroup YAML files are in the correct location",
-                    "Run 'lhp stats' to see all available pipelines"
+                    "Run 'lhp stats' to see all available pipelines",
                 ],
                 context={
                     "Requested Pipeline": pipeline,
                     "Available Pipelines": sorted(available_pipelines),
-                    "Total Available": len(available_pipelines)
-                }
+                    "Total Available": len(available_pipelines),
+                },
             )
+
+        return flowgroups
 
     def _parse_output_formats(self, output_format: str) -> List[str]:
         """Parse and validate output format specification."""
@@ -196,7 +192,9 @@ class DependenciesCommand(BaseCommand):
 
         return formats
 
-    def _resolve_output_path(self, output_dir: Optional[str], project_root: Path) -> Path:
+    def _resolve_output_path(
+        self, output_dir: Optional[str], project_root: Path
+    ) -> Path:
         """Resolve the output directory path."""
         if output_dir:
             return Path(output_dir).resolve()
@@ -216,7 +214,9 @@ class DependenciesCommand(BaseCommand):
         click.echo(f"   External sources: {result.total_external_sources}")
 
         if result.circular_dependencies:
-            click.echo(f"   ⚠️  Circular dependencies: {len(result.circular_dependencies)}")
+            click.echo(
+                f"   ⚠️  Circular dependencies: {len(result.circular_dependencies)}"
+            )
 
     def _display_generated_files(self, generated_files: dict) -> None:
         """Display information about generated output files."""
@@ -228,27 +228,41 @@ class DependenciesCommand(BaseCommand):
                 for job_name, job_path in file_path_or_dict.items():
                     file_size = job_path.stat().st_size if job_path.exists() else 0
                     if job_name == "_master":
-                        click.echo(f"      Master Job: {job_path} ({file_size:,} bytes)")
+                        click.echo(
+                            f"      Master Job: {job_path} ({file_size:,} bytes)"
+                        )
                     else:
-                        click.echo(f"      {job_name}: {job_path} ({file_size:,} bytes)")
+                        click.echo(
+                            f"      {job_name}: {job_path} ({file_size:,} bytes)"
+                        )
             else:
                 # Single file path (backward compatible)
-                file_size = file_path_or_dict.stat().st_size if file_path_or_dict.exists() else 0
-                click.echo(f"   {format_name.upper()}: {file_path_or_dict} ({file_size:,} bytes)")
+                file_size = (
+                    file_path_or_dict.stat().st_size
+                    if file_path_or_dict.exists()
+                    else 0
+                )
+                click.echo(
+                    f"   {format_name.upper()}: {file_path_or_dict} ({file_size:,} bytes)"
+                )
 
     def _display_execution_order(self, result) -> None:
         """Display pipeline execution order."""
         click.echo(f"\n🔄 Execution Order:")
 
         if not result.execution_stages:
-            click.echo("   No pipelines found or circular dependencies prevent execution order.")
+            click.echo(
+                "   No pipelines found or circular dependencies prevent execution order."
+            )
             return
 
         for stage_idx, stage_pipelines in enumerate(result.execution_stages, 1):
             if len(stage_pipelines) == 1:
                 click.echo(f"   Stage {stage_idx}: {stage_pipelines[0]}")
             else:
-                click.echo(f"   Stage {stage_idx}: {', '.join(stage_pipelines)} (can run in parallel)")
+                click.echo(
+                    f"   Stage {stage_idx}: {', '.join(stage_pipelines)} (can run in parallel)"
+                )
 
     def _display_warnings(self, result) -> None:
         """Display warnings about dependency analysis results."""
@@ -263,8 +277,14 @@ class DependenciesCommand(BaseCommand):
         if not result.execution_stages:
             click.echo(f"\n⚠️  Warning:")
             click.echo("   No execution order could be determined.")
-            click.echo("   This may indicate circular dependencies or missing pipelines.")
+            click.echo(
+                "   This may indicate circular dependencies or missing pipelines."
+            )
 
+        self._display_info(result)
+
+    def _display_info(self, result) -> None:
+        """Display informational messages about dependency analysis results."""
         if result.total_external_sources > 0:
             click.echo(f"\n💡 Info:")
             click.echo(f"   {result.total_external_sources} external sources detected.")
@@ -274,53 +294,6 @@ class DependenciesCommand(BaseCommand):
                 for source in result.external_sources:
                     click.echo(f"     {source}")
             else:
-                click.echo("   Use generated files to see complete list of external sources.")
-
-
-# Command function for CLI registration
-def create_dependencies_command():
-    """Create and return the dependencies command function for CLI registration."""
-
-    @click.command()
-    @click.option(
-        "--format", "-f",
-        "output_format",
-        type=click.Choice(["dot", "json", "text", "all"], case_sensitive=False),
-        default="all",
-        help="Output format(s) to generate"
-    )
-    @click.option(
-        "--output", "-o",
-        "output_dir",
-        type=click.Path(),
-        help="Output directory (defaults to .lhp/dependencies/)"
-    )
-    @click.option(
-        "--pipeline", "-p",
-        help="Analyze specific pipeline only"
-    )
-    @click.option(
-        "--job-name", "-j",
-        help="Custom name for orchestration job"
-    )
-    @click.option(
-        "--job-config", "-jc",
-        "job_config_path",
-        help="Custom job config file path"
-    )
-    @click.option(
-        "--bundle-output", "-b",
-        is_flag=True,
-        help="Save job file to resources/ directory"
-    )
-    @click.option(
-        "--verbose", "-v",
-        is_flag=True,
-        help="Enable verbose output"
-    )
-    def deps(output_format, output_dir, pipeline, job_name, job_config_path, bundle_output, verbose):
-        """Analyze and visualize pipeline dependencies for orchestration planning."""
-        command = DependenciesCommand()
-        command.execute(output_format, output_dir, pipeline, job_name, job_config_path, bundle_output, verbose)
-
-    return deps
+                click.echo(
+                    "   Use generated files to see complete list of external sources."
+                )

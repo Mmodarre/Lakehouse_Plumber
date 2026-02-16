@@ -27,9 +27,9 @@ class TestYAMLParserErrorHandling:
             # Should raise ValueError with YAML error message
             with pytest.raises(ValueError) as exc_info:
                 parser.parse_file(yaml_file)
-            
-            assert "Invalid YAML" in str(exc_info.value)
-            assert yaml_file.name in str(exc_info.value)
+
+            assert "YAML parsing error" in str(exc_info.value)
+            assert str(yaml_file) in str(exc_info.value)
         finally:
             yaml_file.unlink()
     
@@ -66,12 +66,12 @@ class TestYAMLParserErrorHandling:
         # Test with non-existent file
         non_existent_file = Path("/non/existent/file.yaml")
         
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises((ValueError, FileNotFoundError)) as exc_info:
             parser.parse_file(non_existent_file)
-        
-        assert "Error reading" in str(exc_info.value)
+
+        assert "not found" in str(exc_info.value).lower()
         assert str(non_existent_file) in str(exc_info.value)
-    
+
     def test_parse_file_permission_error(self):
         """Test handling of permission errors (lines 24-25)."""
         parser = YAMLParser()

@@ -1,13 +1,23 @@
-"""CloudFiles load generator """
+"""CloudFiles load generator"""
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+from ...utils.error_formatter import (
+    ErrorCategory,
+    ErrorFormatter,
+    LHPError,
+    LHPValidationError,
+)
+from ...utils.external_file_loader import (
+    is_file_path,
+    load_external_file_text,
+    resolve_external_file_path,
+)
 from ...utils.schema_parser import SchemaParser
-from ...utils.error_formatter import ErrorFormatter, LHPError
-from ...utils.external_file_loader import is_file_path, resolve_external_file_path, load_external_file_text
 
 
 class CloudFilesLoadGenerator(BaseActionGenerator):
@@ -53,17 +63,27 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate CloudFiles load code."""
         source_config = action.source if isinstance(action.source, dict) else {}
+        self.logger.debug(
+            f"Generating CloudFiles load for target '{action.target}', action '{action.name}'"
+        )
 
         # CloudFiles requires stream mode
         readMode = action.readMode or source_config.get("readMode", "stream")
         if readMode != "stream":
-            raise ValueError(
-                f"CloudFiles action '{action.name}' requires readMode='stream', got '{readMode}'"
+            raise ErrorFormatter.invalid_read_mode(
+                action_name=action.name,
+                action_type="cloudfiles",
+                provided=readMode,
+                valid_modes=["stream"],
             )
 
         # Extract configuration
         path = source_config.get("path")
         file_format = source_config.get("format", "json")
+
+        self.logger.debug(
+            f"CloudFiles load '{action.name}': format='{file_format}', path='{path}'"
+        )
 
         # Check for conflicts between old and new approaches
         self._check_conflicts(source_config, action.name)
@@ -93,15 +113,17 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             options = source_config["options"]
             # Validate options is a dictionary
             if not isinstance(options, dict):
-                raise ValueError(
-                    f"CloudFiles load action '{action.name}': 'options' must be a dictionary, "
-                    f"got {type(options).__name__}. "
-                    f"Use YAML dictionary syntax: options:\\n  key: value"
+                raise ErrorFormatter.invalid_field_type(
+                    action_name=action.name,
+                    field_name="options",
+                    expected_type="a dictionary (mapping)",
+                    actual_type=type(options).__name__,
+                    example="""options:
+  cloudFiles.format: "json"
+  cloudFiles.schemaLocation: "/mnt/schema" """,
                 )
             reader_options.update(
-                self._process_options(
-                    options, action.name, context.get("spec_dir")
-                )
+                self._process_options(options, action.name, context.get("spec_dir"))
             )
 
             # Extract schema hints if present in options
@@ -225,28 +247,31 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                         project_root = spec_dir or Path.cwd()
                         file_ext = Path(value).suffix.lower()
                         resolved_path = resolve_external_file_path(
-                            value,
-                            project_root,
-                            file_type="schema file"
+                            value, project_root, file_type="schema file"
                         )
-                        
-                        if file_ext in ['.yaml', '.yml', '.json']:
+
+                        if file_ext in [".yaml", ".yml", ".json"]:
                             # YAML/JSON schema - parse and convert to DDL
-                            schema_data = self.schema_parser.parse_schema_file(resolved_path)
-                            processed_options[key] = self.schema_parser.to_schema_hints(schema_data)
-                        elif file_ext in ['.ddl', '.sql']:
+                            schema_data = self.schema_parser.parse_schema_file(
+                                resolved_path
+                            )
+                            processed_options[key] = self.schema_parser.to_schema_hints(
+                                schema_data
+                            )
+                        elif file_ext in [".ddl", ".sql"]:
                             # DDL file - load as plain text
-                            from ...utils.external_file_loader import load_external_file_text
                             ddl_content = load_external_file_text(
-                                value,
-                                project_root,
-                                file_type="DDL schema file"
+                                value, project_root, file_type="DDL schema file"
                             ).strip()
                             processed_options[key] = ddl_content
                         else:
                             # Default to YAML for backward compatibility
-                            schema_data = self.schema_parser.parse_schema_file(resolved_path)
-                            processed_options[key] = self.schema_parser.to_schema_hints(schema_data)
+                            schema_data = self.schema_parser.parse_schema_file(
+                                resolved_path
+                            )
+                            processed_options[key] = self.schema_parser.to_schema_hints(
+                                schema_data
+                            )
                     else:
                         # User provided direct hints string
                         processed_options[key] = str(value)
@@ -279,7 +304,20 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             # Validate schema
             errors = self.schema_parser.validate_schema(schema_data)
             if errors:
-                raise ValueError(f"Schema validation failed: {'; '.join(errors)}")
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="011",
+                    title="Schema validation failed",
+                    details=f"Schema file '{schema_file_path}' failed validation: {'; '.join(errors)}",
+                    suggestions=[
+                        "Check the schema file syntax and column definitions",
+                        "Ensure all column types are valid Spark SQL types",
+                    ],
+                    context={
+                        "Schema File": str(schema_file_path),
+                        "Errors": "; ".join(errors),
+                    },
+                )
 
             variable_name, code_lines = self.schema_parser.to_struct_type_code(
                 schema_data
@@ -322,7 +360,17 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
         except Exception as e:
-            raise ValueError(f"Error processing schema file '{schema_file_path}': {e}")
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="011",
+                title=f"Error processing schema file '{schema_file_path}'",
+                details=f"Failed to process schema file '{schema_file_path}': {e}",
+                suggestions=[
+                    "Check the schema file format (YAML, JSON, or DDL)",
+                    "Ensure the file contains valid schema definitions",
+                ],
+                context={"Schema File": str(schema_file_path)},
+            ) from e
 
     def _check_conflicts(self, source_config: Dict[str, Any], action_name: str):
         """Check for conflicts between old and new configuration approaches.

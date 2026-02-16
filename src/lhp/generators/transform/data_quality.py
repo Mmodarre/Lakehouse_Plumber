@@ -1,12 +1,18 @@
 """Data quality transformation generator."""
 
-from typing import List, Dict, Any
+import logging
 from pathlib import Path
+from typing import Any, Dict, List
+
+import yaml
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
+from ...utils.error_formatter import ErrorFormatter
 from ...utils.external_file_loader import resolve_external_file_path
-import yaml
+
+logger = logging.getLogger(__name__)
 
 
 class DataQualityTransformGenerator(BaseActionGenerator):
@@ -19,21 +25,42 @@ class DataQualityTransformGenerator(BaseActionGenerator):
 
     def generate(self, action: Action, flowgroup_config: Dict[str, Any]) -> str:
         """Generate data quality transform code."""
+        logger.debug(
+            f"Generating data quality transform for target '{action.target}', action '{action.name}'"
+        )
         # Data quality transforms require stream mode
         readMode = action.readMode or "stream"
         if readMode != "stream":
-            raise ValueError(
-                f"Data quality action '{action.name}' requires readMode='stream', got '{readMode}'"
+            raise ErrorFormatter.invalid_read_mode(
+                action_name=action.name,
+                action_type="data_quality",
+                provided=readMode,
+                valid_modes=["stream"],
             )
 
         # Read expectations from file
         expectations_file = action.expectations_file
         if not expectations_file:
-            raise ValueError(
-                f"Data quality transform '{action.name}' requires expectations_file"
+            raise ErrorFormatter.missing_required_field(
+                field_name="expectations_file",
+                component_type="Data quality transform action",
+                component_name=action.name,
+                field_description="The expectations file containing data quality rules is required.",
+                example_config="""actions:
+  - name: check_quality
+    type: transform
+    sub_type: data_quality
+    source: v_raw_data
+    target: v_validated_data
+    expectations_file: "expectations/quality_rules.yaml" """,
             )
 
         expectations = self._load_expectations(action, flowgroup_config.get("spec_dir"))
+
+        total_rules = len(expectations) if isinstance(expectations, (list, dict)) else 0
+        logger.debug(
+            f"Data quality '{action.name}': {total_rules} expectation rules loaded, source='{self._extract_source_view(action.source)}'"
+        )
 
         # Parse expectations based on format
         if expectations and isinstance(expectations, list):
@@ -113,28 +140,34 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         if expectations_file:
             # Use common utility for path resolution
             from ...utils.yaml_loader import load_yaml_file
+
             project_root = spec_dir or Path.cwd()
             resolved_path = resolve_external_file_path(
-                expectations_file,
-                project_root,
-                file_type="expectations file"
+                expectations_file, project_root, file_type="expectations file"
             )
-            
-            # Load the YAML file
-            if resolved_path.exists():
-                data = load_yaml_file(resolved_path, error_context="data quality expectations file")
 
-                # Handle different formats
-                if isinstance(data, dict):
-                    # Check if it has 'expectations' key (old format)
-                    if "expectations" in data:
-                        return data["expectations"]
-                    else:
-                        # New format: direct dictionary of constraints
-                        return data
-                elif isinstance(data, list):
-                    # Direct list of expectations
+            # Load the YAML file (resolve_external_file_path raises if not found)
+            data = load_yaml_file(
+                resolved_path, error_context="data quality expectations file"
+            )
+
+            # Handle different formats
+            if isinstance(data, dict):
+                # Check if it has 'expectations' key (old format)
+                if "expectations" in data:
+                    return data["expectations"]
+                else:
+                    # New format: direct dictionary of constraints
                     return data
+            elif isinstance(data, list):
+                # Direct list of expectations
+                return data
+            else:
+                logger.warning(
+                    f"Expectations file '{expectations_file}' has unexpected format "
+                    f"(expected dict or list, got {type(data).__name__}), "
+                    "proceeding with empty expectations"
+                )
 
-        # Return empty dict/list if no expectations found
+        # No expectations_file configured — return empty
         return {}

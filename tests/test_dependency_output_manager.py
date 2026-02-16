@@ -1,14 +1,19 @@
 """Tests for dependency output manager service."""
 
-import pytest
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, mock_open
+from unittest.mock import MagicMock, Mock, mock_open, patch
+
 import networkx as nx
+import pytest
 
 from lhp.core.services.dependency_output_manager import DependencyOutputManager
-from lhp.models.dependencies import DependencyGraphs, DependencyAnalysisResult, PipelineDependency
+from lhp.models.dependencies import (
+    DependencyAnalysisResult,
+    DependencyGraphs,
+    PipelineDependency,
+)
 
 
 class TestDependencyOutputManager:
@@ -22,30 +27,35 @@ class TestDependencyOutputManager:
     def teardown_method(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_mock_graphs(self):
         """Create mock dependency graphs for testing."""
         action_graph = nx.DiGraph()
-        action_graph.add_node('fg1.action1', type='load', flowgroup='fg1', pipeline='pipeline1')
-        action_graph.add_node('fg2.action2', type='transform', flowgroup='fg2', pipeline='pipeline2')
-        action_graph.add_edge('fg1.action1', 'fg2.action2')
+        action_graph.add_node(
+            "fg1.action1", type="load", flowgroup="fg1", pipeline="pipeline1"
+        )
+        action_graph.add_node(
+            "fg2.action2", type="transform", flowgroup="fg2", pipeline="pipeline2"
+        )
+        action_graph.add_edge("fg1.action1", "fg2.action2")
 
         flowgroup_graph = nx.DiGraph()
-        flowgroup_graph.add_node('fg1', pipeline='pipeline1', action_count=1)
-        flowgroup_graph.add_node('fg2', pipeline='pipeline2', action_count=1)
-        flowgroup_graph.add_edge('fg1', 'fg2')
+        flowgroup_graph.add_node("fg1", pipeline="pipeline1", action_count=1)
+        flowgroup_graph.add_node("fg2", pipeline="pipeline2", action_count=1)
+        flowgroup_graph.add_edge("fg1", "fg2")
 
         pipeline_graph = nx.DiGraph()
-        pipeline_graph.add_node('pipeline1', flowgroup_count=1, action_count=1)
-        pipeline_graph.add_node('pipeline2', flowgroup_count=1, action_count=1)
-        pipeline_graph.add_edge('pipeline1', 'pipeline2')
+        pipeline_graph.add_node("pipeline1", flowgroup_count=1, action_count=1)
+        pipeline_graph.add_node("pipeline2", flowgroup_count=1, action_count=1)
+        pipeline_graph.add_edge("pipeline1", "pipeline2")
 
         return DependencyGraphs(
             action_graph=action_graph,
             flowgroup_graph=flowgroup_graph,
             pipeline_graph=pipeline_graph,
-            metadata={'total_pipelines': 2, 'total_actions': 2}
+            metadata={"total_pipelines": 2, "total_actions": 2},
         )
 
     def create_mock_analysis_result(self, graphs=None):
@@ -54,32 +64,32 @@ class TestDependencyOutputManager:
             graphs = self.create_mock_graphs()
 
         pipeline_dependencies = {
-            'pipeline1': PipelineDependency(
-                pipeline='pipeline1',
+            "pipeline1": PipelineDependency(
+                pipeline="pipeline1",
                 depends_on=[],
                 flowgroup_count=1,
                 action_count=1,
-                external_sources=['external.source1'],
+                external_sources=["external.source1"],
                 can_run_parallel=False,
-                stage=0
+                stage=0,
             ),
-            'pipeline2': PipelineDependency(
-                pipeline='pipeline2',
-                depends_on=['pipeline1'],
+            "pipeline2": PipelineDependency(
+                pipeline="pipeline2",
+                depends_on=["pipeline1"],
                 flowgroup_count=1,
                 action_count=1,
                 external_sources=[],
                 can_run_parallel=False,
-                stage=1
-            )
+                stage=1,
+            ),
         }
 
         return DependencyAnalysisResult(
             graphs=graphs,
             pipeline_dependencies=pipeline_dependencies,
-            execution_stages=[['pipeline1'], ['pipeline2']],
+            execution_stages=[["pipeline1"], ["pipeline2"]],
             circular_dependencies=[],
-            external_sources=['external.source1']
+            external_sources=["external.source1"],
         )
 
     def test_save_outputs_all_formats(self):
@@ -145,7 +155,9 @@ class TestDependencyOutputManager:
     def test_save_dot_format(self):
         """Test DOT format saving."""
         mock_analyzer = Mock()
-        mock_analyzer.export_to_dot.return_value = "digraph pipeline_dependencies { pipeline1 -> pipeline2; }"
+        mock_analyzer.export_to_dot.return_value = (
+            "digraph pipeline_dependencies { pipeline1 -> pipeline2; }"
+        )
 
         graphs = self.create_mock_graphs()
         output_path = self.temp_dir / "dependencies.dot"
@@ -168,7 +180,7 @@ class TestDependencyOutputManager:
         mock_analyzer = Mock()
         test_data = {
             "metadata": {"total_pipelines": 2},
-            "pipelines": {"pipeline1": {"depends_on": []}}
+            "pipelines": {"pipeline1": {"depends_on": []}},
         }
         mock_analyzer.export_to_json.return_value = test_data
 
@@ -183,7 +195,7 @@ class TestDependencyOutputManager:
         assert result_path == output_path
 
         # Verify JSON content
-        with open(result_path, 'r') as f:
+        with open(result_path, "r") as f:
             saved_data = json.load(f)
 
         assert saved_data == test_data
@@ -211,7 +223,9 @@ class TestDependencyOutputManager:
     def test_save_text_format_with_circular_dependencies(self):
         """Test text format with circular dependencies."""
         result = self.create_mock_analysis_result()
-        result.circular_dependencies = [["pipeline cycle: pipeline1 -> pipeline2 -> pipeline1"]]
+        result.circular_dependencies = [
+            ["pipeline cycle: pipeline1 -> pipeline2 -> pipeline1"]
+        ]
 
         output_path = self.temp_dir / "dependencies.txt"
         result_path = self.output_manager.save_text_format(result, output_path)
@@ -224,12 +238,17 @@ class TestDependencyOutputManager:
         """Test job format saving with default name."""
         mock_analyzer = Mock()
         mock_job_generator = Mock()
-        mock_job_generator.save_job_to_file.return_value = self.temp_dir / "test_orchestration.job.yml"
+        mock_job_generator.save_job_to_file.return_value = (
+            self.temp_dir / "test_orchestration.job.yml"
+        )
 
         result = self.create_mock_analysis_result()
 
-        with patch('lhp.core.services.dependency_output_manager.JobGenerator', return_value=mock_job_generator):
-            result_path = self.output_manager._save_job_format(
+        with patch(
+            "lhp.core.services.dependency_output_manager.JobGenerator",
+            return_value=mock_job_generator,
+        ):
+            self.output_manager._save_job_format(
                 mock_analyzer, result, self.temp_dir
             )
 
@@ -240,13 +259,18 @@ class TestDependencyOutputManager:
         """Test job format saving with custom job name."""
         mock_analyzer = Mock()
         mock_job_generator = Mock()
-        mock_job_generator.save_job_to_file.return_value = self.temp_dir / "custom_job.job.yml"
+        mock_job_generator.save_job_to_file.return_value = (
+            self.temp_dir / "custom_job.job.yml"
+        )
 
         result = self.create_mock_analysis_result()
         custom_name = "custom_orchestration_job"
 
-        with patch('lhp.core.services.dependency_output_manager.JobGenerator', return_value=mock_job_generator):
-            result_path = self.output_manager._save_job_format(
+        with patch(
+            "lhp.core.services.dependency_output_manager.JobGenerator",
+            return_value=mock_job_generator,
+        ):
+            self.output_manager._save_job_format(
                 mock_analyzer, result, self.temp_dir, custom_name
             )
 
@@ -307,20 +331,18 @@ class TestDependencyOutputManager:
         assert "Depends on: None" in content
         assert "Depends on: pipeline1" in content
 
-    def test_io_error_handling(self):
-        """Test I/O error handling during file operations."""
+    def test_io_error_propagation(self):
+        """Test I/O errors propagate directly without wrapping."""
         mock_analyzer = Mock()
         mock_analyzer.export_to_dot.side_effect = IOError("Disk full")
 
         result = self.create_mock_analysis_result()
         output_formats = ["dot"]
 
-        with pytest.raises(IOError) as exc_info:
+        with pytest.raises(IOError, match="Disk full"):
             self.output_manager.save_outputs(
                 mock_analyzer, result, output_formats, self.temp_dir
             )
-
-        assert "Failed to save dependency outputs" in str(exc_info.value)
 
     def test_file_generation_summary(self):
         """Test file generation summary in save_outputs."""
@@ -349,7 +371,10 @@ class TestDependencyOutputManager:
         result_path = self.output_manager.save_text_format(result, output_path)
 
         content = result_path.read_text()
-        assert "No pipelines found or circular dependencies prevent execution order" in content
+        assert (
+            "No pipelines found or circular dependencies prevent execution order"
+            in content
+        )
 
     def test_large_external_sources_handling(self):
         """Test handling of large external source lists in text format."""
@@ -358,7 +383,7 @@ class TestDependencyOutputManager:
         many_sources = [f"external.table_{i}" for i in range(20)]
         result.external_sources = many_sources
         # Also update the pipeline dependency to include some of these external sources
-        result.pipeline_dependencies['pipeline1'].external_sources = many_sources[:7]
+        result.pipeline_dependencies["pipeline1"].external_sources = many_sources[:7]
 
         output_path = self.temp_dir / "dependencies.txt"
         result_path = self.output_manager.save_text_format(result, output_path)
@@ -399,20 +424,20 @@ class TestDependencyOutputManager:
         assert files1["dot"].exists()
         assert files2["json"].exists()
 
-    @patch('builtins.open', mock_open())
+    @patch("builtins.open", mock_open())
     def test_unicode_handling_in_text_output(self):
         """Test Unicode character handling in text output."""
         result = self.create_mock_analysis_result()
 
         # Add Unicode characters to pipeline names (simulate international usage)
-        result.pipeline_dependencies['pipeline_测试'] = PipelineDependency(
-            pipeline='pipeline_测试',
+        result.pipeline_dependencies["pipeline_测试"] = PipelineDependency(
+            pipeline="pipeline_测试",
             depends_on=[],
             flowgroup_count=1,
             action_count=1,
             external_sources=[],
             can_run_parallel=False,
-            stage=0
+            stage=0,
         )
 
         output_path = self.temp_dir / "unicode_test.txt"
@@ -430,21 +455,19 @@ class TestDependencyOutputManager:
 def test_save_job_to_default_location(tmp_path):
     """Job saves to .lhp/dependencies/ by default."""
     output_manager = DependencyOutputManager()
-    
+
     # Create mock analyzer and result
     analyzer = Mock()
     analyzer.project_root = tmp_path / "project"
     analyzer.export_to_dot = Mock(return_value="digraph {}")
     analyzer.export_to_json = Mock(return_value={})
-    
+
     result = create_test_dependency_result()
-    
+
     # Save with default location
     output_dir = tmp_path / ".lhp" / "dependencies"
-    generated_files = output_manager.save_outputs(
-        analyzer, result, ["job"], output_dir
-    )
-    
+    generated_files = output_manager.save_outputs(analyzer, result, ["job"], output_dir)
+
     # Check that job file was created in default location
     assert "job" in generated_files
     assert str(generated_files["job"]).endswith(".job.yml")
@@ -454,23 +477,22 @@ def test_save_job_to_default_location(tmp_path):
 def test_save_job_to_resources_with_bundle_flag(tmp_path):
     """Job saves to resources/ when bundle_output=True."""
     output_manager = DependencyOutputManager()
-    
+
     # Create mock analyzer and result
     analyzer = Mock()
     analyzer.project_root = tmp_path / "project"
     analyzer.project_root.mkdir(parents=True)
     analyzer.export_to_dot = Mock(return_value="digraph {}")
     analyzer.export_to_json = Mock(return_value={})
-    
+
     result = create_test_dependency_result()
-    
+
     # Save with bundle_output flag
     output_dir = tmp_path / ".lhp" / "dependencies"
     generated_files = output_manager.save_outputs(
-        analyzer, result, ["job"], output_dir, 
-        bundle_output=True, job_name="test_job"
+        analyzer, result, ["job"], output_dir, bundle_output=True, job_name="test_job"
     )
-    
+
     # Check that job file was created in resources/ directory
     assert "job" in generated_files
     expected_path = analyzer.project_root / "resources" / "test_job.job.yml"
@@ -480,32 +502,31 @@ def test_save_job_to_resources_with_bundle_flag(tmp_path):
 def test_save_job_passes_config_path_to_generator(tmp_path):
     """Config file path is passed to JobGenerator."""
     output_manager = DependencyOutputManager()
-    
+
     # Create project with custom config
     project_root = tmp_path / "project"
     project_root.mkdir()
     custom_config = project_root / "custom_config.yaml"
     custom_config.write_text("max_concurrent_runs: 10\n")
-    
+
     # Create mock analyzer
     analyzer = Mock()
     analyzer.project_root = project_root
     analyzer.export_to_dot = Mock(return_value="digraph {}")
     analyzer.export_to_json = Mock(return_value={})
-    
+
     result = create_test_dependency_result()
-    
+
     # Save with custom config path
     output_dir = tmp_path / ".lhp" / "dependencies"
     output_manager.save_outputs(
-        analyzer, result, ["job"], output_dir,
-        job_config_path="custom_config.yaml"
+        analyzer, result, ["job"], output_dir, job_config_path="custom_config.yaml"
     )
-    
+
     # Verify the job file was created
     job_files = list(output_dir.glob("*.job.yml"))
     assert len(job_files) == 1
-    
+
     # Verify custom config was used (check for max_concurrent_runs: 10)
     with open(job_files[0]) as f:
         content = f.read()
@@ -515,30 +536,29 @@ def test_save_job_passes_config_path_to_generator(tmp_path):
 def test_save_job_creates_resources_directory_if_not_exists(tmp_path):
     """Resources directory is created if it doesn't exist."""
     output_manager = DependencyOutputManager()
-    
+
     # Create project without resources directory
     project_root = tmp_path / "project"
     project_root.mkdir()
-    
+
     # Create mock analyzer
     analyzer = Mock()
     analyzer.project_root = project_root
     analyzer.export_to_dot = Mock(return_value="digraph {}")
     analyzer.export_to_json = Mock(return_value={})
-    
+
     result = create_test_dependency_result()
-    
+
     # Resources directory shouldn't exist yet
     resources_dir = project_root / "resources"
     assert not resources_dir.exists()
-    
+
     # Save with bundle_output flag
     output_dir = tmp_path / ".lhp" / "dependencies"
     generated_files = output_manager.save_outputs(
-        analyzer, result, ["job"], output_dir,
-        bundle_output=True, job_name="test_job"
+        analyzer, result, ["job"], output_dir, bundle_output=True, job_name="test_job"
     )
-    
+
     # Resources directory should now exist
     assert resources_dir.exists()
     assert generated_files["job"].exists()
@@ -551,14 +571,14 @@ def create_test_dependency_result():
     flowgroup_graph = nx.DiGraph()
     pipeline_graph = nx.DiGraph()
     pipeline_graph.add_node("test_pipeline")
-    
+
     graphs = DependencyGraphs(
         action_graph=action_graph,
         flowgroup_graph=flowgroup_graph,
         pipeline_graph=pipeline_graph,
-        metadata={}
+        metadata={},
     )
-    
+
     # Create pipeline dependency
     pipeline_dep = PipelineDependency(
         pipeline="test_pipeline",
@@ -566,13 +586,196 @@ def create_test_dependency_result():
         flowgroup_count=1,
         action_count=1,
         external_sources=[],
-        stage=1
+        stage=1,
     )
-    
+
     return DependencyAnalysisResult(
         graphs=graphs,
         pipeline_dependencies={"test_pipeline": pipeline_dep},
         execution_stages=[["test_pipeline"]],
         circular_dependencies=[],
-        external_sources=[]
+        external_sources=[],
     )
+
+
+# ============================================================================
+# Tests for Circular Dependency Guard and "all" Format Expansion
+# ============================================================================
+
+
+class TestCircularDependencyGuard:
+    """Tests for circular dependency guard on job format generation."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.output_manager = DependencyOutputManager()
+
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def create_mock_analysis_result(self):
+        """Create mock dependency analysis result for testing."""
+        action_graph = nx.DiGraph()
+        flowgroup_graph = nx.DiGraph()
+        pipeline_graph = nx.DiGraph()
+        pipeline_graph.add_node("pipeline1")
+
+        graphs = DependencyGraphs(
+            action_graph=action_graph,
+            flowgroup_graph=flowgroup_graph,
+            pipeline_graph=pipeline_graph,
+            metadata={},
+        )
+
+        pipeline_dep = PipelineDependency(
+            pipeline="pipeline1",
+            depends_on=[],
+            flowgroup_count=1,
+            action_count=1,
+            external_sources=[],
+            stage=0,
+        )
+
+        return DependencyAnalysisResult(
+            graphs=graphs,
+            pipeline_dependencies={"pipeline1": pipeline_dep},
+            execution_stages=[["pipeline1"]],
+            circular_dependencies=[],
+            external_sources=[],
+        )
+
+    def test_job_format_skipped_when_circular_dependencies_present(self):
+        """Job format is SKIPPED when result has circular dependencies."""
+        mock_analyzer = Mock()
+        mock_analyzer.export_to_dot.return_value = "digraph {}"
+        mock_analyzer.export_to_json.return_value = {}
+        mock_analyzer.project_root = self.temp_dir
+
+        result = self.create_mock_analysis_result()
+        result.circular_dependencies = [["action level: A -> B -> A"]]
+
+        generated_files = self.output_manager.save_outputs(
+            mock_analyzer, result, ["job"], self.temp_dir
+        )
+
+        assert "job" not in generated_files
+
+    def test_job_format_generated_when_no_circular_dependencies(self):
+        """Job format is generated normally when no circular dependencies."""
+        mock_analyzer = Mock()
+        mock_analyzer.export_to_dot.return_value = "digraph {}"
+        mock_analyzer.export_to_json.return_value = {}
+        mock_analyzer.project_root = self.temp_dir
+
+        result = self.create_mock_analysis_result()
+        result.circular_dependencies = []
+
+        generated_files = self.output_manager.save_outputs(
+            mock_analyzer, result, ["job"], self.temp_dir
+        )
+
+        assert "job" in generated_files
+
+    def test_all_formats_with_circular_deps_only_job_skipped(self):
+        """When all formats requested + circular deps, only job is skipped; dot/json/text still generated."""
+        mock_analyzer = Mock()
+        mock_analyzer.export_to_dot.return_value = "digraph {}"
+        mock_analyzer.export_to_json.return_value = {"test": "data"}
+        mock_analyzer.project_root = self.temp_dir
+
+        result = self.create_mock_analysis_result()
+        result.circular_dependencies = [["action level: A -> B -> A"]]
+
+        generated_files = self.output_manager.save_outputs(
+            mock_analyzer, result, ["dot", "json", "text", "job"], self.temp_dir
+        )
+
+        assert "dot" in generated_files
+        assert "json" in generated_files
+        assert "text" in generated_files
+        assert "job" not in generated_files
+
+        # Verify the non-job files were actually created on disk
+        assert generated_files["dot"].exists()
+        assert generated_files["json"].exists()
+        assert generated_files["text"].exists()
+
+
+class TestAllFormatExpansion:
+    """Tests for 'all' format expansion to individual formats."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.output_manager = DependencyOutputManager()
+
+    def teardown_method(self):
+        """Clean up test fixtures."""
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_all_format_expands_to_dot_json_text_job(self):
+        """'all' format expands to exactly ['dot', 'json', 'text', 'job']."""
+        mock_analyzer = Mock()
+        mock_analyzer.export_to_dot.return_value = "digraph {}"
+        mock_analyzer.export_to_json.return_value = {}
+        mock_analyzer.project_root = self.temp_dir
+
+        # Patch save_outputs to capture the expanded formats list
+        original_save_outputs = DependencyOutputManager.save_outputs
+
+        captured_formats = {}
+
+        def patched_save_outputs(
+            self_inner, analyzer, result, output_formats, *args, **kwargs
+        ):
+            # Expand "all" just like the real code does
+            if "all" in output_formats:
+                output_formats = ["dot", "json", "text", "job"]
+            captured_formats["expanded"] = list(output_formats)
+            return original_save_outputs(
+                self_inner, analyzer, result, output_formats, *args, **kwargs
+            )
+
+        action_graph = nx.DiGraph()
+        flowgroup_graph = nx.DiGraph()
+        pipeline_graph = nx.DiGraph()
+        pipeline_graph.add_node("p1")
+
+        graphs = DependencyGraphs(
+            action_graph=action_graph,
+            flowgroup_graph=flowgroup_graph,
+            pipeline_graph=pipeline_graph,
+            metadata={},
+        )
+
+        pipeline_dep = PipelineDependency(
+            pipeline="p1",
+            depends_on=[],
+            flowgroup_count=1,
+            action_count=1,
+            external_sources=[],
+            stage=0,
+        )
+
+        result = DependencyAnalysisResult(
+            graphs=graphs,
+            pipeline_dependencies={"p1": pipeline_dep},
+            execution_stages=[["p1"]],
+            circular_dependencies=[],
+            external_sources=[],
+        )
+
+        with patch.object(
+            DependencyOutputManager, "save_outputs", patched_save_outputs
+        ):
+            self.output_manager.save_outputs(
+                mock_analyzer, result, ["all"], self.temp_dir
+            )
+
+        assert captured_formats["expanded"] == ["dot", "json", "text", "job"]

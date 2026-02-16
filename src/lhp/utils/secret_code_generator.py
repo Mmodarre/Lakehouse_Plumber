@@ -1,8 +1,12 @@
 """Secret code generator for LakehousePlumber - converts secret placeholders to valid Python f-strings."""
 
+import logging
 import re
-from typing import Set, Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
+
 from .substitution import SecretReference
+
+logger = logging.getLogger(__name__)
 
 
 class SecretCodeGenerator:
@@ -289,5 +293,6 @@ class SecretCodeGenerator:
             # Try to compile the f-string as a Python expression
             compile(result, "<string>", "eval")
             return True
-        except SyntaxError:
+        except SyntaxError as e:
+            logger.debug(f"Generated f-string has invalid syntax: {e}")
             return False

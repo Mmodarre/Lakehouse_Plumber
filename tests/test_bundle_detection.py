@@ -206,7 +206,9 @@ class TestBundleDetectionEdgeCases:
 
     def test_bundle_detection_with_none_project_root(self):
         """Should handle None project root gracefully."""
-        with pytest.raises(TypeError):
+        from lhp.utils.error_formatter import LHPConfigError
+
+        with pytest.raises(LHPConfigError, match="project_root cannot be None"):
             should_enable_bundle_support(None, cli_no_bundle=False)
 
     def test_bundle_detection_with_string_project_root(self):

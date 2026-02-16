@@ -5,12 +5,12 @@ resources:
     acmi_edw_tests_pipeline:
       name: acmi_edw_tests_pipeline
       
-      # Default Catalog and Schema for the pipeline (managed via databricks.yml variables and LHP)
+      # Catalog and Schema for the pipeline
+      # Using databricks.yml variables (not defined in pipeline config)
       catalog: ${var.default_pipeline_catalog}
       schema: ${var.default_pipeline_schema}
       
       serverless: true
-
       libraries:
         - glob:
             include: ${workspace.file_path}/generated/${bundle.target}/acmi_edw_tests/**
@@ -19,11 +19,13 @@ resources:
       
       configuration:
         bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
-
-
-      # Additional pipeline configuration options
-      # Add to your pipeline_config.yaml as needed and pass the file path through the --pipeline-config flag:
-        
+      
+      channel: CURRENT
+      # Additional pipeline configuration options 
+      # Add to your pipeline_config-<env>.yaml as needed and pass the file path through the --pipeline-config flag:
+      # You can use substitutions file to define the values for the pipeline configuration using the following syntax:
+      # {variable_name}
+ 
       # Compute clusters configuration (alternative to serverless)
       # clusters:
       #   - label: default
@@ -67,3 +69,26 @@ resources:
       #   name: pipeline_evenlog
       #   schema: _meta
       #   catalog: acmi_edw_dev
+
+      # Environment dependencies (pip packages for the pipeline)
+      # environment:
+      #   dependencies:
+      #     - "msal==1.31.0"
+
+      # Pipeline-level Spark/DLT configuration
+      # All values must be quoted strings
+      # configuration:
+      #   "pipelines.incompatibleViewCheck.enabled": "false"
+      #   "spark.databricks.delta.minFileSize": "134217728"
+
+      # permissions:
+      #   - service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d
+      #     level: CAN_MANAGE
+      #   - user_name: user@example.com
+      #     level: CAN_RUN
+      #   - group_name: data-engineers 
+      #     level: CAN_VIEW
+      
+      # # Pipeline-level run_as
+      # run_as:
+      #   service_principal_name: 2aa4ed8e-0a18-4072-97c6-9c074c8be40d OR "{SP_NAME}" (if using substitutions file)

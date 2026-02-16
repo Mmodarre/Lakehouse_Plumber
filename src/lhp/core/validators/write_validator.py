@@ -1,14 +1,19 @@
 """Write action validator."""
 
+import logging
 from typing import List
+
 from ...models.config import Action, ActionType, WriteTargetType
-from .base_validator import BaseActionValidator
+from ...utils.error_formatter import LHPError
 from ..dlt_cdc_validators import (
-    DltTableOptionsValidator,
     CdcConfigValidator,
-    SnapshotCdcConfigValidator,
     CdcSchemaValidator,
+    DltTableOptionsValidator,
+    SnapshotCdcConfigValidator,
 )
+from .base_validator import BaseActionValidator, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class WriteActionValidator(BaseActionValidator):
@@ -22,8 +27,9 @@ class WriteActionValidator(BaseActionValidator):
         self.snapshot_cdc_validator = SnapshotCdcConfigValidator()
         self.cdc_schema_validator = CdcSchemaValidator()
 
-    def validate(self, action: Action, prefix: str) -> List[str]:
+    def validate(self, action: Action, prefix: str) -> List[ValidationError]:
         """Validate write action configuration."""
+        logger.debug(f"Validating write action '{action.name}'")
         errors = []
 
         # Write actions should not have a target (they are the final output)
@@ -64,6 +70,9 @@ class WriteActionValidator(BaseActionValidator):
         # Strict field validation for write target configuration
         try:
             self.field_validator.validate_write_target(action.write_target, action.name)
+        except LHPError as e:
+            errors.append(e)
+            return errors
         except Exception as e:
             errors.append(str(e))
             return errors
@@ -84,6 +93,9 @@ class WriteActionValidator(BaseActionValidator):
         self, action: Action, prefix: str, target_type: str
     ) -> List[str]:
         """Validate specific write target type requirements."""
+        logger.debug(
+            f"Validating write target type '{target_type}' for action '{action.name}'"
+        )
         errors = []
 
         try:
@@ -101,11 +113,12 @@ class WriteActionValidator(BaseActionValidator):
                     errors.extend(self._validate_streaming_table(action, prefix))
                 elif write_type == WriteTargetType.MATERIALIZED_VIEW:
                     errors.extend(self._validate_materialized_view(action, prefix))
-            
+
             elif write_type == WriteTargetType.SINK:
                 errors.extend(self._validate_sink(action, prefix))
 
-        except ValueError:
+        except ValueError as e:
+            logger.debug(f"Unrecognized write target type for '{action.name}': {e}")
             pass  # Already handled above
 
         return errors
@@ -157,21 +170,21 @@ class WriteActionValidator(BaseActionValidator):
             )
 
         return errors
-    
+
     def _validate_sink(self, action: Action, prefix: str) -> List[str]:
         """Validate sink write target."""
         errors = []
         sink_config = action.write_target
-        
+
         # Must have sink_type
         if not sink_config.get("sink_type"):
             errors.append(f"{prefix}: Sink must have 'sink_type'")
             return errors
-        
+
         # Must have sink_name
         if not sink_config.get("sink_name"):
             errors.append(f"{prefix}: Sink must have 'sink_name'")
-        
+
         # Must have source to read from
         if not action.source:
             errors.append(f"{prefix}: Sink must have 'source' to read from")
@@ -179,10 +192,10 @@ class WriteActionValidator(BaseActionValidator):
             errors.append(
                 f"{prefix}: Sink source must be a string or list of view names"
             )
-        
+
         # Type-specific validation
         sink_type = sink_config["sink_type"]
-        
+
         if sink_type == "delta":
             errors.extend(self._validate_delta_sink(action, prefix))
         elif sink_type == "kafka":
@@ -193,29 +206,29 @@ class WriteActionValidator(BaseActionValidator):
             errors.extend(self._validate_foreachbatch_sink(action, prefix))
         else:
             errors.append(f"{prefix}: Unknown sink_type '{sink_type}'")
-        
+
         return errors
-    
+
     def _validate_delta_sink(self, action: Action, prefix: str) -> List[str]:
         """Validate Delta sink configuration.
-        
+
         Delta sinks require either 'tableName' OR 'path' (not both).
         Other options are passed through for future DLT support.
         """
         errors = []
         sink_config = action.write_target
-        
+
         # Delta sinks must have options
         if not sink_config.get("options"):
             errors.append(
                 f"{prefix}: Delta sink requires 'options' with either 'tableName' or 'path'"
             )
             return errors
-        
+
         options = sink_config["options"]
         has_table_name = "tableName" in options
         has_path = "path" in options
-        
+
         # Must have exactly one: tableName or path
         if not has_table_name and not has_path:
             errors.append(
@@ -225,68 +238,67 @@ class WriteActionValidator(BaseActionValidator):
             errors.append(
                 f"{prefix}: Delta sink options cannot have both 'tableName' and 'path'. Use one or the other."
             )
-        
+
         # Note: Other options are allowed and passed through silently
         # for future DLT support (e.g., checkpointLocation, mergeSchema, etc.)
-        
+
         return errors
-    
+
     def _validate_kafka_sink(self, action: Action, prefix: str) -> List[str]:
         """Validate Kafka/Event Hubs sink configuration."""
         errors = []
         sink_config = action.write_target
-        
+
         # Required fields
         if not sink_config.get("bootstrap_servers"):
             errors.append(f"{prefix}: Kafka sink must have 'bootstrap_servers'")
-        
+
         if not sink_config.get("topic"):
             errors.append(f"{prefix}: Kafka sink must have 'topic'")
-        
+
         # Validate options using shared validator
         if sink_config.get("options"):
             try:
                 from ...utils.kafka_validator import KafkaOptionsValidator
+
                 validator = KafkaOptionsValidator()
                 validator.process_options(
-                    sink_config["options"], 
-                    action.name,
-                    is_source=False
+                    sink_config["options"], action.name, is_source=False
                 )
             except Exception as e:
                 errors.append(f"{prefix}: {str(e)}")
-        
+
         return errors
-    
+
     def _validate_custom_sink(self, action: Action, prefix: str) -> List[str]:
         """Validate custom Python sink configuration."""
         errors = []
         sink_config = action.write_target
-        
+
         # Required fields
         if not sink_config.get("module_path"):
             errors.append(f"{prefix}: Custom sink must have 'module_path'")
-        
+
         if not sink_config.get("custom_sink_class"):
             errors.append(f"{prefix}: Custom sink must have 'custom_sink_class'")
-        
+
         return errors
-    
+
     def _validate_foreachbatch_sink(self, action: Action, prefix: str) -> List[str]:
         """Validate ForEachBatch sink configuration."""
         errors = []
         sink_config = action.write_target
-        
+
         # ForEachBatch sinks only support single source view (string)
         if action.source and not isinstance(action.source, str):
             errors.append(
                 f"{prefix}: ForEachBatch sink only supports single source view (string), not list or dict"
             )
-        
+
         # Must have either module_path OR batch_handler (not both, not neither)
         has_module_path = bool(sink_config.get("module_path"))
         has_batch_handler = bool(sink_config.get("batch_handler"))
-        
+
         if has_module_path and has_batch_handler:
             errors.append(
                 f"{prefix}: ForEachBatch sink must have either 'module_path' or 'batch_handler', not both"
@@ -295,13 +307,15 @@ class WriteActionValidator(BaseActionValidator):
             errors.append(
                 f"{prefix}: ForEachBatch sink must have either 'module_path' or 'batch_handler'"
             )
-        
+
         # Validate batch_handler is not empty if provided
         if has_batch_handler:
             batch_handler = sink_config.get("batch_handler", "").strip()
             if not batch_handler:
-                errors.append(f"{prefix}: ForEachBatch sink 'batch_handler' cannot be empty")
-        
+                errors.append(
+                    f"{prefix}: ForEachBatch sink 'batch_handler' cannot be empty"
+                )
+
         return errors
 
     def _validate_streaming_table_modes(self, action: Action, prefix: str) -> List[str]:
@@ -321,4 +335,3 @@ class WriteActionValidator(BaseActionValidator):
                 errors.extend(self.cdc_schema_validator.validate(action, prefix))
 
         return errors
-

@@ -12,11 +12,11 @@ __author__ = "LHP Development Team"
 try:
     from .manager import BundleManager
     from .exceptions import BundleResourceError
-    
+
     __all__ = [
         "BundleManager",
         "BundleResourceError",
     ]
 except ImportError:
     # During development, some modules may not exist yet
-    __all__ = [] 
+    __all__ = []

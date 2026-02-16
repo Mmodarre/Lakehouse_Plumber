@@ -332,4 +332,3 @@ class TestStateDisplayServiceEdgeCases:
     def test_verbose_logging(self, service):
         """Test that verbose logging is properly configured."""
         assert service.verbose is True
-        assert service.error_handler.verbose is True 

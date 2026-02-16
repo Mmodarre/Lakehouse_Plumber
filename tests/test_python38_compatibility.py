@@ -17,7 +17,6 @@ class TestPython38Compatibility:
         """Test that files with __future__ annotations can be parsed by AST."""
         files_with_forward_refs = [
             "src/lhp/core/validator.py",
-            "src/lhp/utils/error_handler.py", 
             "src/lhp/core/init_template_context.py",
             "src/lhp/core/base_generator.py",
         ]
@@ -44,7 +43,6 @@ class TestPython38Compatibility:
         """Test that quoted forward references have been removed from fixed files."""
         files_and_patterns = [
             ("src/lhp/core/validator.py", ['"WriteTarget"']),
-            ("src/lhp/utils/error_handler.py", ['"ErrorContext"', '"ErrorHandler"']),
             ("src/lhp/core/init_template_context.py", ['"InitTemplateContext"']),
             ("src/lhp/core/base_generator.py", ['"Action"']),
         ]
@@ -96,8 +94,7 @@ class Action: pass
         
         modules_to_test = [
             "lhp.core.validator",
-            "lhp.utils.error_handler",
-            "lhp.core.init_template_context", 
+            "lhp.core.init_template_context",
             "lhp.core.base_generator",
         ]
         
@@ -113,7 +110,6 @@ class Action: pass
         """Test that files have proper Python 3.8+ compatibility indicators."""
         files_to_check = [
             "src/lhp/core/validator.py",
-            "src/lhp/utils/error_handler.py",
             "src/lhp/core/init_template_context.py",
             "src/lhp/core/base_generator.py",
         ]

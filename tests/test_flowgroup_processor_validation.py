@@ -92,13 +92,13 @@ def test_flowgroup_processor_passes_with_resolved_tokens():
             secret_validator=secret_validator
         )
         
-        # Should raise ValueError for config validation, but NOT LHPError for unresolved tokens
+        # Should raise a validation/config error, but NOT LHPError for unresolved tokens
         try:
             processed = processor.process_flowgroup(flowgroup, substitution_mgr)
         except LHPError as e:
             # If LHPError is raised, it should NOT be about unresolved tokens
             assert e.code != "LHP-CFG-010", "Should not raise unresolved token error when tokens are resolved"
-            raise  # Re-raise to show it was a different error
+            # Config validation error is expected since we don't have a complete flowgroup
         except ValueError:
             # Config validation error is expected since we don't have a complete flowgroup
             # The important thing is we didn't get LHP-CFG-010

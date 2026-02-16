@@ -2,11 +2,12 @@
 
 import json
 import logging
-from pathlib import Path
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
 
 from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
+from ...utils.error_formatter import ErrorCategory, LHPConfigError
 from .dependency_analyzer import DependencyAnalyzer
 from .job_generator import JobGenerator
 
@@ -30,10 +31,16 @@ class DependencyOutputManager:
         self.base_output_dir = base_output_dir
         self.logger = logging.getLogger(__name__)
 
-    def save_outputs(self, analyzer: DependencyAnalyzer, result: DependencyAnalysisResult,
-                    output_formats: List[str], output_dir: Optional[Path] = None,
-                    job_name: Optional[str] = None, job_config_path: Optional[str] = None,
-                    bundle_output: bool = False) -> Dict[str, Path]:
+    def save_outputs(
+        self,
+        analyzer: DependencyAnalyzer,
+        result: DependencyAnalysisResult,
+        output_formats: List[str],
+        output_dir: Optional[Path] = None,
+        job_name: Optional[str] = None,
+        job_config_path: Optional[str] = None,
+        bundle_output: bool = False,
+    ) -> Dict[str, Path]:
         """
         Save dependency analysis results in specified formats.
 
@@ -60,45 +67,71 @@ class DependencyOutputManager:
         # Expand "all" format
         if "all" in output_formats:
             output_formats = ["dot", "json", "text", "job"]
-            output_formats = [fmt for fmt in output_formats if fmt != "all"]
 
         # Validate formats
         valid_formats = {"dot", "json", "text", "job"}
         invalid_formats = set(output_formats) - valid_formats
         if invalid_formats:
-            raise ValueError(f"Invalid output formats: {invalid_formats}. Valid formats: {valid_formats}")
+            raise LHPConfigError(
+                category=ErrorCategory.CONFIG,
+                code_number="014",
+                title="Invalid output format(s)",
+                details=f"Invalid output formats: {invalid_formats}. Valid formats: {valid_formats}",
+                suggestions=[
+                    f"Use one or more of: {', '.join(sorted(valid_formats))}",
+                    "Use 'all' to generate all formats",
+                ],
+                context={
+                    "Invalid": list(invalid_formats),
+                    "Valid": sorted(valid_formats),
+                },
+            )
 
         generated_files = {}
 
         # Generate each requested format
-        try:
-            if "dot" in output_formats:
-                dot_file = self._save_dot_format(analyzer, result.graphs, target_dir)
-                generated_files["dot"] = dot_file
+        if "dot" in output_formats:
+            dot_file = self._save_dot_format(analyzer, result.graphs, target_dir)
+            generated_files["dot"] = dot_file
 
-            if "json" in output_formats:
-                json_file = self._save_json_format(analyzer, result, target_dir)
-                generated_files["json"] = json_file
+        if "json" in output_formats:
+            json_file = self._save_json_format(analyzer, result, target_dir)
+            generated_files["json"] = json_file
 
-            if "text" in output_formats:
-                text_file = self._save_text_format(result, target_dir)
-                generated_files["text"] = text_file
+        if "text" in output_formats:
+            text_file = self._save_text_format(result, target_dir)
+            generated_files["text"] = text_file
 
-            if "job" in output_formats:
-                job_file = self._save_job_format(analyzer, result, target_dir, job_name, 
-                                                 job_config_path, bundle_output)
+        if "job" in output_formats:
+            if result.circular_dependencies:
+                self.logger.warning(
+                    "Skipping job format generation due to circular dependencies. "
+                    "Circular dependencies must be resolved before orchestration "
+                    "job generation is possible."
+                )
+            else:
+                job_file = self._save_job_format(
+                    analyzer,
+                    result,
+                    target_dir,
+                    job_name,
+                    job_config_path,
+                    bundle_output,
+                )
                 generated_files["job"] = job_file
 
+        self.logger.info(
+            f"Generated {len(generated_files)} output files in {target_dir}"
+        )
+        return generated_files
 
-            self.logger.info(f"Generated {len(generated_files)} output files in {target_dir}")
-            return generated_files
-
-        except Exception as e:
-            self.logger.error(f"Error generating output files: {e}")
-            raise IOError(f"Failed to save dependency outputs: {e}") from e
-
-    def save_dot_format(self, analyzer: DependencyAnalyzer, graphs: DependencyGraphs,
-                       output_path: Path, level: str = "pipeline") -> Path:
+    def save_dot_format(
+        self,
+        analyzer: DependencyAnalyzer,
+        graphs: DependencyGraphs,
+        output_path: Path,
+        level: str = "pipeline",
+    ) -> Path:
         """
         Save dependency graph in DOT format.
 
@@ -114,15 +147,19 @@ class DependencyOutputManager:
         dot_content = analyzer.export_to_dot(graphs, level)
 
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(dot_content)
             self.logger.debug(f"DOT format saved to {output_path}")
             return output_path
         except IOError as e:
             raise IOError(f"Failed to save DOT file to {output_path}: {e}") from e
 
-    def save_json_format(self, analyzer: DependencyAnalyzer, result: DependencyAnalysisResult,
-                        output_path: Path) -> Path:
+    def save_json_format(
+        self,
+        analyzer: DependencyAnalyzer,
+        result: DependencyAnalysisResult,
+        output_path: Path,
+    ) -> Path:
         """
         Save dependency analysis in structured JSON format.
 
@@ -140,18 +177,20 @@ class DependencyOutputManager:
         json_data["generation_info"] = {
             "generated_at": datetime.now().isoformat(),
             "generator": "LakehousePlumber DependencyAnalyzer",
-            "version": "1.0"
+            "version": "1.0",
         }
 
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(json_data, f, indent=2, ensure_ascii=False)
             self.logger.debug(f"JSON format saved to {output_path}")
             return output_path
         except (IOError, TypeError) as e:
             raise IOError(f"Failed to save JSON file to {output_path}: {e}") from e
 
-    def save_text_format(self, result: DependencyAnalysisResult, output_path: Path) -> Path:
+    def save_text_format(
+        self, result: DependencyAnalysisResult, output_path: Path
+    ) -> Path:
         """
         Save dependency analysis in human-readable text format.
 
@@ -165,7 +204,7 @@ class DependencyOutputManager:
         text_content = self._generate_text_representation(result)
 
         try:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(text_content)
             self.logger.debug(f"Text format saved to {output_path}")
             return output_path
@@ -191,8 +230,9 @@ class DependencyOutputManager:
         except OSError as e:
             raise IOError(f"Cannot create output directory {directory}: {e}") from e
 
-    def _save_dot_format(self, analyzer: DependencyAnalyzer, graphs: DependencyGraphs,
-                        target_dir: Path) -> Path:
+    def _save_dot_format(
+        self, analyzer: DependencyAnalyzer, graphs: DependencyGraphs, target_dir: Path
+    ) -> Path:
         """Save DOT format files for both pipeline and flowgroup levels."""
         # Save pipeline-level dependencies
         pipeline_dot_file = target_dir / "pipeline_dependencies.dot"
@@ -202,18 +242,26 @@ class DependencyOutputManager:
         flowgroup_dot_file = target_dir / "flowgroup_dependencies.dot"
         self.save_dot_format(analyzer, graphs, flowgroup_dot_file, level="flowgroup")
 
-        self.logger.info(f"Generated DOT files: {pipeline_dot_file.name} and {flowgroup_dot_file.name}")
+        self.logger.info(
+            f"Generated DOT files: {pipeline_dot_file.name} and {flowgroup_dot_file.name}"
+        )
 
         # Return the pipeline file for backward compatibility
         return pipeline_dot_file
 
-    def _save_json_format(self, analyzer: DependencyAnalyzer, result: DependencyAnalysisResult,
-                         target_dir: Path) -> Path:
+    def _save_json_format(
+        self,
+        analyzer: DependencyAnalyzer,
+        result: DependencyAnalysisResult,
+        target_dir: Path,
+    ) -> Path:
         """Save JSON format to standard filename."""
         json_file = target_dir / "pipeline_dependencies.json"
         return self.save_json_format(analyzer, result, json_file)
 
-    def _save_text_format(self, result: DependencyAnalysisResult, target_dir: Path) -> Path:
+    def _save_text_format(
+        self, result: DependencyAnalysisResult, target_dir: Path
+    ) -> Path:
         """Save text format to standard filename."""
         text_file = target_dir / "pipeline_dependencies.txt"
         return self.save_text_format(result, text_file)
@@ -246,9 +294,13 @@ class DependencyOutputManager:
                 if len(stage_pipelines) == 1:
                     lines.append(f"Stage {stage_idx}: {stage_pipelines[0]}")
                 else:
-                    lines.append(f"Stage {stage_idx}: {', '.join(stage_pipelines)} (parallel)")
+                    lines.append(
+                        f"Stage {stage_idx}: {', '.join(stage_pipelines)} (parallel)"
+                    )
         else:
-            lines.append("No pipelines found or circular dependencies prevent execution order.")
+            lines.append(
+                "No pipelines found or circular dependencies prevent execution order."
+            )
         lines.append("")
 
         # Pipeline details
@@ -259,11 +311,15 @@ class DependencyOutputManager:
             lines.append(f"Pipeline: {pipeline_name}")
             lines.append(f"  Flowgroups: {dep.flowgroup_count}")
             lines.append(f"  Actions: {dep.action_count}")
-            lines.append(f"  Depends on: {', '.join(dep.depends_on) if dep.depends_on else 'None'}")
+            lines.append(
+                f"  Depends on: {', '.join(dep.depends_on) if dep.depends_on else 'None'}"
+            )
             lines.append(f"  Stage: {dep.stage if dep.stage is not None else 'N/A'}")
             lines.append(f"  Can run parallel: {dep.can_run_parallel}")
             if dep.external_sources:
-                lines.append(f"  External sources: {', '.join(dep.external_sources[:5])}")
+                lines.append(
+                    f"  External sources: {', '.join(dep.external_sources[:5])}"
+                )
                 if len(dep.external_sources) > 5:
                     lines.append(f"    ... and {len(dep.external_sources) - 5} more")
             lines.append("")
@@ -293,7 +349,9 @@ class DependencyOutputManager:
 
         return "\n".join(lines)
 
-    def _generate_dependency_tree_text(self, result: DependencyAnalysisResult) -> List[str]:
+    def _generate_dependency_tree_text(
+        self, result: DependencyAnalysisResult
+    ) -> List[str]:
         """Generate ASCII tree representation of pipeline dependencies."""
         lines = []
 
@@ -303,7 +361,8 @@ class DependencyOutputManager:
 
         # Find root pipelines (no dependencies)
         root_pipelines = [
-            name for name, dep in result.pipeline_dependencies.items()
+            name
+            for name, dep in result.pipeline_dependencies.items()
             if not dep.depends_on
         ]
 
@@ -316,7 +375,9 @@ class DependencyOutputManager:
 
         def add_pipeline_tree(pipeline: str, indent: str = "", is_last: bool = True):
             if pipeline in visited:
-                lines.append(f"{indent}{'└── ' if is_last else '├── '}{pipeline} (already shown)")
+                lines.append(
+                    f"{indent}{'└── ' if is_last else '├── '}{pipeline} (already shown)"
+                )
                 return
 
             visited.add(pipeline)
@@ -332,7 +393,8 @@ class DependencyOutputManager:
 
             # Find dependents
             dependents = [
-                name for name, dep in result.pipeline_dependencies.items()
+                name
+                for name, dep in result.pipeline_dependencies.items()
                 if pipeline in dep.depends_on
             ]
 
@@ -349,16 +411,22 @@ class DependencyOutputManager:
 
         return lines
 
-    def _save_job_format(self, analyzer: DependencyAnalyzer, result: DependencyAnalysisResult,
-                        target_dir: Path, job_name: Optional[str] = None,
-                        job_config_path: Optional[str] = None, bundle_output: bool = False):
+    def _save_job_format(
+        self,
+        analyzer: DependencyAnalyzer,
+        result: DependencyAnalysisResult,
+        target_dir: Path,
+        job_name: Optional[str] = None,
+        job_config_path: Optional[str] = None,
+        bundle_output: bool = False,
+    ):
         """
         Save job format to standard filename.
-        
+
         Detects if job_name is used in flowgroups and generates either:
         - Single job file (backward compatible)
         - Multiple job files + master job (when job_name is used)
-        
+
         Args:
             analyzer: DependencyAnalyzer instance
             result: Dependency analysis result
@@ -366,16 +434,15 @@ class DependencyOutputManager:
             job_name: Custom job name (only used when no job_name in flowgroups)
             job_config_path: Custom job config file path
             bundle_output: If True, save to resources/ directory (flat structure)
-            
+
         Returns:
             Path or Dict[str, Path] - single path for backward compat, dict for multiple jobs
         """
         from ...models.config import FlowGroup
-        
+
         # Create JobGenerator with project root and config path
         job_generator = JobGenerator(
-            project_root=analyzer.project_root,
-            config_file_path=job_config_path
+            project_root=analyzer.project_root, config_file_path=job_config_path
         )
 
         # Extract project name from lhp.yaml or fallback to directory name
@@ -384,16 +451,19 @@ class DependencyOutputManager:
         # Check if flowgroups have job_name property
         # Defensive: handle case where analyzer is mocked in tests
         try:
-            flowgroups = analyzer._get_flowgroups()
+            flowgroups = analyzer.get_flowgroups()
             has_job_name = any(fg.job_name for fg in flowgroups)
-        except (TypeError, AttributeError):
+        except (TypeError, AttributeError) as e:
             # If we can't check flowgroups (mocked analyzer), assume single-job mode
+            self.logger.debug(f"Could not check flowgroup job_name properties: {e}")
             has_job_name = False
-        
+
         if not has_job_name:
             # Backward compatible: single job mode
-            self.logger.info("No job_name defined - generating single orchestration job")
-            
+            self.logger.info(
+                "No job_name defined - generating single orchestration job"
+            )
+
             # Use provided job name or generate default
             if not job_name:
                 job_name = f"{project_name}_orchestration"
@@ -405,56 +475,58 @@ class DependencyOutputManager:
             else:
                 # Save to specified target directory (usually .lhp/dependencies/)
                 job_file = target_dir / f"{job_name}.job.yml"
-            
-            return job_generator.save_job_to_file(result, job_file, job_name, project_name)
-        
+
+            return job_generator.save_job_to_file(
+                result, job_file, job_name, project_name
+            )
+
         # Multi-job mode: job_name is defined in flowgroups
-        self.logger.info("job_name detected - generating multiple jobs + master orchestration job")
-        
-        # Get per-job dependency results and global analysis
-        job_results, global_result = analyzer.analyze_dependencies_by_job()
-        
+        self.logger.info(
+            "job_name detected - generating multiple jobs + master orchestration job"
+        )
+
+        # Partition existing result by job instead of re-analyzing
+        job_results = analyzer.partition_result_by_job(result, flowgroups)
+        global_result = result
+
         # Determine output directory (flat structure)
         if bundle_output:
             output_dir = analyzer.project_root / "resources"
         else:
             output_dir = target_dir
-        
+
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Generate individual job YAMLs
         job_yamls = job_generator.generate_jobs_by_name(job_results, project_name)
-        
+
         # Save individual job files
         generated_files = {}
         for job_name_key, job_yaml in job_yamls.items():
             job_file = output_dir / f"{job_name_key}.job.yml"
-            
+
             try:
-                with open(job_file, 'w', encoding='utf-8') as f:
+                with open(job_file, "w", encoding="utf-8") as f:
                     f.write(job_yaml)
                 generated_files[job_name_key] = job_file
                 self.logger.info(f"Generated job file: {job_file}")
             except IOError as e:
                 self.logger.error(f"Failed to write job file {job_file}: {e}")
                 raise
-        
+
         # Generate master orchestration job (if enabled)
         if job_generator.should_generate_master_job():
             # Get master job name (custom or auto-generated)
             master_job_name = job_generator.get_master_job_name(project_name)
-            
+
             # Generate with global result
             master_yaml = job_generator.generate_master_job(
-                job_results, 
-                master_job_name, 
-                project_name,
-                global_result=global_result
+                job_results, master_job_name, project_name, global_result=global_result
             )
-            
+
             master_file = output_dir / f"{master_job_name}.job.yml"
             try:
-                with open(master_file, 'w', encoding='utf-8') as f:
+                with open(master_file, "w", encoding="utf-8") as f:
                     f.write(master_yaml)
                 generated_files["_master"] = master_file
                 self.logger.info(f"Generated master job file: {master_file}")
@@ -466,7 +538,6 @@ class DependencyOutputManager:
                 "Master job generation disabled via job_config.yaml "
                 "(project_defaults.generate_master_job: false)"
             )
-        
+
         self.logger.info(f"Generated {len(generated_files)} job file(s) total")
         return generated_files
-
