@@ -1,13 +1,17 @@
 """Init command implementation for LakehousePlumber CLI."""
 
+import logging
 import sys
 from pathlib import Path
 from typing import List
+
 import click
 
-from .base_command import BaseCommand
-from ...core.init_template_loader import InitTemplateLoader
 from ...core.init_template_context import InitTemplateContext
+from ...core.init_template_loader import InitTemplateLoader
+from .base_command import BaseCommand
+
+logger = logging.getLogger(__name__)
 
 
 class InitCommand(BaseCommand):
@@ -30,25 +34,35 @@ class InitCommand(BaseCommand):
 
         project_path = Path.cwd()
 
+        logger.info(
+            f"Initializing project '{project_name}' in {project_path}, bundle={bundle}"
+        )
+
         # Check for existing LHP project
         if (project_path / "lhp.yaml").exists():
-            click.echo("❌ An LHP project already exists in this directory (lhp.yaml found)")
+            click.echo(
+                "❌ An LHP project already exists in this directory (lhp.yaml found)"
+            )
             sys.exit(1)
 
         created_items: List[Path] = []
         try:
             # Create project structure
+            logger.debug(f"Creating directory structure (bundle={bundle})")
             created_items = self._create_project_structure(project_path, bundle)
 
             # Create template context
             context = InitTemplateContext.create(
                 project_name=project_name,
                 bundle_enabled=bundle,
-                author=""  # Empty by default as in original code
+                author="",  # Empty by default as in original code
             )
 
             # Create project files using template loader
+            logger.debug("Rendering project template files")
             self._create_project_files(project_path, context)
+
+            logger.info(f"Project '{project_name}' initialized successfully")
 
             # Display success message
             self._display_success_message(project_name, bundle)
@@ -62,7 +76,8 @@ class InitCommand(BaseCommand):
                 try:
                     if item.is_dir() and not any(item.iterdir()):
                         item.rmdir()
-                except OSError:
+                except OSError as e:
+                    logger.debug(f"Could not remove directory {item} during cleanup: {e}")
                     pass
             sys.exit(1)
 
@@ -110,7 +125,9 @@ class InitCommand(BaseCommand):
 
         return created
 
-    def _create_project_files(self, project_path: Path, context: InitTemplateContext) -> None:
+    def _create_project_files(
+        self, project_path: Path, context: InitTemplateContext
+    ) -> None:
         """
         Create project files using template loader.
 
@@ -130,18 +147,28 @@ class InitCommand(BaseCommand):
             bundle: Whether bundle support was enabled
         """
         directories = [
-            "presets", "templates", "pipelines", "substitutions",
-            "schemas", "expectations", "generated", "config"
+            "presets",
+            "templates",
+            "pipelines",
+            "substitutions",
+            "schemas",
+            "expectations",
+            "generated",
+            "config",
         ]
 
         if bundle:
-            click.echo(f"✅ Initialized Databricks Asset Bundle project: {project_name}")
+            click.echo(
+                f"✅ Initialized Databricks Asset Bundle project: {project_name}"
+            )
             click.echo(f"📁 Created directories: {', '.join(directories)}, resources")
             click.echo(
                 "📄 Created example files: presets/bronze_layer.yaml, "
                 "templates/standard_ingestion.yaml, databricks.yml"
             )
-            click.echo("🔧 VS Code IntelliSense automatically configured for YAML files")
+            click.echo(
+                "🔧 VS Code IntelliSense automatically configured for YAML files"
+            )
             click.echo("\n🚀 Next steps:")
             click.echo("   # Create your first pipeline")
             click.echo("   mkdir pipelines/my_pipeline")
@@ -154,7 +181,9 @@ class InitCommand(BaseCommand):
                 "📄 Created example files: presets/bronze_layer.yaml, "
                 "templates/standard_ingestion.yaml"
             )
-            click.echo("🔧 VS Code IntelliSense automatically configured for YAML files")
+            click.echo(
+                "🔧 VS Code IntelliSense automatically configured for YAML files"
+            )
             click.echo("\n🚀 Next steps:")
             click.echo("   # Create your first pipeline")
             click.echo("   mkdir pipelines/my_pipeline")

@@ -248,7 +248,8 @@ class ListCommand(BaseCommand):
                         if default is not None:
                             click.echo(f"        Default: {default}")
                 
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Skipping template detail display for {template_file}: {e}")
                 pass  # Already logged during parsing
     
     def _display_template_usage_help(self) -> None:

@@ -1,9 +1,10 @@
 """LakehousePlumber CLI - Main entry point."""
 
-import sys
 import logging
+import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
+
 import click
 
 # Import for dynamic version detection
@@ -14,6 +15,7 @@ except ImportError:
     try:
         from importlib_metadata import version  # type: ignore
     except Exception:  # pragma: no cover - best-effort fallback
+
         def version(package: str) -> str:  # type: ignore
             return "0.0.0"
 
@@ -37,13 +39,17 @@ def get_version():
                     with open(pyproject_path, "r") as f:
                         content = f.read()
                     # Use regex to find version = "x.y.z"
-                    version_match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
+                    version_match = re.search(
+                        r'version\s*=\s*["\']([^"\']+)["\']', content
+                    )
                     if version_match:
                         return version_match.group(1)
                     break
                 current_dir = current_dir.parent
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).debug(
+                f"Could not read version from pyproject.toml: {e}"
+            )
 
         # Final fallback
         return "0.2.11"
@@ -51,7 +57,7 @@ def get_version():
 
 def configure_logging(verbose: bool, project_root: Optional[Path] = None):
     """Configure logging for LakehousePlumber.
-    
+
     Returns:
         str: Path to log file if created, None otherwise
     """
@@ -75,8 +81,8 @@ def configure_logging(verbose: bool, project_root: Optional[Path] = None):
         log_dir = project_root / ".lhp" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file_path = log_dir / "lhp.log"
-        
-        file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf-8')
+
+        file_handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
         file_handler.setLevel(logging.DEBUG)
         file_formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -123,17 +129,18 @@ def _ensure_project_root() -> Path:
 def _load_project_config(project_root: Path) -> dict:
     """Load project configuration from lhp.yaml."""
     import yaml
-    
+
     config_file = project_root / "lhp.yaml"
     if not config_file.exists():
         return {}
 
     from ..utils.yaml_loader import safe_load_yaml_with_fallback
+
     return safe_load_yaml_with_fallback(
-        config_file, 
+        config_file,
         fallback_value={},
         error_context="project configuration",
-        log_errors=True
+        log_errors=True,
     )
 
 
@@ -141,22 +148,28 @@ def _get_include_patterns(project_root: Path) -> List[str]:
     """Get include patterns from project configuration."""
     try:
         from ..core.project_config_loader import ProjectConfigLoader
+
         config_loader = ProjectConfigLoader(project_root)
         project_config = config_loader.load_project_config()
-        
+
         if project_config and project_config.include:
             return project_config.include
         else:
             return []
     except Exception as e:
-        logging.getLogger(__name__).warning(f"Could not load project config for include patterns: {e}")
+        logging.getLogger(__name__).warning(
+            f"Could not load project config for include patterns: {e}"
+        )
         return []
 
 
-def _discover_yaml_files_with_include(pipelines_dir: Path, include_patterns: List[str] = None) -> List[Path]:
+def _discover_yaml_files_with_include(
+    pipelines_dir: Path, include_patterns: List[str] = None
+) -> List[Path]:
     """Discover YAML files with optional include pattern filtering."""
     if include_patterns:
         from ..utils.file_pattern_matcher import discover_files_with_patterns
+
         return discover_files_with_patterns(pipelines_dir, include_patterns)
     else:
         yaml_files = []
@@ -168,6 +181,7 @@ def _discover_yaml_files_with_include(pipelines_dir: Path, include_patterns: Lis
 # ============================================================================
 # CLI Command Group and Routing
 # ============================================================================
+
 
 @click.group()
 @click.version_option(version=get_version(), prog_name="lhp")
@@ -189,9 +203,14 @@ def cli(verbose):
 # Command Routing - Delegate to Command Classes
 # ============================================================================
 
+
 @cli.command()
 @click.argument("project_name")
-@click.option("--no-bundle", is_flag=True, help="Skip Databricks Asset Bundle setup (bundle is enabled by default)")
+@click.option(
+    "--no-bundle",
+    is_flag=True,
+    help="Skip Databricks Asset Bundle setup (bundle is enabled by default)",
+)
 def init(project_name, no_bundle):
     """Initialize a new LakehousePlumber project in the current directory.
 
@@ -199,6 +218,7 @@ def init(project_name, no_bundle):
     All files are created in the current working directory.
     """
     from .commands.init_command import InitCommand
+
     InitCommand().execute(project_name, bundle=not no_bundle)
 
 
@@ -207,15 +227,58 @@ def init(project_name, no_bundle):
 @click.option("--pipeline", "-p", help="Specific pipeline to generate")
 @click.option("--output", "-o", help="Output directory (defaults to generated/{env})")
 @click.option("--dry-run", is_flag=True, help="Preview without generating files")
-@click.option("--no-cleanup", is_flag=True, help="Disable cleanup of generated files when source YAML files are removed.")
-@click.option("--force", "-f", is_flag=True, help="Force regeneration of all files, even if unchanged")
-@click.option("--no-bundle", is_flag=True, help="Disable bundle support even if databricks.yml exists")
-@click.option("--include-tests", is_flag=True, default=False, help="Include test actions in generation (skipped by default for faster builds)")
-@click.option("--pipeline-config", "-pc", help="Custom pipeline config file path (relative to project root)")
-def generate(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests, pipeline_config):
+@click.option(
+    "--no-cleanup",
+    is_flag=True,
+    help="Disable cleanup of generated files when source YAML files are removed.",
+)
+@click.option(
+    "--force",
+    "-f",
+    is_flag=True,
+    help="Force regeneration of all files, even if unchanged",
+)
+@click.option(
+    "--no-bundle",
+    is_flag=True,
+    help="Disable bundle support even if databricks.yml exists",
+)
+@click.option(
+    "--include-tests",
+    is_flag=True,
+    default=False,
+    help="Include test actions in generation (skipped by default for faster builds)",
+)
+@click.option(
+    "--pipeline-config",
+    "-pc",
+    help="Custom pipeline config file path (relative to project root)",
+)
+def generate(
+    env,
+    pipeline,
+    output,
+    dry_run,
+    no_cleanup,
+    force,
+    no_bundle,
+    include_tests,
+    pipeline_config,
+):
     """Generate DLT pipeline code"""
     from .commands.generate_command import GenerateCommand
-    GenerateCommand().execute(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, include_tests, pipeline_config)
+
+    GenerateCommand().execute(
+        env,
+        pipeline,
+        output,
+        dry_run,
+        no_cleanup,
+        force,
+        no_bundle,
+        include_tests,
+        pipeline_config,
+    )
 
 
 @cli.command()
@@ -225,6 +288,7 @@ def generate(env, pipeline, output, dry_run, no_cleanup, force, no_bundle, inclu
 def validate(env, pipeline, verbose):
     """Validate pipeline configurations"""
     from .commands.validate_command import ValidateCommand
+
     ValidateCommand().execute(env, pipeline, verbose)
 
 
@@ -234,12 +298,15 @@ def validate(env, pipeline, verbose):
 @click.option("--orphaned", is_flag=True, help="Show only orphaned files")
 @click.option("--stale", is_flag=True, help="Show only stale files (YAML changed)")
 @click.option("--new", is_flag=True, help="Show only new/untracked YAML files")
-@click.option("--dry-run", is_flag=True, help="Preview cleanup without actually deleting files")
+@click.option(
+    "--dry-run", is_flag=True, help="Preview cleanup without actually deleting files"
+)
 @click.option("--cleanup", is_flag=True, help="Clean up orphaned files")
 @click.option("--regen", is_flag=True, help="Regenerate stale files")
 def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
     """Show or manage the current state of generated files."""
     from .commands.state_command import StateCommand
+
     StateCommand().execute(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen)
 
 
@@ -248,6 +315,7 @@ def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
 def stats(pipeline):
     """Display pipeline statistics and complexity metrics."""
     from .commands.stats_command import StatsCommand
+
     StatsCommand().execute(pipeline)
 
 
@@ -255,6 +323,7 @@ def stats(pipeline):
 def list_presets():
     """List available presets"""
     from .commands.list_commands import ListCommand
+
     ListCommand().list_presets()
 
 
@@ -262,6 +331,7 @@ def list_presets():
 def list_templates():
     """List available templates"""
     from .commands.list_commands import ListCommand
+
     ListCommand().list_templates()
 
 
@@ -271,6 +341,7 @@ def list_templates():
 def show(flowgroup, env):
     """Show resolved configuration for a flowgroup in table format"""
     from .commands.show_command import ShowCommand
+
     ShowCommand().show_flowgroup(flowgroup, env)
 
 
@@ -279,6 +350,7 @@ def show(flowgroup, env):
 def substitutions(env):
     """Show available substitution tokens for an environment"""
     from .commands.show_command import ShowCommand
+
     ShowCommand().show_substitutions(env)
 
 
@@ -286,23 +358,49 @@ def substitutions(env):
 def info():
     """Display project information and statistics."""
     from .commands.show_command import ShowCommand
+
     ShowCommand().show_project_info()
 
 
 @cli.command()
-@click.option("--format", "-f", type=click.Choice(["dot", "json", "text", "job", "all"], case_sensitive=False),
-              default="all", help="Output format(s) to generate (dot=GraphViz, json=structured data, text=readable report, job=orchestration job)")
-@click.option("--output", "-o", type=click.Path(),
-              help="Output directory (defaults to .lhp/dependencies/)")
+@click.option(
+    "--format",
+    "-f",
+    type=click.Choice(["dot", "json", "text", "job", "all"], case_sensitive=False),
+    default="all",
+    help="Output format(s) to generate (dot=GraphViz, json=structured data, text=readable report, job=orchestration job)",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    help="Output directory (defaults to .lhp/dependencies/)",
+)
 @click.option("--pipeline", "-p", help="Analyze specific pipeline only")
-@click.option("--job-name", "-j", help="Custom name for generated orchestration job (only used with job format)")
-@click.option("--job-config", "-jc", help="Custom job config file path (relative to project root, defaults to templates/bundle/job_config.yaml)")
-@click.option("--bundle-output", "-b", is_flag=True, help="Save job file to resources/ directory for Databricks bundle integration")
+@click.option(
+    "--job-name",
+    "-j",
+    help="Custom name for generated orchestration job (only used with job format)",
+)
+@click.option(
+    "--job-config",
+    "-jc",
+    help="Custom job config file path (relative to project root, defaults to templates/bundle/job_config.yaml)",
+)
+@click.option(
+    "--bundle-output",
+    "-b",
+    is_flag=True,
+    help="Save job file to resources/ directory for Databricks bundle integration",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 def deps(format, output, pipeline, job_name, job_config, bundle_output, verbose):
     """Analyze and visualize pipeline dependencies for orchestration planning."""
     from .commands.dependencies_command import DependenciesCommand
-    DependenciesCommand().execute(format, output, pipeline, job_name, job_config, bundle_output, verbose)
+
+    DependenciesCommand().execute(
+        format, output, pipeline, job_name, job_config, bundle_output, verbose
+    )
 
 
 # ============================================================================

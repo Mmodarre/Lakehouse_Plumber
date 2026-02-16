@@ -1,35 +1,45 @@
 """Action generator registry for LakehousePlumber."""
 
+import logging
 from typing import Dict, Type
+
 from ..core.base_generator import BaseActionGenerator
-from ..models.config import ActionType, LoadSourceType, TransformType, WriteTargetType, TestActionType
-from ..utils.error_formatter import ErrorFormatter
 
 # Import all generators
 from ..generators.load import (
     CloudFilesLoadGenerator,
-    DeltaLoadGenerator,
-    SQLLoadGenerator,
-    JDBCLoadGenerator,
-    PythonLoadGenerator,
     CustomDataSourceLoadGenerator,
+    DeltaLoadGenerator,
+    JDBCLoadGenerator,
     KafkaLoadGenerator,
-)
-from ..generators.transform import (
-    SQLTransformGenerator,
-    DataQualityTransformGenerator,
-    SchemaTransformGenerator,
-    PythonTransformGenerator,
-    TempTableTransformGenerator,
-)
-from ..generators.write import (
-    StreamingTableWriteGenerator,
-    MaterializedViewWriteGenerator,
-    SinkWriteGenerator,
+    PythonLoadGenerator,
+    SQLLoadGenerator,
 )
 from ..generators.test import (
     TestActionGenerator,
 )
+from ..generators.transform import (
+    DataQualityTransformGenerator,
+    PythonTransformGenerator,
+    SchemaTransformGenerator,
+    SQLTransformGenerator,
+    TempTableTransformGenerator,
+)
+from ..generators.write import (
+    MaterializedViewWriteGenerator,
+    SinkWriteGenerator,
+    StreamingTableWriteGenerator,
+)
+from ..models.config import (
+    ActionType,
+    LoadSourceType,
+    TestActionType,
+    TransformType,
+    WriteTargetType,
+)
+from ..utils.error_formatter import ErrorFormatter
+
+logger = logging.getLogger(__name__)
 
 
 class ActionRegistry:
@@ -47,6 +57,7 @@ class ActionRegistry:
 
     def _initialize_generators(self):
         """Initialize generator mappings."""
+        logger.debug("Initializing action generator registry")
         # Load generators
         self._load_generators = {
             LoadSourceType.CLOUDFILES: CloudFilesLoadGenerator,
@@ -73,7 +84,7 @@ class ActionRegistry:
             WriteTargetType.MATERIALIZED_VIEW: MaterializedViewWriteGenerator,
             WriteTargetType.SINK: SinkWriteGenerator,
         }
-        
+
         # Test generators - all test types use the same generator
         # The generator will handle different test types internally
         self._test_generators = {
@@ -88,10 +99,20 @@ class ActionRegistry:
             TestActionType.CUSTOM_EXPECTATIONS: TestActionGenerator,
         }
 
+        logger.debug(
+            f"Registry initialized: {len(self._load_generators)} load, "
+            f"{len(self._transform_generators)} transform, "
+            f"{len(self._write_generators)} write, "
+            f"{len(self._test_generators)} test generators"
+        )
+
     def get_generator(
         self, action_type: ActionType, sub_type: str = None
     ) -> BaseActionGenerator:
         """Implement generator factory method."""
+        logger.debug(
+            f"Looking up generator for action_type={action_type}, sub_type={sub_type}"
+        )
         # Add error handling and validation
         if not isinstance(action_type, ActionType):
             raise ValueError(
@@ -126,6 +147,9 @@ class ActionRegistry:
             if sub_type not in self._load_generators:
                 raise ValueError(f"No generator registered for load type: {sub_type}")
 
+            logger.debug(
+                f"Resolved load generator: {self._load_generators[sub_type].__name__}"
+            )
             return self._load_generators[sub_type]()
 
         elif action_type == ActionType.TRANSFORM:
@@ -157,6 +181,9 @@ class ActionRegistry:
                     f"No generator registered for transform type: {sub_type}"
                 )
 
+            logger.debug(
+                f"Resolved transform generator: {self._transform_generators[sub_type].__name__}"
+            )
             return self._transform_generators[sub_type]()
 
         elif action_type == ActionType.WRITE:
@@ -188,13 +215,16 @@ class ActionRegistry:
             if sub_type not in self._write_generators:
                 raise ValueError(f"No generator registered for write type: {sub_type}")
 
+            logger.debug(
+                f"Resolved write generator: {self._write_generators[sub_type].__name__}"
+            )
             return self._write_generators[sub_type]()
 
         elif action_type == ActionType.TEST:
             # For test actions, sub_type is the test_type
             if not sub_type:
                 # Default to a basic test type if not specified
-                sub_type = 'row_count'
+                sub_type = "row_count"
 
             # Convert string to enum if needed
             if isinstance(sub_type, str):
@@ -217,6 +247,9 @@ class ActionRegistry:
             if sub_type not in self._test_generators:
                 raise ValueError(f"No generator registered for test type: {sub_type}")
 
+            logger.debug(
+                f"Resolved test generator: {self._test_generators[sub_type].__name__}"
+            )
             return self._test_generators[sub_type]()
 
         else:
@@ -245,5 +278,8 @@ class ActionRegistry:
                 return sub_type_enum in self._write_generators
             else:
                 return False
-        except ValueError:
+        except ValueError as e:
+            logger.debug(
+                f"Unknown sub_type '{sub_type}' for action type '{action_type}': {e}"
+            )
             return False

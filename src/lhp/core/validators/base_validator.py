@@ -1,8 +1,12 @@
 """Base validator class for action validation."""
 
+import logging
 from abc import ABC, abstractmethod
 from typing import List
+
 from ...models.config import Action
+
+logger = logging.getLogger(__name__)
 
 
 class BaseActionValidator(ABC):
@@ -16,4 +20,3 @@ class BaseActionValidator(ABC):
     def validate(self, action: Action, prefix: str) -> List[str]:
         """Validate an action and return list of error messages."""
         pass
-

@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.error_formatter import ErrorFormatter
@@ -20,6 +21,9 @@ class PythonLoadGenerator(BaseActionGenerator):
         source_config = action.source
         if isinstance(source_config, str):
             raise ValueError("Python source must be a configuration object")
+        self.logger.debug(
+            f"Generating Python load for target '{action.target}', action '{action.name}'"
+        )
 
         # Process source config through substitution manager first if available
         if "substitution_manager" in context:
@@ -56,14 +60,18 @@ class PythonLoadGenerator(BaseActionGenerator):
         # 1. File path with .py extension: "custom_python/loaders/loader.py"
         # 2. Dotted import path: "my_project.loaders.customer_loader"
         # 3. Simple module name: "loader"
-        
-        if module_path.endswith('.py'):
+
+        self.logger.debug(
+            f"Python load '{action.name}': module_path='{module_path}', function='{function_name}'"
+        )
+
+        if module_path.endswith(".py"):
             # File path with extension - strip .py and convert to dotted import
             module_path_no_ext = module_path[:-3]  # Remove .py
             # Convert path separators to dots (handle both / and \)
-            import_path = module_path_no_ext.replace('/', '.').replace('\\', '.')
+            import_path = module_path_no_ext.replace("/", ".").replace("\\", ".")
             # Module name is the last component
-            module_name = import_path.split('.')[-1]
+            module_name = import_path.split(".")[-1]
         elif "." in module_path:
             # Dotted import path (no .py extension)
             module_parts = module_path.split(".")

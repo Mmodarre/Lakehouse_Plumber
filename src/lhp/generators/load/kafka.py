@@ -2,7 +2,8 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.error_formatter import ErrorFormatter, LHPError
@@ -24,6 +25,9 @@ class KafkaLoadGenerator(BaseActionGenerator):
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate Kafka load code."""
         source_config = action.source if isinstance(action.source, dict) else {}
+        self.logger.debug(
+            f"Generating Kafka load for target '{action.target}', action '{action.name}'"
+        )
 
         # Kafka is always streaming
         readMode = action.readMode or source_config.get("readMode", "stream")
@@ -39,6 +43,20 @@ class KafkaLoadGenerator(BaseActionGenerator):
                 f"Kafka action '{action.name}' must have 'bootstrap_servers'"
             )
 
+        # Determine subscription method for logging
+        sub_method = next(
+            (
+                k
+                for k in ("subscribe", "subscribePattern", "assign")
+                if source_config.get(k)
+            ),
+            "unknown",
+        )
+        sub_value = source_config.get(sub_method, "")
+        self.logger.debug(
+            f"Kafka load '{action.name}': bootstrap_servers='{bootstrap_servers}', subscription={sub_method}='{sub_value}'"
+        )
+
         # Validate subscription method
         self._validate_subscription_method(source_config, action.name)
 
@@ -47,10 +65,10 @@ class KafkaLoadGenerator(BaseActionGenerator):
 
         # Process options
         reader_options = {}
-        
+
         # Add mandatory kafka.bootstrap.servers
         reader_options["kafka.bootstrap.servers"] = bootstrap_servers
-        
+
         # Add subscription method
         self._add_subscription_method(source_config, reader_options)
 
@@ -161,4 +179,3 @@ class KafkaLoadGenerator(BaseActionGenerator):
             raise ValueError(
                 f"Kafka action '{action_name}' must have 'kafka.bootstrap.servers' option"
             )
-

@@ -1,7 +1,10 @@
 """Version utilities for LakehousePlumber."""
 
+import logging
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Import for dynamic version detection
 try:
@@ -13,7 +16,7 @@ except ImportError:
 
 def get_version() -> str:
     """Get the package version dynamically from package metadata.
-    
+
     Returns:
         Package version string
     """
@@ -37,8 +40,8 @@ def get_version() -> str:
                     if version_match:
                         return version_match.group(1)
                 current_dir = current_dir.parent
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Could not read version from pyproject.toml: {e}")
 
         # Final fallback
         return "0.4.1"

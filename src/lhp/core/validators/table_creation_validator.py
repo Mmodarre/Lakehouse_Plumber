@@ -1,8 +1,12 @@
 """Table creation validation for write actions."""
 
-from typing import List, Dict, Any, Optional, Union
+import logging
 from collections import defaultdict
-from ...models.config import FlowGroup, Action, ActionType, WriteTargetType
+from typing import Any, Dict, List, Optional, Union
+
+from ...models.config import Action, ActionType, FlowGroup, WriteTargetType
+
+logger = logging.getLogger(__name__)
 
 
 class TableCreationValidator:
@@ -21,6 +25,9 @@ class TableCreationValidator:
         Returns:
             List of validation error messages
         """
+        logger.debug(
+            f"Validating table creation rules across {len(flowgroups)} flowgroup(s)"
+        )
         errors = []
 
         # Track table creators and users
@@ -52,6 +59,7 @@ class TableCreationValidator:
 
         # Validate rules
         all_tables = set(table_creators.keys()) | set(table_users.keys())
+        logger.debug(f"Found {len(all_tables)} unique table(s) across write actions")
 
         for table_name in all_tables:
             creators = table_creators.get(table_name, [])
@@ -69,11 +77,11 @@ class TableCreationValidator:
                 creator_names = [f"{c['flowgroup']}.{c['action']}" for c in creators]
 
                 # Create a proper LHPError for multiple table creators
-                from ...utils.error_formatter import LHPError, ErrorCategory
+                from ...utils.error_formatter import ErrorCategory, LHPError
 
                 # Build example configuration string
-                db_name = table_name.split('.')[0]
-                table_part = table_name.split('.')[1]
+                db_name = table_name.split(".")[0]
+                table_part = table_name.split(".")[1]
                 example_text = (
                     "Fix by updating your configuration:\n\n"
                     "# Table Creator (keeps create_table: true)\n"

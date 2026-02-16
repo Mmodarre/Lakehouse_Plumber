@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import logging
 import re
-import sys
-from typing import Optional, Dict, Any, List
-from pathlib import Path
-from enum import Enum
-import click
 import shutil
+import sys
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from .error_formatter import LHPError, ErrorCategory, ErrorFormatter
+import click
+
+from .error_formatter import ErrorCategory, ErrorFormatter, LHPError
 
 
 class ProgressStatus(Enum):
@@ -132,15 +133,17 @@ class ErrorHandler:
                 ):
                     return handler.level <= logging.INFO
             return False
-        except Exception:
+        except Exception as e:
             # Fallback to False if logging not configured
+            self.logger.debug(f"Could not detect verbose mode from logging config: {e}")
             return False
 
     def _get_terminal_width(self) -> int:
         """Get terminal width for formatting."""
         try:
             return shutil.get_terminal_size().columns
-        except (OSError, ValueError):
+        except (OSError, ValueError) as e:
+            self.logger.debug(f"Could not detect terminal width, using default 80: {e}")
             return 80  # Fallback width
 
     def _format_error_box(

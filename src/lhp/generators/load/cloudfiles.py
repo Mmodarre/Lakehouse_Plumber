@@ -1,13 +1,18 @@
-"""CloudFiles load generator """
+"""CloudFiles load generator"""
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.schema_parser import SchemaParser
 from ...utils.error_formatter import ErrorFormatter, LHPError
-from ...utils.external_file_loader import is_file_path, resolve_external_file_path, load_external_file_text
+from ...utils.external_file_loader import (
+    is_file_path,
+    load_external_file_text,
+    resolve_external_file_path,
+)
+from ...utils.schema_parser import SchemaParser
 
 
 class CloudFilesLoadGenerator(BaseActionGenerator):
@@ -53,6 +58,9 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate CloudFiles load code."""
         source_config = action.source if isinstance(action.source, dict) else {}
+        self.logger.debug(
+            f"Generating CloudFiles load for target '{action.target}', action '{action.name}'"
+        )
 
         # CloudFiles requires stream mode
         readMode = action.readMode or source_config.get("readMode", "stream")
@@ -64,6 +72,10 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         # Extract configuration
         path = source_config.get("path")
         file_format = source_config.get("format", "json")
+
+        self.logger.debug(
+            f"CloudFiles load '{action.name}': format='{file_format}', path='{path}'"
+        )
 
         # Check for conflicts between old and new approaches
         self._check_conflicts(source_config, action.name)
@@ -99,9 +111,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     f"Use YAML dictionary syntax: options:\\n  key: value"
                 )
             reader_options.update(
-                self._process_options(
-                    options, action.name, context.get("spec_dir")
-                )
+                self._process_options(options, action.name, context.get("spec_dir"))
             )
 
             # Extract schema hints if present in options
@@ -225,28 +235,35 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                         project_root = spec_dir or Path.cwd()
                         file_ext = Path(value).suffix.lower()
                         resolved_path = resolve_external_file_path(
-                            value,
-                            project_root,
-                            file_type="schema file"
+                            value, project_root, file_type="schema file"
                         )
-                        
-                        if file_ext in ['.yaml', '.yml', '.json']:
+
+                        if file_ext in [".yaml", ".yml", ".json"]:
                             # YAML/JSON schema - parse and convert to DDL
-                            schema_data = self.schema_parser.parse_schema_file(resolved_path)
-                            processed_options[key] = self.schema_parser.to_schema_hints(schema_data)
-                        elif file_ext in ['.ddl', '.sql']:
+                            schema_data = self.schema_parser.parse_schema_file(
+                                resolved_path
+                            )
+                            processed_options[key] = self.schema_parser.to_schema_hints(
+                                schema_data
+                            )
+                        elif file_ext in [".ddl", ".sql"]:
                             # DDL file - load as plain text
-                            from ...utils.external_file_loader import load_external_file_text
+                            from ...utils.external_file_loader import (
+                                load_external_file_text,
+                            )
+
                             ddl_content = load_external_file_text(
-                                value,
-                                project_root,
-                                file_type="DDL schema file"
+                                value, project_root, file_type="DDL schema file"
                             ).strip()
                             processed_options[key] = ddl_content
                         else:
                             # Default to YAML for backward compatibility
-                            schema_data = self.schema_parser.parse_schema_file(resolved_path)
-                            processed_options[key] = self.schema_parser.to_schema_hints(schema_data)
+                            schema_data = self.schema_parser.parse_schema_file(
+                                resolved_path
+                            )
+                            processed_options[key] = self.schema_parser.to_schema_hints(
+                                schema_data
+                            )
                     else:
                         # User provided direct hints string
                         processed_options[key] = str(value)

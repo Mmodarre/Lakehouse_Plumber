@@ -1,11 +1,15 @@
 """Schema transformation generator."""
 
+import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.schema_transform_parser import SchemaTransformParser
 from ...utils.external_file_loader import resolve_external_file_path
+from ...utils.schema_transform_parser import SchemaTransformParser
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaTransformGenerator(BaseActionGenerator):
@@ -20,6 +24,9 @@ class SchemaTransformGenerator(BaseActionGenerator):
 
     def generate(self, action: Action, context: dict) -> str:
         """Generate schema transform code."""
+        logger.debug(
+            f"Generating schema transform for target '{action.target}', action '{action.name}'"
+        )
         # Validate source format - must be a string (view name only)
         if isinstance(action.source, dict):
             # Old format detected - raise clear error
@@ -30,51 +37,55 @@ class SchemaTransformGenerator(BaseActionGenerator):
                 "\nOld format: source: {{view: v_name, schema_file: path}} "
                 "\nNew format: source: v_name\n            schema_file: path\n            enforcement: strict"
             )
-        
+
         if not isinstance(action.source, str):
             raise ValueError(
                 f"Schema transform action '{action.name}' must have a string source (view name). "
                 f"Got: {type(action.source).__name__}"
             )
-        
+
         # Validate exactly one of schema_inline or schema_file is specified
         has_schema_inline = action.schema_inline is not None
         has_schema_file = action.schema_file is not None
-        
+
         if has_schema_inline and has_schema_file:
             raise ValueError(
                 f"Schema transform action '{action.name}' cannot specify both 'schema_inline' and 'schema_file'. "
                 "Use either inline schema or external schema file, not both."
             )
-        
+
         if not has_schema_inline and not has_schema_file:
             raise ValueError(
                 f"Schema transform action '{action.name}' must specify either 'schema_inline' (inline) or "
                 "'schema_file' (external). Schema transforms require a schema definition."
             )
-        
+
         # Load schema configuration
         if has_schema_file:
             # Load from external file
             project_root = context.get("spec_dir", Path.cwd())
             if not isinstance(project_root, Path):
                 project_root = Path(project_root)
-            
+
             parsed_schema = self._load_schema_file(action.schema_file, project_root)
         else:
             # Parse inline schema
             parsed_schema = self.schema_parser.parse_inline_schema(action.schema_inline)
-        
+
         # Extract schema config (enforcement is no longer in schema files/inline)
         schema_config = {
             "column_mapping": parsed_schema.get("column_mapping", {}),
             "type_casting": parsed_schema.get("type_casting", {}),
-            "pass_through_columns": parsed_schema.get("pass_through_columns", [])
+            "pass_through_columns": parsed_schema.get("pass_through_columns", []),
         }
-        
+
         # Get enforcement from action level (default: permissive)
         enforcement = action.enforcement or "permissive"
-        
+        schema_source = "schema_file" if has_schema_file else "schema_inline"
+        logger.debug(
+            f"Schema transform '{action.name}': enforcement='{enforcement}', schema_source='{schema_source}', source_view='{action.source}'"
+        )
+
         # Validate enforcement value
         if enforcement not in ["strict", "permissive"]:
             raise ValueError(
@@ -113,41 +124,43 @@ class SchemaTransformGenerator(BaseActionGenerator):
 
         # Build final column list for strict mode (in order)
         final_columns = []
-        
+
         if enforcement == "strict":
             # Track which columns to include
             columns_to_include = set()
-            
+
             # Add renamed columns (use target names)
             for source_col, target_col in filtered_column_mapping.items():
                 columns_to_include.add(target_col)
-            
+
             # Add cast-only columns (not renamed)
             for col in filtered_type_casting.keys():
                 if col not in filtered_column_mapping.values():
                     # This is a cast-only column, not a renamed column
                     columns_to_include.add(col)
-            
+
             # Build list of schema-defined columns (these MUST exist)
             schema_columns = []
-            
+
             # First add columns from column_mapping (in their definition order)
             for target_col in filtered_column_mapping.values():
                 if target_col not in schema_columns:
                     schema_columns.append(target_col)
-            
+
             # Then add cast-only columns (in their definition order)
             for col in filtered_type_casting.keys():
                 if col not in schema_columns:
                     schema_columns.append(col)
-            
+
             # Finally add pass-through columns (no rename, no cast - just keep them)
             for col in pass_through_columns:
                 if col not in schema_columns:
                     schema_columns.append(col)
-            
+
             # Store both schema columns and metadata columns separately
-            final_columns = schema_columns  # Schema columns go first (will fail if missing)
+            final_columns = (
+                schema_columns  # Schema columns go first (will fail if missing)
+            )
             # Metadata columns will be added conditionally in the template
 
         template_context = {
@@ -164,27 +177,27 @@ class SchemaTransformGenerator(BaseActionGenerator):
         }
 
         return self.render_template("transform/schema.py.j2", template_context)
-    
-    def _load_schema_file(self, schema_file_path: str, project_root: Path) -> Dict[str, Any]:
+
+    def _load_schema_file(
+        self, schema_file_path: str, project_root: Path
+    ) -> Dict[str, Any]:
         """Load and parse schema transform file from disk.
-        
+
         Args:
             schema_file_path: Path to schema file (relative or absolute).
             project_root: Project root directory (from context['spec_dir']).
-            
+
         Returns:
             Parsed schema configuration dict with column_mapping, type_casting, etc.
-            
+
         Raises:
             FileNotFoundError: If schema file doesn't exist.
             ValueError: If schema format is invalid.
         """
         # Use common utility for path resolution
         resolved_path = resolve_external_file_path(
-            schema_file_path,
-            project_root,
-            file_type="schema file"
+            schema_file_path, project_root, file_type="schema file"
         )
-        
+
         # Parse the schema file
         return self.schema_parser.parse_file(resolved_path)

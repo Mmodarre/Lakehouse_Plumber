@@ -2,10 +2,12 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Set
+from typing import Any, Dict, List, Optional, Set
+
 from jinja2 import Environment
 
-from ..models.config import Template as TemplateModel, Action
+from ..models.config import Action
+from ..models.config import Template as TemplateModel
 from ..parsers.yaml_parser import YAMLParser
 
 
@@ -33,7 +35,7 @@ class TemplateEngine:
 
     def _discover_template_files(self):
         """Discover available template files without parsing them (lazy loading optimization).
-        
+
         This replaces eager loading in __init__ to avoid parsing all templates upfront.
         Templates are parsed on-demand when get_template() is called.
         """
@@ -41,12 +43,12 @@ class TemplateEngine:
             return
 
         template_files = list(self.templates_dir.glob("*.yaml"))
-        
+
         # Extract template names from filenames
         for template_file in template_files:
             template_name = template_file.stem  # filename without extension
             self._available_templates.add(template_name)
-        
+
         self.logger.debug(
             f"Discovered {len(self._available_templates)} template files in {self.templates_dir} (lazy loading enabled)"
         )
@@ -61,6 +63,9 @@ class TemplateEngine:
             Template model or None if not found
         """
         if template_name not in self._template_cache:
+            self.logger.debug(
+                f"Template '{template_name}' not in cache, loading from file"
+            )
             # Try to load from file if not in cache
             if self.templates_dir:
                 template_file = self.templates_dir / f"{template_name}.yaml"
@@ -75,7 +80,12 @@ class TemplateEngine:
                         )
                         return None
 
-        return self._template_cache.get(template_name)
+        result = self._template_cache.get(template_name)
+        if result:
+            self.logger.debug(f"Template '{template_name}' cache hit")
+        else:
+            self.logger.debug(f"Template '{template_name}' not found")
+        return result
 
     def render_template(
         self, template_name: str, parameters: Dict[str, Any]
@@ -100,10 +110,13 @@ class TemplateEngine:
 
         # Apply defaults for missing parameters
         final_params = self._apply_parameter_defaults(template, parameters)
+        self.logger.debug(
+            f"Rendering template '{template_name}' with {len(final_params)} parameter(s): {list(final_params.keys())}"
+        )
 
         # Render actions with parameters
         rendered_actions = []
-        
+
         if template.has_raw_actions():
             # Template has raw action dictionaries - render them first, then create Action objects
             for action_dict in template.actions:
@@ -118,6 +131,9 @@ class TemplateEngine:
                 rendered_action = self._render_action(action, final_params)
                 rendered_actions.append(rendered_action)
 
+        self.logger.debug(
+            f"Template '{template_name}' rendered {len(rendered_actions)} action(s)"
+        )
         return rendered_actions
 
     def _validate_parameters(self, template: TemplateModel, parameters: Dict[str, Any]):
@@ -167,7 +183,7 @@ class TemplateEngine:
                 # Render template expression
                 template = self.jinja_env.from_string(value)
                 rendered = template.render(**parameters)
-                
+
                 # Convert rendered result to appropriate type
                 return self._convert_template_result(rendered)
             else:
@@ -182,35 +198,40 @@ class TemplateEngine:
 
     def _convert_template_result(self, rendered: str) -> Any:
         """Convert rendered string back to appropriate data type with fail-fast error handling.
-        
+
         Args:
             rendered: The rendered string value from template substitution
-            
+
         Returns:
             Converted value with appropriate type
-            
+
         Raises:
             ValueError: If template parameter conversion fails with clear user message
         """
         if not rendered:
             return rendered
-            
+
         # Handle None value (Jinja2 converts None to "None" string)
         if rendered == "None":
             return None
-            
+
         # Handle empty object (Jinja2 converts {} to "{}" string)
         if rendered == "{}":
             return {}
-            
-        # Handle empty array (Jinja2 converts [] to "[]" string)  
+
+        # Handle empty array (Jinja2 converts [] to "[]" string)
         if rendered == "[]":
             return []
-            
+
         # Try array conversion first (JSON format, then Python literal)
-        if rendered.startswith('[') and rendered.endswith(']'):
+        if rendered.startswith("[") and rendered.endswith("]"):
+            self.logger.debug(
+                f"Converting template result to array: '{rendered[:80]}{'...' if len(rendered) > 80 else ''}'"
+            )
+
             try:
                 import json
+
                 result = json.loads(rendered)
                 if not isinstance(result, list):
                     raise ValueError(f"Expected array but got {type(result).__name__}")
@@ -219,9 +240,12 @@ class TemplateEngine:
                 # JSON failed, try Python literal eval (for single quotes)
                 try:
                     import ast
+
                     result = ast.literal_eval(rendered)
                     if not isinstance(result, list):
-                        raise ValueError(f"Expected array but got {type(result).__name__}")
+                        raise ValueError(
+                            f"Expected array but got {type(result).__name__}"
+                        )
                     return result
                 except (ValueError, SyntaxError) as e:
                     raise ValueError(
@@ -231,15 +255,21 @@ class TemplateEngine:
                         f"Error: {e}"
                     )
             except Exception as e:
-                raise ValueError(f"Failed to parse array template parameter: '{rendered}'. Error: {e}")
-        
+                raise ValueError(
+                    f"Failed to parse array template parameter: '{rendered}'. Error: {e}"
+                )
+
         # Try object conversion (JSON format, then Python literal) - but be more selective
         # Only try to parse as object if it looks like a proper JSON/Python object
-        elif (rendered.startswith('{') and rendered.endswith('}') and 
-              ':' in rendered and 
-              ('"' in rendered or "'" in rendered)):  # Must contain quotes for proper object
+        elif (
+            rendered.startswith("{")
+            and rendered.endswith("}")
+            and ":" in rendered
+            and ('"' in rendered or "'" in rendered)
+        ):  # Must contain quotes for proper object
             try:
                 import json
+
                 result = json.loads(rendered)
                 if not isinstance(result, dict):
                     raise ValueError(f"Expected object but got {type(result).__name__}")
@@ -248,9 +278,12 @@ class TemplateEngine:
                 # JSON failed, try Python literal eval (for single quotes)
                 try:
                     import ast
+
                     result = ast.literal_eval(rendered)
                     if not isinstance(result, dict):
-                        raise ValueError(f"Expected object but got {type(result).__name__}")
+                        raise ValueError(
+                            f"Expected object but got {type(result).__name__}"
+                        )
                     return result
                 except (ValueError, SyntaxError) as e:
                     raise ValueError(
@@ -260,43 +293,44 @@ class TemplateEngine:
                         f"Error: {e}"
                     )
             except Exception as e:
-                raise ValueError(f"Failed to parse object template parameter: '{rendered}'. Error: {e}")
-        
+                raise ValueError(
+                    f"Failed to parse object template parameter: '{rendered}'. Error: {e}"
+                )
+
         # Try boolean conversion (strict true/false only)
-        elif rendered.lower() in ('true', 'false'):
-            return rendered.lower() == 'true'
-        
+        elif rendered.lower() in ("true", "false"):
+            return rendered.lower() == "true"
+
         # Try integer conversion (integers only, no decimals or scientific notation)
         elif self._is_integer_string(rendered):
             try:
                 return int(rendered)
             except (ValueError, OverflowError) as e:
                 raise ValueError(
-                    f"Invalid integer template parameter: '{rendered}'. "
-                    f"Error: {e}"
+                    f"Invalid integer template parameter: '{rendered}'. " f"Error: {e}"
                 )
-        
+
         # Return as string if no conversion needed
         return rendered
-    
+
     def _is_integer_string(self, value: str) -> bool:
         """Check if string represents a valid integer (no decimals or scientific notation).
-        
+
         Args:
             value: String to check
-            
+
         Returns:
             True if string represents a valid integer
         """
         if not value:
             return False
-            
+
         # Handle negative numbers
-        if value.startswith('-'):
+        if value.startswith("-"):
             if len(value) == 1:
                 return False
             value = value[1:]
-        
+
         # Must be all digits (no decimals, no scientific notation)
         return value.isdigit()
 

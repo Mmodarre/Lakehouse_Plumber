@@ -1,8 +1,12 @@
 """Load action validator."""
 
+import logging
 from typing import List
+
 from ...models.config import Action, ActionType, LoadSourceType
 from .base_validator import BaseActionValidator
+
+logger = logging.getLogger(__name__)
 
 
 class LoadActionValidator(BaseActionValidator):
@@ -10,6 +14,7 @@ class LoadActionValidator(BaseActionValidator):
 
     def validate(self, action: Action, prefix: str) -> List[str]:
         """Validate load action configuration."""
+        logger.debug(f"Validating load action '{action.name}'")
         errors = []
 
         # Load actions must have a target
@@ -57,6 +62,9 @@ class LoadActionValidator(BaseActionValidator):
         self, action: Action, prefix: str, source_type: str
     ) -> List[str]:
         """Validate specific source type requirements."""
+        logger.debug(
+            f"Validating source type '{source_type}' for action '{action.name}'"
+        )
         errors = []
 
         try:
@@ -73,7 +81,8 @@ class LoadActionValidator(BaseActionValidator):
             elif load_type == LoadSourceType.KAFKA:
                 errors.extend(self._validate_kafka_source(action, prefix))
 
-        except ValueError:
+        except ValueError as e:
+            logger.debug(f"Unrecognized load source type for '{action.name}': {e}")
             pass  # Already handled above
 
         return errors
@@ -118,20 +127,20 @@ class LoadActionValidator(BaseActionValidator):
     def _validate_kafka_source(self, action: Action, prefix: str) -> List[str]:
         """Validate Kafka source configuration."""
         errors = []
-        
+
         # Must have bootstrap_servers
         if not action.source.get("bootstrap_servers"):
             errors.append(f"{prefix}: Kafka source must have 'bootstrap_servers'")
-        
+
         # Must have exactly one subscription method
         subscription_methods = [
             action.source.get("subscribe"),
             action.source.get("subscribePattern"),
-            action.source.get("assign")
+            action.source.get("assign"),
         ]
-        
+
         provided_methods = [m for m in subscription_methods if m is not None]
-        
+
         if len(provided_methods) == 0:
             errors.append(
                 f"{prefix}: Kafka source must have one of: 'subscribe', 'subscribePattern', or 'assign'"
@@ -140,6 +149,5 @@ class LoadActionValidator(BaseActionValidator):
             errors.append(
                 f"{prefix}: Kafka source can only have ONE of: 'subscribe', 'subscribePattern', or 'assign'"
             )
-        
-        return errors
 
+        return errors

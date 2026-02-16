@@ -5,22 +5,22 @@ Provides utilities for formatting generated Python code.
 
 import logging
 import re
-from typing import List, Dict, Any, Optional
-import tempfile
 import subprocess
-from pathlib import Path
+import tempfile
 import tomllib
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 
 def _read_black_config() -> Dict[str, Any]:
     """Read Black configuration from pyproject.toml.
-    
+
     Returns:
         Dictionary with Black configuration, or defaults if not found
     """
     # Start from current working directory and walk up to find pyproject.toml
     current_path = Path.cwd()
-    
+
     # Try up to 5 levels up to find pyproject.toml
     for _ in range(5):
         pyproject_path = current_path / "pyproject.toml"
@@ -29,16 +29,19 @@ def _read_black_config() -> Dict[str, Any]:
                 with open(pyproject_path, "rb") as f:
                     config = tomllib.load(f)
                 return config.get("tool", {}).get("black", {})
-            except Exception:
+            except Exception as e:
                 # If we can't read the file, fall back to defaults
+                logging.getLogger(__name__).debug(
+                    f"Could not read Black config from {pyproject_path}: {e}"
+                )
                 break
-        
+
         # Move up one level
         parent = current_path.parent
         if parent == current_path:  # Reached root
             break
         current_path = parent
-    
+
     # Return defaults if no pyproject.toml found or error reading it
     return {}
 
@@ -63,8 +66,10 @@ class CodeFormatter:
         """
         # Use provided line_length or read from project configuration
         if line_length is None:
-            line_length = self.black_config.get("line-length", 88)  # Default to 88 if not found
-        
+            line_length = self.black_config.get(
+                "line-length", 88
+            )  # Default to 88 if not found
+
         try:
             # Try to use Black programmatically
             import black
@@ -85,6 +90,7 @@ class CodeFormatter:
             return self._format_with_black_cli(code, line_length)
         except Exception as e:
             import traceback
+
             self.logger.error(f"Black formatting failed: {e}")
             self.logger.error(f"Black error type: {type(e).__name__}")
             self.logger.error(f"Black traceback:\n{traceback.format_exc()}")
@@ -132,7 +138,8 @@ class CodeFormatter:
             # Clean up temp file
             try:
                 Path(temp_file).unlink()
-            except (OSError, FileNotFoundError):
+            except (OSError, FileNotFoundError) as e:
+                self.logger.debug(f"Could not remove temp file: {e}")
                 pass
 
     def organize_imports(self, code: str) -> str:

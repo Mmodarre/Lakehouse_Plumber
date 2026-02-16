@@ -1,7 +1,11 @@
 """Temporary table transformation generator."""
 
+import logging
+
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
+
+logger = logging.getLogger(__name__)
 
 
 class TempTableTransformGenerator(BaseActionGenerator):
@@ -18,6 +22,9 @@ class TempTableTransformGenerator(BaseActionGenerator):
 
         # Get readMode from action or default to batch
         readMode = action.readMode or "batch"
+        logger.debug(
+            f"Generating temp table for target '{action.target}', source='{source_view}', readMode='{readMode}'"
+        )
 
         # Target table name (use exact target from YAML)
         target_table = action.target

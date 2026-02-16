@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
+
 import yaml
 
 
@@ -21,6 +22,9 @@ class DQEParser:
         Returns:
             Tuple of (expect_all, expect_all_or_drop, expect_all_or_fail)
         """
+        self.logger.debug(
+            f"Parsing {len(expectations)} expectation(s) into DLT categories"
+        )
         expect_all = {}
         expect_all_or_drop = {}
         expect_all_or_fail = {}
@@ -77,6 +81,7 @@ class DQEParser:
             raise FileNotFoundError(f"Expectations file not found: {expectations_file}")
 
         from .yaml_loader import load_yaml_file
+
         try:
             data = load_yaml_file(expectations_file, error_context="expectations file")
         except ValueError:
@@ -99,6 +104,7 @@ class DQEParser:
         Returns:
             List of validation error messages
         """
+        self.logger.debug(f"Validating {len(expectations)} expectation definition(s)")
         errors = []
 
         for i, expectation in enumerate(expectations):

@@ -1,8 +1,12 @@
-"""Delta load generator """
+"""Delta load generator"""
+
+import logging
+from typing import Any, Dict
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 class DeltaLoadGenerator(BaseActionGenerator):
@@ -15,15 +19,18 @@ class DeltaLoadGenerator(BaseActionGenerator):
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate Delta load code."""
         source_config = action.source if isinstance(action.source, dict) else {}
+        logger.debug(
+            f"Generating Delta load for target '{action.target}' with source config keys: {list(source_config.keys())}"
+        )
 
         # Check for removed fields and raise errors
         removed_fields = {
             "cdf_enabled": "Use 'options: {readChangeFeed: \"true\"}' instead",
             "read_change_feed": "Use 'options: {readChangeFeed: \"true\"}' instead",
             "reader_options": "Use 'options' field instead",
-            "cdc_options": "Use 'options: {startingVersion: \"X\", startingTimestamp: \"Y\"}' instead"
+            "cdc_options": 'Use \'options: {startingVersion: "X", startingTimestamp: "Y"}\' instead',
         }
-        
+
         for field, message in removed_fields.items():
             if field in source_config:
                 raise ValueError(
@@ -66,9 +73,15 @@ class DeltaLoadGenerator(BaseActionGenerator):
 
         # Determine readMode
         readMode = action.readMode or source_config.get("readMode", "batch")
+        logger.debug(
+            f"Delta load '{action.target}': table_ref='{table_ref}', readMode='{readMode}', options_count={len(reader_options)}"
+        )
 
         # Validate: readChangeFeed requires streaming mode
-        if reader_options.get("readChangeFeed") in ("true", "True", True) and readMode != "stream":
+        if (
+            reader_options.get("readChangeFeed") in ("true", "True", True)
+            and readMode != "stream"
+        ):
             raise ValueError(
                 f"Delta load action '{action.name}': Option 'readChangeFeed' requires "
                 f"readMode='stream', but got readMode='{readMode}'. "
@@ -79,7 +92,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
-        
+
         # Apply additional context substitutions for Delta source
         # Replace ${source_table} placeholder with actual table reference
         for col_name, expression in metadata_columns.items():

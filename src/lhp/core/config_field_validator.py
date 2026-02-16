@@ -1,7 +1,11 @@
 """Strict field validation for configuration objects."""
 
-from typing import Dict, Set, Any, Optional
-from ..utils.error_formatter import LHPError, ErrorCategory
+import logging
+from typing import Any, Dict, Optional, Set
+
+from ..utils.error_formatter import ErrorCategory, LHPError
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigFieldValidator:
@@ -59,9 +63,9 @@ class ConfigFieldValidator:
                 # No additional fields - uses action.sql or action.sql_path
             },
             "python": {
-                "module_path",      # Required - Python module path
-                "function_name",    # Required - function name to call
-                "parameters",       # Optional - parameters dict
+                "module_path",  # Required - Python module path
+                "function_name",  # Required - function name to call
+                "parameters",  # Optional - parameters dict
             },
             "data_quality": {
                 # No additional fields - uses action.expectations_file
@@ -190,14 +194,25 @@ class ConfigFieldValidator:
         Raises:
             LHPError: If unknown fields are found
         """
+        logger.debug(f"Validating load source fields for action '{action_name}'")
+
         if not isinstance(source_config, dict):
+            logger.debug(
+                f"Skipping field validation for action '{action_name}': source is not a dict"
+            )
             return  # Not a dict source, skip validation
 
         source_type = source_config.get("type")
         if not source_type:
+            logger.debug(
+                f"Skipping field validation for action '{action_name}': no source type specified"
+            )
             return  # No type specified, will be caught by other validation
 
         if source_type not in self.load_source_fields:
+            logger.debug(
+                f"Skipping field validation for action '{action_name}': unknown source type '{source_type}'"
+            )
             return  # Unknown source type, will be caught by other validation
 
         expected_fields = self.load_source_fields[source_type]
@@ -205,12 +220,19 @@ class ConfigFieldValidator:
         unknown_fields = actual_fields - expected_fields
 
         if unknown_fields:
+            logger.debug(
+                f"Unknown fields detected in action '{action_name}' load source ({source_type}): {sorted(unknown_fields)}"
+            )
             self._raise_unknown_fields_error(
                 action_name=action_name,
                 config_type=f"load source ({source_type})",
                 unknown_fields=unknown_fields,
                 expected_fields=expected_fields,
                 config_section="source",
+            )
+        else:
+            logger.debug(
+                f"All fields valid for action '{action_name}' load source ({source_type})"
             )
 
     def validate_write_target(
@@ -225,14 +247,25 @@ class ConfigFieldValidator:
         Raises:
             LHPError: If unknown fields are found
         """
+        logger.debug(f"Validating write target fields for action '{action_name}'")
+
         if not isinstance(write_target, dict):
+            logger.debug(
+                f"Skipping field validation for action '{action_name}': write_target is not a dict"
+            )
             return  # Not a dict target, skip validation
 
         target_type = write_target.get("type")
         if not target_type:
+            logger.debug(
+                f"Skipping field validation for action '{action_name}': no target type specified"
+            )
             return  # No type specified, will be caught by other validation
 
         if target_type not in self.write_target_fields:
+            logger.debug(
+                f"Skipping field validation for action '{action_name}': unknown target type '{target_type}'"
+            )
             return  # Unknown target type, will be caught by other validation
 
         expected_fields = self.write_target_fields[target_type]
@@ -240,12 +273,19 @@ class ConfigFieldValidator:
         unknown_fields = actual_fields - expected_fields
 
         if unknown_fields:
+            logger.debug(
+                f"Unknown fields detected in action '{action_name}' write target ({target_type}): {sorted(unknown_fields)}"
+            )
             self._raise_unknown_fields_error(
                 action_name=action_name,
                 config_type=f"write target ({target_type})",
                 unknown_fields=unknown_fields,
                 expected_fields=expected_fields,
                 config_section="write_target",
+            )
+        else:
+            logger.debug(
+                f"All fields valid for action '{action_name}' write target ({target_type})"
             )
 
     def validate_action_fields(
@@ -260,10 +300,14 @@ class ConfigFieldValidator:
         Raises:
             LHPError: If unknown fields are found
         """
+        logger.debug(f"Validating action-level fields for action '{action_name}'")
         actual_fields = set(action_dict.keys())
         unknown_fields = actual_fields - self.action_fields
 
         if unknown_fields:
+            logger.debug(
+                f"Unknown action-level fields in '{action_name}': {sorted(unknown_fields)}"
+            )
             self._raise_unknown_fields_error(
                 action_name=action_name,
                 config_type="action",
@@ -363,6 +407,15 @@ class ConfigFieldValidator:
             if score > best_score and score > 0.6:  # Minimum threshold
                 best_score = score
                 best_match = field
+
+        if best_match:
+            logger.debug(
+                f"Similarity match for '{unknown_field}': '{best_match}' (score={best_score:.2f})"
+            )
+        else:
+            logger.debug(
+                f"No similar field found for '{unknown_field}' (best score below 0.6 threshold)"
+            )
 
         return best_match
 
