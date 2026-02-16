@@ -3,13 +3,16 @@
 
 project_defaults:
   serverless: true
+  #environment:
+  #  dependencies:
+  #    - "msal=={msal_version}"
 
 
 ---
 pipeline: acmi_edw_raw
 catalog: "{catalog}"
 schema: "{raw_schema}"
-serverless: false 
+serverless: false
 clusters:
   - label: default
     node_type_id: "{cluster_node_type_id}"
@@ -35,5 +38,29 @@ clusters:
       min_workers: "{cluster_autoscale_min_workers}"
       max_workers: "{cluster_autoscale_max_workers}"
       mode: ENHANCED
+
+---
+# Environment dependencies E2E test pipelines
+pipeline: env_deps_basic
+catalog: "{catalog}"
+schema: "{raw_schema}"
+#environment:
+#  dependencies:
+#    - "msal==1.31.0"
+#    - "requests>=2.28.0"
+
+---
+pipeline: env_deps_substitution
+catalog: "{catalog}"
+schema: "{raw_schema}"
+#environment:
+#  dependencies:
+#    - "msal=={msal_version}"
+
+---
+# Pipeline with no environment — inherits from project_defaults when uncommented there
+pipeline: env_deps_inherited
+catalog: "{catalog}"
+schema: "{raw_schema}"
 
 

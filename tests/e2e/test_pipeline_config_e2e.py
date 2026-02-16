@@ -3,8 +3,13 @@
 import pytest
 import yaml
 import re
+import os
+import hashlib
 from pathlib import Path
 import shutil
+from click.testing import CliRunner
+
+from lhp.cli.main import cli
 
 
 @pytest.mark.e2e
@@ -284,4 +289,234 @@ clusters:
         
         # Deep comparison: generated should match baseline structure
         assert pipeline_config == baseline_config, "Generated config should match baseline structure exactly"
+
+
+@pytest.mark.e2e
+class TestEnvironmentDependenciesE2E:
+    """E2E tests for environment dependencies propagation in bundle resources."""
+
+    @pytest.fixture(autouse=True)
+    def setup_test_project(self, isolated_project):
+        """Create isolated copy of fixture project for each test."""
+        fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+        self.project_root = isolated_project / "test_project"
+        shutil.copytree(fixture_path, self.project_root)
+
+        self.original_cwd = os.getcwd()
+        os.chdir(self.project_root)
+
+        self.generated_dir = self.project_root / "generated" / "dev"
+        self.resources_dir = self.project_root / "resources" / "lhp"
+        self.baseline_dir = self.project_root / "resources_baseline" / "lhp"
+        self.config_file = self.project_root / "config" / "pipeline_config.yaml"
+
+        self._init_bundle_project()
+
+        yield
+        os.chdir(self.original_cwd)
+
+    def _init_bundle_project(self):
+        """Wipe and recreate working directories."""
+        if self.generated_dir.exists():
+            shutil.rmtree(self.generated_dir)
+        self.generated_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.resources_dir.exists():
+            shutil.rmtree(self.resources_dir)
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _uncomment_environment(self, pipeline_name):
+        """Uncomment the #environment: block for a specific pipeline section."""
+        content = self.config_file.read_text()
+        lines = content.splitlines(keepends=True)
+        result = []
+        in_target_pipeline = False
+
+        for line in lines:
+            stripped = line.lstrip()
+            # Detect pipeline section boundaries
+            if stripped.startswith("pipeline:"):
+                name = stripped.split(":", 1)[1].strip()
+                in_target_pipeline = (name == pipeline_name)
+            elif stripped.startswith("---"):
+                in_target_pipeline = False
+
+            # Uncomment #environment and its children in the target section
+            if in_target_pipeline and stripped.startswith("#"):
+                bare = stripped[1:]  # Remove leading #
+                indent = len(line) - len(line.lstrip())
+                result.append(" " * indent + bare)
+            else:
+                result.append(line)
+
+        self.config_file.write_text("".join(result))
+
+    def _uncomment_project_defaults_environment(self):
+        """Uncomment the #environment: block inside project_defaults."""
+        content = self.config_file.read_text()
+        # The commented block uses 2-space indent under project_defaults
+        content = content.replace(
+            "  #environment:\n  #  dependencies:\n  #    - \"msal=={msal_version}\"",
+            "  environment:\n    dependencies:\n      - \"msal=={msal_version}\"",
+        )
+        self.config_file.write_text(content)
+
+    def _generate_resource(self, pipeline_name):
+        """Generate resource file content via BundleManager."""
+        from lhp.bundle.manager import BundleManager
+
+        bm = BundleManager(
+            self.project_root,
+            pipeline_config_path=str(self.config_file),
+        )
+        return bm.generate_resource_file_content(
+            pipeline_name, self.generated_dir, env="dev"
+        )
+
+    @staticmethod
+    def _compare_file_hashes(file1, file2):
+        """Compare two files by SHA-256. Returns '' if identical, error string if different."""
+        def get_hash(f):
+            return hashlib.sha256(f.read_bytes()).hexdigest()
+
+        h1, h2 = get_hash(file1), get_hash(file2)
+        if h1 != h2:
+            return (
+                f"Hash mismatch: {file1.name} "
+                f"(generated={h1[:12]}) != (baseline={h2[:12]})"
+            )
+        return ""
+
+    def _assert_matches_baseline(self, generated_content, baseline_name):
+        """Write generated content to a temp file and compare against baseline."""
+        gen_file = self.resources_dir / f"{baseline_name}.pipeline.yml"
+        gen_file.write_text(generated_content)
+
+        baseline_file = self.baseline_dir / f"{baseline_name}.pipeline.yml"
+        assert baseline_file.exists(), f"Missing baseline: {baseline_file.name}"
+
+        diff = self._compare_file_hashes(gen_file, baseline_file)
+        assert diff == "", diff
+
+    # ------------------------------------------------------------------
+    # Test 1: Basic environment dependencies rendering
+    # ------------------------------------------------------------------
+
+    def test_environment_dependencies_rendered_in_resource(self):
+        """Uncomment environment on env_deps_basic — output matches baseline."""
+        self._uncomment_environment("env_deps_basic")
+        content = self._generate_resource("env_deps_basic")
+
+        # Structural verification
+        parsed = yaml.safe_load(content)
+        pipeline = parsed["resources"]["pipelines"]["env_deps_basic_pipeline"]
+        assert pipeline["environment"]["dependencies"] == [
+            "msal==1.31.0",
+            "requests>=2.28.0",
+        ]
+        assert "libraries" in pipeline
+
+        # Baseline hash comparison
+        self._assert_matches_baseline(content, "env_deps_basic_with_env")
+
+    # ------------------------------------------------------------------
+    # Test 2: Substitution tokens resolved in environment dependencies
+    # ------------------------------------------------------------------
+
+    def test_environment_with_substitution_tokens(self):
+        """Uncomment environment on env_deps_substitution — tokens resolved, matches baseline."""
+        self._uncomment_environment("env_deps_substitution")
+        content = self._generate_resource("env_deps_substitution")
+
+        # Structural verification
+        parsed = yaml.safe_load(content)
+        pipeline = parsed["resources"]["pipelines"]["env_deps_substitution_pipeline"]
+        assert pipeline["environment"]["dependencies"] == ["msal==1.31.0"]
+        assert pipeline["catalog"] == "acme_edw_dev"
+
+        # Baseline hash comparison
+        self._assert_matches_baseline(content, "env_deps_substitution_with_env")
+
+    # ------------------------------------------------------------------
+    # Test 3: environment absent when not configured
+    # ------------------------------------------------------------------
+
+    def test_environment_absent_when_not_configured(self):
+        """env_deps_basic with environment commented out — no environment in output, matches baseline."""
+        # Do NOT uncomment — environment stays commented
+        content = self._generate_resource("env_deps_basic")
+
+        # Structural verification
+        parsed = yaml.safe_load(content)
+        pipeline = parsed["resources"]["pipelines"]["env_deps_basic_pipeline"]
+        assert "environment" not in pipeline
+
+        # Baseline hash comparison (default baseline without environment)
+        self._assert_matches_baseline(content, "env_deps_basic")
+
+    # ------------------------------------------------------------------
+    # Test 4: project_defaults environment inheritance
+    # ------------------------------------------------------------------
+
+    def test_environment_with_project_defaults_inheritance(self):
+        """Uncomment environment in project_defaults — env_deps_inherited gets it, matches baseline."""
+        self._uncomment_project_defaults_environment()
+        content = self._generate_resource("env_deps_inherited")
+
+        # Structural verification
+        parsed = yaml.safe_load(content)
+        pipeline = parsed["resources"]["pipelines"]["env_deps_inherited_pipeline"]
+        assert pipeline["environment"]["dependencies"] == ["msal==1.31.0"]
+
+        # Baseline hash comparison
+        self._assert_matches_baseline(content, "env_deps_inherited_with_env")
+
+    # ------------------------------------------------------------------
+    # Test 5: Existing baselines still match after template change
+    # ------------------------------------------------------------------
+
+    def test_existing_baselines_match_after_template_change(self):
+        """Full CLI generation produces resource files matching updated baselines."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--verbose",
+                "generate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+                "--force",
+            ],
+        )
+        assert result.exit_code == 0, (
+            f"Generation should succeed:\n{result.output}"
+        )
+
+        generated_files = sorted(self.resources_dir.glob("*.pipeline.yml"))
+        assert len(generated_files) > 0, "Should have generated resource files"
+
+        mismatches = []
+        for gen_file in generated_files:
+            baseline_file = self.baseline_dir / gen_file.name
+            assert baseline_file.exists(), (
+                f"Missing baseline for {gen_file.name}"
+            )
+            diff = self._compare_file_hashes(gen_file, baseline_file)
+            if diff:
+                mismatches.append(diff)
+
+        if mismatches:
+            detail = "\n".join(
+                f"  {i}. {m}" for i, m in enumerate(mismatches, 1)
+            )
+            assert False, (
+                f"Resource files differ from baselines "
+                f"({len(mismatches)} mismatches):\n{detail}"
+            )
 
