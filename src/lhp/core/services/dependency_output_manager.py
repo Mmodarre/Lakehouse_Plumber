@@ -201,7 +201,7 @@ class DependencyOutputManager:
         Returns:
             Path to the generated text file
         """
-        text_content = self._generate_text_representation(result)
+        text_content = self.generate_text_representation(result)
 
         try:
             with open(output_path, "w", encoding="utf-8") as f:
@@ -266,7 +266,7 @@ class DependencyOutputManager:
         text_file = target_dir / "pipeline_dependencies.txt"
         return self.save_text_format(result, text_file)
 
-    def _generate_text_representation(self, result: DependencyAnalysisResult) -> str:
+    def generate_text_representation(self, result: DependencyAnalysisResult) -> str:
         """Generate human-readable text representation of dependency analysis."""
         lines = []
 

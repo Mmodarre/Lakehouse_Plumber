@@ -383,6 +383,18 @@ def info():
 
 
 @cli.command()
+@click.option("--port", "-p", default=8000, type=int, help="Port number")
+@click.option("--host", default="0.0.0.0", help="Host to bind to")
+@click.option("--repo", default=".", type=click.Path(exists=True), help="Project directory")
+@click.option("--reload", is_flag=True, help="Auto-reload on code changes")
+def serve(port, host, repo, reload):
+    """Start the LHP API server for local development."""
+    from .commands.serve_command import ServeCommand
+
+    ServeCommand().execute(port, host, repo, reload)
+
+
+@cli.command()
 @click.option(
     "--format",
     "-f",
