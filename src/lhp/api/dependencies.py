@@ -24,16 +24,16 @@ def get_settings(request: Request) -> APISettings:
     return request.app.state.settings
 
 
-def get_project_root(
+def get_workspace_project_root(
     settings: APISettings = Depends(get_settings),
     user: UserContext = Depends(get_current_user),
 ) -> Path:
-    """Resolve project root directory.
+    """Resolve the project root directory, workspace-aware.
 
-    Phase 1: Returns the configured project_root (local dev mode).
-    Phase 2: Will resolve to user's workspace directory.
+    Phase 1 / dev_mode: Returns settings.project_root.
+    Phase 2 production: Will resolve to user's workspace directory under workspace_root.
     """
-    # Phase 1: single project root for all users
+    # Phase 2 TODO: if not settings.dev_mode, resolve workspace_root/{user.user_id_hash}/repo/
     project_root = settings.project_root.resolve()
     if not (project_root / "lhp.yaml").exists():
         from lhp.utils.error_formatter import ErrorCategory, LHPConfigError
@@ -48,6 +48,18 @@ def get_project_root(
                 "Use --repo flag with lhp serve to point to your project",
             ],
         )
+    return project_root
+
+
+def get_project_root(
+    project_root: Path = Depends(get_workspace_project_root),
+) -> Path:
+    """Phase 1 compatibility alias — delegates to workspace-aware resolution.
+
+    All Phase 1 routers depend on this. When Phase 2 adds workspace resolution
+    to get_workspace_project_root(), all routers automatically get workspace-aware
+    behavior without code changes.
+    """
     return project_root
 
 
