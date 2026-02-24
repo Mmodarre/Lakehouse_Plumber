@@ -10,7 +10,7 @@ from lhp.api.dependencies import (
     get_discoverer,
     get_preset_manager,
     get_project_config_loader,
-    get_project_root,
+    get_project_root_adaptive,
     get_template_engine,
 )
 from lhp.api.schemas.common import SuccessResponse
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/project", tags=["project"])
 
 @router.get("", response_model=ProjectInfoResponse)
 async def get_project_info(
-    project_root: Path = Depends(get_project_root),
+    project_root: Path = Depends(get_project_root_adaptive),
     config_loader: ProjectConfigLoader = Depends(get_project_config_loader),
     discoverer: FlowgroupDiscoverer = Depends(get_discoverer),
     preset_mgr: PresetManager = Depends(get_preset_manager),
@@ -67,7 +67,7 @@ async def get_project_info(
 
 @router.get("/config", response_model=ProjectConfigResponse)
 async def get_project_config(
-    project_root: Path = Depends(get_project_root),
+    project_root: Path = Depends(get_project_root_adaptive),
 ) -> ProjectConfigResponse:
     """Return lhp.yaml content as structured JSON."""
     config_path = project_root / "lhp.yaml"
@@ -79,7 +79,7 @@ async def get_project_config(
 @router.put("/config", response_model=SuccessResponse)
 async def update_project_config(
     config: Dict[str, Any],
-    project_root: Path = Depends(get_project_root),
+    project_root: Path = Depends(get_project_root_adaptive),
     config_loader: ProjectConfigLoader = Depends(get_project_config_loader),
 ) -> SuccessResponse:
     """Update lhp.yaml with new configuration.

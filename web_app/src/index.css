@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/* React Flow base styles */
+.react-flow__node {
+  cursor: pointer;
+  /* Remove the default React Flow node border/shadow/background */
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Hide the default visible handle dots — our custom nodes style their own */
+.react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.react-flow__minimap {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Transition utilities for layout panels */
+.panel-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Scrollbar styling for sidebar/detail panels */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* Chat markdown typography for assistant messages */
+.chat-markdown p {
+  margin: 0.35em 0;
+}
+.chat-markdown p:first-child {
+  margin-top: 0;
+}
+.chat-markdown p:last-child {
+  margin-bottom: 0;
+}
+.chat-markdown h1, .chat-markdown h2, .chat-markdown h3, .chat-markdown h4 {
+  font-weight: 600;
+  margin: 0.6em 0 0.3em;
+}
+.chat-markdown h1 { font-size: 1.1em; }
+.chat-markdown h2 { font-size: 1.05em; }
+.chat-markdown h3 { font-size: 1em; }
+.chat-markdown code {
+  background: #f1f5f9;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.chat-markdown pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 0.6em 0.8em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.4em 0;
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+.chat-markdown pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+.chat-markdown table {
+  border-collapse: collapse;
+  margin: 0.4em 0;
+  width: 100%;
+  font-size: 0.9em;
+}
+.chat-markdown th, .chat-markdown td {
+  border: 1px solid #e2e8f0;
+  padding: 0.3em 0.5em;
+  text-align: left;
+}
+.chat-markdown th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+.chat-markdown ul, .chat-markdown ol {
+  margin: 0.3em 0;
+  padding-left: 1.4em;
+}
+.chat-markdown li {
+  margin: 0.15em 0;
+}
+.chat-markdown strong {
+  font-weight: 600;
+}

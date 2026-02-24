@@ -81,7 +81,7 @@ class TestConcurrentFlowgroupWrites:
         ETag must receive 412 Precondition Failed."""
         name = _uid("fg_etag_race")
         create_resp = _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
         assert create_resp.status_code == 201
 
@@ -111,7 +111,7 @@ class TestConcurrentFlowgroupWrites:
         semantics — both updates must succeed regardless of intervening changes."""
         name = _uid("fg_no_etag")
         create_resp = _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
         assert create_resp.status_code == 201
 

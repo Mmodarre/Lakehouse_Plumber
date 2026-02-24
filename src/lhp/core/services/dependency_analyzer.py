@@ -617,6 +617,42 @@ class DependencyAnalyzer:
             for action in flowgroup.actions:
                 action_id = f"{flowgroup.flowgroup}.{action.name}"
 
+                # Extract source type for load actions
+                source_type = None
+                if isinstance(action.source, dict):
+                    source_type = action.source.get("type")
+
+                # Extract write target metadata for write actions
+                write_type = None
+                write_mode = None
+                scd_type = None
+                wt = action.write_target
+                if wt:
+                    if isinstance(wt, dict):
+                        write_type = wt.get("type")
+                        write_mode = wt.get("mode")
+                        for cfg_key in ("cdc_config", "snapshot_cdc_config"):
+                            cfg = wt.get(cfg_key)
+                            if isinstance(cfg, dict):
+                                scd_type = cfg.get("scd_type") or cfg.get(
+                                    "stored_as_scd_type"
+                                )
+                                if scd_type is not None:
+                                    break
+                    else:
+                        write_type = (
+                            wt.type.value if hasattr(wt.type, "value") else wt.type
+                        )
+                        write_mode = getattr(wt, "mode", None)
+                        for cfg_key in ("cdc_config", "snapshot_cdc_config"):
+                            cfg = getattr(wt, cfg_key, None)
+                            if isinstance(cfg, dict):
+                                scd_type = cfg.get("scd_type") or cfg.get(
+                                    "stored_as_scd_type"
+                                )
+                                if scd_type is not None:
+                                    break
+
                 # Add node with metadata
                 graph.add_node(
                     action_id,
@@ -625,6 +661,12 @@ class DependencyAnalyzer:
                     pipeline=flowgroup.pipeline,
                     target=action.target,
                     action_name=action.name,
+                    source_type=source_type,
+                    transform_type=getattr(action, "transform_type", None),
+                    write_type=write_type,
+                    write_mode=write_mode,
+                    scd_type=scd_type,
+                    test_type=getattr(action, "test_type", None),
                 )
 
                 # Track targets for dependency resolution
@@ -655,10 +697,22 @@ class DependencyAnalyzer:
 
                 for source in sources:
                     if source in target_to_action:
-                        # Internal dependency - create edges to ALL actions that produce this source
+                        # Create edges to ALL actions that produce this source
                         for source_action_id in target_to_action[source]:
+                            src_pipeline = graph.nodes[source_action_id]["pipeline"]
+                            tgt_pipeline = graph.nodes[action_id]["pipeline"]
+                            src_fg = graph.nodes[source_action_id]["flowgroup"]
+                            tgt_fg = graph.nodes[action_id]["flowgroup"]
+
+                            if src_pipeline != tgt_pipeline:
+                                edge_type = "cross_pipeline"
+                            elif src_fg != tgt_fg:
+                                edge_type = "cross_flowgroup"
+                            else:
+                                edge_type = "internal"
+
                             graph.add_edge(
-                                source_action_id, action_id, dependency_type="internal"
+                                source_action_id, action_id, type=edge_type
                             )
                     else:
                         # External dependency - add as node attribute
@@ -678,6 +732,9 @@ class DependencyAnalyzer:
         for flowgroup in flowgroups:
             action_count = len(flowgroup.actions)
             external_sources = set()
+            action_types = sorted(
+                {action.type.value for action in flowgroup.actions}
+            )
 
             # Collect external sources from all actions in this flowgroup
             for action in flowgroup.actions:
@@ -690,8 +747,10 @@ class DependencyAnalyzer:
 
             graph.add_node(
                 flowgroup.flowgroup,
+                type="flowgroup",
                 pipeline=flowgroup.pipeline,
                 action_count=action_count,
+                action_types=action_types,
                 external_sources=list(external_sources),
             )
 
@@ -708,7 +767,10 @@ class DependencyAnalyzer:
 
         # Add edges to graph
         for source_fg, target_fg in flowgroup_deps:
-            graph.add_edge(source_fg, target_fg, dependency_type="flowgroup")
+            src_pipeline = graph.nodes[source_fg]["pipeline"]
+            tgt_pipeline = graph.nodes[target_fg]["pipeline"]
+            edge_type = "cross_pipeline" if src_pipeline != tgt_pipeline else "cross_flowgroup"
+            graph.add_edge(source_fg, target_fg, type=edge_type)
 
         return graph
 
@@ -739,6 +801,7 @@ class DependencyAnalyzer:
         for pipeline, info in pipeline_info.items():
             graph.add_node(
                 pipeline,
+                type="pipeline",
                 flowgroup_count=info["flowgroups"],
                 action_count=info["actions"],
                 external_sources=list(info["external_sources"]),
@@ -757,7 +820,7 @@ class DependencyAnalyzer:
 
         # Add edges to graph
         for source_pipeline, target_pipeline in pipeline_deps:
-            graph.add_edge(source_pipeline, target_pipeline, dependency_type="pipeline")
+            graph.add_edge(source_pipeline, target_pipeline, type="cross_pipeline")
 
         return graph
 

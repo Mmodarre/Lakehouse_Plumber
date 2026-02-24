@@ -387,11 +387,12 @@ def info():
 @click.option("--host", default="0.0.0.0", help="Host to bind to")
 @click.option("--repo", default=".", type=click.Path(exists=True), help="Project directory")
 @click.option("--reload", is_flag=True, help="Auto-reload on code changes")
-def serve(port, host, repo, reload):
+@click.option("--with-ai", is_flag=True, help="Enable AI assistant (requires opencode)")
+def serve(port, host, repo, reload, with_ai):
     """Start the LHP API server for local development."""
     from .commands.serve_command import ServeCommand
 
-    ServeCommand().execute(port, host, repo, reload)
+    ServeCommand().execute(port, host, repo, reload, with_ai=with_ai)
 
 
 @cli.command()

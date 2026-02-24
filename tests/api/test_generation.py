@@ -57,7 +57,7 @@ class TestGeneratePreview:
     def test_specific_pipeline_preview(self, mutable_client):
         data = mutable_client.post(
             "/api/generate/preview",
-            json={"environment": "dev", "pipeline": "acmi_edw_bronze"},
+            json={"environment": "dev", "pipeline": "acmi_edw_bronze", "force": True},
         ).json()
         assert data["success"] is True
         assert len(data["would_generate"]) > 0

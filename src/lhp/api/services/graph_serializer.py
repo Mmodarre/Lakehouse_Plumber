@@ -59,33 +59,35 @@ def _extract_nodes(graph: nx.DiGraph) -> List[GraphNode]:
 
 
 def _extract_edges(graph: nx.DiGraph) -> List[GraphEdge]:
-    """Extract edges with inferred edge types."""
+    """Extract edges with type from edge data, falling back to node-attribute classification."""
     edges = []
     for source, target, data in graph.edges(data=True):
-        edge_type = data.get("type", _infer_edge_type(str(source), str(target)))
+        edge_type = data.get("type", _classify_edge_type(graph, str(source), str(target)))
         edges.append(
             GraphEdge(source=str(source), target=str(target), type=edge_type)
         )
     return edges
 
 
-def _infer_edge_type(source: str, target: str) -> str:
-    """Infer edge type from node IDs based on shared prefixes."""
-    source_parts = source.split(".")
-    target_parts = target.split(".")
+def _classify_edge_type(graph: nx.DiGraph, source: str, target: str) -> str:
+    """Classify edge type using graph node attributes (safety fallback)."""
+    src_data = graph.nodes.get(source, {})
+    tgt_data = graph.nodes.get(target, {})
+    src_pipeline = src_data.get("pipeline", "")
+    tgt_pipeline = tgt_data.get("pipeline", "")
 
-    if len(source_parts) < 2 or len(target_parts) < 2:
+    if not src_pipeline or not tgt_pipeline:
         return "external"
-
-    # Same pipeline and flowgroup → internal
-    if source_parts[0] == target_parts[0] and source_parts[1] == target_parts[1]:
-        return "internal"
-    # Same pipeline, different flowgroup → cross_flowgroup
-    elif source_parts[0] == target_parts[0]:
-        return "cross_flowgroup"
-    # Different pipeline → cross_pipeline
-    else:
+    if src_pipeline != tgt_pipeline:
         return "cross_pipeline"
+
+    src_fg = src_data.get("flowgroup", "")
+    tgt_fg = tgt_data.get("flowgroup", "")
+    if src_fg and tgt_fg:
+        return "cross_flowgroup" if src_fg != tgt_fg else "internal"
+
+    # Flowgroup-level: same pipeline, different nodes → cross_flowgroup
+    return "cross_flowgroup" if source != target else "internal"
 
 
 def _build_metadata(

@@ -9,7 +9,7 @@ from lhp.api.dependencies import (
     get_discoverer,
     get_facade,
     get_orchestrator,
-    get_project_root,
+    get_project_root_adaptive,
 )
 from lhp.api.schemas.validation import (
     ValidateRequest,
@@ -117,7 +117,7 @@ async def validate_flowgroup(
 @router.post("/yaml", response_model=ValidateResponse)
 async def validate_yaml(
     req: ValidateYAMLRequest,
-    project_root: Path = Depends(get_project_root),
+    project_root: Path = Depends(get_project_root_adaptive),
 ) -> ValidateResponse:
     """#62: Validate arbitrary YAML content against the LHP schema.
 

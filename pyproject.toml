@@ -59,6 +59,10 @@ api = [
     "uvicorn[standard]>=0.34.0",
     "gitpython>=3.1.0",
     "pydantic-settings>=2.7.0",
+    "httpx>=0.28.0",
+]
+ai = [
+    "mcp>=1.0.0",
 ]
 
 [project.urls]
@@ -84,6 +88,8 @@ where = ["src"]
 "lhp.templates.load" = ["*.j2"]
 "lhp.templates.transform" = ["*.j2"]
 "lhp.templates.write" = ["*.j2"]
+"lhp.api.services.opencode_templates.agents" = ["*.md"]
+"lhp.api.services.opencode_templates.instructions" = ["*.md"]
 
 
 

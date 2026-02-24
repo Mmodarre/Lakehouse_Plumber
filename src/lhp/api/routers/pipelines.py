@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from lhp.api.dependencies import (
     get_discoverer,
     get_pipeline_config_loader,
-    get_project_root,
+    get_project_root_adaptive,
+    get_template_engine,
 )
 from lhp.api.schemas.pipeline import (
     PipelineConfigResponse,
@@ -17,7 +18,11 @@ from lhp.api.schemas.pipeline import (
     PipelineListResponse,
     PipelineSummary,
 )
-from lhp.api.schemas.flowgroup import FlowgroupSummary, PipelineFlowgroupsResponse
+from lhp.api.schemas.flowgroup import (
+    PipelineFlowgroupsResponse,
+    build_flowgroup_summary,
+)
+from lhp.core.template_engine import TemplateEngine
 from lhp.core.services.flowgroup_discoverer import FlowgroupDiscoverer
 from lhp.core.services.pipeline_config_loader import PipelineConfigLoader  # type for DI
 
@@ -48,7 +53,7 @@ async def list_pipelines(
     return PipelineListResponse(pipelines=summaries, total=len(summaries))
 
 
-@router.get("/{name}", response_model=PipelineDetailResponse)
+@router.get("/{name}", response_model=PipelineDetailResponse, response_model_exclude_none=True)
 async def get_pipeline(
     name: str,
     discoverer: FlowgroupDiscoverer = Depends(get_discoverer),
@@ -85,7 +90,7 @@ async def get_pipeline_config(
 async def update_pipeline_config(
     name: str,
     config: Dict[str, Any],
-    project_root: Path = Depends(get_project_root),
+    project_root: Path = Depends(get_project_root_adaptive),
 ) -> PipelineConfigResponse:
     """#32: Update pipeline-specific config.
 
@@ -103,6 +108,7 @@ async def update_pipeline_config(
 async def get_pipeline_flowgroups(
     name: str,
     discoverer: FlowgroupDiscoverer = Depends(get_discoverer),
+    template_engine: TemplateEngine = Depends(get_template_engine),
 ) -> PipelineFlowgroupsResponse:
     """#33: List flowgroups belonging to a specific pipeline."""
     flowgroups = await asyncio.to_thread(discoverer.discover_all_flowgroups)
@@ -112,15 +118,7 @@ async def get_pipeline_flowgroups(
         raise HTTPException(404, f"Pipeline '{name}' not found")
 
     summaries = [
-        FlowgroupSummary(
-            name=fg.flowgroup,
-            pipeline=fg.pipeline,
-            action_count=len(fg.actions),
-            action_types=list({a.type.value for a in fg.actions}),
-            source_file="",  # Populated by discover_all_flowgroups_with_paths
-            presets=fg.presets,
-            template=fg.use_template,
-        )
+        build_flowgroup_summary(fg, template_engine)
         for fg in pipeline_fgs
     ]
 

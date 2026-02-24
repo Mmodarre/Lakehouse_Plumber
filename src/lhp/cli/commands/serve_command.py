@@ -1,8 +1,8 @@
 import logging
 import os
+import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -18,6 +18,7 @@ class ServeCommand:
         host: str = "0.0.0.0",
         repo: str = ".",
         reload: bool = False,
+        with_ai: bool = False,
     ) -> None:
         """Start the API server."""
         # Validate API dependencies are installed
@@ -42,14 +43,28 @@ class ServeCommand:
             )
             sys.exit(1)
 
+        # Validate opencode binary if AI requested
+        if with_ai and not shutil.which("opencode"):
+            click.echo(
+                "Error: opencode binary not found on PATH.\n"
+                "Install with: brew install opencode  or  npm install -g opencode",
+                err=True,
+            )
+            sys.exit(1)
+
         # Set environment for the API
         os.environ["LHP_PROJECT_ROOT"] = str(project_root)
         os.environ["LHP_DEV_MODE"] = "true"
+        if with_ai:
+            os.environ["LHP_AI_ENABLED"] = "true"
 
-        click.echo(f"Starting LHP API server...")
+        click.echo("Starting LHP API server...")
         click.echo(f"  Project: {project_root}")
         click.echo(f"  URL:     http://{host}:{port}/api/docs")
         click.echo(f"  Mode:    Development (auth disabled)")
+        if with_ai:
+            opencode_port = int(os.environ.get("LHP_OPENCODE_PORT", "4096"))
+            click.echo(f"  AI:      Enabled (OpenCode on port {opencode_port})")
 
         uvicorn.run(
             "lhp.api.app:create_app",

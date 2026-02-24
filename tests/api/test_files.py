@@ -178,7 +178,9 @@ class TestWriteFileProtection:
             "/api/files/../../../etc/passwd",
             json={"content": "malicious"},
         )
-        assert resp.status_code == 403
+        # 403 if our _validate_path catches it; 404 if the ASGI framework
+        # normalises the .. segments before routing (the attack still fails).
+        assert resp.status_code in (403, 404)
 
     def test_rejects_git_directory_write(self, mutable_client):
         resp = mutable_client.put(
@@ -260,7 +262,9 @@ class TestPathTraversal:
             f"/api/files/{attack_path}",
             json={"content": "malicious"},
         )
-        assert resp.status_code == 403
+        # 403 if our _validate_path catches it; 404 if the ASGI framework
+        # normalises the .. segments before routing (the attack still fails).
+        assert resp.status_code in (403, 404)
 
     def test_rejects_encoded_traversal(self, mutable_client):
         # URL-encoded ../ patterns

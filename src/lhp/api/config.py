@@ -24,3 +24,15 @@ class APISettings(BaseSettings):
 
     # Phase 2: Workspace settings (declared here, used later)
     workspace_root: Path = Field(default_factory=lambda: Path("/tmp/lhp-workspaces"))
+
+    # Workspace management settings
+    workspace_max_count: int = 50
+    workspace_idle_ttl_hours: float = 24.0
+    workspace_stopped_ttl_hours: float = 168.0
+    source_repo: Optional[str] = None
+
+    # AI Assistant (OpenCode) settings
+    ai_enabled: bool = False
+    opencode_url: Optional[str] = None
+    opencode_port: int = 4096
+    opencode_password: Optional[str] = None

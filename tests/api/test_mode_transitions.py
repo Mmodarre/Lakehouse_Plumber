@@ -3,14 +3,9 @@
 Validates that the API behaves correctly in both dev_mode=True and
 dev_mode=False configurations, covering:
 
-- Dev mode: no auth required, no workspace setup needed for CRUD
-- Production mode: auth headers required, workspace must exist for Phase 2 CRUD
-- Phase 1 read-only endpoints work identically in both modes
-- get_project_root was NOT modified by Phase 2 (still delegates to workspace-aware)
-
-TDD note: Phase 2 CRUD endpoints (environments, workspace) don't fully exist yet.
-Tests targeting those paths will fail until the Phase 2 router is implemented.
-Phase 1 GET endpoints already work and those tests should pass today.
+- Dev mode: no auth required, no workspace setup needed
+- Production mode: auth headers required, workspace must exist for ALL endpoints
+- Dev-mode read endpoints work without auth via get_project_root_adaptive
 """
 
 from __future__ import annotations
@@ -98,13 +93,10 @@ class TestProductionModeBehavior:
 
 @pytest.mark.integration
 class TestPhase1Compatibility:
-    """Phase 1 read-only endpoints work identically in both modes.
+    """Phase 1 read endpoints use get_project_root_adaptive.
 
-    These endpoints (flowgroups, presets, templates) existed before Phase 2
-    and must continue to work in both dev and production configurations.
-    get_project_root was NOT modified by Phase 2 — it still delegates to
-    get_workspace_project_root, which in dev mode falls back to
-    settings.project_root.
+    In dev mode: resolves to settings.project_root (no auth needed).
+    In production mode: requires an active workspace (409 without one).
     """
 
     def test_flowgroups_list_unchanged_dev(self, client: TestClient):
@@ -114,14 +106,12 @@ class TestPhase1Compatibility:
         data = resp.json()
         assert data["total"] > 0
 
-    def test_flowgroups_list_unchanged_prod(
+    def test_flowgroups_list_requires_workspace_prod(
         self, prod_client: TestClient, auth_headers: dict
     ):
-        """GET /flowgroups works in production mode with auth headers."""
+        """GET /flowgroups in production mode requires workspace (409 without one)."""
         resp = prod_client.get("/api/flowgroups", headers=auth_headers)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["total"] > 0
+        assert resp.status_code == 409
 
     def test_presets_list_unchanged_dev(self, client: TestClient):
         """GET /presets works in dev mode."""
@@ -130,14 +120,12 @@ class TestPhase1Compatibility:
         data = resp.json()
         assert data["total"] > 0
 
-    def test_presets_list_unchanged_prod(
+    def test_presets_list_requires_workspace_prod(
         self, prod_client: TestClient, auth_headers: dict
     ):
-        """GET /presets works in production mode with auth headers."""
+        """GET /presets in production mode requires workspace (409 without one)."""
         resp = prod_client.get("/api/presets", headers=auth_headers)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["total"] > 0
+        assert resp.status_code == 409
 
     def test_templates_list_unchanged_dev(self, client: TestClient):
         """GET /templates works in dev mode."""
@@ -146,14 +134,12 @@ class TestPhase1Compatibility:
         data = resp.json()
         assert data["total"] > 0
 
-    def test_templates_list_unchanged_prod(
+    def test_templates_list_requires_workspace_prod(
         self, prod_client: TestClient, auth_headers: dict
     ):
-        """GET /templates works in production mode with auth headers."""
+        """GET /templates in production mode requires workspace (409 without one)."""
         resp = prod_client.get("/api/templates", headers=auth_headers)
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["total"] > 0
+        assert resp.status_code == 409
 
 
 # ---------------------------------------------------------------------------
@@ -165,18 +151,34 @@ class TestPhase1Compatibility:
 class TestDevModeWorkspaceMapping:
     """In dev mode, all requests map to a single DEV_USER workspace."""
 
-    def test_all_requests_map_to_dev_user(self, client: TestClient):
+    def test_all_requests_map_to_dev_user(
+        self,
+        mock_workspace_root,
+        mock_git_remote,
+    ):
         """Two PUT /workspace calls return the same branch (dev/workspace).
 
         In dev mode, get_current_user always returns DEV_USER when auth
         headers are absent. Consecutive PUT /workspace calls for the same
         user must be idempotent and return the same branch name.
 
-        NOTE: PUT /workspace does not exist yet (Phase 2). This test will
-        fail until the workspace router is implemented.
+        Uses a dedicated app with source_repo pointing to a real git remote
+        so the workspace manager can clone successfully.
         """
-        first = client.put("/api/workspace")
-        second = client.put("/api/workspace")
+        from lhp.api.app import create_app
+        from lhp.api.config import APISettings
+
+        settings = APISettings(
+            project_root=mock_workspace_root,
+            workspace_root=mock_workspace_root,
+            source_repo=str(mock_git_remote),
+            dev_mode=True,
+            log_level="DEBUG",
+        )
+        ws_client = TestClient(create_app(settings=settings))
+
+        first = ws_client.put("/api/workspace")
+        second = ws_client.put("/api/workspace")
 
         assert first.status_code == 200
         assert second.status_code == 200

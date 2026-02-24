@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -6,18 +7,86 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from lhp.api.config import APISettings
+from lhp.api.middleware.cache_invalidation import CacheInvalidationMiddleware
 from lhp.api.middleware.error_handler import generic_error_handler, lhp_error_handler
 from lhp.api.middleware.request_logging import RequestLoggingMiddleware
+from lhp.api.services.workspace_manager import WorkspaceManager
 from lhp.utils.error_formatter import LHPError
 
 logger = logging.getLogger(__name__)
+
+
+async def _periodic_cleanup(workspace_mgr: WorkspaceManager) -> None:
+    """Run workspace cleanup every hour."""
+    while True:
+        await asyncio.sleep(3600)
+        removed = await asyncio.to_thread(workspace_mgr.cleanup_expired)
+        if removed:
+            logger.info(f"Periodic cleanup removed {len(removed)} workspace(s)")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan handler for startup/shutdown."""
     logger.info("LHP API starting up")
+
+    # --- Phase 2 startup ---
+    from lhp.api.services.auto_commit_service import AutoCommitService
+
+    settings = app.state.settings
+
+    # Initialize workspace manager (per-app instance, not global singleton)
+    source_repo = settings.source_repo or str(settings.project_root)
+    workspace_mgr = WorkspaceManager(
+        workspace_root=settings.workspace_root,
+        source_repo=source_repo,
+        max_workspaces=settings.workspace_max_count,
+        idle_ttl_hours=settings.workspace_idle_ttl_hours,
+        stopped_ttl_hours=settings.workspace_stopped_ttl_hours,
+    )
+    app.state.workspace_manager = workspace_mgr
+
+    # Initialize auto-commit service (per-app instance)
+    auto_commit_svc = AutoCommitService()
+    app.state.auto_commit_service = auto_commit_svc
+
+    # Wire auto-commit resolver to workspace manager
+    auto_commit_svc.set_git_service_resolver(workspace_mgr.get_git_service_by_hash)
+
+    # Start periodic cleanup
+    cleanup_task = asyncio.create_task(_periodic_cleanup(workspace_mgr))
+    app.state._cleanup_task = cleanup_task
+
+    # --- AI assistant (OpenCode) startup ---
+    if settings.ai_enabled:
+        from lhp.api.services.opencode_manager import OpenCodeManager
+
+        opencode_mgr = OpenCodeManager(
+            # Dev mode: known project root at startup
+            # Production mode: None (each user gets workspace-scoped sessions)
+            project_root=settings.project_root if settings.dev_mode else None,
+            port=settings.opencode_port,
+            external_url=settings.opencode_url,
+            password=settings.opencode_password,
+        )
+        app.state.opencode_manager = opencode_mgr
+        await opencode_mgr.start()
+
     yield
+
+    # --- AI assistant shutdown ---
+    if hasattr(app.state, "opencode_manager"):
+        await app.state.opencode_manager.stop()
+
+    # --- Phase 2 shutdown ---
+    app.state._cleanup_task.cancel()
+    try:
+        await app.state._cleanup_task
+    except asyncio.CancelledError:
+        pass
+
+    await app.state.auto_commit_service.shutdown()
+
     logger.info("LHP API shut down")
 
 
@@ -53,6 +122,7 @@ def create_app(settings: Optional[APISettings] = None) -> FastAPI:
     app.state.settings = settings
 
     # --- Middleware (last added = first executed) ---
+    app.add_middleware(CacheInvalidationMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -69,7 +139,10 @@ def create_app(settings: Optional[APISettings] = None) -> FastAPI:
     # --- Register routers ---
     # All routes under /api prefix for Databricks Apps OAuth compatibility
     from lhp.api.routers import (
+        ai,
         dependencies,
+        environments,
+        files,
         flowgroups,
         generation,
         health,
@@ -77,8 +150,10 @@ def create_app(settings: Optional[APISettings] = None) -> FastAPI:
         presets,
         project,
         state,
+        tables,
         templates,
         validation,
+        workspace,
     )
 
     api_prefix = "/api"
@@ -86,12 +161,18 @@ def create_app(settings: Optional[APISettings] = None) -> FastAPI:
     app.include_router(project.router, prefix=api_prefix)
     app.include_router(pipelines.router, prefix=api_prefix)
     app.include_router(flowgroups.router, prefix=api_prefix)
+    app.include_router(tables.router, prefix=api_prefix)
     app.include_router(presets.router, prefix=api_prefix)
     app.include_router(templates.router, prefix=api_prefix)
     app.include_router(generation.router, prefix=api_prefix)
+    app.include_router(generation.generated_router, prefix=api_prefix)
     app.include_router(validation.router, prefix=api_prefix)
     app.include_router(state.router, prefix=api_prefix)
     app.include_router(dependencies.router, prefix=api_prefix)
+    app.include_router(workspace.router, prefix=api_prefix)
+    app.include_router(environments.router, prefix=api_prefix)
+    app.include_router(files.router, prefix=api_prefix)
+    app.include_router(ai.router, prefix=api_prefix)
 
     logger.info(
         f"LHP API initialized: dev_mode={settings.dev_mode}, "

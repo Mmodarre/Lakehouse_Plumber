@@ -77,8 +77,27 @@ def mutable_settings(mutable_project_path: Path) -> APISettings:
 
 @pytest.fixture(scope="session")
 def mutable_app(mutable_settings: APISettings):
-    """FastAPI app using the mutable project copy."""
-    return create_app(settings=mutable_settings)
+    """FastAPI app using the mutable project copy.
+
+    Overrides the dev_mode guard and auth dependencies so that write
+    mechanism tests can exercise file/environment CRUD without hitting
+    403 (dev_mode_restricted) or 401 (missing auth headers).
+    """
+    from lhp.api.auth import DEV_USER
+    from lhp.api.dependencies import (
+        get_workspace_project_root,
+        require_not_dev_mode,
+    )
+
+    app = create_app(settings=mutable_settings)
+    app.dependency_overrides[require_not_dev_mode] = lambda: None
+    app.dependency_overrides[get_workspace_project_root] = (
+        lambda: mutable_settings.project_root
+    )
+    from lhp.api.auth import get_current_user
+
+    app.dependency_overrides[get_current_user] = lambda: DEV_USER
+    return app
 
 
 @pytest.fixture(scope="session")
@@ -197,3 +216,38 @@ def workspace_project_source(tmp_path: Path, mock_git_remote: Path) -> Path:
         ["git", "clone", str(mock_git_remote), str(work_dir)], check=True
     )
     return work_dir
+
+
+# ---------------------------------------------------------------------------
+# Git-initialized fixtures for dev_mode git endpoint testing
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def git_project_path(e2e_project_path: Path) -> Path:
+    """E2E project fixture with an initialized git repo."""
+    subprocess.run(["git", "init", str(e2e_project_path)], check=True)
+    subprocess.run(["git", "add", "-A"], cwd=str(e2e_project_path), check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Initial"],
+        cwd=str(e2e_project_path),
+        check=True,
+        env=_GIT_ENV,
+    )
+    return e2e_project_path
+
+
+@pytest.fixture
+def git_settings(git_project_path: Path) -> APISettings:
+    """API settings pointing to a git-initialized fixture project."""
+    return APISettings(
+        project_root=git_project_path,
+        dev_mode=True,
+        log_level="DEBUG",
+    )
+
+
+@pytest.fixture
+def client_with_git(git_settings: APISettings) -> TestClient:
+    """Test client backed by a git-initialized dev_mode project."""
+    return TestClient(create_app(settings=git_settings))

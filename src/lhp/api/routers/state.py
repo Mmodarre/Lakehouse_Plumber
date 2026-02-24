@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query
 
-from lhp.api.dependencies import get_discoverer, get_facade, get_project_root, get_state_manager
+from lhp.api.dependencies import get_discoverer, get_facade, get_state_manager
 from lhp.api.schemas.state import (
     CleanupResponse,
     EnvironmentStateResponse,

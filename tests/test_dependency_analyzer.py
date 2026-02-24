@@ -115,6 +115,12 @@ class TestDependencyAnalyzer:
             "customer_processing.load_customers",
             "customer_processing.transform_customers",
         )
+        # Edge type should be "internal" (same flowgroup)
+        edge_data = action_graph.edges[
+            "customer_processing.load_customers",
+            "customer_processing.transform_customers",
+        ]
+        assert edge_data["type"] == "internal"
 
     @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
     def test_build_flowgroup_graph(self, mockget_flowgroups):
@@ -149,6 +155,9 @@ class TestDependencyAnalyzer:
 
         # Check dependency between flowgroups
         assert flowgroup_graph.has_edge("customers", "orders")
+        # Edge type should be "cross_pipeline" (pipeline1 → pipeline2)
+        edge_data = flowgroup_graph.edges["customers", "orders"]
+        assert edge_data["type"] == "cross_pipeline"
 
     @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
     def test_build_pipeline_graph(self, mockget_flowgroups):
@@ -195,6 +204,66 @@ class TestDependencyAnalyzer:
         # Check pipeline dependencies
         assert pipeline_graph.has_edge("bronze_pipeline", "silver_pipeline")
         assert pipeline_graph.has_edge("silver_pipeline", "gold_pipeline")
+        # All pipeline edges are cross_pipeline by definition
+        assert pipeline_graph.edges["bronze_pipeline", "silver_pipeline"]["type"] == "cross_pipeline"
+        assert pipeline_graph.edges["silver_pipeline", "gold_pipeline"]["type"] == "cross_pipeline"
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_action_edge_type_cross_flowgroup(self, mockget_flowgroups):
+        """Action edge between different flowgroups in the same pipeline → cross_flowgroup."""
+        actions1 = [
+            {"name": "load", "type": ActionType.LOAD, "target": "bronze.data"},
+        ]
+        actions2 = [
+            {"name": "transform", "type": ActionType.TRANSFORM, "source": "bronze.data"},
+        ]
+        fg1 = self.create_mock_flowgroup("fg_producer", "shared_pipeline", actions1)
+        fg2 = self.create_mock_flowgroup("fg_consumer", "shared_pipeline", actions2)
+        mockget_flowgroups.return_value = [fg1, fg2]
+
+        graphs = self.analyzer.build_dependency_graphs()
+
+        assert graphs.action_graph.has_edge("fg_producer.load", "fg_consumer.transform")
+        edge_data = graphs.action_graph.edges["fg_producer.load", "fg_consumer.transform"]
+        assert edge_data["type"] == "cross_flowgroup"
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_action_edge_type_cross_pipeline(self, mockget_flowgroups):
+        """Action edge between different pipelines → cross_pipeline."""
+        actions1 = [
+            {"name": "write", "type": ActionType.LOAD, "target": "bronze.data"},
+        ]
+        actions2 = [
+            {"name": "load_cdc", "type": ActionType.TRANSFORM, "source": "bronze.data"},
+        ]
+        fg1 = self.create_mock_flowgroup("fg_bronze", "bronze_pipeline", actions1)
+        fg2 = self.create_mock_flowgroup("fg_silver", "silver_pipeline", actions2)
+        mockget_flowgroups.return_value = [fg1, fg2]
+
+        graphs = self.analyzer.build_dependency_graphs()
+
+        assert graphs.action_graph.has_edge("fg_bronze.write", "fg_silver.load_cdc")
+        edge_data = graphs.action_graph.edges["fg_bronze.write", "fg_silver.load_cdc"]
+        assert edge_data["type"] == "cross_pipeline"
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_flowgroup_edge_type_cross_flowgroup(self, mockget_flowgroups):
+        """Flowgroup edge within the same pipeline → cross_flowgroup."""
+        actions1 = [
+            {"name": "load", "type": ActionType.LOAD, "target": "staging.raw"},
+        ]
+        actions2 = [
+            {"name": "clean", "type": ActionType.TRANSFORM, "source": "staging.raw"},
+        ]
+        fg1 = self.create_mock_flowgroup("ingest", "shared_pipeline", actions1)
+        fg2 = self.create_mock_flowgroup("cleanse", "shared_pipeline", actions2)
+        mockget_flowgroups.return_value = [fg1, fg2]
+
+        graphs = self.analyzer.build_dependency_graphs()
+
+        assert graphs.flowgroup_graph.has_edge("ingest", "cleanse")
+        edge_data = graphs.flowgroup_graph.edges["ingest", "cleanse"]
+        assert edge_data["type"] == "cross_flowgroup"
 
     @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
     def test_analyze_dependencies_complete(self, mockget_flowgroups):

@@ -47,24 +47,24 @@ class TestCreateFlowgroup:
     def test_creates_flowgroup_returns_201(self, mutable_client):
         name = _unique_fg_name("create_201")
         resp = _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
         assert resp.status_code == 201
 
     def test_response_has_success_and_path(self, mutable_client):
         name = _unique_fg_name("create_path")
         resp = _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
         data = resp.json()
         assert data["success"] is True
-        assert "acmi_edw_bronze" in data["path"]
+        assert "test_crud_sandbox" in data["path"]
         assert name in data["path"]
 
     def test_response_includes_etag(self, mutable_client):
         name = _unique_fg_name("create_etag")
         resp = _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
         data = resp.json()
         assert data["etag"] is not None
@@ -75,7 +75,7 @@ class TestCreateFlowgroup:
         """Verify indirectly via GET /api/flowgroups/{name}."""
         name = _unique_fg_name("create_disk")
         create_resp = _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
         assert create_resp.status_code == 201
 
@@ -97,7 +97,7 @@ class TestGetFlowgroupSource:
         # Create a flowgroup first so we have a known source
         name = _unique_fg_name("source_200")
         _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
 
         resp = mutable_client.get(f"/api/flowgroups/{name}/source")
@@ -106,7 +106,7 @@ class TestGetFlowgroupSource:
     def test_response_has_content_and_path(self, mutable_client):
         name = _unique_fg_name("source_content")
         _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
 
         data = mutable_client.get(f"/api/flowgroups/{name}/source").json()
@@ -120,7 +120,7 @@ class TestGetFlowgroupSource:
     def test_response_includes_etag_header(self, mutable_client):
         name = _unique_fg_name("source_etag")
         _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
 
         resp = mutable_client.get(f"/api/flowgroups/{name}/source")
@@ -144,7 +144,7 @@ class TestUpdateFlowgroup:
     def test_updates_flowgroup_returns_200(self, mutable_client):
         name = _unique_fg_name("update_200")
         _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
 
         resp = mutable_client.put(
@@ -156,7 +156,7 @@ class TestUpdateFlowgroup:
     def test_returns_new_etag(self, mutable_client):
         name = _unique_fg_name("update_etag")
         create_resp = _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
         original_etag = create_resp.json()["etag"]
 
@@ -173,7 +173,7 @@ class TestUpdateFlowgroup:
     def test_if_match_with_correct_etag_succeeds(self, mutable_client):
         name = _unique_fg_name("update_ifmatch_ok")
         _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
 
         # Get the current ETag from source endpoint
@@ -191,7 +191,7 @@ class TestUpdateFlowgroup:
     def test_stale_etag_returns_412(self, mutable_client):
         name = _unique_fg_name("update_stale")
         _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
 
         # Get the current ETag
@@ -215,7 +215,7 @@ class TestUpdateFlowgroup:
     def test_last_write_wins_without_if_match(self, mutable_client):
         name = _unique_fg_name("update_lww")
         _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
 
         # Two consecutive updates without If-Match should both succeed
@@ -250,7 +250,7 @@ class TestDeleteFlowgroup:
     def test_deletes_flowgroup(self, mutable_client):
         name = _unique_fg_name("delete_ok")
         _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
 
         resp = mutable_client.delete(f"/api/flowgroups/{name}")
@@ -269,7 +269,7 @@ class TestDeleteFlowgroup:
     def test_response_includes_file_deleted_info(self, mutable_client):
         name = _unique_fg_name("delete_info")
         _create_flowgroup(
-            mutable_client, pipeline="acmi_edw_bronze", flowgroup=name
+            mutable_client, pipeline="test_crud_sandbox", flowgroup=name
         )
 
         resp = mutable_client.delete(f"/api/flowgroups/{name}")

@@ -5,9 +5,9 @@ import networkx as nx
 
 from lhp.api.services.graph_serializer import (
     _build_metadata,
+    _classify_edge_type,
     _extract_edges,
     _extract_nodes,
-    _infer_edge_type,
     serialize_graph,
 )
 from lhp.api.schemas.dependency import GraphEdge, GraphNode
@@ -16,29 +16,46 @@ from lhp.api.schemas.dependency import GraphEdge, GraphNode
 pytestmark = pytest.mark.api
 
 
-class TestInferEdgeType:
-    """Tests for edge type inference from node ID prefixes."""
+class TestClassifyEdgeType:
+    """Tests for edge type classification from graph node attributes."""
 
     def test_same_pipeline_and_flowgroup_is_internal(self):
-        assert _infer_edge_type("p1.fg1.action_a", "p1.fg1.action_b") == "internal"
+        g = nx.DiGraph()
+        g.add_node("a", pipeline="p1", flowgroup="fg1")
+        g.add_node("b", pipeline="p1", flowgroup="fg1")
+        assert _classify_edge_type(g, "a", "b") == "internal"
 
     def test_same_pipeline_different_flowgroup_is_cross_flowgroup(self):
-        assert (
-            _infer_edge_type("p1.fg1.action_a", "p1.fg2.action_b")
-            == "cross_flowgroup"
-        )
+        g = nx.DiGraph()
+        g.add_node("a", pipeline="p1", flowgroup="fg1")
+        g.add_node("b", pipeline="p1", flowgroup="fg2")
+        assert _classify_edge_type(g, "a", "b") == "cross_flowgroup"
 
     def test_different_pipeline_is_cross_pipeline(self):
-        assert (
-            _infer_edge_type("p1.fg1.action_a", "p2.fg1.action_b")
-            == "cross_pipeline"
-        )
+        g = nx.DiGraph()
+        g.add_node("a", pipeline="p1", flowgroup="fg1")
+        g.add_node("b", pipeline="p2", flowgroup="fg1")
+        assert _classify_edge_type(g, "a", "b") == "cross_pipeline"
 
-    def test_less_than_two_parts_is_external(self):
-        assert _infer_edge_type("single", "other") == "external"
+    def test_missing_pipeline_attr_is_external(self):
+        g = nx.DiGraph()
+        g.add_node("a")
+        g.add_node("b")
+        assert _classify_edge_type(g, "a", "b") == "external"
 
-    def test_mixed_depth_is_external(self):
-        assert _infer_edge_type("single", "p1.fg1.action") == "external"
+    def test_flowgroup_level_same_pipeline_is_cross_flowgroup(self):
+        """Flowgroup-level nodes have pipeline attr but no flowgroup attr."""
+        g = nx.DiGraph()
+        g.add_node("fg1", pipeline="p1")
+        g.add_node("fg2", pipeline="p1")
+        assert _classify_edge_type(g, "fg1", "fg2") == "cross_flowgroup"
+
+    def test_flowgroup_level_different_pipeline_is_cross_pipeline(self):
+        """Flowgroup-level nodes in different pipelines."""
+        g = nx.DiGraph()
+        g.add_node("fg1", pipeline="p1")
+        g.add_node("fg2", pipeline="p2")
+        assert _classify_edge_type(g, "fg1", "fg2") == "cross_pipeline"
 
 
 class TestExtractNodes:
@@ -91,9 +108,12 @@ class TestExtractEdges:
         assert len(edges) == 1
         assert edges[0].type == "explicit_type"
 
-    def test_falls_back_to_inference(self):
+    def test_falls_back_to_classification(self):
+        """When edge has no 'type' attr, _classify_edge_type uses node attrs."""
         g = nx.DiGraph()
-        g.add_edge("p1.fg1.a", "p1.fg2.b")
+        g.add_node("a", pipeline="p1", flowgroup="fg1")
+        g.add_node("b", pipeline="p1", flowgroup="fg2")
+        g.add_edge("a", "b")
         edges = _extract_edges(g)
         assert edges[0].type == "cross_flowgroup"
 

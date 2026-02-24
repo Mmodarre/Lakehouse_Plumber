@@ -5,17 +5,22 @@ from importlib.metadata import version as pkg_version
 from fastapi import APIRouter, Depends
 
 from lhp.api.auth import UserContext, get_current_user
+from lhp.api.config import APISettings
+from lhp.api.dependencies import get_settings
 from lhp.api.schemas.health import HealthResponse, UserResponse, VersionResponse
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check() -> HealthResponse:
+async def health_check(
+    settings: APISettings = Depends(get_settings),
+) -> HealthResponse:
     """Health check endpoint. No auth required."""
     return HealthResponse(
         version=pkg_version("lakehouse-plumber"),
         python_version=platform.python_version(),
+        dev_mode=settings.dev_mode,
     )
 
 

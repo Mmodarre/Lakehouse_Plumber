@@ -6,6 +6,7 @@ class HealthResponse(BaseModel):
     status: str = "healthy"
     version: str
     python_version: str
+    dev_mode: bool = False
 
 
 class VersionResponse(BaseModel):
