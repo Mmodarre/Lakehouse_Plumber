@@ -59,3 +59,13 @@ operational_metadata:
       applies_to: ["streaming_table", "materialized_view", "view"]
       additional_imports:
         - "from pyspark.sql.functions import hash"
+
+## Optional: Declarative event logging for all pipelines
+## Automatically generates event_log blocks in pipeline resource files
+## without requiring -pc flag or pipeline_config.yaml
+# event_log:
+#   enabled: true
+#   catalog: "{event_log_catalog}"
+#   schema: _meta
+#   name_prefix: ""
+#   name_suffix: "_event_log"

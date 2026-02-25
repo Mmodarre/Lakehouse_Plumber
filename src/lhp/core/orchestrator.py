@@ -507,10 +507,66 @@ class ActionOrchestrator:
         """
         Discover all flowgroups across all directories in the project.
 
+        Includes synthetic monitoring flowgroup if configured.
+
         Returns:
             List of all discovered flowgroups
         """
-        return self.discoverer.discover_all_flowgroups()
+        flowgroups = self.discoverer.discover_all_flowgroups()
+
+        # Append monitoring pipeline if configured
+        monitoring_fg = self._build_monitoring_flowgroup(flowgroups)
+        if monitoring_fg:
+            flowgroups.append(monitoring_fg)
+
+        return flowgroups
+
+    def _build_monitoring_flowgroup(
+        self, discovered_flowgroups: List[FlowGroup]
+    ) -> Optional[FlowGroup]:
+        """Build synthetic monitoring flowgroup if configured.
+
+        Args:
+            discovered_flowgroups: Already-discovered flowgroups (for pipeline names)
+
+        Returns:
+            Monitoring FlowGroup or None
+        """
+        if not self.project_config or not self.project_config.monitoring:
+            return None
+
+        from .services.monitoring_pipeline_builder import MonitoringPipelineBuilder
+        from .services.pipeline_config_loader import PipelineConfigLoader
+
+        # Get pipeline config loader for opt-out detection
+        # Resolve monitoring pipeline name for alias support in pipeline config
+        monitoring_pipeline_name = None
+        if self.project_config and self.project_config.monitoring:
+            m = self.project_config.monitoring
+            if m.enabled:
+                monitoring_pipeline_name = (
+                    m.pipeline_name
+                    or f"{self.project_config.name}_event_log_monitoring"
+                )
+
+        pipeline_config_loader = PipelineConfigLoader(
+            self.project_root,
+            self.pipeline_config_path,
+            monitoring_pipeline_name=monitoring_pipeline_name,
+        )
+
+        builder = MonitoringPipelineBuilder(
+            project_config=self.project_config,
+            pipeline_config_loader=pipeline_config_loader,
+            project_root=self.project_root,
+        )
+
+        # Extract unique pipeline names from discovered flowgroups
+        pipeline_names = list(
+            dict.fromkeys(fg.pipeline for fg in discovered_flowgroups)
+        )
+
+        return builder.build_flowgroup(pipeline_names)
 
     def discover_flowgroups_by_pipeline_field(
         self, pipeline_field: str
@@ -1352,7 +1408,11 @@ class ActionOrchestrator:
             # Import and create bundle manager
             from ..bundle.manager import BundleManager
 
-            bundle_manager = BundleManager(self.project_root, self.pipeline_config_path)
+            bundle_manager = BundleManager(
+                self.project_root,
+                self.pipeline_config_path,
+                project_config=self.project_config,
+            )
 
             # Perform synchronization
             self.logger.debug(

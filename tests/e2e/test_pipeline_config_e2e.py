@@ -762,3 +762,989 @@ class TestConfigurationBlockE2E:
                 f"Resource files differ from baselines "
                 f"({len(mismatches)} mismatches):\n{detail}"
             )
+
+
+@pytest.mark.e2e
+class TestEventLogE2E:
+    """E2E tests for declarative event_log configuration in lhp.yaml.
+
+    Tests that event_log defined in lhp.yaml is automatically injected into
+    pipeline resource files, with support for pipeline-level overrides and opt-out.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_test_project(self, isolated_project):
+        """Create isolated copy of fixture project for each test."""
+        fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+        self.project_root = isolated_project / "test_project"
+        shutil.copytree(fixture_path, self.project_root)
+
+        self.original_cwd = os.getcwd()
+        os.chdir(self.project_root)
+
+        self.generated_dir = self.project_root / "generated" / "dev"
+        self.resources_dir = self.project_root / "resources" / "lhp"
+        self.baseline_dir = self.project_root / "resources_baseline" / "lhp"
+        self.config_file = self.project_root / "config" / "pipeline_config.yaml"
+        self.lhp_yaml = self.project_root / "lhp.yaml"
+
+        self._init_bundle_project()
+
+        yield
+        os.chdir(self.original_cwd)
+
+    def _init_bundle_project(self):
+        """Wipe and recreate working directories."""
+        if self.generated_dir.exists():
+            shutil.rmtree(self.generated_dir)
+        self.generated_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.resources_dir.exists():
+            shutil.rmtree(self.resources_dir)
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _uncomment_lhp_event_log(self):
+        """Uncomment the #event_log: block in lhp.yaml."""
+        content = self.lhp_yaml.read_text()
+        content = content.replace(
+            '#event_log:\n#  catalog: "{catalog}"\n#  schema: _meta\n'
+            '#  name_suffix: "_event_log"',
+            'event_log:\n  catalog: "{catalog}"\n  schema: _meta\n'
+            '  name_suffix: "_event_log"',
+        )
+        self.lhp_yaml.write_text(content)
+
+    def _uncomment_pipeline_event_log(self, pipeline_name):
+        """Uncomment the #event_log: block for a specific pipeline section."""
+        content = self.config_file.read_text()
+        lines = content.splitlines(keepends=True)
+        result = []
+        in_target_pipeline = False
+
+        for line in lines:
+            stripped = line.lstrip()
+            if stripped.startswith("pipeline:"):
+                name = stripped.split(":", 1)[1].strip()
+                in_target_pipeline = name == pipeline_name
+            elif stripped.startswith("---"):
+                in_target_pipeline = False
+
+            if in_target_pipeline and stripped.startswith("#"):
+                bare = stripped[1:]  # Remove leading #
+                indent = len(line) - len(line.lstrip())
+                result.append(" " * indent + bare)
+            else:
+                result.append(line)
+
+        self.config_file.write_text("".join(result))
+
+    def _generate_resource(self, pipeline_name):
+        """Generate resource file content via BundleManager with project config."""
+        from lhp.bundle.manager import BundleManager
+        from lhp.core.project_config_loader import ProjectConfigLoader
+
+        loader = ProjectConfigLoader(self.project_root)
+        project_config = loader.load_project_config()
+
+        bm = BundleManager(
+            self.project_root,
+            pipeline_config_path=str(self.config_file),
+            project_config=project_config,
+        )
+        return bm.generate_resource_file_content(
+            pipeline_name, self.generated_dir, env="dev"
+        )
+
+    @staticmethod
+    def _compare_file_hashes(file1, file2):
+        """Compare two files by SHA-256."""
+
+        def get_hash(f):
+            return hashlib.sha256(f.read_bytes()).hexdigest()
+
+        h1, h2 = get_hash(file1), get_hash(file2)
+        if h1 != h2:
+            return (
+                f"Hash mismatch: {file1.name} "
+                f"(generated={h1[:12]}) != (baseline={h2[:12]})"
+            )
+        return ""
+
+    def _assert_matches_baseline(self, generated_content, baseline_name):
+        """Write generated content to a temp file and compare against baseline."""
+        gen_file = self.resources_dir / f"{baseline_name}.pipeline.yml"
+        gen_file.write_text(generated_content)
+
+        baseline_file = self.baseline_dir / f"{baseline_name}.pipeline.yml"
+        assert baseline_file.exists(), f"Missing baseline: {baseline_file.name}"
+
+        diff = self._compare_file_hashes(gen_file, baseline_file)
+        assert diff == "", diff
+
+    # ------------------------------------------------------------------
+    # Test 1: event_log injected from lhp.yaml project config
+    # ------------------------------------------------------------------
+
+    def test_event_log_injected_from_project_config(self):
+        """Uncomment event_log in lhp.yaml — output contains event_log with resolved tokens."""
+        self._uncomment_lhp_event_log()
+        content = self._generate_resource("event_log_basic")
+
+        # Structural verification
+        parsed = yaml.safe_load(content)
+        pipeline = parsed["resources"]["pipelines"]["event_log_basic_pipeline"]
+        assert "event_log" in pipeline
+        assert pipeline["event_log"]["name"] == "event_log_basic_event_log"
+        assert pipeline["event_log"]["catalog"] == "acme_edw_dev"
+        assert pipeline["event_log"]["schema"] == "_meta"
+
+        # Baseline hash comparison
+        self._assert_matches_baseline(content, "event_log_basic_with_event_log")
+
+    # ------------------------------------------------------------------
+    # Test 2: event_log absent when not configured in lhp.yaml
+    # ------------------------------------------------------------------
+
+    def test_event_log_absent_when_not_configured(self):
+        """Leave event_log commented in lhp.yaml — no event_log in output."""
+        # Do NOT uncomment — event_log stays commented in lhp.yaml
+        content = self._generate_resource("event_log_basic")
+
+        # Structural verification
+        parsed = yaml.safe_load(content)
+        pipeline = parsed["resources"]["pipelines"]["event_log_basic_pipeline"]
+        assert "event_log" not in pipeline
+
+        # Baseline hash comparison (default baseline without event_log)
+        self._assert_matches_baseline(content, "event_log_basic")
+
+    # ------------------------------------------------------------------
+    # Test 3: pipeline_config event_log fully replaces project-level
+    # ------------------------------------------------------------------
+
+    def test_pipeline_config_overrides_project_event_log(self):
+        """Uncomment both lhp.yaml and pipeline_config event_log — pipeline's own wins."""
+        self._uncomment_lhp_event_log()
+        self._uncomment_pipeline_event_log("event_log_override")
+        content = self._generate_resource("event_log_override")
+
+        # Structural verification — pipeline_config values should win
+        parsed = yaml.safe_load(content)
+        pipeline = parsed["resources"]["pipelines"]["event_log_override_pipeline"]
+        assert "event_log" in pipeline
+        assert pipeline["event_log"]["name"] == "custom_event_log"
+        assert pipeline["event_log"]["catalog"] == "override_catalog"
+        assert pipeline["event_log"]["schema"] == "override_schema"
+
+        # Baseline hash comparison
+        self._assert_matches_baseline(content, "event_log_override_with_event_log")
+
+    # ------------------------------------------------------------------
+    # Test 4: pipeline_config disables event_log with false
+    # ------------------------------------------------------------------
+
+    def test_pipeline_config_disables_event_log(self):
+        """Uncomment lhp.yaml event_log + event_log: false in pipeline_config — no event_log."""
+        self._uncomment_lhp_event_log()
+        self._uncomment_pipeline_event_log("event_log_disabled")
+        content = self._generate_resource("event_log_disabled")
+
+        # Structural verification — event_log should be absent
+        parsed = yaml.safe_load(content)
+        pipeline = parsed["resources"]["pipelines"]["event_log_disabled_pipeline"]
+        assert "event_log" not in pipeline
+
+        # Baseline hash comparison (same as default — no event_log)
+        self._assert_matches_baseline(content, "event_log_disabled")
+
+    # ------------------------------------------------------------------
+    # Test 5: backward compatibility — pipeline_config-only event_log
+    # ------------------------------------------------------------------
+
+    def test_backward_compat_pipeline_config_only_event_log(self):
+        """Leave lhp.yaml commented — existing pipeline_config event_log still works."""
+        # Use the comprehensive_cluster_config pipeline which already has
+        # event_log defined in the fixtures pipeline_config
+        from lhp.bundle.manager import BundleManager
+        from lhp.core.project_config_loader import ProjectConfigLoader
+
+        fixture_path = (
+            Path(__file__).parent.parent
+            / "fixtures"
+            / "pipeline_configs"
+            / "comprehensive_cluster_config.yaml"
+        )
+        assert fixture_path.exists(), f"Fixture should exist: {fixture_path}"
+
+        loader = ProjectConfigLoader(self.project_root)
+        project_config = loader.load_project_config()
+
+        bm = BundleManager(
+            self.project_root,
+            pipeline_config_path=str(fixture_path),
+            project_config=project_config,
+        )
+        content = bm.generate_resource_file_content(
+            "comprehensive_cluster_config", self.generated_dir, env="dev"
+        )
+
+        # Structural verification — event_log from pipeline_config should be present
+        parsed = yaml.safe_load(content)
+        pipeline = parsed["resources"]["pipelines"][
+            "comprehensive_cluster_config_pipeline"
+        ]
+        assert "event_log" in pipeline
+        assert pipeline["event_log"]["name"] == "pipeline_event_log"
+        assert pipeline["event_log"]["schema"] == "_meta"
+        assert pipeline["event_log"]["catalog"] == "main"
+
+
+@pytest.mark.e2e
+class TestMonitoringPipelineE2E:
+    """E2E tests for the event log monitoring pipeline.
+
+    Validates that when monitoring: is configured in lhp.yaml alongside event_log:,
+    lhp generate creates a synthetic monitoring pipeline that UNIONs all pipeline
+    event log tables into a streaming table with materialized views.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_test_project(self, isolated_project):
+        """Create isolated copy of fixture project for each test."""
+        fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
+        self.project_root = isolated_project / "test_project"
+        shutil.copytree(fixture_path, self.project_root)
+
+        self.original_cwd = os.getcwd()
+        os.chdir(self.project_root)
+
+        self.generated_dir = self.project_root / "generated" / "dev"
+        self.resources_dir = self.project_root / "resources" / "lhp"
+        self.generated_baseline_dir = (
+            self.project_root / "generated_baseline" / "dev"
+        )
+        self.resources_baseline_dir = (
+            self.project_root / "resources_baseline" / "lhp"
+        )
+        self.lhp_yaml = self.project_root / "lhp.yaml"
+
+        self._init_bundle_project()
+
+        yield
+        os.chdir(self.original_cwd)
+
+    def _init_bundle_project(self):
+        """Wipe and recreate working directories."""
+        if self.generated_dir.exists():
+            shutil.rmtree(self.generated_dir)
+        self.generated_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.resources_dir.exists():
+            shutil.rmtree(self.resources_dir)
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Variant definitions: (commented_text, uncommented_text)
+    # ------------------------------------------------------------------
+
+    MONITORING_VARIANTS = {
+        "monitoring_default": (
+            "#monitoring: {}",
+            "monitoring: {}",
+        ),
+        "monitoring_custom_pipeline_name": (
+            '#monitoring:\n#  pipeline_name: "my_custom_monitor"',
+            'monitoring:\n  pipeline_name: "my_custom_monitor"',
+        ),
+        "monitoring_catalog_schema_override": (
+            "#monitoring:\n"
+            '#  catalog: "analytics_cat"\n'
+            '#  schema: "_analytics"',
+            "monitoring:\n"
+            '  catalog: "analytics_cat"\n'
+            '  schema: "_analytics"',
+        ),
+        "monitoring_custom_streaming_table": (
+            '#monitoring:\n#  streaming_table: "unified_event_log"',
+            'monitoring:\n  streaming_table: "unified_event_log"',
+        ),
+        "monitoring_custom_mvs": (
+            "#monitoring:\n"
+            "#  materialized_views:\n"
+            '#    - name: "error_events"\n'
+            "#      sql: \"SELECT * FROM all_pipelines_event_log"
+            " WHERE event_type = 'error'\"\n"
+            '#    - name: "pipeline_latency"\n'
+            '#      sql: "SELECT _source_pipeline, avg(duration_ms)'
+            " as avg_duration FROM all_pipelines_event_log"
+            ' GROUP BY _source_pipeline"',
+            "monitoring:\n"
+            "  materialized_views:\n"
+            '    - name: "error_events"\n'
+            "      sql: \"SELECT * FROM all_pipelines_event_log"
+            " WHERE event_type = 'error'\"\n"
+            '    - name: "pipeline_latency"\n'
+            '      sql: "SELECT _source_pipeline, avg(duration_ms)'
+            " as avg_duration FROM all_pipelines_event_log"
+            ' GROUP BY _source_pipeline"',
+        ),
+        "monitoring_no_mvs": (
+            "#monitoring:\n#  materialized_views: []",
+            "monitoring:\n  materialized_views: []",
+        ),
+        "monitoring_mv_sql_path": (
+            "#monitoring:\n"
+            "#  materialized_views:\n"
+            '#    - name: "custom_analysis"\n'
+            '#      sql_path: "sql/monitoring_custom_analysis.sql"',
+            "monitoring:\n"
+            "  materialized_views:\n"
+            '    - name: "custom_analysis"\n'
+            '      sql_path: "sql/monitoring_custom_analysis.sql"',
+        ),
+    }
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _enable_event_log(self):
+        """Uncomment the event_log block only."""
+        content = self.lhp_yaml.read_text()
+        content = content.replace(
+            '#event_log:\n#  catalog: "{catalog}"\n#  schema: _meta\n'
+            '#  name_suffix: "_event_log"',
+            'event_log:\n  catalog: "{catalog}"\n  schema: _meta\n'
+            '  name_suffix: "_event_log"',
+        )
+        self.lhp_yaml.write_text(content)
+
+    def _enable_monitoring_variant(self, variant: str):
+        """Uncomment a specific monitoring variant block."""
+        commented, uncommented = self.MONITORING_VARIANTS[variant]
+        content = self.lhp_yaml.read_text()
+        content = content.replace(commented, uncommented)
+        self.lhp_yaml.write_text(content)
+
+    def _enable_event_log_and_monitoring(self):
+        """Backward compat: enable event_log + default monitoring."""
+        self._enable_event_log()
+        self._enable_monitoring_variant("monitoring_default")
+
+    def _run_generate(self):
+        """Run lhp generate --env dev --force via CLI."""
+        runner = CliRunner()
+        result = runner.invoke(
+            cli, ["--verbose", "generate", "--env", "dev", "--force"]
+        )
+        return result.exit_code, result.output
+
+    @staticmethod
+    def _compare_file_hashes(file1, file2):
+        """Compare two files by SHA-256."""
+
+        def get_hash(f):
+            return hashlib.sha256(f.read_bytes()).hexdigest()
+
+        h1, h2 = get_hash(file1), get_hash(file2)
+        if h1 != h2:
+            # Include first 50 lines of unified diff for debugging
+            import difflib
+
+            lines1 = file1.read_text().splitlines(keepends=True)
+            lines2 = file2.read_text().splitlines(keepends=True)
+            diff = list(
+                difflib.unified_diff(
+                    lines2, lines1, fromfile="baseline", tofile="generated", n=3
+                )
+            )
+            diff_preview = "".join(diff[:50])
+            return (
+                f"Hash mismatch: {file1.name} "
+                f"(generated={h1[:12]}) != (baseline={h2[:12]})\n"
+                f"Diff preview:\n{diff_preview}"
+            )
+        return ""
+
+    def _assert_monitoring_baseline(
+        self, variant, pipeline_name="acme_edw_event_log_monitoring"
+    ):
+        """Hash-compare generated monitoring.py against variant baseline."""
+        monitoring_py = self.generated_dir / pipeline_name / "monitoring.py"
+        assert monitoring_py.exists(), (
+            f"Monitoring pipeline file not generated: {monitoring_py}"
+        )
+
+        baseline_py = (
+            self.project_root
+            / "monitoring_baseline"
+            / variant
+            / pipeline_name
+            / "monitoring.py"
+        )
+        assert baseline_py.exists(), f"Missing baseline: {baseline_py}"
+
+        diff = self._compare_file_hashes(monitoring_py, baseline_py)
+        assert diff == "", f"Generated code mismatch:\n{diff}"
+
+    # ------------------------------------------------------------------
+    # Test 1: monitoring absent — backward compatibility
+    # ------------------------------------------------------------------
+
+    def test_monitoring_absent_no_monitoring_pipeline(self):
+        """Without monitoring: in lhp.yaml, no monitoring pipeline is generated."""
+        # Do NOT enable monitoring — leave lhp.yaml as-is
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Monitoring pipeline directory should NOT exist
+        monitoring_dir = self.generated_dir / "acme_edw_event_log_monitoring"
+        assert not monitoring_dir.exists(), (
+            f"Monitoring pipeline directory should not exist: {monitoring_dir}"
+        )
+
+        # Monitoring resource file should NOT exist
+        monitoring_resource = (
+            self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
+        )
+        assert not monitoring_resource.exists(), (
+            f"Monitoring resource file should not exist: {monitoring_resource}"
+        )
+
+    # ------------------------------------------------------------------
+    # Test 2: monitoring enabled — full generation with hash baseline
+    # ------------------------------------------------------------------
+
+    def test_monitoring_enabled_generates_pipeline(self):
+        """monitoring: {} with event_log generates monitoring pipeline matching baseline."""
+        self._enable_event_log_and_monitoring()
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Hash comparison with variant baseline
+        self._assert_monitoring_baseline("default")
+
+    # ------------------------------------------------------------------
+    # Test 3: monitoring resource has no event_log
+    # ------------------------------------------------------------------
+
+    def test_monitoring_resource_no_event_log(self):
+        """Monitoring pipeline resource YAML has no event_log block."""
+        self._enable_event_log_and_monitoring()
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Verify monitoring resource file was generated
+        monitoring_resource = (
+            self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
+        )
+        assert monitoring_resource.exists(), (
+            f"Monitoring resource not generated: {monitoring_resource}"
+        )
+
+        # Structural verification: no event_log in the resource
+        parsed = yaml.safe_load(monitoring_resource.read_text())
+        pipeline = parsed["resources"]["pipelines"][
+            "acme_edw_event_log_monitoring_pipeline"
+        ]
+        assert "event_log" not in pipeline, (
+            "Monitoring pipeline resource should NOT have event_log"
+        )
+
+        # Hash comparison with resource baseline
+        baseline_resource = (
+            self.resources_baseline_dir
+            / "acme_edw_event_log_monitoring.pipeline.yml"
+        )
+        assert baseline_resource.exists(), (
+            f"Missing resource baseline: {baseline_resource}"
+        )
+
+        diff = self._compare_file_hashes(monitoring_resource, baseline_resource)
+        assert diff == "", f"Resource YAML mismatch:\n{diff}"
+
+    # ------------------------------------------------------------------
+    # Test 4: custom pipeline name
+    # ------------------------------------------------------------------
+
+    def test_monitoring_custom_pipeline_name(self):
+        """Custom pipeline_name changes directory, PIPELINE_ID, and resource filename."""
+        self._enable_event_log()
+        self._enable_monitoring_variant("monitoring_custom_pipeline_name")
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Structural: directory and PIPELINE_ID
+        monitoring_py = self.generated_dir / "my_custom_monitor" / "monitoring.py"
+        assert monitoring_py.exists(), (
+            f"Custom pipeline directory not created: {monitoring_py}"
+        )
+        content = monitoring_py.read_text()
+        assert 'PIPELINE_ID = "my_custom_monitor"' in content
+
+        # Default pipeline directory should NOT exist
+        default_dir = self.generated_dir / "acme_edw_event_log_monitoring"
+        assert not default_dir.exists(), (
+            "Default monitoring dir should not exist with custom pipeline_name"
+        )
+
+        # Resource YAML uses custom pipeline name
+        resource_yml = self.resources_dir / "my_custom_monitor.pipeline.yml"
+        assert resource_yml.exists(), (
+            f"Custom resource YAML not generated: {resource_yml}"
+        )
+        parsed = yaml.safe_load(resource_yml.read_text())
+        assert "my_custom_monitor_pipeline" in parsed["resources"]["pipelines"]
+
+        # Hash comparison: Python baseline
+        self._assert_monitoring_baseline(
+            "custom_pipeline_name", pipeline_name="my_custom_monitor"
+        )
+
+        # Hash comparison: resource YAML baseline
+        baseline_resource = (
+            self.resources_baseline_dir / "my_custom_monitor.pipeline.yml"
+        )
+        assert baseline_resource.exists(), (
+            f"Missing resource baseline: {baseline_resource}"
+        )
+        diff = self._compare_file_hashes(resource_yml, baseline_resource)
+        assert diff == "", f"Resource YAML mismatch:\n{diff}"
+
+    # ------------------------------------------------------------------
+    # Test 5: catalog and schema override
+    # ------------------------------------------------------------------
+
+    def test_monitoring_catalog_schema_override(self):
+        """Custom catalog/schema changes ST + MV FQNs, source refs unchanged."""
+        self._enable_event_log()
+        self._enable_monitoring_variant("monitoring_catalog_schema_override")
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Structural: overridden catalog/schema in targets
+        monitoring_py = (
+            self.generated_dir
+            / "acme_edw_event_log_monitoring"
+            / "monitoring.py"
+        )
+        content = monitoring_py.read_text()
+        assert "analytics_cat._analytics.all_pipelines_event_log" in content
+        assert "analytics_cat._analytics.events_summary" in content
+
+        # Source UNION SQL still uses the event_log catalog/schema
+        assert "acme_edw_dev._meta." in content
+
+        # Hash comparison
+        self._assert_monitoring_baseline("catalog_schema_override")
+
+    # ------------------------------------------------------------------
+    # Test 6: custom streaming table name
+    # ------------------------------------------------------------------
+
+    def test_monitoring_custom_streaming_table(self):
+        """Custom streaming_table changes ST name, append_flow target, and MV FROM."""
+        self._enable_event_log()
+        self._enable_monitoring_variant("monitoring_custom_streaming_table")
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Structural: unified_event_log used everywhere instead of
+        # all_pipelines_event_log
+        monitoring_py = (
+            self.generated_dir
+            / "acme_edw_event_log_monitoring"
+            / "monitoring.py"
+        )
+        content = monitoring_py.read_text()
+        assert "unified_event_log" in content
+        assert "acme_edw_dev._meta.unified_event_log" in content
+
+        # Default ST name should NOT appear in target references
+        # (it may appear in source table names like *_event_log)
+        for line in content.splitlines():
+            if "all_pipelines_event_log" in line:
+                # Only acceptable in source UNION SQL (stream() calls)
+                assert "stream(" in line, (
+                    f"'all_pipelines_event_log' found outside source SQL: {line}"
+                )
+
+        # Hash comparison
+        self._assert_monitoring_baseline("custom_streaming_table")
+
+    # ------------------------------------------------------------------
+    # Test 7: custom materialized views
+    # ------------------------------------------------------------------
+
+    def test_monitoring_custom_mvs(self):
+        """Custom MVs replace the default events_summary with user-defined MVs."""
+        self._enable_event_log()
+        self._enable_monitoring_variant("monitoring_custom_mvs")
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Structural: custom MVs present, default absent
+        monitoring_py = (
+            self.generated_dir
+            / "acme_edw_event_log_monitoring"
+            / "monitoring.py"
+        )
+        content = monitoring_py.read_text()
+        assert "def error_events():" in content
+        assert "def pipeline_latency():" in content
+        assert "events_summary" not in content
+
+        # Hash comparison
+        self._assert_monitoring_baseline("custom_mvs")
+
+    # ------------------------------------------------------------------
+    # Test 8: no materialized views
+    # ------------------------------------------------------------------
+
+    def test_monitoring_no_mvs(self):
+        """Empty materialized_views list produces no MV section at all."""
+        self._enable_event_log()
+        self._enable_monitoring_variant("monitoring_no_mvs")
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Structural: streaming table and append flow present, no MVs
+        monitoring_py = (
+            self.generated_dir
+            / "acme_edw_event_log_monitoring"
+            / "monitoring.py"
+        )
+        content = monitoring_py.read_text()
+        assert "dp.create_streaming_table(" in content
+        assert "@dp.append_flow(" in content
+        assert "@dp.materialized_view(" not in content
+
+        # Hash comparison
+        self._assert_monitoring_baseline("no_mvs")
+
+    # ------------------------------------------------------------------
+    # Test 9: MV with external sql_path
+    # ------------------------------------------------------------------
+
+    def test_monitoring_mv_sql_path(self):
+        """MV with sql_path loads SQL from external file at generation time."""
+        self._enable_event_log()
+        self._enable_monitoring_variant("monitoring_mv_sql_path")
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Structural: custom_analysis MV with SQL from external file
+        monitoring_py = (
+            self.generated_dir
+            / "acme_edw_event_log_monitoring"
+            / "monitoring.py"
+        )
+        content = monitoring_py.read_text()
+        assert "def custom_analysis():" in content
+        assert "daily_event_count" in content
+        assert "FLOW_PROGRESS" in content
+
+        # Default MV should not be present
+        assert "events_summary" not in content
+
+        # Hash comparison
+        self._assert_monitoring_baseline("mv_sql_path")
+
+    # ------------------------------------------------------------------
+    # Test 10: monitoring pipeline picks up pipeline_config.yaml settings
+    # ------------------------------------------------------------------
+
+    def test_monitoring_pipeline_config_settings(self):
+        """Pipeline config document for monitoring pipeline flows into resource YAML.
+
+        Validates that when pipeline_config.yaml contains a document with
+        pipeline: acme_edw_event_log_monitoring, the settings (serverless,
+        clusters, notifications, tags, edition, photon) appear in the
+        generated bundle resource YAML for the monitoring pipeline.
+        """
+        self._enable_event_log_and_monitoring()
+
+        # Add a pipeline_config document targeting the monitoring pipeline
+        config_file = self.project_root / "config" / "pipeline_config.yaml"
+        existing_content = config_file.read_text()
+
+        monitoring_config_doc = """
+---
+pipeline: acme_edw_event_log_monitoring
+serverless: false
+edition: ADVANCED
+photon: true
+clusters:
+  - label: default
+    node_type_id: Standard_D4ds_v5
+    autoscale:
+      min_workers: 1
+      max_workers: 4
+      mode: ENHANCED
+notifications:
+  - email_recipients:
+      - monitoring-team@example.com
+    alerts:
+      - on-update-failure
+      - on-update-fatal-failure
+tags:
+  team: data-platform
+  purpose: monitoring
+"""
+        config_file.write_text(existing_content + monitoring_config_doc)
+
+        # Run generation WITH --pipeline-config flag
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--verbose",
+                "generate",
+                "--env",
+                "dev",
+                "--force",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
+        exit_code, output = result.exit_code, result.output
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Verify monitoring resource file was generated
+        monitoring_resource = (
+            self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
+        )
+        assert monitoring_resource.exists(), (
+            f"Monitoring resource not generated: {monitoring_resource}"
+        )
+
+        # Parse the generated resource YAML
+        parsed = yaml.safe_load(monitoring_resource.read_text())
+        pipeline = parsed["resources"]["pipelines"][
+            "acme_edw_event_log_monitoring_pipeline"
+        ]
+
+        # Verify pipeline_config settings flowed into the resource
+        assert pipeline["serverless"] is False, (
+            "serverless should be False from pipeline_config"
+        )
+        assert pipeline["edition"] == "ADVANCED", (
+            "edition should be ADVANCED from pipeline_config"
+        )
+        assert pipeline["photon"] is True, (
+            "photon should be True from pipeline_config"
+        )
+
+        # Verify cluster configuration
+        assert "clusters" in pipeline, (
+            "clusters should be present from pipeline_config"
+        )
+        assert len(pipeline["clusters"]) == 1
+        cluster = pipeline["clusters"][0]
+        assert cluster["label"] == "default"
+        assert cluster["node_type_id"] == "Standard_D4ds_v5"
+        assert cluster["autoscale"]["min_workers"] == 1
+        assert cluster["autoscale"]["max_workers"] == 4
+        assert cluster["autoscale"]["mode"] == "ENHANCED"
+
+        # Verify notifications
+        assert "notifications" in pipeline, (
+            "notifications should be present from pipeline_config"
+        )
+        assert len(pipeline["notifications"]) == 1
+        notification = pipeline["notifications"][0]
+        assert "monitoring-team@example.com" in notification["email_recipients"]
+        assert "on-update-failure" in notification["alerts"]
+        assert "on-update-fatal-failure" in notification["alerts"]
+
+        # Verify tags
+        assert "tags" in pipeline, (
+            "tags should be present from pipeline_config"
+        )
+        assert pipeline["tags"]["team"] == "data-platform"
+        assert pipeline["tags"]["purpose"] == "monitoring"
+
+        # Verify monitoring pipeline still does NOT have event_log
+        # (monitoring pipeline should never self-reference its own event_log)
+        assert "event_log" not in pipeline, (
+            "Monitoring pipeline resource should NOT have event_log"
+        )
+
+        # Verify proper YAML structure (no line concatenation)
+        resource_content = monitoring_resource.read_text()
+        assert not re.search(
+            r"clusters:[ \t]+- label:", resource_content
+        ), "BUG: Cluster list item concatenated on same line as 'clusters:'"
+        assert not re.search(
+            r"notifications:[ \t]+- email_recipients:", resource_content
+        ), "BUG: Notifications concatenated on same line"
+        assert not re.search(
+            r"tags:[ \t]+\w+:", resource_content
+        ), "BUG: Tags concatenated on same line"
+
+    # ------------------------------------------------------------------
+    # Test 11: monitoring pipeline inherits project_defaults from pipeline_config
+    # ------------------------------------------------------------------
+
+    def test_monitoring_pipeline_inherits_project_defaults(self):
+        """Monitoring pipeline inherits project_defaults when no pipeline-specific doc exists.
+
+        Validates that project_defaults (e.g. serverless: false, edition: PRO)
+        apply to the monitoring pipeline resource even without a
+        pipeline: acme_edw_event_log_monitoring document.
+        """
+        self._enable_event_log_and_monitoring()
+
+        # Overwrite pipeline_config with only project_defaults — no monitoring doc
+        config_file = self.project_root / "config" / "pipeline_config.yaml"
+        config_file.write_text(
+            "project_defaults:\n"
+            "  serverless: false\n"
+            "  edition: PRO\n"
+            "  photon: true\n"
+        )
+
+        # Run generation WITH --pipeline-config flag
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--verbose",
+                "generate",
+                "--env",
+                "dev",
+                "--force",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
+        exit_code, output = result.exit_code, result.output
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Verify monitoring resource file was generated
+        monitoring_resource = (
+            self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
+        )
+        assert monitoring_resource.exists(), (
+            f"Monitoring resource not generated: {monitoring_resource}"
+        )
+
+        # Parse and verify project_defaults were inherited
+        parsed = yaml.safe_load(monitoring_resource.read_text())
+        pipeline = parsed["resources"]["pipelines"][
+            "acme_edw_event_log_monitoring_pipeline"
+        ]
+
+        assert pipeline["serverless"] is False, (
+            "serverless should be False from project_defaults"
+        )
+        assert pipeline["edition"] == "PRO", (
+            "edition should be PRO from project_defaults"
+        )
+        assert pipeline["photon"] is True, (
+            "photon should be True from project_defaults"
+        )
+
+    # ------------------------------------------------------------------
+    # Test 12: __eventlog_monitoring alias resolves in generated bundle
+    # ------------------------------------------------------------------
+
+    def test_monitoring_alias_resolves_in_generated_bundle(self):
+        """pipeline: __eventlog_monitoring alias resolves to actual monitoring pipeline name.
+
+        Validates that users can write 'pipeline: __eventlog_monitoring' in
+        pipeline_config.yaml without knowing the runtime monitoring pipeline name.
+        The alias should resolve to the actual name and settings should appear
+        in the generated bundle resource YAML.
+        """
+        self._enable_event_log_and_monitoring()
+
+        # Write pipeline_config.yaml using the alias
+        config_file = self.project_root / "config" / "pipeline_config.yaml"
+        config_file.write_text(
+            "project_defaults:\n"
+            "  serverless: true\n"
+            "\n"
+            "---\n"
+            "pipeline: __eventlog_monitoring\n"
+            "serverless: false\n"
+            "edition: ADVANCED\n"
+            "photon: true\n"
+            "clusters:\n"
+            "  - label: default\n"
+            "    node_type_id: Standard_D4ds_v5\n"
+            "    autoscale:\n"
+            "      min_workers: 1\n"
+            "      max_workers: 3\n"
+            "tags:\n"
+            "  purpose: event_log_monitoring\n"
+            "  managed_by: lhp\n"
+        )
+
+        # Run generation WITH --pipeline-config flag
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--verbose",
+                "generate",
+                "--env",
+                "dev",
+                "--force",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
+        exit_code, output = result.exit_code, result.output
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Verify monitoring resource file was generated with the REAL name
+        monitoring_resource = (
+            self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
+        )
+        assert monitoring_resource.exists(), (
+            f"Monitoring resource not generated: {monitoring_resource}"
+        )
+
+        # Parse the generated resource YAML
+        parsed = yaml.safe_load(monitoring_resource.read_text())
+        pipeline = parsed["resources"]["pipelines"][
+            "acme_edw_event_log_monitoring_pipeline"
+        ]
+
+        # Verify alias settings flowed through to the resource
+        assert pipeline["serverless"] is False, (
+            "serverless should be False from __eventlog_monitoring alias config"
+        )
+        assert pipeline["edition"] == "ADVANCED", (
+            "edition should be ADVANCED from alias config"
+        )
+        assert pipeline["photon"] is True, (
+            "photon should be True from alias config"
+        )
+
+        # Verify cluster configuration from alias
+        assert "clusters" in pipeline, (
+            "clusters should be present from alias config"
+        )
+        assert len(pipeline["clusters"]) == 1
+        cluster = pipeline["clusters"][0]
+        assert cluster["node_type_id"] == "Standard_D4ds_v5"
+        assert cluster["autoscale"]["min_workers"] == 1
+        assert cluster["autoscale"]["max_workers"] == 3
+
+        # Verify tags from alias
+        assert "tags" in pipeline, (
+            "tags should be present from alias config"
+        )
+        assert pipeline["tags"]["purpose"] == "event_log_monitoring"
+        assert pipeline["tags"]["managed_by"] == "lhp"
+
+        # Verify monitoring pipeline still does NOT have event_log
+        assert "event_log" not in pipeline, (
+            "Monitoring pipeline resource should NOT have event_log"
+        )

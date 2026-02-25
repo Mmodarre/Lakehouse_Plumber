@@ -145,6 +145,9 @@ project_defaults:
 # Useful for: applying same compute/settings to multiple related pipelines
 # 
 # # Event logging configuration
+# # Note: If event_log is defined in lhp.yaml, it applies automatically to all pipelines.
+# # Defining event_log here fully replaces the lhp.yaml setting for this pipeline.
+# # Use 'event_log: false' to disable event logging for this pipeline only.
 # event_log:
 #   name: raw_ingestion_event_log
 #   schema: _meta
@@ -270,6 +273,32 @@ project_defaults:
 #   name: gold_event_log
 #   schema: _meta
 #   catalog: ${var.default_pipeline_catalog}
+
+---
+# ==============================================================================
+# EXAMPLE: Event Log Monitoring Pipeline Configuration
+# ==============================================================================
+# Use the __eventlog_monitoring alias to configure the monitoring pipeline
+# without needing to know its actual name. The alias automatically resolves
+# to the monitoring pipeline name defined in lhp.yaml.
+#
+# Requires: event_log and monitoring to be enabled in lhp.yaml
+#
+# pipeline: __eventlog_monitoring
+#
+# serverless: true
+# edition: ADVANCED
+#
+# notifications:
+#   - email_recipients:
+#       - monitoring-alerts@company.com
+#     alerts:
+#       - on-update-failure
+#       - on-update-fatal-failure
+#
+# tags:
+#   purpose: event_log_monitoring
+#   team: platform
 
 ---
 # ==============================================================================

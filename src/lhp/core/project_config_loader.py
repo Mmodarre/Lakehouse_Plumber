@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 from ..models.config import (
+    EventLogConfig,
+    MonitoringConfig,
+    MonitoringMaterializedViewConfig,
     ProjectConfig,
     ProjectOperationalMetadataConfig,
     MetadataColumnConfig,
@@ -114,6 +117,18 @@ class ProjectConfigLoader:
         if "include" in config_data:
             include_patterns = self._parse_include_patterns(config_data["include"])
 
+        # Parse event_log configuration
+        event_log_config = None
+        if "event_log" in config_data:
+            event_log_config = self._parse_event_log_config(config_data["event_log"])
+
+        # Parse monitoring configuration
+        monitoring_config = None
+        if "monitoring" in config_data:
+            monitoring_config = self._parse_monitoring_config(
+                config_data["monitoring"], event_log_config
+            )
+
         # Create project config
         project_config = ProjectConfig(
             name=config_data.get("name", "unnamed_project"),
@@ -123,6 +138,8 @@ class ProjectConfigLoader:
             created_date=config_data.get("created_date"),
             include=include_patterns,
             operational_metadata=operational_metadata_config,
+            event_log=event_log_config,
+            monitoring=monitoring_config,
             required_lhp_version=config_data.get("required_lhp_version"),
         )
 
@@ -185,6 +202,273 @@ class ProjectConfigLoader:
             validated_patterns.append(pattern)
 
         return validated_patterns
+
+    def _parse_event_log_config(self, event_log_data: Any) -> EventLogConfig:
+        """Parse event_log configuration from lhp.yaml.
+
+        Args:
+            event_log_data: Raw event_log data from YAML
+
+        Returns:
+            Parsed EventLogConfig
+
+        Raises:
+            LHPError: If event_log configuration is invalid
+        """
+        if not isinstance(event_log_data, dict):
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="006",
+                title="Invalid event_log configuration",
+                details=f"event_log must be a mapping, got {type(event_log_data).__name__}",
+                suggestions=[
+                    "Define event_log as a YAML mapping with keys: enabled, catalog, schema, name_prefix, name_suffix",
+                    "Example: event_log:\\n  catalog: my_catalog\\n  schema: _meta",
+                ],
+            )
+
+        try:
+            config = EventLogConfig(
+                enabled=event_log_data.get("enabled", True),
+                catalog=event_log_data.get("catalog"),
+                schema=event_log_data.get("schema"),
+                name_prefix=event_log_data.get("name_prefix", ""),
+                name_suffix=event_log_data.get("name_suffix", ""),
+            )
+        except Exception as e:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="006",
+                title="Error parsing event_log configuration",
+                details=f"Failed to parse event_log configuration: {e}",
+                suggestions=[
+                    "Check event_log field types: enabled (bool), catalog (string), schema (string)",
+                    "name_prefix and name_suffix must be strings",
+                ],
+            )
+
+        self._validate_event_log_config(config)
+        return config
+
+    def _validate_event_log_config(self, config: EventLogConfig) -> None:
+        """Validate event_log configuration.
+
+        If enabled, both catalog and schema must be provided.
+
+        Args:
+            config: EventLogConfig to validate
+
+        Raises:
+            LHPError: If enabled but catalog or schema missing
+        """
+        if not config.enabled:
+            return
+
+        if not config.catalog or not config.schema_:
+            missing = []
+            if not config.catalog:
+                missing.append("catalog")
+            if not config.schema_:
+                missing.append("schema")
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="007",
+                title="Incomplete event_log configuration",
+                details=(
+                    f"event_log is enabled but missing required fields: {', '.join(missing)}. "
+                    f"Both 'catalog' and 'schema' are required when event_log is enabled."
+                ),
+                suggestions=[
+                    "Add the missing fields to event_log in lhp.yaml",
+                    "Or set 'enabled: false' to disable project-level event logging",
+                    "Example: event_log:\\n  catalog: my_catalog\\n  schema: _meta",
+                ],
+            )
+
+    def _parse_monitoring_config(
+        self,
+        monitoring_data: Any,
+        event_log_config: Optional[EventLogConfig],
+    ) -> MonitoringConfig:
+        """Parse monitoring configuration from lhp.yaml.
+
+        Handles `monitoring: {}` (all defaults) and explicit configuration.
+
+        Args:
+            monitoring_data: Raw monitoring data from YAML
+            event_log_config: Parsed event_log config (for cross-validation)
+
+        Returns:
+            Parsed MonitoringConfig
+
+        Raises:
+            LHPError: If monitoring configuration is invalid
+        """
+        # Handle monitoring: {} (empty dict = all defaults)
+        if monitoring_data is None:
+            monitoring_data = {}
+
+        if not isinstance(monitoring_data, dict):
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="008",
+                title="Invalid monitoring configuration",
+                details=f"monitoring must be a mapping, got {type(monitoring_data).__name__}",
+                suggestions=[
+                    "Define monitoring as a YAML mapping",
+                    "Example: monitoring:\n  pipeline_name: my_monitor",
+                    "Use 'monitoring: {}' for all defaults",
+                ],
+            )
+
+        # Parse materialized_views list
+        mv_configs = None
+        raw_mvs = monitoring_data.get("materialized_views")
+        if raw_mvs is not None:
+            if not isinstance(raw_mvs, list):
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="008",
+                    title="Invalid monitoring materialized_views",
+                    details="materialized_views must be a list of view definitions",
+                    suggestions=[
+                        "Define materialized_views as a YAML list",
+                        "Example:\n  materialized_views:\n    - name: events_summary\n      sql: 'SELECT ...'",
+                    ],
+                )
+            mv_configs = []
+            for mv_data in raw_mvs:
+                if not isinstance(mv_data, dict):
+                    raise LHPError(
+                        category=ErrorCategory.CONFIG,
+                        code_number="008",
+                        title="Invalid materialized view entry",
+                        details=f"Each materialized_view must be a mapping, got {type(mv_data).__name__}",
+                        suggestions=[
+                            "Define each view with at least a 'name' field",
+                            "Example:\n  - name: events_summary\n    sql: 'SELECT ...'",
+                        ],
+                    )
+                mv_configs.append(
+                    MonitoringMaterializedViewConfig(
+                        name=mv_data.get("name", ""),
+                        sql=mv_data.get("sql"),
+                        sql_path=mv_data.get("sql_path"),
+                    )
+                )
+
+        try:
+            config = MonitoringConfig(
+                enabled=monitoring_data.get("enabled", True),
+                pipeline_name=monitoring_data.get("pipeline_name"),
+                catalog=monitoring_data.get("catalog"),
+                schema=monitoring_data.get("schema"),
+                streaming_table=monitoring_data.get(
+                    "streaming_table", "all_pipelines_event_log"
+                ),
+                materialized_views=mv_configs,
+            )
+        except Exception as e:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="008",
+                title="Error parsing monitoring configuration",
+                details=f"Failed to parse monitoring configuration: {e}",
+                suggestions=[
+                    "Check monitoring field types: enabled (bool), pipeline_name (string)",
+                    "catalog and schema must be strings",
+                ],
+            )
+
+        self._validate_monitoring_config(config, event_log_config)
+        return config
+
+    def _validate_monitoring_config(
+        self,
+        config: MonitoringConfig,
+        event_log_config: Optional[EventLogConfig],
+    ) -> None:
+        """Validate monitoring configuration.
+
+        Checks:
+        - If enabled, event_log must be present and enabled
+        - MV names must be unique
+        - MVs must not specify both sql and sql_path
+
+        Args:
+            config: MonitoringConfig to validate
+            event_log_config: Project-level event log config
+
+        Raises:
+            LHPError: If validation fails
+        """
+        if not config.enabled:
+            return
+
+        # Monitoring requires event_log to be present and enabled
+        if not event_log_config or not event_log_config.enabled:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="008",
+                title="Monitoring requires event_log",
+                details=(
+                    "monitoring is enabled but event_log is either missing or disabled. "
+                    "The monitoring pipeline needs event_log tables to function."
+                ),
+                suggestions=[
+                    "Add an event_log section to lhp.yaml with catalog and schema",
+                    "Or set 'monitoring: { enabled: false }' to disable monitoring",
+                    "Example:\n  event_log:\n    catalog: my_catalog\n    schema: _meta",
+                ],
+            )
+
+        # Validate materialized views
+        if config.materialized_views:
+            seen_names: Dict[str, int] = {}
+            for i, mv in enumerate(config.materialized_views):
+                # Name is required
+                if not mv.name:
+                    raise LHPError(
+                        category=ErrorCategory.CONFIG,
+                        code_number="008",
+                        title="Materialized view missing name",
+                        details=f"Materialized view at index {i} has no 'name' field",
+                        suggestions=[
+                            "Add a 'name' field to each materialized view",
+                            "Example:\n  - name: events_summary\n    sql: 'SELECT ...'",
+                        ],
+                    )
+
+                # Unique names
+                if mv.name in seen_names:
+                    raise LHPError(
+                        category=ErrorCategory.CONFIG,
+                        code_number="008",
+                        title="Duplicate materialized view name",
+                        details=(
+                            f"Materialized view name '{mv.name}' appears at "
+                            f"index {seen_names[mv.name]} and {i}"
+                        ),
+                        suggestions=[
+                            "Each materialized view must have a unique name",
+                        ],
+                    )
+                seen_names[mv.name] = i
+
+                # Cannot specify both sql and sql_path
+                if mv.sql and mv.sql_path:
+                    raise LHPError(
+                        category=ErrorCategory.CONFIG,
+                        code_number="008",
+                        title="Ambiguous materialized view SQL source",
+                        details=(
+                            f"Materialized view '{mv.name}' specifies both 'sql' and 'sql_path'. "
+                            f"Only one is allowed."
+                        ),
+                        suggestions=[
+                            "Use 'sql' for inline SQL or 'sql_path' for external file, not both",
+                        ],
+                    )
 
     def _validate_include_pattern(self, pattern: str) -> bool:
         """Validate a single include pattern.
