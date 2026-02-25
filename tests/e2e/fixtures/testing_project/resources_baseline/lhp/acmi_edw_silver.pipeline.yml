@@ -31,6 +31,9 @@ resources:
       #   - label: default
       #     node_type_id: Standard_D16ds_v5
       #     driver_node_type_id: Standard_D32ds_v5
+      #     # Or use instance pools instead of node_type_id:
+      #     # instance_pool_id: <your-pool-id>
+      #     # driver_instance_pool_id: <your-driver-pool-id>
       #     policy_id: 1234ABCD1234ABCD
       #     autoscale:
       #       min_workers: 1

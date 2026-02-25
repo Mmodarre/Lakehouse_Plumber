@@ -1,10 +1,13 @@
 """Tests for PipelineConfigLoader service."""
 
+import logging
+
 import pytest
 import yaml
 from pathlib import Path
 
 from lhp.core.services.pipeline_config_loader import PipelineConfigLoader
+from lhp.utils.error_formatter import LHPValidationError
 
 
 class TestConfigLoading:
@@ -522,4 +525,186 @@ tags:
         assert loader.pipeline_configs["list_pipeline_1"]["edition"] == "PRO"
         assert loader.pipeline_configs["list_pipeline_1"]["tags"]["type"] == "list"
         assert loader.pipeline_configs["list_pipeline_2"]["edition"] == "PRO"
+
+
+@pytest.mark.unit
+class TestMonitoringAlias:
+    """Tests for __eventlog_monitoring reserved keyword resolution."""
+
+    def test_alias_resolves_to_monitoring_name(self, tmp_path):
+        """__eventlog_monitoring entry resolves to actual monitoring pipeline name."""
+        config_content = """
+pipeline: __eventlog_monitoring
+serverless: true
+tags:
+  purpose: monitoring
+"""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(config_content)
+
+        loader = PipelineConfigLoader(
+            tmp_path,
+            config_file_path=str(config_file),
+            monitoring_pipeline_name="acme_edw_event_log_monitoring",
+        )
+
+        assert "acme_edw_event_log_monitoring" in loader.pipeline_configs
+        assert loader.pipeline_configs["acme_edw_event_log_monitoring"]["serverless"] is True
+        assert loader.pipeline_configs["acme_edw_event_log_monitoring"]["tags"]["purpose"] == "monitoring"
+
+    def test_alias_not_present_after_resolution(self, tmp_path):
+        """After resolution, __eventlog_monitoring key is gone from pipeline_configs."""
+        config_content = """
+pipeline: __eventlog_monitoring
+serverless: false
+"""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(config_content)
+
+        loader = PipelineConfigLoader(
+            tmp_path,
+            config_file_path=str(config_file),
+            monitoring_pipeline_name="my_monitor",
+        )
+
+        assert "__eventlog_monitoring" not in loader.pipeline_configs
+        assert "my_monitor" in loader.pipeline_configs
+
+    def test_alias_merges_with_project_defaults(self, tmp_path):
+        """project_defaults + alias config merge correctly via get_pipeline_config."""
+        config_content = """project_defaults:
+  serverless: true
+  edition: ADVANCED
+  tags:
+    team: platform
+---
+pipeline: __eventlog_monitoring
+tags:
+  purpose: monitoring
+"""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(config_content)
+
+        loader = PipelineConfigLoader(
+            tmp_path,
+            config_file_path=str(config_file),
+            monitoring_pipeline_name="acme_monitor",
+        )
+
+        config = loader.get_pipeline_config("acme_monitor")
+
+        # Inherited from project_defaults
+        assert config["serverless"] is True
+        assert config["edition"] == "ADVANCED"
+        # Dicts are deep-merged: project_defaults tags + pipeline-specific tags
+        assert config["tags"]["team"] == "platform"
+        assert config["tags"]["purpose"] == "monitoring"
+
+    def test_alias_without_monitoring_warns_and_ignores(self, tmp_path, caplog):
+        """Alias used but monitoring_pipeline_name=None -> warning, entry removed."""
+        config_content = """
+pipeline: __eventlog_monitoring
+serverless: false
+tags:
+  purpose: monitoring
+"""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(config_content)
+
+        with caplog.at_level(logging.WARNING):
+            loader = PipelineConfigLoader(
+                tmp_path,
+                config_file_path=str(config_file),
+                monitoring_pipeline_name=None,
+            )
+
+        # Alias entry should be removed
+        assert "__eventlog_monitoring" not in loader.pipeline_configs
+        assert len(loader.pipeline_configs) == 0
+
+        # Warning should have been logged
+        assert "__eventlog_monitoring" in caplog.text
+        assert "not configured or enabled" in caplog.text
+
+    def test_alias_and_actual_name_both_defined_raises(self, tmp_path):
+        """Defining both alias and actual monitoring name raises LHPValidationError."""
+        config_content = """
+pipeline: __eventlog_monitoring
+serverless: false
+---
+pipeline: acme_monitor
+serverless: true
+"""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(config_content)
+
+        with pytest.raises(LHPValidationError) as exc_info:
+            PipelineConfigLoader(
+                tmp_path,
+                config_file_path=str(config_file),
+                monitoring_pipeline_name="acme_monitor",
+            )
+
+        error_str = str(exc_info.value)
+        assert "Duplicate monitoring pipeline configuration" in error_str
+        assert "__eventlog_monitoring" in error_str
+        assert "acme_monitor" in error_str
+
+    def test_alias_in_pipeline_list_raises(self, tmp_path):
+        """__eventlog_monitoring in a list like [bronze, __eventlog_monitoring] raises error."""
+        config_content = """
+pipeline:
+  - bronze_pipeline
+  - __eventlog_monitoring
+serverless: false
+"""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(config_content)
+
+        with pytest.raises(LHPValidationError) as exc_info:
+            PipelineConfigLoader(
+                tmp_path,
+                config_file_path=str(config_file),
+                monitoring_pipeline_name="acme_monitor",
+            )
+
+        error_str = str(exc_info.value)
+        assert "standalone" in error_str.lower() or "list" in error_str.lower()
+        assert "__eventlog_monitoring" in error_str
+
+    def test_no_alias_used_unchanged(self, tmp_path):
+        """When alias not used, behavior is identical to before."""
+        config_content = """project_defaults:
+  serverless: true
+---
+pipeline: bronze
+serverless: false
+"""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(config_content)
+
+        loader = PipelineConfigLoader(
+            tmp_path,
+            config_file_path=str(config_file),
+            monitoring_pipeline_name="acme_monitor",
+        )
+
+        assert "bronze" in loader.pipeline_configs
+        assert "__eventlog_monitoring" not in loader.pipeline_configs
+        assert "acme_monitor" not in loader.pipeline_configs
+        assert loader.pipeline_configs["bronze"]["serverless"] is False
+
+    def test_no_config_file_with_monitoring_name_ok(self, tmp_path):
+        """No config file + monitoring_pipeline_name -> no error, empty configs."""
+        loader = PipelineConfigLoader(
+            tmp_path,
+            config_file_path=None,
+            monitoring_pipeline_name="acme_monitor",
+        )
+
+        assert loader.pipeline_configs == {}
+        assert loader.project_defaults == {}
+        # get_pipeline_config still returns defaults
+        config = loader.get_pipeline_config("acme_monitor")
+        assert config["serverless"] is True
 

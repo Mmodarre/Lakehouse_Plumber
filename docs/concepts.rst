@@ -698,6 +698,34 @@ LakehousePlumber supports version enforcement to ensure consistent code generati
 .. warning::
    Use the bypass environment variable (``LHP_IGNORE_VERSION=1``) only in emergencies. It's not recommended for production environments as it defeats the purpose of version consistency.
 
+Event Log Configuration
+~~~~~~~~~~~~~~~~~~~~~~~
+
+LakehousePlumber supports project-level event log configuration in ``lhp.yaml``. When
+configured, event log blocks are automatically injected into all pipeline resource files
+during generation — no ``-pc`` flag or ``pipeline_config.yaml`` required.
+
+.. code-block:: yaml
+   :caption: lhp.yaml - Event log configuration
+
+   name: my_lakehouse_project
+   version: "1.0"
+
+   event_log:
+     catalog: "{catalog}"
+     schema: _meta
+     name_suffix: "_event_log"
+
+When ``event_log`` is defined, each generated pipeline resource will include an ``event_log``
+block with the table name derived from the pipeline name (e.g., ``bronze_load_event_log``).
+
+Individual pipelines can override or opt out of project-level event logging through
+``pipeline_config.yaml``.
+
+.. seealso::
+   For complete details including per-pipeline overrides, opt-out, monitoring pipeline
+   setup, and all configuration options, see :doc:`monitoring`.
+
 Target Type Compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -59,3 +59,34 @@ operational_metadata:
       applies_to: ["streaming_table", "materialized_view", "view"]
       additional_imports:
         - "from pyspark.sql.functions import hash"
+
+## Optional: Declarative event logging for all pipelines
+## Automatically generates event_log blocks in pipeline resource files
+## without requiring -pc flag or pipeline_config.yaml
+# event_log:
+#   enabled: true
+#   catalog: "{event_log_catalog}"
+#   schema: _meta
+#   name_prefix: ""
+#   name_suffix: "_event_log"
+
+## Optional: Centralized event log monitoring pipeline
+## Creates a synthetic pipeline that UNIONs all pipeline event log tables
+## into a single streaming table with materialized views for analysis.
+## Requires event_log to be enabled above.
+## See docs/monitoring.rst for full configuration reference.
+##
+## Minimal setup (uses sensible defaults):
+# monitoring: {}
+##
+## Custom configuration example:
+# monitoring:
+#   pipeline_name: "my_custom_monitor"     # Default: {project_name}_event_log_monitoring
+#   catalog: "analytics_catalog"           # Default: inherits from event_log.catalog
+#   schema: "_monitoring"                  # Default: inherits from event_log.schema
+#   streaming_table: "unified_event_log"   # Default: all_pipelines_event_log
+#   materialized_views:                    # Default: one events_summary MV
+#     - name: "error_events"
+#       sql: "SELECT * FROM unified_event_log WHERE event_type = 'error'"
+#     - name: "daily_analysis"
+#       sql_path: "sql/monitoring_custom_analysis.sql"

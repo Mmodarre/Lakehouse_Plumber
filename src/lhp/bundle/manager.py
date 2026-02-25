@@ -38,7 +38,10 @@ class BundleManager:
     """
 
     def __init__(
-        self, project_root: Union[Path, str], pipeline_config_path: Optional[str] = None
+        self,
+        project_root: Union[Path, str],
+        pipeline_config_path: Optional[str] = None,
+        project_config: Optional[Any] = None,
     ):
         """
         Initialize the bundle manager.
@@ -46,6 +49,7 @@ class BundleManager:
         Args:
             project_root: Path to the project root directory
             pipeline_config_path: Optional path to custom pipeline config file (relative to project_root)
+            project_config: Optional ProjectConfig with project-level settings (e.g., event_log)
 
         Raises:
             TypeError: If project_root is None
@@ -67,6 +71,7 @@ class BundleManager:
             project_root = Path(project_root)
 
         self.project_root = project_root
+        self.project_config = project_config
         self.resources_base_dir = project_root / "resources" / "lhp"
         self.resources_dir = (
             self.resources_base_dir
@@ -81,7 +86,9 @@ class BundleManager:
         from ..core.services.pipeline_config_loader import PipelineConfigLoader
 
         self.config_loader = PipelineConfigLoader(
-            self.project_root, pipeline_config_path
+            self.project_root,
+            pipeline_config_path,
+            monitoring_pipeline_name=self._get_monitoring_pipeline_name(),
         )
 
     def _get_env_resources_dir(self, env: str) -> Path:
@@ -301,6 +308,87 @@ class BundleManager:
         # If neither exists, return preferred format for new file creation
         return preferred_path
 
+    def _inject_project_event_log(
+        self, pipeline_config: Dict[str, Any], pipeline_name: str
+    ) -> Dict[str, Any]:
+        """Inject project-level event_log into pipeline config if applicable.
+
+        Injection rules:
+        - No project_config or no event_log → return unchanged
+        - event_log disabled → return unchanged
+        - pipeline_config has event_log: false → delete key, return (opt-out)
+        - pipeline_config has event_log dict → return unchanged (full replace)
+        - Otherwise → inject event_log block from project config
+
+        Args:
+            pipeline_config: Raw pipeline config dict (pre-substitution)
+            pipeline_name: Name of the pipeline (used for event_log name generation)
+
+        Returns:
+            Pipeline config dict, potentially with event_log injected
+        """
+        # No project config or no event_log configured
+        if not self.project_config or not getattr(
+            self.project_config, "event_log", None
+        ):
+            return pipeline_config
+
+        event_log_cfg = self.project_config.event_log
+
+        # Project-level event_log is disabled
+        if not event_log_cfg.enabled:
+            return pipeline_config
+
+        # Check pipeline-level override
+        if "event_log" in pipeline_config:
+            pipeline_event_log = pipeline_config["event_log"]
+
+            # Explicit opt-out: event_log: false
+            if pipeline_event_log is False:
+                del pipeline_config["event_log"]
+                logger.debug(
+                    f"Pipeline '{pipeline_name}' opted out of project-level event_log"
+                )
+                return pipeline_config
+
+            # Pipeline has its own event_log dict → full replace, leave unchanged
+            if isinstance(pipeline_event_log, dict):
+                logger.debug(
+                    f"Pipeline '{pipeline_name}' has its own event_log config, "
+                    f"skipping project-level injection"
+                )
+                return pipeline_config
+
+        # Inject project-level event_log
+        event_log_name = (
+            f"{event_log_cfg.name_prefix}{pipeline_name}{event_log_cfg.name_suffix}"
+        )
+        pipeline_config["event_log"] = {
+            "name": event_log_name,
+            "catalog": event_log_cfg.catalog,
+            "schema": event_log_cfg.schema_,
+        }
+        logger.debug(
+            f"Injected project-level event_log for pipeline '{pipeline_name}': "
+            f"name={event_log_name}"
+        )
+        return pipeline_config
+
+    def _get_monitoring_pipeline_name(self) -> Optional[str]:
+        """Get the monitoring pipeline name from project config.
+
+        Returns:
+            Monitoring pipeline name, or None if monitoring not configured
+        """
+        if not self.project_config:
+            return None
+        monitoring = getattr(self.project_config, "monitoring", None)
+        if not monitoring or not monitoring.enabled:
+            return None
+        if monitoring.pipeline_name:
+            return monitoring.pipeline_name
+        return f"{self.project_config.name}_event_log_monitoring"
+
     def generate_resource_file_content(
         self, pipeline_name: str, output_dir: Path, env: str
     ) -> str:
@@ -324,6 +412,14 @@ class BundleManager:
         """
         # Get RAW pipeline configuration
         pipeline_config_raw = self.config_loader.get_pipeline_config(pipeline_name)
+
+        # Skip event_log injection for the monitoring pipeline (no self-reference)
+        monitoring_name = self._get_monitoring_pipeline_name()
+        if pipeline_name != monitoring_name:
+            # Inject project-level event_log BEFORE substitution so tokens get resolved
+            pipeline_config_raw = self._inject_project_event_log(
+                pipeline_config_raw, pipeline_name
+            )
 
         # Apply substitution to ENTIRE config (all fields)
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"

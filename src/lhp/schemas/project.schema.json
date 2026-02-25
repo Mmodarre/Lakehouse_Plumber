@@ -118,6 +118,85 @@
                     "additionalProperties": true
                 }
             }
+        },
+        "event_log": {
+            "type": "object",
+            "description": "Project-level event log configuration for pipeline resources",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether project-level event logging is enabled"
+                },
+                "catalog": {
+                    "type": "string",
+                    "description": "Catalog for event log tables (supports LHP substitution tokens)"
+                },
+                "schema": {
+                    "type": "string",
+                    "description": "Schema for event log tables (supports LHP substitution tokens)"
+                },
+                "name_prefix": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Prefix prepended to pipeline name for event log table name"
+                },
+                "name_suffix": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Suffix appended to pipeline name for event log table name"
+                }
+            }
+        },
+        "monitoring": {
+            "type": "object",
+            "description": "Event log monitoring pipeline configuration. When present and enabled, LHP generates a synthetic monitoring pipeline that UNIONs all pipeline event log tables.",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether the monitoring pipeline is enabled"
+                },
+                "pipeline_name": {
+                    "type": "string",
+                    "description": "Name of the monitoring pipeline (default: {project_name}_event_log_monitoring)"
+                },
+                "catalog": {
+                    "type": "string",
+                    "description": "Catalog for monitoring tables (default: event_log.catalog)"
+                },
+                "schema": {
+                    "type": "string",
+                    "description": "Schema for monitoring tables (default: event_log.schema)"
+                },
+                "streaming_table": {
+                    "type": "string",
+                    "default": "all_pipelines_event_log",
+                    "description": "Name of the unified streaming table"
+                },
+                "materialized_views": {
+                    "type": "array",
+                    "description": "List of materialized views to create from the unified event log",
+                    "items": {
+                        "type": "object",
+                        "required": ["name"],
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the materialized view"
+                            },
+                            "sql": {
+                                "type": "string",
+                                "description": "Inline SQL for the materialized view"
+                            },
+                            "sql_path": {
+                                "type": "string",
+                                "description": "Path to external SQL file for the materialized view"
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 } 

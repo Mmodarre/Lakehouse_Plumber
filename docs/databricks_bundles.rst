@@ -384,7 +384,7 @@ Create a multi-document YAML file with project-level defaults and per-pipeline o
      - Custom tags for the pipeline
    * - ``event_log``
      - dict
-     - Event logging configuration
+     - Event logging configuration. Can also be set project-wide in ``lhp.yaml``. See `Event Log Configuration`_.
    * - ``environment``
      - dict
      - Runtime environment config (dependencies, etc.). Passed through as-is to Databricks.
@@ -535,6 +535,30 @@ entry in the generated bundle resource.
    - All configuration values **must be quoted strings** in the YAML input.
      Unquoted booleans (``false``) or numbers (``134217728``) will be rejected
      during validation.
+
+Monitoring Pipeline Alias
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When using event log monitoring (``monitoring:`` in ``lhp.yaml``), use the
+``__eventlog_monitoring`` reserved keyword in ``pipeline_config.yaml`` to configure the
+monitoring pipeline without hardcoding its dynamic name. At generation time, the alias
+resolves to the actual monitoring pipeline name.
+
+.. seealso::
+   For complete details on the monitoring pipeline alias, behavior rules, and examples,
+   see :doc:`monitoring`.
+
+Event Log Configuration
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Databricks DLT pipelines support an ``event_log`` section that configures where pipeline
+event logs are stored. LHP supports project-level event logging (in ``lhp.yaml``) that
+automatically applies to all pipelines, and pipeline-level overrides or opt-outs through
+``pipeline_config.yaml``.
+
+.. seealso::
+   For complete event log configuration reference, table naming rules, pipeline-level
+   overrides, and monitoring pipeline setup, see :doc:`monitoring`.
 
 Job Configuration
 ~~~~~~~~~~~~~~~~~

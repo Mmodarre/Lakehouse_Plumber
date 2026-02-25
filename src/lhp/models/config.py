@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from typing import List, Dict, Any, Optional, Union
 from enum import Enum
 
@@ -91,6 +91,44 @@ class ProjectOperationalMetadataConfig(BaseModel):
     defaults: Optional[Dict[str, Any]] = None
 
 
+class EventLogConfig(BaseModel):
+    """Project-level event log configuration for pipeline resource generation."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    enabled: bool = True
+    catalog: Optional[str] = None
+    schema_: Optional[str] = Field(None, alias="schema")
+    name_prefix: str = ""
+    name_suffix: str = ""
+
+
+class MonitoringMaterializedViewConfig(BaseModel):
+    """Configuration for a single monitoring materialized view."""
+
+    name: str
+    sql: Optional[str] = None
+    sql_path: Optional[str] = None
+
+
+class MonitoringConfig(BaseModel):
+    """Project-level monitoring pipeline configuration.
+
+    Controls automatic creation of a synthetic monitoring pipeline that UNIONs
+    all pipeline event log tables into a single streaming table with optional
+    materialized views for analysis.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    enabled: bool = True
+    pipeline_name: Optional[str] = None  # default: {project_name}_event_log_monitoring
+    catalog: Optional[str] = None  # default: event_log.catalog
+    schema_: Optional[str] = Field(None, alias="schema")  # default: event_log.schema
+    streaming_table: str = "all_pipelines_event_log"
+    materialized_views: Optional[List[MonitoringMaterializedViewConfig]] = None
+
+
 class ProjectConfig(BaseModel):
     """Project-level configuration loaded from lhp.yaml."""
 
@@ -101,6 +139,8 @@ class ProjectConfig(BaseModel):
     created_date: Optional[str] = None
     include: Optional[List[str]] = None
     operational_metadata: Optional[ProjectOperationalMetadataConfig] = None
+    event_log: Optional[EventLogConfig] = None
+    monitoring: Optional[MonitoringConfig] = None
     required_lhp_version: Optional[str] = None
 
 
@@ -267,6 +307,7 @@ class FlowGroup(BaseModel):
     operational_metadata: Optional[Union[bool, List[str]]] = (
         None  # Simplified: bool or list of column names
     )
+    _synthetic: bool = PrivateAttr(default=False)
 
 
 class Template(BaseModel):

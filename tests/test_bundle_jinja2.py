@@ -784,6 +784,155 @@ dev:
         except yaml.YAMLError:
             pytest.fail("Recovery content should produce valid YAML")
 
+    # Instance Pool Tests
+
+    def test_template_renders_instance_pool_id(self):
+        """Should render instance_pool_id and omit node_type_id when not present."""
+        config_file = self.project_root / "config" / "pipeline_config.yaml"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+project_defaults:
+  serverless: false
+  edition: ADVANCED
+
+---
+pipeline: pool_pipeline
+clusters:
+  - label: default
+    instance_pool_id: 1010-095823-mud11-pool-i204xeov
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+      mode: ENHANCED
+""")
+        manager = BundleManager(self.project_root, str(config_file))
+        content = manager.generate_resource_file_content("pool_pipeline", self.generated_dir, "dev")
+
+        # Verify valid YAML
+        parsed = yaml.safe_load(content)
+        assert parsed is not None
+
+        pipeline = parsed["resources"]["pipelines"]["pool_pipeline_pipeline"]
+
+        # instance_pool_id should be present
+        cluster = pipeline["clusters"][0]
+        assert cluster["instance_pool_id"] == "1010-095823-mud11-pool-i204xeov"
+
+        # node_type_id should NOT be present in parsed cluster config
+        assert "node_type_id" not in cluster
+
+    def test_template_renders_both_node_type_and_pool(self):
+        """Should render both node_type_id and instance_pool_id when both present."""
+        config_file = self.project_root / "config" / "pipeline_config.yaml"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+project_defaults:
+  serverless: false
+  edition: ADVANCED
+
+---
+pipeline: mixed_pipeline
+clusters:
+  - label: default
+    node_type_id: Standard_D16ds_v5
+    instance_pool_id: 1010-095823-mud11-pool-i204xeov
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+""")
+        manager = BundleManager(self.project_root, str(config_file))
+        content = manager.generate_resource_file_content("mixed_pipeline", self.generated_dir, "dev")
+
+        parsed = yaml.safe_load(content)
+        cluster = parsed["resources"]["pipelines"]["mixed_pipeline_pipeline"]["clusters"][0]
+
+        assert cluster["node_type_id"] == "Standard_D16ds_v5"
+        assert cluster["instance_pool_id"] == "1010-095823-mud11-pool-i204xeov"
+
+    def test_template_renders_driver_instance_pool_id(self):
+        """Should render driver_instance_pool_id when present."""
+        config_file = self.project_root / "config" / "pipeline_config.yaml"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+project_defaults:
+  serverless: false
+  edition: ADVANCED
+
+---
+pipeline: driver_pool_pipeline
+clusters:
+  - label: default
+    instance_pool_id: worker-pool-123
+    driver_instance_pool_id: driver-pool-456
+    autoscale:
+      min_workers: 1
+      max_workers: 3
+""")
+        manager = BundleManager(self.project_root, str(config_file))
+        content = manager.generate_resource_file_content("driver_pool_pipeline", self.generated_dir, "dev")
+
+        parsed = yaml.safe_load(content)
+        cluster = parsed["resources"]["pipelines"]["driver_pool_pipeline_pipeline"]["clusters"][0]
+
+        assert cluster["instance_pool_id"] == "worker-pool-123"
+        assert cluster["driver_instance_pool_id"] == "driver-pool-456"
+        assert "node_type_id" not in cluster
+
+    def test_instance_pool_with_token_substitution(self):
+        """Should resolve tokenized pool IDs through substitution."""
+        config_file = self.project_root / "config" / "pipeline_config.yaml"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text("""
+---
+pipeline: token_pool_test
+serverless: false
+clusters:
+  - label: default
+    instance_pool_id: "{worker_pool_id}"
+    driver_instance_pool_id: "{driver_pool_id}"
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+""")
+
+        sub_file = self.project_root / "substitutions" / "dev.yaml"
+        sub_file.parent.mkdir(parents=True, exist_ok=True)
+        sub_file.write_text("""
+dev:
+  worker_pool_id: resolved-worker-pool-789
+  driver_pool_id: resolved-driver-pool-012
+""")
+
+        manager = BundleManager(self.project_root, str(config_file))
+
+        # Capture context to verify substitution
+        captured_context = None
+        original_render = manager.template_renderer.render_template
+
+        def mock_render(template_name, context):
+            nonlocal captured_context
+            captured_context = context
+            return original_render(template_name, context)
+
+        manager.template_renderer.render_template = mock_render
+
+        try:
+            content = manager.generate_resource_file_content("token_pool_test", self.generated_dir, "dev")
+
+            # Verify tokens resolved in context
+            assert captured_context is not None
+            cluster = captured_context["pipeline_config"]["clusters"][0]
+            assert cluster["instance_pool_id"] == "resolved-worker-pool-789"
+            assert cluster["driver_instance_pool_id"] == "resolved-driver-pool-012"
+
+            # Verify rendered output
+            parsed = yaml.safe_load(content)
+            rendered_cluster = parsed["resources"]["pipelines"]["token_pool_test_pipeline"]["clusters"][0]
+            assert rendered_cluster["instance_pool_id"] == "resolved-worker-pool-789"
+            assert rendered_cluster["driver_instance_pool_id"] == "resolved-driver-pool-012"
+        finally:
+            manager.template_renderer.render_template = original_render
+
 
 class TestBundleJinja2TemplateHelpers:
     """Helper test class for template-specific utilities."""

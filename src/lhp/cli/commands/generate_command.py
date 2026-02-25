@@ -165,6 +165,7 @@ class GenerateCommand(BaseCommand):
                 dry_run,
                 force,
                 pipeline_config,
+                project_config=application_facade.orchestrator.project_config,
             )
 
         # 10. Display completion message (presentation)
@@ -405,6 +406,7 @@ class GenerateCommand(BaseCommand):
         dry_run: bool,
         force: bool = False,
         pipeline_config_path: Optional[str] = None,
+        project_config=None,
     ) -> None:
         """Handle bundle operations - coordinate with bundle management."""
         try:
@@ -425,7 +427,11 @@ class GenerateCommand(BaseCommand):
 
                 # Only actually sync if not dry-run
                 if not dry_run:
-                    bundle_manager = BundleManager(project_root, pipeline_config_path)
+                    bundle_manager = BundleManager(
+                        project_root,
+                        pipeline_config_path,
+                        project_config=project_config,
+                    )
                     bundle_manager.sync_resources_with_generated_files(
                         output_dir,
                         env,

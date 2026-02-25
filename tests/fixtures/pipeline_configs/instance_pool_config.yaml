@@ -1,0 +1,13 @@
+project_defaults:
+  serverless: false
+  edition: ADVANCED
+
+---
+pipeline: pool_test_pipeline
+clusters:
+  - label: default
+    instance_pool_id: 1010-095823-mud11-pool-i204xeov
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+      mode: ENHANCED

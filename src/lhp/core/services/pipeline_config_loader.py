@@ -34,14 +34,21 @@ class PipelineConfigLoader:
 
     ALLOWED_EDITIONS = {"CORE", "PRO", "ADVANCED"}
     ALLOWED_CHANNELS = {"CURRENT", "PREVIEW"}
+    MONITORING_ALIAS = "__eventlog_monitoring"
 
-    def __init__(self, project_root: Path, config_file_path: Optional[str] = None):
+    def __init__(
+        self,
+        project_root: Path,
+        config_file_path: Optional[str] = None,
+        monitoring_pipeline_name: Optional[str] = None,
+    ):
         """
         Initialize and load config.
 
         Args:
             project_root: Project root directory
             config_file_path: Config file path relative to project_root or absolute
+            monitoring_pipeline_name: Resolved monitoring pipeline name for alias support
 
         Raises:
             FileNotFoundError: If explicit config_file_path doesn't exist
@@ -50,11 +57,13 @@ class PipelineConfigLoader:
         """
         self.project_root = Path(project_root)
         self.logger = logger
+        self.monitoring_pipeline_name = monitoring_pipeline_name
 
         # Load and parse config
         self.project_defaults, self.pipeline_configs = self._load_config(
             config_file_path
         )
+        self._resolve_monitoring_alias()
 
     def get_pipeline_config(self, pipeline_name: str) -> Dict[str, Any]:
         """
@@ -184,6 +193,23 @@ class PipelineConfigLoader:
                         ],
                     )
 
+                # Validate: monitoring alias cannot be in a pipeline list
+                if self.MONITORING_ALIAS in pipeline_names and len(pipeline_names) > 1:
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="011",
+                        title="Monitoring alias cannot be in a pipeline list",
+                        details=(
+                            f"'{self.MONITORING_ALIAS}' must be used as a standalone pipeline entry, "
+                            f"not in a list with other pipelines."
+                        ),
+                        suggestions=[
+                            f"Use 'pipeline: {self.MONITORING_ALIAS}' as its own YAML document",
+                            "Create a separate document for the monitoring pipeline config",
+                        ],
+                        context={"Pipeline List": pipeline_names},
+                    )
+
                 # Extract all keys except 'pipeline'
                 pipeline_config = {k: v for k, v in doc.items() if k != "pipeline"}
 
@@ -230,6 +256,56 @@ class PipelineConfigLoader:
                 )
 
         return project_defaults, pipeline_configs
+
+    def _resolve_monitoring_alias(self) -> None:
+        """Resolve __eventlog_monitoring alias to actual monitoring pipeline name.
+
+        If the alias is found in pipeline_configs:
+        - If monitoring_pipeline_name is None (monitoring not configured): warn and remove
+        - If actual name also exists: raise error (collision)
+        - Otherwise: rename alias key to actual monitoring pipeline name
+        """
+        if self.MONITORING_ALIAS not in self.pipeline_configs:
+            return
+
+        # Check: monitoring not configured → warn and ignore
+        if self.monitoring_pipeline_name is None:
+            self.logger.warning(
+                f"'{self.MONITORING_ALIAS}' found in pipeline config but monitoring "
+                f"is not configured or enabled in lhp.yaml. Ignoring this entry."
+            )
+            del self.pipeline_configs[self.MONITORING_ALIAS]
+            return
+
+        # Check: collision — both alias and actual name defined
+        if self.monitoring_pipeline_name in self.pipeline_configs:
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="010",
+                title="Duplicate monitoring pipeline configuration",
+                details=(
+                    f"Both '{self.MONITORING_ALIAS}' alias and the actual monitoring pipeline "
+                    f"name '{self.monitoring_pipeline_name}' are defined in pipeline config. "
+                    f"Use one or the other, not both."
+                ),
+                suggestions=[
+                    f"Remove either the '{self.MONITORING_ALIAS}' entry or the "
+                    f"'{self.monitoring_pipeline_name}' entry",
+                    f"The '{self.MONITORING_ALIAS}' alias automatically resolves to "
+                    f"'{self.monitoring_pipeline_name}'",
+                ],
+                context={
+                    "Alias": self.MONITORING_ALIAS,
+                    "Actual Name": self.monitoring_pipeline_name,
+                },
+            )
+
+        # Resolve: rename alias key to actual name
+        config = self.pipeline_configs.pop(self.MONITORING_ALIAS)
+        self.pipeline_configs[self.monitoring_pipeline_name] = config
+        self.logger.debug(
+            f"Resolved '{self.MONITORING_ALIAS}' alias to '{self.monitoring_pipeline_name}'"
+        )
 
     def _deep_merge(self, base: Dict, override: Dict) -> Dict:
         """

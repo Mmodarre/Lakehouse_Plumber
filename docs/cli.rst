@@ -84,7 +84,7 @@ Template for customizing Delta Live Tables (DLT) pipeline settings used with ``l
 - DLT edition and runtime channel
 - Processing mode (continuous vs. triggered)
 - Notifications and tags
-- Event logging
+- Event logging (can also be configured project-wide in ``lhp.yaml`` without requiring ``-pc``)
 
 **Usage:**
 

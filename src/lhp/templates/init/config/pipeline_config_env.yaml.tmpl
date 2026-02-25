@@ -107,6 +107,7 @@ project_defaults:
 # continuous: true
 # 
 # # Cluster configuration (required when serverless: false)
+# # Option A: Specify node types directly
 # clusters:
 #   - label: default
 #     node_type_id: Standard_D16ds_v5
@@ -117,6 +118,16 @@ project_defaults:
 #       mode: ENHANCED
 #     # Optional: Cluster policy ID for governance
 #     policy_id: YOUR_POLICY_ID_HERE
+#
+# # Option B: Use instance pools (pool defines node type, so node_type_id is not needed)
+# clusters:
+#   - label: default
+#     instance_pool_id: YOUR_INSTANCE_POOL_ID
+#     driver_instance_pool_id: YOUR_DRIVER_POOL_ID   # Optional
+#     autoscale:
+#       min_workers: 2
+#       max_workers: 10
+#       mode: ENHANCED
 #
 # # Pipeline-level Spark/DLT configuration (all values must be strings)
 # configuration:
@@ -145,6 +156,9 @@ project_defaults:
 # Useful for: applying same compute/settings to multiple related pipelines
 # 
 # # Event logging configuration
+# # Note: If event_log is defined in lhp.yaml, it applies automatically to all pipelines.
+# # Defining event_log here fully replaces the lhp.yaml setting for this pipeline.
+# # Use 'event_log: false' to disable event logging for this pipeline only.
 # event_log:
 #   name: raw_ingestion_event_log
 #   schema: _meta
@@ -273,6 +287,32 @@ project_defaults:
 
 ---
 # ==============================================================================
+# EXAMPLE: Event Log Monitoring Pipeline Configuration
+# ==============================================================================
+# Use the __eventlog_monitoring alias to configure the monitoring pipeline
+# without needing to know its actual name. The alias automatically resolves
+# to the monitoring pipeline name defined in lhp.yaml.
+#
+# Requires: event_log and monitoring to be enabled in lhp.yaml
+#
+# pipeline: __eventlog_monitoring
+#
+# serverless: true
+# edition: ADVANCED
+#
+# notifications:
+#   - email_recipients:
+#       - monitoring-alerts@company.com
+#     alerts:
+#       - on-update-failure
+#       - on-update-fatal-failure
+#
+# tags:
+#   purpose: event_log_monitoring
+#   team: platform
+
+---
+# ==============================================================================
 # EXAMPLE: Full Substitution - ALL Fields Support Tokens
 # ==============================================================================
 # LHP token substitution works for ALL fields, not just catalog/schema!
@@ -289,6 +329,9 @@ project_defaults:
 # clusters:
 #   - label: default
 #     node_type_id: "{pipeline_node_type}"    # ← Dev: smaller, Prod: larger
+#     # Or use instance pools with tokens:
+#     # instance_pool_id: "{pipeline_pool_id}"  # ← Different pools per env
+#     # driver_instance_pool_id: "{driver_pool_id}"
 #     policy_id: "{pipeline_policy_id}"        # ← Different policies per env
 #     autoscale:
 #       min_workers: 2
@@ -364,6 +407,9 @@ project_defaults:
 #   - edition parameter only works when serverless: false
 #   - photon parameter only works when serverless: false
 #   - clusters configuration required when serverless: false
+#   - Cluster compute: use node_type_id OR instance_pool_id (pool defines node type)
+#   - instance_pool_id / driver_instance_pool_id: use instead of node_type_id when
+#     using Databricks instance pools for faster cluster startup and cost savings
 #   - tags only work for non-serverless pipelines (serverless uses compute policy)
 #   - catalog and schema: Must define both or neither (not just one)
 #
@@ -387,6 +433,7 @@ project_defaults:
 #
 # For more information:
 #   - See docs/databricks_bundles.rst
+#   - See docs/monitoring.rst (event log and monitoring pipeline)
 #   - Refer to Databricks DLT documentation
 #
 # ==============================================================================
