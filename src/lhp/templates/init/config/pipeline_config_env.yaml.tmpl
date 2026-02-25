@@ -107,6 +107,7 @@ project_defaults:
 # continuous: true
 # 
 # # Cluster configuration (required when serverless: false)
+# # Option A: Specify node types directly
 # clusters:
 #   - label: default
 #     node_type_id: Standard_D16ds_v5
@@ -117,6 +118,16 @@ project_defaults:
 #       mode: ENHANCED
 #     # Optional: Cluster policy ID for governance
 #     policy_id: YOUR_POLICY_ID_HERE
+#
+# # Option B: Use instance pools (pool defines node type, so node_type_id is not needed)
+# clusters:
+#   - label: default
+#     instance_pool_id: YOUR_INSTANCE_POOL_ID
+#     driver_instance_pool_id: YOUR_DRIVER_POOL_ID   # Optional
+#     autoscale:
+#       min_workers: 2
+#       max_workers: 10
+#       mode: ENHANCED
 #
 # # Pipeline-level Spark/DLT configuration (all values must be strings)
 # configuration:
@@ -318,6 +329,9 @@ project_defaults:
 # clusters:
 #   - label: default
 #     node_type_id: "{pipeline_node_type}"    # ← Dev: smaller, Prod: larger
+#     # Or use instance pools with tokens:
+#     # instance_pool_id: "{pipeline_pool_id}"  # ← Different pools per env
+#     # driver_instance_pool_id: "{driver_pool_id}"
 #     policy_id: "{pipeline_policy_id}"        # ← Different policies per env
 #     autoscale:
 #       min_workers: 2
@@ -393,6 +407,9 @@ project_defaults:
 #   - edition parameter only works when serverless: false
 #   - photon parameter only works when serverless: false
 #   - clusters configuration required when serverless: false
+#   - Cluster compute: use node_type_id OR instance_pool_id (pool defines node type)
+#   - instance_pool_id / driver_instance_pool_id: use instead of node_type_id when
+#     using Databricks instance pools for faster cluster startup and cost savings
 #   - tags only work for non-serverless pipelines (serverless uses compute policy)
 #   - catalog and schema: Must define both or neither (not just one)
 #
@@ -416,6 +433,7 @@ project_defaults:
 #
 # For more information:
 #   - See docs/databricks_bundles.rst
+#   - See docs/monitoring.rst (event log and monitoring pipeline)
 #   - Refer to Databricks DLT documentation
 #
 # ==============================================================================

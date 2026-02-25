@@ -311,6 +311,135 @@ clusters:
             pipeline_config == baseline_config
         ), "Generated config should match baseline structure exactly"
 
+    def test_generate_with_instance_pool_cluster(self, testing_project):
+        """Test full generation with instance pool config (no node_type_id)."""
+        from lhp.bundle.manager import BundleManager
+
+        config_dir = testing_project / "config"
+        config_dir.mkdir(exist_ok=True)
+
+        pipeline_config_content = """
+project_defaults:
+  serverless: false
+  edition: ADVANCED
+
+---
+pipeline: acmi_edw_raw
+clusters:
+  - label: default
+    instance_pool_id: 1010-095823-mud11-pool-i204xeov
+    driver_instance_pool_id: driver-pool-456
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+      mode: ENHANCED
+"""
+        config_file = config_dir / "pipeline_config.yaml"
+        config_file.write_text(pipeline_config_content)
+
+        bundle_manager = BundleManager(
+            testing_project, pipeline_config_path=str(config_file)
+        )
+
+        output_dir = testing_project / "generated" / "dev"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        resource_content = bundle_manager.generate_resource_file_content(
+            "acmi_edw_raw", output_dir, env="dev"
+        )
+
+        # Must produce valid YAML
+        try:
+            parsed_yaml = yaml.safe_load(resource_content)
+            assert parsed_yaml is not None
+        except yaml.YAMLError as e:
+            pytest.fail(
+                f"Generated resource YAML is invalid: {e}\n\nContent:\n{resource_content}"
+            )
+
+        pipeline = parsed_yaml["resources"]["pipelines"]["acmi_edw_raw_pipeline"]
+
+        # Verify cluster has instance_pool_id, not node_type_id
+        assert "clusters" in pipeline
+        cluster = pipeline["clusters"][0]
+        assert cluster["instance_pool_id"] == "1010-095823-mud11-pool-i204xeov"
+        assert cluster["driver_instance_pool_id"] == "driver-pool-456"
+        assert "node_type_id" not in cluster
+
+        # Verify no line concatenation
+        assert not re.search(
+            r"clusters:[ \t]+- label:", resource_content
+        ), "BUG: Cluster list item concatenated on same line as 'clusters:'"
+
+        # Verify proper multi-line structure
+        assert re.search(r"clusters:\s*\n\s+- label:", resource_content)
+
+    def test_generate_with_mixed_pool_and_node_type(self, testing_project):
+        """Test one pipeline with instance pool, another with node_type_id."""
+        from lhp.bundle.manager import BundleManager
+
+        config_dir = testing_project / "config"
+        config_dir.mkdir(exist_ok=True)
+
+        pipeline_config_content = """
+project_defaults:
+  serverless: false
+  edition: ADVANCED
+
+---
+pipeline: acmi_edw_raw
+clusters:
+  - label: default
+    instance_pool_id: pool-abc-123
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+
+---
+pipeline: acmi_edw_bronze
+clusters:
+  - label: default
+    node_type_id: Standard_D8ds_v5
+    autoscale:
+      min_workers: 1
+      max_workers: 5
+"""
+        config_file = config_dir / "pipeline_config.yaml"
+        config_file.write_text(pipeline_config_content)
+
+        bundle_manager = BundleManager(
+            testing_project, pipeline_config_path=str(config_file)
+        )
+
+        output_dir = testing_project / "generated" / "dev"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate for pool-based pipeline
+        raw_content = bundle_manager.generate_resource_file_content(
+            "acmi_edw_raw", output_dir, env="dev"
+        )
+        raw_yaml = yaml.safe_load(raw_content)
+        raw_cluster = raw_yaml["resources"]["pipelines"]["acmi_edw_raw_pipeline"][
+            "clusters"
+        ][0]
+
+        # Generate for node_type-based pipeline
+        bronze_content = bundle_manager.generate_resource_file_content(
+            "acmi_edw_bronze", output_dir, env="dev"
+        )
+        bronze_yaml = yaml.safe_load(bronze_content)
+        bronze_cluster = bronze_yaml["resources"]["pipelines"][
+            "acmi_edw_bronze_pipeline"
+        ]["clusters"][0]
+
+        # Raw pipeline: instance_pool_id, no node_type_id
+        assert raw_cluster["instance_pool_id"] == "pool-abc-123"
+        assert "node_type_id" not in raw_cluster
+
+        # Bronze pipeline: node_type_id, no instance_pool_id
+        assert bronze_cluster["node_type_id"] == "Standard_D8ds_v5"
+        assert "instance_pool_id" not in bronze_cluster
+
 
 @pytest.mark.e2e
 class TestEnvironmentDependenciesE2E:
