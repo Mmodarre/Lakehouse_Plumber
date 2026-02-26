@@ -385,6 +385,81 @@ class TestBuildFlowgroup:
 
 
 @pytest.mark.unit
+class TestCustomActions:
+    """Tests for custom_actions support in monitoring pipeline."""
+
+    def test_custom_actions_appear_in_flowgroup(self):
+        """Custom actions from config should appear between write and MVs."""
+        config = _make_project_config()
+        config.monitoring.custom_actions = [
+            {
+                "name": "load_custom",
+                "type": "load",
+                "source": {"type": "python", "module_path": "src/my_source.py", "function_name": "my_func"},
+                "target": "v_custom",
+            },
+            {
+                "name": "write_custom",
+                "type": "write",
+                "source": "v_custom",
+                "write_target": {"type": "materialized_view", "database": "cat.schema", "table": "my_mv"},
+            },
+        ]
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze"])
+
+        # load + write + 2 custom + 1 default MV = 5 actions
+        assert len(fg.actions) == 5
+        assert fg.actions[0].name == "load_all_event_logs"
+        assert fg.actions[1].name == "write_all_event_logs"
+        assert fg.actions[2].name == "load_custom"
+        assert fg.actions[2].type == ActionType.LOAD
+        assert fg.actions[3].name == "write_custom"
+        assert fg.actions[3].type == ActionType.WRITE
+        # Default MV comes last
+        assert fg.actions[4].write_target["table"] == "events_summary"
+
+    def test_custom_actions_before_user_mvs(self):
+        """Custom actions should appear before user-specified MVs."""
+        mvs = [MonitoringMaterializedViewConfig(name="my_summary", sql="SELECT 1")]
+        config = _make_project_config(monitoring_mvs=mvs)
+        config.monitoring.custom_actions = [
+            {"name": "load_extra", "type": "load", "source": {"type": "sql", "sql": "SELECT 1"}, "target": "v_extra"},
+        ]
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze"])
+
+        # load + write + 1 custom + 1 user MV = 4 actions
+        assert len(fg.actions) == 4
+        assert fg.actions[2].name == "load_extra"
+        assert fg.actions[3].write_target["table"] == "my_summary"
+
+    def test_empty_custom_actions_no_effect(self):
+        """Empty custom_actions list should not add any extra actions."""
+        config = _make_project_config()
+        config.monitoring.custom_actions = []
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze"])
+
+        # load + write + 1 default MV = 3 actions (same as no custom_actions)
+        assert len(fg.actions) == 3
+
+    def test_missing_custom_actions_backward_compat(self):
+        """None custom_actions (default) should work - backward compatibility."""
+        config = _make_project_config()
+        assert config.monitoring.custom_actions is None
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze"])
+
+        # load + write + 1 default MV = 3 actions
+        assert len(fg.actions) == 3
+
+
+@pytest.mark.unit
 class TestDefaultMvSql:
     """Tests for the default MV SQL template."""
 
