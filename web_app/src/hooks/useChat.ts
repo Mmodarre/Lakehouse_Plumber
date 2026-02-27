@@ -1,26 +1,21 @@
 /**
  * Core chat hook — send/stop message orchestration.
  *
- * Manages the lifecycle of sending a message: optimistic UI update,
- * OpenCode API call, response parsing, and final state cleanup.
+ * With the SSE refactor, sendMessage() is now fire-and-forget:
+ * 1. POST /api/ai/session/{id}/message → returns immediately
+ * 2. SSE events (via useSSEStream) update the store incrementally
  *
- * OpenCode v1.2.10 uses synchronous JSON responses (not SSE streaming).
- * The `sendMessage` call blocks until the LLM finishes, then returns
- * the full response with a `parts` array.
+ * The hook no longer blocks on the LLM response.
+ *
+ * Multi-session: creates sessions with the store's defaultMode,
+ * and targets messages to the correct session via addMessageToSession.
  */
 
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { useChatStore } from '../store/chatStore'
 import { useUIStore } from '../store/uiStore'
-import {
-  getOpenCodeClient,
-  sendMessage,
-  cancelGeneration,
-  createOpenCodeSession,
-} from '../api/opencode'
-import { createAISession } from '../api/ai'
-import type { OpenCodePart } from '../api/opencode'
-import type { ChatMessage, ChatMessagePart } from '../types/chat'
+import { createAISession, sendAIMessage, cancelAIGeneration, generateSessionTitle } from '../api/ai'
+import type { ChatMessage } from '../types/chat'
 
 let _messageCounter = 0
 function nextMessageId(): string {
@@ -32,43 +27,49 @@ export function useChat() {
     activeSessionId,
     setActiveSession,
     addSession,
-    addMessage,
-    updateMessage,
-    setStreaming,
+    addMessageToSession,
+    setSessionStreaming,
     chatContext,
-    isStreaming,
+    defaultMode,
+    sessionStreaming,
+    sessionModes,
   } = useChatStore()
 
   const openFile = useUIStore((s) => s.openFile)
   const flowgroupEditor = useUIStore((s) => s.flowgroupEditor)
+  const isCreatingSessionRef = useRef(false)
+
+  const isStreaming = sessionStreaming[activeSessionId ?? ''] ?? false
 
   const sendUserMessage = useCallback(
     async (text: string) => {
-      const client = getOpenCodeClient()
-      if (!client) return
-
       // Auto-create session if none active
       let sessionId = activeSessionId
       if (!sessionId) {
+        if (isCreatingSessionRef.current) return
+        isCreatingSessionRef.current = true
         try {
-          // Step 1: Tell the backend to ensure OpenCode is running in the
-          // correct workspace directory (production mode: restarts subprocess
-          // with cwd=workspace_root; dev mode: no-op).
-          await createAISession()
-
-          // Step 2: Create the actual OpenCode session (now scoped to the
-          // correct workspace because the backend restarted OpenCode there).
-          const session = await createOpenCodeSession(client)
-          sessionId = session.id
+          const response = await createAISession(defaultMode)
+          sessionId = response.session_id
           setActiveSession(sessionId)
-          addSession({
+          const newSession = {
             id: sessionId,
             title: text.slice(0, 50),
             createdAt: Date.now(),
             messageCount: 0,
-          })
+            mode: defaultMode,
+            unreadCount: 0,
+          }
+          addSession(newSession)
+          // Track mode in store and add to available sessions
+          useChatStore.setState((s) => ({
+            sessionModes: { ...s.sessionModes, [sessionId!]: defaultMode },
+            availableSessions: [newSession, ...s.availableSessions],
+          }))
         } catch {
           return
+        } finally {
+          isCreatingSessionRef.current = false
         }
       }
 
@@ -93,118 +94,62 @@ export function useChat() {
         parts: [{ type: 'text', text }],
         timestamp: Date.now(),
       }
-      addMessage(userMsg)
+      addMessageToSession(sessionId, userMsg)
+      setSessionStreaming(sessionId, true)
 
-      // Create placeholder assistant message (shown as "thinking...")
-      const assistantMsgId = nextMessageId()
-      const assistantMsg: ChatMessage = {
-        id: assistantMsgId,
-        role: 'assistant',
-        parts: [],
-        timestamp: Date.now(),
-        isStreaming: true,
+      // Generate LLM title on first message (fire-and-forget)
+      const existingMessages = useChatStore.getState().sessionMessages[sessionId] ?? []
+      if (existingMessages.length <= 1) {
+        generateSessionTitle(sessionId, [{ type: 'text', text }]).catch(() => {})
       }
-      addMessage(assistantMsg)
-      setStreaming(true)
 
       try {
-        // OpenCode returns synchronous JSON — this blocks until the LLM finishes
-        const response = await sendMessage(
-          client,
-          sessionId,
-          contextPrefix + text,
-        )
-
-        // Map OpenCode parts → ChatMessageParts
-        const chatParts = mapOpenCodeParts(response.parts)
-
-        updateMessage(assistantMsgId, (msg) => ({
-          ...msg,
-          parts: chatParts,
-          isStreaming: false,
-        }))
+        // Fire-and-forget: POST the message, SSE stream delivers the response
+        await sendAIMessage(sessionId, [{ type: 'text', text: contextPrefix + text }])
       } catch (err) {
         const errorText = err instanceof Error ? err.message : 'Unknown error'
-        updateMessage(assistantMsgId, (msg) => ({
-          ...msg,
+        const isTimeout = errorText.includes('504') || errorText.includes('Gateway Timeout')
+
+        if (isTimeout) {
+          return
+        }
+
+        addMessageToSession(sessionId, {
+          id: nextMessageId(),
+          role: 'assistant',
           parts: [{ type: 'text', text: `Error: ${errorText}` }],
+          timestamp: Date.now(),
           isStreaming: false,
-        }))
-      } finally {
-        setStreaming(false)
+        })
+        setSessionStreaming(sessionId, false)
+        // Finalize all in-flight messages so "Thinking..." clears
+        const state = useChatStore.getState()
+        const msgs = state.sessionMessages[sessionId] ?? []
+        for (const msg of msgs) {
+          if (msg.isStreaming) state.finalizeMessage(sessionId, msg.id)
+        }
       }
     },
-    [activeSessionId, setActiveSession, addSession, addMessage, updateMessage, setStreaming, chatContext, openFile, flowgroupEditor],
+    [activeSessionId, setActiveSession, addSession, addMessageToSession, setSessionStreaming, chatContext, openFile, flowgroupEditor, defaultMode, sessionModes],
   )
 
   const stopGeneration = useCallback(async () => {
-    const client = getOpenCodeClient()
-    if (!client || !activeSessionId) return
+    if (!activeSessionId) return
     try {
-      await cancelGeneration(client, activeSessionId)
+      await cancelAIGeneration(activeSessionId)
     } catch {
       // Best-effort cancellation
     }
-    setStreaming(false)
-  }, [activeSessionId, setStreaming])
+    setSessionStreaming(activeSessionId, false)
+    // Finalize all in-flight messages so per-message isStreaming clears
+    const state = useChatStore.getState()
+    const msgs = state.sessionMessages[activeSessionId] ?? []
+    for (const msg of msgs) {
+      if (msg.isStreaming) {
+        state.finalizeMessage(activeSessionId, msg.id)
+      }
+    }
+  }, [activeSessionId, setSessionStreaming])
 
   return { sendMessage: sendUserMessage, stopGeneration, isStreaming }
-}
-
-/**
- * Map OpenCode response parts to our ChatMessagePart format.
- *
- * OpenCode parts include metadata types (step-start, step-finish) that
- * we filter out, keeping only user-visible content:
- * - text     → displayed as markdown
- * - reasoning → displayed as collapsible "thinking" block
- * - tool-call / tool-result → displayed as tool cards
- */
-function mapOpenCodeParts(parts: OpenCodePart[]): ChatMessagePart[] {
-  const chatParts: ChatMessagePart[] = []
-
-  for (const part of parts) {
-    switch (part.type) {
-      case 'text':
-        if (part.text) {
-          // Merge consecutive text parts
-          const lastPart = chatParts[chatParts.length - 1]
-          if (lastPart?.type === 'text') {
-            lastPart.text = (lastPart.text ?? '') + part.text
-          } else {
-            chatParts.push({ type: 'text', text: part.text })
-          }
-        }
-        break
-
-      case 'reasoning':
-        if (part.text) {
-          chatParts.push({ type: 'reasoning', text: part.text })
-        }
-        break
-
-      case 'tool-call':
-        chatParts.push({
-          type: 'tool-call',
-          toolName: part.name,
-          toolArgs: part.args as Record<string, unknown>,
-        })
-        break
-
-      case 'tool-result':
-        chatParts.push({
-          type: 'tool-result',
-          toolName: part.name,
-          toolResult: typeof part.result === 'string' ? part.result : JSON.stringify(part.result),
-          isError: part.isError,
-        })
-        break
-
-      // Skip metadata types: step-start, step-finish
-      default:
-        break
-    }
-  }
-
-  return chatParts
 }

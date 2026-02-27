@@ -36,3 +36,9 @@ class APISettings(BaseSettings):
     opencode_url: Optional[str] = None
     opencode_port: int = 4096
     opencode_password: Optional[str] = None
+
+    # AI configuration (overridden by LHP_AI_* env vars and ai_config.yaml)
+    ai_provider: str = "anthropic"
+    ai_model: str = "anthropic/claude-sonnet-4-20250514"
+    ai_max_processes: int = 10
+    ai_idle_timeout_minutes: float = 30.0

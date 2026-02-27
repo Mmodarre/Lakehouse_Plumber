@@ -15,11 +15,12 @@ export default defineConfig({
           'X-Forwarded-User': 'dev-user',
           'X-Forwarded-User-Id': '12345',
         },
-      },
-      '/opencode': {
-        target: 'http://localhost:4096',
-        changeOrigin: true,
-        rewrite: (path: string) => path.replace(/^\/opencode/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (_proxyReq, _req, res) => {
+            // Prevent Vite proxy timeout before backend responds
+            res.setTimeout(180_000)
+          })
+        },
       },
     },
   },

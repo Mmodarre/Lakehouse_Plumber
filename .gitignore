@@ -49,3 +49,6 @@ lhp.skill
 Example_Projects/testing_project/
 .serena/
 .playwright-mcp/
+.pid/
+
+scripts/prod_services.sh

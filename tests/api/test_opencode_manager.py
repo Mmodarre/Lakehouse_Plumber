@@ -1,8 +1,10 @@
-"""Tests for OpenCodeManager race condition fixes.
+"""Tests for OpenCodeProcess race condition fixes.
 
 Verifies that the health monitor does not interfere with
 ``ensure_workspace()`` stop-and-restart transitions, and that
 ``_wait_for_healthy()`` detects early process exit (e.g. port conflict).
+
+Adapted from original OpenCodeManager tests for the new OpenCodeProcess class.
 """
 
 import asyncio
@@ -11,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from lhp.api.services.opencode_manager import OpenCodeManager
+from lhp.api.services.opencode_manager import OpenCodeProcess
 
 
 # ---------------------------------------------------------------------------
@@ -19,12 +21,18 @@ from lhp.api.services.opencode_manager import OpenCodeManager
 # ---------------------------------------------------------------------------
 
 
-def _make_manager(**kwargs) -> OpenCodeManager:
-    """Create a manager in subprocess mode with sensible test defaults."""
-    return OpenCodeManager(port=4096, **kwargs)
+def _make_process(**kwargs) -> OpenCodeProcess:
+    """Create a process with sensible test defaults."""
+    defaults = {
+        "user_id": "test-user",
+        "workspace_path": Path("/tmp"),
+        "port": 4096,
+    }
+    defaults.update(kwargs)
+    return OpenCodeProcess(**defaults)
 
 
-def _mock_process(*, returncode=None, stderr_data=b""):
+def _mock_subprocess(*, returncode=None, stderr_data=b""):
     """Create a mock asyncio.subprocess.Process.
 
     Args:
@@ -56,48 +64,37 @@ class TestRestartingSuppression:
     @pytest.mark.asyncio
     async def test_try_restart_skipped_when_restarting(self):
         """_try_restart() should be a no-op while _restarting is True."""
-        mgr = _make_manager()
-        mgr._restarting = True
-        mgr._process = _mock_process(returncode=1)
-        mgr._current_cwd = "/tmp"
+        proc = _make_process()
+        proc._restarting = True
+        proc._process = _mock_subprocess(returncode=1)
 
-        initial_restart_count = mgr._restart_count
-        await mgr._try_restart()
+        initial_restart_count = proc._restart_count
+        await proc._try_restart()
 
         # Restart count should NOT have incremented
-        assert mgr._restart_count == initial_restart_count
+        assert proc._restart_count == initial_restart_count
 
     @pytest.mark.asyncio
     async def test_try_restart_works_when_not_restarting(self):
         """_try_restart() should proceed normally when _restarting is False."""
-        mgr = _make_manager()
-        mgr._restarting = False
-        mgr._process = _mock_process(returncode=1)
-        mgr._current_cwd = "/tmp"
+        proc = _make_process()
+        proc._restarting = False
+        proc._process = _mock_subprocess(returncode=1)
 
-        with patch.object(mgr, "_spawn_process", new_callable=AsyncMock) as mock_spawn:
-            await mgr._try_restart()
-            mock_spawn.assert_called_once_with("/tmp")
-            assert mgr._restart_count == 1
+        with patch.object(proc, "_spawn_process", new_callable=AsyncMock) as mock_spawn:
+            await proc._try_restart()
+            mock_spawn.assert_called_once()
+            assert proc._restart_count == 1
 
     @pytest.mark.asyncio
     async def test_try_restart_skipped_when_stopping(self):
         """_try_restart() should be a no-op while _stopping is True."""
-        mgr = _make_manager()
-        mgr._stopping = True
-        mgr._process = _mock_process(returncode=1)
+        proc = _make_process()
+        proc._stopping = True
+        proc._process = _mock_subprocess(returncode=1)
 
-        await mgr._try_restart()
-        assert mgr._restart_count == 0
-
-    @pytest.mark.asyncio
-    async def test_try_restart_skipped_for_external(self):
-        """_try_restart() should be a no-op in external mode."""
-        mgr = _make_manager(external_url="http://external:4096")
-        mgr._process = _mock_process(returncode=1)
-
-        await mgr._try_restart()
-        assert mgr._restart_count == 0
+        await proc._try_restart()
+        assert proc._restart_count == 0
 
 
 # ---------------------------------------------------------------------------
@@ -111,87 +108,64 @@ class TestEnsureWorkspaceRestarting:
     @pytest.mark.asyncio
     async def test_restarting_flag_set_during_transition(self):
         """_restarting should be True while stop+spawn are in progress."""
-        mgr = _make_manager()
-        mgr._current_cwd = "/tmp"
-        mgr._available = True
-        mgr._process = _mock_process()
+        proc = _make_process(workspace_path=Path("/tmp"))
+        proc._available = True
+        proc._process = _mock_subprocess()
 
         observed_during_stop = None
         observed_during_spawn = None
 
-        original_stop = mgr._stop_process
-        original_spawn = mgr._spawn_process
-
         async def spy_stop():
             nonlocal observed_during_stop
-            observed_during_stop = mgr._restarting
-            mgr._process = None
-            mgr._available = False
+            observed_during_stop = proc._restarting
+            proc._process = None
+            proc._available = False
 
-        async def spy_spawn(cwd):
+        async def spy_spawn():
             nonlocal observed_during_spawn
-            observed_during_spawn = mgr._restarting
-            mgr._current_cwd = cwd
-            mgr._available = True
+            observed_during_spawn = proc._restarting
+            proc._available = True
 
         with (
-            patch.object(mgr, "_stop_process", side_effect=spy_stop),
-            patch.object(mgr, "_spawn_process", side_effect=spy_spawn),
-            patch.object(mgr, "_ensure_opencode_config", new_callable=AsyncMock),
+            patch.object(proc, "_stop_process", side_effect=spy_stop),
+            patch.object(proc, "_spawn_process", side_effect=spy_spawn),
         ):
-            await mgr.ensure_workspace(Path("/workspace/project"))
+            await proc.ensure_workspace(Path("/workspace/project"))
 
         assert observed_during_stop is True, "_restarting should be True during _stop_process"
         assert observed_during_spawn is True, "_restarting should be True during _spawn_process"
-        assert mgr._restarting is False, "_restarting should be cleared after transition"
+        assert proc._restarting is False, "_restarting should be cleared after transition"
 
     @pytest.mark.asyncio
     async def test_restarting_flag_cleared_on_error(self):
         """_restarting should be reset even if _spawn_process raises."""
-        mgr = _make_manager()
-        mgr._current_cwd = "/tmp"
-        mgr._available = True
-        mgr._process = _mock_process()
+        proc = _make_process(workspace_path=Path("/tmp"))
+        proc._available = True
+        proc._process = _mock_subprocess()
 
-        async def failing_spawn(cwd):
+        async def failing_spawn():
             raise RuntimeError("spawn failed")
 
         with (
-            patch.object(
-                mgr, "_stop_process", new_callable=AsyncMock
-            ),
-            patch.object(mgr, "_spawn_process", side_effect=failing_spawn),
-            patch.object(mgr, "_ensure_opencode_config", new_callable=AsyncMock),
+            patch.object(proc, "_stop_process", new_callable=AsyncMock),
+            patch.object(proc, "_spawn_process", side_effect=failing_spawn),
         ):
             with pytest.raises(RuntimeError, match="spawn failed"):
-                await mgr.ensure_workspace(Path("/workspace/project"))
+                await proc.ensure_workspace(Path("/workspace/project"))
 
-        assert mgr._restarting is False, "_restarting must be cleared even on error"
+        assert proc._restarting is False, "_restarting must be cleared even on error"
 
     @pytest.mark.asyncio
     async def test_ensure_workspace_noop_when_already_correct(self):
         """No restart if already running in the correct directory."""
-        mgr = _make_manager()
-        mgr._current_cwd = "/workspace/project"
-        mgr._available = True
+        proc = _make_process(workspace_path=Path("/workspace/project"))
+        proc._available = True
 
-        with patch.object(mgr, "_stop_process", new_callable=AsyncMock) as mock_stop:
-            await mgr.ensure_workspace(Path("/workspace/project"))
+        with patch.object(proc, "_stop_process", new_callable=AsyncMock) as mock_stop:
+            await proc.ensure_workspace(Path("/workspace/project"))
             mock_stop.assert_not_called()
 
-        assert mgr._restarting is False
-
-    @pytest.mark.asyncio
-    async def test_ensure_workspace_noop_for_external_mode(self):
-        """External mode should deploy config but not restart."""
-        mgr = _make_manager(external_url="http://external:4096")
-
-        with (
-            patch.object(mgr, "_stop_process", new_callable=AsyncMock) as mock_stop,
-            patch.object(mgr, "_ensure_opencode_config", new_callable=AsyncMock),
-        ):
-            await mgr.ensure_workspace(Path("/workspace/project"))
-            mock_stop.assert_not_called()
+        assert proc._restarting is False
 
 
 # ---------------------------------------------------------------------------
@@ -205,27 +179,26 @@ class TestWaitForHealthyLiveness:
     @pytest.mark.asyncio
     async def test_returns_false_when_process_exits_immediately(self):
         """If the process already exited, return False without polling."""
-        mgr = _make_manager()
-        mgr._process = _mock_process(
+        proc = _make_process()
+        proc._process = _mock_subprocess(
             returncode=1,
             stderr_data=b"Error: address already in use :4096\n",
         )
 
-        result = await mgr._wait_for_healthy()
-
+        result = await proc._wait_for_healthy()
         assert result is False
 
     @pytest.mark.asyncio
     async def test_stderr_captured_on_early_exit(self, caplog):
         """Stderr content should appear in the error log."""
-        mgr = _make_manager()
-        mgr._process = _mock_process(
+        proc = _make_process()
+        proc._process = _mock_subprocess(
             returncode=1,
             stderr_data=b"bind: address already in use",
         )
 
         with caplog.at_level("ERROR", logger="lhp.api.services.opencode_manager"):
-            result = await mgr._wait_for_healthy()
+            result = await proc._wait_for_healthy()
 
         assert result is False
         assert "OpenCode exited immediately (rc=1)" in caplog.text
@@ -234,13 +207,13 @@ class TestWaitForHealthyLiveness:
     @pytest.mark.asyncio
     async def test_stderr_read_failure_handled(self, caplog):
         """If stderr.read() raises, we still get the return code logged."""
-        mgr = _make_manager()
-        proc = _mock_process(returncode=137)
-        proc.stderr.read = AsyncMock(side_effect=OSError("broken pipe"))
-        mgr._process = proc
+        proc = _make_process()
+        mock_proc = _mock_subprocess(returncode=137)
+        mock_proc.stderr.read = AsyncMock(side_effect=OSError("broken pipe"))
+        proc._process = mock_proc
 
         with caplog.at_level("ERROR", logger="lhp.api.services.opencode_manager"):
-            result = await mgr._wait_for_healthy()
+            result = await proc._wait_for_healthy()
 
         assert result is False
         assert "rc=137" in caplog.text
@@ -248,23 +221,23 @@ class TestWaitForHealthyLiveness:
     @pytest.mark.asyncio
     async def test_returns_true_when_healthy(self):
         """Normal case: process stays alive and health check passes."""
-        mgr = _make_manager()
-        mgr._process = _mock_process(returncode=None)
+        proc = _make_process()
+        proc._process = _mock_subprocess(returncode=None)
 
-        with patch.object(mgr, "_health_check", new_callable=AsyncMock, return_value=True):
-            result = await mgr._wait_for_healthy()
+        with patch.object(proc, "health_check", new_callable=AsyncMock, return_value=True):
+            result = await proc._wait_for_healthy()
 
         assert result is True
 
     @pytest.mark.asyncio
     async def test_returns_false_on_timeout(self):
         """If health check never passes and process stays alive, return False."""
-        mgr = _make_manager()
-        mgr._process = _mock_process(returncode=None)
+        proc = _make_process()
+        proc._process = _mock_subprocess(returncode=None)
 
         with (
             patch.object(
-                mgr, "_health_check", new_callable=AsyncMock, return_value=False
+                proc, "health_check", new_callable=AsyncMock, return_value=False
             ),
             patch(
                 "lhp.api.services.opencode_manager._STARTUP_WAIT_S", 0.2
@@ -273,18 +246,18 @@ class TestWaitForHealthyLiveness:
                 "lhp.api.services.opencode_manager._STARTUP_POLL_S", 0.05
             ),
         ):
-            result = await mgr._wait_for_healthy()
+            result = await proc._wait_for_healthy()
 
         assert result is False
 
     @pytest.mark.asyncio
     async def test_no_process_still_polls_health(self):
-        """If _process is None (e.g. external), just poll health endpoint."""
-        mgr = _make_manager()
-        mgr._process = None
+        """If _process is None (edge case), just poll health endpoint."""
+        proc = _make_process()
+        proc._process = None
 
-        with patch.object(mgr, "_health_check", new_callable=AsyncMock, return_value=True):
-            result = await mgr._wait_for_healthy()
+        with patch.object(proc, "health_check", new_callable=AsyncMock, return_value=True):
+            result = await proc._wait_for_healthy()
 
         assert result is True
 
@@ -303,52 +276,37 @@ class TestRaceConditionPrevention:
 
         Before the fix, the health monitor could call _try_restart() during
         ensure_workspace()'s stop-and-restart window, spawning a competing
-        process with the OLD cwd. The _restarting flag prevents this.
+        process with the OLD workspace. The _restarting flag prevents this.
         """
-        mgr = _make_manager()
-        mgr._current_cwd = "/tmp"
-        mgr._available = True
-        mgr._process = _mock_process()
+        proc = _make_process(workspace_path=Path("/tmp"))
+        proc._available = True
+        proc._process = _mock_subprocess()
 
         restart_calls = []
 
-        original_try_restart = mgr._try_restart
-
         async def tracking_try_restart():
-            restart_calls.append(mgr._restarting)
-            # Don't actually restart — just record whether the flag was set
+            restart_calls.append(proc._restarting)
 
         async def slow_stop():
-            """Simulate _stop_process that yields to event loop."""
-            mgr._process = _mock_process(returncode=0)
-            mgr._available = False
-            # Yield to event loop — this is where the health monitor would wake up
+            proc._process = _mock_subprocess(returncode=0)
+            proc._available = False
             await asyncio.sleep(0)
-
-            # Simulate what the health monitor would do if it woke up here:
-            # It sees the process is dead and tries to restart
             await tracking_try_restart()
+            proc._process = None
 
-            mgr._process = None
-
-        async def mock_spawn(cwd):
-            mgr._current_cwd = cwd
-            mgr._process = _mock_process(returncode=None)
-            mgr._available = True
+        async def mock_spawn():
+            proc._process = _mock_subprocess(returncode=None)
+            proc._available = True
 
         with (
-            patch.object(mgr, "_stop_process", side_effect=slow_stop),
-            patch.object(mgr, "_spawn_process", side_effect=mock_spawn),
-            patch.object(mgr, "_ensure_opencode_config", new_callable=AsyncMock),
+            patch.object(proc, "_stop_process", side_effect=slow_stop),
+            patch.object(proc, "_spawn_process", side_effect=mock_spawn),
         ):
-            await mgr.ensure_workspace(Path("/workspace/project"))
+            await proc.ensure_workspace(Path("/workspace/project"))
 
-        # The simulated health monitor call saw _restarting=True
         assert len(restart_calls) == 1
         assert restart_calls[0] is True, (
             "Health monitor should see _restarting=True during transition"
         )
-
-        # After transition, cwd should be the new workspace
-        assert mgr._current_cwd == "/workspace/project"
-        assert mgr._restarting is False
+        assert proc.workspace_path == Path("/workspace/project")
+        assert proc._restarting is False

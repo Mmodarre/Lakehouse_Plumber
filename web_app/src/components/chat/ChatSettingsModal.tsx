@@ -1,27 +1,48 @@
-/** Modal for configuring AI provider and model. */
+/** Modal for configuring AI provider and model — backed by server config. */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useChatStore } from '../../store/chatStore'
-
-const providers = [
-  { id: 'anthropic', name: 'Anthropic', models: ['claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-opus-4-20250514'] },
-  { id: 'openai', name: 'OpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'] },
-  { id: 'google', name: 'Google', models: ['gemini-2.5-pro', 'gemini-2.5-flash'] },
-]
+import { fetchAIConfig, updateAIConfig, type AIConfigSummary } from '../../api/ai'
 
 export function ChatSettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { selectedProvider, selectedModel, setProvider } = useChatStore()
   const [provider, setLocalProvider] = useState(selectedProvider)
   const [model, setLocalModel] = useState(selectedModel)
+  const [config, setConfig] = useState<AIConfigSummary | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch allowed models from backend on open
+  useEffect(() => {
+    if (!open) return
+    setError(null)
+    fetchAIConfig()
+      .then((c) => {
+        setConfig(c)
+        setLocalProvider(c.provider)
+        setLocalModel(c.model)
+      })
+      .catch(() => setError('Failed to load AI config'))
+  }, [open])
 
   if (!open) return null
 
-  const providerConfig = providers.find((p) => p.id === provider)
-  const availableModels = providerConfig?.models ?? []
+  const allowedModels = config?.allowed_models ?? {}
+  const providers = Object.keys(allowedModels)
+  const modelsForProvider = allowedModels[provider] ?? []
 
-  function handleSave() {
-    setProvider(provider, model)
-    onClose()
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await updateAIConfig(provider, model)
+      setProvider(updated.provider, updated.model)
+      onClose()
+    } catch {
+      setError('Failed to update AI config')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -44,15 +65,15 @@ export function ChatSettingsModal({ open, onClose }: { open: boolean; onClose: (
             <select
               value={provider}
               onChange={(e) => {
-                setLocalProvider(e.target.value)
-                // Reset model to first available for new provider
-                const newModels = providers.find((p) => p.id === e.target.value)?.models ?? []
+                const newProvider = e.target.value
+                setLocalProvider(newProvider)
+                const newModels = allowedModels[newProvider] ?? []
                 setLocalModel(newModels[0] ?? '')
               }}
               className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px] focus:border-blue-400 focus:outline-none"
             >
               {providers.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+                <option key={p} value={p}>{p}</option>
               ))}
             </select>
           </div>
@@ -65,11 +86,15 @@ export function ChatSettingsModal({ open, onClose }: { open: boolean; onClose: (
               onChange={(e) => setLocalModel(e.target.value)}
               className="w-full rounded border border-slate-200 px-2 py-1.5 text-[11px] focus:border-blue-400 focus:outline-none"
             >
-              {availableModels.map((m) => (
+              {modelsForProvider.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
           </div>
+
+          {error && (
+            <p className="text-[10px] text-red-500">{error}</p>
+          )}
 
           <p className="text-[9px] text-slate-400">
             Requires the provider's API key set in OpenCode config or environment variables.
@@ -85,9 +110,10 @@ export function ChatSettingsModal({ open, onClose }: { open: boolean; onClose: (
           </button>
           <button
             onClick={handleSave}
-            className="rounded bg-slate-800 px-3 py-1 text-[11px] font-medium text-white hover:bg-slate-700"
+            disabled={saving}
+            className="rounded bg-slate-800 px-3 py-1 text-[11px] font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
-            Save
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>

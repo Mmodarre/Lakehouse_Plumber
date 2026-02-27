@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -59,24 +60,42 @@ async def lifespan(app: FastAPI):
 
     # --- AI assistant (OpenCode) startup ---
     if settings.ai_enabled:
-        from lhp.api.services.opencode_manager import OpenCodeManager
+        from lhp.api.services.ai_config import AIConfig
+        from lhp.api.services.opencode_manager import OpenCodeProcessPool
 
-        opencode_mgr = OpenCodeManager(
-            # Dev mode: known project root at startup
-            # Production mode: None (each user gets workspace-scoped sessions)
+        ai_config = AIConfig.load(settings.project_root)
+
+        # Log AI-related env var presence (not values) for diagnostics
+        _ai_env_vars = [
+            "ANTHROPIC_BASE_URL",
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_MODEL",
+            "ANTHROPIC_CUSTOM_HEADERS",
+        ]
+        present = [v for v in _ai_env_vars if os.environ.get(v)]
+        missing = [v for v in _ai_env_vars if not os.environ.get(v)]
+        logger.info(f"AI env vars present: {present or '(none)'}")
+        if missing:
+            logger.info(f"AI env vars not set: {missing}")
+
+        opencode_pool = OpenCodeProcessPool(
+            ai_config=ai_config,
+            dev_mode=settings.dev_mode,
             project_root=settings.project_root if settings.dev_mode else None,
-            port=settings.opencode_port,
-            external_url=settings.opencode_url,
+            default_port=settings.opencode_port,
             password=settings.opencode_password,
+            external_url=settings.opencode_url,
         )
-        app.state.opencode_manager = opencode_mgr
-        await opencode_mgr.start()
+        app.state.opencode_pool = opencode_pool
+        app.state.ai_config = ai_config
+        await opencode_pool.start()
 
     yield
 
     # --- AI assistant shutdown ---
-    if hasattr(app.state, "opencode_manager"):
-        await app.state.opencode_manager.stop()
+    if hasattr(app.state, "opencode_pool"):
+        await app.state.opencode_pool.stop()
 
     # --- Phase 2 shutdown ---
     app.state._cleanup_task.cancel()

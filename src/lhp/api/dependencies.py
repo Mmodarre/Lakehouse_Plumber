@@ -22,6 +22,9 @@ from lhp.presets.preset_manager import PresetManager
 from lhp.core.template_engine import TemplateEngine
 from lhp.core.services.flowgroup_discoverer import FlowgroupDiscoverer
 
+from lhp.api.services.ai_config import AIConfig
+from lhp.api.services.opencode_manager import OpenCodeProcess, OpenCodeProcessPool
+
 logger = logging.getLogger(__name__)
 
 
@@ -350,3 +353,56 @@ def invalidate_caches(project_root: Path) -> None:
     # Currently a no-op since services are created fresh per request.
     # If we add caching of orchestrators/config loaders, clear them here.
     logger.debug(f"Cache invalidation triggered for {project_root}")
+
+
+# --- AI assistant dependencies ---
+
+
+def get_opencode_pool(request: Request) -> OpenCodeProcessPool:
+    """Retrieve the OpenCodeProcessPool from app state."""
+    pool = getattr(request.app.state, "opencode_pool", None)
+    if pool is None:
+        raise HTTPException(503, "AI assistant is not available")
+    return pool
+
+
+def get_ai_config(request: Request) -> AIConfig:
+    """Retrieve the AIConfig from app state."""
+    config = getattr(request.app.state, "ai_config", None)
+    if config is None:
+        raise HTTPException(503, "AI configuration is not available")
+    return config
+
+
+async def get_user_process(
+    request: Request,
+    settings: APISettings = Depends(get_settings),
+) -> OpenCodeProcess:
+    """Resolve the current user's OpenCode process.
+
+    In dev mode: returns the shared ``dev-local`` process.
+    In production: resolves user via auth, gets/creates process from pool.
+    """
+    pool = get_opencode_pool(request)
+
+    if settings.dev_mode:
+        project_root = settings.project_root.resolve()
+        try:
+            return await pool.get_or_create("dev-local", project_root)
+        except RuntimeError as e:
+            raise HTTPException(503, str(e))
+
+    # Production: resolve user and workspace
+    user = await get_current_user(request)
+    workspace_mgr = get_workspace_manager(request)
+    workspace_root = workspace_mgr.get_workspace_project_root(user)
+    if workspace_root is None:
+        raise HTTPException(
+            409, "No active workspace. Create one with PUT /api/workspace"
+        )
+
+    user_id_hash = hashlib.sha256(user.user_id.encode()).hexdigest()[:16]
+    try:
+        return await pool.get_or_create(user_id_hash, workspace_root)
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))

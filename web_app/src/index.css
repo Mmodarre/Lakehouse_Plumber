@@ -45,6 +45,10 @@
 }
 
 /* Chat markdown typography for assistant messages */
+.chat-markdown {
+  overflow-x: hidden;
+  min-width: 0;
+}
 .chat-markdown p {
   margin: 0.35em 0;
 }
@@ -83,9 +87,12 @@
   color: inherit;
 }
 .chat-markdown table {
+  display: block;
+  overflow-x: auto;
   border-collapse: collapse;
   margin: 0.4em 0;
-  width: 100%;
+  width: max-content;
+  max-width: 100%;
   font-size: 0.9em;
 }
 .chat-markdown th, .chat-markdown td {

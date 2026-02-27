@@ -1,8 +1,9 @@
-/** Auto-resizing chat input with send/stop buttons. */
+/** Auto-resizing chat input with send/stop buttons and mode badge. */
 
 import { useCallback, useRef, useState, type KeyboardEvent } from 'react'
 import { ContextBadge } from './ContextBadge'
-import type { ChatContext } from '../../types/chat'
+import { useChatStore } from '../../store/chatStore'
+import type { ChatContext, SessionMode } from '../../types/chat'
 
 export function ChatInput({
   onSend,
@@ -20,12 +21,19 @@ export function ChatInput({
   const [text, setText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  const activeSessionId = useChatStore((s) => s.activeSessionId)
+  const sessionModes = useChatStore((s) => s.sessionModes)
+
+  // Only show badge when a session is active (user picks mode via "New Chat" popover)
+  const sessionMode: SessionMode | null = activeSessionId
+    ? (sessionModes[activeSessionId] ?? 'agent')
+    : null
+
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
     if (!trimmed || disabled) return
     onSend(trimmed)
     setText('')
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
@@ -54,6 +62,9 @@ export function ChatInput({
       <ContextBadge context={context} />
 
       <div className="mt-1 flex items-end gap-1.5">
+        {/* Read-only mode badge (only shown when a session is active) */}
+        {sessionMode && <ModeBadge mode={sessionMode} />}
+
         <textarea
           ref={textareaRef}
           value={text}
@@ -91,6 +102,23 @@ export function ChatInput({
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+/** Read-only badge showing the session's mode. */
+function ModeBadge({ mode }: { mode: SessionMode }) {
+  const isAgent = mode === 'agent'
+  return (
+    <div
+      className={`flex shrink-0 items-center rounded-md border px-1.5 py-1 text-[9px] font-medium ${
+        isAgent
+          ? 'border-blue-200 bg-blue-50 text-blue-600'
+          : 'border-emerald-200 bg-emerald-50 text-emerald-600'
+      }`}
+      title={isAgent ? 'Agent mode — full access' : 'Chat mode — read-only'}
+    >
+      {isAgent ? 'Agent' : 'Chat'}
     </div>
   )
 }

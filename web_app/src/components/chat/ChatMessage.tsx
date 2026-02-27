@@ -3,6 +3,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ToolCallCard } from './ToolCallCard'
+import { QuestionCard, isQuestionTool } from './QuestionCard'
 import { StreamingIndicator } from './StreamingIndicator'
 import type { ChatMessage as ChatMessageType } from '../../types/chat'
 
@@ -49,13 +50,16 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
               </details>
             )
           }
-          if (part.type === 'tool-call' || part.type === 'tool-result') {
+          if (part.type === 'tool-call') {
+            if (isQuestionTool(part.toolName)) {
+              return <QuestionCard key={i} part={part} />
+            }
             return <ToolCallCard key={i} part={part} />
           }
           return null
         })}
 
-        {message.isStreaming && message.parts.length === 0 && (
+        {message.isStreaming && (
           <StreamingIndicator />
         )}
       </div>

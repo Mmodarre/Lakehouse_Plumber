@@ -9,8 +9,23 @@ const statusConfig: Record<Status, { text: string; bg: string; show: boolean }> 
   reconnecting: { text: 'Reconnecting...', bg: 'bg-amber-50 text-amber-600', show: true },
 }
 
-export function ConnectionStatusBanner({ status }: { status: Status }) {
+export function ConnectionStatusBanner({
+  status,
+  streamingStalled,
+}: {
+  status: Status
+  streamingStalled?: boolean
+}) {
   const config = statusConfig[status]
+
+  if (streamingStalled) {
+    return (
+      <div className="bg-amber-50 px-3 py-1.5 text-center text-[10px] font-medium text-amber-600">
+        Still waiting for response... You can stop generation with {navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl'}+.
+      </div>
+    )
+  }
+
   if (!config.show) return null
 
   return (

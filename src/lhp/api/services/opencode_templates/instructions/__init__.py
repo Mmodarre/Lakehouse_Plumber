@@ -1,1 +1,0 @@
-"""OpenCode instruction files."""

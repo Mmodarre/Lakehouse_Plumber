@@ -17,9 +17,9 @@ export function useAIStatus() {
 
   useEffect(() => {
     if (query.data) {
-      setAIStatus(query.data.available, query.data.url)
+      setAIStatus(query.data.available)
     } else if (query.isError) {
-      setAIStatus(false, null)
+      setAIStatus(false)
     }
   }, [query.data, query.isError, setAIStatus])
 
