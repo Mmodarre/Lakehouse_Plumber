@@ -1,0 +1,15 @@
+# Self-contained materialized view using sql_path (no load action required)
+# Tests Bug #3 fix: MV with sql_path exemption from load action requirement
+pipeline: gold_load
+flowgroup: order_summary_mv
+
+actions:
+  - name: write_order_summary_mv
+    type: write
+    write_target:
+      type: materialized_view
+      database: "{catalog}.{gold_schema}"
+      table: "order_summary_mv"
+      sql_path: "sql/gold/order_summary.sql"
+      comment: "Gold materialized view: order summary aggregations"
+    description: "Write order summary materialized view to gold schema"

@@ -219,9 +219,10 @@ class TestDependencyResolver:
             Action(
                 name="write_data",
                 type=ActionType.WRITE,
-                source={
+                source="v_transformed",
+                write_target={
                     "type": "streaming_table",
-                    "view": "v_transformed",
+                    "database": "bronze",
                     "table": "output",
                 },
             ),
@@ -254,28 +255,20 @@ class TestDependencyResolver:
             Action(
                 name="write_data",
                 type=ActionType.WRITE,
-                source={
+                source="v_raw_data",
+                write_target={
                     "type": "streaming_table",
-                    "view": "v_raw_data",
+                    "database": "bronze",
                     "table": "output",
                 },
             ),
         ]
 
-        try:
-            errors = resolver.validate_relationships(actions)
-            assert any(
-                "orphaned_transform" in error
-                and "no other action references it" in error
-                for error in errors
-            )
-        except Exception as e:
-            # Handle LHPError by converting to string (like the validator does)
-            error_str = str(e)
-            assert (
-                "orphaned_transform" in error_str
-                and "no other action references it" in error_str
-            )
+        errors = resolver.validate_relationships(actions)
+        assert any(
+            "orphaned_transform" in error and "no other action references it" in error
+            for error in errors
+        )
 
     def test_complex_dependency_graph(self):
         """Test resolving complex dependency graph."""
@@ -400,9 +393,10 @@ class TestDependencyResolver:
             Action(
                 name="write_result",
                 type=ActionType.WRITE,
-                source={
+                source="v_final",
+                write_target={
                     "type": "streaming_table",
-                    "view": "v_final",
+                    "database": "silver",
                     "table": "result",
                 },
             ),
@@ -447,9 +441,10 @@ class TestDependencyResolver:
             Action(
                 name="write_customers",
                 type=ActionType.WRITE,
-                source={
+                source="v_customers",
+                write_target={
                     "type": "streaming_table",
-                    "view": "v_customers",
+                    "database": "silver",
                     "table": "silver_customers",
                 },
             ),
@@ -882,13 +877,84 @@ class TestDependencyResolver:
         # With the typo, enriched_dta is not in targets and not caught as error
         # because it's treated as external. However, enriched_data becomes orphaned!
         # The orphaned action detection will catch this.
-        with pytest.raises(Exception) as exc_info:
-            resolver.validate_relationships(actions)
+        errors = resolver.validate_relationships(actions)
 
         # Should detect orphaned transform (enriched_data is not used)
-        assert "transform_correct" in str(exc_info.value) or "enriched_data" in str(
-            exc_info.value
+        assert any(
+            "transform_correct" in error or "enriched_data" in error for error in errors
         )
+
+    def test_sql_only_mv_needs_no_load(self):
+        """Test that a materialized view with SQL needs no load action."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="write_gold_mv",
+                type=ActionType.WRITE,
+                write_target={
+                    "type": "materialized_view",
+                    "database": "gold",
+                    "table": "ecomm_summary",
+                    "sql": "SELECT COUNT(*) FROM silver.orders",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        load_errors = [e for e in errors if "must have at least one Load action" in e]
+        assert len(load_errors) == 0, f"SQL-only MV should not need load. Got: {errors}"
+
+    def test_sql_path_mv_needs_no_load(self):
+        """Test that a materialized view with sql_path needs no load action."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="write_gold_mv",
+                type=ActionType.WRITE,
+                write_target={
+                    "type": "materialized_view",
+                    "database": "gold",
+                    "table": "ecomm_summary",
+                    "sql_path": "sql/gold/ecomm_summary.sql",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        load_errors = [e for e in errors if "must have at least one Load action" in e]
+        assert len(load_errors) == 0, f"sql_path MV should not need load. Got: {errors}"
+
+    def test_orphaned_transform_plus_missing_load_both_reported(self):
+        """Test that orphaned transform and missing load are both reported."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="orphaned_transform",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_external",
+                target="v_orphaned",
+                sql="SELECT * FROM v_external",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source="v_external",
+                write_target={
+                    "type": "streaming_table",
+                    "database": "bronze",
+                    "table": "output",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        # Both errors should be present
+        assert any("must have at least one Load action" in e for e in errors)
+        assert any("orphaned_transform" in e for e in errors)
 
 
 if __name__ == "__main__":

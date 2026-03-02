@@ -34,7 +34,6 @@ class ConfigFieldValidator:
             },
             "delta": {
                 "type",
-                "path",
                 "table",
                 "catalog",
                 "database",
@@ -55,26 +54,11 @@ class ConfigFieldValidator:
                 "options",
                 "readMode",
             },
-        }
-
-        # Transform type field definitions
-        self.transform_fields = {
-            "sql": {
-                # No additional fields - uses action.sql or action.sql_path
-            },
-            "python": {
-                "module_path",  # Required - Python module path
-                "function_name",  # Required - function name to call
-                "parameters",  # Optional - parameters dict
-            },
-            "data_quality": {
-                # No additional fields - uses action.expectations_file
-            },
-            "schema": {
-                # No additional fields - uses action.schema_file or action.schema_inline
-            },
-            "temp_table": {
-                # No additional fields - basic temp table configuration
+            "custom_datasource": {
+                "type",
+                "module_path",
+                "custom_datasource_class",
+                "options",
             },
         }
 
@@ -118,6 +102,7 @@ class ConfigFieldValidator:
                 "path",
                 "refresh_schedule",
                 "sql",
+                "sql_path",
             },
             "sink": {
                 "type",

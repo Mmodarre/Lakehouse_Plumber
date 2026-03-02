@@ -489,10 +489,14 @@
                     "type": "string",
                     "description": "SQL query for materialized views"
                 },
+                "sql_path": {
+                    "type": "string",
+                    "description": "Path to SQL file for materialized views"
+                },
                 "sink_type": {
                     "type": "string",
-                    "enum": ["delta", "kafka", "custom"],
-                    "description": "Type of sink (delta, kafka, custom)"
+                    "enum": ["delta", "kafka", "custom", "foreachbatch"],
+                    "description": "Type of sink (delta, kafka, custom, foreachbatch)"
                 },
                 "sink_name": {
                     "type": "string",
@@ -513,6 +517,10 @@
                 "custom_sink_class": {
                     "type": "string",
                     "description": "Custom sink class name (for custom sinks)"
+                },
+                "batch_handler": {
+                    "type": "string",
+                    "description": "Inline batch handler code (for foreachbatch sinks)"
                 },
                 "options": {
                     "type": "object",
