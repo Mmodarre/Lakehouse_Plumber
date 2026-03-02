@@ -28,9 +28,9 @@ actions:
   
   - name: write_{{ table_name }}
     type: write
-    source:
+    source: v_{{ table_name }}_raw
+    write_target:
       type: streaming_table
       database: bronze
       table: "{{ table_name }}"
-      view: v_{{ table_name }}_raw
     description: "Write to bronze {{ table_name }} table"

@@ -50,7 +50,7 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
 
         # Extract configuration
         database = target_config.get("database")
-        table = target_config.get("table") or target_config.get("name")
+        table = target_config.get("table")
 
         # Build full table name
         full_table_name = f"{database}.{table}" if database else table
@@ -167,34 +167,15 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         """Extract source view name from action source."""
         if isinstance(source, str):
             return source
-        elif isinstance(source, dict):
-            # Handle database field in source configuration
-            database = source.get("database")
-            table = source.get("table") or source.get("view") or source.get("name", "")
-
-            if database and table:
-                return f"{database}.{table}"
-            else:
-                return table
         elif isinstance(source, list) and source:
-            # Handle first item in list - can be string or dict
             first_item = source[0]
             if isinstance(first_item, str):
                 return first_item
-            elif isinstance(first_item, dict):
-                # Handle database field in source configuration
-                database = first_item.get("database")
-                table = (
-                    first_item.get("table")
-                    or first_item.get("view")
-                    or first_item.get("name", "")
-                )
-
-                if database and table:
-                    return f"{database}.{table}"
-                else:
-                    return table
             else:
+                logger.warning(
+                    f"Unexpected source list item type {type(first_item).__name__}, "
+                    f"converting to string"
+                )
                 return str(first_item)
         else:
             raise LHPValidationError(
@@ -203,11 +184,10 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
                 title="Invalid source configuration for materialized view write",
                 details=(
                     "Materialized view write requires a valid source configuration. "
-                    "Source must be a string (view name), dict, or non-empty list."
+                    "Source must be a string (view name) or non-empty list of strings."
                 ),
                 suggestions=[
                     "Provide a source view name: source: v_transformed",
-                    "Or provide a source dict with table/view/name keys",
                     "Or provide a list of source views",
                 ],
                 context={"Source Type": type(source).__name__},

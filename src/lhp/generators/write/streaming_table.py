@@ -58,7 +58,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "mode", "standard"
         )  # Valid modes: "standard" (default), "cdc", "snapshot_cdc"
         database = target_config.get("database")
-        table = target_config.get("table") or target_config.get("name")
+        table = target_config.get("table")
 
         # For CDC modes, always create the table since CDC flows need dedicated tables
         if mode in ["cdc", "snapshot_cdc"]:
@@ -285,35 +285,19 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         if isinstance(source, str):
             return [source]
         elif isinstance(source, list):
-            # Handle list of sources - each can be string or dict
             result = []
             for item in source:
                 if isinstance(item, str):
                     result.append(item)
-                elif isinstance(item, dict):
-                    # Handle database field in source configuration
-                    database = item.get("database")
-                    table = (
-                        item.get("table") or item.get("view") or item.get("name", "")
+                else:
+                    logger.warning(
+                        f"Unexpected source item type {type(item).__name__}, skipping"
                     )
-
-                    if database and table:
-                        result.append(f"{database}.{table}")
-                    elif table:
-                        result.append(table)
             return result
-        elif isinstance(source, dict):
-            # Handle database field in source configuration
-            database = source.get("database")
-            table = source.get("table") or source.get("view") or source.get("name", "")
-
-            if database and table:
-                return [f"{database}.{table}"]
-            elif table:
-                return [table]
-            else:
-                return []
         else:
+            logger.warning(
+                f"Unexpected source type {type(source).__name__}, returning empty list"
+            )
             return []
 
     def _process_source_function(

@@ -131,8 +131,8 @@ class WriteActionValidator(BaseActionValidator):
         # Must have database and table/name
         if not action.write_target.get("database"):
             errors.append(f"{prefix}: {target_type} must have 'database'")
-        if not action.write_target.get("table") and not action.write_target.get("name"):
-            errors.append(f"{prefix}: {target_type} must have 'table' or 'name'")
+        if not action.write_target.get("table"):
+            errors.append(f"{prefix}: {target_type} must have 'table'")
         return errors
 
     def _validate_streaming_table(self, action: Action, prefix: str) -> List[str]:
@@ -158,10 +158,14 @@ class WriteActionValidator(BaseActionValidator):
         """Validate materialized view specific requirements."""
         errors = []
 
-        # Materialized view can have either source view or SQL
-        if not action.source and not action.write_target.get("sql"):
+        # Materialized view can have either source view, SQL, or sql_path
+        if (
+            not action.source
+            and not action.write_target.get("sql")
+            and not action.write_target.get("sql_path")
+        ):
             errors.append(
-                f"{prefix}: Materialized view must have either 'source' or 'sql' in write_target"
+                f"{prefix}: Materialized view must have either 'source', 'sql', or 'sql_path' in write_target"
             )
         # If source is provided, it should be string or list
         elif action.source and not isinstance(action.source, (str, list)):

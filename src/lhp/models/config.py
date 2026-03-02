@@ -167,6 +167,7 @@ class WriteTarget(BaseModel):
     # Materialized view specific
     refresh_schedule: Optional[str] = None
     sql: Optional[str] = None
+    sql_path: Optional[str] = None
 
     # Sink-specific fields
     sink_type: Optional[str] = None  # delta, kafka, custom, foreachbatch
