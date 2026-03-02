@@ -42,6 +42,30 @@ _STARTUP_POLL_S = 0.5
 _PORT_RANGE_START = 4096
 _PORT_RANGE_SIZE = 100
 
+# Maximum process lifetime — safety margin before 1h OAuth token expiry
+_MAX_LIFETIME_S = 50 * 60
+
+
+def _get_databricks_oauth_token() -> Optional[str]:
+    """Get fresh OAuth token via databricks-sdk (zero-config in Databricks Apps).
+
+    Returns None if SDK not installed or auth fails.
+    """
+    try:
+        from databricks.sdk import WorkspaceClient
+
+        w = WorkspaceClient()
+        headers = w.config.authenticate()
+        bearer = headers.get("Authorization", "")
+        if bearer.startswith("Bearer "):
+            return bearer[7:]
+        return None
+    except ImportError:
+        return None
+    except Exception:
+        logger.warning("Failed to obtain Databricks OAuth token", exc_info=True)
+        return None
+
 
 class OpenCodeProcess:
     """Manages a single OpenCode subprocess.
@@ -75,6 +99,7 @@ class OpenCodeProcess:
         self._stopping = False
         self._restarting = False
         self.last_activity: float = time.monotonic()
+        self.created_at: float = time.monotonic()
 
     # ── Properties ────────────────────────────────────────────
 
@@ -164,12 +189,24 @@ class OpenCodeProcess:
         """Spawn the ``opencode serve`` subprocess."""
         binary = shutil.which("opencode")
         if not binary:
+            node_bin = Path("./node_modules/.bin/opencode")
+            if node_bin.exists():
+                binary = str(node_bin.resolve())
+        if not binary:
             logger.error(
                 "opencode binary not found on PATH. "
                 "Install with: brew install opencode  or  npm install -g opencode"
             )
             self._available = False
             return
+
+        # Ensure the binary path is absolute — shutil.which() can return
+        # relative paths, which fail when the subprocess CWD differs from
+        # the main process CWD (e.g. user workspace vs deploy directory).
+        binary_path = Path(binary)
+        if not binary_path.is_absolute():
+            binary = str(binary_path.resolve())
+            logger.debug(f"Resolved relative binary path to: {binary}")
 
         cwd = str(self.workspace_path)
         cmd = [binary, "serve", "--port", str(self.port)]
@@ -392,6 +429,10 @@ class OpenCodeProcessPool:
             # Production mode: just verify binary exists
             binary = shutil.which("opencode")
             if not binary:
+                node_bin = Path("./node_modules/.bin/opencode")
+                if node_bin.exists():
+                    binary = str(node_bin.resolve())
+            if not binary:
                 logger.error(
                     "opencode binary not found on PATH. "
                     "Install with: brew install opencode  or  npm install -g opencode"
@@ -547,20 +588,20 @@ class OpenCodeProcessPool:
                 break
 
             now = time.monotonic()
-            to_reap: list[str] = []
+            to_reap: list[tuple[str, str]] = []
 
             for key, proc in self._processes.items():
                 if key == "dev-local":
                     continue
                 idle_s = now - proc.last_activity
+                age_s = now - proc.created_at
                 if idle_s > timeout_s:
-                    to_reap.append(key)
+                    to_reap.append((key, f"idle {idle_s / 60:.1f}m"))
+                elif age_s > _MAX_LIFETIME_S:
+                    to_reap.append((key, f"max-lifetime {age_s / 60:.1f}m"))
 
-            for key in to_reap:
-                logger.info(
-                    f"AI pool: reaping idle process for user={key} "
-                    f"(idle {(now - self._processes[key].last_activity) / 60:.1f}m)"
-                )
+            for key, reason in to_reap:
+                logger.info(f"AI pool: reaping process for user={key} ({reason})")
                 await self.release(key)
 
     async def _session_reaper(self) -> None:
@@ -704,6 +745,29 @@ class OpenCodeProcessPool:
         reading/writing config in the workspace.
         """
         env = os.environ.copy()
+
+        # Add node_modules/.bin to PATH so the opencode binary (and any
+        # Node helpers it needs) can be found regardless of subprocess CWD.
+        node_bin_dir = Path("./node_modules/.bin").resolve()
+        if node_bin_dir.is_dir():
+            env["PATH"] = str(node_bin_dir) + os.pathsep + env.get("PATH", "")
+
+        # When inside Databricks Apps (DATABRICKS_CLIENT_ID present),
+        # fetch fresh OAuth token and derive ANTHROPIC_BASE_URL
+        if "DATABRICKS_CLIENT_ID" in os.environ:
+            token = _get_databricks_oauth_token()
+            if token:
+                env["ANTHROPIC_AUTH_TOKEN"] = token
+                env["ANTHROPIC_API_KEY"] = "unused"
+            if "ANTHROPIC_BASE_URL" not in env:
+                dbx_host = os.environ.get("DATABRICKS_HOST", "").rstrip("/")
+                if dbx_host:
+                    if not dbx_host.startswith(("https://", "http://")):
+                        dbx_host = f"https://{dbx_host}"
+                    env["ANTHROPIC_BASE_URL"] = (
+                        f"{dbx_host}/serving-endpoints/anthropic"
+                    )
+
         env["OPENCODE_CONFIG_CONTENT"] = json.dumps(
             self._ai_config.to_opencode_json()
         )

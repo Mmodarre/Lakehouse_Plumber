@@ -18,6 +18,9 @@ class APISettings(BaseSettings):
     # Server settings (Databricks Apps uses DATABRICKS_APP_PORT)
     databricks_app_port: Optional[int] = Field(default=None, alias="DATABRICKS_APP_PORT")
 
+    # Static file serving (set LHP_STATIC_DIR to serve pre-built React SPA)
+    static_dir: Optional[str] = None
+
     # CORS
     cors_origins: List[str] = ["*"]
     cors_allow_credentials: bool = True

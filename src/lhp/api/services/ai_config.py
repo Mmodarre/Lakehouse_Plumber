@@ -155,10 +155,22 @@ class AIConfig:
         # Databricks Model Serving requires Bearer auth.  Inject options
         # so the Vercel AI SDK sends Authorization header instead of x-api-key.
         base_url = os.environ.get("ANTHROPIC_BASE_URL", "")
+        if not base_url and os.environ.get("DATABRICKS_HOST"):
+            dbx_host = os.environ["DATABRICKS_HOST"].rstrip("/")
+            if not dbx_host.startswith(("https://", "http://")):
+                dbx_host = f"https://{dbx_host}"
+            base_url = f"{dbx_host}/serving-endpoints/anthropic"
         if "databricks" in base_url:
-            # Determine the env var name holding the Databricks PAT
+            # Determine the env var name holding the Bearer token.
+            # In Databricks Apps (DATABRICKS_CLIENT_ID present),
+            # _build_process_env() injects ANTHROPIC_AUTH_TOKEN into
+            # the subprocess env even though it's not in the main
+            # process env — so always prefer it in that context.
             token_var = "ANTHROPIC_AUTH_TOKEN"
-            if not os.environ.get(token_var):
+            if (
+                not os.environ.get(token_var)
+                and "DATABRICKS_CLIENT_ID" not in os.environ
+            ):
                 token_var = "ANTHROPIC_API_KEY"
 
             # baseURL must end with /v1 for the SDK to construct

@@ -199,8 +199,8 @@ def auth_headers() -> dict:
     """Auth headers for production-mode requests (matches test_user)."""
     return {
         "X-Forwarded-Email": "test@test.com",
-        "X-Forwarded-User": "testuser",
-        "X-Forwarded-User-Id": "test-user-123",
+        "X-Forwarded-Preferred-Username": "testuser",
+        "X-Forwarded-User": "test-user-123",
     }
 
 

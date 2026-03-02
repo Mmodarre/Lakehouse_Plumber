@@ -38,8 +38,8 @@ async def get_current_user(request: Request) -> UserContext:
     settings = request.app.state.settings
 
     email = request.headers.get("X-Forwarded-Email")
-    username = request.headers.get("X-Forwarded-User")
-    user_id = request.headers.get("X-Forwarded-User-Id")
+    username = request.headers.get("X-Forwarded-Preferred-Username")
+    user_id = request.headers.get("X-Forwarded-User")
 
     # If all headers present, use them regardless of mode
     if all([email, username, user_id]):
@@ -53,5 +53,5 @@ async def get_current_user(request: Request) -> UserContext:
     # Production: missing headers is an auth failure
     raise HTTPException(
         status_code=401,
-        detail="Missing authentication headers (X-Forwarded-Email, X-Forwarded-User, X-Forwarded-User-Id)",
+        detail="Missing authentication headers (X-Forwarded-Email, X-Forwarded-Preferred-Username, X-Forwarded-User)",
     )

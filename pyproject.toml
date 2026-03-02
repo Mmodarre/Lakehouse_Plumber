@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.7.6"
+version = "0.7.7.dev5"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -63,6 +63,9 @@ api = [
 ]
 ai = [
     "mcp>=1.0.0",
+]
+deploy = [
+    "databricks-sdk>=0.38.0",
 ]
 
 [project.urls]

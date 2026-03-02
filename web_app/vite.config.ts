@@ -12,8 +12,8 @@ export default defineConfig({
         changeOrigin: true,
         headers: {
           'X-Forwarded-Email': 'dev@localhost',
-          'X-Forwarded-User': 'dev-user',
-          'X-Forwarded-User-Id': '12345',
+          'X-Forwarded-Preferred-Username': 'dev-user',
+          'X-Forwarded-User': '12345',
         },
         configure: (proxy) => {
           proxy.on('proxyReq', (_proxyReq, _req, res) => {

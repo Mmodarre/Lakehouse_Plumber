@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.venv/
+venv/
+build/
+dist/
+*.whl
+
+# Node (rebuilt in Docker build stage)
+web_app/node_modules/
+web_app/dist/
+
+# Git
+.git/
+
+# Tests & docs (not needed at runtime)
+tests/
+docs/
+Example_Projects/
+old_code/
+
+# Deploy artifacts (Databricks Apps specific)
+deploy/static/
+deploy/*.whl
+deploy/node_modules/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Secrets (never bake into image)
+.env
+
+# CI/CD & misc
+.github/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+htmlcov/
+.coverage
+*.log

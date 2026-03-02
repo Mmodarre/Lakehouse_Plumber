@@ -53,8 +53,8 @@ class TestGetCurrentUserDevMode:
     def test_me_returns_explicit_headers_even_in_dev_mode(self, client):
         headers = {
             "X-Forwarded-Email": "alice@corp.com",
-            "X-Forwarded-User": "alice",
-            "X-Forwarded-User-Id": "uid-alice",
+            "X-Forwarded-Preferred-Username": "alice",
+            "X-Forwarded-User": "uid-alice",
         }
         resp = client.get("/api/me", headers=headers)
         assert resp.status_code == 200
@@ -74,8 +74,8 @@ class TestGetCurrentUserProdMode:
     def test_me_returns_user_with_all_headers_in_prod(self, prod_client):
         headers = {
             "X-Forwarded-Email": "bob@corp.com",
-            "X-Forwarded-User": "bob",
-            "X-Forwarded-User-Id": "uid-bob",
+            "X-Forwarded-Preferred-Username": "bob",
+            "X-Forwarded-User": "uid-bob",
         }
         resp = prod_client.get("/api/me", headers=headers)
         assert resp.status_code == 200

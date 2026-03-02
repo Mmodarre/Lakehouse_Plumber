@@ -51,4 +51,8 @@ Example_Projects/testing_project/
 .playwright-mcp/
 .pid/
 
-scripts/prod_services.sh
+scripts/
+
+# Deploy artifacts
+deploy/
+

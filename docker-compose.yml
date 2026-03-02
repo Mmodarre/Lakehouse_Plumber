@@ -1,0 +1,22 @@
+services:
+  lhp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${LHP_PORT:-8000}:8000"
+    volumes:
+      - "${LHP_PROJECT_PATH:-.}:/project"
+      - opencode-data:/root/.local/share/opencode
+    env_file:
+      - .env
+    environment:
+      # These are hardcoded — .env values for these keys are ignored
+      LHP_PROJECT_ROOT: /project
+      LHP_DEV_MODE: "true"
+      LHP_AI_ENABLED: "true"
+      LHP_STATIC_DIR: /app/static
+    restart: unless-stopped
+
+volumes:
+  opencode-data:

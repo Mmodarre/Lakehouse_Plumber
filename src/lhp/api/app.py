@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
@@ -192,6 +193,43 @@ def create_app(settings: Optional[APISettings] = None) -> FastAPI:
     app.include_router(environments.router, prefix=api_prefix)
     app.include_router(files.router, prefix=api_prefix)
     app.include_router(ai.router, prefix=api_prefix)
+
+    # Serve pre-built React SPA when LHP_STATIC_DIR is configured.
+    # Must be AFTER all /api routers so API routes match first.
+    if settings.static_dir:
+        static_path = Path(settings.static_dir)
+        if static_path.is_dir() and (static_path / "index.html").exists():
+            from starlette.staticfiles import StaticFiles
+            from starlette.responses import FileResponse
+
+            class SPAStaticFiles(StaticFiles):
+                """StaticFiles subclass with SPA fallback.
+
+                Serves index.html for any path that doesn't match a real
+                static file, enabling client-side routing (React Router).
+                """
+
+                async def get_response(self, path: str, scope):
+                    try:
+                        return await super().get_response(path, scope)
+                    except Exception:
+                        # Path doesn't match a static file — serve index.html
+                        # so the React SPA can handle client-side routing.
+                        return FileResponse(
+                            Path(self.directory) / "index.html",
+                            media_type="text/html",
+                        )
+
+            app.mount(
+                "/",
+                SPAStaticFiles(directory=str(static_path), html=True),
+                name="static",
+            )
+            logger.info(f"Serving static files from {static_path}")
+        else:
+            logger.warning(
+                f"LHP_STATIC_DIR={settings.static_dir} missing index.html"
+            )
 
     logger.info(
         f"LHP API initialized: dev_mode={settings.dev_mode}, "
