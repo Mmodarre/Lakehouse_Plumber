@@ -1,0 +1,6 @@
+resources:
+  apps:
+    lhp_web_app:
+      name: "lhp-web-app"
+      description: "Lakehouse Plumber Web Application"
+      source_code_path: .

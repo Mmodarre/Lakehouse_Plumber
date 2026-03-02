@@ -1,0 +1,18 @@
+command: ["python", "start.py"]
+env:
+  - name: LHP_DEV_MODE
+    value: "false"
+  - name: LHP_AI_ENABLED
+    value: "true"
+  - name: LHP_STATIC_DIR
+    value: "./static"
+  - name: LHP_SOURCE_REPO
+    value: "https://github.com/Mmodarre/acme_supermarkets_lhp_sample.git"
+  - name: OPENCODE_DISABLE_CLAUDE_CODE_SKILLS
+    value: "1"
+  - name: OPENCODE_DISABLE_CLAUDE_CODE
+    value: "1"
+  - name: ANTHROPIC_API_KEY
+    value: "unused"
+  - name: LHP_AI_MODEL
+    value: "anthropic/databricks-claude-sonnet-4-6"

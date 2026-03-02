@@ -1,0 +1,23 @@
+bundle:
+  name: lhp-web-app
+
+variables:
+  source_repo:
+    default: "https://github.com/Mmodarre/acme_supermarkets_lhp_sample.git"
+
+include:
+  - resources/*.yml
+
+sync:
+  include:
+    - "static/**"
+    - "*.whl"
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      profile: field-eng
+  prod:
+    mode: production

@@ -1,0 +1,7 @@
+{
+  "name": "lhp-deploy",
+  "private": true,
+  "dependencies": {
+    "opencode-ai": "^1.2.15"
+  }
+}
