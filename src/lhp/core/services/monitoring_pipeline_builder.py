@@ -32,6 +32,80 @@ FROM {streaming_table}
 GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)\
 """
 
+# Default MV SQL: pipeline run summary with status, duration, and row metrics
+DEFAULT_PIPELINE_RUN_SUMMARY_SQL = """\
+WITH run_info AS (
+    SELECT
+        origin.pipeline_name,
+        origin.pipeline_id,
+        origin.update_id,
+        MIN(`timestamp`) AS run_start_time,
+        MAX(`timestamp`) AS run_end_time,
+        MAX_BY(
+            CASE WHEN event_type = 'update_progress'
+                THEN details:update_progress:state::STRING END,
+            CASE WHEN event_type = 'update_progress'
+                THEN `timestamp` END
+        ) AS run_status
+    FROM {streaming_table}
+    GROUP BY origin.pipeline_name, origin.pipeline_id, origin.update_id
+),
+run_metrics AS (
+    SELECT
+        origin.pipeline_name,
+        origin.update_id,
+        SUM(COALESCE(details:flow_progress:metrics:num_upserted_rows::BIGINT, 0))
+          AS total_upserted_rows,
+        SUM(COALESCE(details:flow_progress:metrics:num_deleted_rows::BIGINT, 0))
+          AS total_deleted_rows,
+        SUM(COALESCE(details:flow_progress:data_quality:dropped_records::BIGINT, 0))
+          AS total_dropped_records,
+        COUNT(DISTINCT origin.flow_name) AS tables_processed
+    FROM {streaming_table}
+    WHERE event_type = 'flow_progress'
+      AND details:flow_progress:metrics IS NOT NULL
+    GROUP BY origin.pipeline_name, origin.update_id
+),
+run_config AS (
+    SELECT
+        origin.pipeline_name,
+        origin.update_id,
+        MAX(details:create_update:runtime_version:dbr_version::STRING) AS dbr_version,
+        MAX(CASE WHEN details:create_update:config:serverless::BOOLEAN
+            THEN 'Serverless' ELSE 'Classic' END) AS compute_type,
+        MAX(details:create_update:cause::STRING) AS trigger_cause,
+        MAX(details:create_update:full_refresh::BOOLEAN) AS is_full_refresh
+    FROM {streaming_table}
+    WHERE event_type = 'create_update'
+    GROUP BY origin.pipeline_name, origin.update_id
+)
+SELECT
+    ri.pipeline_name,
+    ri.pipeline_id,
+    ri.update_id,
+    ri.run_status,
+    rc.trigger_cause,
+    rc.is_full_refresh,
+    rc.dbr_version,
+    rc.compute_type,
+    ri.run_start_time,
+    ri.run_end_time,
+    ROUND((unix_timestamp(ri.run_end_time) - unix_timestamp(ri.run_start_time)) / 60, 2)
+      AS duration_minutes,
+    COALESCE(rm.tables_processed, 0) AS tables_processed,
+    COALESCE(rm.total_upserted_rows, 0) AS total_upserted_rows,
+    COALESCE(rm.total_deleted_rows, 0) AS total_deleted_rows,
+    COALESCE(rm.total_upserted_rows, 0) + COALESCE(rm.total_deleted_rows, 0)
+      AS total_rows_affected,
+    COALESCE(rm.total_dropped_records, 0) AS total_dropped_records
+FROM run_info ri
+LEFT JOIN run_metrics rm
+  ON ri.pipeline_name = rm.pipeline_name AND ri.update_id = rm.update_id
+LEFT JOIN run_config rc
+  ON ri.pipeline_name = rc.pipeline_name AND ri.update_id = rc.update_id
+ORDER BY ri.run_start_time DESC\
+"""
+
 
 class MonitoringPipelineBuilder:
     """Builds a synthetic FlowGroup for the event log monitoring pipeline.
@@ -311,9 +385,15 @@ class MonitoringPipelineBuilder:
 
         assert self.monitoring_config is not None
 
-        eligible_pipelines = sorted(
-            self.get_event_log_pipeline_names(all_pipeline_names)
-        )
+        eligible_pipelines = self.get_event_log_pipeline_names(all_pipeline_names)
+
+        # Merge externally-declared pipelines (not managed by LHP)
+        if self.monitoring_config.include_pipelines:
+            for name in self.monitoring_config.include_pipelines:
+                if name not in eligible_pipelines:
+                    eligible_pipelines.append(name)
+
+        eligible_pipelines = sorted(eligible_pipelines)
 
         if not eligible_pipelines:
             logger.warning(
@@ -358,11 +438,19 @@ class MonitoringPipelineBuilder:
                     self._build_mv_action(mv_config.name, mv_sql, catalog, schema)
                 )
         else:
-            # Default: one summary MV
+            # Default: events_summary + pipeline_run_summary MVs
             default_sql = self._get_default_mv_sql(st_fqn)
             actions.append(
                 self._build_mv_action(
                     "events_summary", default_sql, catalog, schema
+                )
+            )
+            run_summary_sql = DEFAULT_PIPELINE_RUN_SUMMARY_SQL.format(
+                streaming_table=st_fqn
+            )
+            actions.append(
+                self._build_mv_action(
+                    "pipeline_run_summary", run_summary_sql, catalog, schema
                 )
             )
 
