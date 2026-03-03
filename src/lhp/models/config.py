@@ -126,7 +126,6 @@ class MonitoringConfig(BaseModel):
     catalog: Optional[str] = None  # default: event_log.catalog
     schema_: Optional[str] = Field(None, alias="schema")  # default: event_log.schema
     streaming_table: str = "all_pipelines_event_log"
-    custom_actions: Optional[List[Dict[str, Any]]] = None
     materialized_views: Optional[List[MonitoringMaterializedViewConfig]] = None
 
 

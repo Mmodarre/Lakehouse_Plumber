@@ -238,19 +238,6 @@ class MonitoringPipelineBuilder:
             },
         )
 
-    def _build_custom_actions(self) -> List[Action]:
-        """Convert raw custom_actions dicts from monitoring config to Action objects.
-
-        Custom actions are injected between the streaming table write and
-        materialized views, so custom load targets are available to MVs.
-        """
-        if not self.monitoring_config or not self.monitoring_config.custom_actions:
-            return []
-        actions = []
-        for action_dict in self.monitoring_config.custom_actions:
-            actions.append(Action(**action_dict))
-        return actions
-
     def _resolve_mv_sql(
         self, mv_name: str, sql: Optional[str], sql_path: Optional[str]
     ) -> str:
@@ -342,10 +329,7 @@ class MonitoringPipelineBuilder:
         # 2. Streaming Table Write
         actions.append(self._build_write_action(catalog, schema))
 
-        # 3. Custom Actions (between write and MVs so targets are available to MVs)
-        actions.extend(self._build_custom_actions())
-
-        # 4. Materialized Views
+        # 3. Materialized Views
         st_fqn = f"{catalog}.{schema}.{self.monitoring_config.streaming_table}"
 
         if self.monitoring_config.materialized_views is not None:

@@ -366,7 +366,6 @@ class ProjectConfigLoader:
                 streaming_table=monitoring_data.get(
                     "streaming_table", "all_pipelines_event_log"
                 ),
-                custom_actions=monitoring_data.get("custom_actions"),
                 materialized_views=mv_configs,
             )
         except Exception as e:
