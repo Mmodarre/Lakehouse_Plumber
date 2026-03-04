@@ -21,19 +21,19 @@ from ...utils.external_file_loader import load_external_file_text
 logger = logging.getLogger(__name__)
 
 # Default MV SQL: summarizes event counts by pipeline, event type, and hour
-DEFAULT_MV_SQL = """\
-SELECT
-  _source_pipeline,
-  event_type,
-  date_trunc('HOUR', timestamp) AS event_hour,
-  count(*) AS event_count,
-  max(timestamp) AS latest_event
-FROM {streaming_table}
-GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)\
-"""
+# DEFAULT_MV_SQL = """\
+# SELECT
+#   _source_pipeline,
+#   event_type,
+#   date_trunc('HOUR', timestamp) AS event_hour,
+#   count(*) AS event_count,
+#   max(timestamp) AS latest_event
+# FROM {streaming_table}
+# GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)\
+# """
 
 # Default MV SQL: pipeline run summary with status, duration, and row metrics
-DEFAULT_PIPELINE_RUN_SUMMARY_SQL = """\
+DEFAULT_MV_SQL = """\
 WITH run_info AS (
     SELECT
         origin.pipeline_name,
@@ -421,14 +421,6 @@ class MonitoringPipelineBuilder:
             actions.append(
                 self._build_mv_action(
                     "events_summary", default_sql, catalog, schema
-                )
-            )
-            run_summary_sql = DEFAULT_PIPELINE_RUN_SUMMARY_SQL.format(
-                streaming_table=st_fqn
-            )
-            actions.append(
-                self._build_mv_action(
-                    "pipeline_run_summary", run_summary_sql, catalog, schema
                 )
             )
 

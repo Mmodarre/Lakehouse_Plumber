@@ -389,9 +389,9 @@ class TestDefaultMvSql:
     """Tests for the default MV SQL template."""
 
     def test_contains_expected_columns(self):
-        assert "_source_pipeline" in DEFAULT_MV_SQL
-        assert "event_type" in DEFAULT_MV_SQL
-        assert "event_count" in DEFAULT_MV_SQL
+        assert "pipeline_name" in DEFAULT_MV_SQL
+        assert "run_status" in DEFAULT_MV_SQL
+        assert "duration_minutes" in DEFAULT_MV_SQL
 
     def test_has_streaming_table_placeholder(self):
         assert "{streaming_table}" in DEFAULT_MV_SQL
