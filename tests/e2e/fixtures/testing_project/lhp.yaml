@@ -97,3 +97,7 @@ operational_metadata:
 #  materialized_views:
 #    - name: "custom_analysis"
 #      sql_path: "sql/monitoring_custom_analysis.sql"
+
+## [monitoring_enable_job_monitoring]
+#monitoring:
+#  enable_job_monitoring: true

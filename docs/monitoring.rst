@@ -54,6 +54,8 @@ and event analysis — configured entirely through ``lhp.yaml``.
        ST --> MV1["events_summary<br/>(Materialized View)"]
        ST --> MV2["Custom MVs<br/>(Optional)"]
 
+       PL["Python Load<br/>(Databricks SDK)"] --> JS["jobs_stats<br/>(Streaming Table)"]
+
        style P1 fill:#e1f5fe
        style P2 fill:#e1f5fe
        style P3 fill:#e1f5fe
@@ -64,6 +66,8 @@ and event analysis — configured entirely through ``lhp.yaml``.
        style ST fill:#e8f5e8
        style MV1 fill:#fce4ec
        style MV2 fill:#fce4ec
+       style PL fill:#e0f2f1
+       style JS fill:#e8f5e8
 
 Quick Start
 -----------
@@ -312,6 +316,10 @@ Configuration Reference
      - list
      - One default ``events_summary`` MV
      - List of materialized view definitions. Set to ``[]`` to disable MVs.
+   * - ``enable_job_monitoring``
+     - boolean
+     - ``false``
+     - When enabled, generates a Python load action that correlates Databricks Jobs with pipeline runs using the Databricks SDK, populating a separate ``jobs_stats`` streaming table.
 
 Minimal Configuration
 ~~~~~~~~~~~~~~~~~~~~~
@@ -500,6 +508,49 @@ The monitoring pipeline also generates a Databricks Asset Bundle resource file:
          configuration:
            bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
          channel: CURRENT
+
+Job Monitoring
+--------------
+
+When ``enable_job_monitoring: true`` is set, the monitoring pipeline generates an additional
+Python load chain that correlates Databricks Jobs with their associated pipeline runs using
+the Databricks SDK. The results are written to a separate ``jobs_stats`` streaming table
+alongside the main event log streaming table.
+
+.. code-block:: yaml
+   :caption: lhp.yaml
+
+   monitoring:
+     enable_job_monitoring: true
+
+**What it generates:**
+
+In addition to the standard event log pipeline (SQL load → streaming table → MVs), the
+monitoring pipeline adds:
+
+1. **Python Load → ``v_jobs_stats``** — calls a ``get_jobs_stats`` function from a
+   generated ``jobs_stats_loader.py`` module to fetch job run statistics via the
+   Databricks SDK.
+2. **Write → ``jobs_stats``** — a streaming table in the same catalog/schema as the
+   event log streaming table, populated from the ``v_jobs_stats`` view.
+
+**Generated files:**
+
+.. code-block:: text
+
+   generated/
+   └── dev/
+       └── my_project_event_log_monitoring/
+           ├── monitoring.py              ← includes Python load + jobs_stats write
+           └── jobs_stats_loader.py        ← placeholder module (see below)
+
+The ``jobs_stats_loader.py`` file contains a ``get_jobs_stats(spark, parameters) -> DataFrame``
+function stub that raises ``NotImplementedError``. Replace the stub with your actual
+Databricks SDK logic to fetch and return job run statistics as a DataFrame.
+
+.. note::
+   The ``jobs_stats`` streaming table inherits its catalog and schema from the monitoring
+   pipeline configuration (which itself defaults to the ``event_log`` catalog/schema).
 
 Custom Materialized Views
 -------------------------

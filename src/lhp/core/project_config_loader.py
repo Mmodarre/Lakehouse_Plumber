@@ -367,6 +367,7 @@ class ProjectConfigLoader:
                     "streaming_table", "all_pipelines_event_log"
                 ),
                 materialized_views=mv_configs,
+                enable_job_monitoring=monitoring_data.get("enable_job_monitoring", False),
             )
         except Exception as e:
             raise LHPError(
