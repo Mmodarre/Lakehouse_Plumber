@@ -7,6 +7,7 @@ import { DetailModal } from '../detail/DetailModal'
 import { FileEditorModal } from '../editor/FileEditorModal'
 import { FlowgroupEditorModal } from '../editor/FlowgroupEditorModal'
 import { CreateFlowgroupDialog } from '../editor/CreateFlowgroupDialog'
+import { FlowgroupBuilderWizard } from '../builder/FlowgroupBuilderWizard'
 import { ErrorBoundary } from '../common/ErrorBoundary'
 import { LoadingSpinner } from '../common/LoadingSpinner'
 import { WorkspaceGate } from '../workspace/WorkspaceGate'
@@ -61,6 +62,7 @@ export function Layout() {
         <FileEditorModal />
         <FlowgroupEditorModal />
         <CreateFlowgroupDialog />
+        <FlowgroupBuilderWizard />
         <Toaster position="bottom-right" richColors toastOptions={{ duration: 4000 }} />
       </div>
     )
@@ -88,6 +90,7 @@ export function Layout() {
         <FileEditorModal />
         <FlowgroupEditorModal />
         <CreateFlowgroupDialog />
+        <FlowgroupBuilderWizard />
       </WorkspaceGate>
       <Toaster position="bottom-right" richColors toastOptions={{ duration: 4000 }} />
     </div>

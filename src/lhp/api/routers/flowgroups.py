@@ -2,9 +2,11 @@ import asyncio
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
+import yaml as pyyaml
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from pydantic import BaseModel
 
 from lhp.api.auth import UserContext, get_current_user
 from lhp.api.dependencies import (
@@ -224,6 +226,42 @@ async def get_related_files(
         related_files=related_infos,
         environment=env,
     )
+
+
+# ---------------------------------------------------------------------------
+# YAML Preview (pure compute, no I/O)
+# ---------------------------------------------------------------------------
+
+
+class YAMLPreviewRequest(BaseModel):
+    """Request body for YAML preview generation."""
+
+    pipeline: str
+    flowgroup: str
+    config: Dict[str, Any] = {}
+
+
+class YAMLPreviewResponse(BaseModel):
+    """Generated YAML preview string."""
+
+    yaml_content: str
+
+
+@router.post("/preview-yaml", response_model=YAMLPreviewResponse)
+async def preview_yaml(body: YAMLPreviewRequest) -> YAMLPreviewResponse:
+    """Generate a YAML preview from a flowgroup configuration.
+
+    Pure compute endpoint — accepts pipeline/flowgroup/config, serializes
+    to a YAML string, and returns without writing any file.
+    """
+    doc: Dict[str, Any] = {
+        "pipeline": body.pipeline,
+        "flowgroup": body.flowgroup,
+    }
+    doc.update(body.config)
+
+    yaml_str = pyyaml.dump(doc, default_flow_style=False, sort_keys=False)
+    return YAMLPreviewResponse(yaml_content=yaml_str)
 
 
 # ---------------------------------------------------------------------------

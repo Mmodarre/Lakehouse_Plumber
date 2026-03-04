@@ -2,7 +2,7 @@
 # LHP Web App — Docker image for local development
 #
 # Multi-stage build:
-#   Stage 1: Build React frontend (node:20-alpine)
+#   Stage 1: Build React frontend (node:22-alpine)
 #   Stage 2: Python runtime with pre-built SPA + OpenCode binary
 #
 # Usage:
@@ -13,7 +13,7 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Build React frontend
 # ---------------------------------------------------------------------------
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 
 WORKDIR /build
 
@@ -30,7 +30,7 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 # Stage 2: Python runtime
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim AS runtime
+FROM python:3.12.12-slim AS runtime
 
 # System dependencies: git (for GitPython), curl (for healthcheck),
 # ca-certificates (for HTTPS), gnupg (for NodeSource GPG key)
@@ -41,15 +41,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 20 (required for OpenCode binary)
+# Install Node.js 22 LTS (required for OpenCode binary)
 # OpenCode is a Node.js CLI tool — opencode_manager.py uses shutil.which("opencode")
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install OpenCode globally
 # Note: npm package is "opencode-ai", binary is "opencode" (see deploy/DEPLOY_LESSONS_LEARNED.md #3)
 RUN npm install -g opencode-ai@1.2.15
+
+# Patch vulnerable transitive npm dependencies (9 HIGH + 2 LOW CVEs)
+# Creates a temp package.json with overrides in the global node_modules dir
+# to force-resolve patched versions, then cleans up
+RUN GLOBAL_NM="$(npm root -g)" \
+    && echo '{"private":true,"overrides":{"tar":">=7.5.8","minimatch":">=9.0.7","glob":">=10.5.0","cross-spawn":">=7.0.5","brace-expansion":">=2.0.2","diff":">=5.2.2"}}' > "$GLOBAL_NM/package.json" \
+    && cd "$GLOBAL_NM" && npm install --no-audit --no-fund \
+    && rm -f "$GLOBAL_NM/package.json" "$GLOBAL_NM/package-lock.json"
 
 # Set up working directory
 WORKDIR /app
@@ -58,7 +66,8 @@ WORKDIR /app
 # Copy pyproject.toml and src/ for pip install
 COPY pyproject.toml ./
 COPY src/ ./src/
-RUN pip install --no-cache-dir ".[api,ai]"
+RUN pip install --no-cache-dir ".[api,ai]" \
+    && pip install --no-cache-dir --upgrade pip
 
 # Copy pre-built React SPA from stage 1
 COPY --from=frontend-builder /build/dist /app/static

@@ -48,6 +48,11 @@ interface UIState {
   openCreateFlowgroupDialog: () => void
   closeCreateFlowgroupDialog: () => void
 
+  // Flowgroup builder wizard
+  flowgroupBuilderOpen: boolean
+  openFlowgroupBuilder: () => void
+  closeFlowgroupBuilder: () => void
+
   // Flowgroup editor (multi-tab)
   flowgroupEditor: {
     name: string
@@ -109,6 +114,12 @@ export const useUIStore = create<UIState>((set) => ({
   createFlowgroupDialog: false,
   openCreateFlowgroupDialog: () => set({ createFlowgroupDialog: true }),
   closeCreateFlowgroupDialog: () => set({ createFlowgroupDialog: false }),
+
+  // Flowgroup builder wizard
+  flowgroupBuilderOpen: false,
+  openFlowgroupBuilder: () =>
+    set({ flowgroupBuilderOpen: true, createFlowgroupDialog: false }),
+  closeFlowgroupBuilder: () => set({ flowgroupBuilderOpen: false }),
 
   // Flowgroup editor (multi-tab)
   flowgroupEditor: null,

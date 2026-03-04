@@ -657,6 +657,89 @@ class TestDependencyAnalyzer:
         assert graphs.action_graph.has_edge("writer.write_action", "reader.load_action")
 
     @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_write_target_sql_path_dependency_extraction(self, mockget_flowgroups):
+        """Test that sql_path inside write_target is used for dependency extraction."""
+        actions = [
+            {
+                "name": "write_claim_summary_mv",
+                "type": ActionType.WRITE,
+                "write_target": {
+                    "type": "materialized_view",
+                    "sql_path": "sql/gold/claim_summary.sql",
+                    "database": "catalog.gold",
+                    "table": "claim_summary",
+                },
+            }
+        ]
+        flowgroup = self.create_mock_flowgroup(
+            "gold_claim_summary", "gold_pipeline", actions
+        )
+        mockget_flowgroups.return_value = [flowgroup]
+
+        # Set up flowgroup file path mapping
+        yaml_path = self.temp_dir / "pipelines" / "gold" / "test.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        self.analyzer._flowgroup_file_paths["gold_claim_summary"] = yaml_path
+
+        # Create SQL file relative to YAML
+        sql_file = yaml_path.parent / "sql" / "gold" / "claim_summary.sql"
+        sql_file.parent.mkdir(parents=True, exist_ok=True)
+        sql_file.write_text(
+            "SELECT * FROM catalog.silver.claim "
+            "JOIN catalog.silver.claim_line ON 1=1"
+        )
+
+        with patch(
+            "lhp.utils.sql_parser.extract_tables_from_sql",
+            return_value=["catalog.silver.claim", "catalog.silver.claim_line"],
+        ):
+            graphs = self.analyzer.build_dependency_graphs()
+
+        # Verify that the SQL sources were extracted from write_target.sql_path
+        action_id = "gold_claim_summary.write_claim_summary_mv"
+        assert action_id in graphs.action_graph.nodes
+        external_sources = graphs.action_graph.nodes[action_id].get(
+            "external_sources", []
+        )
+        assert "catalog.silver.claim" in external_sources
+        assert "catalog.silver.claim_line" in external_sources
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_write_target_inline_sql_dependency_extraction(self, mockget_flowgroups):
+        """Test that inline sql inside write_target is used for dependency extraction."""
+        actions = [
+            {
+                "name": "write_summary_mv",
+                "type": ActionType.WRITE,
+                "write_target": {
+                    "type": "materialized_view",
+                    "sql": "SELECT * FROM catalog.silver.orders JOIN catalog.silver.customers ON 1=1",
+                    "database": "catalog.gold",
+                    "table": "order_summary",
+                },
+            }
+        ]
+        flowgroup = self.create_mock_flowgroup(
+            "gold_order_summary", "gold_pipeline", actions
+        )
+        mockget_flowgroups.return_value = [flowgroup]
+
+        with patch(
+            "lhp.utils.sql_parser.extract_tables_from_sql",
+            return_value=["catalog.silver.orders", "catalog.silver.customers"],
+        ):
+            graphs = self.analyzer.build_dependency_graphs()
+
+        # Verify that the SQL sources were extracted from write_target.sql
+        action_id = "gold_order_summary.write_summary_mv"
+        assert action_id in graphs.action_graph.nodes
+        external_sources = graphs.action_graph.nodes[action_id].get(
+            "external_sources", []
+        )
+        assert "catalog.silver.orders" in external_sources
+        assert "catalog.silver.customers" in external_sources
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
     def test_empty_graphs_metadata(self, mockget_flowgroups):
         """Test metadata generation for empty graphs."""
         mockget_flowgroups.return_value = []

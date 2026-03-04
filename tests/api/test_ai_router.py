@@ -163,7 +163,7 @@ class TestSessionCRUD:
         assert data["mode"] == "agent"
 
     def test_create_session_agent_mode(self, client, mock_process):
-        """Agent mode sends empty JSON payload (no permission restrictions)."""
+        """Agent mode sends external_directory deny as base permission."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"id": "sess-agent-1"}
@@ -174,13 +174,17 @@ class TestSessionCRUD:
         assert resp.status_code == 200
         data = resp.json()
         assert data["mode"] == "agent"
-        # Verify the payload sent to OpenCode has no permission rules
+        # Verify the payload includes workspace boundary permission
         call_kwargs = mock_req.call_args
         sent_json = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json", {})
-        assert "permission" not in sent_json
+        assert "permission" in sent_json
+        perms = sent_json["permission"]
+        assert len(perms) == 1
+        assert perms[0]["permission"] == "external_directory"
+        assert perms[0]["action"] == "deny"
 
     def test_create_session_chat_mode(self, client, mock_process):
-        """Chat mode sends permission deny rules for edit and bash."""
+        """Chat mode sends external_directory + edit/bash deny rules."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"id": "sess-chat-1"}
@@ -196,7 +200,8 @@ class TestSessionCRUD:
         sent_json = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json", {})
         assert "permission" in sent_json
         perms = sent_json["permission"]
-        assert len(perms) == 2
+        assert len(perms) == 3
+        assert any(p["permission"] == "external_directory" and p["action"] == "deny" for p in perms)
         assert any(p["permission"] == "edit" and p["action"] == "deny" for p in perms)
         assert any(p["permission"] == "bash" and p["action"] == "deny" for p in perms)
 

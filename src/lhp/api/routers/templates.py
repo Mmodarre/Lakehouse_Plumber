@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 
 from lhp.api.auth import UserContext, get_current_user
 from lhp.api.dependencies import (
@@ -18,7 +18,9 @@ from lhp.api.dependencies import (
 from lhp.api.schemas.template import (
     TemplateDetailResponse,
     TemplateInfoResponse,
+    TemplateListDetailResponse,
     TemplateListResponse,
+    TemplateSummary,
 )
 from lhp.api.services.auto_commit_service import AutoCommitService
 from lhp.api.services.yaml_editor import YAMLEditor
@@ -33,13 +35,48 @@ def _user_hash(user: UserContext) -> str:
     return hashlib.sha256(user.user_id.encode()).hexdigest()[:16]
 
 
-@router.get("", response_model=TemplateListResponse)
+@router.get("")
 async def list_templates(
+    detail: bool = Query(False, description="Include summary metadata per template"),
     engine: TemplateEngine = Depends(get_template_engine),
-) -> TemplateListResponse:
-    """#48: List all available templates."""
+) -> TemplateListResponse | TemplateListDetailResponse:
+    """#48: List all available templates.
+
+    When detail=false (default), returns a simple list of names (backward compatible).
+    When detail=true, returns summaries with description, parameter/action counts.
+    """
     templates = await asyncio.to_thread(engine.list_templates)
-    return TemplateListResponse(templates=templates, total=len(templates))
+
+    if not detail:
+        return TemplateListResponse(templates=templates, total=len(templates))
+
+    summaries: list[TemplateSummary] = []
+    for name in templates:
+        info = await asyncio.to_thread(engine.get_template_info, name)
+        if info:
+            # Extract action types from template actions
+            action_types: list[str] = []
+            template_obj = engine.get_template(name)
+            if template_obj:
+                for a in template_obj.actions:
+                    if isinstance(a, dict):
+                        t = a.get("type", "")
+                    else:
+                        t = a.type.value if hasattr(a.type, "value") else str(a.type)
+                    if t and t not in action_types:
+                        action_types.append(t)
+
+            summaries.append(
+                TemplateSummary(
+                    name=name,
+                    description=info.get("description"),
+                    parameter_count=len(info.get("parameters", [])),
+                    action_count=info.get("action_count", 0),
+                    action_types=action_types,
+                )
+            )
+
+    return TemplateListDetailResponse(templates=summaries, total=len(summaries))
 
 
 @router.get("/{name}", response_model=TemplateDetailResponse, response_model_exclude_none=True)

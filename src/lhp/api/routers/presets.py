@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 
 from lhp.api.auth import UserContext, get_current_user
 from lhp.api.dependencies import (
@@ -15,7 +15,12 @@ from lhp.api.dependencies import (
     get_workspace_project_root,
     get_yaml_editor,
 )
-from lhp.api.schemas.preset import PresetDetailResponse, PresetListResponse
+from lhp.api.schemas.preset import (
+    PresetDetailResponse,
+    PresetListDetailResponse,
+    PresetListResponse,
+    PresetSummary,
+)
 from lhp.api.services.auto_commit_service import AutoCommitService
 from lhp.api.services.yaml_editor import YAMLEditor
 from lhp.presets.preset_manager import PresetManager
@@ -29,13 +34,34 @@ def _user_hash(user: UserContext) -> str:
     return hashlib.sha256(user.user_id.encode()).hexdigest()[:16]
 
 
-@router.get("", response_model=PresetListResponse)
+@router.get("")
 async def list_presets(
+    detail: bool = Query(False, description="Include summary metadata per preset"),
     preset_mgr: PresetManager = Depends(get_preset_manager),
-) -> PresetListResponse:
-    """#43: List all available presets."""
-    presets = await asyncio.to_thread(preset_mgr.list_presets)
-    return PresetListResponse(presets=presets, total=len(presets))
+) -> PresetListResponse | PresetListDetailResponse:
+    """#43: List all available presets.
+
+    When detail=false (default), returns a simple list of names (backward compatible).
+    When detail=true, returns summaries with description and extends info.
+    """
+    preset_names = await asyncio.to_thread(preset_mgr.list_presets)
+
+    if not detail:
+        return PresetListResponse(presets=preset_names, total=len(preset_names))
+
+    summaries: list[PresetSummary] = []
+    for name in preset_names:
+        preset = await asyncio.to_thread(preset_mgr.get_preset, name)
+        if preset:
+            summaries.append(
+                PresetSummary(
+                    name=name,
+                    description=preset.description,
+                    extends=preset.extends,
+                )
+            )
+
+    return PresetListDetailResponse(presets=summaries, total=len(summaries))
 
 
 @router.get("/{name}", response_model=PresetDetailResponse, response_model_exclude_none=True)

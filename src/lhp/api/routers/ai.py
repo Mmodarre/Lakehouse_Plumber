@@ -311,13 +311,20 @@ async def create_session(
 
     mode = (body.mode if body else SessionMode.agent)
 
-    # Build the OpenCode session payload with permission rules
+    # Build the OpenCode session payload with permission rules.
+    # Base permissions enforce workspace boundary for ALL session modes.
+    base_permissions = [
+        {"permission": "external_directory", "pattern": "*", "action": "deny"},
+    ]
+
     session_payload: dict = {}
     if mode == SessionMode.chat:
-        session_payload["permission"] = [
+        session_payload["permission"] = base_permissions + [
             {"permission": "edit", "pattern": "*", "action": "deny"},
             {"permission": "bash", "pattern": "*", "action": "deny"},
         ]
+    else:
+        session_payload["permission"] = base_permissions
 
     resp = await _proxy_request(
         "POST",

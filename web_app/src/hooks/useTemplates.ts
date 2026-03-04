@@ -1,10 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchTemplates, fetchTemplateDetail } from '../api/templates'
+import { fetchTemplates, fetchTemplatesDetail, fetchTemplateDetail } from '../api/templates'
 
 export function useTemplates() {
   return useQuery({
     queryKey: ['templates'],
     queryFn: fetchTemplates,
+  })
+}
+
+export function useTemplatesDetail() {
+  return useQuery({
+    queryKey: ['templates-detail'],
+    queryFn: fetchTemplatesDetail,
   })
 }
 

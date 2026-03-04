@@ -14,6 +14,7 @@ class UserContext(BaseModel):
     email: str
     username: str
     user_id: str
+    access_token: Optional[str] = None
 
     @property
     def user_id_hash(self) -> str:
@@ -40,10 +41,16 @@ async def get_current_user(request: Request) -> UserContext:
     email = request.headers.get("X-Forwarded-Email")
     username = request.headers.get("X-Forwarded-Preferred-Username")
     user_id = request.headers.get("X-Forwarded-User")
+    access_token = request.headers.get("X-Forwarded-Access-Token")
 
     # If all headers present, use them regardless of mode
     if all([email, username, user_id]):
-        return UserContext(email=email, username=username, user_id=user_id)
+        return UserContext(
+            email=email,
+            username=username,
+            user_id=user_id,
+            access_token=access_token,
+        )
 
     # Dev mode: fall back to dev user
     if settings.dev_mode:

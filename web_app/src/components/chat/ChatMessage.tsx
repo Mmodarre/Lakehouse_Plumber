@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ToolCallCard } from './ToolCallCard'
 import { QuestionCard, isQuestionTool } from './QuestionCard'
+import { TodoCard, isTodoTool } from './TodoCard'
 import { StreamingIndicator } from './StreamingIndicator'
 import type { ChatMessage as ChatMessageType } from '../../types/chat'
 
@@ -53,6 +54,9 @@ export function ChatMessage({ message }: { message: ChatMessageType }) {
           if (part.type === 'tool-call') {
             if (isQuestionTool(part.toolName)) {
               return <QuestionCard key={i} part={part} />
+            }
+            if (isTodoTool(part.toolName)) {
+              return <TodoCard key={i} part={part} />
             }
             return <ToolCallCard key={i} part={part} />
           }

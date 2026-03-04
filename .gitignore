@@ -50,9 +50,7 @@ Example_Projects/testing_project/
 .serena/
 .playwright-mcp/
 .pid/
-
-scripts/
-
-# Deploy artifacts
-deploy/
-
+scripts/prod_services.sh
+deploy/DEPLOY_LESSONS_LEARNED.md
+deploy/.databricks
+deploy/static/*

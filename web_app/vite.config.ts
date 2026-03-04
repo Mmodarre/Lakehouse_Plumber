@@ -1,9 +1,15 @@
+import path from 'path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
     port: 5173,
     proxy: {
@@ -38,6 +44,7 @@ export default defineConfig({
           if (id.includes('node_modules/zustand')) return 'react-vendor'
           if (id.includes('node_modules/react-markdown')) return 'markdown-vendor'
           if (id.includes('node_modules/remark-gfm')) return 'markdown-vendor'
+          if (id.includes('node_modules/@radix-ui')) return 'radix-ui'
         },
       },
     },

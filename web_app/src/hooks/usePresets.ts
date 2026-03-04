@@ -1,10 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchPresets, fetchPresetDetail } from '../api/presets'
+import { fetchPresets, fetchPresetsDetail, fetchPresetDetail } from '../api/presets'
 
 export function usePresets() {
   return useQuery({
     queryKey: ['presets'],
     queryFn: fetchPresets,
+  })
+}
+
+export function usePresetsDetail() {
+  return useQuery({
+    queryKey: ['presets-detail'],
+    queryFn: fetchPresetsDetail,
   })
 }
 

@@ -165,6 +165,189 @@ function borderColor(state: ToolState): string {
   return 'border-slate-200'
 }
 
+// ── Tool-specific args display ───────────────────────────────
+
+/** Structured display for Bash tool args. */
+function BashArgsView({ args }: { args: Record<string, unknown> }) {
+  const description = typeof args.description === 'string' ? args.description : null
+  const command = typeof args.command === 'string' ? args.command : null
+  return (
+    <div className="space-y-1">
+      {description && (
+        <p className="text-[10px] text-slate-400">{description}</p>
+      )}
+      {command && (
+        <div className="rounded bg-slate-800 px-2 py-1.5 overflow-auto">
+          <code className="text-[10px] text-slate-200 font-mono whitespace-pre-wrap break-all">{command}</code>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Structured display for file tools (Read, Write, Edit). */
+function FileArgsView({ args }: { args: Record<string, unknown> }) {
+  const filePath = (args.file_path ?? args.path) as string | undefined
+  // Collect extra params (offset, limit, old_string, new_string, etc.)
+  const extras = Object.entries(args).filter(
+    ([k]) => !['file_path', 'path', 'content'].includes(k)
+  )
+  return (
+    <div className="space-y-1">
+      {filePath && (
+        <div className="flex items-center gap-1">
+          <svg className="h-3 w-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+          </svg>
+          <code className="text-[10px] font-mono text-slate-600 break-all">{filePath}</code>
+        </div>
+      )}
+      {extras.length > 0 && (
+        <div className="space-y-0.5 pl-4">
+          {extras.map(([key, value]) => (
+            <div key={key} className="flex gap-1.5 text-[10px]">
+              <span className="text-slate-400 shrink-0">{key}:</span>
+              <span className="font-mono text-slate-600 break-all">
+                {typeof value === 'string'
+                  ? (value.length > 120 ? value.slice(0, 117) + '...' : value)
+                  : JSON.stringify(value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Structured display for search tools (Grep, Glob). */
+function SearchArgsView({ args }: { args: Record<string, unknown> }) {
+  const pattern = typeof args.pattern === 'string' ? args.pattern : null
+  const path = typeof args.path === 'string' ? args.path : null
+  const extras = Object.entries(args).filter(([k]) => !['pattern', 'path'].includes(k))
+  return (
+    <div className="space-y-1">
+      {pattern && (
+        <div className="flex items-center gap-1.5 text-[10px]">
+          <span className="text-slate-400 shrink-0">pattern:</span>
+          <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-700">{pattern}</code>
+        </div>
+      )}
+      {path && (
+        <div className="flex items-center gap-1.5 text-[10px]">
+          <span className="text-slate-400 shrink-0">path:</span>
+          <span className="font-mono text-slate-500 break-all">{path}</span>
+        </div>
+      )}
+      {extras.length > 0 && (
+        <div className="space-y-0.5">
+          {extras.map(([key, value]) => (
+            <div key={key} className="flex gap-1.5 text-[10px]">
+              <span className="text-slate-400 shrink-0">{key}:</span>
+              <span className="font-mono text-slate-600">{typeof value === 'string' ? value : JSON.stringify(value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Structured display for web tools (WebFetch, WebSearch). */
+function WebArgsView({ args }: { args: Record<string, unknown> }) {
+  const url = typeof args.url === 'string' ? args.url : null
+  const query = typeof args.query === 'string' ? args.query : null
+  const prompt = typeof args.prompt === 'string' ? args.prompt : null
+  return (
+    <div className="space-y-1">
+      {url && (
+        <div className="flex items-center gap-1.5 text-[10px]">
+          <svg className="h-3 w-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+          <span className="font-mono text-slate-600 break-all">{url}</span>
+        </div>
+      )}
+      {query && (
+        <div className="flex items-center gap-1.5 text-[10px]">
+          <svg className="h-3 w-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <span className="text-slate-600">{query}</span>
+        </div>
+      )}
+      {prompt && (
+        <p className="text-[10px] text-slate-400 pl-4">{prompt.length > 120 ? prompt.slice(0, 117) + '...' : prompt}</p>
+      )}
+    </div>
+  )
+}
+
+/** Fallback: styled key-value list (replaces raw JSON). */
+function GenericArgsView({ args }: { args: Record<string, unknown> }) {
+  const entries = Object.entries(args)
+  return (
+    <div className="space-y-0.5">
+      {entries.map(([key, value]) => (
+        <div key={key} className="flex gap-1.5 text-[10px]">
+          <span className="text-slate-400 shrink-0">{key}:</span>
+          <span className="font-mono text-slate-600 break-all">
+            {typeof value === 'string'
+              ? (value.length > 200 ? value.slice(0, 197) + '...' : value)
+              : JSON.stringify(value, null, 2)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Switch on tool name and render the appropriate args view. */
+function ToolArgsDisplay({ toolName, args }: { toolName: string; args: Record<string, unknown> }) {
+  const lower = toolName.toLowerCase()
+
+  if (lower === 'bash') return <BashArgsView args={args} />
+  if (['read', 'write', 'edit', 'notebookedit'].includes(lower)) return <FileArgsView args={args} />
+  if (['grep', 'glob'].includes(lower)) return <SearchArgsView args={args} />
+  if (['webfetch', 'websearch'].includes(lower)) return <WebArgsView args={args} />
+
+  // MCP tools: try to detect category from name
+  if (/bash|command|shell/i.test(lower)) return <BashArgsView args={args} />
+  if (/read|write|edit|file/i.test(lower) && (args.file_path || args.path || args.relative_path)) return <FileArgsView args={args} />
+  if (/search|find|grep|glob|pattern/i.test(lower) && args.pattern) return <SearchArgsView args={args} />
+
+  return <GenericArgsView args={args} />
+}
+
+// ── Truncated result display ────────────────────────────────
+
+const MAX_RESULT_LINES = 20
+
+function TruncatedResult({ text, isError }: { text: string; isError?: boolean }) {
+  const [showAll, setShowAll] = useState(false)
+  const lines = text.split('\n')
+  const isTruncated = lines.length > MAX_RESULT_LINES
+  const displayText = !showAll && isTruncated
+    ? lines.slice(0, MAX_RESULT_LINES).join('\n')
+    : text
+
+  return (
+    <div>
+      <pre className={`max-h-64 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px] ${isError ? 'text-red-600' : 'text-slate-600'}`}>
+        {displayText}
+      </pre>
+      {isTruncated && (
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="mt-1 text-[10px] text-blue-500 hover:text-blue-600 hover:underline"
+        >
+          {showAll ? 'Show less' : `Show ${lines.length - MAX_RESULT_LINES} more lines...`}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Component ─────────────────────────────────────────────────
 
 export function ToolCallCard({ part }: { part: ChatMessagePart }) {
@@ -219,17 +402,13 @@ export function ToolCallCard({ part }: { part: ChatMessagePart }) {
       {expanded && hasContent && (
         <div className="border-t border-slate-200 bg-white p-2">
           {hasArgs && (
-            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px] text-slate-600">
-              {JSON.stringify(displayArgs, null, 2)}
-            </pre>
+            <ToolArgsDisplay toolName={rawName} args={displayArgs!} />
           )}
           {hasArgs && hasResult && (
             <hr className="my-1.5 border-slate-200" />
           )}
           {hasResult && (
-            <pre className={`max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-[10px] ${part.isError ? 'text-red-600' : 'text-slate-600'}`}>
-              {part.toolResult}
-            </pre>
+            <TruncatedResult text={part.toolResult!} isError={part.isError} />
           )}
         </div>
       )}

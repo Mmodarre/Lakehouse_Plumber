@@ -7,6 +7,10 @@ import { fetchFilePath, writeFile } from '../../api/files'
 import { ApiError } from '../../api/client'
 import type { MonacoEditorHandle } from './MonacoEditorWrapper'
 import type { RelatedFileInfo } from '../../types/api'
+import { VisualEditorTab } from '../builder/VisualEditorTab'
+import { useYAMLGenerator } from '../builder/hooks/useYAMLGenerator'
+import { useBuilderStore } from '../builder/hooks/useBuilderStore'
+import { yamlHasComments } from '../builder/hooks/useYAMLDeserializer'
 
 const MonacoEditorWrapper = lazy(() => import('./MonacoEditorWrapper'))
 
@@ -79,9 +83,15 @@ export function FlowgroupEditorModal() {
   const [addFilePath, setAddFilePath] = useState('')
   const [addFileCategory, setAddFileCategory] = useState('')
   const [isSavingAll, setIsSavingAll] = useState(false)
+  const [editorMode, setEditorMode] = useState<'code' | 'visual'>('code')
   const editorRef = useRef<MonacoEditorHandle>(null)
   const queryClient = useQueryClient()
   const initRef = useRef<string | null>(null)
+
+  // Visual editor: read generated YAML from builder store
+  const generatedYAML = useYAMLGenerator()
+  const builderReset = useBuilderStore((s) => s.reset)
+  const builderEditMode = useBuilderStore((s) => s.editMode)
 
   // Build tabs when relatedData arrives (edit mode only)
   useEffect(() => {
@@ -175,8 +185,10 @@ export function FlowgroupEditorModal() {
       setAddFilePath('')
       setAddFileCategory('')
       setIsSavingAll(false)
+      setEditorMode('code')
+      builderReset()
     }
-  }, [flowgroupEditor])
+  }, [flowgroupEditor, builderReset])
 
   // Capture current editor content before switching tabs
   const captureCurrentContent = useCallback(() => {
@@ -334,8 +346,91 @@ export function FlowgroupEditorModal() {
       )
         return
     }
+    builderReset()
     closeFlowgroupEditor()
-  }, [tabs, closeFlowgroupEditor])
+  }, [tabs, closeFlowgroupEditor, builderReset])
+
+  // ── Visual Editor Mode Switching ────────────────────────
+
+  const handleSwitchToVisual = useCallback(() => {
+    if (!tabs[0]) return
+
+    // Capture latest Monaco content
+    const yamlContent = editorRef.current?.getValue() ?? tabs[0].content
+    // Update tab state with latest content
+    setTabs((prev) =>
+      prev.map((tab, idx) => (idx === 0 ? { ...tab, content: yamlContent } : tab)),
+    )
+
+    // Warn about comments
+    if (yamlHasComments(yamlContent)) {
+      if (!window.confirm('YAML comments will not be preserved in visual mode. Continue?')) {
+        return
+      }
+    }
+
+    setEditorMode('visual')
+  }, [tabs])
+
+  const handleSwitchToCode = useCallback(() => {
+    // Generate YAML from builder state and update code editor tab
+    if (generatedYAML) {
+      setTabs((prev) =>
+        prev.map((tab, idx) =>
+          idx === 0
+            ? { ...tab, content: generatedYAML, isDirty: tab.originalContent !== generatedYAML }
+            : tab,
+        ),
+      )
+    }
+    setEditorMode('code')
+  }, [generatedYAML])
+
+  // Save from visual mode
+  const handleVisualSave = useCallback(async () => {
+    if (!tabs[0] || !generatedYAML) return
+
+    const tab = tabs[0]
+    setTabs((prev) =>
+      prev.map((t, i) => (i === 0 ? { ...t, isSaving: true } : t)),
+    )
+
+    try {
+      await writeFile(tab.path, generatedYAML)
+      setTabs((prev) =>
+        prev.map((t, i) =>
+          i === 0
+            ? {
+                ...t,
+                content: generatedYAML,
+                originalContent: generatedYAML,
+                isDirty: false,
+                isSaving: false,
+                exists: true,
+                isNew: false,
+              }
+            : t,
+        ),
+      )
+      // Update the builder's original YAML reference
+      const { setEditMode } = useBuilderStore.getState()
+      if (builderEditMode) {
+        setEditMode({ ...builderEditMode, originalYAML: generatedYAML })
+      }
+      const filename = tab.path.split('/').pop() ?? tab.path
+      toast.success(`Saved ${filename}`)
+      queryClient.invalidateQueries({ queryKey: ['flowgroups'] })
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+      queryClient.invalidateQueries({ queryKey: ['git-status'] })
+      queryClient.invalidateQueries({ queryKey: ['dep-graph'] })
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Failed to save file'
+      toast.error(message)
+      setTabs((prev) =>
+        prev.map((t, i) => (i === 0 ? { ...t, isSaving: false } : t)),
+      )
+    }
+  }, [tabs, generatedYAML, queryClient, builderEditMode])
 
   // Add file tab
   const handleAddFileSelect = useCallback(
@@ -444,6 +539,14 @@ export function FlowgroupEditorModal() {
               >
                 {isSavingAll ? 'Creating...' : 'Create All'}
               </button>
+            ) : editorMode === 'visual' ? (
+              <button
+                onClick={handleVisualSave}
+                disabled={!generatedYAML || tabs[0]?.isSaving || tabs[0]?.originalContent === generatedYAML}
+                className="rounded bg-blue-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-blue-700 disabled:opacity-40"
+              >
+                {tabs[0]?.isSaving ? 'Saving...' : 'Save'}
+              </button>
             ) : (
               activeTab && !isReadOnly && (
                 <button
@@ -471,144 +574,194 @@ export function FlowgroupEditorModal() {
           </div>
         </div>
 
-        {/* Tab bar wrapper — relative so the dropdown can escape the overflow container */}
-        <div className="relative border-b border-slate-200 bg-slate-50">
-          <div className="flex overflow-x-auto px-2">
-            {showLoading ? (
-              <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400">
-                <div className="h-3 w-3 animate-spin rounded-full border border-slate-300 border-t-slate-500" />
-                Loading files...
-              </div>
-            ) : (
-              <>
-                {tabs.map((tab, i) => {
-                  const filename = tab.path.split('/').pop() ?? tab.path
-                  const isActive = i === activeTabIndex
-                  return (
-                    <button
-                      key={tab.path}
-                      onClick={() => handleTabSwitch(i)}
-                      title={tab.path}
-                      className={`group relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-medium transition-colors ${
-                        isActive
-                          ? 'border-blue-500 text-blue-700'
-                          : 'border-transparent text-slate-500 hover:text-slate-700'
-                      } ${!tab.exists ? 'italic opacity-60' : ''}`}
-                    >
-                      {!tab.exists && (
-                        <span className="text-[10px]" title="File doesn't exist — edit and save to create">
-                          +
-                        </span>
-                      )}
-                      <span>{filename}</span>
-                      {tab.isDirty && (
-                        <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
-                      )}
-                      {/* Remove button for user-added tabs */}
-                      {tab.isUserAdded && (
-                        <span
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleRemoveTab(i)
-                          }}
-                          className="ml-1 hidden cursor-pointer text-slate-400 hover:text-red-500 group-hover:inline"
-                          title="Remove tab"
-                        >
-                          ×
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-
-                {/* Add file button */}
-                <button
-                  onClick={() => setAddFileOpen(!addFileOpen)}
-                  title="Add a file tab"
-                  className="flex h-6 w-6 shrink-0 items-center justify-center self-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-600"
-                >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Dropdown rendered outside overflow container so it isn't clipped */}
-          {addFileOpen && (
-            <div className="absolute right-2 top-full z-20 mt-1 w-44 rounded border border-slate-200 bg-white py-1 shadow-lg">
-              {ADD_FILE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.category}
-                  onClick={() => handleAddFileSelect(opt)}
-                  className="block w-full px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
-                >
-                  {CATEGORY_ICON[opt.category] ?? ''} {opt.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Add file path input (shown after selecting a file type) */}
-        {addFileCategory && (
-          <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-100 px-4 py-2">
-            <span className="text-xs text-slate-500">Path:</span>
-            <input
-              type="text"
-              value={addFilePath}
-              onChange={(e) => setAddFilePath(e.target.value)}
-              className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddFileConfirm()
-                if (e.key === 'Escape') handleAddFileCancel()
-              }}
-            />
+        {/* Mode tab bar: Code Editor | Visual Editor (edit mode only) */}
+        {!isCreateMode && (
+          <div className="flex border-b border-slate-200 bg-white px-4">
             <button
-              onClick={handleAddFileConfirm}
-              className="rounded bg-blue-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-blue-700"
+              onClick={() => { if (editorMode === 'visual') handleSwitchToCode() }}
+              className={`border-b-2 px-4 py-2 text-xs font-medium transition-colors ${
+                editorMode === 'code'
+                  ? 'border-blue-500 text-blue-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
             >
-              Add
+              <span className="flex items-center gap-1.5">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+                Code Editor
+              </span>
             </button>
             <button
-              onClick={handleAddFileCancel}
-              className="rounded px-2 py-1 text-[10px] font-medium text-slate-500 hover:bg-slate-200"
+              onClick={() => { if (editorMode === 'code') handleSwitchToVisual() }}
+              className={`border-b-2 px-4 py-2 text-xs font-medium transition-colors ${
+                editorMode === 'visual'
+                  ? 'border-blue-500 text-blue-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
             >
-              Cancel
+              <span className="flex items-center gap-1.5">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                </svg>
+                Visual Editor
+              </span>
             </button>
           </div>
         )}
 
-        {/* Editor body */}
-        <div className="flex min-h-0 flex-1 flex-col bg-[#1e1e1e]">
-          {/* Non-existent file banner */}
-          {activeTab && !activeTab.exists && !isCreateMode && (
-            <div className="border-b border-slate-700 bg-slate-800 px-4 py-2 text-xs text-slate-400">
-              This file doesn't exist yet. Save to create it.
-            </div>
-          )}
+        {editorMode === 'visual' && !isCreateMode ? (
+          /* Visual editor body */
+          <div className="flex min-h-0 flex-1 flex-col">
+            <VisualEditorTab
+              yamlContent={tabs[0]?.content ?? ''}
+              filePath={tabs[0]?.path ?? ''}
+              flowgroupName={flowgroupEditor.name}
+              pipeline={flowgroupEditor.pipeline}
+            />
+          </div>
+        ) : (
+          <>
+            {/* File tab bar wrapper — relative so the dropdown can escape the overflow container */}
+            <div className="relative border-b border-slate-200 bg-slate-50">
+              <div className="flex overflow-x-auto px-2">
+                {showLoading ? (
+                  <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400">
+                    <div className="h-3 w-3 animate-spin rounded-full border border-slate-300 border-t-slate-500" />
+                    Loading files...
+                  </div>
+                ) : (
+                  <>
+                    {tabs.map((tab, i) => {
+                      const filename = tab.path.split('/').pop() ?? tab.path
+                      const isActive = i === activeTabIndex
+                      return (
+                        <button
+                          key={tab.path}
+                          onClick={() => handleTabSwitch(i)}
+                          title={tab.path}
+                          className={`group relative flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-medium transition-colors ${
+                            isActive
+                              ? 'border-blue-500 text-blue-700'
+                              : 'border-transparent text-slate-500 hover:text-slate-700'
+                          } ${!tab.exists ? 'italic opacity-60' : ''}`}
+                        >
+                          {!tab.exists && (
+                            <span className="text-[10px]" title="File doesn't exist — edit and save to create">
+                              +
+                            </span>
+                          )}
+                          <span>{filename}</span>
+                          {tab.isDirty && (
+                            <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
+                          )}
+                          {/* Remove button for user-added tabs */}
+                          {tab.isUserAdded && (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleRemoveTab(i)
+                              }}
+                              className="ml-1 hidden cursor-pointer text-slate-400 hover:text-red-500 group-hover:inline"
+                              title="Remove tab"
+                            >
+                              ×
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
 
-          {/* Monaco editor */}
-          {activeTab && !activeTab.loading ? (
-            <div className="min-h-0 flex-1">
-              <Suspense fallback={<EditorSkeleton />}>
-                <MonacoEditorWrapper
-                  key={activeTab.path}
-                  ref={editorRef}
-                  path={activeTab.path}
-                  content={activeTab.content}
-                  readOnly={isReadOnly}
-                  onDirtyChange={handleDirtyChange}
-                  onSave={isCreateMode ? handleCreateSave : handleSave}
-                />
-              </Suspense>
+                    {/* Add file button */}
+                    <button
+                      onClick={() => setAddFileOpen(!addFileOpen)}
+                      title="Add a file tab"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center self-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Dropdown rendered outside overflow container so it isn't clipped */}
+              {addFileOpen && (
+                <div className="absolute right-2 top-full z-20 mt-1 w-44 rounded border border-slate-200 bg-white py-1 shadow-lg">
+                  {ADD_FILE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.category}
+                      onClick={() => handleAddFileSelect(opt)}
+                      className="block w-full px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+                    >
+                      {CATEGORY_ICON[opt.category] ?? ''} {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          ) : (
-            <EditorSkeleton />
-          )}
-        </div>
+
+            {/* Add file path input (shown after selecting a file type) */}
+            {addFileCategory && (
+              <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-100 px-4 py-2">
+                <span className="text-xs text-slate-500">Path:</span>
+                <input
+                  type="text"
+                  value={addFilePath}
+                  onChange={(e) => setAddFilePath(e.target.value)}
+                  className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddFileConfirm()
+                    if (e.key === 'Escape') handleAddFileCancel()
+                  }}
+                />
+                <button
+                  onClick={handleAddFileConfirm}
+                  className="rounded bg-blue-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-blue-700"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={handleAddFileCancel}
+                  className="rounded px-2 py-1 text-[10px] font-medium text-slate-500 hover:bg-slate-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {/* Code editor body */}
+            <div className="flex min-h-0 flex-1 flex-col bg-[#1e1e1e]">
+              {/* Non-existent file banner */}
+              {activeTab && !activeTab.exists && !isCreateMode && (
+                <div className="border-b border-slate-700 bg-slate-800 px-4 py-2 text-xs text-slate-400">
+                  This file doesn't exist yet. Save to create it.
+                </div>
+              )}
+
+              {/* Monaco editor */}
+              {activeTab && !activeTab.loading ? (
+                <div className="min-h-0 flex-1">
+                  <Suspense fallback={<EditorSkeleton />}>
+                    <MonacoEditorWrapper
+                      key={activeTab.path}
+                      ref={editorRef}
+                      path={activeTab.path}
+                      content={activeTab.content}
+                      readOnly={isReadOnly}
+                      onDirtyChange={handleDirtyChange}
+                      onSave={isCreateMode ? handleCreateSave : handleSave}
+                    />
+                  </Suspense>
+                </div>
+              ) : (
+                <EditorSkeleton />
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

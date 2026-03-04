@@ -169,6 +169,22 @@ class TestAIConfigHelpers:
         result = config.to_opencode_json()
         assert "env" not in result
 
+    def test_to_opencode_json_includes_permission_block(self):
+        """Verify workspace boundary permission is included."""
+        config = AIConfig.load()
+        result = config.to_opencode_json()
+        assert "permission" in result
+        perm = result["permission"]
+        assert "external_directory" in perm
+        assert perm["external_directory"]["*"] == "deny"
+
+    def test_to_opencode_json_includes_instructions(self):
+        """Verify WORKSPACE_RULES.md is referenced in instructions."""
+        config = AIConfig.load()
+        result = config.to_opencode_json()
+        assert "instructions" in result
+        assert "WORKSPACE_RULES.md" in result["instructions"]
+
     def test_to_opencode_json_custom(self):
         config = AIConfig.load()
         result = config.to_opencode_json(provider="openai", model="openai/gpt-4o")

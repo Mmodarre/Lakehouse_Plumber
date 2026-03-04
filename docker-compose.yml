@@ -16,6 +16,8 @@ services:
       LHP_DEV_MODE: "true"
       LHP_AI_ENABLED: "true"
       LHP_STATIC_DIR: /app/static
+      # AI model — override via .env or set here
+      LHP_AI_MODEL: "${LHP_AI_MODEL:-anthropic/databricks-claude-sonnet-4-6}"
     restart: unless-stopped
 
 volumes:

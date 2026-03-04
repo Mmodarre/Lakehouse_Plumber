@@ -6,7 +6,6 @@ import type {
   ActionNodeConfig,
   BasicInfo,
   TemplateInfo,
-  BuilderPath,
   BuilderEdge,
 } from '../types/builder'
 

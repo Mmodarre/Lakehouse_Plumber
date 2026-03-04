@@ -110,13 +110,54 @@ class AIConfig:
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid value for {env_var}: {val!r}")
 
+        resolved_provider = raw["provider"]
+        resolved_model = raw["model"]
+        allowed_providers = raw.get(
+            "allowed_providers", _DEFAULTS["allowed_providers"]
+        )
+        allowed_models = raw.get("allowed_models", _DEFAULTS["allowed_models"])
+        provider_config = raw.get(
+            "provider_config", _DEFAULTS["provider_config"]
+        )
+
+        # Auto-include the configured model so env-var overrides always
+        # pass validation without requiring allowed_models changes.
+        if resolved_provider not in allowed_providers:
+            allowed_providers = list(allowed_providers) + [resolved_provider]
+        provider_models = allowed_models.get(resolved_provider, [])
+        if resolved_model not in provider_models:
+            allowed_models = {
+                **allowed_models,
+                resolved_provider: list(provider_models) + [resolved_model],
+            }
+
+        # Ensure provider_config has an entry for the resolved model so the
+        # frontend can display a human-readable name.
+        pc = provider_config.get(resolved_provider, {})
+        models_map = pc.get("models", {})
+        # Model IDs use "provider/model-slug"; strip the prefix for the key.
+        model_slug = (
+            resolved_model.split("/", 1)[1]
+            if "/" in resolved_model
+            else resolved_model
+        )
+        if model_slug not in models_map:
+            display = model_slug.replace("-", " ").title()
+            models_map = {**models_map, model_slug: {"name": display}}
+            provider_config = {
+                **provider_config,
+                resolved_provider: {**pc, "models": models_map},
+            }
+
         return cls(
-            provider=raw["provider"],
-            model=raw["model"],
-            allowed_providers=raw.get("allowed_providers", _DEFAULTS["allowed_providers"]),
-            allowed_models=raw.get("allowed_models", _DEFAULTS["allowed_models"]),
-            api_key_env_vars=raw.get("api_key_env_vars", _DEFAULTS["api_key_env_vars"]),
-            provider_config=raw.get("provider_config", _DEFAULTS["provider_config"]),
+            provider=resolved_provider,
+            model=resolved_model,
+            allowed_providers=allowed_providers,
+            allowed_models=allowed_models,
+            api_key_env_vars=raw.get(
+                "api_key_env_vars", _DEFAULTS["api_key_env_vars"]
+            ),
+            provider_config=provider_config,
             max_processes=raw["max_processes"],
             idle_timeout_minutes=raw["idle_timeout_minutes"],
             session_max_age_hours=raw.get(
@@ -190,6 +231,12 @@ class AIConfig:
             "$schema": "https://opencode.ai/config.json",
             "provider": {provider: provider_block},
             "model": model,
+            "permission": {
+                "external_directory": {
+                    "*": "deny",
+                },
+            },
+            "instructions": ["WORKSPACE_RULES.md"],
         }
 
     def get_allowed_models(self) -> dict[str, list[str]]:

@@ -356,6 +356,7 @@ class OpenCodeProcessPool:
         default_port: int = 4096,
         password: Optional[str] = None,
         external_url: Optional[str] = None,
+        api_port: int = 8000,
     ) -> None:
         self._ai_config = ai_config
         self._dev_mode = dev_mode
@@ -363,6 +364,7 @@ class OpenCodeProcessPool:
         self._default_port = default_port
         self._password = password
         self._external_url = external_url
+        self._api_port = api_port
 
         # Process pool keyed by user_id or "dev-local"
         self._processes: dict[str, OpenCodeProcess] = {}
@@ -419,7 +421,7 @@ class OpenCodeProcessPool:
                 workspace_path=self._project_root,
                 port=self._default_port,
                 password=self._password,
-                env=self._build_process_env(),
+                env=self._build_process_env("dev-local"),
             )
             await process.start()
             self._processes["dev-local"] = process
@@ -523,7 +525,7 @@ class OpenCodeProcessPool:
                 workspace_path=workspace_path,
                 port=port,
                 password=self._password,
-                env=self._build_process_env(),
+                env=self._build_process_env(user_id_hash),
             )
             await process.start()
             self._processes[key] = process
@@ -727,6 +729,21 @@ class OpenCodeProcessPool:
                 "Could not enumerate skill reference files", exc_info=True
             )
 
+        # Deploy WORKSPACE_RULES.md to the config root (referenced by
+        # the "instructions" key in opencode.json).
+        templates_pkg = "lhp.api.services.opencode_templates"
+        try:
+            rules_content = (
+                resources.files(templates_pkg)
+                .joinpath("WORKSPACE_RULES.md")
+                .read_text("utf-8")
+            )
+            (base / "WORKSPACE_RULES.md").write_text(rules_content)
+        except Exception:
+            logger.warning(
+                "Could not deploy WORKSPACE_RULES.md", exc_info=True
+            )
+
         # Make read-only to prevent OpenCode from writing into it
         for dirpath, dirnames, filenames in os.walk(base):
             for fname in filenames:
@@ -736,7 +753,7 @@ class OpenCodeProcessPool:
         logger.info(f"Deployed shared skills to {base}")
         return base
 
-    def _build_process_env(self) -> dict[str, str]:
+    def _build_process_env(self, user_id_hash: str = "") -> dict[str, str]:
         """Build the environment dict for OpenCode subprocesses.
 
         Sets ``OPENCODE_CONFIG_CONTENT`` (inline JSON config),

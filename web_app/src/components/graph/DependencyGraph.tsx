@@ -93,7 +93,7 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: GraphCanvasProps) {
 }
 
 export function DependencyGraphWithControls() {
-  const { pipelineFilter, openPipelineModal, openCreateFlowgroupDialog } = useUIStore()
+  const { pipelineFilter, openPipelineModal, openFlowgroupBuilder: openCreateFlowgroupDialog } = useUIStore()
   const { data, isLoading, error } = useDependencyGraph(
     'pipeline',
     pipelineFilter ?? undefined,

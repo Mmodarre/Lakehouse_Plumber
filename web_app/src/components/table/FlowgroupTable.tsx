@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { Plus } from 'lucide-react'
 import { useFlowgroups } from '../../hooks/useFlowgroups'
 import { useUIStore } from '../../store/uiStore'
 import type { FlowgroupSummary } from '../../types/api'
@@ -44,6 +45,7 @@ function SortHeader({
 export function FlowgroupTable() {
   const { data, isLoading } = useFlowgroups()
   const openFlowgroupEditor = useUIStore((s) => s.openFlowgroupEditor)
+  const openBuilder = useUIStore((s) => s.openFlowgroupBuilder)
   const [filter, setFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [sortKey, setSortKey] = useState<SortKey>('name')
@@ -126,6 +128,16 @@ export function FlowgroupTable() {
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
+
+        <div className="ml-auto">
+          <button
+            onClick={openBuilder}
+            className="flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+          >
+            <Plus className="h-3 w-3" />
+            New Flowgroup
+          </button>
+        </div>
       </div>
 
       {/* Table */}

@@ -873,6 +873,8 @@ class DependencyAnalyzer:
         Handles:
         - Inline SQL in action.sql field
         - SQL files referenced by action.sql_path
+        - Inline SQL in write_target.sql (e.g. materialized views)
+        - SQL files referenced by write_target.sql_path
         - Custom SQL in test actions
 
         Args:
@@ -915,7 +917,27 @@ class DependencyAnalyzer:
                     f"Could not parse source dict SQL in {flowgroup_name}.{action.name}: {e}"
                 )
 
-        # Handle SQL files - check both direct sql_path and nested in source dict
+        # Handle inline SQL in write_target (e.g. materialized views with sql)
+        if not sources and action.write_target:
+            wt = action.write_target
+            wt_sql = None
+            if isinstance(wt, dict):
+                wt_sql = wt.get("sql")
+            else:
+                wt_sql = getattr(wt, "sql", None)
+
+            if wt_sql:
+                try:
+                    sources.extend(extract_tables_from_sql(wt_sql))
+                    self.logger.debug(
+                        f"Extracted {len(sources)} sources from write_target SQL in {flowgroup_name}.{action.name}"
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Could not parse write_target SQL in {flowgroup_name}.{action.name}: {e}"
+                    )
+
+        # Handle SQL files - check direct sql_path, source dict, and write_target
         sql_path = None
         if hasattr(action, "sql_path") and action.sql_path:
             sql_path = action.sql_path
@@ -926,6 +948,14 @@ class DependencyAnalyzer:
             and action.source.get("sql_path")
         ):
             sql_path = action.source["sql_path"]
+
+        # Check write_target for sql_path (e.g. materialized views with sql_path)
+        if not sql_path and action.write_target:
+            wt = action.write_target
+            if isinstance(wt, dict):
+                sql_path = wt.get("sql_path")
+            else:
+                sql_path = getattr(wt, "sql_path", None)
 
         if sql_path:
             # Get the YAML file path for this flowgroup

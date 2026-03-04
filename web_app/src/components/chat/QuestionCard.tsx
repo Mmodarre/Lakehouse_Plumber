@@ -24,6 +24,7 @@ interface Question {
   header?: string
   options: QuestionOption[]
   multiSelect?: boolean
+  custom?: boolean
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -57,11 +58,20 @@ export function parseQuestions(toolArgs?: Record<string, unknown>): Question[] |
       }
     }
 
+    // Accept both `multiple` (SSE wire format) and `multiSelect` (tool args format)
+    const multi = typeof obj.multiple === 'boolean' ? obj.multiple
+      : typeof obj.multiSelect === 'boolean' ? obj.multiSelect
+      : false
+
+    // `custom` defaults to true per OpenCode SDK spec (allows free-text "Other")
+    const custom = typeof obj.custom === 'boolean' ? obj.custom : true
+
     questions.push({
       question: obj.question,
       header: typeof obj.header === 'string' ? obj.header : undefined,
       options,
-      multiSelect: typeof obj.multiSelect === 'boolean' ? obj.multiSelect : false,
+      multiSelect: multi,
+      custom,
     })
   }
 
@@ -94,6 +104,8 @@ export function QuestionCard({ part }: { part: ChatMessagePart }) {
 
   // selections[questionIndex] → Set of selected option indices
   const [selections, setSelections] = useState<Map<number, Set<number>>>(new Map())
+  // customText[questionIndex] → free-text input for "Other" option
+  const [customText, setCustomText] = useState<Map<number, string>>(new Map())
 
   // Read the question request ID from the store (mapped by sessionId)
   const requestId = useChatStore(
@@ -114,6 +126,25 @@ export function QuestionCard({ part }: { part: ChatMessagePart }) {
       next.set(questionIdx, current)
       return next
     })
+    // In single-select mode, clear custom text when an option is picked
+    if (!multiSelect) {
+      setCustomText((prev) => {
+        const next = new Map(prev)
+        next.delete(questionIdx)
+        return next
+      })
+    }
+  }, [])
+
+  const updateCustomText = useCallback((questionIdx: number, text: string) => {
+    setCustomText((prev) => {
+      const next = new Map(prev)
+      if (text) next.set(questionIdx, text)
+      else next.delete(questionIdx)
+      return next
+    })
+    // In single-select mode, deselect options when typing custom text
+    // (handled by SingleQuestion clearing selection on focus)
   }, [])
 
   const handleSubmit = useCallback(async () => {
@@ -123,12 +154,19 @@ export function QuestionCard({ part }: { part: ChatMessagePart }) {
     const answers: string[][] = []
     for (let qi = 0; qi < questions.length; qi++) {
       const sel = selections.get(qi)
-      if (!sel || sel.size === 0) {
-        answers.push([])
-        continue
+      const custom = customText.get(qi)?.trim()
+      const chosen = sel && sel.size > 0
+        ? [...sel].map((i) => questions[qi].options[i]?.label).filter(Boolean)
+        : []
+
+      if (questions[qi].multiSelect) {
+        // Multi-select: append custom text alongside selected options
+        if (custom) chosen.push(custom)
+        answers.push(chosen)
+      } else {
+        // Single-select: custom text replaces selected option
+        answers.push(custom ? [custom] : chosen)
       }
-      const chosen = [...sel].map((i) => questions[qi].options[i]?.label).filter(Boolean)
-      answers.push(chosen)
     }
 
     if (answers.every((a) => a.length === 0)) return
@@ -153,13 +191,14 @@ export function QuestionCard({ part }: { part: ChatMessagePart }) {
     } finally {
       setSubmitting(false)
     }
-  }, [questions, selections, submitted, submitting, requestId])
+  }, [questions, selections, customText, submitted, submitting, requestId])
 
-  // Check if at least one option is selected per question
+  // Check if at least one option is selected (or custom text entered) per question
   const allAnswered = questions
     ? questions.every((_, qi) => {
         const sel = selections.get(qi)
-        return sel && sel.size > 0
+        const custom = customText.get(qi)?.trim()
+        return (sel && sel.size > 0) || !!custom
       })
     : false
 
@@ -207,6 +246,18 @@ export function QuestionCard({ part }: { part: ChatMessagePart }) {
             questionIdx={qi}
             selected={selections.get(qi) ?? new Set()}
             onToggle={toggle}
+            customText={customText.get(qi) ?? ''}
+            onCustomTextChange={updateCustomText}
+            onCustomTextFocus={() => {
+              // In single-select: deselect options when user starts typing
+              if (!q.multiSelect) {
+                setSelections((prev) => {
+                  const next = new Map(prev)
+                  next.delete(qi)
+                  return next
+                })
+              }
+            }}
             disabled={!isAnswerable}
           />
         ))}
@@ -242,14 +293,27 @@ function SingleQuestion({
   questionIdx,
   selected,
   onToggle,
+  customText,
+  onCustomTextChange,
+  onCustomTextFocus,
   disabled,
 }: {
   question: Question
   questionIdx: number
   selected: Set<number>
   onToggle: (questionIdx: number, optionIdx: number, multiSelect: boolean) => void
+  customText: string
+  onCustomTextChange: (questionIdx: number, text: string) => void
+  onCustomTextFocus: () => void
   disabled: boolean
 }) {
+  const [showCustom, setShowCustom] = useState(false)
+
+  // Mode label
+  const modeLabel = question.multiSelect
+    ? 'Select all that apply'
+    : 'Select one'
+
   return (
     <div>
       {question.header && (
@@ -257,7 +321,8 @@ function SingleQuestion({
           {question.header}
         </span>
       )}
-      <p className="text-[12px] font-medium text-slate-700 mb-1.5">{question.question}</p>
+      <p className="text-[12px] font-medium text-slate-700 mb-0.5">{question.question}</p>
+      <p className="text-[10px] text-slate-400 mb-1.5">{modeLabel}</p>
       <div className="space-y-1">
         {question.options.map((opt, oi) => {
           const isSelected = selected.has(oi)
@@ -297,6 +362,40 @@ function SingleQuestion({
           )
         })}
       </div>
+
+      {/* Free-text "Other" input when custom is enabled */}
+      {question.custom && !disabled && (
+        <div className="mt-1.5">
+          {!showCustom ? (
+            <button
+              onClick={() => setShowCustom(true)}
+              className="text-[10px] text-blue-500 hover:text-blue-600 hover:underline"
+            >
+              Or type your own...
+            </button>
+          ) : (
+            <div className="space-y-1">
+              <textarea
+                value={customText}
+                onChange={(e) => onCustomTextChange(questionIdx, e.target.value)}
+                onFocus={onCustomTextFocus}
+                placeholder="Type your answer..."
+                rows={2}
+                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-[11px] text-slate-700 placeholder:text-slate-300 focus:border-blue-300 focus:outline-none focus:ring-1 focus:ring-blue-200 resize-y"
+              />
+              <button
+                onClick={() => {
+                  setShowCustom(false)
+                  onCustomTextChange(questionIdx, '')
+                }}
+                className="text-[10px] text-slate-400 hover:text-slate-500"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

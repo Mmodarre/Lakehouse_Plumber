@@ -2,9 +2,22 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 
+class PresetSummary(BaseModel):
+    """Lightweight preset summary for list views."""
+    name: str
+    description: Optional[str] = None
+    extends: Optional[str] = None
+
+
 class PresetListResponse(BaseModel):
     """List of available preset names."""
     presets: List[str]
+    total: int
+
+
+class PresetListDetailResponse(BaseModel):
+    """List of presets with summary metadata."""
+    presets: List[PresetSummary]
     total: int
 
 
