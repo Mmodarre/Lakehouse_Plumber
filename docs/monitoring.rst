@@ -54,7 +54,9 @@ and event analysis — configured entirely through ``lhp.yaml``.
        ST --> MV1["events_summary<br/>(Materialized View)"]
        ST --> MV2["Custom MVs<br/>(Optional)"]
 
-       PL["Python Load<br/>(Databricks SDK)"] --> JS["jobs_stats<br/>(Streaming Table)"]
+       subgraph opt ["enable_job_monitoring: true"]
+           PL["Python Load<br/>(Databricks SDK)"] --> JS["jobs_stats<br/>(Streaming Table)"]
+       end
 
        style P1 fill:#e1f5fe
        style P2 fill:#e1f5fe
@@ -68,6 +70,7 @@ and event analysis — configured entirely through ``lhp.yaml``.
        style MV2 fill:#fce4ec
        style PL fill:#e0f2f1
        style JS fill:#e8f5e8
+       style opt fill:none,stroke:#999,stroke-dasharray: 5 5
 
 Quick Start
 -----------
@@ -93,7 +96,8 @@ Get centralized pipeline monitoring in three steps:
 .. tip::
    ``monitoring: {}`` enables the monitoring pipeline with sensible defaults: the pipeline
    is named ``{project_name}_event_log_monitoring``, uses the same catalog/schema as
-   ``event_log``, and creates a default ``events_summary`` materialized view.
+   ``event_log``, and creates a default ``events_summary`` materialized view that
+   summarizes pipeline run status, duration, and row metrics.
 
 **Step 2: Generate code and resources**
 
@@ -314,7 +318,7 @@ Configuration Reference
      - Name of the centralized streaming table.
    * - ``materialized_views``
      - list
-     - One default ``events_summary`` MV
+     - One default ``events_summary`` MV (pipeline run summary)
      - List of materialized view definitions. Set to ``[]`` to disable MVs.
    * - ``enable_job_monitoring``
      - boolean
@@ -340,7 +344,7 @@ This creates:
 
 * Pipeline named ``{project_name}_event_log_monitoring``
 * Streaming table ``all_pipelines_event_log`` in the same catalog/schema as event_log
-* Default ``events_summary`` materialized view
+* Default ``events_summary`` materialized view (pipeline run summary with status, duration, and row metrics)
 
 Custom Pipeline Name
 ~~~~~~~~~~~~~~~~~~~~
@@ -444,8 +448,8 @@ ingests from the source view:
 Materialized Views
 ~~~~~~~~~~~~~~~~~~
 
-By default, LHP creates an ``events_summary`` materialized view that summarizes event
-counts by pipeline, event type, and hour:
+By default, LHP creates an ``events_summary`` materialized view — a pipeline run summary
+that extracts run status, duration, row metrics, and configuration from the event log:
 
 .. code-block:: python
    :caption: monitoring.py (excerpt) — default events_summary MV
@@ -457,29 +461,87 @@ counts by pipeline, event type, and hour:
    )
    def events_summary():
        """Write to acme_edw_dev._meta.events_summary from multiple sources"""
-       df = spark.sql("""SELECT
-     _source_pipeline,
-     event_type,
-     date_trunc('HOUR', timestamp) AS event_hour,
-     count(*) AS event_count,
-     max(timestamp) AS latest_event
-   FROM acme_edw_dev._meta.all_pipelines_event_log
-   GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)""")
+       df = spark.sql("""WITH run_info AS (
+       SELECT
+           origin.pipeline_name,
+           origin.pipeline_id,
+           origin.update_id,
+           MIN(`timestamp`) AS run_start_time,
+           MAX(`timestamp`) AS run_end_time,
+           MAX_BY(
+               CASE WHEN event_type = 'update_progress'
+                   THEN details:update_progress:state::STRING END,
+               CASE WHEN event_type = 'update_progress'
+                   THEN `timestamp` END
+           ) AS run_status
+       FROM acme_edw_dev._meta.all_pipelines_event_log
+       GROUP BY origin.pipeline_name, origin.pipeline_id, origin.update_id
+   ),
+   ...
+   SELECT
+       ri.pipeline_name, ri.pipeline_id, ri.update_id, ri.run_status,
+       rc.trigger_cause, rc.is_full_refresh, rc.dbr_version, rc.compute_type,
+       ri.run_start_time, ri.run_end_time,
+       ROUND((...) / 60, 2) AS duration_minutes,
+       COALESCE(rm.tables_processed, 0) AS tables_processed,
+       COALESCE(rm.total_upserted_rows, 0) AS total_upserted_rows,
+       ...
+   FROM run_info ri
+   LEFT JOIN run_metrics rm ON ...
+   LEFT JOIN run_config rc ON ...
+   ORDER BY ri.run_start_time DESC""")
        return df
 
-**Default MV SQL:**
+The default SQL joins three CTEs from the event log:
 
-.. code-block:: text
+* **run_info** — pipeline name, update ID, start/end time, final run status
+* **run_metrics** — upserted rows, deleted rows, dropped records, tables processed
+* **run_config** — DBR version, compute type (Serverless/Classic), trigger cause, full refresh flag
+
+**Default MV SQL template** (abbreviated):
+
+.. code-block:: sql
    :caption: Default events_summary SQL
 
-   SELECT
-     _source_pipeline,
-     event_type,
-     date_trunc('HOUR', timestamp) AS event_hour,
-     count(*) AS event_count,
-     max(timestamp) AS latest_event
-   FROM {streaming_table}
-   GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)
+   WITH run_info AS (
+       SELECT origin.pipeline_name, origin.pipeline_id, origin.update_id,
+              MIN(`timestamp`) AS run_start_time,
+              MAX(`timestamp`) AS run_end_time,
+              MAX_BY(...) AS run_status
+       FROM {streaming_table}
+       GROUP BY origin.pipeline_name, origin.pipeline_id, origin.update_id
+   ),
+   run_metrics AS (
+       SELECT origin.pipeline_name, origin.update_id,
+              SUM(...) AS total_upserted_rows,
+              SUM(...) AS total_deleted_rows,
+              SUM(...) AS total_dropped_records,
+              COUNT(DISTINCT origin.flow_name) AS tables_processed
+       FROM {streaming_table}
+       WHERE event_type = 'flow_progress' AND details:flow_progress:metrics IS NOT NULL
+       GROUP BY origin.pipeline_name, origin.update_id
+   ),
+   run_config AS (
+       SELECT origin.pipeline_name, origin.update_id,
+              MAX(...) AS dbr_version, MAX(...) AS compute_type,
+              MAX(...) AS trigger_cause, MAX(...) AS is_full_refresh
+       FROM {streaming_table}
+       WHERE event_type = 'create_update'
+       GROUP BY origin.pipeline_name, origin.update_id
+   )
+   SELECT ri.pipeline_name, ri.pipeline_id, ri.update_id, ri.run_status,
+          rc.trigger_cause, rc.is_full_refresh, rc.dbr_version, rc.compute_type,
+          ri.run_start_time, ri.run_end_time,
+          ROUND((...) / 60, 2) AS duration_minutes,
+          COALESCE(rm.tables_processed, 0) AS tables_processed,
+          COALESCE(rm.total_upserted_rows, 0) AS total_upserted_rows,
+          COALESCE(rm.total_deleted_rows, 0) AS total_deleted_rows,
+          ... AS total_rows_affected,
+          COALESCE(rm.total_dropped_records, 0) AS total_dropped_records
+   FROM run_info ri
+   LEFT JOIN run_metrics rm ON ri.pipeline_name = rm.pipeline_name AND ri.update_id = rm.update_id
+   LEFT JOIN run_config rc ON ri.pipeline_name = rc.pipeline_name AND ri.update_id = rc.update_id
+   ORDER BY ri.run_start_time DESC
 
 .. note::
    ``{streaming_table}`` is replaced with the fully-qualified streaming table name
