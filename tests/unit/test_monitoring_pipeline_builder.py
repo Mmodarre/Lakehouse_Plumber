@@ -6,6 +6,10 @@ from unittest.mock import MagicMock
 
 from lhp.core.services.monitoring_pipeline_builder import (
     DEFAULT_MV_SQL,
+    JOBS_STATS_FUNCTION_NAME,
+    JOBS_STATS_MODULE_PATH,
+    JOBS_STATS_TABLE_NAME,
+    JOBS_STATS_VIEW_NAME,
     MonitoringPipelineBuilder,
 )
 from lhp.models.config import (
@@ -31,6 +35,7 @@ def _make_project_config(
     monitoring_schema=None,
     monitoring_streaming_table="all_pipelines_event_log",
     monitoring_mvs=None,
+    monitoring_enable_job_monitoring=False,
 ):
     """Helper to build a ProjectConfig with event_log and monitoring."""
     event_log = EventLogConfig(
@@ -47,6 +52,7 @@ def _make_project_config(
         schema=monitoring_schema,
         streaming_table=monitoring_streaming_table,
         materialized_views=monitoring_mvs,
+        enable_job_monitoring=monitoring_enable_job_monitoring,
     )
     return ProjectConfig(
         name=name,
@@ -400,3 +406,99 @@ class TestDefaultMvSql:
         sql = DEFAULT_MV_SQL.format(streaming_table="cat.schema.my_table")
         assert "cat.schema.my_table" in sql
         assert "{streaming_table}" not in sql
+
+
+@pytest.mark.unit
+class TestJobMonitoring:
+    """Tests for enable_job_monitoring feature (jobs stats via Databricks SDK)."""
+
+    def test_job_monitoring_disabled_by_default(self):
+        """Default config has no python load actions."""
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze", "silver"])
+        assert fg is not None
+        # Default: load + write + default MV = 3 actions
+        assert len(fg.actions) == 3
+        # No python load actions
+        python_loads = [a for a in fg.actions if a.source and isinstance(a.source, dict) and a.source.get("type") == "python"]
+        assert len(python_loads) == 0
+
+    def test_job_monitoring_enabled_adds_actions(self):
+        """enable_job_monitoring: true adds Python load + write actions (5 total vs 3)."""
+        config = _make_project_config(monitoring_enable_job_monitoring=True)
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze", "silver"])
+        assert fg is not None
+        # load + write + job_monitoring_load + job_monitoring_write + default MV = 5 actions
+        assert len(fg.actions) == 5
+
+    def test_job_monitoring_action_structure(self):
+        """Verify python load action source dict, target view, function name."""
+        config = _make_project_config(monitoring_enable_job_monitoring=True)
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze"])
+
+        python_load = fg.actions[2]
+        assert python_load.type == ActionType.LOAD
+        assert python_load.name == "load_jobs_stats"
+        assert python_load.source["type"] == "python"
+        assert python_load.source["module_path"] == JOBS_STATS_MODULE_PATH
+        assert python_load.source["function_name"] == JOBS_STATS_FUNCTION_NAME
+        assert python_load.target == JOBS_STATS_VIEW_NAME
+
+    def test_job_monitoring_write_uses_same_catalog_schema(self):
+        """Jobs stats write uses same catalog/schema as event log write."""
+        config = _make_project_config(
+            monitoring_catalog="override_cat",
+            monitoring_schema="_analytics",
+            monitoring_enable_job_monitoring=True,
+        )
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze"])
+
+        # Event log write action
+        event_log_write = fg.actions[1]
+        # Jobs stats write action
+        jobs_stats_write = fg.actions[3]
+
+        assert jobs_stats_write.type == ActionType.WRITE
+        assert jobs_stats_write.source == JOBS_STATS_VIEW_NAME
+        assert jobs_stats_write.readMode == "stream"
+        assert jobs_stats_write.write_target["type"] == "streaming_table"
+        assert jobs_stats_write.write_target["table"] == JOBS_STATS_TABLE_NAME
+        assert jobs_stats_write.write_target["create_table"] is True
+        # Same catalog/schema as event log write
+        assert jobs_stats_write.write_target["database"] == event_log_write.write_target["database"]
+
+    def test_job_monitoring_populates_auxiliary_files(self):
+        """_auxiliary_files contains package resource content when enable_job_monitoring enabled."""
+        config = _make_project_config(monitoring_enable_job_monitoring=True)
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze"])
+
+        assert JOBS_STATS_MODULE_PATH in fg._auxiliary_files
+        content = fg._auxiliary_files[JOBS_STATS_MODULE_PATH]
+        assert "def get_jobs_stats" in content
+        assert "NotImplementedError" in content
+        # Verify it matches the package resource file
+        from importlib.resources import files
+
+        expected = (
+            files("lhp.templates.monitoring") / "jobs_stats_loader.py"
+        ).read_text(encoding="utf-8")
+        assert content == expected
+
+    def test_job_monitoring_disabled_no_auxiliary_files(self):
+        """_auxiliary_files empty when enable_job_monitoring disabled."""
+        config = _make_project_config(monitoring_enable_job_monitoring=False)
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze"])
+
+        assert len(fg._auxiliary_files) == 0

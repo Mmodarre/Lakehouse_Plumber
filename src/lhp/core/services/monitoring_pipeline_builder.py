@@ -106,6 +106,25 @@ LEFT JOIN run_config rc
 ORDER BY ri.run_start_time DESC\
 """
 
+# Python load constants for jobs stats
+JOBS_STATS_MODULE_PATH = "jobs_stats_loader.py"
+JOBS_STATS_FUNCTION_NAME = "get_jobs_stats"
+JOBS_STATS_VIEW_NAME = "v_jobs_stats"
+JOBS_STATS_TABLE_NAME = "jobs_stats"
+
+try:
+    from importlib.resources import files
+except ImportError:
+    import importlib_resources
+
+    files = importlib_resources.files
+
+
+def _load_jobs_stats_source() -> str:
+    """Load jobs_stats_loader.py source from package resources."""
+    resource = files("lhp.templates.monitoring") / "jobs_stats_loader.py"
+    return resource.read_text(encoding="utf-8")
+
 
 class MonitoringPipelineBuilder:
     """Builds a synthetic FlowGroup for the event log monitoring pipeline.
@@ -295,6 +314,39 @@ class MonitoringPipelineBuilder:
             },
         )
 
+    def _build_python_load_action(self) -> Action:
+        """Build the Python load action for jobs stats."""
+        return Action(
+            name="load_jobs_stats",
+            type=ActionType.LOAD,
+            source={
+                "type": "python",
+                "module_path": JOBS_STATS_MODULE_PATH,
+                "function_name": JOBS_STATS_FUNCTION_NAME,
+            },
+            target=JOBS_STATS_VIEW_NAME,
+            description="Python source: load_jobs_stats",
+        )
+
+    def _build_jobs_stats_write_action(
+        self, catalog: str, schema: str
+    ) -> Action:
+        """Build the streaming table write action for jobs stats."""
+        database = f"{catalog}.{schema}" if catalog and schema else ""
+
+        return Action(
+            name="write_jobs_stats",
+            type=ActionType.WRITE,
+            source=JOBS_STATS_VIEW_NAME,
+            readMode="stream",
+            write_target={
+                "type": "streaming_table",
+                "database": database,
+                "table": JOBS_STATS_TABLE_NAME,
+                "create_table": True,
+            },
+        )
+
     def _build_mv_action(
         self, mv_name: str, sql: str, catalog: str, schema: str
     ) -> Action:
@@ -403,7 +455,14 @@ class MonitoringPipelineBuilder:
         # 2. Streaming Table Write
         actions.append(self._build_write_action(catalog, schema))
 
-        # 3. Materialized Views
+        # 3. Python Load (optional — jobs stats via Databricks SDK)
+        if self.monitoring_config.enable_job_monitoring:
+            actions.append(self._build_python_load_action())
+            actions.append(
+                self._build_jobs_stats_write_action(catalog, schema)
+            )
+
+        # 4. Materialized Views
         st_fqn = f"{catalog}.{schema}.{self.monitoring_config.streaming_table}"
 
         if self.monitoring_config.materialized_views is not None:
@@ -431,5 +490,8 @@ class MonitoringPipelineBuilder:
             actions=actions,
         )
         fg._synthetic = True
+
+        if self.monitoring_config.enable_job_monitoring:
+            fg._auxiliary_files[JOBS_STATS_MODULE_PATH] = _load_jobs_stats_source()
 
         return fg
