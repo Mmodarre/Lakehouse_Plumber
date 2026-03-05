@@ -49,10 +49,6 @@ dev = [
     "mypy>=1.0.0",
     "requests>=2.32.0",
 ]
-notebook = [
-    "ipython>=7.0.0",
-    "jupyter>=1.0.0",
-]
 
 [project.urls]
 Homepage = "https://github.com/Mmodarre/Lakehouse_Plumber"
