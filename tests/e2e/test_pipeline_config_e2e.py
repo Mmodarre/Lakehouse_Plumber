@@ -1618,7 +1618,7 @@ class TestMonitoringPipelineE2E:
         )
         loader_content = loader_py.read_text()
         assert "def get_jobs_stats" in loader_content
-        assert "NotImplementedError" in loader_content
+        assert "WorkspaceClient" in loader_content
 
         # Hash comparison for monitoring.py
         self._assert_monitoring_baseline("enable_job_monitoring")

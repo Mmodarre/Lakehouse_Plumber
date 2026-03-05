@@ -467,11 +467,9 @@ class TestJobMonitoring:
         jobs_stats_write = fg.actions[3]
 
         assert jobs_stats_write.type == ActionType.WRITE
-        assert jobs_stats_write.source == JOBS_STATS_VIEW_NAME
-        assert jobs_stats_write.readMode == "stream"
-        assert jobs_stats_write.write_target["type"] == "streaming_table"
+        assert jobs_stats_write.write_target["type"] == "materialized_view"
         assert jobs_stats_write.write_target["table"] == JOBS_STATS_TABLE_NAME
-        assert jobs_stats_write.write_target["create_table"] is True
+        assert jobs_stats_write.write_target["sql"] == f"SELECT * FROM {JOBS_STATS_VIEW_NAME}"
         # Same catalog/schema as event log write
         assert jobs_stats_write.write_target["database"] == event_log_write.write_target["database"]
 
@@ -485,7 +483,7 @@ class TestJobMonitoring:
         assert JOBS_STATS_MODULE_PATH in fg._auxiliary_files
         content = fg._auxiliary_files[JOBS_STATS_MODULE_PATH]
         assert "def get_jobs_stats" in content
-        assert "NotImplementedError" in content
+        assert "WorkspaceClient" in content
         # Verify it matches the package resource file
         from importlib.resources import files
 

@@ -331,19 +331,21 @@ class MonitoringPipelineBuilder:
     def _build_jobs_stats_write_action(
         self, catalog: str, schema: str
     ) -> Action:
-        """Build the streaming table write action for jobs stats."""
+        """Build the materialized view write action for jobs stats.
+
+        Uses a materialized view (not streaming table) because the Python
+        SDK source returns batch data, not a streaming DataFrame.
+        """
         database = f"{catalog}.{schema}" if catalog and schema else ""
 
         return Action(
             name="write_jobs_stats",
             type=ActionType.WRITE,
-            source=JOBS_STATS_VIEW_NAME,
-            readMode="stream",
             write_target={
-                "type": "streaming_table",
+                "type": "materialized_view",
                 "database": database,
                 "table": JOBS_STATS_TABLE_NAME,
-                "create_table": True,
+                "sql": f"SELECT * FROM {JOBS_STATS_VIEW_NAME}",
             },
         )
 

@@ -62,6 +62,19 @@ def v_jobs_stats():
 
 
 @dp.materialized_view(
+    name="acme_edw_dev._meta.jobs_stats",
+    comment="Materialized view: jobs_stats",
+    table_properties={},
+)
+def jobs_stats():
+    """Write to acme_edw_dev._meta.jobs_stats from multiple sources"""
+    # Materialized views use batch processing
+    df = spark.sql("""SELECT * FROM v_jobs_stats""")
+
+    return df
+
+
+@dp.materialized_view(
     name="acme_edw_dev._meta.events_summary",
     comment="Materialized view: events_summary",
     table_properties={},
@@ -160,25 +173,5 @@ def f_all_event_logs():
     """Append flow to acme_edw_dev._meta.all_pipelines_event_log"""
     # Streaming flow
     df = spark.readStream.table("v_all_event_logs")
-
-    return df
-
-
-# Create the streaming table
-dp.create_streaming_table(
-    name="acme_edw_dev._meta.jobs_stats", comment="Streaming table: jobs_stats"
-)
-
-
-# Define append flow(s)
-@dp.append_flow(
-    target="acme_edw_dev._meta.jobs_stats",
-    name="f_jobs_stats",
-    comment="Append flow to acme_edw_dev._meta.jobs_stats",
-)
-def f_jobs_stats():
-    """Append flow to acme_edw_dev._meta.jobs_stats"""
-    # Streaming flow
-    df = spark.readStream.table("v_jobs_stats")
 
     return df
