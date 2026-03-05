@@ -2,9 +2,8 @@
 Error Reference
 ========================
 
-.. contents:: Page Outline
-   :depth: 2
-   :local:
+.. meta::
+   :description: Troubleshooting guide with all Lakehouse Plumber error codes, causes, and resolution steps.
 
 Overview
 ========
@@ -126,7 +125,7 @@ typically when both legacy and new-format fields are present in the same action.
 
 .. seealso::
 
-   :doc:`actions_reference` for the current configuration format for each action type.
+   :doc:`actions/index` for the current configuration format for each action type.
 
 LHP-CFG-006: Invalid Event Log Configuration
 ---------------------------------------------
@@ -638,7 +637,7 @@ item in the list to resolve this error.
 .. note::
 
    In SQL transforms, ``$source`` is automatically replaced with the view name
-   specified in the ``source`` field. See :doc:`actions_reference` for details
+   specified in the ``source`` field. See :doc:`actions/index` for details
    on SQL transform syntax.
 
 LHP-VAL-006: Invalid Field Value
@@ -780,8 +779,12 @@ pipeline name are defined as separate entries in ``pipeline_config.yaml``.
    :doc:`monitoring` for details on the ``__eventlog_monitoring`` reserved keyword
    and monitoring pipeline configuration.
 
-LHP-VAL-011: Monitoring Alias in Pipeline List
------------------------------------------------
+LHP-VAL-011: Monitoring Alias in Pipeline List / Schema Syntax Error
+---------------------------------------------------------------------
+
+This error code covers two validation scenarios.
+
+**Scenario 1: Monitoring Alias in Pipeline List**
 
 **When it occurs:** The ``__eventlog_monitoring`` alias is used inside a pipeline list
 (e.g., ``pipeline: [bronze, __eventlog_monitoring]``) instead of as a standalone entry.
@@ -816,8 +819,7 @@ LHP-VAL-011: Monitoring Alias in Pipeline List
    :doc:`monitoring` for details on the ``__eventlog_monitoring`` reserved keyword
    and monitoring pipeline configuration.
 
-LHP-VAL-011: Schema Syntax Error
----------------------------------
+**Scenario 2: Schema Syntax Error**
 
 **When it occurs:** A schema file has invalid syntax or structure.
 
@@ -886,7 +888,7 @@ expected format for its type.
 
 .. seealso::
 
-   :doc:`actions_reference` for the correct source configuration format for each
+   :doc:`actions/index` for the correct source configuration format for each
    action type.
 
 I/O Errors (LHP-IO)
@@ -1017,7 +1019,7 @@ to a valid option. It also lists all valid values.
 .. tip::
 
    Run ``lhp list_presets`` to see all available preset names, or check the
-   :doc:`actions_reference` for valid action types and subtypes.
+   :doc:`actions/index` for valid action types and subtypes.
 
 Dependency Errors (LHP-DEP)
 ============================
@@ -1086,6 +1088,45 @@ you identify which dependency to remove or redirect.
    Run ``lhp deps --format dot --env <env>`` to generate a visual dependency
    graph that makes cycles easier to spot. See :doc:`dependency_analysis`
    for details.
+
+General Troubleshooting
+=======================
+
+State Management
+----------------
+
+.. code-block:: bash
+   :caption: Debugging state issues
+
+   # Force regeneration of all files
+   lhp generate --force-all --env dev
+
+   # Clear state and regenerate everything
+   rm .lhp_state.json
+   lhp generate --env dev
+
+   # Check what files would be regenerated
+   lhp generate --dry-run --env dev --verbose
+
+Dependency Debugging
+--------------------
+
+.. code-block:: bash
+   :caption: Dependency debugging
+
+   # Show dependency graph
+   lhp validate --env dev --show-dependencies
+
+   # Validate for circular dependencies
+   lhp validate --env dev --check-cycles
+
+Performance Optimization
+------------------------
+
+- Use **include patterns** to limit file scanning scope
+- Keep **FlowGroups focused** — avoid overly large YAML files
+- Leverage **state management** — don't force regeneration unless needed
+- Use **specific targets** when possible instead of full pipeline generation
 
 Getting Help
 ============

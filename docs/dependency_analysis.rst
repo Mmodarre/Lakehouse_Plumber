@@ -1,13 +1,13 @@
 Dependency Analysis & Job Generation
 =====================================
 
+.. meta::
+   :description: Automatic pipeline dependency detection and orchestration job generation for multi-pipeline Databricks workflows.
+
 The Dependency Analysis feature automatically analyzes your pipeline structure to understand 
 data flow dependencies, execution order, and external data sources. This enables intelligent 
 orchestration job generation for Databricks.
 
-.. contents:: Page Outline
-   :depth: 2
-   :local:
 
 Overview
 --------
@@ -76,6 +76,47 @@ Pipelines are organized into execution stages based on their dependencies:
 +----------+---------------------------+----------------------------------------+
 
 Pipelines within the same stage can run in **parallel**.
+
+How Dependencies Are Resolved
+------------------------------
+
+Transforms may reference earlier views (or tables) via the ``source`` field.
+LHP's resolver builds a DAG, checks for cycles, and ensures downstream
+FlowGroups regenerate when upstream definitions change.
+
+**Dependency resolution process:**
+
+1. **Parse source references** — Extract view/table dependencies from actions
+2. **Build dependency graph** — Create directed acyclic graph (DAG) of dependencies
+3. **Cycle detection** — Prevent circular dependencies that would cause runtime errors
+4. **Topological ordering** — Generate actions in correct execution order
+5. **Change propagation** — Mark downstream FlowGroups for regeneration when dependencies change
+
+**Example dependency chain:**
+
+.. code-block:: yaml
+   :caption: Dependency example
+
+   # raw_data.yaml - No dependencies (source)
+   actions:
+     - name: load_files
+       type: load
+       source: { type: cloudfiles, path: "/data/*.json" }
+       target: v_raw_data
+
+   # clean_data.yaml - Depends on v_raw_data
+   actions:
+     - name: clean_data
+       type: transform
+       source: v_raw_data  # ← Dependency
+       target: v_clean_data
+
+   # aggregated.yaml - Depends on v_clean_data
+   actions:
+     - name: aggregate
+       type: transform
+       source: v_clean_data  # ← Dependency
+       target: v_aggregated
 
 Using the deps Command
 ----------------------

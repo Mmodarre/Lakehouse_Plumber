@@ -31,6 +31,9 @@ extensions = [
     'sphinx_click',
     'sphinxcontrib.mermaid',
     'sphinx_copybutton',
+    'sphinxext.opengraph',        # Open Graph + meta description tags
+    'notfound.extension',         # Custom 404 page
+    'sphinx_llms_txt',            # llms.txt for AI discoverability
 ]
 
 # Remove AutoAPI to avoid conflicts
@@ -54,11 +57,21 @@ master_doc = 'index'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'README.md']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'README.md', 'DOCS_REORGANIZATION_PLAN.md']
 
 # -- Options for HTML output -------------------------------------------------
-html_theme = 'sphinx_rtd_theme'
-html_static_path = []  # No static files needed yet
+html_theme = 'furo'
+html_static_path = ['_static']
+
+# -- SEO: Page title ----------------------------------------------------------
+html_title = "Lakehouse Plumber"
+
+# -- SEO: Open Graph ---------------------------------------------------------
+ogp_site_name = "Lakehouse Plumber"
+ogp_image = "https://lakehouse-plumber.readthedocs.io/en/latest/_static/og-image.png"
+ogp_image_alt = "Lakehouse Plumber — YAML to Databricks DLT"
+ogp_type = "website"
+ogp_enable_meta_description = True  # auto-generates <meta name="description"> from page content
 
 # -- Options for myst-parser -------------------------------------------------
 # Allow headings to be used as section labels

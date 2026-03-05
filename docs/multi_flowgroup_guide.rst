@@ -1,6 +1,9 @@
 Multi-Flowgroup YAML Files
 ===========================
 
+.. meta::
+   :description: Combine multiple flowgroups in a single YAML file. Reduce file proliferation with inheritance and shared settings.
+
 Overview
 --------
 

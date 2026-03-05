@@ -1,12 +1,12 @@
 Databricks Asset Bundles Integration
 ====================================
 
+.. meta::
+   :description: Integrate Lakehouse Plumber with Databricks Asset Bundles for production deployments and CI/CD workflows.
+
 This page covers Lakehouse Plumber's integration with Databricks Asset Bundles (DAB),
 enabling seamless deployment and management of generated DLT pipelines as bundle resources.
 
-.. contents:: Page Outline
-   :depth: 2
-   :local:
 
 Overview
 --------
@@ -85,7 +85,7 @@ Prerequisites & Setup
 
 **Requirements**
 
-* Python 3.9+ (3.10 recommended)
+* Python 3.11+ (3.12 recommended)
 * Databricks workspace with Unity Catalog enabled
 * Databricks CLI v0.200+ installed and configured
 * LakehousePlumber installed: ``pip install lakehouse-plumber``

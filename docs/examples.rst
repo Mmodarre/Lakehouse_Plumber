@@ -1,6 +1,9 @@
 Examples
 ========
 
+.. meta::
+   :description: Real-world examples: ACMI retail demo, multi-flowgroup files, local variables, and sink configurations.
+
 This section showcases realistic Lakehouse Plumber configurations.  The first
 example – **ACMI** – ships with the repository and demonstrates a full
 Bronze → Silver → Gold medallion pipeline based on the TPC-H dataset.
@@ -26,7 +29,7 @@ Walk-through
 .. code-block:: bash
 
    # 1. Install prereqs & enter project root
-   pip install "lakehouse-plumber[cli]"
+   pip install lakehouse-plumber
    cd Example_Projects/acmi
 
    # 2. Validate all pipelines for dev environment
@@ -128,7 +131,7 @@ Use local variables to define it once:
 
 .. code-block:: yaml
    :caption: With local variables (DRY principle)
-   :emphasize-lines: 4-7,10,11,14,17,18,21,24
+   :emphasize-lines: 4-7,10,11,14,17,18,21,22
 
    pipeline: acmi_edw_bronze
    flowgroup: customer_pipeline
@@ -316,7 +319,7 @@ Walk-through
    # Deploy with Databricks bundles
    databricks bundle deploy -t dev
 
-For more details on sink configuration and options, see :doc:`actions_reference`.
+For more details on sink configuration and options, see :doc:`actions/write_actions`.
 
 More Examples (Coming Soon)
 ---------------------------

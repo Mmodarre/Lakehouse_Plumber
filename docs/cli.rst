@@ -1,6 +1,9 @@
 CLI Reference
 =============
 
+.. meta::
+   :description: Command-line reference for lhp: generate, validate, deps, state, show, stats, and all available options.
+
 The **Lakehouse Plumber** command-line interface provides project creation,
 validation, code generation, state inspection and more.  All commands are
 implemented with `click <https://click.palletsprojects.com>`_ so you can use the
