@@ -128,6 +128,7 @@ Next Steps
 * :doc:`templates_reference` – comprehensive guide to creating and using templates.
 * :doc:`dynamic_templates_guide` – conditionals, loops, and advanced Jinja2 features.
 * :doc:`presets_reference` – reusable default configurations.
+* :doc:`best_practices` – enterprise patterns for naming, structure, presets, and production readiness.
 
 **Deployment & Operations**
 
@@ -159,6 +160,7 @@ Next Steps
    substitutions
    operational_metadata
    multi_flowgroup_guide
+   best_practices
    actions/index
    templates_reference
    dynamic_templates_guide
