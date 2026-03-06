@@ -54,3 +54,4 @@ scripts/prod_services.sh
 deploy/DEPLOY_LESSONS_LEARNED.md
 deploy/.databricks
 deploy/static/*
+docs/DOCS_REORGANIZATION_PLAN.md

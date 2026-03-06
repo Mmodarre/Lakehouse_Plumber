@@ -2,6 +2,9 @@
 Presets Reference
 ===================
 
+.. meta::
+   :description: Define and apply presets to standardize table properties, data quality, and operational metadata across pipelines.
+
 Overview
 ========
 
@@ -497,5 +500,5 @@ Summary
 
 - :doc:`concepts` - Presets overview and basic examples
 - :doc:`templates_reference` - Template documentation
-- :doc:`actions_reference` - Action configuration reference
+- :doc:`actions/index` - Action configuration reference
 

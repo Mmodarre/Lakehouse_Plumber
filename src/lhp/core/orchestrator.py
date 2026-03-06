@@ -808,6 +808,21 @@ class ActionOrchestrator:
                             )
 
                     self.logger.info(f"Generated: {output_file}")
+
+                    # Write auxiliary files (e.g. Python load placeholder)
+                    flowgroup_for_aux = next(
+                        (
+                            fg
+                            for fg in processed_flowgroups
+                            if fg.flowgroup == result.flowgroup_name
+                        ),
+                        None,
+                    )
+                    if flowgroup_for_aux and flowgroup_for_aux._auxiliary_files:
+                        for aux_name, aux_content in flowgroup_for_aux._auxiliary_files.items():
+                            aux_file = pipeline_output_dir / aux_name
+                            smart_writer.write_if_changed(aux_file, aux_content)
+                            self.logger.info(f"Generated auxiliary: {aux_file}")
         else:
             # Sequential generation
             # Create Python file copier for consistent conflict detection
@@ -869,6 +884,13 @@ class ActionOrchestrator:
                             )
 
                         self.logger.info(f"Generated: {output_file}")
+
+                        # Write auxiliary files (e.g. Python load placeholder)
+                        if processed_flowgroup._auxiliary_files:
+                            for aux_name, aux_content in processed_flowgroup._auxiliary_files.items():
+                                aux_file = pipeline_output_dir / aux_name
+                                smart_writer.write_if_changed(aux_file, aux_content)
+                                self.logger.info(f"Generated auxiliary: {aux_file}")
                     else:
                         self.logger.info(f"Would generate: {filename}")
 
@@ -1209,6 +1231,9 @@ class ActionOrchestrator:
             self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
             try:
                 processed_fg = self.process_flowgroup(flowgroup, substitution_mgr)
+                # Propagate private attributes that don't survive model_dump/reconstruct
+                if flowgroup._auxiliary_files:
+                    processed_fg._auxiliary_files = flowgroup._auxiliary_files
                 processed.append(processed_fg)
             except Exception as e:
                 self.logger.debug(
@@ -1329,6 +1354,9 @@ class ActionOrchestrator:
             try:
                 # Process flowgroup
                 processed = self.process_flowgroup(fg, substitution_mgr)
+                # Propagate private attributes that don't survive model_dump/reconstruct
+                if fg._auxiliary_files:
+                    processed._auxiliary_files = fg._auxiliary_files
                 source_yaml = self._find_source_yaml_for_flowgroup(fg)
 
                 # Generate code with shared Python file copier

@@ -32,6 +32,8 @@
 
 - **Multi-FlowGroup Support**: Organize your data pipelines with multiple flowgroup YAML files within a single pipeline. (e.g., `customers.yaml`, `orders.yaml`, `products.yaml`) Perfect for when multiple flows are usign the same template to further avoide boilerplate config and reduce file count.
 
+- **Pipeline & Job Monitoring**: Centralized event log aggregation across all pipelines with pipeline run summaries (status, duration, row metrics) and optional Databricks Jobs correlation — ready for AI/BI dashboards out of the box.
+
 - **Customizable Pipeline Configuration**: Configure DLT pipeline settings (compute, runtime, notifications) via YAML files with support for project-level defaults and pipeline-specific overrides. Perfect for managing different requirements across dev/test/prod environments.
 
 - **Customizable Job Configuration**: Generate orchestration jobs with custom configuration for concurrency, performance targets, notifications, schedules, and permissions. Use environment-specific configs (e.g., `job_config-dev.yaml`, `job_config-prod.yaml`) to maintain appropriate settings across your SDLC.
@@ -174,6 +176,7 @@ The execution model is deliberately simple:
 - **Smart State Management** – regenerate only what changed; cleanup orphaned code. (Terraform-like state management)
 - **IntelliSense** – VS Code schema hints & YAML completion.
 - **Seeding** – seed data from existing tables using Lakeflow native features.
+- **Pipeline Monitoring** – declarative event log aggregation with run summaries and job stats, dashboard-ready.
 
 ## What is the output of Lakehouse Plumber?
 

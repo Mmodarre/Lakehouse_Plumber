@@ -1235,6 +1235,10 @@ class TestMonitoringPipelineE2E:
             '    - name: "custom_analysis"\n'
             '      sql_path: "sql/monitoring_custom_analysis.sql"',
         ),
+        "monitoring_enable_job_monitoring": (
+            "#monitoring:\n#  enable_job_monitoring: true",
+            "monitoring:\n  enable_job_monitoring: true",
+        ),
     }
 
     # ------------------------------------------------------------------
@@ -1584,7 +1588,53 @@ class TestMonitoringPipelineE2E:
         self._assert_monitoring_baseline("mv_sql_path")
 
     # ------------------------------------------------------------------
-    # Test 10: monitoring pipeline picks up pipeline_config.yaml settings
+    # Test 10: enable_job_monitoring adds jobs stats loader
+    # ------------------------------------------------------------------
+
+    def test_monitoring_enable_job_monitoring(self):
+        """enable_job_monitoring: true generates Python load action + auxiliary loader file."""
+        self._enable_event_log()
+        self._enable_monitoring_variant("monitoring_enable_job_monitoring")
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        pipeline_dir = (
+            self.generated_dir / "acme_edw_event_log_monitoring"
+        )
+
+        # monitoring.py should contain python load + jobs stats write
+        monitoring_py = pipeline_dir / "monitoring.py"
+        assert monitoring_py.exists(), (
+            f"Monitoring pipeline file not generated: {monitoring_py}"
+        )
+        content = monitoring_py.read_text()
+        assert "v_jobs_stats" in content
+        assert "jobs_stats" in content
+
+        # Auxiliary file should be generated
+        loader_py = pipeline_dir / "jobs_stats_loader.py"
+        assert loader_py.exists(), (
+            f"Jobs stats loader not generated: {loader_py}"
+        )
+        loader_content = loader_py.read_text()
+        assert "def get_jobs_stats" in loader_content
+        assert "WorkspaceClient" in loader_content
+
+        # Hash comparison for monitoring.py
+        self._assert_monitoring_baseline("enable_job_monitoring")
+
+        # Verify auxiliary file matches the package resource (no baseline needed)
+        from importlib.resources import files
+
+        expected = (
+            files("lhp.templates.monitoring") / "jobs_stats_loader.py"
+        ).read_text(encoding="utf-8")
+        assert loader_content == expected, (
+            "Generated jobs_stats_loader.py does not match package resource"
+        )
+
+    # ------------------------------------------------------------------
+    # Test 11: monitoring pipeline picks up pipeline_config.yaml settings
     # ------------------------------------------------------------------
 
     def test_monitoring_pipeline_config_settings(self):

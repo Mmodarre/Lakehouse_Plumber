@@ -1,14 +1,14 @@
 Concepts & Architecture
 =======================
 
+.. meta::
+   :description: Core concepts: Pipelines, FlowGroups, Actions, substitutions, presets, and templates. Understand the LHP architecture.
+
 At its core Lakehouse Plumber converts **declarative YAML** into regular
 Databricks Lakeflow Declarative Pipelines (ETL) Python code.  The YAML files are intentionally
 simple and the heavy-lifting happens inside the Plumber engine at generation time.
 This page explains the key building blocks you will interact with.
 
-.. contents:: Page outline
-   :depth: 2
-   :local:
 
 FlowGroups
 ----------
@@ -78,7 +78,7 @@ When ``job_name`` is used:
 
    - A **Pipeline** is a logical grouping of FlowGroups. It is used to group the generated python files in the same folder.
 
-   - Lakeflow Declarative Pipelines are **declarative** (as the name suggests) hence the order of the actions is determind at runtime by the Lakeflow engine based on the dependencies between the tables/views.
+   - Lakeflow Declarative Pipelines are **declarative** (as the name suggests) hence the order of the actions is determined at runtime by the Lakeflow engine based on the dependencies between the tables/views.
 
    - **YAML files** can contain one flowgroup (traditional) or multiple flowgroups (see :doc:`multi_flowgroup_guide`).
 
@@ -90,15 +90,15 @@ Actions come in three top-level types:
 +----------------+----------------------------------------------------------+
 | Type           | Purpose                                                  |
 +================+==========================================================+
-|| **Load**      || Bring data into a temporary **view** (e.g. CloudFiles,  |
-||               || Delta, JDBC, SQL, Python, custom_datasource).           |
+| **Load**       | Bring data into a temporary **view** (e.g. CloudFiles,   |
+|                | Delta, JDBC, SQL, Python, custom_datasource).            |
 +----------------+----------------------------------------------------------+
-|| **Transform** || Manipulate data in one or more steps (SQL, Python,      |
-||               || schema adjustments, data-quality checks, temp tables…). |
+| **Transform**  | Manipulate data in one or more steps (SQL, Python,       |
+|                | schema adjustments, data-quality checks, temp tables…).  |
 +----------------+----------------------------------------------------------+
-|| **Write**     || Persist the final dataset to a *streaming_table*,      |
-||               || *materialized_view*, or external *sink* (Kafka,        |
-||               || Delta, custom API).                                     |
+| **Write**      | Persist the final dataset to a *streaming_table*,        |
+|                | *materialized_view*, or external *sink* (Kafka,          |
+|                | Delta, custom API).                                      |
 +----------------+----------------------------------------------------------+
 
 
@@ -106,11 +106,11 @@ Actions come in three top-level types:
    - You may chain **zero or many Transform actions** between a Load and a Write.
 
 .. important::
-   - the order of the actions is determind at runtime by the Lakeflow engine based on the dependencies between the tables/views, Not the order in the YAML file or the generated Python file.
+   - the order of the actions is determined at runtime by the Lakeflow engine based on the dependencies between the tables/views, Not the order in the YAML file or the generated Python file.
 
 
 For a complete catalogue of Action sub-types and their options see
-:doc:`actions_reference`.
+:doc:`actions/index`.
 
 Presets
 -------
@@ -263,753 +263,135 @@ orchestration jobs are deployed to Databricks:
 Substitutions & Secrets
 -----------------------
 
-Environment Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Tokens wrapped in ``{token}`` or ``${token}`` are replaced at generation time
-using files under ``substitutions/<env>.yaml``. This enables environment-specific
-configurations while keeping pipeline definitions portable.
-
-**Example substitution file:**
-
-.. code-block:: yaml
-   :caption: substitutions/dev.yaml
-   :linenos:
-   :emphasize-lines: 10-15
-
-   # Environment-specific tokens
-   dev:
-     catalog: dev_catalog
-     bronze_schema: bronze
-     silver_schema: silver
-     landing_path: /mnt/dev/landing
-     checkpoint_path: /mnt/dev/checkpoints
-
-   # Secret configuration
-   secrets:
-     default_scope: dev_secrets
-     scopes:
-       database_secrets: dev_db_secrets
-       storage_secrets: dev_azure_secrets
-       api_secrets: dev_external_apis
-
-
-Local Variables
-~~~~~~~~~~~~~~~
-
-**Local variables** allow you to define reusable values within a single flowgroup, reducing repetition and improving maintainability. They are resolved **before** templates and environment substitutions.
-
-**Syntax:** ``%{variable_name}``
-
-**Key Features:**
-
-- **Flowgroup-scoped**: Variables are only accessible within the flowgroup where they're defined
-- **Inline substitution**: Supports patterns like ``prefix_%{var}_suffix``
-- **Strict validation**: Undefined variables cause immediate errors with clear messages
-- **Processed first**: Resolved before templates, presets, and environment substitutions
-
-**Example:**
-
-.. code-block:: yaml
-   :caption: pipelines/customer_bronze.yaml
-   :linenos:
-   :emphasize-lines: 4-7,12,17,20
-
-   pipeline: acmi_edw_bronze
-   flowgroup: customer_pipeline
-
-   variables:
-     entity: customer
-     source_table: customer_raw
-     target_table: customer
-
-   actions:
-     - name: "load_%{entity}_raw"
-       type: load
-       source:
-         type: delta
-         database: "{catalog}.{raw_schema}"  # Environment tokens still work!
-         table: "%{source_table}"
-       target: "v_%{entity}_raw"
-
-     - name: "write_%{entity}_bronze"
-       type: write
-       source: "v_%{entity}_cleaned"
-       write_target:
-         type: streaming_table
-         database: "{catalog}.{bronze_schema}"
-         table: "%{target_table}"
+LakehousePlumber supports environment-aware tokens, local variables, secret references, and
+file substitutions that make your pipeline definitions portable across environments.
 
 .. seealso::
-   For complete details on local variables, see :doc:`templates_reference`.
-
-Secret Management
-~~~~~~~~~~~~~~~~~
-
-**Secret references** use the ``${secret:scope/key}`` syntax and are converted to
-secure ``dbutils.secrets.get()`` calls in generated Python code. LHP validates
-scope aliases and collects every secret used by the pipeline, making security
-reviews and approvals easier.
-
-**Secret reference formats:**
-
-- ``${secret:scope_alias/key}`` - Uses specific scope alias (resolved to actual Databricks scope)
-- ``${secret:key}`` - Uses default_scope if configured
-
-.. note::
-   Scope aliases (like ``database_secrets``) are mapped to actual Databricks secret scope 
-   names (like ``dev_db_secrets``) in the substitution file. This provides flexibility 
-   to use different scope names across environments while keeping pipeline definitions portable.
-
-
-File Substitution Support
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. versionadded:: Latest
-
-LakehousePlumber now supports substitutions in external files, providing the same environment-specific flexibility for Python functions and SQL files that you have in YAML configurations.
-
-**Supported File Types:**
-
-================== ==================================================
-File Type          Where Used
-================== ==================================================
-**Python Files**   • Snapshot CDC ``source_function`` files
-                   • Python transform ``module_path`` files
-                   • Custom datasource ``module_path`` files
-**SQL Files**      • SQL load actions with ``sql_path``
-                   • SQL transform actions with ``sql_path``
-================== ==================================================
-
-**Example Python Function with Substitutions:**
-
-.. code-block:: python
-   :caption: py_functions/customer_snapshot.py
-   :linenos:
-   :emphasize-lines: 4-5,10
-
-   from typing import Optional, Tuple
-   from pyspark.sql import DataFrame
-
-   catalog = "{catalog}"
-   schema = "{bronze_schema}"
-
-   def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
-       if latest_version is None:
-           df = spark.sql(f"""
-               SELECT * FROM {catalog}.{schema}.customers 
-               WHERE snapshot_id = 1
-           """)
-           return (df, 1)
-       return None
-
-**Example SQL File with Substitutions:**
-
-.. code-block:: text
-   :caption: sql/customer_metrics.sql
-   :linenos:
-   :emphasize-lines: 4-6
-
-   SELECT 
-       customer_id,
-       customer_name,
-       '{environment}' as source_env
-   FROM {catalog}.{bronze_schema}.customers
-   WHERE created_date >= '{cutoff_date}'
-
-**Secret Support in Files:**
-
-Both Python and SQL files support secret substitutions with the same syntax as YAML:
-
-.. code-block:: python
-   :caption: Example with secrets
-
-   # Environment token
-   api_endpoint = "{api_base_url}"
-   
-   # Secret reference  
-   api_key = "${secret:api_keys/service_key}"
-   db_password = "${secret:database/password}"
-
-**Processing Behavior:**
-
-- **Tokens and secrets** are processed before the file content is used
-- **Python files** have substitutions applied before import management
-- **SQL files** have substitutions applied before query execution
-- **Backward compatible** - files without substitution variables work unchanged
-- **Same syntax** as YAML substitutions for consistency
-
-**Example pipeline with secrets:**
-
-.. code-block:: yaml
-   :caption: pipelines/customer_ingestion/external_load.yaml
-   :linenos:
-   :emphasize-lines: 9-12
-
-   pipeline: customer_ingestion
-   flowgroup: external_load
-
-   actions:
-     - name: load_from_postgres
-       type: load
-       source:
-         type: jdbc
-         url: "jdbc:postgresql://${secret:database_secrets/host}:5432/customers"
-         user: "${secret:database_secrets/username}"
-         password: "${secret:database_secrets/password}"
-         driver: "org.postgresql.Driver"
-         table: "customers"
-       target: v_customers_raw
-
-**Generated Python code:**
-
-.. code-block:: python
-   :caption: Generated DLT code with secure secret handling
-   :linenos:
-   :emphasize-lines: 6-8
-
-   @dp.temporary_view()
-   def v_customers_raw():
-       """Load from external database"""
-       df = spark.read \
-           .format("jdbc") \
-           .option("url", f"jdbc:postgresql://{dbutils.secrets.get(scope='dev_db_secrets', key='host')}:5432/customers") \
-           .option("user", f"{dbutils.secrets.get(scope='dev_db_secrets', key='username')}") \
-           .option("password", f"{dbutils.secrets.get(scope='dev_db_secrets', key='password')}") \
-           .option("driver", "org.postgresql.Driver") \
-           .option("dbtable", "customers") \
-           .load()
-       
-       return df
-
-
-Substitution Syntax
-~~~~~~~~~~~~~~~~~~~
-
-LakehousePlumber supports multiple substitution syntaxes for different purposes:
-
-**Local Variables (Flowgroup-scoped):** ``%{variable}``
-
-.. code-block:: yaml
-
-   variables:
-     entity: customer
-   
-   actions:
-     - name: "load_%{entity}_raw"
-       target: "v_%{entity}_raw"
-
-**Environment Substitution (Preferred):** ``${token}``
-
-.. code-block:: yaml
-
-   catalog: ${my_catalog}
-   table: ${catalog}.${schema}.customers
-
-**Environment Substitution (Legacy):** ``{token}``
-
-.. code-block:: yaml
-
-   catalog: {my_catalog}
-   table: {catalog}.{schema}.customers
-
-**Secret References:** ``${secret:scope/key}``
-
-.. code-block:: yaml
-
-   password: ${secret:database/db_password}
-
-**Template Parameters:** ``{{ parameter }}``
-
-.. code-block:: yaml
-
-   use_template: my_template
-   template_parameters:
-     table_name: customer
-   # In template: table: "{{ table_name }}"
-
-.. note::
-   **Syntax Distinction:**
-   
-   - ``%{var}`` = Local variable (flowgroup-scoped)
-   - ``${token}`` = Environment substitution (preferred)
-   - ``{token}`` = Environment substitution (legacy, backward compatible)
-   - ``${secret:scope/key}`` = Secret reference
-   - ``{{ parameter }}`` = Template parameter (Jinja2)
-   
-   The ``${}`` syntax is preferred for environment substitution because:
-   
-   - It's visually distinct from Python f-string syntax
-   - It avoids confusion when tokens appear in SQL or Python strings
-   - It clearly differentiates from local variables (``%{}``) and template parameters (``{{ }}``)
-
-.. note::
-   **Processing Order:**
-   
-   1. **Local variables** (``%{var}``) are resolved first within the flowgroup
-   2. **Template parameters** (``{{ }}``) are resolved when templates are applied
-   3. **Environment substitutions** (``{ }`` and ``${ }``) are resolved at generation time
-   4. **Secret references** (``${secret:}``) are converted to ``dbutils.secrets.get()`` calls
-   - It matches shell/environment variable conventions
-
-.. warning::
-   **Python Code Context:** When using substitution tokens inside Python code
-   (e.g., in batch handlers or Python transform files), always use ``${}`` 
-   syntax to avoid conflicts with Python f-strings and SQL placeholders.
-   
-   .. code-block:: python
-      :caption: Correct usage in Python files
-      
-      # Use ${} for LHP substitution (replaced at generation time)
-      table = "${catalog}.${schema}.customers"
-      
-      # Then use Python f-string for runtime formatting
-      spark.sql(f"SELECT * FROM {table}")
-   
-   .. code-block:: python
-      :caption: Incorrect usage (causes SQL syntax errors)
-      
-      # DON'T use {} in non-f-strings - generates invalid SQL
-      spark.sql("""
-          SELECT * FROM {catalog}.{schema}.customers
-      """)
-      # After substitution: SELECT * FROM {acme_catalog}.{bronze}.customers
-      # This is INVALID SQL!
-
+   For the full reference on all substitution syntaxes, processing order, secret management,
+   and file substitution support, see :doc:`substitutions`.
 
 Operational Metadata
 ---------------------
 
-Column Definitions
-~~~~~~~~~~~~~~~~~~
-
-Operational metadata are automatically generated columns that provide lineage, data
-provenance, and processing context. These columns are added to your tables without
-requiring manual SQL modifications.
-
-.. note::
-   Operational metadata columns are defined in the project level configuration file. under the ``operational_metadata`` key.
-
-**Project-level configuration:**
-
-.. code-block:: yaml
-   :caption: lhp.yaml - Project operational metadata configuration
-   :linenos:
-
-   # LakehousePlumber Project Configuration
-   name: my_lakehouse_project
-   version: "1.0"
-
-   operational_metadata:
-     columns:
-       _processing_timestamp:
-         expression: "F.current_timestamp()"
-         description: "When the record was processed by the pipeline"
-         applies_to: ["streaming_table", "materialized_view", "view"]
-       
-       _source_file_path:
-         expression: "F.col('_metadata.file_path')"
-         description: "Source file path for lineage tracking"
-         applies_to: ["view"]
-       
-       _record_hash:
-         expression: "F.xxhash64(*[F.col(c) for c in df.columns])"
-         description: "Hash of all record fields for change detection"
-         applies_to: ["streaming_table", "materialized_view", "view"]
-         additional_imports:
-           - "from pyspark.sql.functions import xxhash64"
-       
-       _pipeline_name:
-         expression: "F.lit('${pipeline_name}')"
-         description: "Name of the processing pipeline"
-         applies_to: ["streaming_table", "materialized_view", "view"]
-
-Version Requirements
-~~~~~~~~~~~~~~~~~~~~
-
-LakehousePlumber supports version enforcement to ensure consistent code generation across development and CI environments. This prevents "works on my machine" issues and ensures reproducible builds.
-
-**Basic configuration:**
-
-.. code-block:: yaml
-   :caption: lhp.yaml - Version enforcement examples
-   :linenos:
-
-   # LakehousePlumber Project Configuration
-   name: my_lakehouse_project
-   version: "1.0"
-   
-   # Enforce version requirements (optional)
-   required_lhp_version: ">=0.4.1,<0.5.0"  # Allow patch updates within 0.4.x
-
-**Version specification formats:**
-
-.. code-block:: yaml
-   :caption: Version requirement examples
-
-   # Exact version pin (strict)
-   required_lhp_version: "==0.4.1"
-   
-   # Allow patch updates only
-   required_lhp_version: "~=0.4.1"          # Equivalent to >=0.4.1,<0.5.0
-   
-   # Range with exclusions
-   required_lhp_version: ">=0.4.1,<0.5.0,!=0.4.3"  # Exclude known bad version
-   
-   # Allow minor updates
-   required_lhp_version: ">=0.4.0,<1.0.0"
-
-**Behavior:**
-
-- When ``required_lhp_version`` is set, ``lhp validate`` and ``lhp generate`` will fail if the installed version doesn't satisfy the requirement
-- Informational commands like ``lhp show`` skip version checking to allow inspection even with mismatches
-- Version checking uses `PEP 440 <https://peps.python.org/pep-0440/>`_ version specifiers
-
-**Emergency bypass:**
-
-.. code-block:: bash
-   :caption: Bypass version checking in emergencies
-
-   # Temporarily bypass version checking
-   export LHP_IGNORE_VERSION=1
-   lhp generate -e dev
-   
-   # Or inline
-   LHP_IGNORE_VERSION=1 lhp validate -e prod
-
-**CI/CD integration:**
-
-.. code-block:: bash
-   :caption: CI pipeline with version enforcement
-
-   # Install exact version matching project requirements
-   pip install "lakehouse-plumber$(yq -r .required_lhp_version lhp.yaml | sed 's/^//')"
-   
-   # Or use range-compatible version
-   pip install "lakehouse-plumber>=0.4.1,<0.5.0"
-   
-   # Validate and generate (will fail if version mismatch)
-   lhp validate -e prod
-   lhp generate -e prod
-
-.. note::
-   Version enforcement is **optional**. Projects without ``required_lhp_version`` work normally with any installed LakehousePlumber version.
-
-.. warning::
-   Use the bypass environment variable (``LHP_IGNORE_VERSION=1``) only in emergencies. It's not recommended for production environments as it defeats the purpose of version consistency.
-
-Event Log Configuration
-~~~~~~~~~~~~~~~~~~~~~~~
-
-LakehousePlumber supports project-level event log configuration in ``lhp.yaml``. When
-configured, event log blocks are automatically injected into all pipeline resource files
-during generation — no ``-pc`` flag or ``pipeline_config.yaml`` required.
-
-.. code-block:: yaml
-   :caption: lhp.yaml - Event log configuration
-
-   name: my_lakehouse_project
-   version: "1.0"
-
-   event_log:
-     catalog: "{catalog}"
-     schema: _meta
-     name_suffix: "_event_log"
-
-When ``event_log`` is defined, each generated pipeline resource will include an ``event_log``
-block with the table name derived from the pipeline name (e.g., ``bronze_load_event_log``).
-
-Individual pipelines can override or opt out of project-level event logging through
-``pipeline_config.yaml``.
+Operational metadata columns provide lineage, data provenance, and processing context.
+They are defined at the project level in ``lhp.yaml`` and can be selectively enabled
+at the preset, flowgroup, or action level with additive behavior.
 
 .. seealso::
-   For complete details including per-pipeline overrides, opt-out, monitoring pipeline
-   setup, and all configuration options, see :doc:`monitoring`.
+   For the full reference on column definitions, target type compatibility, usage patterns,
+   version requirements, and event log configuration, see :doc:`operational_metadata`.
 
-Target Type Compatibility
-~~~~~~~~~~~~~~~~~~~~~~~~~
+State Management & Smart Generation
+------------------------------------
 
-The ``applies_to`` field controls which DLT table types can use each operational metadata column.
-LHP automatically filters columns based on the target type to prevent runtime errors.
+Lakehouse Plumber keeps a small **state file** under ``.lhp_state.json`` that
+maps generated Python files to their source YAML.  It records checksums and
+dependency links so that future `lhp generate` runs can:
 
-**Purpose of target type restrictions:**
+* re-process only *new* or *stale* FlowGroups.
+* skip files whose inputs did not change.
+* optionally clean up orphaned files when you delete YAML.
 
-When defining operational metadata columns at the project level, the ``applies_to`` field serves as a 
-**safeguard mechanism** to protect end users from accidentally using incompatible columns in their 
-pipeline configurations. This is a defensive design pattern that prevents common mistakes.
+This behaviour is similar to Gradle's incremental build or Terraform's state
+management.
 
-**Best practice for project administrators:**
+**How state management works:**
 
-- Set restrictive ``applies_to`` values for source-specific columns (e.g., CloudFiles metadata)
-- Use broader ``applies_to`` values for universal columns (e.g., timestamps, pipeline names)
-- This protects pipeline developers from runtime failures and provides clear usage guidance
+.. code-block:: json
+   :caption: .lhp_state.json example
+   :linenos:
 
-**Target types:**
+   {
+     "version": "1.0",
+     "generated_files": {
+       "customer_ingestion.py": {
+         "source_yaml": "pipelines/bronze/customer_ingestion.yaml",
+         "checksum": "a1b2c3d4e5f6",
+         "environment": "dev",
+         "dependencies": ["presets/bronze_layer.yaml"]
+       }
+     }
+   }
 
-- **``view``** - Source views created by load actions (``@dp.temporary_view()``)
-- **``streaming_table``** - Live tables with streaming updates (``@dp.materialized_view()``)  
-- **``materialized_view``** - Batch-computed views for analytics (``@dp.temporary_view()``)
+**Benefits:**
 
-**Source-specific metadata limitations:**
+- **Faster regeneration** - Only changed files are processed
+- **Dependency tracking** - Upstream changes trigger downstream regeneration
+- **Cleanup support** - Detect and remove orphaned generated files
+- **CI/CD optimization** - Skip unchanged pipeline generation in builds
 
-.. warning::
-   - Metadata columns that depend on CloudFiles features (like ``_metadata.file_path``) are **only available in views** that load data from CloudFiles sources. These columns will cause runtime errors if used with JDBC, SQL, Delta, or custom_datasource sources.
-   - Custom data sources may provide their own metadata columns depending on their implementation, but CloudFiles-specific metadata will not be available.
+Dependency Resolver
+-------------------
+
+Transforms may reference earlier views or tables via the ``source`` field. LHP builds a
+directed acyclic graph (DAG) of these references, detects cycles, and ensures downstream
+FlowGroups regenerate when upstream definitions change.
 
 .. seealso::
-   For complete details on file metadata columns available in Databricks CloudFiles, refer to the Databricks documentation:
-   `File Metadata Columns <https://docs.databricks.com/aws/en/ingestion/file-metadata-column>`_
+   :doc:`dependency_analysis` for the full 5-step resolution process, dependency chain
+   examples, and the ``lhp deps`` command.
 
+Pipeline Generation Workflow
+----------------------------
 
-**Examples of source-restricted columns:**
+The complete pipeline generation process follows this workflow:
 
-.. code-block:: yaml
-   :caption: CloudFiles-only operational metadata
-   :linenos:
-   :emphasize-lines: 6
+.. mermaid::
 
-   operational_metadata:
-     columns:
-       _source_file_name:
-         expression: "F.col('_metadata.file_name')"
-         description: "Original file name with extension"
-         applies_to: ["view"]  # Only views, and only CloudFiles sources
-       
-       _file_modification_time:
-         expression: "F.col('_metadata.file_modification_time')"
-         description: "When the source file was last modified"
-         applies_to: ["view"]  # Only views, and only CloudFiles sources
-       
-       _processing_timestamp:
-         expression: "F.current_timestamp()"
-         description: "When record was processed (works everywhere)"
-         applies_to: ["streaming_table", "materialized_view", "view"]
+   graph TD
+       subgraph "Discovery Phase"
+           A[Scan YAML Files] --> B[Apply Include Patterns]
+           B --> C[Parse FlowGroups]
+       end
 
-**Safe usage patterns:**
+       subgraph "Resolution Phase"
+           C --> D[Apply Presets]
+           D --> E[Expand Templates]
+           E --> F[Apply Substitutions]
+           F --> G[Validate Configuration]
+       end
 
-.. code-block:: yaml
-   :caption: Source-aware metadata configuration
-   :linenos:
+       subgraph "Generation Phase"
+           G --> H[Resolve Dependencies]
+           H --> I[Check State]
+           I --> J{Changed?}
+           J -->|Yes| K[Generate Code]
+           J -->|No| L[Skip Generation]
+           K --> M[Update State]
+           L --> M
+       end
 
-   # CloudFiles load action - can use file metadata
-   - name: load_files
-     type: load
-     source:
-       type: cloudfiles
-       path: "/mnt/data/*.json"
-     operational_metadata:
-       - "_source_file_name"        # ✓ Available in CloudFiles
-       - "_file_modification_time"  # ✓ Available in CloudFiles
-       - "_processing_timestamp"    # ✓ Available everywhere
-     target: v_file_data
+       subgraph "Output"
+           M --> N[Python DLT Files]
+       end
 
-   # JDBC load action - file metadata not available  
-   - name: load_database
-     type: load
-     source:
-       type: jdbc
-       table: "customers"
-     operational_metadata:
-       - "_processing_timestamp"    # ✓ Available everywhere
-       # DO NOT USE: "_source_file_name" would cause runtime error
-     target: v_database_data
+**Key optimization points:**
 
-   # Custom data source - metadata depends on implementation
-   - name: load_api_data
-     type: load
-     module_path: "data_sources/api_source.py"
-     custom_datasource_class: "APIDataSource"
-     options:
-       api_endpoint: "https://api.example.com/data"
-     operational_metadata:
-       - "_processing_timestamp"    # ✓ Available everywhere
-       # Custom metadata depends on DataSource implementation
-     target: v_api_data
+- **Smart discovery** - Include patterns reduce files to process
+- **Incremental generation** - State tracking skips unchanged files
+- **Dependency awareness** - Changes propagate to affected downstream files
+- **Validation early** - Catch errors before code generation
+- **Parallel processing** - Independent FlowGroups can be processed simultaneously
 
-Usage in YAML Files
-~~~~~~~~~~~~~~~~~~~
+Troubleshooting
+---------------
 
-Operational metadata can be configured at multiple levels with **additive behavior** - columns from all levels are combined together:
+Common issues include state management problems (stale ```.lhp_state.json```), dependency
+resolution failures, and performance with large projects.
 
-.. important::
-   **Additive Behavior**: Operational metadata columns are **never overridden** between levels. 
-   Instead, columns from preset + flowgroup + action levels are **combined together**. 
-   The only exception is ``operational_metadata: false`` at action level, which disables **all** metadata.
-
-**Preset level**
-
-.. code-block:: yaml
-   :caption: presets/bronze_layer.yaml
-   :linenos:
-
-   name: bronze_layer
-   version: "1.0"
-   
-   defaults:
-     operational_metadata: ["_processing_timestamp", "_source_file_path"]
-
-**FlowGroup level**
-
-.. code-block:: yaml
-   :caption: pipelines/customer_ingestion/load_customers.yaml
-   :linenos:
-   :emphasize-lines: 4
-
-   pipeline: customer_ingestion
-   flowgroup: load_customers
-   presets: ["bronze_layer"]
-   operational_metadata: ["_record_hash"]  # Adds to preset columns
-
-   actions:
-     - name: load_customer_files
-       type: load
-       source:
-         type: cloudfiles
-         path: "/mnt/landing/customers/*.json"
-         format: json
-       target: v_customers_raw
-
-**Action level**
-
-.. code-block:: yaml
-   :caption: Action-specific metadata configuration
-   :linenos:
-   :emphasize-lines: 8-11
-
-   actions:
-     - name: load_with_custom_metadata
-       type: load
-       source:
-         type: cloudfiles
-         path: "/mnt/data/*.parquet"
-         format: parquet
-       operational_metadata:  # Adds to flowgroup + preset columns
-         - "_pipeline_name"
-         - "_custom_business_logic"
-       target: v_enriched_data
-     
-     - name: load_without_metadata
-       type: load
-       source:
-         type: sql
-         sql: "SELECT * FROM source_table"
-               operational_metadata: false  # Disables all metadata
-        target: v_clean_data
-
-**Additive behavior example:**
-
-.. code-block:: yaml
-   :caption: Complete example showing additive behavior
-   :linenos:
-   :emphasize-lines: 4, 9, 18-20
-
-   # Preset defines base columns
-   # presets/bronze_layer.yaml
-   defaults:
-     operational_metadata: ["_processing_timestamp"]
-
-   # FlowGroup adds more columns  
-   pipeline: customer_ingestion
-   flowgroup: load_customers
-   operational_metadata: ["_source_file_path", "_record_hash"]
-
-   actions:
-     - name: load_customer_files
-       type: load
-       source:
-         type: cloudfiles
-         path: "/mnt/data/*.json"
-       # Action adds even more columns
-       operational_metadata:
-         - "_pipeline_name"
-         - "_custom_business_logic"
-       target: v_customers_raw
-
-   # Final result: ALL columns combined
-   # ✓ _processing_timestamp      (from preset)
-   # ✓ _source_file_path          (from flowgroup)  
-   # ✓ _record_hash               (from flowgroup)
-   # ✓ _pipeline_name             (from action)
-   # ✓ _custom_business_logic     (from action)
-
-Usage Patterns
-~~~~~~~~~~~~~~
-
-**Enable all available columns:**
-
-.. code-block:: yaml
-
-   operational_metadata: true
-
-**Select specific columns:**
-
-.. code-block:: yaml
-
-   operational_metadata:
-     - "_processing_timestamp"
-     - "_source_file_path"
-     - "_record_hash"
-
-**Disable metadata:**
-
-.. code-block:: yaml
-
-   operational_metadata: false
-
-**Generated Python code:**
-
-.. code-block:: python
-   :caption: Generated DLT code with operational metadata
-   :linenos:
-   :emphasize-lines: 8-11
-
-   @dp.temporary_view()
-   def v_customers_raw():
-       """Load customer files from landing zone"""
-       df = spark.readStream \
-           .format("cloudFiles") \
-           .option("cloudFiles.format", "json") \
-           .load("/mnt/landing/customers/*.json")
-       
-       # Add operational metadata columns
-       df = df.withColumn('_processing_timestamp', F.current_timestamp())
-       df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
-       df = df.withColumn('_record_hash', F.xxhash64(*[F.col(c) for c in df.columns]))
-       
-       return df
-
-
-.. danger::
-   - When you add operational metadata columns to an upstream action,
-     if your downstream action is a transformation, for example SQL transform,
-     you need to make sure they are included in the SQL query.
-
-Internal Implementation Note
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The codebase maintains strict semantic separation between single and multi-document YAML files:
-
-- ``load_yaml_file()`` - For single-document files (configs, templates, presets)
-  
-  * Validates exactly one document exists
-  * Raises ``MultiDocumentError`` (LHP-IO-003) for empty files or files with multiple documents
-  * Used for templates, presets, configs, and other single-document files
-
-- ``load_yaml_documents_all()`` - For multi-document files (flowgroup files only)
-  
-  * Returns list of all documents
-  * Used exclusively for flowgroup YAML files that may contain multiple flowgroups
-
-This strict validation prevents accidental misuse and catches bugs early. If you encounter a
-``MultiDocumentError``, the error message will guide you to the correct loading method.
+.. seealso::
+   :doc:`errors_reference` for error codes, resolution steps, and general troubleshooting
+   tips (state debugging, dependency debugging, performance optimization).
 
 What's Next?
 ------------
 
-Now that you understand the core building blocks of Lakehouse Plumber, explore these advanced features:
+Now that you understand the core building blocks of Lakehouse Plumber, explore these topics:
 
-* **Dependency Analysis** - Understand how your pipelines depend on each other and generate orchestration jobs automatically. See :doc:`databricks_bundles`.
-* **Templates & Presets** - Reuse common patterns across your pipelines. See :doc:`templates_reference`.
-* **Databricks Bundles** - Deploy and manage your pipelines as code. See :doc:`databricks_bundles`.
+* :doc:`substitutions` - Environment tokens, local variables, secrets, and file substitution support.
+* :doc:`operational_metadata` - Audit columns, version requirements, and event log configuration.
+* :doc:`templates_reference` - Reuse common patterns across your pipelines.
+* :doc:`databricks_bundles` - Deploy and manage your pipelines as code.
+* :doc:`dependency_analysis` - Pipeline dependency analysis and orchestration job generation.
 
 For hands-on examples and complete workflows, check out :doc:`getting_started`.

@@ -1,8 +1,11 @@
 CI/CD Reference
 ================
 
+.. meta::
+   :description: CI/CD patterns, deployment strategies, and DataOps best practices for Lakehouse Plumber pipeline projects.
+
 This comprehensive guide covers enterprise CI/CD patterns for deploying Lakehouse Plumber pipelines with Databricks Asset Bundles across development, testing, and production environments.
-It includes modern DataOps workflows and practical examples for GitHub Actions, Azure DevOps, and Bitbucke.
+It includes modern DataOps workflows and practical examples for GitHub Actions, Azure DevOps, and Bitbucket.
 
 Prerequisites
 -------------
@@ -357,7 +360,7 @@ For environment management, Lakehouse Plumber uses substitution files and Databr
        style J fill:#ffebee
 
 .. seealso::
-   For more information on substitution files see :doc:`concepts` section on substitutions and secrets.
+   For more information on substitution files see :doc:`substitutions`.
 
 .. seealso::
    For more information on Databricks Asset Bundles see :doc:`databricks_bundles`.

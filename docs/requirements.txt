@@ -1,6 +1,9 @@
 sphinx>=6.1
-sphinx_rtd_theme>=1.3
+furo
+sphinxext-opengraph
+sphinx-notfound-page
+sphinx-llms-txt
 myst-parser>=2.0
 sphinx-click>=4.4
 sphinxcontrib-mermaid>=0.9
-sphinx-copybutton>=0.5 
+sphinx-copybutton>=0.5

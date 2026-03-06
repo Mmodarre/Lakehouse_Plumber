@@ -2,12 +2,12 @@
 Pipeline Monitoring
 ====================================
 
+.. meta::
+   :description: Centralized event log monitoring and analysis across all Databricks DLT pipelines managed by Lakehouse Plumber.
+
 This page covers Lakehouse Plumber's pipeline monitoring capabilities — declarative
 event log aggregation and analysis across all your pipelines.
 
-.. contents:: Page Outline
-   :depth: 2
-   :local:
 
 Overview
 --------
@@ -54,6 +54,10 @@ and event analysis — configured entirely through ``lhp.yaml``.
        ST --> MV1["events_summary<br/>(Materialized View)"]
        ST --> MV2["Custom MVs<br/>(Optional)"]
 
+       subgraph opt ["enable_job_monitoring: true"]
+           PL["Python Load<br/>(Databricks SDK)"] --> JS["jobs_stats<br/>(Materialized View)"]
+       end
+
        style P1 fill:#e1f5fe
        style P2 fill:#e1f5fe
        style P3 fill:#e1f5fe
@@ -64,6 +68,9 @@ and event analysis — configured entirely through ``lhp.yaml``.
        style ST fill:#e8f5e8
        style MV1 fill:#fce4ec
        style MV2 fill:#fce4ec
+       style PL fill:#e0f2f1
+       style JS fill:#fce4ec
+       style opt fill:none,stroke:#999,stroke-dasharray: 5 5
 
 Quick Start
 -----------
@@ -89,7 +96,8 @@ Get centralized pipeline monitoring in three steps:
 .. tip::
    ``monitoring: {}`` enables the monitoring pipeline with sensible defaults: the pipeline
    is named ``{project_name}_event_log_monitoring``, uses the same catalog/schema as
-   ``event_log``, and creates a default ``events_summary`` materialized view.
+   ``event_log``, and creates a default ``events_summary`` materialized view that
+   summarizes pipeline run status, duration, and row metrics.
 
 **Step 2: Generate code and resources**
 
@@ -310,8 +318,12 @@ Configuration Reference
      - Name of the centralized streaming table.
    * - ``materialized_views``
      - list
-     - One default ``events_summary`` MV
+     - One default ``events_summary`` MV (pipeline run summary)
      - List of materialized view definitions. Set to ``[]`` to disable MVs.
+   * - ``enable_job_monitoring``
+     - boolean
+     - ``false``
+     - When enabled, generates a Python load action that correlates Databricks Jobs with pipeline runs using the Databricks SDK, populating a separate ``jobs_stats`` materialized view.
 
 Minimal Configuration
 ~~~~~~~~~~~~~~~~~~~~~
@@ -332,7 +344,7 @@ This creates:
 
 * Pipeline named ``{project_name}_event_log_monitoring``
 * Streaming table ``all_pipelines_event_log`` in the same catalog/schema as event_log
-* Default ``events_summary`` materialized view
+* Default ``events_summary`` materialized view (pipeline run summary with status, duration, and row metrics)
 
 Custom Pipeline Name
 ~~~~~~~~~~~~~~~~~~~~
@@ -436,8 +448,8 @@ ingests from the source view:
 Materialized Views
 ~~~~~~~~~~~~~~~~~~
 
-By default, LHP creates an ``events_summary`` materialized view that summarizes event
-counts by pipeline, event type, and hour:
+By default, LHP creates an ``events_summary`` materialized view — a pipeline run summary
+that extracts run status, duration, row metrics, and configuration from the event log:
 
 .. code-block:: python
    :caption: monitoring.py (excerpt) — default events_summary MV
@@ -449,33 +461,104 @@ counts by pipeline, event type, and hour:
    )
    def events_summary():
        """Write to acme_edw_dev._meta.events_summary from multiple sources"""
-       df = spark.sql("""SELECT
-     _source_pipeline,
-     event_type,
-     date_trunc('HOUR', timestamp) AS event_hour,
-     count(*) AS event_count,
-     max(timestamp) AS latest_event
-   FROM acme_edw_dev._meta.all_pipelines_event_log
-   GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)""")
+       df = spark.sql("""WITH run_info AS (
+       SELECT
+           origin.pipeline_name,
+           origin.pipeline_id,
+           origin.update_id,
+           MIN(`timestamp`) AS run_start_time,
+           MAX(`timestamp`) AS run_end_time,
+           MAX_BY(
+               CASE WHEN event_type = 'update_progress'
+                   THEN details:update_progress:state::STRING END,
+               CASE WHEN event_type = 'update_progress'
+                   THEN `timestamp` END
+           ) AS run_status
+       FROM acme_edw_dev._meta.all_pipelines_event_log
+       GROUP BY origin.pipeline_name, origin.pipeline_id, origin.update_id
+   ),
+   ...
+   SELECT
+       ri.pipeline_name, ri.pipeline_id, ri.update_id, ri.run_status,
+       rc.trigger_cause, rc.is_full_refresh, rc.dbr_version, rc.compute_type,
+       ri.run_start_time, ri.run_end_time,
+       ROUND((...) / 60, 2) AS duration_minutes,
+       COALESCE(rm.tables_processed, 0) AS tables_processed,
+       COALESCE(rm.total_upserted_rows, 0) AS total_upserted_rows,
+       ...
+   FROM run_info ri
+   LEFT JOIN run_metrics rm ON ...
+   LEFT JOIN run_config rc ON ...
+   ORDER BY ri.run_start_time DESC""")
        return df
 
-**Default MV SQL:**
+The default SQL joins three CTEs from the event log:
 
-.. code-block:: text
-   :caption: Default events_summary SQL
+* **run_info** — pipeline name, update ID, start/end time, final run status
+* **run_metrics** — upserted rows, deleted rows, dropped records, tables processed
+* **run_config** — DBR version, compute type (Serverless/Classic), trigger cause, full refresh flag
 
-   SELECT
-     _source_pipeline,
-     event_type,
-     date_trunc('HOUR', timestamp) AS event_hour,
-     count(*) AS event_count,
-     max(timestamp) AS latest_event
-   FROM {streaming_table}
-   GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)
+**``events_summary`` schema:**
 
-.. note::
-   ``{streaming_table}`` is replaced with the fully-qualified streaming table name
-   (e.g., ``acme_edw_dev._meta.all_pipelines_event_log``) at generation time.
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 60
+
+   * - Column
+     - Type
+     - Description
+   * - ``pipeline_name``
+     - STRING
+     - Name of the Lakeflow pipeline
+   * - ``pipeline_id``
+     - STRING
+     - Unique pipeline identifier
+   * - ``update_id``
+     - STRING
+     - Unique identifier for this pipeline run (update)
+   * - ``run_status``
+     - STRING
+     - Final status of the run (e.g., ``COMPLETED``, ``FAILED``, ``CANCELED``)
+   * - ``trigger_cause``
+     - STRING
+     - What triggered the run (e.g., ``USER_ACTION``, ``SCHEDULED``, ``API_CALL``)
+   * - ``is_full_refresh``
+     - BOOLEAN
+     - Whether this was a full refresh or incremental update
+   * - ``dbr_version``
+     - STRING
+     - Databricks Runtime version used for the run
+   * - ``compute_type``
+     - STRING
+     - ``Serverless`` or ``Classic``
+   * - ``run_start_time``
+     - TIMESTAMP
+     - When the pipeline run started
+   * - ``run_end_time``
+     - TIMESTAMP
+     - When the pipeline run ended
+   * - ``duration_minutes``
+     - DOUBLE
+     - Run duration in minutes (rounded to 2 decimal places)
+   * - ``tables_processed``
+     - BIGINT
+     - Number of distinct tables (flows) processed in this run
+   * - ``total_upserted_rows``
+     - BIGINT
+     - Total rows upserted across all tables
+   * - ``total_deleted_rows``
+     - BIGINT
+     - Total rows deleted across all tables
+   * - ``total_rows_affected``
+     - BIGINT
+     - Sum of upserted + deleted rows
+   * - ``total_dropped_records``
+     - BIGINT
+     - Total records dropped by data quality expectations
+
+The ``{streaming_table}`` placeholder in the SQL template is replaced with the
+fully-qualified streaming table name (e.g.,
+``acme_edw_dev._meta.all_pipelines_event_log``) at generation time.
 
 Bundle Resource
 ~~~~~~~~~~~~~~~
@@ -500,6 +583,96 @@ The monitoring pipeline also generates a Databricks Asset Bundle resource file:
          configuration:
            bundle.sourcePath: ${workspace.file_path}/generated/${bundle.target}
          channel: CURRENT
+
+Job Monitoring
+--------------
+
+When ``enable_job_monitoring: true`` is set, the monitoring pipeline generates an additional
+Python load chain that correlates Databricks Jobs with their associated pipeline runs using
+the Databricks SDK. The results are written to a separate ``jobs_stats`` materialized view
+alongside the main event log streaming table.
+
+.. code-block:: yaml
+   :caption: lhp.yaml
+
+   monitoring:
+     enable_job_monitoring: true
+
+**What it generates:**
+
+In addition to the standard event log pipeline (SQL load → streaming table → MVs), the
+monitoring pipeline adds:
+
+1. **Python Load → ``v_jobs_stats``** — calls a ``get_jobs_stats`` function from a
+   generated ``jobs_stats_loader.py`` module to fetch job run statistics via the
+   Databricks SDK.
+2. **Write → ``jobs_stats``** — a materialized view in the same catalog/schema as the
+   event log streaming table, populated from the ``v_jobs_stats`` view. A materialized
+   view is used (rather than a streaming table) because the Python SDK source returns
+   batch data, not a streaming DataFrame.
+
+**Generated files:**
+
+.. code-block:: text
+
+   generated/
+   └── dev/
+       └── my_project_event_log_monitoring/
+           ├── monitoring.py              ← includes Python load + jobs_stats write
+           └── jobs_stats_loader.py        ← placeholder module (see below)
+
+The ``jobs_stats_loader.py`` module uses the Databricks SDK to scan recent job runs
+(default lookback: 7 days), find pipeline tasks, and correlate each pipeline update to its
+triggering job. It also enriches rows with pipeline tags (from ``spec.tags``) and job tags
+(from ``settings.tags``). The lookback window is configurable via the ``lookback_hours``
+pipeline parameter.
+
+.. note::
+   The ``jobs_stats`` materialized view inherits its catalog and schema from the monitoring
+   pipeline configuration (which itself defaults to the ``event_log`` catalog/schema).
+
+**``jobs_stats`` schema:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 60
+
+   * - Column
+     - Type
+     - Description
+   * - ``pipeline_id``
+     - STRING
+     - Unique pipeline identifier
+   * - ``pipeline_name``
+     - STRING
+     - Name of the Lakeflow pipeline
+   * - ``update_id``
+     - STRING
+     - Pipeline update (run) identifier correlated to the job run
+   * - ``job_id``
+     - STRING
+     - Databricks Job ID that triggered this pipeline run
+   * - ``job_run_id``
+     - STRING
+     - Specific job run identifier
+   * - ``job_name``
+     - STRING
+     - Name of the triggering job
+   * - ``job_run_start_time``
+     - TIMESTAMP
+     - When the job run started
+   * - ``job_run_end_time``
+     - TIMESTAMP
+     - When the job run ended
+   * - ``job_run_status``
+     - STRING
+     - Final job run status (e.g., ``SUCCESS``, ``FAILED``, ``UNKNOWN``)
+   * - ``pipeline_tags``
+     - STRING
+     - JSON map of pipeline ``spec.tags`` (e.g., ``{"team": "data-platform"}``)
+   * - ``job_tags``
+     - STRING
+     - JSON map of job ``settings.tags`` (e.g., ``{"environment": "production"}``)
 
 Custom Materialized Views
 -------------------------
@@ -810,44 +983,13 @@ This produces environment-specific event log table references at generation time
 Troubleshooting
 ---------------
 
-.. list-table::
-   :header-rows: 1
-   :widths: 30 15 55
-
-   * - Issue
-     - Error Code
-     - Solution
-   * - ``event_log`` is not a YAML mapping
-     - ``LHP-CFG-006``
-     - Define ``event_log`` as a mapping with ``catalog`` and ``schema`` keys
-   * - ``event_log`` missing ``catalog`` or ``schema``
-     - ``LHP-CFG-007``
-     - Add both required fields, or set ``enabled: false``
-   * - ``monitoring`` is not a YAML mapping
-     - ``LHP-CFG-008``
-     - Define ``monitoring`` as a mapping (use ``monitoring: {}`` for defaults)
-   * - ``materialized_views`` is not a list
-     - ``LHP-CFG-008``
-     - Use a YAML list: ``materialized_views: [...]``
-   * - Monitoring enabled without ``event_log``
-     - ``LHP-CFG-008``
-     - Add an ``event_log`` section, or disable monitoring
-   * - Duplicate MV names
-     - ``LHP-CFG-008``
-     - Ensure each materialized view has a unique ``name``
-   * - Both ``sql`` and ``sql_path`` on same MV
-     - ``LHP-CFG-008``
-     - Use one or the other, not both
-   * - Alias + real name both in pipeline config
-     - ``LHP-VAL-010``
-     - Use only ``__eventlog_monitoring`` or the actual pipeline name, not both
-   * - Alias used in a pipeline list
-     - ``LHP-VAL-011``
-     - ``__eventlog_monitoring`` must be a standalone ``pipeline:`` entry
+Monitoring-related errors use codes ``LHP-CFG-006`` through ``LHP-CFG-008`` (event log
+and monitoring configuration) and ``LHP-VAL-010``/``LHP-VAL-011`` (pipeline config alias
+issues).
 
 .. seealso::
-
-   :doc:`errors_reference` for detailed resolution steps for each error code.
+   :doc:`errors_reference` for detailed before/after examples and resolution steps for
+   each error code.
 
 Related Documentation
 ---------------------

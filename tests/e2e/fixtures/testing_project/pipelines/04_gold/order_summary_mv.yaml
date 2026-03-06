@@ -2,6 +2,7 @@
 # Tests Bug #3 fix: MV with sql_path exemption from load action requirement
 pipeline: gold_load
 flowgroup: order_summary_mv
+#job_name: j_four
 
 actions:
   - name: write_order_summary_mv

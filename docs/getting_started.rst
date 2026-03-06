@@ -1,6 +1,9 @@
 Getting Started
 ===============
 
+.. meta::
+   :description: Install Lakehouse Plumber and create your first Databricks DLT pipeline from YAML in minutes. Step-by-step quickstart guide.
+
 This short tutorial walks you through creating your first **Lakehouse Plumber**
 project and generating a Lakeflow Pipeliness (DLT) pipeline based on the ACME demo
 configuration that ships with the repository.
@@ -8,7 +11,7 @@ configuration that ships with the repository.
 Prerequisites
 -------------
 
-* Python 3.8 + (3.10 recommended)
+* Python 3.11+ (3.12 recommended)
 * Access to a Databricks workspace with DLT enabled (for actual deployment)
 * Git installed (optional but recommended)
 
@@ -27,7 +30,6 @@ Installation
 
 Option 1: Clone the ACME Example Pipeline
 -----------------------------------------
-#TODO CREATE SCRIPT TO GET THE DATA READY TO USE IN THE EXAMPLE
 There is a companion repository that includes a fully working example (TPC-H retail dataset).
 Copy its raw-ingestion flow into your new project:
 
@@ -35,8 +37,8 @@ Copy its raw-ingestion flow into your new project:
 
    git clone https://github.com/Mmodarre/acme_edw.git
    cd acme_edw
-   hlp validate --env dev
-   hlp generate --env dev
+   lhp validate --env dev
+   lhp generate --env dev
 
 Option 2: Create a new pipeline configuration
 ---------------------------------------------
@@ -188,10 +190,10 @@ Generate DLT Code
 Inspect the Output
 ------------------
 
-Navigate to ``generated/tpch_sample_ingestion`` each FlowGroup became a Python
-file formatted with `black <https://black.readthedocs.io>`_. These are standard
-Lakeflow Declarative Pipeline scripts containing you can run in
-Databricks or commit to your repository. (Databricks Assest Bundles integration is coming soon...)
+Navigate to ``generated/tpch_sample_ingestion`` — each FlowGroup becomes a Python
+file, formatted with `black <https://black.readthedocs.io>`_. These are standard
+Lakeflow Declarative Pipeline scripts that you can run in
+Databricks or commit to your repository. See :doc:`databricks_bundles` for Asset Bundle integration.
 
 **This is the generated python file from the above YAML configuration:**
 

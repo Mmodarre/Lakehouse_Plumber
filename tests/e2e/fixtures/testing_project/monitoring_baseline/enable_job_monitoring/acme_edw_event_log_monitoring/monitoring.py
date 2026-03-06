@@ -2,6 +2,7 @@
 # Pipeline: acme_edw_event_log_monitoring
 # FlowGroup: monitoring
 
+from jobs_stats_loader import get_jobs_stats
 from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
 
@@ -45,18 +46,41 @@ FROM stream(acme_edw_dev._meta.sample_python_func_pipeline_event_log)""")
     return df
 
 
+@dp.temporary_view()
+def v_jobs_stats():
+    """Python source: load_jobs_stats"""
+    # Call the external Python function with spark and parameters
+    parameters = {}
+    df = get_jobs_stats(spark, parameters)
+
+    return df
+
+
 # ============================================================================
 # TARGET TABLES
 # ============================================================================
 
 
 @dp.materialized_view(
-    name="analytics_cat._analytics.events_summary",
+    name="acme_edw_dev._meta.jobs_stats",
+    comment="Materialized view: jobs_stats",
+    table_properties={},
+)
+def jobs_stats():
+    """Write to acme_edw_dev._meta.jobs_stats from multiple sources"""
+    # Materialized views use batch processing
+    df = spark.sql("""SELECT * FROM v_jobs_stats""")
+
+    return df
+
+
+@dp.materialized_view(
+    name="acme_edw_dev._meta.events_summary",
     comment="Materialized view: events_summary",
     table_properties={},
 )
 def events_summary():
-    """Write to analytics_cat._analytics.events_summary from multiple sources"""
+    """Write to acme_edw_dev._meta.events_summary from multiple sources"""
     # Materialized views use batch processing
     df = spark.sql("""WITH run_info AS (
     SELECT
@@ -71,7 +95,7 @@ def events_summary():
             CASE WHEN event_type = 'update_progress'
                 THEN `timestamp` END
         ) AS run_status
-    FROM analytics_cat._analytics.all_pipelines_event_log
+    FROM acme_edw_dev._meta.all_pipelines_event_log
     GROUP BY origin.pipeline_name, origin.pipeline_id, origin.update_id
 ),
 run_metrics AS (
@@ -85,7 +109,7 @@ run_metrics AS (
         SUM(COALESCE(details:flow_progress:data_quality:dropped_records::BIGINT, 0))
           AS total_dropped_records,
         COUNT(DISTINCT origin.flow_name) AS tables_processed
-    FROM analytics_cat._analytics.all_pipelines_event_log
+    FROM acme_edw_dev._meta.all_pipelines_event_log
     WHERE event_type = 'flow_progress'
       AND details:flow_progress:metrics IS NOT NULL
     GROUP BY origin.pipeline_name, origin.update_id
@@ -99,7 +123,7 @@ run_config AS (
             THEN 'Serverless' ELSE 'Classic' END) AS compute_type,
         MAX(details:create_update:cause::STRING) AS trigger_cause,
         MAX(details:create_update:full_refresh::BOOLEAN) AS is_full_refresh
-    FROM analytics_cat._analytics.all_pipelines_event_log
+    FROM acme_edw_dev._meta.all_pipelines_event_log
     WHERE event_type = 'create_update'
     GROUP BY origin.pipeline_name, origin.update_id
 )
@@ -134,19 +158,19 @@ ORDER BY ri.run_start_time DESC""")
 
 # Create the streaming table
 dp.create_streaming_table(
-    name="analytics_cat._analytics.all_pipelines_event_log",
+    name="acme_edw_dev._meta.all_pipelines_event_log",
     comment="Streaming table: all_pipelines_event_log",
 )
 
 
 # Define append flow(s)
 @dp.append_flow(
-    target="analytics_cat._analytics.all_pipelines_event_log",
+    target="acme_edw_dev._meta.all_pipelines_event_log",
     name="f_all_event_logs",
-    comment="Append flow to analytics_cat._analytics.all_pipelines_event_log",
+    comment="Append flow to acme_edw_dev._meta.all_pipelines_event_log",
 )
 def f_all_event_logs():
-    """Append flow to analytics_cat._analytics.all_pipelines_event_log"""
+    """Append flow to acme_edw_dev._meta.all_pipelines_event_log"""
     # Streaming flow
     df = spark.readStream.table("v_all_event_logs")
 

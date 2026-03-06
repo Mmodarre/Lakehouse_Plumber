@@ -127,6 +127,7 @@ class MonitoringConfig(BaseModel):
     schema_: Optional[str] = Field(None, alias="schema")  # default: event_log.schema
     streaming_table: str = "all_pipelines_event_log"
     materialized_views: Optional[List[MonitoringMaterializedViewConfig]] = None
+    enable_job_monitoring: bool = False
 
 
 class ProjectConfig(BaseModel):
@@ -309,6 +310,7 @@ class FlowGroup(BaseModel):
         None  # Simplified: bool or list of column names
     )
     _synthetic: bool = PrivateAttr(default=False)
+    _auxiliary_files: Dict[str, str] = PrivateAttr(default_factory=dict)
 
 
 class Template(BaseModel):

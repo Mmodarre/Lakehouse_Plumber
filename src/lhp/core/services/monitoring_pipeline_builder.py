@@ -21,16 +21,109 @@ from ...utils.external_file_loader import load_external_file_text
 logger = logging.getLogger(__name__)
 
 # Default MV SQL: summarizes event counts by pipeline, event type, and hour
+# DEFAULT_MV_SQL = """\
+# SELECT
+#   _source_pipeline,
+#   event_type,
+#   date_trunc('HOUR', timestamp) AS event_hour,
+#   count(*) AS event_count,
+#   max(timestamp) AS latest_event
+# FROM {streaming_table}
+# GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)\
+# """
+
+# Default MV SQL: pipeline run summary with status, duration, and row metrics
 DEFAULT_MV_SQL = """\
+WITH run_info AS (
+    SELECT
+        origin.pipeline_name,
+        origin.pipeline_id,
+        origin.update_id,
+        MIN(`timestamp`) AS run_start_time,
+        MAX(`timestamp`) AS run_end_time,
+        MAX_BY(
+            CASE WHEN event_type = 'update_progress'
+                THEN details:update_progress:state::STRING END,
+            CASE WHEN event_type = 'update_progress'
+                THEN `timestamp` END
+        ) AS run_status
+    FROM {streaming_table}
+    GROUP BY origin.pipeline_name, origin.pipeline_id, origin.update_id
+),
+run_metrics AS (
+    SELECT
+        origin.pipeline_name,
+        origin.update_id,
+        SUM(COALESCE(details:flow_progress:metrics:num_upserted_rows::BIGINT, 0))
+          AS total_upserted_rows,
+        SUM(COALESCE(details:flow_progress:metrics:num_deleted_rows::BIGINT, 0))
+          AS total_deleted_rows,
+        SUM(COALESCE(details:flow_progress:data_quality:dropped_records::BIGINT, 0))
+          AS total_dropped_records,
+        COUNT(DISTINCT origin.flow_name) AS tables_processed
+    FROM {streaming_table}
+    WHERE event_type = 'flow_progress'
+      AND details:flow_progress:metrics IS NOT NULL
+    GROUP BY origin.pipeline_name, origin.update_id
+),
+run_config AS (
+    SELECT
+        origin.pipeline_name,
+        origin.update_id,
+        MAX(details:create_update:runtime_version:dbr_version::STRING) AS dbr_version,
+        MAX(CASE WHEN details:create_update:config:serverless::BOOLEAN
+            THEN 'Serverless' ELSE 'Classic' END) AS compute_type,
+        MAX(details:create_update:cause::STRING) AS trigger_cause,
+        MAX(details:create_update:full_refresh::BOOLEAN) AS is_full_refresh
+    FROM {streaming_table}
+    WHERE event_type = 'create_update'
+    GROUP BY origin.pipeline_name, origin.update_id
+)
 SELECT
-  _source_pipeline,
-  event_type,
-  date_trunc('HOUR', timestamp) AS event_hour,
-  count(*) AS event_count,
-  max(timestamp) AS latest_event
-FROM {streaming_table}
-GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)\
+    ri.pipeline_name,
+    ri.pipeline_id,
+    ri.update_id,
+    ri.run_status,
+    rc.trigger_cause,
+    rc.is_full_refresh,
+    rc.dbr_version,
+    rc.compute_type,
+    ri.run_start_time,
+    ri.run_end_time,
+    ROUND((unix_timestamp(ri.run_end_time) - unix_timestamp(ri.run_start_time)) / 60, 2)
+      AS duration_minutes,
+    COALESCE(rm.tables_processed, 0) AS tables_processed,
+    COALESCE(rm.total_upserted_rows, 0) AS total_upserted_rows,
+    COALESCE(rm.total_deleted_rows, 0) AS total_deleted_rows,
+    COALESCE(rm.total_upserted_rows, 0) + COALESCE(rm.total_deleted_rows, 0)
+      AS total_rows_affected,
+    COALESCE(rm.total_dropped_records, 0) AS total_dropped_records
+FROM run_info ri
+LEFT JOIN run_metrics rm
+  ON ri.pipeline_name = rm.pipeline_name AND ri.update_id = rm.update_id
+LEFT JOIN run_config rc
+  ON ri.pipeline_name = rc.pipeline_name AND ri.update_id = rc.update_id
+ORDER BY ri.run_start_time DESC\
 """
+
+# Python load constants for jobs stats
+JOBS_STATS_MODULE_PATH = "jobs_stats_loader.py"
+JOBS_STATS_FUNCTION_NAME = "get_jobs_stats"
+JOBS_STATS_VIEW_NAME = "v_jobs_stats"
+JOBS_STATS_TABLE_NAME = "jobs_stats"
+
+try:
+    from importlib.resources import files
+except ImportError:
+    import importlib_resources
+
+    files = importlib_resources.files
+
+
+def _load_jobs_stats_source() -> str:
+    """Load jobs_stats_loader.py source from package resources."""
+    resource = files("lhp.templates.monitoring") / "jobs_stats_loader.py"
+    return resource.read_text(encoding="utf-8")
 
 
 class MonitoringPipelineBuilder:
@@ -221,6 +314,41 @@ class MonitoringPipelineBuilder:
             },
         )
 
+    def _build_python_load_action(self) -> Action:
+        """Build the Python load action for jobs stats."""
+        return Action(
+            name="load_jobs_stats",
+            type=ActionType.LOAD,
+            source={
+                "type": "python",
+                "module_path": JOBS_STATS_MODULE_PATH,
+                "function_name": JOBS_STATS_FUNCTION_NAME,
+            },
+            target=JOBS_STATS_VIEW_NAME,
+            description="Python source: load_jobs_stats",
+        )
+
+    def _build_jobs_stats_write_action(
+        self, catalog: str, schema: str
+    ) -> Action:
+        """Build the materialized view write action for jobs stats.
+
+        Uses a materialized view (not streaming table) because the Python
+        SDK source returns batch data, not a streaming DataFrame.
+        """
+        database = f"{catalog}.{schema}" if catalog and schema else ""
+
+        return Action(
+            name="write_jobs_stats",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "database": database,
+                "table": JOBS_STATS_TABLE_NAME,
+                "sql": f"SELECT * FROM {JOBS_STATS_VIEW_NAME}",
+            },
+        )
+
     def _build_mv_action(
         self, mv_name: str, sql: str, catalog: str, schema: str
     ) -> Action:
@@ -329,7 +457,14 @@ class MonitoringPipelineBuilder:
         # 2. Streaming Table Write
         actions.append(self._build_write_action(catalog, schema))
 
-        # 3. Materialized Views
+        # 3. Python Load (optional — jobs stats via Databricks SDK)
+        if self.monitoring_config.enable_job_monitoring:
+            actions.append(self._build_python_load_action())
+            actions.append(
+                self._build_jobs_stats_write_action(catalog, schema)
+            )
+
+        # 4. Materialized Views
         st_fqn = f"{catalog}.{schema}.{self.monitoring_config.streaming_table}"
 
         if self.monitoring_config.materialized_views is not None:
@@ -342,7 +477,7 @@ class MonitoringPipelineBuilder:
                     self._build_mv_action(mv_config.name, mv_sql, catalog, schema)
                 )
         else:
-            # Default: one summary MV
+            # Default: events summary + pipeline run summary MVs
             default_sql = self._get_default_mv_sql(st_fqn)
             actions.append(
                 self._build_mv_action(
@@ -357,5 +492,8 @@ class MonitoringPipelineBuilder:
             actions=actions,
         )
         fg._synthetic = True
+
+        if self.monitoring_config.enable_job_monitoring:
+            fg._auxiliary_files[JOBS_STATS_MODULE_PATH] = _load_jobs_stats_source()
 
         return fg

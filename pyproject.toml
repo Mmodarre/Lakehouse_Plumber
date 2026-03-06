@@ -93,6 +93,7 @@ where = ["src"]
 "lhp.templates.write" = ["*.j2"]
 "lhp.api.services.opencode_templates.skills.lhp" = ["*.md"]
 "lhp.api.services.opencode_templates.skills.lhp.references" = ["*.md"]
+"lhp.templates.monitoring" = ["*.py"]
 
 
 
