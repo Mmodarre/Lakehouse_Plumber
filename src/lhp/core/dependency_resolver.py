@@ -75,16 +75,23 @@ class DependencyResolver:
         write_actions = [a for a in actions if a.type == ActionType.WRITE]
         test_actions = [a for a in actions if a.type == ActionType.TEST]
 
-        # Check if there are self-contained snapshot CDC actions that provide data
+        # Check if there are self-contained actions that provide their own data
         has_self_contained_snapshot_cdc = any(
             self._is_self_contained_snapshot_cdc(action) for action in actions
+        )
+        has_self_contained_mv = any(
+            self._is_self_contained_materialized_view(action) for action in actions
         )
 
         # Test-only flowgroups are allowed (for data quality testing)
         is_test_only_flowgroup = test_actions and not (load_actions or write_actions)
 
         if not is_test_only_flowgroup:
-            if not load_actions and not has_self_contained_snapshot_cdc:
+            if (
+                not load_actions
+                and not has_self_contained_snapshot_cdc
+                and not has_self_contained_mv
+            ):
                 errors.append("FlowGroup must have at least one Load action")
 
             if not write_actions:
@@ -94,56 +101,10 @@ class DependencyResolver:
         orphaned = self._find_orphaned_actions(actions, graph, targets)
         for action in orphaned:
             if action.type == ActionType.TRANSFORM:
-                # Create a proper LHPConfigError for orphaned transform actions
-                raise LHPConfigError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="003",
-                    title=f"Unused transform action: '{action.name}'",
-                    details=f"Transform action '{action.name}' produces view '{action.target}' but no other action references it.",
-                    suggestions=[
-                        "Add a write action that uses this transform's output",
-                        "Reference this view in another transform action's source",
-                        "Remove this transform action if it's not needed",
-                        "Check for typos in view names that reference this transform",
-                    ],
-                    example=f"""Fix this by adding a write action that uses the transform output:
-
-actions:
-  - name: {action.name}
-    type: transform
-    transform_type: sql
-    source: v_source_data
-    target: {action.target}   # ← This view is produced
-    sql: |
-      SELECT * FROM v_source_data WHERE active = true
-
-  - name: write_result
-    type: write
-    source: {action.target}   # ← Reference the transform output here
-    write_target:
-      type: streaming_table
-      database: "catalog.schema"
-      table: result_table
-      create_table: true
-
-Or reference it in another transform:
-
-  - name: further_transform
-    type: transform
-    transform_type: sql
-    source: {action.target}   # ← Use as source for another transform
-    target: v_final_result
-    sql: |
-      SELECT processed_field FROM {action.target}""",
-                    context={
-                        "Transform Action": action.name,
-                        "Produced View": action.target,
-                        "Transform Type": getattr(action, "transform_type", "unknown"),
-                        "Available Actions": [a.name for a in actions],
-                        "Actions that have sources": [
-                            a.name for a in actions if self._get_action_sources(a)
-                        ],
-                    },
+                # Append orphaned transform as error instead of raising
+                errors.append(
+                    f"Unused transform action: '{action.name}' produces view "
+                    f"'{action.target}' but no other action references it"
                 )
 
         return errors
@@ -200,6 +161,21 @@ Or reference it in another transform:
             return False
         snapshot_config = action.write_target.get("snapshot_cdc_config", {})
         return bool(snapshot_config.get("source_function"))
+
+    def _is_self_contained_materialized_view(self, action: Action) -> bool:
+        """Check if action is a self-contained materialized view with SQL.
+
+        Materialized views that define their own SQL query (inline or via sql_path)
+        don't require external load actions since they are self-contained.
+        """
+        if action.type != ActionType.WRITE:
+            return False
+        wt = action.write_target
+        if not isinstance(wt, dict):
+            return False
+        if wt.get("type") != "materialized_view":
+            return False
+        return bool(wt.get("sql") or wt.get("sql_path"))
 
     def _topological_sort(
         self,

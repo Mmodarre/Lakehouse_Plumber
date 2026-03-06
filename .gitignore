@@ -46,3 +46,6 @@ event_log_exports/
 monitoring_dashboard/
 issue_75_draft_response.md
 lhp.skill
+.serena/
+.playwright-mcp/
+docs/DOCS_REORGANIZATION_PLAN.md

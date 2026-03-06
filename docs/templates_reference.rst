@@ -1,11 +1,11 @@
 Templates Reference
 ===================
 
+.. meta::
+   :description: Create reusable pipeline templates with Jinja2 parameters. Template inheritance, local variables, and best practices.
+
 Templates are reusable action patterns that eliminate repetitive configuration and standardize common data pipeline workflows. They use parameter substitution to generate customized actions from a single template definition.
 
-.. contents:: Table of Contents
-   :depth: 2
-   :local:
 
 Templates Overview
 ------------------
@@ -670,18 +670,18 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
        default: true
        description: "Ignore updates where all tracked columns are null"
 
-  actions:
-    - name: "load_{{ table_name }}_changes"
-      type: load
-      readMode: stream
-      source:
-        type: delta
-        database: "{catalog}.{bronze_schema}"
-        table: "{{ source_table }}"
-        options:
-          readChangeFeed: "true"
-      target: "v_{{ table_name }}_changes"
-      description: "Load change data from {{ source_table }}"
+   actions:
+     - name: "load_{{ table_name }}_changes"
+       type: load
+       readMode: stream
+       source:
+         type: delta
+         database: "{catalog}.{bronze_schema}"
+         table: "{{ source_table }}"
+         options:
+           readChangeFeed: "true"
+       target: "v_{{ table_name }}_changes"
+       description: "Load change data from {{ source_table }}"
 
      - name: "write_{{ table_name }}_dimension"
        type: write
@@ -691,12 +691,12 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
          database: "{catalog}.{silver_schema}"
          table: "dim_{{ table_name }}"
          mode: cdc
-                 cdc_config:
-          keys: "{{ primary_keys }}"
-          sequence_by: "{{ sequence_column }}"
-          scd_type: 2
-          track_history_column_list: "{{ track_history_column_list }}"
-          ignore_null_updates: "{{ ignore_null_updates }}"
+         cdc_config:
+           keys: "{{ primary_keys }}"
+           sequence_by: "{{ sequence_column }}"
+           scd_type: 2
+           track_history_column_list: "{{ track_history_column_list }}"
+           ignore_null_updates: "{{ ignore_null_updates }}"
          table_properties:
            delta.enableChangeDataFeed: true
            table.type: "dimension"
@@ -735,41 +735,10 @@ In addition to template parameters, both template definitions and flowgroup YAML
 Substitution Types
 ~~~~~~~~~~~~~~~~~~
 
-**Local Variables**: ``%{variable}``
-   Defined in the ``variables`` section of a flowgroup, scoped to that flowgroup only
+Templates interact with four substitution syntaxes: local variables (``%{var}``), environment tokens (``{token}``/``${token}``), secret references (``${secret:scope/key}``), and template parameters (``{{ param }}``). Each is resolved at a different stage of the processing pipeline.
 
-**Environment Substitutions**: ``{token}`` or ``${token}``
-   Replaced with values from ``substitutions/{env}.yaml`` files
-
-**Secret References**: ``${secret:scope/key}`` or ``${secret:key}``
-   Converted to secure ``dbutils.secrets.get()`` calls in generated Python
-
-**Template Parameters**: ``{{ parameter }}``
-   Replaced with values from ``template_parameters`` in flowgroups
-
-.. important::
-   **Syntax Distinction:**
-   
-   - ``%{var}`` = Local variable (flowgroup-scoped, **new in v1.x**)
-   - ``${token}`` = Environment substitution (**preferred**, new syntax)
-   - ``{token}`` = Environment substitution (legacy, backward compatible)
-   - ``${secret:scope/key}`` = Secret reference (Databricks secrets)
-   - ``{{ parameter }}`` = Template parameter (Jinja2)
-
-.. warning::
-   In Python code files (batch handlers, Python transforms), always use 
-   ``${token}`` syntax to avoid conflicts with Python string formatting.
-
-.. note::
-   **Processing Order**: LHP processes substitutions in this order:
-   
-   1. **Local variables** (``%{var}``) are resolved first within the flowgroup
-   2. **Template parameters** (``{{ }}``) are resolved when templates are applied
-   3. **Environment substitutions** (``{ }``) are resolved at generation time  
-   4. **Secret references** (``${secret:}``) are converted to ``dbutils.secrets.get()`` calls
-   
-   This allows flowgroups to define reusable values, templates to be dynamic, and 
-   environment-specific values and secrets to be injected at the right time.
+.. seealso::
+   For the complete substitution reference — syntax details, processing order, file substitution support, and examples — see :doc:`substitutions`.
 
 Local Variables
 ~~~~~~~~~~~~~~~
@@ -831,14 +800,14 @@ Local variables allow you to define reusable values within a single flowgroup, r
 +------------------------+--------------------------------------------------------+
 | Benefit                | Description                                            |
 +========================+========================================================+
-|| **Single Source**     || Change "customer" to "order" in one place            |
-|| **of Truth**          ||                                                       |
+| **Single Source**      | Change "customer" to "order" in one place              |
+| **of Truth**           |                                                        |
 +------------------------+--------------------------------------------------------+
-|| **Consistency**       || All action names follow the same pattern             |
+| **Consistency**        | All action names follow the same pattern               |
 +------------------------+--------------------------------------------------------+
-|| **Readability**       || Clear intent with meaningful variable names          |
+| **Readability**        | Clear intent with meaningful variable names            |
 +------------------------+--------------------------------------------------------+
-|| **Maintainability**   || Easy to refactor or convert to templates             |
+| **Maintainability**    | Easy to refactor or convert to templates               |
 +------------------------+--------------------------------------------------------+
 
 **Example - Before and After:**
@@ -1217,8 +1186,8 @@ Best Practices for Substitutions
 4. **Validate secret references** using ``lhp validate --env {env}``
 
 .. seealso::
-   - For complete secret management documentation: :doc:`concepts`
-   - For substitution file format: :doc:`concepts`
+   - For complete secret management documentation: :doc:`substitutions`
+   - For substitution file format: :doc:`substitutions`
    - For environment-specific deployment: :doc:`databricks_bundles`
 
 Template Expressions
@@ -1628,5 +1597,5 @@ Enable verbose logging to see parameter substitution details:
 .. seealso::
    - For complete template examples see the `Example Projects <https://github.com/Mmodarre/Lakehouse_Plumber/tree/main/Example_Projects>`_
    - Template syntax: :doc:`concepts`  
-   - Action reference: :doc:`actions_reference`
+   - Action reference: :doc:`actions/index`
    - Using presets: :doc:`concepts` 

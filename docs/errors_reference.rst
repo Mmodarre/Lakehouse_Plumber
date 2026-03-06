@@ -2,9 +2,8 @@
 Error Reference
 ========================
 
-.. contents:: Page Outline
-   :depth: 2
-   :local:
+.. meta::
+   :description: Troubleshooting guide with all Lakehouse Plumber error codes, causes, and resolution steps.
 
 Overview
 ========
@@ -126,7 +125,154 @@ typically when both legacy and new-format fields are present in the same action.
 
 .. seealso::
 
-   :doc:`actions_reference` for the current configuration format for each action type.
+   :doc:`actions/index` for the current configuration format for each action type.
+
+LHP-CFG-006: Invalid Event Log Configuration
+---------------------------------------------
+
+**When it occurs:** The ``event_log`` section in ``lhp.yaml`` is not a valid YAML mapping,
+or its field values have incorrect types.
+
+**Common causes:**
+
+- Providing a scalar value (string, number, boolean) instead of a mapping
+- Using invalid types for fields (e.g., a list for ``catalog``)
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-006)
+
+   # lhp.yaml
+   event_log: "enable_logging"     # String, but a mapping is expected
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml
+   event_log:
+     catalog: "{catalog}"
+     schema: _meta
+     name_suffix: "_event_log"
+
+.. seealso::
+
+   :doc:`monitoring` for all available event log and monitoring configuration options.
+
+LHP-CFG-007: Incomplete Event Log Configuration
+------------------------------------------------
+
+**When it occurs:** The ``event_log`` section in ``lhp.yaml`` is enabled but missing
+required fields (``catalog`` and/or ``schema``).
+
+**Common causes:**
+
+- Defining ``event_log`` without specifying ``catalog`` or ``schema``
+- Forgetting to add both required fields when enabling event logging
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-007)
+
+   # lhp.yaml
+   event_log:
+     name_suffix: "_event_log"
+     # Missing: catalog and schema!
+
+.. code-block:: yaml
+   :caption: After (fixed) — provide both required fields
+
+   # lhp.yaml
+   event_log:
+     catalog: "{catalog}"
+     schema: _meta
+     name_suffix: "_event_log"
+
+.. code-block:: yaml
+   :caption: Alternative fix — disable event logging
+
+   # lhp.yaml
+   event_log:
+     enabled: false
+     name_suffix: "_event_log"
+
+.. note::
+
+   When ``enabled`` is ``true`` (the default), both ``catalog`` and ``schema`` are required.
+   Set ``enabled: false`` to define the section without activating event log injection.
+
+LHP-CFG-008: Invalid Monitoring Configuration
+----------------------------------------------
+
+**When it occurs:** The ``monitoring`` section in ``lhp.yaml`` is not a valid YAML mapping,
+its field values have incorrect types, or it fails cross-validation with the ``event_log``
+section. This error code covers three monitoring validation scenarios:
+
+**Scenario 1: monitoring is not a mapping**
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-008)
+
+   # lhp.yaml
+   monitoring: "enable_monitoring"     # String, but a mapping is expected
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml
+   monitoring: {}                      # Empty mapping = all defaults
+
+**Scenario 2: materialized_views is not a list**
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-008)
+
+   # lhp.yaml
+   monitoring:
+     materialized_views: "events_summary"   # String, but a list is expected
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml
+   monitoring:
+     materialized_views:
+       - name: "events_summary"
+         sql: "SELECT * FROM all_pipelines_event_log"
+
+**Scenario 3: monitoring requires event_log**
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-008)
+
+   # lhp.yaml
+   # event_log is missing or disabled!
+   monitoring: {}
+
+.. code-block:: yaml
+   :caption: After (fixed) — add event_log
+
+   # lhp.yaml
+   event_log:
+     catalog: "{catalog}"
+     schema: _meta
+     name_suffix: "_event_log"
+
+   monitoring: {}
+
+.. code-block:: yaml
+   :caption: Alternative fix — disable monitoring
+
+   # lhp.yaml
+   monitoring:
+     enabled: false
+
+**Additional validation (all LHP-CFG-008):**
+
+- Each materialized view entry must be a YAML mapping with at least a ``name`` field
+- MV names must be unique within the ``materialized_views`` list
+- Each MV must specify either ``sql`` or ``sql_path``, not both
+
+.. seealso::
+
+   :doc:`monitoring` for complete monitoring configuration reference and examples.
 
 LHP-CFG-009: YAML Parsing Error
 --------------------------------
@@ -491,7 +637,7 @@ item in the list to resolve this error.
 .. note::
 
    In SQL transforms, ``$source`` is automatically replaced with the view name
-   specified in the ``source`` field. See :doc:`actions_reference` for details
+   specified in the ``source`` field. See :doc:`actions/index` for details
    on SQL transform syntax.
 
 LHP-VAL-006: Invalid Field Value
@@ -599,8 +745,81 @@ expected, or a number where a boolean is expected).
          type: cloudfiles
          path: /data/events/
 
-LHP-VAL-011: Schema Syntax Error
----------------------------------
+LHP-VAL-010: Duplicate Monitoring Pipeline Configuration
+---------------------------------------------------------
+
+**When it occurs:** Both the ``__eventlog_monitoring`` alias and the actual monitoring
+pipeline name are defined as separate entries in ``pipeline_config.yaml``.
+
+**Common causes:**
+
+- Using the alias while also explicitly targeting the monitoring pipeline by its real name
+- Copy-pasting a config document and forgetting to remove the duplicate
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-VAL-010)
+
+   ---
+   pipeline: __eventlog_monitoring
+   serverless: false
+
+   ---
+   pipeline: acme_edw_event_log_monitoring
+   serverless: true
+
+.. code-block:: yaml
+   :caption: After (fixed) — use only one
+
+   ---
+   pipeline: __eventlog_monitoring
+   serverless: false
+
+.. seealso::
+
+   :doc:`monitoring` for details on the ``__eventlog_monitoring`` reserved keyword
+   and monitoring pipeline configuration.
+
+LHP-VAL-011: Monitoring Alias in Pipeline List / Schema Syntax Error
+---------------------------------------------------------------------
+
+This error code covers two validation scenarios.
+
+**Scenario 1: Monitoring Alias in Pipeline List**
+
+**When it occurs:** The ``__eventlog_monitoring`` alias is used inside a pipeline list
+(e.g., ``pipeline: [bronze, __eventlog_monitoring]``) instead of as a standalone entry.
+
+**Common causes:**
+
+- Grouping the monitoring alias with other pipelines in a list
+- Attempting to share configuration between regular pipelines and the monitoring pipeline
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-VAL-011)
+
+   ---
+   pipeline:
+     - bronze_pipeline
+     - __eventlog_monitoring
+   serverless: false
+
+.. code-block:: yaml
+   :caption: After (fixed) — separate documents
+
+   ---
+   pipeline: bronze_pipeline
+   serverless: false
+
+   ---
+   pipeline: __eventlog_monitoring
+   serverless: false
+
+.. seealso::
+
+   :doc:`monitoring` for details on the ``__eventlog_monitoring`` reserved keyword
+   and monitoring pipeline configuration.
+
+**Scenario 2: Schema Syntax Error**
 
 **When it occurs:** A schema file has invalid syntax or structure.
 
@@ -669,7 +888,7 @@ expected format for its type.
 
 .. seealso::
 
-   :doc:`actions_reference` for the correct source configuration format for each
+   :doc:`actions/index` for the correct source configuration format for each
    action type.
 
 I/O Errors (LHP-IO)
@@ -800,7 +1019,7 @@ to a valid option. It also lists all valid values.
 .. tip::
 
    Run ``lhp list_presets`` to see all available preset names, or check the
-   :doc:`actions_reference` for valid action types and subtypes.
+   :doc:`actions/index` for valid action types and subtypes.
 
 Dependency Errors (LHP-DEP)
 ============================
@@ -869,6 +1088,45 @@ you identify which dependency to remove or redirect.
    Run ``lhp deps --format dot --env <env>`` to generate a visual dependency
    graph that makes cycles easier to spot. See :doc:`dependency_analysis`
    for details.
+
+General Troubleshooting
+=======================
+
+State Management
+----------------
+
+.. code-block:: bash
+   :caption: Debugging state issues
+
+   # Force regeneration of all files
+   lhp generate --force-all --env dev
+
+   # Clear state and regenerate everything
+   rm .lhp_state.json
+   lhp generate --env dev
+
+   # Check what files would be regenerated
+   lhp generate --dry-run --env dev --verbose
+
+Dependency Debugging
+--------------------
+
+.. code-block:: bash
+   :caption: Dependency debugging
+
+   # Show dependency graph
+   lhp validate --env dev --show-dependencies
+
+   # Validate for circular dependencies
+   lhp validate --env dev --check-cycles
+
+Performance Optimization
+------------------------
+
+- Use **include patterns** to limit file scanning scope
+- Keep **FlowGroups focused** — avoid overly large YAML files
+- Leverage **state management** — don't force regeneration unless needed
+- Use **specific targets** when possible instead of full pipeline generation
 
 Getting Help
 ============

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.7.5"
+version = "0.7.6"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -49,10 +49,6 @@ dev = [
     "mypy>=1.0.0",
     "requests>=2.32.0",
 ]
-notebook = [
-    "ipython>=7.0.0",
-    "jupyter>=1.0.0",
-]
 
 [project.urls]
 Homepage = "https://github.com/Mmodarre/Lakehouse_Plumber"
@@ -77,6 +73,7 @@ where = ["src"]
 "lhp.templates.load" = ["*.j2"]
 "lhp.templates.transform" = ["*.j2"]
 "lhp.templates.write" = ["*.j2"]
+"lhp.templates.monitoring" = ["*.py"]
 
 
 

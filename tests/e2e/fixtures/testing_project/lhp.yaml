@@ -56,3 +56,48 @@ operational_metadata:
     #   applies_to: ["streaming_table", "materialized_view", "view"]
     #   additional_imports:
     #     - "from pyspark.sql.functions import hash"
+
+## Declarative event logging for all pipelines
+#event_log:
+#  catalog: "{catalog}"
+#  schema: _meta
+#  name_suffix: "_event_log"
+
+## Monitoring pipeline — aggregates all pipeline event logs
+## [monitoring_default]
+#monitoring: {}
+
+## [monitoring_custom_pipeline_name]
+#monitoring:
+#  pipeline_name: "my_custom_monitor"
+
+## [monitoring_catalog_schema_override]
+#monitoring:
+#  catalog: "analytics_cat"
+#  schema: "_analytics"
+
+## [monitoring_custom_streaming_table]
+#monitoring:
+#  streaming_table: "unified_event_log"
+
+## [monitoring_custom_mvs]
+#monitoring:
+#  materialized_views:
+#    - name: "error_events"
+#      sql: "SELECT * FROM all_pipelines_event_log WHERE event_type = 'error'"
+#    - name: "pipeline_latency"
+#      sql: "SELECT _source_pipeline, avg(duration_ms) as avg_duration FROM all_pipelines_event_log GROUP BY _source_pipeline"
+
+## [monitoring_no_mvs]
+#monitoring:
+#  materialized_views: []
+
+## [monitoring_mv_sql_path]
+#monitoring:
+#  materialized_views:
+#    - name: "custom_analysis"
+#      sql_path: "sql/monitoring_custom_analysis.sql"
+
+## [monitoring_enable_job_monitoring]
+#monitoring:
+#  enable_job_monitoring: true

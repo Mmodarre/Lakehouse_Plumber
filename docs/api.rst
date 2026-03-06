@@ -1,6 +1,9 @@
 API Reference
 =============
 
+.. meta::
+   :description: Python API reference for Lakehouse Plumber internals: models, generators, parsers, and utilities.
+
 The sections below document the public classes and functions that you might import
 in advanced use-cases (e.g., custom generators, validators, or notebook
 integration).

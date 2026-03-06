@@ -22,9 +22,17 @@ resources:
       clusters:
 {% for cluster in pipeline_config.clusters %}
         - label: {{ cluster.label }}
+{% if cluster.get('node_type_id') %}
           node_type_id: {{ cluster.node_type_id }}
+{% endif %}
+{% if cluster.get('instance_pool_id') %}
+          instance_pool_id: {{ cluster.instance_pool_id }}
+{% endif %}
 {% if cluster.get('driver_node_type_id') %}
           driver_node_type_id: {{ cluster.driver_node_type_id }}
+{% endif %}
+{% if cluster.get('driver_instance_pool_id') %}
+          driver_instance_pool_id: {{ cluster.driver_instance_pool_id }}
 {% endif %}
 {% if cluster.get('policy_id') %}
           policy_id: {{ cluster.policy_id }}
@@ -111,6 +119,9 @@ resources:
       #   - label: default
       #     node_type_id: Standard_D16ds_v5
       #     driver_node_type_id: Standard_D32ds_v5
+      #     # Or use instance pools instead of node_type_id:
+      #     # instance_pool_id: <your-pool-id>
+      #     # driver_instance_pool_id: <your-driver-pool-id>
       #     policy_id: 1234ABCD1234ABCD
       #     autoscale:
       #       min_workers: 1

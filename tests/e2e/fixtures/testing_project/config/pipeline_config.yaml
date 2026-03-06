@@ -86,3 +86,24 @@ schema: "{raw_schema}"
 pipeline: config_inherited
 catalog: "{catalog}"
 schema: "{raw_schema}"
+
+---
+# Event log E2E test pipelines
+pipeline: event_log_basic
+catalog: "{catalog}"
+schema: "{raw_schema}"
+
+---
+pipeline: event_log_override
+catalog: "{catalog}"
+schema: "{raw_schema}"
+#event_log:
+#  name: custom_event_log
+#  catalog: override_catalog
+#  schema: override_schema
+
+---
+pipeline: event_log_disabled
+catalog: "{catalog}"
+schema: "{raw_schema}"
+#event_log: false
