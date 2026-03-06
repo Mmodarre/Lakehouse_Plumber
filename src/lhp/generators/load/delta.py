@@ -108,16 +108,120 @@ class DeltaLoadGenerator(BaseActionGenerator):
             f"Delta load '{action.target}': table_ref='{table_ref}', readMode='{readMode}', options_count={len(reader_options)}"
         )
 
-        # Validate: readChangeFeed requires streaming mode
-        if (
-            reader_options.get("readChangeFeed") in ("true", "True", True)
-            and readMode != "stream"
-        ):
-            raise ErrorFormatter.invalid_read_mode(
+        # Validate Delta option combinations
+        has_cdf = reader_options.get("readChangeFeed") in ("true", "True", True)
+        has_skip = reader_options.get("skipChangeCommits") in ("true", "True", True)
+        has_starting_version = "startingVersion" in reader_options
+        has_starting_timestamp = "startingTimestamp" in reader_options
+        has_ending_version = "endingVersion" in reader_options
+        has_ending_timestamp = "endingTimestamp" in reader_options
+        has_version_as_of = "versionAsOf" in reader_options
+        has_timestamp_as_of = "timestampAsOf" in reader_options
+        is_stream = readMode == "stream"
+
+        # readChangeFeed + skipChangeCommits: contradictory
+        if has_cdf and has_skip:
+            raise ErrorFormatter.incompatible_options(
                 action_name=action.name,
-                action_type="delta (with readChangeFeed)",
-                provided=readMode,
-                valid_modes=["stream"],
+                option_a="readChangeFeed",
+                option_b="skipChangeCommits",
+                reason="readChangeFeed reads all changes while skipChangeCommits skips them.",
+                suggestion="Use readChangeFeed to consume changes, or skipChangeCommits to ignore them, but not both",
+            )
+
+        # readChangeFeed + versionAsOf: CDF vs time travel
+        if has_cdf and has_version_as_of:
+            raise ErrorFormatter.incompatible_options(
+                action_name=action.name,
+                option_a="readChangeFeed",
+                option_b="versionAsOf",
+                reason="readChangeFeed reads a stream of changes while versionAsOf reads a point-in-time snapshot.",
+                suggestion="Use readChangeFeed for change tracking or versionAsOf for snapshots, not both",
+            )
+
+        # readChangeFeed + timestampAsOf: CDF vs time travel
+        if has_cdf and has_timestamp_as_of:
+            raise ErrorFormatter.incompatible_options(
+                action_name=action.name,
+                option_a="readChangeFeed",
+                option_b="timestampAsOf",
+                reason="readChangeFeed reads a stream of changes while timestampAsOf reads a point-in-time snapshot.",
+                suggestion="Use readChangeFeed for change tracking or timestampAsOf for snapshots, not both",
+            )
+
+        # startingVersion + startingTimestamp: ambiguous start
+        if has_starting_version and has_starting_timestamp:
+            raise ErrorFormatter.incompatible_options(
+                action_name=action.name,
+                option_a="startingVersion",
+                option_b="startingTimestamp",
+                reason="Both specify a starting point for reading changes but are ambiguous together.",
+                suggestion="Use either startingVersion or startingTimestamp, not both",
+            )
+
+        # versionAsOf + timestampAsOf: ambiguous snapshot
+        if has_version_as_of and has_timestamp_as_of:
+            raise ErrorFormatter.incompatible_options(
+                action_name=action.name,
+                option_a="versionAsOf",
+                option_b="timestampAsOf",
+                reason="Both specify a snapshot point but are ambiguous together.",
+                suggestion="Use either versionAsOf or timestampAsOf, not both",
+            )
+
+        # endingVersion/endingTimestamp + stream: ending bounds are batch-only
+        if is_stream and has_ending_version:
+            raise ErrorFormatter.incompatible_options(
+                action_name=action.name,
+                option_a="endingVersion",
+                option_b="readMode: stream",
+                reason="endingVersion is only supported in batch mode.",
+                suggestion="Use readMode: batch with endingVersion, or remove endingVersion for streaming",
+            )
+
+        if is_stream and has_ending_timestamp:
+            raise ErrorFormatter.incompatible_options(
+                action_name=action.name,
+                option_a="endingTimestamp",
+                option_b="readMode: stream",
+                reason="endingTimestamp is only supported in batch mode.",
+                suggestion="Use readMode: batch with endingTimestamp, or remove endingTimestamp for streaming",
+            )
+
+        # Batch CDF requires a starting bound
+        if has_cdf and not is_stream:
+            if not has_starting_version and not has_starting_timestamp:
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="013",
+                    title=f"Batch CDF requires a starting bound in action '{action.name}'",
+                    details=(
+                        f"Delta load action '{action.name}': readChangeFeed in batch mode "
+                        f"requires either 'startingVersion' or 'startingTimestamp' to define "
+                        f"the range of changes to read."
+                    ),
+                    suggestions=[
+                        "Add 'startingVersion' to specify the starting Delta version",
+                        "Add 'startingTimestamp' to specify the starting timestamp",
+                        "Use readMode: stream for continuous CDF consumption",
+                    ],
+                    context={
+                        "Action": action.name,
+                        "readMode": readMode,
+                    },
+                    example="""options:
+  readChangeFeed: "true"
+  startingVersion: "0"
+  # or: startingTimestamp: "2024-01-01" """,
+                )
+
+        # Warn about CDF metadata columns
+        if has_cdf:
+            logger.warning(
+                f"Delta load '{action.name}': readChangeFeed is enabled. The resulting "
+                f"DataFrame will include CDF metadata columns (_change_type, "
+                f"_commit_version, _commit_timestamp). If writing to a non-CDC streaming "
+                f"table, you may need to drop these columns in a transform action."
             )
 
         # Handle operational metadata
