@@ -1,0 +1,141 @@
+# --- Quarantine: shared constants for {{ source_view }} ---
+
+_EXPECTATIONS_{{ safe_source_view }} = {{ expectations | tojson }}
+
+_INVERSE_FILTER_{{ safe_source_view }} = {{ inverse_filter | tojson }}
+
+_FAILED_RULE_EXPRS_{{ safe_source_view }} = [
+{% for rule in failed_rule_data %}
+    F.when(
+        ~F.expr({{ rule.rule | tojson }}),
+        F.struct(
+            F.lit({{ rule.name | tojson }}).alias("name"),
+            F.lit({{ rule.rule | tojson }}).alias("rule"),
+        ),
+    ),
+{% endfor %}
+]
+
+DLQ_TABLE_{{ safe_source_view }} = "{{ dlq_table }}"
+SOURCE_TABLE_{{ safe_source_view }} = "{{ source_table }}"
+
+{% if is_cloudfiles %}
+
+# --- Quarantine: UDF for merging rescued data ---
+@F.udf("string")
+def _merge_rescued_{{ safe_source_view }}(row_json: str, rescued_json: str) -> str:
+    row = json.loads(row_json) if row_json else {}
+    rescued = json.loads(rescued_json) if rescued_json else {}
+    row.update(rescued)
+    return json.dumps(row)
+
+{% endif %}
+
+# --- Quarantine: internal clean view (provides DQ metrics in event log) ---
+@dp.temporary_view()
+@dp.expect_all_or_drop(_EXPECTATIONS_{{ safe_source_view }})
+def _clean_{{ safe_source_view }}():
+    """{{ description }} — clean records"""
+    return spark.readStream.table("{{ source_view }}")
+
+
+# --- Quarantine: DLQ sink + append flow ---
+@dp.foreach_batch_sink(name="dlq_sink_{{ safe_source_view }}")
+def dlq_sink_{{ safe_source_view }}(batch_df, batch_id):
+    """Write quarantined rows to DLQ table"""
+    if batch_df.isEmpty():
+        return
+
+    data_cols = [c for c in batch_df.columns if not c.startswith("_dlq")]
+{% if is_cloudfiles %}
+    variant_cols = [c for c in data_cols if c != "_rescued_data"]
+{% endif %}
+
+    batch = (
+        batch_df
+        .withColumn("_row_json", F.to_json(F.struct(*data_cols)))
+        .withColumn("_dlq_sk", F.xxhash64(
+            F.lit(SOURCE_TABLE_{{ safe_source_view }}), F.col("_row_json")
+        ).cast("string"))
+{% if is_cloudfiles %}
+        .withColumn("_variant_json",
+            F.when(
+                F.col("_rescued_data").isNotNull(),
+                _merge_rescued_{{ safe_source_view }}(
+                    F.to_json(F.struct(*variant_cols)),
+                    F.col("_rescued_data"),
+                ),
+            ).otherwise(F.to_json(F.struct(*variant_cols)))
+        )
+        .withColumn("_row_data", F.parse_json(F.col("_variant_json")))
+{% else %}
+        .withColumn("_row_data", F.parse_json(F.to_json(F.struct(*data_cols))))
+{% endif %}
+        .withColumn("_dlq_source_table", F.lit(SOURCE_TABLE_{{ safe_source_view }}))
+        .withColumn("_dlq_status", F.lit("quarantined"))
+        .withColumn("_dlq_timestamp", F.current_timestamp())
+{% if is_cloudfiles %}
+        .withColumnRenamed("_rescued_data", "_dlq_rescued_data")
+{% else %}
+        .withColumn("_dlq_rescued_data", F.lit(None).cast("string"))
+{% endif %}
+        .select(
+            "_dlq_sk", "_dlq_source_table", "_dlq_status",
+            "_dlq_timestamp", "_dlq_failed_rules", "_dlq_rescued_data",
+            "_row_data",
+        )
+    )
+
+    dlq = DeltaTable.forName(spark, DLQ_TABLE_{{ safe_source_view }})
+    (
+        dlq.alias("dlq")
+        .merge(batch.alias("new"), "dlq._dlq_sk = new._dlq_sk")
+        .whenNotMatchedInsertAll()
+        .execute()
+    )
+    return
+
+
+@dp.append_flow(target="dlq_sink_{{ safe_source_view }}", name="quarantine_flow_{{ safe_source_view }}")
+def quarantine_flow_{{ safe_source_view }}():
+    """Route failed rows to DLQ"""
+    return (
+        spark.readStream.table("{{ source_view }}")
+        .filter(_INVERSE_FILTER_{{ safe_source_view }})
+        .withColumn("_dlq_failed_rules",
+            F.array_compact(F.array(*_FAILED_RULE_EXPRS_{{ safe_source_view }}))
+        )
+    )
+
+
+# --- Quarantine: final output view (UNION of clean + recycled) ---
+@dp.temporary_view()
+def {{ target_view }}():
+    """{{ description }} — clean + recycled records"""
+    clean = spark.readStream.table("_clean_{{ safe_source_view }}")
+
+    recycled = (
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table(DLQ_TABLE_{{ safe_source_view }})
+        .filter(
+            "_dlq_status = 'fixed' "
+            "AND _change_type IN ('insert', 'update_postimage') "
+            f"AND _dlq_source_table = '{SOURCE_TABLE_{{ safe_source_view }}}'"
+        )
+        .select([
+            F.try_variant_get(F.col("_row_data"), f"$.{field.name}", field.dataType.simpleString()).alias(field.name)
+            for field in clean.schema.fields
+        ])
+    )
+
+    df = clean.union(recycled)
+    {% if add_operational_metadata %}
+
+    # Add operational metadata columns
+    {% for col_name, expression in metadata_columns.items()|sort %}
+    df = df.withColumn('{{ col_name }}', {{ expression }})
+    {% endfor %}
+    {% endif %}
+
+    return df
