@@ -1,0 +1,9 @@
+order_id IS NOT NULL:
+  action: drop
+  name: valid_order_id
+order_amount > 0:
+  action: warn
+  name: positive_amount
+customer_id IS NOT NULL:
+  action: fail
+  name: valid_customer_id

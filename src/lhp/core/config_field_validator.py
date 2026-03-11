@@ -137,6 +137,8 @@ class ConfigFieldValidator:
             "sql_path",
             "operational_metadata",
             "expectations_file",
+            "mode",
+            "quarantine",
             "once",
             # Python transform specific fields
             "module_path",

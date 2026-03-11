@@ -1,0 +1,37 @@
+pipeline: acmi_edw_bronze
+flowgroup: quarantine_flow
+#job_name: j_two
+
+actions:
+  - name: orders_raw_load
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: orders_raw
+    target: v_orders_raw
+    description: "Load orders from raw schema"
+
+  - name: orders_quarantine_dq
+    type: transform
+    transform_type: data_quality
+    source: v_orders_raw
+    target: v_orders_validated
+    readMode: stream
+    expectations_file: "expectations/quarantine_quality.yaml"
+    description: "Apply quarantine data quality checks to orders"
+    mode: quarantine
+    quarantine:
+      dlq_table: "{catalog}.{bronze_schema}.universal_dlq"
+      source_table: "{catalog}.{bronze_schema}.orders"
+      cloudfiles: false
+
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_validated
+    write_target:
+      create_table: true
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "orders_quarantined"
