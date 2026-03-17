@@ -1,0 +1,6 @@
+product_id,product_name,category,unit_price,stock_quantity,colour,last_updated
+15,LED Panel,Electronics,35.00,120,White,2025-03-01 10:00:00
+16,Power Brick,Hardware,22.50,80,Black,2025-03-01 11:00:00
+,No ID Lamp,Electronics,18.00,30,Silver,2025-03-02 09:00:00
+17,Broken Price,Components,-12.00,45,Red,2025-03-02 10:00:00
+18,,Hardware,8.50,-5,Blue,2025-03-03 08:00:00

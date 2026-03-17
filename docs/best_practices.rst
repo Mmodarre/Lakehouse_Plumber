@@ -10,9 +10,6 @@ environments. These best practices correlate Databricks Lakeflow Declarative Pip
 conventions, enterprise configuration-framework patterns, and LHP-specific capabilities.
 
 
-.. contents:: Table of Contents
-   :local:
-   :depth: 2
 
 
 1. Project Structure & Organisation
@@ -161,6 +158,9 @@ Subdirectory Support Matrix
      - ``.yaml`` only
      - One file per environment
 
+.. |sup1| replace:: :sup:`1`
+
+:sup:`1` ``.yml`` extension is also accepted but ``.yaml`` is recommended for consistency.
 
 .. _bp-2-1:
 
@@ -1415,6 +1415,9 @@ BP-12.1: Tier expectations by medallion layer
 
 LHP's DQE parser supports ``failureAction: fail|drop|warn`` in expectation files and
 generates the appropriate decorators.
+
+.. seealso::
+   For configuring quarantine mode in LHP, see :doc:`quarantine`.
 
 .. _bp-12-2:
 

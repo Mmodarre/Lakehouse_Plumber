@@ -4,15 +4,15 @@ version: "1.0"
 description: "acme Delta Lakehouse Project - TPC-H"
 author: "Mehdi Modarressi"
 created_date: "2025-07-11"
-required_lhp_version: ">=0.5.0,<0.7.0"
+required_lhp_version: ">=0.5.0,<0.8.0"
 
 include:
   # - "01_raw_ingestion/csv_ingestions/customer_ingestion_incremental.yaml"
-  - "01_raw_ingestion/**"
+  # - "01_raw_ingestion/**"
   # - "01_raw_ingestion/csv_ingestions/**"
   # - "01_raw_ingestion/json_ingestions/**"
   # - "01_raw_ingestion/parquet_ingestions/**"
-  - "02_bronze/**"
+  # - "02_bronze/**"
   # - "03_silver/dim/**"
   # - "03_silver/fct/**"
   # - "04_gold/**"
@@ -27,7 +27,7 @@ include:
   # - "02_bronze/partsupp_bronze.yaml"
   # - "02_bronze/region_bronze.yaml"
   # - "02_bronze/supplier_bronze.yaml"
-  - "03_silver/**"
+  # - "03_silver/**"
   # - "03_silver/fct/lineitem_*.yaml"
   # - "03_silver/dim/nation_*.yaml"
   # - "03_silver/fct/orders_*.yaml"
@@ -46,6 +46,7 @@ include:
   # - "05_tests/**"
   # - "09_test_python/**"
   # - "10_UniRateAPI/**"
+  - "q_testing/**"
 
   
 

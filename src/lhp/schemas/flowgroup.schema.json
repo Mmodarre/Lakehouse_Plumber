@@ -378,6 +378,27 @@
                     "type": "string",
                     "description": "Path to expectations file for data quality transforms"
                 },
+                "mode": {
+                    "type": "string",
+                    "enum": ["dqe", "quarantine"],
+                    "description": "Data quality mode: 'dqe' (default expectations decorators) or 'quarantine' (DLQ dead letter queue recycling)"
+                },
+                "quarantine": {
+                    "type": "object",
+                    "description": "Quarantine configuration for DLQ recycling (required when mode is 'quarantine')",
+                    "required": ["dlq_table", "source_table"],
+                    "properties": {
+                        "dlq_table": {
+                            "type": "string",
+                            "description": "Fully qualified name of the pre-created DLQ table (e.g. 'catalog.schema.universal_dlq')"
+                        },
+                        "source_table": {
+                            "type": "string",
+                            "description": "Fully qualified name of the source table for DLQ tagging and CDF filtering (e.g. 'catalog.schema.bronze_orders')"
+                        }
+                    },
+                    "additionalProperties": false
+                },
                 "schema_inline": {
                     "type": "string",
                     "description": "Inline schema definition for schema transforms (arrow or YAML format)"

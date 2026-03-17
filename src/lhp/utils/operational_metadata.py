@@ -333,6 +333,17 @@ class OperationalMetadata:
 
         return adapted_expression
 
+    def get_all_column_names(self) -> set:
+        """Return union of built-in default AND project-defined column names.
+
+        Used for defensive filtering (e.g. excluding metadata from hash calculations)
+        where over-excluding is harmless.
+        """
+        names = set(self.default_columns.keys())
+        if self.project_config and self.project_config.columns:
+            names.update(self.project_config.columns.keys())
+        return names
+
     def resolve_metadata_selection(
         self,
         flowgroup: Optional[FlowGroup],

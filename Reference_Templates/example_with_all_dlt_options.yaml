@@ -102,7 +102,6 @@ actions:
         readChangeFeed: "true"  # Enable Change Data Feed
         startingVersion: "0"
         # Alternative: startingTimestamp: "2023-01-01 00:00:00"
-        skipChangeCommits: "false"  # Optional: process change commits
     target: "v_orders_changes"
     description: "Stream order changes using Delta Change Data Feed with options"
   

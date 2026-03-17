@@ -1,6 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
-from typing import List, Dict, Any, Optional, Union
 from enum import Enum
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 
 class ActionType(str, Enum):
@@ -50,6 +51,13 @@ class TransformType(str, Enum):
     SCHEMA = "schema"
 
 
+class DQMode(str, Enum):
+    """Data quality enforcement modes."""
+
+    DQE = "dqe"
+    QUARANTINE = "quarantine"
+
+
 class WriteTargetType(str, Enum):
     STREAMING_TABLE = "streaming_table"
     MATERIALIZED_VIEW = "materialized_view"
@@ -81,6 +89,15 @@ class OperationalMetadataSelection(BaseModel):
     columns: Optional[List[str]] = None  # Explicit column selection
     include_columns: Optional[List[str]] = None  # Alternative syntax
     exclude_columns: Optional[List[str]] = None  # Alternative syntax
+
+
+class QuarantineConfig(BaseModel):
+    """Configuration for quarantine mode in data quality transforms."""
+
+    dlq_table: str = Field(..., description="Fully qualified DLQ table name")
+    source_table: str = Field(
+        ..., description="Fully qualified source table name for DLQ tagging"
+    )
 
 
 class ProjectOperationalMetadataConfig(BaseModel):
@@ -222,6 +239,14 @@ class Action(BaseModel):
         None  # Simplified: bool or list of column names
     )
     expectations_file: Optional[str] = None  # For data quality transforms
+    mode: Optional[str] = Field(
+        None,
+        description="Data quality mode: 'dqe' (default) or 'quarantine' (DLQ recycling)",
+    )
+    quarantine: Optional[QuarantineConfig] = Field(
+        None,
+        description="Quarantine configuration (required when mode is 'quarantine')",
+    )
     # Schema transform specific fields
     schema_inline: Optional[str] = (
         None  # Inline schema definition (arrow or YAML format)

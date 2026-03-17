@@ -227,11 +227,15 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
 +-------------------------+------------------+---------------------------------------------------+
 | Option                  | Type             | Description                                       |
 +=========================+==================+===================================================+
-| **readChangeFeed**      | string/boolean   | Enable Change Data Feed (requires stream mode)    |
+| **readChangeFeed**      | string/boolean   | Enable Change Data Feed (stream or batch)         |
 +-------------------------+------------------+---------------------------------------------------+
 | **startingVersion**     | string           | Starting version for CDC or time travel           |
 +-------------------------+------------------+---------------------------------------------------+
-| **startingTimestamp**   | string           | Starting timestamp for CDC (ISO 8601 format)      |
+| **startingTimestamp**    | string           | Starting timestamp for CDC (ISO 8601 format)      |
++-------------------------+------------------+---------------------------------------------------+
+| **endingVersion**       | string           | Ending version for batch CDF reads                |
++-------------------------+------------------+---------------------------------------------------+
+| **endingTimestamp**      | string           | Ending timestamp for batch CDF reads              |
 +-------------------------+------------------+---------------------------------------------------+
 | **versionAsOf**         | string           | Read specific table version (time travel)         |
 +-------------------------+------------------+---------------------------------------------------+
@@ -245,9 +249,77 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
 +-------------------------+------------------+---------------------------------------------------+
 
 .. note::
-  - The ``readChangeFeed`` option requires ``readMode: stream`` and will raise an error if used with batch mode
-  - All option values are validated and cannot be ``None`` or empty strings
-  - Options work in both streaming and batch modes (except ``readChangeFeed`` which is streaming-only)
+  - ``readChangeFeed`` works in both **stream** and **batch** mode. In batch mode, a starting bound (``startingVersion`` or ``startingTimestamp``) is required.
+  - ``endingVersion`` and ``endingTimestamp`` are only valid in batch mode.
+  - ``readChangeFeed`` and ``skipChangeCommits`` are **mutually exclusive** — one reads all changes, the other skips them.
+  - ``readChangeFeed`` cannot be combined with time-travel options (``versionAsOf`` / ``timestampAsOf``).
+  - ``startingVersion`` and ``startingTimestamp`` are mutually exclusive.
+  - ``versionAsOf`` and ``timestampAsOf`` are mutually exclusive.
+  - All option values are validated and cannot be ``None`` or empty strings.
+
+**Batch CDF Example:**
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_order_changes
+      type: load
+      readMode: batch
+      source:
+        type: delta
+        database: "{catalog}.bronze"
+        table: orders
+        options:
+          readChangeFeed: "true"
+          startingVersion: "5"
+          endingVersion: "20"
+      target: v_order_changes
+      description: "Read order changes between version 5 and 20"
+
+.. warning::
+  When using ``startingVersion``, the specified version may become unavailable after
+  ``VACUUM`` runs. Prefer ``startingTimestamp`` for durable references, or use
+  checkpoint-managed streaming for production workloads.
+
+**readChangeFeed vs skipChangeCommits:**
+
+- ``readChangeFeed: "true"`` — reads the Change Data Feed, exposing row-level changes
+  (inserts, updates, deletes) with metadata columns. Use this when you need to process
+  individual changes (e.g., CDC into a downstream table).
+- ``skipChangeCommits: "true"`` — skips commits that contain data-changing operations
+  (useful when a table has CDF enabled but you only want the latest state, ignoring
+  change events). **Cannot be combined with readChangeFeed.**
+
+**CDF Metadata Columns:**
+
+When ``readChangeFeed`` is enabled, the resulting DataFrame includes three additional
+columns:
+
+- ``_change_type`` — the type of change: ``insert``, ``update_preimage``, ``update_postimage``, or ``delete``
+- ``_commit_version`` — the Delta version of the commit
+- ``_commit_timestamp`` — the timestamp of the commit
+
+An ``UPDATE`` operation produces **two rows**: one with ``_change_type = "update_preimage"``
+(the old values) and one with ``_change_type = "update_postimage"`` (the new values).
+
+If writing CDF data to a non-CDC streaming table, you should filter or drop these columns
+in a transform action:
+
+.. code-block:: sql
+
+  SELECT * EXCEPT (_change_type, _commit_version, _commit_timestamp)
+  FROM stream(v_order_changes)
+  WHERE _change_type != 'delete'
+
+**Full Refresh Resilience:**
+
+When a Delta table undergoes a full refresh (e.g., ``TRUNCATE`` followed by reload), the
+CDF stream emits a large batch of ``delete`` rows followed by ``insert`` rows. This can
+overwhelm downstream consumers. Mitigation strategies:
+
+- Use ``ignoreDeletes: "true"`` if deletes are not relevant to your pipeline.
+- Use ``skipChangeCommits: "true"`` on non-CDF consumers that share the same source table.
+- For CDC targets, rely on Databricks checkpointing to handle reprocessing gracefully.
 
 **Time Travel Example:**
 

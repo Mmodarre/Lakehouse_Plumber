@@ -86,3 +86,15 @@ class OperationalMetadataService:
             f"Operational metadata result for '{action_name}': {len(metadata_columns)} column(s), {len(required_imports)} import(s)"
         )
         return bool(metadata_columns), metadata_columns, list(required_imports)
+
+    def get_all_metadata_column_names(self, project_config) -> set:
+        """Return the full set of metadata column names for defensive exclusion.
+
+        Combines built-in defaults with any project-defined columns.
+        """
+        operational_metadata = OperationalMetadata(
+            project_config=(
+                project_config.operational_metadata if project_config else None
+            )
+        )
+        return operational_metadata.get_all_column_names()

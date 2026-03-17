@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 import yaml
 
@@ -69,6 +69,39 @@ class DQEParser:
                 self.logger.warning(f"Unknown expectation type: {expectation_type}")
 
         return expect_all, expect_all_or_drop, expect_all_or_fail
+
+    def get_all_expectations_as_drop(
+        self, expectations: Union[List[Dict], Dict[str, Any]]
+    ) -> Dict[str, str]:
+        """Parse all expectations as drop semantics for quarantine mode.
+
+        In quarantine mode, all expectations are enforced as drop regardless of
+        their configured failureAction. This returns a single dict of
+        {name: constraint} suitable for @dp.expect_all_or_drop.
+
+        Handles both formats:
+        - Old format: list of dicts with name/expression/failureAction keys
+        - New format: dict where key is constraint, value has action/name
+
+        Args:
+            expectations: Expectations in either list or dict format
+
+        Returns:
+            Dict mapping expectation names to constraint expressions
+        """
+        result: Dict[str, str] = {}
+        if isinstance(expectations, list):
+            for exp in expectations:
+                constraint = exp.get("constraint") or exp.get("expression")
+                if not constraint:
+                    continue
+                name = exp.get("name") or exp.get("message") or f"rule_{len(result)}"
+                result[name] = constraint
+        elif isinstance(expectations, dict):
+            for constraint, exp_config in expectations.items():
+                name = exp_config.get("name", constraint)
+                result[name] = constraint
+        return result
 
     def load_expectations_from_file(self, expectations_file: Path) -> List[Dict]:
         """Load expectations from YAML file.

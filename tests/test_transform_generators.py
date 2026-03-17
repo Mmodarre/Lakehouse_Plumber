@@ -1,23 +1,31 @@
 """Tests for transform action generators of LakehousePlumber."""
 
-import pytest
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
+import pytest
 import yaml
-from lhp.models.config import Action, ActionType, TransformType, FlowGroup
+
 from lhp.generators.transform import (
-    SQLTransformGenerator,
     DataQualityTransformGenerator,
-    SchemaTransformGenerator,
     PythonTransformGenerator,
-    TempTableTransformGenerator
+    SchemaTransformGenerator,
+    SQLTransformGenerator,
+    TempTableTransformGenerator,
 )
 from lhp.generators.transform.python import PythonFunctionConflictError
+from lhp.models.config import (
+    Action,
+    ActionType,
+    FlowGroup,
+    QuarantineConfig,
+    TransformType,
+)
 
 
 class TestTransformGenerators:
     """Test transform action generators."""
-    
+
     def test_sql_transform_generator(self):
         """Test SQL transform generator."""
         generator = SQLTransformGenerator()
@@ -27,32 +35,32 @@ class TestTransformGenerators:
             transform_type=TransformType.SQL,
             source=["v_customers"],
             target="v_customers_clean",
-            sql="SELECT * FROM v_customers WHERE email IS NOT NULL"
+            sql="SELECT * FROM v_customers WHERE email IS NOT NULL",
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify generated code
         assert "@dp.temporary_view(comment=" in code
         assert "v_customers_clean" in code
         assert "df = spark.sql(" in code
         assert "return df" in code
         assert "SELECT * FROM v_customers WHERE email IS NOT NULL" in code
-    
+
     def test_data_quality_generator(self):
         """Test data quality transform generator."""
         generator = DataQualityTransformGenerator()
-        
+
         # Create expectations file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             expectations = {
                 "email IS NOT NULL": {"action": "warn", "name": "email_not_null"},
                 "age >= 18": {"action": "drop", "name": "age_check"},
-                "id IS NOT NULL": {"action": "fail", "name": "id_not_null"}
+                "id IS NOT NULL": {"action": "fail", "name": "id_not_null"},
             }
             yaml.dump(expectations, f)
             expectations_file = f.name
-        
+
         action = Action(
             name="validate_customers",
             type=ActionType.TRANSFORM,
@@ -60,26 +68,26 @@ class TestTransformGenerators:
             source="v_customers_clean",
             target="v_customers_validated",
             readMode="stream",
-            expectations_file=expectations_file
+            expectations_file=expectations_file,
         )
-        
+
         code = generator.generate(action, {"spec_dir": Path(expectations_file).parent})
-        
+
         # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_customers_validated" in code
         assert "@dp.expect_all_or_fail" in code
         assert "@dp.expect_all_or_drop" in code
         assert "@dp.expect_all" in code
-        
+
         # Verify inline expectations format (not using variables)
         assert '"id_not_null": "id IS NOT NULL"' in code
         assert '"age_check": "age >= 18"' in code
         assert '"email_not_null": "email IS NOT NULL"' in code
-        
+
         # Clean up
         Path(expectations_file).unlink()
-    
+
     def test_python_transform_generator(self):
         """Test Python transform generator."""
         generator = PythonTransformGenerator()
@@ -91,9 +99,9 @@ class TestTransformGenerators:
             source="v_customers_validated",
             module_path="transformations/enrich_customers.py",
             function_name="enrich_customers",
-            parameters={"enrichment_type": "full"}
+            parameters={"enrichment_type": "full"},
         )
-        
+
         # Create temporary Python file for the test
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -104,17 +112,18 @@ def enrich_customers(df, spark, parameters):
     enrichment_type = parameters.get("enrichment_type", "basic")
     return df.withColumn("enrichment_type", enrichment_type)
 """)
-            
-            code = generator.generate(action, {
-                "output_dir": tmpdir_path / "generated",
-                "spec_dir": tmpdir_path,
-                "flowgroup": FlowGroup(
-                    pipeline="test_pipeline",
-                    flowgroup="test_flowgroup", 
-                    actions=[]
-                )
-            })
-        
+
+            code = generator.generate(
+                action,
+                {
+                    "output_dir": tmpdir_path / "generated",
+                    "spec_dir": tmpdir_path,
+                    "flowgroup": FlowGroup(
+                        pipeline="test_pipeline", flowgroup="test_flowgroup", actions=[]
+                    ),
+                },
+            )
+
         # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_customers_enriched" in code
@@ -122,12 +131,12 @@ def enrich_customers(df, spark, parameters):
         assert 'spark.read.table("v_customers_validated")' in code
         # Check that the function is called correctly (imports are managed separately)
         assert "enrich_customers(v_customers_validated_df, spark, parameters)" in code
-    
+
     def test_python_transform_merge_behavior(self):
         """Test merge behavior when custom_python_functions/ already exists with different files."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            
+
             # Create first Python function
             transforms_dir1 = tmpdir_path / "transforms1"
             transforms_dir1.mkdir(parents=True)
@@ -135,18 +144,18 @@ def enrich_customers(df, spark, parameters):
 def transform_customers(df, spark, parameters):
     return df.withColumn("source", "function1")
 """)
-            
+
             # Create second Python function in different directory
-            transforms_dir2 = tmpdir_path / "transforms2"  
+            transforms_dir2 = tmpdir_path / "transforms2"
             transforms_dir2.mkdir(parents=True)
             (transforms_dir2 / "function2.py").write_text("""
 def transform_orders(df, spark, parameters):
     return df.withColumn("source", "function2")
 """)
-            
+
             generator = PythonTransformGenerator()
             output_dir = tmpdir_path / "generated"
-            
+
             # Generate first action - should create custom_python_functions/
             action1 = Action(
                 name="transform_customers",
@@ -155,30 +164,34 @@ def transform_orders(df, spark, parameters):
                 target="v_customers_transformed",
                 source="v_customers",
                 module_path="transforms1/function1.py",
-                function_name="transform_customers"
+                function_name="transform_customers",
             )
-            
+
             context1 = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
-                    pipeline="test_pipeline",
-                    flowgroup="flowgroup1",
-                    actions=[]
-                )
+                    pipeline="test_pipeline", flowgroup="flowgroup1", actions=[]
+                ),
             }
-            
+
             code1 = generator.generate(action1, context1)
-            
+
             # Verify first function was copied
             custom_functions_dir = output_dir / "custom_python_functions"
-            assert custom_functions_dir.exists(), "custom_python_functions directory should exist"
-            assert (custom_functions_dir / "__init__.py").exists(), "__init__.py should exist"
-            assert (custom_functions_dir / "function1.py").exists(), "function1.py should be copied"
-            
+            assert (
+                custom_functions_dir.exists()
+            ), "custom_python_functions directory should exist"
+            assert (
+                custom_functions_dir / "__init__.py"
+            ).exists(), "__init__.py should exist"
+            assert (
+                custom_functions_dir / "function1.py"
+            ).exists(), "function1.py should be copied"
+
             # Store content of first function
             function1_content = (custom_functions_dir / "function1.py").read_text()
-            
+
             # Generate second action - should merge with existing directory
             action2 = Action(
                 name="transform_orders",
@@ -187,46 +200,64 @@ def transform_orders(df, spark, parameters):
                 target="v_orders_transformed",
                 source="v_orders",
                 module_path="transforms2/function2.py",
-                function_name="transform_orders"
+                function_name="transform_orders",
             )
-            
+
             context2 = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
-                    pipeline="test_pipeline",
-                    flowgroup="flowgroup2",
-                    actions=[]
-                )
+                    pipeline="test_pipeline", flowgroup="flowgroup2", actions=[]
+                ),
             }
-            
+
             code2 = generator.generate(action2, context2)
-            
+
             # Verify merge behavior - both files should exist
-            assert (custom_functions_dir / "function1.py").exists(), "function1.py should still exist after merge"
-            assert (custom_functions_dir / "function2.py").exists(), "function2.py should be added during merge"
-            assert (custom_functions_dir / "__init__.py").exists(), "__init__.py should still exist"
-            
+            assert (
+                custom_functions_dir / "function1.py"
+            ).exists(), "function1.py should still exist after merge"
+            assert (
+                custom_functions_dir / "function2.py"
+            ).exists(), "function2.py should be added during merge"
+            assert (
+                custom_functions_dir / "__init__.py"
+            ).exists(), "__init__.py should still exist"
+
             # Verify first function wasn't overwritten
-            assert (custom_functions_dir / "function1.py").read_text() == function1_content, "function1.py content should be unchanged"
-            
-            # Verify second function has expected content  
+            assert (
+                custom_functions_dir / "function1.py"
+            ).read_text() == function1_content, (
+                "function1.py content should be unchanged"
+            )
+
+            # Verify second function has expected content
             function2_content = (custom_functions_dir / "function2.py").read_text()
-            assert "transform_orders" in function2_content, "function2.py should contain transform_orders function"
-            assert "DO NOT EDIT" in function2_content, "function2.py should have warning header"
-            
+            assert (
+                "transform_orders" in function2_content
+            ), "function2.py should contain transform_orders function"
+            assert (
+                "DO NOT EDIT" in function2_content
+            ), "function2.py should have warning header"
+
             # Verify function calls are generated correctly
             assert "transform_customers(v_customers_df, spark, parameters)" in code1
             assert "transform_orders(v_orders_df, spark, parameters)" in code2
-            
+
             # Verify that the generator added the correct imports (check import list)
-            assert "from custom_python_functions.function1 import transform_customers" in generator.imports
-            
+            assert (
+                "from custom_python_functions.function1 import transform_customers"
+                in generator.imports
+            )
+
             # Create new generator instance for second action to check its imports
             generator2 = PythonTransformGenerator()
             code2_new = generator2.generate(action2, context2)
-            assert "from custom_python_functions.function2 import transform_orders" in generator2.imports
-    
+            assert (
+                "from custom_python_functions.function2 import transform_orders"
+                in generator2.imports
+            )
+
     def test_temp_table_generator(self):
         """Test temporary table generator."""
         generator = TempTableTransformGenerator()
@@ -237,12 +268,12 @@ def transform_orders(df, spark, parameters):
             target="customers_staging",
             source={
                 "source": "v_customers_enriched",
-                "comment": "Staging table for customers"
-            }
+                "comment": "Staging table for customers",
+            },
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify generated code uses correct pattern
         assert "@dp.table(" in code
         assert "temporary=True" in code
@@ -255,7 +286,7 @@ def transform_orders(df, spark, parameters):
         """Test Python files in nested subdirectories (transformations/customer/cleaner.py)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            
+
             # Create deeply nested Python function
             nested_dir = tmpdir_path / "transformations" / "customer" / "advanced"
             nested_dir.mkdir(parents=True)
@@ -269,7 +300,7 @@ def validate_customer_data(df, spark, parameters):
     # Customer data validation
     return df.filter("customer_id > 0")
 """)
-            
+
             # Also create a simple nested structure for comparison
             simple_nested_dir = tmpdir_path / "utils" / "data"
             simple_nested_dir.mkdir(parents=True)
@@ -278,10 +309,10 @@ def validate_customer_data(df, spark, parameters):
 def process_data(df, spark, parameters):
     return df.withColumn("processed", "true")
 """)
-            
+
             generator = PythonTransformGenerator()
             output_dir = tmpdir_path / "generated"
-            
+
             # Test deeply nested path
             action1 = Action(
                 name="clean_customers",
@@ -290,36 +321,46 @@ def process_data(df, spark, parameters):
                 target="v_customers_clean",
                 source="v_customers_raw",
                 module_path="transformations/customer/advanced/cleaner.py",
-                function_name="clean_customer_data"
+                function_name="clean_customer_data",
             )
-            
+
             context1 = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
                     pipeline="test_pipeline",
                     flowgroup="customer_processing",
-                    actions=[]
-                )
+                    actions=[],
+                ),
             }
-            
+
             code1 = generator.generate(action1, context1)
-            
+
             # Verify nested file was copied correctly
             custom_functions_dir = output_dir / "custom_python_functions"
             copied_file = custom_functions_dir / "cleaner.py"
-            assert copied_file.exists(), "Nested file should be copied to custom_python_functions/"
-            
+            assert (
+                copied_file.exists()
+            ), "Nested file should be copied to custom_python_functions/"
+
             # Verify copied file content
             copied_content = copied_file.read_text()
-            assert "clean_customer_data" in copied_content, "Copied file should contain the function"
-            assert "validate_customer_data" in copied_content, "Copied file should contain all functions"
-            assert "Generated by LakehousePlumber" in copied_content, "Copied file should have warning header"
-            assert "transformations/customer/advanced/cleaner.py" in copied_content, "Warning should show original path"
-            
+            assert (
+                "clean_customer_data" in copied_content
+            ), "Copied file should contain the function"
+            assert (
+                "validate_customer_data" in copied_content
+            ), "Copied file should contain all functions"
+            assert (
+                "Generated by LakehousePlumber" in copied_content
+            ), "Copied file should have warning header"
+            assert (
+                "transformations/customer/advanced/cleaner.py" in copied_content
+            ), "Warning should show original path"
+
             # Verify generated code uses correct function name
             assert "clean_customer_data(v_customers_raw_df, spark, parameters)" in code1
-            
+
             # Test simple nested path
             generator2 = PythonTransformGenerator()
             action2 = Action(
@@ -329,42 +370,48 @@ def process_data(df, spark, parameters):
                 target="v_data_processed",
                 source="v_data_raw",
                 module_path="utils/data/processor.py",
-                function_name="process_data"
+                function_name="process_data",
             )
-            
+
             context2 = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
-                    pipeline="test_pipeline",
-                    flowgroup="data_processing",
-                    actions=[]
-                )
+                    pipeline="test_pipeline", flowgroup="data_processing", actions=[]
+                ),
             }
-            
+
             code2 = generator2.generate(action2, context2)
-            
+
             # Verify second nested file was copied correctly
             processor_file = custom_functions_dir / "processor.py"
             assert processor_file.exists(), "Second nested file should be copied"
-            
+
             # Verify both files coexist
             assert copied_file.exists(), "First nested file should still exist"
             assert processor_file.exists(), "Second nested file should exist"
-            
+
             # Verify imports are correct for nested paths
-            assert "from custom_python_functions.cleaner import clean_customer_data" in generator.imports
-            assert "from custom_python_functions.processor import process_data" in generator2.imports
-            
+            assert (
+                "from custom_python_functions.cleaner import clean_customer_data"
+                in generator.imports
+            )
+            assert (
+                "from custom_python_functions.processor import process_data"
+                in generator2.imports
+            )
+
             # Verify module names are extracted correctly (should be file stem, not full path)
             processor_content = processor_file.read_text()
-            assert "utils/data/processor.py" in processor_content, "Warning should show original nested path"
+            assert (
+                "utils/data/processor.py" in processor_content
+            ), "Warning should show original nested path"
 
     def test_python_transform_module_naming_same_pipeline(self):
         """Test module naming conflicts within same pipeline - should add directory prefix."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            
+
             # Create two Python files with the same name but in different directories
             # First: transformations/cleaner.py
             transforms_dir = tmpdir_path / "transformations"
@@ -373,7 +420,7 @@ def process_data(df, spark, parameters):
 def clean_data(df, spark, parameters):
     return df.filter("status = 'active'")
 """)
-            
+
             # Second: utils/cleaner.py (same filename, different directory)
             utils_dir = tmpdir_path / "utils"
             utils_dir.mkdir(parents=True)
@@ -381,7 +428,7 @@ def clean_data(df, spark, parameters):
 def clean_data(df, spark, parameters):
     return df.dropDuplicates()
 """)
-            
+
             # Third: data/processing/cleaner.py (same filename, nested directory)
             nested_dir = tmpdir_path / "data" / "processing"
             nested_dir.mkdir(parents=True)
@@ -389,13 +436,14 @@ def clean_data(df, spark, parameters):
 def clean_data(df, spark, parameters):
     return df.fillna("unknown")
 """)
-            
+
             output_dir = tmpdir_path / "generated"
-            
+
             # Create Python file copier for conflict detection (simulates orchestrator behavior)
             from lhp.generators.transform.python_file_copier import PythonFileCopier
+
             python_copier = PythonFileCopier()
-            
+
             # Generate first action - should use base name
             generator1 = PythonTransformGenerator()
             action1 = Action(
@@ -405,26 +453,28 @@ def clean_data(df, spark, parameters):
                 target="v_clean_data",
                 source="v_raw_data",
                 module_path="transformations/cleaner.py",
-                function_name="clean_data"
+                function_name="clean_data",
             )
-            
+
             context1 = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
                     pipeline="test_pipeline",  # Same pipeline
                     flowgroup="flowgroup1",
-                    actions=[]
+                    actions=[],
                 ),
-                "python_file_copier": python_copier
+                "python_file_copier": python_copier,
             }
-            
+
             code1 = generator1.generate(action1, context1)
-            
+
             # Verify first file uses base name (no conflict yet)
             custom_functions_dir = output_dir / "custom_python_functions"
-            assert (custom_functions_dir / "cleaner.py").exists(), "First file should use base name"
-            
+            assert (
+                custom_functions_dir / "cleaner.py"
+            ).exists(), "First file should use base name"
+
             # Generate second action - should add prefix due to conflict
             generator2 = PythonTransformGenerator()
             action2 = Action(
@@ -434,46 +484,55 @@ def clean_data(df, spark, parameters):
                 target="v_util_clean",
                 source="v_raw_util",
                 module_path="utils/cleaner.py",
-                function_name="clean_data"
+                function_name="clean_data",
             )
-            
+
             context2 = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
                     pipeline="test_pipeline",  # Same pipeline - should cause conflict
                     flowgroup="flowgroup2",
-                    actions=[]
+                    actions=[],
                 ),
-                "python_file_copier": python_copier
+                "python_file_copier": python_copier,
             }
-            
+
             # This should raise a conflict error since cleaner.py already exists from different source
             with pytest.raises(PythonFunctionConflictError):
                 code2 = generator2.generate(action2, context2)
-            
+
             # Verify only the first file exists (no automatic prefixing)
-            assert (custom_functions_dir / "cleaner.py").exists(), "Original file should still exist"
-            assert not (custom_functions_dir / "utils_cleaner.py").exists(), "Conflicting file should not be created"
-            
+            assert (
+                custom_functions_dir / "cleaner.py"
+            ).exists(), "Original file should still exist"
+            assert not (
+                custom_functions_dir / "utils_cleaner.py"
+            ).exists(), "Conflicting file should not be created"
+
             # Note: Third action would also conflict, demonstrating consistent behavior
-            
+
             # Verify only the original file exists and has correct content
             assert (custom_functions_dir / "cleaner.py").exists()
-            
+
             # Verify imports use correct module name for successful generation
-            assert "from custom_python_functions.cleaner import clean_data" in generator1.imports
+            assert (
+                "from custom_python_functions.cleaner import clean_data"
+                in generator1.imports
+            )
             # Note: generator2 and generator3 imports were not created due to conflicts
-            
+
             # Verify file content has correct implementation from first source
             content1 = (custom_functions_dir / "cleaner.py").read_text()
-            assert "status = 'active'" in content1, "File should have implementation from transformations/cleaner.py"
+            assert (
+                "status = 'active'" in content1
+            ), "File should have implementation from transformations/cleaner.py"
 
     def test_python_transform_module_naming_different_pipelines(self):
         """Test module naming conflicts across different pipelines - should be valid."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            
+
             # Create two Python files with the same name
             # First: transformations/processor.py for pipeline1
             transforms_dir = tmpdir_path / "transformations"
@@ -482,7 +541,7 @@ def clean_data(df, spark, parameters):
 def process_orders(df, spark, parameters):
     return df.withColumn("processed_by", "pipeline1")
 """)
-            
+
             # Second: utils/processor.py for pipeline2
             utils_dir = tmpdir_path / "utils"
             utils_dir.mkdir(parents=True)
@@ -490,7 +549,7 @@ def process_orders(df, spark, parameters):
 def process_customers(df, spark, parameters):
     return df.withColumn("processed_by", "pipeline2")
 """)
-            
+
             # Generate first action for pipeline1
             generator1 = PythonTransformGenerator()
             action1 = Action(
@@ -500,9 +559,9 @@ def process_customers(df, spark, parameters):
                 target="v_orders_processed",
                 source="v_orders_raw",
                 module_path="transformations/processor.py",
-                function_name="process_orders"
+                function_name="process_orders",
             )
-            
+
             output_dir1 = tmpdir_path / "generated" / "pipeline1"
             context1 = {
                 "output_dir": output_dir1,
@@ -510,12 +569,12 @@ def process_customers(df, spark, parameters):
                 "flowgroup": FlowGroup(
                     pipeline="pipeline1",  # Different pipeline
                     flowgroup="orders_processing",
-                    actions=[]
-                )
+                    actions=[],
+                ),
             }
-            
+
             code1 = generator1.generate(action1, context1)
-            
+
             # Generate second action for pipeline2
             generator2 = PythonTransformGenerator()
             action2 = Action(
@@ -525,9 +584,9 @@ def process_customers(df, spark, parameters):
                 target="v_customers_processed",
                 source="v_customers_raw",
                 module_path="utils/processor.py",
-                function_name="process_customers"
+                function_name="process_customers",
             )
-            
+
             output_dir2 = tmpdir_path / "generated" / "pipeline2"
             context2 = {
                 "output_dir": output_dir2,
@@ -535,77 +594,114 @@ def process_customers(df, spark, parameters):
                 "flowgroup": FlowGroup(
                     pipeline="pipeline2",  # Different pipeline
                     flowgroup="customers_processing",
-                    actions=[]
-                )
+                    actions=[],
+                ),
             }
-            
+
             code2 = generator2.generate(action2, context2)
-            
+
             # Verify both files use base name (no conflict across different pipelines)
             custom_functions_dir1 = output_dir1 / "custom_python_functions"
             custom_functions_dir2 = output_dir2 / "custom_python_functions"
-            
-            assert (custom_functions_dir1 / "processor.py").exists(), "Pipeline1 should use base name"
-            assert (custom_functions_dir2 / "processor.py").exists(), "Pipeline2 should use base name"
-            
+
+            assert (
+                custom_functions_dir1 / "processor.py"
+            ).exists(), "Pipeline1 should use base name"
+            assert (
+                custom_functions_dir2 / "processor.py"
+            ).exists(), "Pipeline2 should use base name"
+
             # Verify no prefixed versions were created (since different pipelines)
             pipeline1_files = list(custom_functions_dir1.glob("*processor*.py"))
             pipeline2_files = list(custom_functions_dir2.glob("*processor*.py"))
-            
-            assert len(pipeline1_files) == 1, "Pipeline1 should have only one processor file"
-            assert len(pipeline2_files) == 1, "Pipeline2 should have only one processor file"
-            assert pipeline1_files[0].name == "processor.py", "Pipeline1 file should use base name"
-            assert pipeline2_files[0].name == "processor.py", "Pipeline2 file should use base name"
-            
+
+            assert (
+                len(pipeline1_files) == 1
+            ), "Pipeline1 should have only one processor file"
+            assert (
+                len(pipeline2_files) == 1
+            ), "Pipeline2 should have only one processor file"
+            assert (
+                pipeline1_files[0].name == "processor.py"
+            ), "Pipeline1 file should use base name"
+            assert (
+                pipeline2_files[0].name == "processor.py"
+            ), "Pipeline2 file should use base name"
+
             # Verify file contents are different (from different source files)
             content1 = (custom_functions_dir1 / "processor.py").read_text()
             content2 = (custom_functions_dir2 / "processor.py").read_text()
-            
-            assert "process_orders" in content1, "Pipeline1 should have process_orders function"
+
+            assert (
+                "process_orders" in content1
+            ), "Pipeline1 should have process_orders function"
             assert "pipeline1" in content1, "Pipeline1 should have pipeline1 identifier"
-            assert "process_customers" in content2, "Pipeline2 should have process_customers function"
+            assert (
+                "process_customers" in content2
+            ), "Pipeline2 should have process_customers function"
             assert "pipeline2" in content2, "Pipeline2 should have pipeline2 identifier"
-            
+
             # Verify imports use base name for both pipelines
-            assert "from custom_python_functions.processor import process_orders" in generator1.imports
-            assert "from custom_python_functions.processor import process_customers" in generator2.imports
-            
+            assert (
+                "from custom_python_functions.processor import process_orders"
+                in generator1.imports
+            )
+            assert (
+                "from custom_python_functions.processor import process_customers"
+                in generator2.imports
+            )
+
             # Verify function calls in generated code
             assert "process_orders(v_orders_raw_df, spark, parameters)" in code1
             assert "process_customers(v_customers_raw_df, spark, parameters)" in code2
-            
+
             # Verify warning headers show correct original paths
-            assert "transformations/processor.py" in content1, "Pipeline1 warning should show transformations path"
-            assert "utils/processor.py" in content2, "Pipeline2 warning should show utils path"
+            assert (
+                "transformations/processor.py" in content1
+            ), "Pipeline1 warning should show transformations path"
+            assert (
+                "utils/processor.py" in content2
+            ), "Pipeline2 warning should show utils path"
 
     def test_python_transform_import_generation_syntax(self):
         """Test that generated imports are syntactically correct and importable."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            
+
             # Test various module and function name combinations
             test_cases = [
                 # (module_path, function_name, expected_module_name)
                 ("transformations/data_cleaner.py", "clean_data", "data_cleaner"),
                 ("utils/data_processor.py", "process_data", "data_processor"),
-                ("advanced/ml/model_trainer.py", "train_model", "model_trainer"),  # Nested path (no conflict)
-                ("simple_transform.py", "transform", "simple_transform"),  # Root level file
+                (
+                    "advanced/ml/model_trainer.py",
+                    "train_model",
+                    "model_trainer",
+                ),  # Nested path (no conflict)
+                (
+                    "simple_transform.py",
+                    "transform",
+                    "simple_transform",
+                ),  # Root level file
                 ("validators/email_validator.py", "validate_email", "email_validator"),
             ]
-            
+
             # Create Python file copier for conflict detection
             from lhp.generators.transform.python_file_copier import PythonFileCopier
+
             python_copier = PythonFileCopier()
-            
+
             generator = PythonTransformGenerator()
             output_dir = tmpdir_path / "generated"
-            
+
             # Create Python files for test cases
-            for i, (module_path, function_name, expected_module) in enumerate(test_cases):
+            for i, (module_path, function_name, expected_module) in enumerate(
+                test_cases
+            ):
                 # Create directory structure
                 file_path = tmpdir_path / module_path
                 file_path.parent.mkdir(parents=True, exist_ok=True)
-                
+
                 # Create Python file with function
                 file_path.write_text(f"""
 def {function_name}(df, spark, parameters):
@@ -614,7 +710,7 @@ def {function_name}(df, spark, parameters):
 def helper_function():
     pass
 """)
-                
+
                 # Generate action
                 action = Action(
                     name=f"test_action_{i}",
@@ -623,42 +719,46 @@ def helper_function():
                     target=f"v_output_{i}",
                     source=f"v_input_{i}",
                     module_path=module_path,
-                    function_name=function_name
+                    function_name=function_name,
                 )
-                
+
                 context = {
                     "output_dir": output_dir,
                     "spec_dir": tmpdir_path,
                     "flowgroup": FlowGroup(
-                        pipeline="test_pipeline",
-                        flowgroup=f"flowgroup_{i}",
-                        actions=[]
+                        pipeline="test_pipeline", flowgroup=f"flowgroup_{i}", actions=[]
                     ),
-                    "python_file_copier": python_copier
+                    "python_file_copier": python_copier,
                 }
-                
+
                 code = generator.generate(action, context)
-                
+
                 # Test import syntax
                 expected_import = f"from custom_python_functions.{expected_module} import {function_name}"
-                assert expected_import in generator.imports, f"Expected import '{expected_import}' not found in generator imports"
-                
+                assert (
+                    expected_import in generator.imports
+                ), f"Expected import '{expected_import}' not found in generator imports"
+
                 # Test that import is syntactically valid Python
                 try:
-                    compile(expected_import, '<string>', 'exec')
+                    compile(expected_import, "<string>", "exec")
                 except SyntaxError as e:
-                    assert False, f"Generated import '{expected_import}' has syntax error: {e}"
-                
+                    assert (
+                        False
+                    ), f"Generated import '{expected_import}' has syntax error: {e}"
+
                 # Test function call in generated code
                 expected_call = f"{function_name}(v_input_{i}_df, spark, parameters)"
-                assert expected_call in code, f"Expected function call '{expected_call}' not found in generated code"
-            
+                assert (
+                    expected_call in code
+                ), f"Expected function call '{expected_call}' not found in generated code"
+
             # Test conflict resolution by creating two files with same name
             conflict_dir1 = tmpdir_path / "dir1"
             conflict_dir2 = tmpdir_path / "dir2"
             conflict_dir1.mkdir(parents=True)
             conflict_dir2.mkdir(parents=True)
-            
+
             # Create two files with same name but different content
             (conflict_dir1 / "processor.py").write_text("""
 def process(df, spark, parameters):
@@ -668,7 +768,7 @@ def process(df, spark, parameters):
 def process(df, spark, parameters):
     return df.withColumn("source", "dir2")
 """)
-            
+
             # Generate first action (should use base name)
             action_conflict1 = Action(
                 name="conflict_test_1",
@@ -677,22 +777,22 @@ def process(df, spark, parameters):
                 target="v_conflict_1",
                 source="v_input_conflict_1",
                 module_path="dir1/processor.py",
-                function_name="process"
+                function_name="process",
             )
-            
+
             context_conflict1 = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
                     pipeline="test_pipeline",
                     flowgroup="conflict_flowgroup_1",
-                    actions=[]
+                    actions=[],
                 ),
-                "python_file_copier": python_copier
+                "python_file_copier": python_copier,
             }
-            
+
             code_conflict1 = generator.generate(action_conflict1, context_conflict1)
-            
+
             # Generate second action (should trigger conflict resolution and use prefix)
             action_conflict2 = Action(
                 name="conflict_test_2",
@@ -701,38 +801,41 @@ def process(df, spark, parameters):
                 target="v_conflict_2",
                 source="v_input_conflict_2",
                 module_path="dir2/processor.py",
-                function_name="process"
+                function_name="process",
             )
-            
+
             context_conflict2 = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
                     pipeline="test_pipeline",  # Same pipeline - should cause conflict
                     flowgroup="conflict_flowgroup_2",
-                    actions=[]
+                    actions=[],
                 ),
-                "python_file_copier": python_copier
+                "python_file_copier": python_copier,
             }
-            
+
             # This should raise a conflict error since processor.py already exists from different source
             with pytest.raises(PythonFunctionConflictError):
                 code_conflict2 = generator.generate(action_conflict2, context_conflict2)
-            
+
             # Verify only the first import was created (no automatic conflict resolution)
-            assert "from custom_python_functions.processor import process" in generator.imports
+            assert (
+                "from custom_python_functions.processor import process"
+                in generator.imports
+            )
             # Note: second import was not created due to conflict detection
-            
+
             # Test special characters and edge cases
             edge_cases_dir = tmpdir_path / "edge_cases"
             edge_cases_dir.mkdir(parents=True)
-            
+
             # Test with numbers and underscores
             (edge_cases_dir / "data_v2_processor.py").write_text("""
 def process_data_v2(df, spark, parameters):
     return df.withColumn("version", "2")
 """)
-            
+
             generator_edge = PythonTransformGenerator()
             action_edge = Action(
                 name="edge_test",
@@ -741,25 +844,25 @@ def process_data_v2(df, spark, parameters):
                 target="v_edge_output",
                 source="v_edge_input",
                 module_path="edge_cases/data_v2_processor.py",
-                function_name="process_data_v2"
+                function_name="process_data_v2",
             )
-            
+
             context_edge = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
-                    pipeline="test_pipeline",
-                    flowgroup="edge_flowgroup",
-                    actions=[]
-                )
+                    pipeline="test_pipeline", flowgroup="edge_flowgroup", actions=[]
+                ),
             }
-            
+
             code_edge = generator_edge.generate(action_edge, context_edge)
-            
+
             # Verify edge case import
-            edge_import = "from custom_python_functions.data_v2_processor import process_data_v2"
+            edge_import = (
+                "from custom_python_functions.data_v2_processor import process_data_v2"
+            )
             assert edge_import in generator_edge.imports
-            
+
             # Test that all generated imports are unique and valid
             all_imports = set()
             for test_gen in [generator, generator_edge]:
@@ -767,33 +870,50 @@ def process_data_v2(df, spark, parameters):
                     if "custom_python_functions" in imp:
                         assert imp not in all_imports, f"Duplicate import found: {imp}"
                         all_imports.add(imp)
-                        
+
                         # Test syntax validity
                         try:
-                            compile(imp, '<string>', 'exec')
+                            compile(imp, "<string>", "exec")
                         except SyntaxError as e:
                             assert False, f"Invalid import syntax: {imp} - {e}"
-            
+
             # Verify copied files exist and are importable
             custom_functions_dir = output_dir / "custom_python_functions"
-            assert (custom_functions_dir / "__init__.py").exists(), "__init__.py should exist"
-            
+            assert (
+                custom_functions_dir / "__init__.py"
+            ).exists(), "__init__.py should exist"
+
             # Verify that Python package structure is correct
             init_content = (custom_functions_dir / "__init__.py").read_text()
             assert "Generated package for custom Python functions" in init_content
-            
+
             # Test that module names don't conflict with Python keywords
-            python_keywords = ['def', 'class', 'import', 'from', 'if', 'else', 'for', 'while', 'try', 'except']
+            python_keywords = [
+                "def",
+                "class",
+                "import",
+                "from",
+                "if",
+                "else",
+                "for",
+                "while",
+                "try",
+                "except",
+            ]
             for imp in all_imports:
                 for keyword in python_keywords:
-                    assert f".{keyword} " not in imp, f"Import uses Python keyword: {imp}"
-                    assert f"_{keyword}_" not in imp, f"Import contains Python keyword: {imp}"
+                    assert (
+                        f".{keyword} " not in imp
+                    ), f"Import uses Python keyword: {imp}"
+                    assert (
+                        f"_{keyword}_" not in imp
+                    ), f"Import contains Python keyword: {imp}"
 
     def test_python_transform_multiple_source_views(self):
         """Test Python transforms with multiple input DataFrames (list of sources)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            
+
             # Create Python function that handles multiple dataframes
             transforms_dir = tmpdir_path / "transformations"
             transforms_dir.mkdir(parents=True)
@@ -811,10 +931,10 @@ def merge_data_sources(dataframes, spark, parameters):
         result = result.union(df)
     return result.distinct()
 """)
-            
+
             generator = PythonTransformGenerator()
             output_dir = tmpdir_path / "generated"
-            
+
             # Test with 2 source views
             action_two_sources = Action(
                 name="join_customer_orders",
@@ -824,31 +944,31 @@ def merge_data_sources(dataframes, spark, parameters):
                 source=["v_customers", "v_orders"],  # Multiple sources as list
                 module_path="transformations/multi_transformer.py",
                 function_name="join_customer_orders",
-                parameters={"join_type": "left"}
+                parameters={"join_type": "left"},
             )
-            
+
             context = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
-                    pipeline="test_pipeline",
-                    flowgroup="multi_source_test",
-                    actions=[]
-                )
+                    pipeline="test_pipeline", flowgroup="multi_source_test", actions=[]
+                ),
             }
-            
+
             code_two = generator.generate(action_two_sources, context)
-            
+
             # Verify generated code for 2 sources
-            assert "v_customers_df = spark.read.table(\"v_customers\")" in code_two
-            assert "v_orders_df = spark.read.table(\"v_orders\")" in code_two
+            assert 'v_customers_df = spark.read.table("v_customers")' in code_two
+            assert 'v_orders_df = spark.read.table("v_orders")' in code_two
             assert "dataframes = [v_customers_df, v_orders_df]" in code_two
-            assert "df = join_customer_orders(dataframes, spark, parameters)" in code_two
+            assert (
+                "df = join_customer_orders(dataframes, spark, parameters)" in code_two
+            )
             assert "return df" in code_two
-            
+
             # Verify parameters are properly formatted
             assert '"join_type": "left"' in code_two
-            
+
             # Test with 3 source views
             generator2 = PythonTransformGenerator()
             action_three_sources = Action(
@@ -859,18 +979,22 @@ def merge_data_sources(dataframes, spark, parameters):
                 source=["v_source1", "v_source2", "v_source3"],  # Three sources
                 module_path="transformations/multi_transformer.py",
                 function_name="merge_data_sources",
-                parameters={"operation": "union"}
+                parameters={"operation": "union"},
             )
-            
+
             code_three = generator2.generate(action_three_sources, context)
-            
+
             # Verify generated code for 3 sources
-            assert "v_source1_df = spark.read.table(\"v_source1\")" in code_three
-            assert "v_source2_df = spark.read.table(\"v_source2\")" in code_three
-            assert "v_source3_df = spark.read.table(\"v_source3\")" in code_three
-            assert "dataframes = [v_source1_df, v_source2_df, v_source3_df]" in code_three
-            assert "df = merge_data_sources(dataframes, spark, parameters)" in code_three
-            
+            assert 'v_source1_df = spark.read.table("v_source1")' in code_three
+            assert 'v_source2_df = spark.read.table("v_source2")' in code_three
+            assert 'v_source3_df = spark.read.table("v_source3")' in code_three
+            assert (
+                "dataframes = [v_source1_df, v_source2_df, v_source3_df]" in code_three
+            )
+            assert (
+                "df = merge_data_sources(dataframes, spark, parameters)" in code_three
+            )
+
             # Test with stream mode
             action_stream = Action(
                 name="stream_join",
@@ -880,37 +1004,45 @@ def merge_data_sources(dataframes, spark, parameters):
                 source=["v_stream1", "v_stream2"],
                 module_path="transformations/multi_transformer.py",
                 function_name="join_customer_orders",
-                readMode="stream"
+                readMode="stream",
             )
-            
+
             generator3 = PythonTransformGenerator()
             code_stream = generator3.generate(action_stream, context)
-            
+
             # Verify stream mode uses readStream
-            assert "v_stream1_df = spark.readStream.table(\"v_stream1\")" in code_stream
-            assert "v_stream2_df = spark.readStream.table(\"v_stream2\")" in code_stream
+            assert 'v_stream1_df = spark.readStream.table("v_stream1")' in code_stream
+            assert 'v_stream2_df = spark.readStream.table("v_stream2")' in code_stream
             assert "dataframes = [v_stream1_df, v_stream2_df]" in code_stream
-            
+
             # Verify imports are generated correctly
-            assert "from custom_python_functions.multi_transformer import join_customer_orders" in generator.imports
-            assert "from custom_python_functions.multi_transformer import merge_data_sources" in generator2.imports
-            
+            assert (
+                "from custom_python_functions.multi_transformer import join_customer_orders"
+                in generator.imports
+            )
+            assert (
+                "from custom_python_functions.multi_transformer import merge_data_sources"
+                in generator2.imports
+            )
+
             # Verify copied files
             custom_functions_dir = output_dir / "custom_python_functions"
             copied_file = custom_functions_dir / "multi_transformer.py"
             assert copied_file.exists()
-            
+
             # Verify copied file content includes both functions
             copied_content = copied_file.read_text()
             assert "join_customer_orders" in copied_content
             assert "merge_data_sources" in copied_content
-            assert "Generated by LakehousePlumber" in copied_content  # Should have warning header
+            assert (
+                "Generated by LakehousePlumber" in copied_content
+            )  # Should have warning header
 
     def test_python_transform_no_source_views(self):
         """Test Python transforms that generate data (no source views)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            
+
             # Create Python function that generates data
             generators_dir = tmpdir_path / "generators"
             generators_dir.mkdir(parents=True)
@@ -945,10 +1077,10 @@ def generate_test_data(spark, parameters):
     )
     return df
 """)
-            
+
             generator = PythonTransformGenerator()
             output_dir = tmpdir_path / "generated"
-            
+
             # Test data generator with empty list source
             action_empty_list = Action(
                 name="generate_reference_data",
@@ -958,35 +1090,33 @@ def generate_test_data(spark, parameters):
                 source=[],  # Empty list - no source views
                 module_path="generators/data_generator.py",
                 function_name="generate_reference_data",
-                parameters={"data_type": "lookup"}
+                parameters={"data_type": "lookup"},
             )
-            
+
             context = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
-                    pipeline="test_pipeline",
-                    flowgroup="data_generation",
-                    actions=[]
-                )
+                    pipeline="test_pipeline", flowgroup="data_generation", actions=[]
+                ),
             }
-            
+
             code_empty = generator.generate(action_empty_list, context)
-            
+
             # Verify generated code for no sources
             assert "# No source views - function generates data" in code_empty
             assert "parameters = " in code_empty
             assert "df = generate_reference_data(spark, parameters)" in code_empty
             assert "return df" in code_empty
-            
+
             # Should not have any source view loading
             assert "spark.read.table" not in code_empty
             assert "spark.readStream.table" not in code_empty
             assert "dataframes = " not in code_empty
-            
+
             # Verify parameters are formatted correctly
             assert '"data_type": "lookup"' in code_empty
-            
+
             # Test another data generator with different parameters
             generator2 = PythonTransformGenerator()
             action_test_data = Action(
@@ -997,16 +1127,16 @@ def generate_test_data(spark, parameters):
                 source=[],  # No sources
                 module_path="generators/data_generator.py",
                 function_name="generate_test_data",
-                parameters={"count": 1000}
+                parameters={"count": 1000},
             )
-            
+
             code_test = generator2.generate(action_test_data, context)
-            
+
             # Verify test data generator
             assert "# No source views - function generates data" in code_test
             assert "df = generate_test_data(spark, parameters)" in code_test
             assert '"count": 1000' in code_test
-            
+
             # Test with operational metadata
             generator3 = PythonTransformGenerator()
             action_with_metadata = Action(
@@ -1017,24 +1147,30 @@ def generate_test_data(spark, parameters):
                 source=[],
                 module_path="generators/data_generator.py",
                 function_name="generate_reference_data",
-                operational_metadata=["_pipeline_name"]
+                operational_metadata=["_pipeline_name"],
             )
-            
+
             code_metadata = generator3.generate(action_with_metadata, context)
-            
+
             # Verify operational metadata is added
             assert "# Add operational metadata columns" in code_metadata
             assert "df = df.withColumn('_pipeline_name'" in code_metadata
-            
+
             # Verify imports are generated correctly
-            assert "from custom_python_functions.data_generator import generate_reference_data" in generator.imports
-            assert "from custom_python_functions.data_generator import generate_test_data" in generator2.imports
-            
+            assert (
+                "from custom_python_functions.data_generator import generate_reference_data"
+                in generator.imports
+            )
+            assert (
+                "from custom_python_functions.data_generator import generate_test_data"
+                in generator2.imports
+            )
+
             # Verify copied file exists and contains both functions
             custom_functions_dir = output_dir / "custom_python_functions"
             copied_file = custom_functions_dir / "data_generator.py"
             assert copied_file.exists()
-            
+
             copied_content = copied_file.read_text()
             assert "generate_reference_data" in copied_content
             assert "generate_test_data" in copied_content
@@ -1044,11 +1180,11 @@ def generate_test_data(spark, parameters):
         """Test complete end-to-end Python transform workflow with all features."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
-            
+
             # Create comprehensive Python functions that demonstrate all features
             functions_dir = tmpdir_path / "transformations"
             functions_dir.mkdir(parents=True)
-            
+
             # Single source function
             (functions_dir / "customer_transformer.py").write_text("""
 def transform_customers(df, spark, parameters):
@@ -1058,7 +1194,7 @@ def transform_customers(df, spark, parameters):
 def validate_customers(df, spark, parameters):
     return df.filter("email IS NOT NULL AND customer_id > 0")
 """)
-            
+
             # Multi-source function
             (functions_dir / "order_processor.py").write_text("""
 def join_orders_customers(dataframes, spark, parameters):
@@ -1066,8 +1202,8 @@ def join_orders_customers(dataframes, spark, parameters):
     join_type = parameters.get("join_type", "inner")
     return orders_df.join(customers_df, "customer_id", join_type)
 """)
-            
-            # Data generator function  
+
+            # Data generator function
             generators_dir = tmpdir_path / "generators"
             generators_dir.mkdir(parents=True)
             (generators_dir / "reference_data.py").write_text("""
@@ -1076,7 +1212,7 @@ def generate_lookup_data(spark, parameters):
     data = [Row(id=1, name="Premium"), Row(id=2, name="Standard")]
     return spark.createDataFrame(data)
 """)
-            
+
             # Conflict testing - same name different directories
             utils_dir = tmpdir_path / "utils"
             utils_dir.mkdir(parents=True)
@@ -1084,14 +1220,15 @@ def generate_lookup_data(spark, parameters):
 def transform_customers(df, spark, parameters):
     return df.withColumn("processed", "utils_version")
 """)
-            
+
             # Create Python file copier for conflict detection
             from lhp.generators.transform.python_file_copier import PythonFileCopier
+
             python_copier = PythonFileCopier()
-            
+
             generator = PythonTransformGenerator()
             output_dir = tmpdir_path / "generated"
-            
+
             # Test 1: Single source with operational metadata
             action1 = Action(
                 name="transform_customers",
@@ -1103,29 +1240,35 @@ def transform_customers(df, spark, parameters):
                 function_name="transform_customers",
                 parameters={"threshold": 500},
                 operational_metadata=["_pipeline_name"],
-                readMode="stream"
+                readMode="stream",
             )
-            
+
             context = {
                 "output_dir": output_dir,
                 "spec_dir": tmpdir_path,
                 "flowgroup": FlowGroup(
                     pipeline="comprehensive_test_pipeline",
                     flowgroup="customer_processing",
-                    actions=[]
+                    actions=[],
                 ),
-                "python_file_copier": python_copier
+                "python_file_copier": python_copier,
             }
-            
+
             code1 = generator.generate(action1, context)
-            
+
             # Verify single source with stream mode and metadata
-            assert "v_customers_raw_df = spark.readStream.table(\"v_customers_raw\")" in code1
-            assert "df = transform_customers(v_customers_raw_df, spark, parameters)" in code1
+            assert (
+                'v_customers_raw_df = spark.readStream.table("v_customers_raw")'
+                in code1
+            )
+            assert (
+                "df = transform_customers(v_customers_raw_df, spark, parameters)"
+                in code1
+            )
             assert '"threshold": 500' in code1
             assert "df = df.withColumn('_pipeline_name'" in code1
             assert "return df" in code1
-            
+
             # Test 2: Multiple sources with different parameters
             generator2 = PythonTransformGenerator()
             action2 = Action(
@@ -1136,18 +1279,21 @@ def transform_customers(df, spark, parameters):
                 source=["v_orders", "v_customers_transformed"],
                 module_path="transformations/order_processor.py",
                 function_name="join_orders_customers",
-                parameters={"join_type": "left"}
+                parameters={"join_type": "left"},
             )
-            
+
             code2 = generator2.generate(action2, context)
-            
+
             # Verify multiple sources
-            assert "v_orders_df = spark.read.table(\"v_orders\")" in code2
-            assert "v_customers_transformed_df = spark.read.table(\"v_customers_transformed\")" in code2
+            assert 'v_orders_df = spark.read.table("v_orders")' in code2
+            assert (
+                'v_customers_transformed_df = spark.read.table("v_customers_transformed")'
+                in code2
+            )
             assert "dataframes = [v_orders_df, v_customers_transformed_df]" in code2
             assert "df = join_orders_customers(dataframes, spark, parameters)" in code2
             assert '"join_type": "left"' in code2
-            
+
             # Test 3: Data generator (no sources)
             generator3 = PythonTransformGenerator()
             action3 = Action(
@@ -1157,16 +1303,16 @@ def transform_customers(df, spark, parameters):
                 target="v_lookup_data",
                 source=[],
                 module_path="generators/reference_data.py",
-                function_name="generate_lookup_data"
+                function_name="generate_lookup_data",
             )
-            
+
             code3 = generator3.generate(action3, context)
-            
+
             # Verify data generator
             assert "# No source views - function generates data" in code3
             assert "df = generate_lookup_data(spark, parameters)" in code3
             assert "spark.read.table" not in code3
-            
+
             # Test 4: Verify that conflicts are properly detected (should raise exception)
             generator4 = PythonTransformGenerator()
             action4 = Action(
@@ -1176,46 +1322,63 @@ def transform_customers(df, spark, parameters):
                 target="v_customers_utils_transformed",
                 source="v_customers_raw",
                 module_path="utils/customer_transformer.py",
-                function_name="transform_customers"
+                function_name="transform_customers",
             )
-            
+
             # This should raise a conflict error since customer_transformer.py already exists
             with pytest.raises(PythonFunctionConflictError):
                 code4 = generator4.generate(action4, context)
-            
+
             # Verify files were created (excluding the conflicting one)
             custom_functions_dir = output_dir / "custom_python_functions"
             assert (custom_functions_dir / "__init__.py").exists()
-            assert (custom_functions_dir / "customer_transformer.py").exists()  # First one
+            assert (
+                custom_functions_dir / "customer_transformer.py"
+            ).exists()  # First one
             assert (custom_functions_dir / "order_processor.py").exists()
             assert (custom_functions_dir / "reference_data.py").exists()
             # Note: utils_customer_transformer.py was NOT created due to conflict detection
-            
+
             # Verify imports are correct for successfully generated files
-            assert "from custom_python_functions.customer_transformer import transform_customers" in generator.imports
-            assert "from custom_python_functions.order_processor import join_orders_customers" in generator2.imports
-            assert "from custom_python_functions.reference_data import generate_lookup_data" in generator3.imports
+            assert (
+                "from custom_python_functions.customer_transformer import transform_customers"
+                in generator.imports
+            )
+            assert (
+                "from custom_python_functions.order_processor import join_orders_customers"
+                in generator2.imports
+            )
+            assert (
+                "from custom_python_functions.reference_data import generate_lookup_data"
+                in generator3.imports
+            )
             # Note: generator4 import was not created due to conflict
-            
+
             # Verify all successfully created files have warning headers
             for file_path in [
                 custom_functions_dir / "customer_transformer.py",
-                custom_functions_dir / "order_processor.py", 
-                custom_functions_dir / "reference_data.py"
+                custom_functions_dir / "order_processor.py",
+                custom_functions_dir / "reference_data.py",
             ]:
                 content = file_path.read_text()
                 assert "DO NOT EDIT" in content
                 assert "Generated by LakehousePlumber" in content
-                
+
             # Verify content of the successfully created file
-            regular_content = (custom_functions_dir / "customer_transformer.py").read_text()
+            regular_content = (
+                custom_functions_dir / "customer_transformer.py"
+            ).read_text()
             assert "single_source" in regular_content
-            
+
             # Verify different function signatures are handled correctly
-            assert "transform_customers(v_customers_raw_df, spark, parameters)" in code1  # Single source
-            assert "join_orders_customers(dataframes, spark, parameters)" in code2  # Multiple sources  
+            assert (
+                "transform_customers(v_customers_raw_df, spark, parameters)" in code1
+            )  # Single source
+            assert (
+                "join_orders_customers(dataframes, spark, parameters)" in code2
+            )  # Multiple sources
             assert "generate_lookup_data(spark, parameters)" in code3  # No sources
-            
+
             # Verify package structure
             init_content = (custom_functions_dir / "__init__.py").read_text()
             assert "Generated package for custom Python functions" in init_content
@@ -1223,7 +1386,7 @@ def transform_customers(df, spark, parameters):
     def test_schema_transform_generator(self):
         """Test schema transform generator."""
         generator = SchemaTransformGenerator()
-        
+
         # Test with inline schema (arrow format)
         action = Action(
             name="standardize_customer_schema",
@@ -1241,33 +1404,33 @@ phone_number: STRING
             """,
             enforcement="strict",
             readMode="batch",
-            description="Standardize customer schema and data types"
+            description="Standardize customer schema and data types",
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify generated code structure
         assert "@dp.temporary_view()" in code
         assert "v_customer_standardized" in code
-        assert "spark.read.table(\"v_customer_raw\")" in code
+        assert 'spark.read.table("v_customer_raw")' in code
         assert "return df" in code
-        
+
         # Verify column renaming
         assert "# Apply column renaming" in code
-        assert "df.withColumnRenamed(\"c_custkey\", \"customer_id\")" in code
-        assert "df.withColumnRenamed(\"c_name\", \"customer_name\")" in code
-        assert "df.withColumnRenamed(\"c_address\", \"address\")" in code
-        assert "df.withColumnRenamed(\"c_phone\", \"phone_number\")" in code
-        
+        assert 'df.withColumnRenamed("c_custkey", "customer_id")' in code
+        assert 'df.withColumnRenamed("c_name", "customer_name")' in code
+        assert 'df.withColumnRenamed("c_address", "address")' in code
+        assert 'df.withColumnRenamed("c_phone", "phone_number")' in code
+
         # Verify type casting
         assert "# Apply type casting" in code
-        assert "F.col(\"customer_id\").cast(\"BIGINT\")" in code
-        assert "F.col(\"account_balance\").cast(\"DECIMAL(18,2)\")" in code
-        assert "F.col(\"phone_number\").cast(\"STRING\")" in code
-        
+        assert 'F.col("customer_id").cast("BIGINT")' in code
+        assert 'F.col("account_balance").cast("DECIMAL(18,2)")' in code
+        assert 'F.col("phone_number").cast("STRING")' in code
+
         # Verify description
         assert "Standardize customer schema and data types" in code
-    
+
     def test_schema_transform_with_schema_file(self, tmp_path):
         """Test schema transform generator with external schema file."""
         # Create schema file
@@ -1277,7 +1440,7 @@ columns:
   - "c_custkey -> customer_id: BIGINT"
   - "c_name -> customer_name"
 """)
-        
+
         generator = SchemaTransformGenerator()
         action = Action(
             name="standardize_customer",
@@ -1287,19 +1450,19 @@ columns:
             target="v_customer_standardized",
             schema_file=str(schema_file),
             enforcement="strict",
-            readMode="batch"
+            readMode="batch",
         )
-        
+
         context = {"spec_dir": tmp_path}
         code = generator.generate(action, context)
-        
+
         # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_customer_standardized" in code
-        assert "df.withColumnRenamed(\"c_custkey\", \"customer_id\")" in code
-        assert "df.withColumnRenamed(\"c_name\", \"customer_name\")" in code
-        assert "F.col(\"customer_id\").cast(\"BIGINT\")" in code
-    
+        assert 'df.withColumnRenamed("c_custkey", "customer_id")' in code
+        assert 'df.withColumnRenamed("c_name", "customer_name")' in code
+        assert 'F.col("customer_id").cast("BIGINT")' in code
+
     def test_schema_transform_both_schema_and_file_error(self, tmp_path):
         """Test that providing both schema and schema_file raises an error."""
         schema_file = tmp_path / "transform.yaml"
@@ -1307,7 +1470,7 @@ columns:
 columns:
   - "c_custkey -> customer_id"
 """)
-        
+
         generator = SchemaTransformGenerator()
         action = Action(
             name="transform",
@@ -1316,18 +1479,18 @@ columns:
             source="v_customer_raw",
             target="v_customer_standardized",
             schema_inline="c_name -> customer_name",
-            schema_file=str(schema_file)
+            schema_file=str(schema_file),
         )
-        
+
         context = {"spec_dir": tmp_path}
-        
+
         with pytest.raises(ValueError, match="(?s)schema_inline.*schema_file"):
             generator.generate(action, context)
-    
+
     def test_schema_transform_file_not_found_error(self, tmp_path):
         """Test that missing schema file raises appropriate error."""
         from lhp.utils.error_formatter import LHPError
-        
+
         generator = SchemaTransformGenerator()
         action = Action(
             name="transform",
@@ -1335,21 +1498,21 @@ columns:
             transform_type=TransformType.SCHEMA,
             source="v_customer_raw",
             target="v_customer_standardized",
-            schema_file="missing.yaml"
+            schema_file="missing.yaml",
         )
-        
+
         context = {"spec_dir": tmp_path}
-        
+
         with pytest.raises(LHPError) as exc_info:
             generator.generate(action, context)
-        
+
         assert "LHP-IO-001" in str(exc_info.value)
         assert "missing.yaml" in str(exc_info.value)
-    
+
     def test_schema_transform_column_mapping_only(self):
         """Test schema transform with only column mapping."""
         generator = SchemaTransformGenerator()
-        
+
         action = Action(
             name="rename_columns",
             type=ActionType.TRANSFORM,
@@ -1359,22 +1522,22 @@ columns:
             schema_inline="""
 old_name -> new_name
 legacy_id -> customer_id
-            """
+            """,
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Should have column renaming but no type casting
         assert "# Apply column renaming" in code
-        assert "df.withColumnRenamed(\"old_name\", \"new_name\")" in code
-        assert "df.withColumnRenamed(\"legacy_id\", \"customer_id\")" in code
+        assert 'df.withColumnRenamed("old_name", "new_name")' in code
+        assert 'df.withColumnRenamed("legacy_id", "customer_id")' in code
         assert "# Apply type casting" not in code
         assert "F.col(" not in code
-    
+
     def test_schema_transform_type_casting_only(self):
         """Test schema transform with only type casting."""
         generator = SchemaTransformGenerator()
-        
+
         action = Action(
             name="cast_types",
             type=ActionType.TRANSFORM,
@@ -1385,23 +1548,23 @@ legacy_id -> customer_id
 age: INTEGER
 salary: DECIMAL(10,2)
 active: BOOLEAN
-            """
+            """,
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Should have type casting but no column renaming
         assert "# Apply type casting" in code
-        assert "F.col(\"age\").cast(\"INTEGER\")" in code
-        assert "F.col(\"salary\").cast(\"DECIMAL(10,2)\")" in code
-        assert "F.col(\"active\").cast(\"BOOLEAN\")" in code
+        assert 'F.col("age").cast("INTEGER")' in code
+        assert 'F.col("salary").cast("DECIMAL(10,2)")' in code
+        assert 'F.col("active").cast("BOOLEAN")' in code
         assert "# Apply column renaming" not in code
         assert "withColumnRenamed" not in code
-    
+
     def test_schema_transform_stream_mode(self):
         """Test schema transform with stream readMode."""
         generator = SchemaTransformGenerator()
-        
+
         action = Action(
             name="stream_schema",
             type=ActionType.TRANSFORM,
@@ -1409,39 +1572,40 @@ active: BOOLEAN
             source="v_streaming_data",
             target="v_typed_stream",
             schema_inline="timestamp: TIMESTAMP",
-            readMode="stream"
+            readMode="stream",
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Should use readStream for streaming mode
-        assert "spark.readStream.table(\"v_streaming_data\")" in code
+        assert 'spark.readStream.table("v_streaming_data")' in code
         assert "spark.read.table" not in code
-    
+
     def test_schema_transform_metadata_preservation(self):
         """Test that schema transform preserves operational metadata columns."""
         generator = SchemaTransformGenerator()
-        
+
         # Mock project config with metadata columns
-        from lhp.models.config import ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
+        from lhp.models.config import (
+            MetadataColumnConfig,
+            ProjectConfig,
+            ProjectOperationalMetadataConfig,
+        )
+
         metadata_config = ProjectOperationalMetadataConfig(
             columns={
                 "_ingestion_timestamp": MetadataColumnConfig(
-                    expression="current_timestamp()",
-                    description="Ingestion timestamp"
+                    expression="current_timestamp()", description="Ingestion timestamp"
                 ),
                 "_source_file": MetadataColumnConfig(
-                    expression="input_file_name()",
-                    description="Source file path"
-                )
+                    expression="input_file_name()", description="Source file path"
+                ),
             }
         )
         project_config = ProjectConfig(
-            name="test_project",
-            version="1.0",
-            operational_metadata=metadata_config
+            name="test_project", version="1.0", operational_metadata=metadata_config
         )
-        
+
         action = Action(
             name="clean_data",
             type=ActionType.TRANSFORM,
@@ -1453,20 +1617,20 @@ customer_id -> id
 age: int
 _ingestion_timestamp -> ingestion_time
 _source_file: int
-            """
+            """,
         )
-        
+
         code = generator.generate(action, {"project_config": project_config})
-        
+
         # Check that schema operations are applied to non-metadata columns
-        assert "df.withColumnRenamed(\"customer_id\", \"id\")" in code
-        assert "F.col(\"age\").cast(\"int\")" in code
-        
+        assert 'df.withColumnRenamed("customer_id", "id")' in code
+        assert 'F.col("age").cast("int")' in code
+
         # Check that metadata columns are preserved (not renamed or cast)
-        assert "withColumnRenamed(\"_ingestion_timestamp\"" not in code
-        assert "withColumnRenamed(\"_source_file\"" not in code
-        assert "F.col(\"_ingestion_timestamp\").cast(" not in code
-        assert "F.col(\"_source_file\").cast(" not in code
+        assert 'withColumnRenamed("_ingestion_timestamp"' not in code
+        assert 'withColumnRenamed("_source_file"' not in code
+        assert 'F.col("_ingestion_timestamp").cast(' not in code
+        assert 'F.col("_source_file").cast(' not in code
 
 
 def test_transform_generator_imports():
@@ -1478,5 +1642,437 @@ def test_transform_generator_imports():
     assert "from pyspark.sql.types import StructType" in schema_gen.imports
 
 
+class TestDataQualityQuarantine:
+    """Test quarantine mode for data quality transform generator."""
+
+    def _create_expectations_file(self, tmpdir, expectations_data):
+        """Helper to create a temp expectations file."""
+        expectations_file = tmpdir / "expectations.yaml"
+        expectations_file.write_text(yaml.dump(expectations_data))
+        return str(expectations_file)
+
+    def test_data_quality_quarantine_mode_unified(self, tmp_path):
+        """Test quarantine generates unified code with runtime _rescued_data detection."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "email IS NOT NULL": {"action": "drop", "name": "email_not_null"},
+            "age >= 18": {"action": "drop", "name": "age_check"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_orders",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_raw_data",
+            target="v_validated",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.universal_dlq",
+                source_table="cat.sch.bronze_orders",
+            ),
+        )
+
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        # Verify quarantine constants
+        assert "_EXPECTATIONS_v_raw_data = {" in code
+        assert "_INVERSE_FILTER_v_raw_data" in code
+        assert "_FAILED_RULE_EXPRS_v_raw_data" in code
+        assert 'DLQ_TABLE_v_raw_data = "cat.sch.universal_dlq"' in code
+        assert 'DLQ_OUTBOX_TABLE_v_raw_data = "cat.sch.universal_dlq_outbox"' in code
+        assert 'SOURCE_TABLE_v_raw_data = "cat.sch.bronze_orders"' in code
+
+        # Recycled expectations (static dict, not comprehension)
+        assert "_EXPECTATIONS_RECYCLED_v_raw_data = {" in code
+
+        # Hash exclusion columns (built-in defaults, no project config)
+        assert "_HASH_EXCLUDE_COLS_v_raw_data" in code
+        assert "hash_cols" in code
+
+        # Native Spark rescued_data handling (no UDF)
+        assert "map_zip_with" in code
+        assert "map_filter" in code
+        assert "from_json" in code
+
+        # Runtime detection: both branches present
+        assert 'if "_rescued_data" in batch_df.columns:' in code
+        assert "variant_cols" in code
+        assert "F.parse_json(F.to_json(F.struct(*data_cols)))" in code
+        assert 'F.lit(None).cast("string")' in code
+
+        # Verify clean view
+        assert "_clean_v_raw_data" in code
+        assert "@dp.expect_all_or_drop(_EXPECTATIONS_v_raw_data)" in code
+
+        # Verify DLQ sink
+        assert "dlq_sink_v_raw_data" in code
+        assert "@dp.foreach_batch_sink" in code
+        assert "DeltaTable.forName" in code
+        assert ".whenNotMatchedInsertAll()" in code
+
+        # Verify append flow
+        assert "quarantine_flow_v_raw_data" in code
+        assert "@dp.append_flow" in code
+
+        # Verify recycle sink (inbox → outbox dedup)
+        assert "recycle_sink_v_raw_data" in code
+        assert "Window.partitionBy" in code
+        assert "row_number" in code
+        assert "whenNotMatchedInsertAll" in code
+
+        # Verify recycle flow (CDF from DLQ)
+        assert "recycle_flow_v_raw_data" in code
+        assert "readChangeFeed" in code
+
+        # Verify recycled view (outbox → validated)
+        assert "_recycled_v_raw_data" in code
+        assert "@dp.expect_all_or_drop(_EXPECTATIONS_RECYCLED_v_raw_data" in code
+        assert "skipChangeCommits" in code
+
+        # Verify output view reads from _recycled_ (no direct CDF read)
+        assert "def v_validated():" in code
+        assert "clean.union(recycled)" in code
+        assert 'spark.readStream.table("_recycled_v_raw_data")' in code
+        assert "try_variant_get" in code
+
+    def test_data_quality_quarantine_coerces_all_expectations_to_drop(self, tmp_path):
+        """All expectations should appear in @dp.expect_all_or_drop."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "col1 IS NOT NULL": {"action": "fail", "name": "rule1"},
+            "col2 > 0": {"action": "warn", "name": "rule2"},
+            "col3 IS NOT NULL": {"action": "drop", "name": "rule3"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_data",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_src",
+            target="v_out",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.dlq", source_table="cat.sch.src"
+            ),
+        )
+
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        # All three rules in the single expect_all_or_drop
+        assert "@dp.expect_all_or_drop(_EXPECTATIONS_v_src)" in code
+        assert '"rule1": "col1 IS NOT NULL"' in code
+        assert '"rule2": "col2 > 0"' in code
+        assert '"rule3": "col3 IS NOT NULL"' in code
+
+        # Should NOT have separate expect_all or expect_all_or_fail decorators
+        assert "@dp.expect_all_or_fail" not in code
+        assert "@dp.expect_all({" not in code
+
+    def test_data_quality_default_mode_is_dqe(self, tmp_path):
+        """Backward compatibility: no mode field produces DQE output."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "email IS NOT NULL": {"action": "warn", "name": "email_not_null"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_data",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_src",
+            target="v_out",
+            readMode="stream",
+            expectations_file=exp_file,
+        )
+
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        # DQE mode: simple temporary_view with expectation decorators
+        assert "@dp.temporary_view()" in code
+        assert "def v_out():" in code
+        # Should NOT have quarantine elements
+        assert "foreach_batch_sink" not in code
+        assert "append_flow" not in code
+        assert "DLQ_TABLE" not in code
+
+    def test_data_quality_explicit_dqe_mode(self, tmp_path):
+        """mode='dqe' produces same output as no mode."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "email IS NOT NULL": {"action": "warn", "name": "email_not_null"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_data",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_src",
+            target="v_out",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="dqe",
+        )
+
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        assert "@dp.temporary_view()" in code
+        assert "foreach_batch_sink" not in code
+
+    def test_data_quality_quarantine_imports(self, tmp_path):
+        """Verify quarantine adds json, DeltaTable, F imports."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "id IS NOT NULL": {"action": "drop", "name": "id_check"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_data",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_src",
+            target="v_out",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.dlq", source_table="cat.sch.src"
+            ),
+        )
+
+        generator.generate(action, {"spec_dir": tmp_path})
+
+        imports = generator.imports
+        assert "from delta.tables import DeltaTable" in imports
+        assert "from pyspark.sql import functions as F" in imports
+        assert "from pyspark.sql.types import MapType, StringType" in imports
+        assert "from pyspark.sql.window import Window" in imports
+        assert "from pyspark import pipelines as dp" in imports
+
+    def test_data_quality_quarantine_operational_metadata(self, tmp_path):
+        """Metadata columns should appear in final output view."""
+        from lhp.models.config import (
+            MetadataColumnConfig,
+            ProjectConfig,
+            ProjectOperationalMetadataConfig,
+        )
+
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "id IS NOT NULL": {"action": "drop", "name": "id_check"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_data",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_src",
+            target="v_out",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.dlq", source_table="cat.sch.src"
+            ),
+            operational_metadata=["_load_timestamp", "_source_file"],
+        )
+
+        metadata_config = ProjectOperationalMetadataConfig(
+            columns={
+                "_load_timestamp": MetadataColumnConfig(
+                    expression="current_timestamp()",
+                    description="Load timestamp",
+                    applies_to=["streaming_table", "materialized_view", "view"],
+                ),
+                "_source_file": MetadataColumnConfig(
+                    expression="input_file_name()",
+                    description="Source file path",
+                    applies_to=["streaming_table", "materialized_view", "view"],
+                ),
+            }
+        )
+        project_config = ProjectConfig(
+            name="test_project",
+            version="1.0",
+            operational_metadata=metadata_config,
+        )
+
+        flowgroup_config = {
+            "spec_dir": tmp_path,
+            "project_config": project_config,
+        }
+
+        code = generator.generate(action, flowgroup_config)
+
+        # Recycled view present
+        assert "_recycled_v_src" in code
+        assert "@dp.expect_all_or_drop(_EXPECTATIONS_RECYCLED_v_src" in code
+
+        # Metadata columns should be in the final output view
+        assert "_load_timestamp" in code
+        assert "_source_file" in code
+        assert "# Add operational metadata columns" in code
+
+        # Hash exclusion includes both project-config AND built-in default columns
+        assert "_HASH_EXCLUDE_COLS_v_src" in code
+        assert "hash_cols" in code
+        # Project-config columns
+        assert '"_load_timestamp"' in code
+        assert '"_source_file"' in code
+        # Built-in defaults
+        assert '"_ingestion_timestamp"' in code
+        assert '"_pipeline_run_id"' in code
+
+    def test_data_quality_quarantine_hash_excludes_metadata_cols(self, tmp_path):
+        """Verify the exclusion set content and hash_cols filtering is present."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "id IS NOT NULL": {"action": "drop", "name": "id_check"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_data",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_src",
+            target="v_out",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.dlq", source_table="cat.sch.src"
+            ),
+        )
+
+        # No project config — only built-in defaults in exclusion set
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        # Built-in default column names should all be in exclusion set
+        assert "_HASH_EXCLUDE_COLS_v_src" in code
+        assert '"_ingestion_timestamp"' in code
+        assert '"_source_file"' in code
+        assert '"_pipeline_run_id"' in code
+        assert '"_pipeline_name"' in code
+        assert '"_flowgroup_name"' in code
+
+        # hash_cols filtering is present
+        assert "hash_cols = [c for c in data_cols if c not in _exclude]" in code
+
+        # _row_json uses hash_cols, not data_cols
+        assert "F.to_json(F.struct(*hash_cols))" in code
+
+        # data_cols still used for _row_data (non-rescued branch)
+        assert "F.parse_json(F.to_json(F.struct(*data_cols)))" in code
+
+    def test_data_quality_quarantine_rules_with_double_quotes(self, tmp_path):
+        """Rules containing double quotes must not cause a SyntaxError."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            'status = "active"': {"action": "drop", "name": "status_active"},
+            "age >= 18": {"action": "drop", "name": "age_check"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_quotes",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_src",
+            target="v_out",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.dlq", source_table="cat.sch.src"
+            ),
+        )
+
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        # Must compile without SyntaxError
+        try:
+            compile(code, "<string>", "exec")
+        except SyntaxError as e:
+            pytest.fail(
+                f"Generated code with double-quoted rule is not valid Python: {e}"
+            )
+
+        # Escaped double quotes should appear in the generated code
+        assert r'status = \"active\"' in code
+
+
+class TestDQEParserQuarantine:
+    """Test DQEParser.get_all_expectations_as_drop()."""
+
+    def test_get_all_expectations_as_drop_list_format(self):
+        """List format: all expectations coerced to single drop dict."""
+        from lhp.utils.dqe import DQEParser
+
+        parser = DQEParser()
+        expectations = [
+            {
+                "name": "rule1",
+                "expression": "col1 IS NOT NULL",
+                "failureAction": "fail",
+            },
+            {"name": "rule2", "constraint": "col2 > 0", "failureAction": "warn"},
+            {
+                "name": "rule3",
+                "expression": "col3 IS NOT NULL",
+                "failureAction": "drop",
+            },
+        ]
+
+        result = parser.get_all_expectations_as_drop(expectations)
+
+        assert result == {
+            "rule1": "col1 IS NOT NULL",
+            "rule2": "col2 > 0",
+            "rule3": "col3 IS NOT NULL",
+        }
+
+    def test_get_all_expectations_as_drop_dict_format(self):
+        """Dict format: all expectations coerced to single drop dict."""
+        from lhp.utils.dqe import DQEParser
+
+        parser = DQEParser()
+        expectations = {
+            "col1 IS NOT NULL": {"action": "fail", "name": "rule1"},
+            "col2 > 0": {"action": "warn", "name": "rule2"},
+        }
+
+        result = parser.get_all_expectations_as_drop(expectations)
+
+        assert result == {
+            "rule1": "col1 IS NOT NULL",
+            "rule2": "col2 > 0",
+        }
+
+    def test_get_all_expectations_as_drop_mixed_actions(self):
+        """All action types are flattened regardless of failureAction."""
+        from lhp.utils.dqe import DQEParser
+
+        parser = DQEParser()
+        expectations = [
+            {"name": "a", "expression": "x > 0", "failureAction": "fail"},
+            {"name": "b", "expression": "y IS NOT NULL", "failureAction": "drop"},
+            {"name": "c", "expression": "z > 0"},  # no failureAction
+        ]
+
+        result = parser.get_all_expectations_as_drop(expectations)
+        assert len(result) == 3
+        assert "a" in result and "b" in result and "c" in result
+
+
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"]) 
+    pytest.main([__file__, "-v"])

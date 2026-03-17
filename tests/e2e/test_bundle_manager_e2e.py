@@ -807,14 +807,16 @@ resources:
 
         differences = []
 
-        # Get all files in both directories
+        # Get all files in both directories (exclude __pycache__)
         generated_files = {
             f.relative_to(generated_dir): f
-            for f in generated_dir.rglob("*") if f.is_file()
+            for f in generated_dir.rglob("*")
+            if f.is_file() and "__pycache__" not in f.parts
         }
         baseline_files = {
             f.relative_to(baseline_dir): f
-            for f in baseline_dir.rglob("*") if f.is_file()
+            for f in baseline_dir.rglob("*")
+            if f.is_file() and "__pycache__" not in f.parts
         }
 
         # Files only in generated

@@ -4,12 +4,55 @@ Substitutions & Secrets
 .. meta::
    :description: Environment substitutions, local variables, secret management, and file substitution support in Lakehouse Plumber.
 
+Summary
+-------
+
+LakehousePlumber uses multiple substitution syntaxes, each resolved at a different
+stage of the generation pipeline. The table below shows all forms, their scope,
+and the processing order.
+
+.. list-table:: Substitution Types
+   :header-rows: 1
+   :widths: 20 25 25 30
+
+   * - Syntax
+     - Name
+     - Scope
+     - Defined In
+   * - ``%{var}``
+     - Local variable
+     - Flowgroup
+     - ``variables:`` section in flowgroup YAML
+   * - ``{{ param }}``
+     - Template parameter
+     - Template
+     - ``template_parameters:`` in flowgroup; consumed by Jinja2 template
+   * - ``${token}``
+     - Environment token
+     - Global / per-environment
+     - ``substitutions/<env>.yaml``
+   * - ``${secret:scope/key}``
+     - Secret reference
+     - Global / per-environment
+     - ``substitutions/<env>.yaml`` (scope aliases); resolved to ``dbutils.secrets.get()``
+
+**Processing order:**
+
+1. ``%{var}`` — Local variables are resolved first, within the flowgroup
+2. ``{{ param }}`` — Template parameters are expanded via Jinja2
+3. ``${token}`` — Environment tokens are substituted from the env file
+4. ``${secret:scope/key}`` — Secret references are converted to secure ``dbutils.secrets.get()`` calls
+
+Each phase only processes its own syntax and passes all other forms through untouched,
+so tokens from later phases can safely appear in earlier contexts (e.g., ``${catalog}``
+inside a ``%{var}`` value).
+
 Environment Configuration
 -------------------------
 
-Tokens wrapped in ``{token}`` or ``${token}`` are replaced at generation time
-using files under ``substitutions/<env>.yaml``. This enables environment-specific
-configurations while keeping pipeline definitions portable.
+Tokens wrapped in ``${token}`` are replaced at generation time using files under
+``substitutions/<env>.yaml``. This enables environment-specific configurations
+while keeping pipeline definitions portable.
 
 **Example substitution file:**
 
@@ -69,7 +112,7 @@ Local Variables
        type: load
        source:
          type: delta
-         database: "{catalog}.{raw_schema}"  # Environment tokens still work!
+         database: "${catalog}.${raw_schema}"
          table: "%{source_table}"
        target: "v_%{entity}_raw"
 
@@ -78,7 +121,7 @@ Local Variables
        source: "v_%{entity}_cleaned"
        write_target:
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: "%{target_table}"
 
 .. seealso::
@@ -132,8 +175,8 @@ File Type          Where Used
    from typing import Optional, Tuple
    from pyspark.sql import DataFrame
 
-   catalog = "{catalog}"
-   schema = "{bronze_schema}"
+   catalog = "${catalog}"
+   schema = "${bronze_schema}"
 
    def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
        if latest_version is None:
@@ -154,9 +197,9 @@ File Type          Where Used
    SELECT
        customer_id,
        customer_name,
-       '{environment}' as source_env
-   FROM {catalog}.{bronze_schema}.customers
-   WHERE created_date >= '{cutoff_date}'
+       '${environment}' as source_env
+   FROM ${catalog}.${bronze_schema}.customers
+   WHERE created_date >= '${cutoff_date}'
 
 **Secret Support in Files:**
 
@@ -166,7 +209,7 @@ Both Python and SQL files support secret substitutions with the same syntax as Y
    :caption: Example with secrets
 
    # Environment token
-   api_endpoint = "{api_base_url}"
+   api_endpoint = "${api_base_url}"
 
    # Secret reference
    api_key = "${secret:api_keys/service_key}"
@@ -240,19 +283,12 @@ LakehousePlumber supports multiple substitution syntaxes for different purposes:
      - name: "load_%{entity}_raw"
        target: "v_%{entity}_raw"
 
-**Environment Substitution (Preferred):** ``${token}``
+**Environment Substitution:** ``${token}``
 
 .. code-block:: yaml
 
    catalog: ${my_catalog}
    table: ${catalog}.${schema}.customers
-
-**Environment Substitution (Legacy):** ``{token}``
-
-.. code-block:: yaml
-
-   catalog: {my_catalog}
-   table: {catalog}.{schema}.customers
 
 **Secret References:** ``${secret:scope/key}``
 
@@ -273,45 +309,49 @@ LakehousePlumber supports multiple substitution syntaxes for different purposes:
    **Syntax Distinction:**
 
    - ``%{var}`` = Local variable (flowgroup-scoped)
-   - ``${token}`` = Environment substitution (preferred)
-   - ``{token}`` = Environment substitution (legacy, backward compatible)
+   - ``${token}`` = Environment substitution
    - ``${secret:scope/key}`` = Secret reference
    - ``{{ parameter }}`` = Template parameter (Jinja2)
 
-   The ``${}`` syntax is preferred for environment substitution because:
-
-   - It's visually distinct from Python f-string syntax
-   - It avoids confusion when tokens appear in SQL or Python strings
-   - It clearly differentiates from local variables (``%{}``) and template parameters (``{{ }}``)
+.. warning::
+   **Legacy syntax:** The bare ``{token}`` form (without ``$``) is still supported for
+   backward compatibility but is deprecated. In external Python files (transforms,
+   batch handlers, custom datasources, snapshot CDC functions, custom sinks), the
+   ``{token}`` pattern directly collides with Python f-string syntax — if a Python
+   runtime variable like ``{catalog}`` in ``f"SELECT * FROM {catalog}.{schema}.table"``
+   matches a substitution token name, it will be silently replaced at generation time,
+   breaking your code. The ``${token}`` syntax avoids this entirely because ``${}`` is
+   not valid Python f-string syntax. Use ``${token}`` in all new configurations.
 
 .. note::
    **Processing Order:**
 
    1. **Local variables** (``%{var}``) are resolved first within the flowgroup
    2. **Template parameters** (``{{ }}``) are resolved when templates are applied
-   3. **Environment substitutions** (``{ }`` and ``${ }``) are resolved at generation time
+   3. **Environment substitutions** (``${ }``) are resolved at generation time
    4. **Secret references** (``${secret:}``) are converted to ``dbutils.secrets.get()`` calls
 
 .. warning::
-   **Python Code Context:** When using substitution tokens inside Python code
-   (e.g., in batch handlers or Python transform files), always use ``${}``
-   syntax to avoid conflicts with Python f-strings and SQL placeholders.
+   **Python Code Context:** When using LHP substitution tokens inside external Python
+   files (batch handlers, Python transforms, custom datasources, snapshot CDC functions,
+   custom sinks), you **must** use ``${}`` syntax. LHP applies substitution to these
+   files at generation time, and the legacy ``{token}`` pattern matches Python f-string
+   variables.
 
    .. code-block:: python
-      :caption: Correct usage in Python files
+      :caption: Correct — LHP tokens use ${}, Python variables use {}
 
-      # Use ${} for LHP substitution (replaced at generation time)
-      table = "${catalog}.${schema}.customers"
+      # ${catalog} is replaced by LHP at generation time
+      default_catalog = "${catalog}"
 
-      # Then use Python f-string for runtime formatting
-      spark.sql(f"SELECT * FROM {table}")
+      # {table} is a Python runtime variable — safe because it has no $ prefix
+      spark.sql(f"SELECT * FROM {default_catalog}.{table}")
 
    .. code-block:: python
-      :caption: Incorrect usage (causes SQL syntax errors)
+      :caption: Dangerous — {catalog} collides with LHP substitution
 
-      # DON'T use {} in non-f-strings - generates invalid SQL
-      spark.sql("""
-          SELECT * FROM {catalog}.{schema}.customers
-      """)
-      # After substitution: SELECT * FROM {acme_catalog}.{bronze}.customers
-      # This is INVALID SQL!
+      def my_transform(df, spark, parameters):
+          catalog = parameters.get("catalog", "main")
+          # If 'catalog' is also a substitution token, LHP replaces {catalog}
+          # at generation time, breaking this f-string!
+          return spark.sql(f"SELECT * FROM {catalog}.{schema}.lookup")

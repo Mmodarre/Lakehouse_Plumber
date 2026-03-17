@@ -269,15 +269,6 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "readMode": readMode,
         }
 
-        # Enable stream readMode for CDC
-        if (
-            mode == "cdc"
-            and isinstance(action.source, dict)
-            and action.source.get("type") == "delta"
-        ):
-            action.source["readMode"] = "stream"
-            action.source["read_change_feed"] = True
-
         return self.render_template("write/streaming_table.py.j2", template_context)
 
     def _extract_source_views(self, source) -> List[str]:

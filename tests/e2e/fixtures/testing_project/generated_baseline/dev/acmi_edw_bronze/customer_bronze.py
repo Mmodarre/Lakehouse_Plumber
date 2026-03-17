@@ -83,6 +83,16 @@ FROM v_customer_migration""")
     return df
 
 
+# ============================================================================
+# DATA QUALITY & QUARANTINE
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# Expectations: v_customer_bronze_cleaned → v_customer_bronze_DQE
+# ----------------------------------------------------------------------------
+
+
 @dp.temporary_view()
 # These expectations will fail the pipeline if violated
 @dp.expect_all_or_fail(

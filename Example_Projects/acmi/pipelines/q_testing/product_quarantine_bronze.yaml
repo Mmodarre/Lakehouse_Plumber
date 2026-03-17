@@ -1,0 +1,39 @@
+pipeline: q_testing_pipeline
+flowgroup: product_quarantine_bronze
+
+actions:
+  - name: product_raw_load
+    type: load
+    readMode: stream
+    operational_metadata:
+      - _processing_timestamp
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: product_raw
+    target: v_product_raw
+    description: "Load product from raw schema"
+
+  - name: product_quarantine_dq
+    type: transform
+    transform_type: data_quality
+    operational_metadata:
+      - _processing_timestamp
+    source: v_product_raw
+    target: v_product_validated
+    readMode: stream
+    expectations_file: "expectations/product_quarantine_quality.yaml"
+    description: "Apply quarantine data quality checks to product"
+    mode: quarantine
+    quarantine:
+      dlq_table: "{catalog}.{raw_schema}.universal_dlq"
+      source_table: "{catalog}.{bronze_schema}.product"
+
+  - name: write_product_bronze
+    type: write
+    source: v_product_validated
+    write_target:
+      create_table: true
+      type: streaming_table
+      database: "{catalog}.{bronze_schema}"
+      table: "product"

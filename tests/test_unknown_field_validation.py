@@ -1,6 +1,7 @@
 """Tests for unknown field validation."""
 
 import pytest
+
 from lhp.core.config_field_validator import ConfigFieldValidator
 from lhp.utils.error_formatter import LHPError
 
@@ -137,7 +138,7 @@ class TestUnknownFieldValidation:
             "type": "load",
             "source": {"type": "cloudfiles"},
             "target": "v_data",
-            "mode": "stream",  # Should be readMode
+            "read_mode": "stream",  # Should be readMode (camelCase)
             "invalid_field": "value",
         }
 
@@ -145,8 +146,8 @@ class TestUnknownFieldValidation:
             self.validator.validate_action_fields(action_dict, "test_action")
 
         error = exc_info.value
-        assert "Unknown fields: invalid_field, mode in action" in str(error)
-        assert "'mode' → 'readMode'" in str(error)
+        assert "invalid_field" in str(error)
+        assert "'read_mode' → 'readMode'" in str(error)
 
     def test_sql_source_validation(self):
         """Test SQL source validation."""

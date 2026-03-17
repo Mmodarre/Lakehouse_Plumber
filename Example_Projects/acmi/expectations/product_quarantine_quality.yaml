@@ -1,0 +1,15 @@
+product_id IS NOT NULL:
+  action: drop
+  name: valid_product_id
+unit_price > 0:
+  action: drop
+  name: positive_price
+stock_quantity >= 0:
+  action: warn
+  name: non_negative_stock
+product_name IS NOT NULL:
+  action: fail
+  name: valid_product_name
+_rescued_data IS NULL:
+  action: drop
+  name: no_rescued_data
