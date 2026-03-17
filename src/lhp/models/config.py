@@ -98,10 +98,6 @@ class QuarantineConfig(BaseModel):
     source_table: str = Field(
         ..., description="Fully qualified source table name for DLQ tagging"
     )
-    cloudfiles: bool = Field(
-        False,
-        description="Whether upstream load uses CloudFiles (enables rescued data merge)",
-    )
 
 
 class ProjectOperationalMetadataConfig(BaseModel):

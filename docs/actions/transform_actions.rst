@@ -559,6 +559,11 @@ Data quality transform actions apply data validation rules using Databricks DLT 
       
       return df
 
+.. seealso::
+   For advanced quarantine mode with Dead Letter Queue (DLQ) recycling — routing failed rows
+   to an external table and automatically recycling fixed records back into the pipeline —
+   see :doc:`../quarantine`.
+
 schema
 -------------------------------------------
 Schema transform actions apply column mapping, type casting, and schema enforcement to standardize data structures.

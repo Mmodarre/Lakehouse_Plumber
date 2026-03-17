@@ -5,7 +5,8 @@
 from delta.tables import DeltaTable
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-import json
+from pyspark.sql.types import MapType, StringType
+from pyspark.sql.window import Window
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"
@@ -26,10 +27,15 @@ def v_orders_raw():
 
 
 # ============================================================================
-# TRANSFORMATION VIEWS
+# DATA QUALITY & QUARANTINE
 # ============================================================================
 
-# --- Quarantine: shared constants for v_orders_raw ---
+
+# ----------------------------------------------------------------------------
+# Quarantine: v_orders_raw → v_orders_validated
+# ----------------------------------------------------------------------------
+
+# --- Rules & constants ---
 
 _EXPECTATIONS_v_orders_raw = {
     "valid_order_id": "order_id IS NOT NULL",
@@ -66,10 +72,27 @@ _FAILED_RULE_EXPRS_v_orders_raw = [
 ]
 
 DLQ_TABLE_v_orders_raw = "acme_edw_dev.edw_bronze.universal_dlq"
+DLQ_OUTBOX_TABLE_v_orders_raw = "acme_edw_dev.edw_bronze.universal_dlq_outbox"
 SOURCE_TABLE_v_orders_raw = "acme_edw_dev.edw_bronze.orders"
 
+_HASH_EXCLUDE_COLS_v_orders_raw = [
+    "_flowgroup_name",
+    "_ingestion_timestamp",
+    "_pipeline_name",
+    "_pipeline_run_id",
+    "_processing_timestamp",
+    "_source_file",
+    "_source_file_path",
+]
 
-# --- Quarantine: internal clean view (provides DQ metrics in event log) ---
+_EXPECTATIONS_RECYCLED_v_orders_raw = {
+    "valid_order_id": "order_id IS NOT NULL",
+    "positive_amount": "order_amount > 0",
+    "valid_customer_id": "customer_id IS NOT NULL",
+}
+
+
+# --- Clean path (provides DQ metrics in event log) ---
 @dp.temporary_view()
 @dp.expect_all_or_drop(_EXPECTATIONS_v_orders_raw)
 def _clean_v_orders_raw():
@@ -77,28 +100,65 @@ def _clean_v_orders_raw():
     return spark.readStream.table("v_orders_raw")
 
 
-# --- Quarantine: DLQ sink + append flow ---
+# --- Quarantine path (DLQ sink + routing) ---
 @dp.foreach_batch_sink(name="dlq_sink_v_orders_raw")
 def dlq_sink_v_orders_raw(batch_df, batch_id):
     """Write quarantined rows to DLQ table"""
     if batch_df.isEmpty():
         return
 
+    spark = batch_df.sparkSession
     data_cols = [c for c in batch_df.columns if not c.startswith("_dlq")]
+    _exclude = set(_HASH_EXCLUDE_COLS_v_orders_raw)
+    hash_cols = [c for c in data_cols if c not in _exclude]
+
+    batch = batch_df.withColumn(
+        "_row_json", F.to_json(F.struct(*hash_cols))
+    ).withColumn(
+        "_dlq_sk",
+        F.xxhash64(F.lit(SOURCE_TABLE_v_orders_raw), F.col("_row_json")).cast("string"),
+    )
+
+    if "_rescued_data" in batch_df.columns:
+        _map_type = MapType(StringType(), StringType())
+        variant_cols = [c for c in data_cols if c != "_rescued_data"]
+        batch = (
+            batch.withColumn(
+                "_variant_json",
+                F.when(
+                    F.col("_rescued_data").isNotNull(),
+                    F.to_json(
+                        F.map_zip_with(
+                            F.coalesce(
+                                F.from_json(
+                                    F.to_json(F.struct(*variant_cols)), _map_type
+                                ),
+                                F.create_map(),
+                            ),
+                            F.map_filter(
+                                F.coalesce(
+                                    F.from_json(F.col("_rescued_data"), _map_type),
+                                    F.create_map(),
+                                ),
+                                lambda k, v: k != "_file_path",
+                            ),
+                            lambda k, v1, v2: F.coalesce(v2, v1),
+                        )
+                    ),
+                ).otherwise(F.to_json(F.struct(*variant_cols))),
+            )
+            .withColumn("_row_data", F.parse_json(F.col("_variant_json")))
+            .withColumnRenamed("_rescued_data", "_dlq_rescued_data")
+        )
+    else:
+        batch = batch.withColumn(
+            "_row_data", F.parse_json(F.to_json(F.struct(*data_cols)))
+        ).withColumn("_dlq_rescued_data", F.lit(None).cast("string"))
 
     batch = (
-        batch_df.withColumn("_row_json", F.to_json(F.struct(*data_cols)))
-        .withColumn(
-            "_dlq_sk",
-            F.xxhash64(F.lit(SOURCE_TABLE_v_orders_raw), F.col("_row_json")).cast(
-                "string"
-            ),
-        )
-        .withColumn("_row_data", F.parse_json(F.to_json(F.struct(*data_cols))))
-        .withColumn("_dlq_source_table", F.lit(SOURCE_TABLE_v_orders_raw))
+        batch.withColumn("_dlq_source_table", F.lit(SOURCE_TABLE_v_orders_raw))
         .withColumn("_dlq_status", F.lit("quarantined"))
         .withColumn("_dlq_timestamp", F.current_timestamp())
-        .withColumn("_dlq_rescued_data", F.lit(None).cast("string"))
         .select(
             "_dlq_sk",
             "_dlq_source_table",
@@ -133,13 +193,40 @@ def quarantine_flow_v_orders_raw():
     )
 
 
-# --- Quarantine: final output view (UNION of clean + recycled) ---
-@dp.temporary_view()
-def v_orders_validated():
-    """Apply quarantine data quality checks to orders — clean + recycled records"""
-    clean = spark.readStream.table("_clean_v_orders_raw")
+# --- Recycle path (dedup inbox → outbox) ---
+@dp.foreach_batch_sink(name="recycle_sink_v_orders_raw")
+def recycle_sink_v_orders_raw(batch_df, batch_id):
+    """Deduplicate fixed DLQ rows and write to outbox"""
+    if batch_df.isEmpty():
+        return
 
-    recycled = (
+    spark = batch_df.sparkSession
+    w = Window.partitionBy("_dlq_sk").orderBy(F.desc("_commit_version"))
+    deduped = (
+        batch_df.withColumn("_rn", F.row_number().over(w))
+        .filter("_rn = 1")
+        .drop("_rn")
+        .select(
+            "_dlq_sk",
+            "_dlq_source_table",
+            "_row_data",
+            F.current_timestamp().alias("_dlq_recycled_at"),
+        )
+    )
+
+    outbox = DeltaTable.forName(spark, DLQ_OUTBOX_TABLE_v_orders_raw)
+    (
+        outbox.alias("out")
+        .merge(deduped.alias("new"), "out._dlq_sk = new._dlq_sk")
+        .whenNotMatchedInsertAll()
+        .execute()
+    )
+
+
+@dp.append_flow(target="recycle_sink_v_orders_raw", name="recycle_flow_v_orders_raw")
+def recycle_flow_v_orders_raw():
+    """Read fixed rows from DLQ inbox via CDF"""
+    return (
         spark.readStream.option("readChangeFeed", "true")
         .table(DLQ_TABLE_v_orders_raw)
         .filter(
@@ -147,6 +234,19 @@ def v_orders_validated():
             "AND _change_type IN ('insert', 'update_postimage') "
             f"AND _dlq_source_table = '{SOURCE_TABLE_v_orders_raw}'"
         )
+    )
+
+
+# --- Recycled path (outbox → validated recycled view) ---
+@dp.temporary_view()
+@dp.expect_all_or_drop(_EXPECTATIONS_RECYCLED_v_orders_raw)
+def _recycled_v_orders_raw():
+    """Validate recycled rows from DLQ outbox"""
+    clean = spark.readStream.table("_clean_v_orders_raw")
+    return (
+        spark.readStream.option("skipChangeCommits", "true")
+        .table(DLQ_OUTBOX_TABLE_v_orders_raw)
+        .filter(f"_dlq_source_table = '{SOURCE_TABLE_v_orders_raw}'")
         .select(
             [
                 F.try_variant_get(
@@ -156,6 +256,14 @@ def v_orders_validated():
             ]
         )
     )
+
+
+# --- Validated output (clean + recycled) ---
+@dp.temporary_view()
+def v_orders_validated():
+    """Apply quarantine data quality checks to orders — clean + recycled records"""
+    clean = spark.readStream.table("_clean_v_orders_raw")
+    recycled = spark.readStream.table("_recycled_v_orders_raw")
 
     df = clean.union(recycled)
 

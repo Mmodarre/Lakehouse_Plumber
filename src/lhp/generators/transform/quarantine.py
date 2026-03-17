@@ -55,23 +55,30 @@ class QuarantineCodeGenerator:
         logger.debug(f"Generating quarantine mode for action '{action.name}'")
 
         # Add quarantine-specific imports
-        self._parent.add_import("import json")
         self._parent.add_import("from delta.tables import DeltaTable")
         self._parent.add_import("from pyspark.sql import functions as F")
+        self._parent.add_import("from pyspark.sql.types import MapType, StringType")
+        self._parent.add_import("from pyspark.sql.window import Window")
 
         # Get quarantine config
         quarantine_config = action.quarantine
         if isinstance(quarantine_config, dict):
             dlq_table = quarantine_config.get("dlq_table", "")
             source_table = quarantine_config.get("source_table", "")
-            is_cloudfiles = quarantine_config.get("cloudfiles", False)
         else:
             dlq_table = quarantine_config.dlq_table
             source_table = quarantine_config.source_table
-            is_cloudfiles = quarantine_config.cloudfiles
+
+        # Derive outbox table name from DLQ table
+        dlq_outbox_table = dlq_table + "_outbox"
 
         # Parse ALL expectations as drop — DQEParser is the single owner
         all_expectations = self._dqe_parser.get_all_expectations_as_drop(expectations)
+
+        # Filter out _rescued_data expectations for recycled path
+        recycled_expectations = {
+            k: v for k, v in all_expectations.items() if "_rescued_data" not in v
+        }
 
         # Defensive check (validator should catch this first)
         if not all_expectations:
@@ -108,6 +115,17 @@ class QuarantineCodeGenerator:
             self._parent._get_operational_metadata(action, flowgroup_config)
         )
 
+        # Collect ALL metadata column names for hash exclusion
+        from ...core.services.operational_metadata_service import (
+            OperationalMetadataService,
+        )
+
+        service = OperationalMetadataService()
+        project_config = flowgroup_config.get("project_config")
+        hash_exclude_columns = sorted(
+            service.get_all_metadata_column_names(project_config)
+        )
+
         template_context = {
             "target_view": action.target,
             "source_view": source_view,
@@ -120,9 +138,11 @@ class QuarantineCodeGenerator:
             "failed_rule_data": failed_rule_data,
             "dlq_table": dlq_table,
             "source_table": source_table,
-            "is_cloudfiles": is_cloudfiles,
+            "dlq_outbox_table": dlq_outbox_table,
+            "recycled_expectations": recycled_expectations,
             "add_operational_metadata": add_operational_metadata,
             "metadata_columns": metadata_columns,
+            "hash_exclude_columns": hash_exclude_columns,
         }
 
         return self._parent.render_template(

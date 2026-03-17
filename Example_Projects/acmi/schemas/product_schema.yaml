@@ -1,0 +1,31 @@
+name: product
+version: "1.0"
+description: "Product table schema for quarantine testing"
+
+columns:
+  - name: product_id
+    type: INT
+    nullable: false
+    comment: "Product identifier"
+  - name: product_name
+    type: STRING
+    nullable: false
+    comment: "Product name"
+  - name: category
+    type: STRING
+    nullable: true
+    comment: "Product category"
+  - name: unit_price
+    type: DECIMAL(10,2)
+    nullable: true
+    comment: "Unit price"
+  - name: stock_quantity
+    type: INT
+    nullable: true
+    comment: "Stock quantity"
+  - name: last_updated
+    type: TIMESTAMP
+    nullable: true
+    comment: "Last updated timestamp"
+
+primary_key: [product_id]

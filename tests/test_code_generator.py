@@ -6,7 +6,7 @@ from unittest.mock import Mock, MagicMock
 from collections import defaultdict
 
 from lhp.core.services.code_generator import CodeGenerator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models.config import Action, ActionType, FlowGroup, TransformType
 
 
 @pytest.fixture
@@ -506,12 +506,120 @@ class TestCodeGeneratorGenerateActionSections:
                 Action(name="test1", type=ActionType.TEST, test_type="row_count")
             ]
         )
-        
+
         code_generator.dependency_resolver.resolve_dependencies.return_value = flowgroup.actions
-        
+
         sections, imports, custom = code_generator._generate_action_sections(
             flowgroup, flowgroup.actions, Mock(), {}, None, None, None, None, include_tests=False
         )
-        
+
         assert not any("DATA QUALITY TESTS" in section for section in sections)
+
+
+class TestCodeGeneratorDQSectionPartitioning:
+    """Test that DQ transforms get their own section separate from regular transforms."""
+
+    def _make_mock_generator(self, code_generator, return_code="# generated"):
+        mock_gen = Mock()
+        mock_gen.generate.return_value = return_code
+        mock_gen.imports = set()
+        mock_gen.get_import_manager = Mock(return_value=None)
+        code_generator.action_registry.get_generator.return_value = mock_gen
+        return mock_gen
+
+    def test_dq_only_flowgroup_has_dq_section_no_transform_section(self, code_generator):
+        """DQ-only flowgroup → DATA QUALITY & QUARANTINE, no TRANSFORMATION VIEWS."""
+        dq_action = Action(
+            name="dq1", type=ActionType.TRANSFORM,
+            transform_type="data_quality", source="v_src", target="v_tgt",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[dq_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [dq_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [dq_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "DATA QUALITY & QUARANTINE" in joined
+        assert "TRANSFORMATION VIEWS" not in joined
+
+    def test_mixed_flowgroup_has_both_sections(self, code_generator):
+        """Mixed flowgroup → both TRANSFORMATION VIEWS and DATA QUALITY & QUARANTINE."""
+        sql_action = Action(
+            name="t1", type=ActionType.TRANSFORM, transform_type="sql",
+        )
+        dq_action = Action(
+            name="dq1", type=ActionType.TRANSFORM,
+            transform_type="data_quality", source="v_src", target="v_tgt",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[sql_action, dq_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [sql_action, dq_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [sql_action, dq_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "TRANSFORMATION VIEWS" in joined
+        assert "DATA QUALITY & QUARANTINE" in joined
+
+    def test_no_dq_flowgroup_has_transform_section_only(self, code_generator):
+        """No-DQ flowgroup → TRANSFORMATION VIEWS only, no DATA QUALITY & QUARANTINE."""
+        sql_action = Action(
+            name="t1", type=ActionType.TRANSFORM, transform_type="sql",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[sql_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [sql_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [sql_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "TRANSFORMATION VIEWS" in joined
+        assert "DATA QUALITY & QUARANTINE" not in joined
+
+    def test_dqe_sub_header_contains_expectations(self, code_generator):
+        """DQE action sub-header contains 'Expectations:'."""
+        dq_action = Action(
+            name="dq1", type=ActionType.TRANSFORM,
+            transform_type="data_quality", source="v_src", target="v_tgt",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[dq_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [dq_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [dq_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "Expectations: v_src" in joined
+
+    def test_quarantine_sub_header_contains_quarantine(self, code_generator):
+        """Quarantine action sub-header contains 'Quarantine:'."""
+        dq_action = Action(
+            name="dq1", type=ActionType.TRANSFORM,
+            transform_type="data_quality", source="v_src", target="v_tgt",
+            mode="quarantine",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[dq_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [dq_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [dq_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "Quarantine: v_src" in joined
 

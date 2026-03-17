@@ -25,7 +25,6 @@ actions:
     quarantine:
       dlq_table: "{catalog}.{bronze_schema}.universal_dlq"
       source_table: "{catalog}.{bronze_schema}.orders"
-      cloudfiles: false
 
   - name: write_orders_bronze
     type: write

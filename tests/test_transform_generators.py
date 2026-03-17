@@ -1651,8 +1651,8 @@ class TestDataQualityQuarantine:
         expectations_file.write_text(yaml.dump(expectations_data))
         return str(expectations_file)
 
-    def test_data_quality_quarantine_mode_cloudfiles(self, tmp_path):
-        """Test full CloudFiles quarantine generation."""
+    def test_data_quality_quarantine_mode_unified(self, tmp_path):
+        """Test quarantine generates unified code with runtime _rescued_data detection."""
         generator = DataQualityTransformGenerator()
         expectations_data = {
             "email IS NOT NULL": {"action": "drop", "name": "email_not_null"},
@@ -1672,7 +1672,6 @@ class TestDataQualityQuarantine:
             quarantine=QuarantineConfig(
                 dlq_table="cat.sch.universal_dlq",
                 source_table="cat.sch.bronze_orders",
-                cloudfiles=True,
             ),
         )
 
@@ -1683,12 +1682,26 @@ class TestDataQualityQuarantine:
         assert "_INVERSE_FILTER_v_raw_data" in code
         assert "_FAILED_RULE_EXPRS_v_raw_data" in code
         assert 'DLQ_TABLE_v_raw_data = "cat.sch.universal_dlq"' in code
+        assert 'DLQ_OUTBOX_TABLE_v_raw_data = "cat.sch.universal_dlq_outbox"' in code
         assert 'SOURCE_TABLE_v_raw_data = "cat.sch.bronze_orders"' in code
 
-        # Verify CloudFiles UDF
-        assert "_merge_rescued_v_raw_data" in code
-        assert "@F.udf" in code
+        # Recycled expectations (static dict, not comprehension)
+        assert "_EXPECTATIONS_RECYCLED_v_raw_data = {" in code
+
+        # Hash exclusion columns (built-in defaults, no project config)
+        assert "_HASH_EXCLUDE_COLS_v_raw_data" in code
+        assert "hash_cols" in code
+
+        # Native Spark rescued_data handling (no UDF)
+        assert "map_zip_with" in code
+        assert "map_filter" in code
+        assert "from_json" in code
+
+        # Runtime detection: both branches present
+        assert 'if "_rescued_data" in batch_df.columns:' in code
         assert "variant_cols" in code
+        assert "F.parse_json(F.to_json(F.struct(*data_cols)))" in code
+        assert 'F.lit(None).cast("string")' in code
 
         # Verify clean view
         assert "_clean_v_raw_data" in code
@@ -1704,46 +1717,26 @@ class TestDataQualityQuarantine:
         assert "quarantine_flow_v_raw_data" in code
         assert "@dp.append_flow" in code
 
-        # Verify output view
+        # Verify recycle sink (inbox → outbox dedup)
+        assert "recycle_sink_v_raw_data" in code
+        assert "Window.partitionBy" in code
+        assert "row_number" in code
+        assert "whenNotMatchedInsertAll" in code
+
+        # Verify recycle flow (CDF from DLQ)
+        assert "recycle_flow_v_raw_data" in code
+        assert "readChangeFeed" in code
+
+        # Verify recycled view (outbox → validated)
+        assert "_recycled_v_raw_data" in code
+        assert "@dp.expect_all_or_drop(_EXPECTATIONS_RECYCLED_v_raw_data" in code
+        assert "skipChangeCommits" in code
+
+        # Verify output view reads from _recycled_ (no direct CDF read)
         assert "def v_validated():" in code
         assert "clean.union(recycled)" in code
-        assert "readChangeFeed" in code
+        assert 'spark.readStream.table("_recycled_v_raw_data")' in code
         assert "try_variant_get" in code
-
-    def test_data_quality_quarantine_mode_non_cloudfiles(self, tmp_path):
-        """Test non-CloudFiles quarantine (no UDF, no variant_cols)."""
-        generator = DataQualityTransformGenerator()
-        expectations_data = {
-            "id IS NOT NULL": {"action": "drop", "name": "id_not_null"},
-        }
-        exp_file = self._create_expectations_file(tmp_path, expectations_data)
-
-        action = Action(
-            name="validate_orders",
-            type=ActionType.TRANSFORM,
-            transform_type=TransformType.DATA_QUALITY,
-            source="v_raw_data",
-            target="v_validated",
-            readMode="stream",
-            expectations_file=exp_file,
-            mode="quarantine",
-            quarantine=QuarantineConfig(
-                dlq_table="cat.sch.dlq",
-                source_table="cat.sch.src",
-                cloudfiles=False,
-            ),
-        )
-
-        code = generator.generate(action, {"spec_dir": tmp_path})
-
-        # Should NOT have CloudFiles UDF or variant_cols
-        assert "_merge_rescued_" not in code
-        assert "variant_cols" not in code
-
-        # Should have non-cloudfiles row_data computation
-        assert "F.parse_json(F.to_json(F.struct(*data_cols)))" in code
-        # Should have null rescued_data
-        assert 'F.lit(None).cast("string")' in code
 
     def test_data_quality_quarantine_coerces_all_expectations_to_drop(self, tmp_path):
         """All expectations should appear in @dp.expect_all_or_drop."""
@@ -1858,9 +1851,10 @@ class TestDataQualityQuarantine:
         generator.generate(action, {"spec_dir": tmp_path})
 
         imports = generator.imports
-        assert "import json" in imports
         assert "from delta.tables import DeltaTable" in imports
         assert "from pyspark.sql import functions as F" in imports
+        assert "from pyspark.sql.types import MapType, StringType" in imports
+        assert "from pyspark.sql.window import Window" in imports
         assert "from pyspark import pipelines as dp" in imports
 
     def test_data_quality_quarantine_operational_metadata(self, tmp_path):
@@ -1919,11 +1913,66 @@ class TestDataQualityQuarantine:
 
         code = generator.generate(action, flowgroup_config)
 
+        # Recycled view present
+        assert "_recycled_v_src" in code
+        assert "@dp.expect_all_or_drop(_EXPECTATIONS_RECYCLED_v_src" in code
+
         # Metadata columns should be in the final output view
         assert "_load_timestamp" in code
         assert "_source_file" in code
         assert "# Add operational metadata columns" in code
 
+        # Hash exclusion includes both project-config AND built-in default columns
+        assert "_HASH_EXCLUDE_COLS_v_src" in code
+        assert "hash_cols" in code
+        # Project-config columns
+        assert '"_load_timestamp"' in code
+        assert '"_source_file"' in code
+        # Built-in defaults
+        assert '"_ingestion_timestamp"' in code
+        assert '"_pipeline_run_id"' in code
+
+    def test_data_quality_quarantine_hash_excludes_metadata_cols(self, tmp_path):
+        """Verify the exclusion set content and hash_cols filtering is present."""
+        generator = DataQualityTransformGenerator()
+        expectations_data = {
+            "id IS NOT NULL": {"action": "drop", "name": "id_check"},
+        }
+        exp_file = self._create_expectations_file(tmp_path, expectations_data)
+
+        action = Action(
+            name="validate_data",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_src",
+            target="v_out",
+            readMode="stream",
+            expectations_file=exp_file,
+            mode="quarantine",
+            quarantine=QuarantineConfig(
+                dlq_table="cat.sch.dlq", source_table="cat.sch.src"
+            ),
+        )
+
+        # No project config — only built-in defaults in exclusion set
+        code = generator.generate(action, {"spec_dir": tmp_path})
+
+        # Built-in default column names should all be in exclusion set
+        assert "_HASH_EXCLUDE_COLS_v_src" in code
+        assert '"_ingestion_timestamp"' in code
+        assert '"_source_file"' in code
+        assert '"_pipeline_run_id"' in code
+        assert '"_pipeline_name"' in code
+        assert '"_flowgroup_name"' in code
+
+        # hash_cols filtering is present
+        assert "hash_cols = [c for c in data_cols if c not in _exclude]" in code
+
+        # _row_json uses hash_cols, not data_cols
+        assert "F.to_json(F.struct(*hash_cols))" in code
+
+        # data_cols still used for _row_data (non-rescued branch)
+        assert "F.parse_json(F.to_json(F.struct(*data_cols)))" in code
 
     def test_data_quality_quarantine_rules_with_double_quotes(self, tmp_path):
         """Rules containing double quotes must not cause a SyntaxError."""

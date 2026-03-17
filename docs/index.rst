@@ -90,7 +90,7 @@ Features at a Glance
 * **Sinks** — Stream to external destinations: Delta tables, Kafka, Event Hubs, custom APIs.
 * **CDC & SCD** — change-data capture SCD type 1 and 2, and snapshot ingestion.
 * **Append Flows** — multi-source writes to a single streaming table.
-* **Data-Quality** — declarative expectations integrated into transforms.
+* **Data-Quality** — declarative expectations integrated into transforms, with optional :doc:`quarantine <quarantine>` mode for DLQ recycling.
 * **Seeding** — seed data from existing tables using Lakeflow native features.
 
 **Reusability**
@@ -129,6 +129,7 @@ Next Steps
 * :doc:`dynamic_templates_guide` – conditionals, loops, and advanced Jinja2 features.
 * :doc:`presets_reference` – reusable default configurations.
 * :doc:`best_practices` – enterprise patterns for naming, structure, presets, and production readiness.
+* :doc:`quarantine` – quarantine mode with DLQ recycling for data quality transforms.
 
 **Deployment & Operations**
 
@@ -161,6 +162,7 @@ Next Steps
    operational_metadata
    multi_flowgroup_guide
    best_practices
+   quarantine
    actions/index
    templates_reference
    dynamic_templates_guide

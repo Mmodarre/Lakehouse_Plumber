@@ -1,0 +1,8 @@
+product_id,product_name,category,unit_price,stock_quantity,last_updated
+9,Cable I,Components,12.99,300,2025-02-01 10:00:00
+10,Relay J,Hardware,34.50,60,2025-02-01 11:00:00
+,Missing ID Product,Electronics,25.00,40,2025-02-02 09:00:00
+12,Negative Price,Electronics,-5.00,20,2025-02-03 08:00:00
+13,,Hardware,10.00,-1,2025-02-03 09:00:00
+abc,Type Error Product,Components,15.00,50,2025-02-03 09:30:00
+14,Bad Stock,Components,10.00,xyz,2025-02-03 10:00:00

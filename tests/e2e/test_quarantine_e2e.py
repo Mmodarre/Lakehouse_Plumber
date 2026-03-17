@@ -122,7 +122,10 @@ class TestQuarantineE2E:
         assert "_INVERSE_FILTER_v_orders_raw" in code
         assert "_FAILED_RULE_EXPRS_v_orders_raw" in code
         assert "DLQ_TABLE_v_orders_raw" in code
+        assert "DLQ_OUTBOX_TABLE_v_orders_raw" in code
+        assert "universal_dlq_outbox" in code
         assert "SOURCE_TABLE_v_orders_raw" in code
+        assert "_EXPECTATIONS_RECYCLED_v_orders_raw" in code
 
         # Verify clean view with expect_all_or_drop
         assert "@dp.expect_all_or_drop(_EXPECTATIONS_v_orders_raw)" in code
@@ -137,20 +140,49 @@ class TestQuarantineE2E:
         assert "quarantine_flow_v_orders_raw" in code
         assert "_INVERSE_FILTER_v_orders_raw" in code
 
-        # Verify output view (UNION of clean + recycled)
+        # Verify recycle sink + flow (inbox → outbox dedup)
+        assert "recycle_sink_v_orders_raw" in code
+        assert "recycle_flow_v_orders_raw" in code
+        assert "Window.partitionBy" in code
+        assert "skipChangeCommits" in code
+
+        # Verify recycled view (outbox → validated)
+        assert "_recycled_v_orders_raw" in code
+        assert "@dp.expect_all_or_drop(_EXPECTATIONS_RECYCLED_" in code
+
+        # Verify output view reads from _recycled_ (no direct CDF in output)
         assert "def v_orders_validated():" in code
-        assert 'readChangeFeed' in code
+        assert 'spark.readStream.table("_recycled_v_orders_raw")' in code
         assert "clean.union(recycled)" in code
         assert "try_variant_get" in code
 
-        # Verify non-CloudFiles path (no UDF, no variant_cols)
-        assert "_merge_rescued_" not in code
-        assert "variant_cols" not in code
+        # Verify native Spark rescued_data handling (no UDF)
+        assert 'if "_rescued_data" in batch_df.columns:' in code
+        assert "variant_cols" in code
+        assert "map_zip_with" in code
+        assert "map_filter" in code
+        assert "from_json" in code
 
         # Verify imports
-        assert "import json" in code
         assert "from delta.tables import DeltaTable" in code
         assert "from pyspark.sql import functions as F" in code
+        assert "from pyspark.sql.types import MapType, StringType" in code
+        assert "from pyspark.sql.window import Window" in code
+
+        # Verify hash exclusion columns
+        assert "_HASH_EXCLUDE_COLS_v_orders_raw" in code
+        assert "hash_cols" in code
+
+        # Verify DQ section structure (separate from TRANSFORMATION VIEWS)
+        assert "DATA QUALITY & QUARANTINE" in code
+        assert "TRANSFORMATION VIEWS" not in code  # DQ-only flowgroup
+        assert "Quarantine: v_orders_raw" in code
+        assert "# --- Rules & constants ---" in code
+        assert "# --- Clean path (provides DQ metrics in event log) ---" in code
+        assert "# --- Quarantine path (DLQ sink + routing) ---" in code
+        assert "# --- Recycle path (dedup inbox" in code
+        assert "# --- Recycled path (outbox" in code
+        assert "# --- Validated output (clean + recycled) ---" in code
 
     def test_quarantine_validate_passes(self):
         """Verify 'lhp validate' passes on valid quarantine config."""
@@ -182,24 +214,8 @@ class TestQuarantineE2E:
             f"Error should mention quarantine: {output}"
         )
 
-    def test_quarantine_cloudfiles_generation(self):
-        """Verify CloudFiles quarantine generates UDF and variant_cols."""
-        # Modify the quarantine flowgroup to enable cloudfiles
-        flowgroup_file = (
-            self.project_root
-            / "pipelines"
-            / "02_bronze"
-            / "quarantine_flow.yaml"
-        )
-        content = yaml.safe_load(flowgroup_file.read_text())
-
-        for action in content["actions"]:
-            if action.get("mode") == "quarantine":
-                action["quarantine"]["cloudfiles"] = True
-                break
-
-        flowgroup_file.write_text(yaml.dump(content, default_flow_style=False))
-
+    def test_quarantine_runtime_rescued_data_detection(self):
+        """Verify quarantine generates runtime _rescued_data detection (both branches)."""
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
@@ -208,8 +224,12 @@ class TestQuarantineE2E:
         )
         code = generated_file.read_text()
 
-        # Verify CloudFiles-specific components
-        assert "_merge_rescued_v_orders_raw" in code
-        assert "@F.udf" in code
+        # Runtime if/else for _rescued_data with native Spark functions
+        assert 'if "_rescued_data" in batch_df.columns:' in code
         assert "variant_cols" in code
-        assert "_rescued_data" in code
+        assert "map_zip_with" in code
+        assert "map_filter" in code
+
+        # Both branches present
+        assert "_dlq_rescued_data" in code
+        assert 'F.lit(None).cast("string")' in code

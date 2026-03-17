@@ -1,0 +1,32 @@
+pipeline: q_testing_pipeline
+flowgroup: product_raw_ingestion
+
+actions:
+  - name: load_product_csv
+    type: load
+    readMode: stream
+    operational_metadata:
+      - _source_file_path
+      - _processing_timestamp
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/q_test/*.csv"
+      format: csv
+      options:
+        cloudFiles.format: csv
+        header: "True"
+        delimiter: ","
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: addNewColumns
+        cloudFiles.rescuedDataColumn: _rescued_data
+        cloudFiles.schemaHints: "schemas/product_schema.yaml"
+    target: v_product_raw_cloudfiles
+    description: "Load product CSV files from landing volume"
+
+  - name: write_product_raw
+    type: write
+    source: v_product_raw_cloudfiles
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{raw_schema}"
+      table: "product_raw"

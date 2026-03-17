@@ -77,6 +77,16 @@ def v_lineitem_middle_east_bronze_cleaned():
     return df
 
 
+# ============================================================================
+# DATA QUALITY & QUARANTINE
+# ============================================================================
+
+
+# ----------------------------------------------------------------------------
+# Expectations: v_lineitem_middle_east_bronze_cleaned → v_lineitem_middle_east_bronze_DQE
+# ----------------------------------------------------------------------------
+
+
 @dp.temporary_view()
 # These expectations will fail the pipeline if violated
 @dp.expect_all_or_fail(

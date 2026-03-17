@@ -395,11 +395,6 @@
                         "source_table": {
                             "type": "string",
                             "description": "Fully qualified name of the source table for DLQ tagging and CDF filtering (e.g. 'catalog.schema.bronze_orders')"
-                        },
-                        "cloudfiles": {
-                            "type": "boolean",
-                            "default": false,
-                            "description": "Set to true when upstream load uses CloudFiles (enables rescued data merge in DLQ)"
                         }
                     },
                     "additionalProperties": false
