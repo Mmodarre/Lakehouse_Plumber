@@ -56,7 +56,7 @@ actions:
     type: write
     source: "v_%{entity}_bronze_DQE"
     write_target:
-      create_table: true
+      create_table: false
       type: streaming_table
       database: "{catalog}.{bronze_schema}"
       table: "%{target_table}"
