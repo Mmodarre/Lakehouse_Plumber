@@ -31,7 +31,7 @@ parameters:
 actions:
   - name: load_{{ table_name }}_csv
     type: load
-    readMode : "stream"
+    readMode: "stream"
     # Natural YAML array format (was JSON string)
     operational_metadata:
       - "_source_file_path"

@@ -22,7 +22,7 @@ actions:
     target: v_lineitem_middle_east_raw
     description: "Load lineitem table from raw schema" 
 
-  - name: lineitem_bronze_cleanse
+  - name: lineitem_middle_east_bronze_cleanse
     type: transform
     transform_type: sql
     source: v_lineitem_middle_east_raw
@@ -51,7 +51,7 @@ actions:
       
       
 
-  - name: lineitem_bronze_DQE
+  - name: lineitem_middle_east_bronze_DQE
     type: transform
     transform_type: data_quality
     source: v_lineitem_middle_east_bronze_cleaned

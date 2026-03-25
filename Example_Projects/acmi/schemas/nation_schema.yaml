@@ -1,8 +1,8 @@
 # This schema is used to define the nation table schema
 # It is used for the schema_hint column of autoloader to overeride the inferred schema
-name: orders
+name: nation
 version: "1.0"
-description: "Orders fact table schema"
+description: "Nation dimension table schema"
 
 columns:
   - name: n_nationkey

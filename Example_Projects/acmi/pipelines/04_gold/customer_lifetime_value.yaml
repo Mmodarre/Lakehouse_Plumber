@@ -11,7 +11,7 @@ actions:
     type: load
     source:
       type: sql
-      sql_path: "sql/gld/customer_liftime_value.sql"        
+      sql_path: "sql/gld/customer_lifetime_value.sql"        
     target: v_customer_lifetime_value_sql
     
 

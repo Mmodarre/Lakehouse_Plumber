@@ -44,8 +44,10 @@ def v_customer_raw_cloudfiles():
 
 
     # Add operational metadata columns
-    df = df.withColumn('_processing_timestamp', F.current_timestamp())
-    df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
+    df = df.withColumns({
+        '_processing_timestamp': F.current_timestamp(),
+        '_source_file_path': F.col('_metadata.file_path'),
+    })
 
     return df
 
@@ -55,7 +57,7 @@ def v_customer_raw_cloudfiles():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acmi_edw_dev.edw_raw.customer_raw",
     comment="Streaming table: customer_raw",
     table_properties={"delta.enableRowTracking": "true", "PII": "true"},

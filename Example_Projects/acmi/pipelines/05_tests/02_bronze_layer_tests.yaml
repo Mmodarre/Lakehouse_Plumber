@@ -21,7 +21,7 @@ actions:
     sql: |
         SELECT
           (SELECT COUNT(*) AS source_count FROM {catalog}.{raw_schema}.customer_raw) as source_count,
-          (SELECT COUNT(*) AS target_count FROM {catalog}.{old_schema}.customer) as migration_count,
+          (SELECT COUNT(*) AS target_count FROM {catalog}.{migration_schema}.customer) as migration_count,
           (SELECT COUNT(*) AS target_count FROM {catalog}.{bronze_schema}.customer) as target_count
     expectations:
       - name: row_count_match
@@ -46,8 +46,8 @@ actions:
     test_type: referential_integrity
     source: '{catalog}.{bronze_schema}.lineitem'
     reference: '{catalog}.{bronze_schema}.orders'
-    source_columns: [l_orderkey]
-    reference_columns: [o_orderkey]
+    source_columns: [order_id]
+    reference_columns: [order_id]
     on_violation: fail
     description: "All line items must have valid order reference"
 
@@ -57,8 +57,8 @@ actions:
     test_type: referential_integrity
     source: "{catalog}.{bronze_schema}.lineitem"
     reference: "{catalog}.{bronze_schema}.part"
-    source_columns: [l_partkey]
-    reference_columns: [p_partkey]
+    source_columns: [part_id]
+    reference_columns: [part_id]
     on_violation: fail
     description: "All line items must have valid part reference"
 
@@ -84,15 +84,15 @@ actions:
     type: test
     test_type: uniqueness
     source: "{catalog}.{bronze_schema}.lineitem"
-    columns: [l_orderkey, l_linenumber]
+    columns: [order_id, line_number]
     on_violation: fail
     description: "Validate lineitem composite key uniqueness"
 
-  # Test 7: Schema consistency check
-  - name: customer_bronze_schema_consistency
+  # Test 7: Validate order primary key uniqueness
+  - name: orders_bronze_pk_uniqueness
     type: test
-    test_type: schema_match
-    source: "{catalog}.{bronze_schema}.customer"
-    reference: "{catalog}.{bronze_schema}.customer_backup"
+    test_type: uniqueness
+    source: "{catalog}.{bronze_schema}.orders"
+    columns: [order_id]
     on_violation: fail
-    description: "Ensure customer schema hasn't changed unexpectedly"
+    description: "Validate order primary key uniqueness in bronze layer"

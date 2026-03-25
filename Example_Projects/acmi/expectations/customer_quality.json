@@ -29,7 +29,7 @@
     },
     {
       "name": "valid_market_segment",
-      "expression": "market_segment IS NULL OR market_segment IN ('BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY')",
+      "expression": "market_segment IS NULL OR market_segment IN ('AUTOMOBILE', 'BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY')",
       "failureAction": "warn"
     }
   ]

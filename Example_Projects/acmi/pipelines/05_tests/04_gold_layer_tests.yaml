@@ -37,10 +37,10 @@ actions:
     source: "{catalog}.{gold_schema}.customer_segmentation_mv"
     sql: |
       WITH all_customers AS (
-        SELECT DISTINCT customer_sk FROM {catalog}.{silver_schema}.customer_dim
+        SELECT DISTINCT customer_id FROM {catalog}.{silver_schema}.customer_dim
       ),
       segmented_customers AS (
-        SELECT DISTINCT customer_sk FROM {catalog}.{gold_schema}.customer_segmentation_mv
+        SELECT DISTINCT customer_id FROM {catalog}.{gold_schema}.customer_segmentation_mv
       )
       SELECT 
         (SELECT COUNT(*) FROM all_customers) as total_customers,
@@ -57,20 +57,20 @@ actions:
     test_type: custom_sql
     source: "{catalog}.{gold_schema}.executive_dashboard_mv"
     sql: |
-      SELECT 
-        reporting_date,
-        total_revenue,
-        total_orders,
-        total_customers,
-        avg_order_value
+      SELECT
+        year,
+        month,
+        monthly_revenue,
+        monthly_orders,
+        monthly_customers,
+        avg_monthly_order_value
       FROM {catalog}.{gold_schema}.executive_dashboard_mv
-      WHERE reporting_date >= dateadd(day, -30, current_date())
     expectations:
       - name: metrics_consistency
-        expression: "abs(avg_order_value - (total_revenue / total_orders)) < 0.01"
+        expression: "abs(avg_monthly_order_value - (monthly_revenue / monthly_orders)) < 0.01"
         on_violation: fail
       - name: positive_counts
-        expression: "total_orders >= 0 AND total_customers >= 0"
+        expression: "monthly_orders >= 0 AND monthly_customers >= 0"
         on_violation: fail
     description: "Validate executive dashboard calculations"
 
@@ -80,20 +80,16 @@ actions:
     test_type: custom_sql
     source: "{catalog}.{gold_schema}.product_performance_mv"
     sql: |
-      SELECT 
-        product_id,
+      SELECT
+        part_id,
         total_quantity_sold,
         total_revenue,
-        avg_selling_price,
-        profit_margin
+        avg_unit_price
       FROM {catalog}.{gold_schema}.product_performance_mv
     expectations:
       - name: valid_pricing
-        expression: "avg_selling_price > 0 AND avg_selling_price = (total_revenue / total_quantity_sold)"
+        expression: "avg_unit_price > 0 AND abs(avg_unit_price - (total_revenue / total_quantity_sold)) < 0.01"
         on_violation: fail
-      - name: reasonable_margins
-        expression: "profit_margin >= -1.0 AND profit_margin <= 1.0"
-        on_violation: warn
     description: "Validate product performance calculations"
 
   # Test 5: Ensure no orphaned records in materialized views
@@ -103,7 +99,7 @@ actions:
     source: "{catalog}.{gold_schema}.customer_lifetime_value_mv"
     reference: "{catalog}.{silver_schema}.customer_dim"
     source_columns: [customer_id]
-    reference_columns: [c_custkey]
+    reference_columns: [customer_id]
     on_violation: fail
     description: "All customers in gold layer must exist in silver dimensions"
 
@@ -114,26 +110,29 @@ actions:
     source: "{catalog}.{gold_schema}.executive_dashboard_mv"
     sql: |
       WITH silver_revenue AS (
-        SELECT 
-          DATE(o_orderdate) as order_date,
-          SUM(l_extendedprice * (1 - l_discount)) as silver_total
+        SELECT
+          YEAR(o.order_date) as year,
+          MONTH(o.order_date) as month,
+          SUM(l.extended_price * (1 - l.discount)) as silver_total
         FROM {catalog}.{silver_schema}.lineitem_fct l
-        JOIN {catalog}.{silver_schema}.orders_fct o ON l.l_orderkey = o.o_orderkey
-        GROUP BY DATE(o_orderdate)
+        JOIN {catalog}.{silver_schema}.orders_fct o ON l.order_id = o.order_id
+        GROUP BY YEAR(o.order_date), MONTH(o.order_date)
       ),
       gold_revenue AS (
-        SELECT 
-          reporting_date,
-          total_revenue as gold_total
+        SELECT
+          year,
+          month,
+          monthly_revenue as gold_total
         FROM {catalog}.{gold_schema}.executive_dashboard_mv
       )
-      SELECT 
-        g.reporting_date,
+      SELECT
+        g.year,
+        g.month,
         g.gold_total,
         s.silver_total,
         abs(g.gold_total - s.silver_total) as difference
       FROM gold_revenue g
-      LEFT JOIN silver_revenue s ON g.reporting_date = s.order_date
+      LEFT JOIN silver_revenue s ON g.year = s.year AND g.month = s.month
       WHERE s.silver_total IS NOT NULL
     expectations:
       - name: revenue_matches
@@ -146,8 +145,8 @@ actions:
     type: test
     test_type: range
     source: "{catalog}.{gold_schema}.executive_dashboard_mv"
-    column: reporting_date
-    min_value: '2020-01-01'
-    max_value: 'current_date()'
+    column: year
+    min_value: '1990'
+    max_value: '2030'
     on_violation: fail
-    description: "Ensure dashboard dates are within expected range"
+    description: "Ensure dashboard year values are within expected range"

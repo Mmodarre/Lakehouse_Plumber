@@ -1,8 +1,6 @@
 from typing import Optional, Tuple
 from pyspark.sql import DataFrame
 
-catalog = {catalog}
-bronze_schema = {bronze_schema}
 
 def next_snapshot_and_version(latest_snapshot_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
 

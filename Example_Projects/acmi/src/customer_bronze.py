@@ -65,7 +65,7 @@ def v_customer_bronze_DQE():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acmi_edw_dev.edw_bronze.customer",
     comment="Streaming table: customer",
     table_properties={"delta.autoOptimize.optimizeWrite": "true", "delta.enableChangeDataFeed": "true"})

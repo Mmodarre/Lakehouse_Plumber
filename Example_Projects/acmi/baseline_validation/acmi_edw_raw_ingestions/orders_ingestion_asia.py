@@ -27,8 +27,10 @@ def v_orders_asia_raw_cloudfiles():
 
 
     # Add operational metadata columns
-    df = df.withColumn('_processing_timestamp', F.current_timestamp())
-    df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
+    df = df.withColumns({
+        '_processing_timestamp': F.current_timestamp(),
+        '_source_file_path': F.col('_metadata.file_path'),
+    })
 
     return df
 
@@ -38,7 +40,7 @@ def v_orders_asia_raw_cloudfiles():
 # ============================================================================
 
 # Create the streaming table
-dlt.create_streaming_table(
+dp.create_streaming_table(
     name="acmi_edw_dev.edw_raw.orders_asia_raw",
     comment="Streaming table: orders_asia_raw")
 

@@ -18,8 +18,8 @@ actions:
     test_type: all_lookups_found
     source: "{catalog}.{bronze_schema}.customer"
     lookup_table: "{catalog}.{silver_schema}.customer_dim"
-    lookup_columns: [customer_key]
-    lookup_result_columns: [customer_key]
+    lookup_columns: [customer_id]
+    lookup_result_columns: [customer_id]
     on_violation: fail
     description: "All bronze customers must have silver dimension records"
 
@@ -29,8 +29,8 @@ actions:
     test_type: all_lookups_found
     source: "{catalog}.{silver_schema}.customer_dim"
     lookup_table: "{catalog}.{silver_schema}.nation_dim"
-    lookup_columns: [nation_key]
-    lookup_result_columns: [nation_key]
+    lookup_columns: [nation_id]
+    lookup_result_columns: [nation_id]
     on_violation: fail
     description: "All customer nations must exist in nation dimension"
 
@@ -86,12 +86,12 @@ actions:
     source: "{catalog}.{silver_schema}.orders_fct"
     sql: |
       WITH fact_customers AS (
-        SELECT DISTINCT customer_key FROM {catalog}.{silver_schema}.orders_fct
+        SELECT DISTINCT customer_id FROM {catalog}.{silver_schema}.orders_fct
       ),
       dim_customers AS (
-        SELECT DISTINCT customer_key FROM {catalog}.{silver_schema}.customer_dim
+        SELECT DISTINCT customer_id FROM {catalog}.{silver_schema}.customer_dim
       )
-      SELECT 
+      SELECT
         (SELECT COUNT(*) FROM fact_customers) as fact_count,
         (SELECT COUNT(*) FROM dim_customers) as dim_count
     expectations:

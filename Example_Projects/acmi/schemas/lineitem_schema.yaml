@@ -1,8 +1,8 @@
-# This schema is used to define the orders table schema
+# This schema is used to define the lineitem table schema
 # It is used for the schema_hint column of autoloader to overeride the inferred schema
-name: orders
+name: lineitem
 version: "1.0"
-description: "Orders fact table schema"
+description: "Lineitem fact table schema"
 
 
 columns:
@@ -75,4 +75,4 @@ columns:
     nullable: true
     comment: "Last modified date"
 
-primary_key: [l_orderkey] 
+primary_key: [l_orderkey, l_linenumber]

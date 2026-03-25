@@ -34,13 +34,13 @@
     },
     {
       "name": "valid_discount",
-      "expression": "discount IS NOT NULL AND discount > 0",
+      "expression": "discount IS NOT NULL AND discount >= 0",
       "failureAction": "warn"
     },
     
     {
       "name": "valid_tax",
-      "expression": "tax IS NOT NULL AND tax > 0",
+      "expression": "tax IS NOT NULL AND tax >= 0",
       "failureAction": "warn"
     },
     {

@@ -1,6 +1,6 @@
 # This pipeline creates an executive dashboard materialized view
 # that reads from multiple existing gold layer MVs to create a comprehensive executive view
-pipeline: gold_load
+pipeline: acmi_edw_gold
 # Flowgroup are conceptual artifacts and has no functional purpose
 # there are used to group actions together in the generated files
 flowgroup: executive_dashboard_mv
