@@ -1,4 +1,7 @@
 old_code/
+tmp*/
+pytest-of-*/
+output/
 .DS_Store
 .env
 .venv/
@@ -80,3 +83,10 @@ web_app/*.ntvs*
 web_app/*.njsproj
 web_app/*.sln
 web_app/*.sw?
+.claude/commands/drawio-databricks.md
+.claude/skills/databricks-unity-catalog/5-system-tables.md
+.claude/skills/databricks-unity-catalog/SKILL.md
+.claude/skills/lhp/drawio-databricks/references/databricks-icon-catalog.txt
+.claude/skills/lhp/drawio-databricks/references/layout-patterns.md
+.claude/skills/lhp/drawio-databricks/references/REFERENCE.md
+.claude/settings.json

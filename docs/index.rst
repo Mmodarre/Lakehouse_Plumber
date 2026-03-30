@@ -129,6 +129,7 @@ Next Steps
 * :doc:`dynamic_templates_guide` – conditionals, loops, and advanced Jinja2 features.
 * :doc:`presets_reference` – reusable default configurations.
 * :doc:`best_practices` – enterprise patterns for naming, structure, presets, and production readiness.
+* :doc:`pipeline_patterns` – practical patterns for multi-source ingestion, path filtering, and fan-in architectures.
 * :doc:`quarantine` – quarantine mode with DLQ recycling for data quality transforms.
 
 **Deployment & Operations**
@@ -162,6 +163,7 @@ Next Steps
    operational_metadata
    multi_flowgroup_guide
    best_practices
+   pipeline_patterns
    quarantine
    actions/index
    templates_reference
