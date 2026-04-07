@@ -48,6 +48,10 @@ dev = [
     "isort>=5.12.0",
     "mypy>=1.0.0",
     "requests>=2.32.0",
+    "pip-audit>=2.7.0",
+    "bandit[sarif]>=1.7.0",
+    "liccheck>=0.9.0",
+    "pre-commit>=3.0.0",
 ]
 
 [project.urls]
