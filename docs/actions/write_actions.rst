@@ -18,6 +18,11 @@ streaming_table
 -------------------------------------------
 Streaming table write actions create or append to Delta streaming tables. They support three modes: **standard** (append flows), **cdc** (change data capture), and **snapshot_cdc** (snapshot-based CDC).
 
+.. deprecated:: 0.7.8
+   The ``database`` field (e.g., ``database: "{catalog}.{schema}"``) is deprecated.
+   Use explicit ``catalog`` and ``schema`` fields instead. The old format is
+   auto-converted with a deprecation warning. Removal in v1.0.0.
+
 Append Streaming Table Write
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -29,7 +34,8 @@ Append Streaming Table Write
       source: v_customer_cleansed
       write_target:
         type: streaming_table
-        database: "{catalog}.{bronze_schema}"
+        catalog: "{catalog}"
+        schema: "{bronze_schema}"
         table: customer
         create_table: true
         table_properties:
@@ -58,7 +64,8 @@ Append Streaming Table Write
 - **source**: Source view(s) to read from (string or list of strings)
 - **write_target**: Streaming table configuration
       - **type**: Use streaming table as target
-      - **database**: Target database using substitution variables
+      - **catalog**: Target catalog using substitution variables
+      - **schema**: Target schema using substitution variables
       - **table**: Target table name
       - **create_table**: Whether to create the table (true) or append to existing (false)
       - **table_properties**: Delta table properties for optimization and metadata
@@ -160,7 +167,8 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
       source: v_customer_changes
       write_target:
         type: streaming_table
-        database: "{catalog}.{silver_schema}"
+        catalog: "{catalog}"
+        schema: "{silver_schema}"
         table: dim_customer
         mode: "cdc"
         table_properties:
@@ -227,7 +235,8 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
       type: write
       write_target:
         type: streaming_table
-        database: "{catalog}.{silver_schema}"
+        catalog: "{catalog}"
+        schema: "{silver_schema}"
         table: dim_customer_simple
         mode: "snapshot_cdc"
         snapshot_cdc_config:
@@ -251,7 +260,8 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
       type: write
       write_target:
         type: streaming_table
-        database: "{catalog}.{silver_schema}"
+        catalog: "{catalog}"
+        schema: "{silver_schema}"
         table: "part_dim"
         mode: "snapshot_cdc"
         snapshot_cdc_config:
@@ -272,7 +282,8 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
       type: write
       write_target:
         type: streaming_table
-        database: "{catalog}.{silver_schema}"
+        catalog: "{catalog}"
+        schema: "{silver_schema}"
         table: dim_product
         mode: "snapshot_cdc"
         snapshot_cdc_config:
@@ -540,7 +551,8 @@ for pre-computed analytics tables based on the output of a query.
       source: v_customer_aggregated
       write_target:
         type: materialized_view
-        database: "{catalog}.{gold_schema}"
+        catalog: "{catalog}"
+        schema: "{gold_schema}"
         table: customer_summary
         table_properties:
           delta.autoOptimize.optimizeWrite: "true"
@@ -560,7 +572,8 @@ for pre-computed analytics tables based on the output of a query.
       type: write
       write_target:
         type: materialized_view
-        database: "{catalog}.{gold_schema}"
+        catalog: "{catalog}"
+        schema: "{gold_schema}"
         table: daily_sales_summary
         sql: |
           SELECT 
@@ -589,7 +602,8 @@ for pre-computed analytics tables based on the output of a query.
       type: write
       write_target:
         type: materialized_view
-        database: "{catalog}.{gold_schema}"
+        catalog: "{catalog}"
+        schema: "{gold_schema}"
         table: daily_sales_summary
         sql_path: "sql/gold/daily_sales_summary.sql"
         table_properties:
@@ -606,7 +620,8 @@ for pre-computed analytics tables based on the output of a query.
 - **source**: Source view to read from (optional if SQL provided in write_target)
 - **write_target**: Materialized view configuration
       - **type**: Use materialized view as target
-      - **database**: Target database using substitution variables
+      - **catalog**: Target catalog using substitution variables
+      - **schema**: Target schema using substitution variables
       - **table**: Target table name
       - **sql**: Inline SQL query to define the view (alternative to source or sql_path)
       - **sql_path**: Path to external SQL file to define the view (alternative to source or sql)

@@ -45,15 +45,17 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
     source: v_transformed
     write_target:
       table: my_materialized_view
-      database: my_database""",
+      catalog: my_catalog
+      schema: my_schema""",
             )
 
         # Extract configuration
-        database = target_config.get("database")
+        catalog = target_config.get("catalog")
+        schema = target_config.get("schema")
         table = target_config.get("table")
 
-        # Build full table name
-        full_table_name = f"{database}.{table}" if database else table
+        # Build full table name (normalizer guarantees catalog/schema are present)
+        full_table_name = f"{catalog}.{schema}.{table}" if catalog and schema else table
         logger.debug(
             f"Generating materialized view write for target '{full_table_name}', action '{action.name}'"
         )
@@ -65,7 +67,7 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         spark_conf = target_config.get("spark_conf", {})
 
         # Schema definition (SQL DDL string or StructType)
-        schema_value = target_config.get("table_schema") or target_config.get("schema")
+        schema_value = target_config.get("table_schema")
         schema = None
 
         if schema_value:

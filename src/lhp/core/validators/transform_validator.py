@@ -111,15 +111,25 @@ class TransformActionValidator(BaseActionValidator):
             else:
                 # Validate required quarantine sub-fields
                 if isinstance(quarantine_config, dict):
-                    if not quarantine_config.get("dlq_table"):
-                        errors.append(f"{prefix}: quarantine.dlq_table is required")
-                    if not quarantine_config.get("source_table"):
-                        errors.append(f"{prefix}: quarantine.source_table is required")
+                    for field in ("dlq_table", "source_table"):
+                        value = quarantine_config.get(field)
+                        if not value:
+                            errors.append(f"{prefix}: quarantine.{field} is required")
+                        elif isinstance(value, str) and value.count(".") != 2:
+                            errors.append(
+                                f"{prefix}: quarantine.{field} must be a 3-part name "
+                                f"(catalog.schema.table), got '{value}'"
+                            )
                 else:
-                    if not quarantine_config.dlq_table:
-                        errors.append(f"{prefix}: quarantine.dlq_table is required")
-                    if not quarantine_config.source_table:
-                        errors.append(f"{prefix}: quarantine.source_table is required")
+                    for field in ("dlq_table", "source_table"):
+                        value = getattr(quarantine_config, field, None)
+                        if not value:
+                            errors.append(f"{prefix}: quarantine.{field} is required")
+                        elif isinstance(value, str) and value.count(".") != 2:
+                            errors.append(
+                                f"{prefix}: quarantine.{field} must be a 3-part name "
+                                f"(catalog.schema.table), got '{value}'"
+                            )
 
             # Validate expectations file for quarantine mode (fail-fast)
             self._validate_quarantine_expectations(action, prefix, errors)

@@ -106,7 +106,7 @@ class TestCodeGeneratorDetermineActionSubtype:
         action = Action(
             name="write_data",
             type=ActionType.WRITE,
-            write_target={"type": "streaming_table", "database": "test", "table": "table1"}
+            write_target={"type": "streaming_table", "catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
         
         result = code_generator.determine_action_subtype(action)
@@ -117,7 +117,7 @@ class TestCodeGeneratorDetermineActionSubtype:
         action = Action(
             name="write_data",
             type=ActionType.WRITE,
-            write_target={"type": "materialized_view", "database": "test", "table": "view1"}
+            write_target={"type": "materialized_view", "catalog": "test_cat", "schema": "test_sch", "table": "view1"}
         )
         
         result = code_generator.determine_action_subtype(action)
@@ -139,7 +139,7 @@ class TestCodeGeneratorDetermineActionSubtype:
         action = Action(
             name="write_data",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
         
         result = code_generator.determine_action_subtype(action)
@@ -195,54 +195,54 @@ class TestCodeGeneratorGroupWriteActionsByTarget:
         action = Action(
             name="write_table1",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
-        
+
         result = code_generator.group_write_actions_by_target([action])
-        
+
         assert len(result) == 1
-        assert "test.table1" in result
-        assert result["test.table1"] == [action]
+        assert "test_cat.test_sch.table1" in result
+        assert result["test_cat.test_sch.table1"] == [action]
     
     def test_group_write_actions_multiple_same_target(self, code_generator):
         """Test grouping multiple actions with same target."""
         action1 = Action(
             name="write_table1_a",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
         action2 = Action(
             name="write_table1_b",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
-        
+
         result = code_generator.group_write_actions_by_target([action1, action2])
-        
+
         assert len(result) == 1
-        assert "test.table1" in result
-        assert len(result["test.table1"]) == 2
-        assert action1 in result["test.table1"]
-        assert action2 in result["test.table1"]
+        assert "test_cat.test_sch.table1" in result
+        assert len(result["test_cat.test_sch.table1"]) == 2
+        assert action1 in result["test_cat.test_sch.table1"]
+        assert action2 in result["test_cat.test_sch.table1"]
     
     def test_group_write_actions_different_targets(self, code_generator):
         """Test grouping actions with different targets."""
         action1 = Action(
             name="write_table1",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
         action2 = Action(
             name="write_table2",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table2"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table2"}
         )
-        
+
         result = code_generator.group_write_actions_by_target([action1, action2])
-        
+
         assert len(result) == 2
-        assert "test.table1" in result
-        assert "test.table2" in result
+        assert "test_cat.test_sch.table1" in result
+        assert "test_cat.test_sch.table2" in result
     
     def test_group_write_actions_table_only(self, code_generator):
         """Test grouping actions with table name only."""
@@ -286,10 +286,10 @@ class TestCodeGeneratorCreateCombinedWriteAction:
             name="write_table1",
             type=ActionType.WRITE,
             source="v_source1",
-            write_target={"database": "test", "table": "table1", "create_table": True}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": True}
         )
-        
-        combined = code_generator.create_combined_write_action([action], "test.table1")
+
+        combined = code_generator.create_combined_write_action([action], "test_cat.test_sch.table1")
         
         assert combined.name == action.name
         assert combined.write_target == action.write_target
@@ -302,16 +302,16 @@ class TestCodeGeneratorCreateCombinedWriteAction:
             name="write_table1_a",
             type=ActionType.WRITE,
             source="v_source1",
-            write_target={"database": "test", "table": "table1", "create_table": True}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": True}
         )
         action2 = Action(
             name="write_table1_b",
             type=ActionType.WRITE,
             source="v_source2",
-            write_target={"database": "test", "table": "table1", "create_table": False}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": False}
         )
-        
-        combined = code_generator.create_combined_write_action([action1, action2], "test.table1")
+
+        combined = code_generator.create_combined_write_action([action1, action2], "test_cat.test_sch.table1")
         
         assert combined.name == action1.name  # Uses table creator
         assert hasattr(combined, '_action_metadata')
@@ -323,10 +323,10 @@ class TestCodeGeneratorCreateCombinedWriteAction:
             name="write_table1",
             type=ActionType.WRITE,
             source=["v_source1", "v_source2"],
-            write_target={"database": "test", "table": "table1", "create_table": True}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": True}
         )
-        
-        combined = code_generator.create_combined_write_action([action], "test.table1")
+
+        combined = code_generator.create_combined_write_action([action], "test_cat.test_sch.table1")
         
         assert hasattr(combined, '_action_metadata')
         assert len(combined._action_metadata) == 2
@@ -341,10 +341,10 @@ class TestCodeGeneratorCreateCombinedWriteAction:
             source="v_source1",
             description="Test description",
             once=True,
-            write_target={"database": "test", "table": "table1", "create_table": True}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": True}
         )
-        
-        combined = code_generator.create_combined_write_action([action], "test.table1")
+
+        combined = code_generator.create_combined_write_action([action], "test_cat.test_sch.table1")
         
         assert combined._action_metadata[0]["description"] == "Test description"
         assert combined._action_metadata[0]["once"] is True
@@ -415,11 +415,11 @@ class TestCodeGeneratorExtractSourceViewsFromAction:
     def test_extract_source_views_list_dicts(self, code_generator):
         """Test extracting source views from list of dicts."""
         result = code_generator._extract_source_views_from_action([
-            {"database": "test", "table": "table1"},
-            {"database": "test", "table": "table2"}
+            {"catalog": "test_cat", "schema": "test_sch", "table": "table1"},
+            {"catalog": "test_cat", "schema": "test_sch", "table": "table2"}
         ])
-        
-        assert result == ["test.table1", "test.table2"]
+
+        assert result == ["test_cat.test_sch.table1", "test_cat.test_sch.table2"]
     
     def test_extract_source_views_list_dicts_with_view(self, code_generator):
         """Test extracting source views from list of dicts with view key."""
@@ -430,14 +430,15 @@ class TestCodeGeneratorExtractSourceViewsFromAction:
         
         assert result == ["v_view1", "v_view2"]
     
-    def test_extract_source_views_dict_with_database_table(self, code_generator):
-        """Test extracting source views from dict with database and table."""
+    def test_extract_source_views_dict_with_catalog_schema_table(self, code_generator):
+        """Test extracting source views from dict with catalog, schema, and table."""
         result = code_generator._extract_source_views_from_action({
-            "database": "test",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "table1"
         })
-        
-        assert result == ["test.table1"]
+
+        assert result == ["test_cat.test_sch.table1"]
     
     def test_extract_source_views_dict_with_table_only(self, code_generator):
         """Test extracting source views from dict with table only."""

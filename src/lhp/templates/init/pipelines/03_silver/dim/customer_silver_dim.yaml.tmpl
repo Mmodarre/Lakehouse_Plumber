@@ -14,7 +14,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      database: "{catalog}.{bronze_schema}"
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
       table: customer
     target: v_customer_bronze
     description: "Load customer table from silver schema" 
@@ -24,7 +25,8 @@ actions:
     source: v_customer_bronze
     write_target:
       type: streaming_table
-      database: "{catalog}.{silver_schema}"
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
       table: "customer_dim"
       mode: "cdc"
       

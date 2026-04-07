@@ -74,7 +74,8 @@ actions:
     source: v_customers_enriched
     write_target:
       type: streaming_table
-      database: "{catalog}.silver"
+      catalog: "{catalog}"
+      schema: "silver"
       table: customers_enriched
       create_table: true
 """)
@@ -157,7 +158,8 @@ actions:
     source: v_enriched_data
     write_target:
       type: streaming_table
-      database: "silver"
+      catalog: "test_cat"
+      schema: "silver"
       table: enriched_data
       create_table: true
 """)
@@ -221,7 +223,8 @@ actions:
     source: v_structured_data
     write_target:
       type: materialized_view
-      database: "silver"
+      catalog: "test_cat"
+      schema: "silver"
       table: structured_customers
       refresh_schedule: "CRON '0 0 * * *'"
       create_table: true
@@ -263,7 +266,8 @@ actions:
     type: load
     source:
       type: delta
-      database: "bronze"
+      catalog: "test_cat"
+      schema: "bronze"
       table: "orders"
     target: v_orders
     
@@ -271,7 +275,8 @@ actions:
     type: load
     source:
       type: delta
-      database: "bronze"
+      catalog: "test_cat"
+      schema: "bronze"
       table: "customers"
     target: v_customers
     
@@ -308,7 +313,8 @@ actions:
     source: v_order_details
     write_target:
       type: streaming_table
-      database: "gold"
+      catalog: "test_cat"
+      schema: "gold"
       table: "fact_orders"
       create_table: true
       
@@ -317,7 +323,8 @@ actions:
     source: v_customer_metrics
     write_target:
       type: materialized_view
-      database: "gold"
+      catalog: "test_cat"
+      schema: "gold"
       table: "dim_customer_metrics"
       create_table: true
 """)
@@ -381,7 +388,8 @@ actions:
     source: v_data
     write_target:
       type: streaming_table
-      database: "bronze"
+      catalog: "test_cat"
+      schema: "bronze"
       table: "with_metadata"
       create_table: true
 """)
@@ -405,7 +413,8 @@ actions:
     source: v_data2
     write_target:
       type: streaming_table
-      database: "bronze"
+      catalog: "test_cat"
+      schema: "bronze"
       table: "override_metadata"
       create_table: true
 """)
@@ -498,7 +507,8 @@ actions:
     source: v_transform_a
     write_target:
       type: streaming_table
-      database: "test"
+      catalog: "test_cat"
+      schema: "test_sch"
       table: "result"
       create_table: true
 """)
@@ -534,7 +544,8 @@ actions:
     source: v_data
     write_target:
       type: streaming_table
-      database: "catalog.schema"
+      catalog: "catalog"
+      schema: "schema"
       table: "lineitem"
       create_table: true
       
@@ -543,7 +554,8 @@ actions:
     source: v_data
     write_target:
       type: streaming_table
-      database: "catalog.schema"
+      catalog: "catalog"
+      schema: "schema"
       table: "lineitem"
       create_table: true
 """)
@@ -629,7 +641,8 @@ actions:
     source: v_customers
     write_target:
       type: streaming_table
-      database: "bronze"
+      catalog: "test_cat"
+      schema: "bronze"
       table: "customers"
       create_table: true
 """) 

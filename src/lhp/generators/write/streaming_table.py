@@ -43,7 +43,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
     source: v_transformed
     write_target:
       table: my_table
-      database: my_database""",
+      catalog: my_catalog
+      schema: my_schema""",
             )
         logger.debug(f"Generating streaming table write for action '{action.name}'")
 
@@ -57,7 +58,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         mode = target_config.get(
             "mode", "standard"
         )  # Valid modes: "standard" (default), "cdc", "snapshot_cdc"
-        database = target_config.get("database")
+        catalog = target_config.get("catalog")
+        schema = target_config.get("schema")
         table = target_config.get("table")
 
         # For CDC modes, always create the table since CDC flows need dedicated tables
@@ -68,8 +70,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                 "create_table", True
             )  # Default to True for standard mode
 
-        # Build full table name
-        full_table_name = f"{database}.{table}" if database else table
+        # Build full table name (normalizer guarantees catalog/schema are present)
+        full_table_name = f"{catalog}.{schema}.{table}" if catalog and schema else table
         logger.debug(
             f"Streaming table '{action.name}': target='{full_table_name}', mode='{mode}', readMode='{readMode}', sources={source_views}"
         )
@@ -83,7 +85,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         spark_conf = target_config.get("spark_conf", {})
 
         # Schema definition (SQL DDL string or StructType)
-        schema_value = target_config.get("table_schema") or target_config.get("schema")
+        schema_value = target_config.get("table_schema")
         schema = None
 
         if schema_value:

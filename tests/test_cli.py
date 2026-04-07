@@ -174,7 +174,8 @@ class TestCLI:
                         'source': 'v_raw_data',
                         'write_target': {
                             'type': 'streaming_table',
-                            'database': 'bronze',
+                            'catalog': 'test_cat',
+                            'schema': 'bronze',
                             'table': 'test_table',
                             'create_table': True
                         }
@@ -249,7 +250,8 @@ class TestCLI:
                         'source': 'v_raw_data',
                         'write_target': {
                             'type': 'streaming_table',
-                            'database': 'bronze',
+                            'catalog': 'test_cat',
+                            'schema': 'bronze',
                             'table': 'test_table',
                             'create_table': True
                         }
@@ -320,7 +322,8 @@ class TestCLI:
                         'source': 'v_raw_data',
                         'write_target': {
                             'type': 'streaming_table',
-                            'database': 'bronze',
+                            'catalog': 'test_cat',
+                            'schema': 'bronze',
                             'table': 'test_table',
                             'create_table': True
                         }
@@ -370,7 +373,8 @@ class TestCLI:
                         'source': 'v_raw_data',
                         'write_target': {
                             'type': 'streaming_table',
-                            'database': 'bronze',
+                            'catalog': 'test_cat',
+                            'schema': 'bronze',
                             'table': 'test_table',
                             'create_table': True
                         }
@@ -419,7 +423,8 @@ class TestCLI:
                         'source': 'v_raw_data',
                         'write_target': {
                             'type': 'streaming_table',
-                            'database': '{bronze_schema}',
+                            'catalog': '{catalog}',
+                            'schema': '{bronze_schema}',
                             'table': 'processed_data',
                             'create_table': True
                         }
@@ -474,7 +479,8 @@ class TestCLI:
                         'source': 'v_jdbc_data',
                         'write_target': {
                             'type': 'streaming_table',
-                            'database': 'bronze',
+                            'catalog': 'test_cat',
+                            'schema': 'bronze',
                             'table': 'customers_raw',
                             'create_table': True
                         }

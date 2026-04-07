@@ -138,6 +138,12 @@ class FlowgroupProcessor:
                     },
                 )
 
+        # Step 3.7: Normalize legacy 'database' fields to catalog/schema
+        # REMOVE_AT_V1.0.0: Remove this import + call when database field is dropped
+        from .namespace_normalizer import normalize_namespace_fields
+
+        substituted_dict = normalize_namespace_fields(substituted_dict)
+
         processed_flowgroup = FlowGroup(**substituted_dict)
 
         self.logger.debug(
@@ -253,14 +259,8 @@ class FlowgroupProcessor:
                             action.get("write_target", {}), preset_defaults
                         )
 
-                        # Handle special cases like database_suffix
-                        if (
-                            "database_suffix" in preset_defaults
-                            and "database" in action["write_target"]
-                        ):
-                            action["write_target"]["database"] += preset_defaults[
-                                "database_suffix"
-                            ]
+                        # Handle special cases like database_suffix / schema_suffix
+                        self._apply_suffix(action["write_target"], preset_defaults)
 
                 # Handle old structure for backward compatibility during migration
                 elif action.get("source") and isinstance(action["source"], dict):
@@ -273,14 +273,8 @@ class FlowgroupProcessor:
                             action.get("source", {}), preset_defaults
                         )
 
-                        # Handle special cases like database_suffix
-                        if (
-                            "database_suffix" in preset_defaults
-                            and "database" in action["source"]
-                        ):
-                            action["source"]["database"] += preset_defaults[
-                                "database_suffix"
-                            ]
+                        # Handle special cases like database_suffix / schema_suffix
+                        self._apply_suffix(action["source"], preset_defaults)
 
         # Apply global preset settings
         if "defaults" in preset_config:
@@ -289,6 +283,27 @@ class FlowgroupProcessor:
                     flowgroup_dict[key] = value
 
         return FlowGroup(**flowgroup_dict)
+
+    @staticmethod
+    def _apply_suffix(target: dict, preset_defaults: dict) -> None:
+        """Apply schema_suffix or database_suffix from preset to the target config.
+
+        Supports both new format (schema) and legacy format (database).
+        database_suffix is deprecated — use schema_suffix instead.
+
+        REMOVE_AT_V1.0.0: Drop database_suffix support entirely.
+        """
+        suffix = preset_defaults.get("schema_suffix") or preset_defaults.get(
+            "database_suffix"
+        )
+        if not suffix:
+            return
+
+        if "schema" in target:
+            target["schema"] += suffix
+        elif "database" in target:
+            # REMOVE_AT_V1.0.0: Legacy database_suffix path
+            target["database"] += suffix
 
     def deep_merge(
         self, base: Dict[str, Any], override: Dict[str, Any]

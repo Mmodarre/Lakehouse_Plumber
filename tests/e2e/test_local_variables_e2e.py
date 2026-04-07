@@ -67,10 +67,12 @@ class TestLocalVariablesE2E:
         assert processed_fg.actions[1].target == "v_test_customer_cleaned"
         assert processed_fg.actions[2].name == "write_test_customer_bronze"
         
-        # Verify environment tokens were also resolved
-        assert processed_fg.actions[0].source["database"] == "acme_edw_dev.edw_raw"
+        # Verify environment tokens were also resolved (namespace normalized to catalog/schema)
+        assert processed_fg.actions[0].source["catalog"] == "acme_edw_dev"
+        assert processed_fg.actions[0].source["schema"] == "edw_raw"
         assert processed_fg.actions[0].source["table"] == "customer_raw"
-        assert processed_fg.actions[2].write_target["database"] == "acme_edw_dev.edw_bronze"
+        assert processed_fg.actions[2].write_target["catalog"] == "acme_edw_dev"
+        assert processed_fg.actions[2].write_target["schema"] == "edw_bronze"
         assert processed_fg.actions[2].write_target["table"] == "test_customer"
         
         # Verify descriptions resolved

@@ -126,12 +126,14 @@ class WriteActionValidator(BaseActionValidator):
     def _validate_table_requirements(
         self, action: Action, prefix: str, target_type: str
     ) -> List[str]:
-        """Validate common table requirements (database, table/name)."""
+        """Validate common table requirements (catalog, schema, table)."""
         errors = []
-        # Must have database and table/name
-        if not action.write_target.get("database"):
-            errors.append(f"{prefix}: {target_type} must have 'database'")
-        if not action.write_target.get("table"):
+        wt = action.write_target
+        if not wt.get("catalog"):
+            errors.append(f"{prefix}: {target_type} must have 'catalog'")
+        if not wt.get("schema"):
+            errors.append(f"{prefix}: {target_type} must have 'schema'")
+        if not wt.get("table"):
             errors.append(f"{prefix}: {target_type} must have 'table'")
         return errors
 
@@ -242,6 +244,15 @@ class WriteActionValidator(BaseActionValidator):
             errors.append(
                 f"{prefix}: Delta sink options cannot have both 'tableName' and 'path'. Use one or the other."
             )
+
+        # Validate tableName is a 3-part name if present
+        if has_table_name:
+            table_name_val = options["tableName"]
+            if isinstance(table_name_val, str) and table_name_val.count(".") != 2:
+                errors.append(
+                    f"{prefix}: Delta sink 'tableName' must be a 3-part name "
+                    f"(catalog.schema.table), got '{table_name_val}'"
+                )
 
         # Note: Other options are allowed and passed through silently
         # for future DLT support (e.g., checkpointLocation, mergeSchema, etc.)

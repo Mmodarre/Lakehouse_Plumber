@@ -53,13 +53,11 @@ class DeltaLoadGenerator(BaseActionGenerator):
         # Extract configuration
         table = source_config.get("table")
         catalog = source_config.get("catalog")
-        database = source_config.get("database")
+        schema = source_config.get("schema")
 
-        # Build table reference
-        if catalog and database:
-            table_ref = f"{catalog}.{database}.{table}"
-        elif database:
-            table_ref = f"{database}.{table}"
+        # Build table reference (normalizer guarantees catalog/schema are present for delta)
+        if catalog and schema:
+            table_ref = f"{catalog}.{schema}.{table}"
         else:
             table_ref = table
 

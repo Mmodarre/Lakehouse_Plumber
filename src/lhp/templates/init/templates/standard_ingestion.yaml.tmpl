@@ -50,7 +50,8 @@ actions:
     source: v_{{ table_name }}_cloudfiles
     write_target:
       type: streaming_table
-      database: "{catalog}.{raw_schema}"
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
       table: "{{ table_name }}"
       description: "Write {{ table_name }} to raw layer" 
       table_properties: "{{ table_properties }}"

@@ -697,11 +697,12 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                 target_config = action.source if isinstance(action.source, dict) else {}
 
             # Build full table name
-            database = target_config.get("database", "")
+            catalog = target_config.get("catalog", "")
+            schema = target_config.get("schema", "")
             table = target_config.get("table") or target_config.get("name", "")
 
-            if database and table:
-                full_table_name = f"{database}.{table}"
+            if catalog and schema and table:
+                full_table_name = f"{catalog}.{schema}.{table}"
             elif table:
                 full_table_name = table
             else:

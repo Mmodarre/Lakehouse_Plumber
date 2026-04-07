@@ -25,7 +25,8 @@ class TestConfigValidatorWriteTargets:
             # Missing source - should fail for standard mode
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
                 "mode": "standard",  # Standard mode requires source
             },
@@ -43,7 +44,8 @@ class TestConfigValidatorWriteTargets:
             source={"invalid": "dict_source"},  # Should be string or list
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
                 "mode": "standard",
             },
@@ -60,7 +62,8 @@ class TestConfigValidatorWriteTargets:
             # Missing source - OK for snapshot_cdc mode
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
                 "mode": "snapshot_cdc",
                 "snapshot_cdc_config": {
@@ -83,7 +86,8 @@ class TestConfigValidatorWriteTargets:
             source="v_input_data",  # Valid string source
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
                 "mode": "standard",
             },
@@ -102,7 +106,8 @@ class TestConfigValidatorWriteTargets:
             source=["v_input1", "v_input2"],  # Valid list source
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
                 "mode": "standard",
             },
@@ -129,7 +134,8 @@ class TestConfigValidatorWriteTargets:
             # Missing both source and SQL
             write_target={
                 "type": "materialized_view",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
                 # Missing both source and sql
             },
@@ -147,7 +153,8 @@ class TestConfigValidatorWriteTargets:
             source={"invalid": "dict_source"},  # Should be string or list, not dict
             write_target={
                 "type": "materialized_view",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
             },
         )
@@ -163,7 +170,8 @@ class TestConfigValidatorWriteTargets:
             source="v_input_data",  # Valid string source
             write_target={
                 "type": "materialized_view",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
             },
         )
@@ -179,7 +187,8 @@ class TestConfigValidatorWriteTargets:
             source=["v_input1", "v_input2"],  # Valid list source
             write_target={
                 "type": "materialized_view",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
             },
         )
@@ -195,7 +204,8 @@ class TestConfigValidatorWriteTargets:
             # No source field - OK because SQL is provided
             write_target={
                 "type": "materialized_view",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test_sch",
                 "table": "test",
                 "sql": "SELECT COUNT(*) FROM silver.details",
             },
@@ -216,7 +226,8 @@ class TestConfigValidatorWriteTargets:
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "ecomm_summary",
                 "sql_path": "sql/gold/ecomm_summary.sql",
             },
@@ -236,7 +247,8 @@ class TestConfigValidatorWriteTargets:
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "bad_table",
             },
         )

@@ -752,23 +752,23 @@ class TestCdcSchemaValidatorDirect:
         assert any("__END_AT" in e for e in errors)
         assert len(errors) == 2
 
-    def test_validate_schema_via_legacy_schema_key(self):
-        """Schema provided via 'schema' key (legacy) should also be validated."""
+    def test_validate_schema_via_table_schema_key(self):
+        """Schema provided via 'table_schema' key should also be validated."""
         action = self._make_action(
             write_target={
                 "type": "streaming_table",
-                "schema": "id INT, __START_AT TIMESTAMP, __END_AT TIMESTAMP",
+                "table_schema": "id INT, __START_AT TIMESTAMP, __END_AT TIMESTAMP",
             }
         )
         errors = self.validator.validate(action, self.prefix)
         assert errors == []
 
-    def test_validate_legacy_schema_key_missing_columns(self):
-        """Schema via 'schema' key missing CDC columns should produce errors."""
+    def test_validate_table_schema_key_missing_columns(self):
+        """Schema via 'table_schema' key missing CDC columns should produce errors."""
         action = self._make_action(
             write_target={
                 "type": "streaming_table",
-                "schema": "id INT, name STRING",
+                "table_schema": "id INT, name STRING",
             }
         )
         errors = self.validator.validate(action, self.prefix)

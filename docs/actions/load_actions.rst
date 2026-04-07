@@ -170,6 +170,12 @@ The ``cloudFiles.schemaHints`` option supports three formats, automatically dete
 
 delta
 -------------------------------------------
+
+.. deprecated:: 0.7.8
+   The ``database`` field (e.g., ``database: "{catalog}.{schema}"``) is deprecated
+   for delta sources. Use explicit ``catalog`` and ``schema`` fields instead. The old
+   format is auto-converted with a deprecation warning. Removal in v1.0.0.
+
 .. code-block:: yaml
 
   actions:
@@ -179,7 +185,8 @@ delta
       readMode: stream
       source:
         type: delta
-        database: "{catalog}.{raw_schema}"
+        catalog: "{catalog}"
+        schema: "{raw_schema}"
         table: customer
       target: v_customer_raw
       description: "Load customer table from raw schema" 
@@ -192,7 +199,8 @@ delta
 - **readMode**: Either *batch* or *stream* - translates to ``spark.read.table()`` or ``spark.readStream.table()``
 - **source**:
       - **type**: Use Delta table as source
-      - **database**: Target database using substitution variables for catalog and schema
+      - **catalog**: Target catalog using substitution variables
+      - **schema**: Target schema using substitution variables
       - **table**: Name of the Delta table to read from
 - **target**: Name of the temporary view created
 - **description**: Optional documentation for the action
@@ -213,7 +221,8 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
       readMode: stream
       source:
         type: delta
-        database: "{catalog}.bronze"
+        catalog: "{catalog}"
+        schema: "bronze"
         table: orders
         options:
           readChangeFeed: "true"
@@ -267,7 +276,8 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
       readMode: batch
       source:
         type: delta
-        database: "{catalog}.bronze"
+        catalog: "{catalog}"
+        schema: "bronze"
         table: orders
         options:
           readChangeFeed: "true"
@@ -331,7 +341,8 @@ overwhelm downstream consumers. Mitigation strategies:
       readMode: batch
       source:
         type: delta
-        database: "{catalog}.silver"
+        catalog: "{catalog}"
+        schema: "silver"
         table: customers
         options:
           versionAsOf: "10"

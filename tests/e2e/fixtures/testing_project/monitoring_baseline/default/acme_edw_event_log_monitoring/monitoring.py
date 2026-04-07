@@ -39,6 +39,9 @@ UNION ALL
 SELECT *, 'kafka_sample_pipeline' as _source_pipeline
 FROM stream(acme_edw_dev._meta.kafka_sample_pipeline_event_log)
 UNION ALL
+SELECT *, 'namespace_validation' as _source_pipeline
+FROM stream(acme_edw_dev._meta.namespace_validation_event_log)
+UNION ALL
 SELECT *, 'sample_python_func_pipeline' as _source_pipeline
 FROM stream(acme_edw_dev._meta.sample_python_func_pipeline_event_log)""")
 

@@ -71,7 +71,8 @@ actions:
     source: v_{{ table_name }}
     write_target:
       type: streaming_table
-      database: "bronze"
+      catalog: "test_cat"
+      schema: "bronze"
       table: "{{ table_name }}"
       create_table: true
 """)
@@ -378,7 +379,8 @@ actions:
     source: v_customers
     write_target:
       type: streaming_table
-      database: "bronze"
+      catalog: "test_cat"
+      schema: "bronze"
       table: "customers"
       create_table: true
 """)
