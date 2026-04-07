@@ -4,6 +4,8 @@ bundle:
   name: {{ project_name }}
   uuid: {{ bundle_uuid }}
 
+# DEPRECATED(v1.0.0): These variables support auto-detect catalog/schema.
+# Define catalog/schema in pipeline_config.yaml instead.
 variables:
   default_pipeline_catalog:
     description: "Default catalog for pipelines"

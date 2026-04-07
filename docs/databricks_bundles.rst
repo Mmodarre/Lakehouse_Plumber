@@ -434,6 +434,44 @@ You can define ``catalog`` and ``schema`` in pipeline config to control where ea
 .. important::
    Both ``catalog`` AND ``schema`` must be defined together (partial definition raises an error).
 
+Why Catalog and Schema Are Required
+""""""""""""""""""""""""""""""""""""
+
+Every Databricks Lakeflow Declarative Pipeline requires a **default catalog** and **default schema**.
+These set the Unity Catalog location where unqualified table references resolve, and are used by
+the pipeline UI for table discovery, event log storage, and schema browsing.
+
+While LHP generates fully-qualified table names (e.g., ``catalog.schema.table``) in the pipeline
+code — meaning the default catalog/schema do not affect where data is written — Databricks still
+requires these fields on the pipeline resource definition.
+
+The simplest approach is to define ``catalog`` and ``schema`` in ``project_defaults``, using
+substitution tokens so values resolve per-environment from your ``substitutions/{env}.yaml`` files:
+
+.. code-block:: yaml
+   :caption: config/pipeline_config.yaml
+
+   project_defaults:
+     catalog: "{catalog}"
+     schema: "{schema}"
+
+This covers all pipelines. Pipelines that need a different schema can override with a
+per-pipeline section:
+
+.. code-block:: yaml
+
+   ---
+   pipeline: my_special_pipeline
+   catalog: "{catalog}"
+   schema: "{special_schema}"
+
+.. deprecated:: 0.7.8
+   In previous versions, LHP auto-detected catalog/schema values from generated Python files
+   and populated ``databricks.yml`` variables (``default_pipeline_catalog``,
+   ``default_pipeline_schema``). This auto-detection is deprecated and will be removed in
+   version 1.0.0. Starting in v1.0.0, ``pipeline_config.yaml`` (``--pipeline-config`` / ``-pc``)
+   will be required for bundle projects.
+
 **Full Configuration Substitution**
 
 All fields in ``pipeline_config.yaml`` support LHP token substitution, not just catalog/schema:

@@ -40,6 +40,8 @@ targets:
 """
 
 
+# DEPRECATED(v1.0.0): Tests for auto-detect catalog/schema reverse-lookup.
+# Remove when the corresponding production code is removed in v1.0.0.
 class TestDatabricksYAMLManager:
     """Tests for DatabricksYAMLManager."""
 

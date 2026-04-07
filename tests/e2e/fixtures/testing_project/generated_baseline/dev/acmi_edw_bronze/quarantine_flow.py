@@ -112,62 +112,73 @@ def dlq_sink_v_orders_raw(batch_df, batch_id):
     _exclude = set(_HASH_EXCLUDE_COLS_v_orders_raw)
     hash_cols = [c for c in data_cols if c not in _exclude]
 
-    batch = batch_df.withColumn(
-        "_row_json", F.to_json(F.struct(*hash_cols))
-    ).withColumn(
-        "_dlq_sk",
-        F.xxhash64(F.lit(SOURCE_TABLE_v_orders_raw), F.col("_row_json")).cast("string"),
+    batch = batch_df.withColumns(
+        {
+            "_row_json": F.to_json(F.struct(*hash_cols)),
+            "_dlq_sk": F.xxhash64(
+                F.lit(SOURCE_TABLE_v_orders_raw), F.to_json(F.struct(*hash_cols))
+            ).cast("string"),
+        }
     )
 
     if "_rescued_data" in batch_df.columns:
         _map_type = MapType(StringType(), StringType())
         variant_cols = [c for c in data_cols if c != "_rescued_data"]
         batch = (
-            batch.withColumn(
-                "_variant_json",
-                F.when(
-                    F.col("_rescued_data").isNotNull(),
-                    F.to_json(
-                        F.map_zip_with(
-                            F.coalesce(
-                                F.from_json(
-                                    F.to_json(F.struct(*variant_cols)), _map_type
-                                ),
-                                F.create_map(),
-                            ),
-                            F.map_filter(
+            batch.withColumns(
+                {
+                    "_variant_json": F.when(
+                        F.col("_rescued_data").isNotNull(),
+                        F.to_json(
+                            F.map_zip_with(
                                 F.coalesce(
-                                    F.from_json(F.col("_rescued_data"), _map_type),
+                                    F.from_json(
+                                        F.to_json(F.struct(*variant_cols)), _map_type
+                                    ),
                                     F.create_map(),
                                 ),
-                                lambda k, v: k != "_file_path",
-                            ),
-                            lambda k, v1, v2: F.coalesce(v2, v1),
-                        )
-                    ),
-                ).otherwise(F.to_json(F.struct(*variant_cols))),
+                                F.map_filter(
+                                    F.coalesce(
+                                        F.from_json(F.col("_rescued_data"), _map_type),
+                                        F.create_map(),
+                                    ),
+                                    lambda k, v: k != "_file_path",
+                                ),
+                                lambda k, v1, v2: F.coalesce(v2, v1),
+                            )
+                        ),
+                    ).otherwise(F.to_json(F.struct(*variant_cols))),
+                }
             )
-            .withColumn("_row_data", F.parse_json(F.col("_variant_json")))
+            .withColumns(
+                {
+                    "_row_data": F.parse_json(F.col("_variant_json")),
+                }
+            )
             .withColumnRenamed("_rescued_data", "_dlq_rescued_data")
         )
     else:
-        batch = batch.withColumn(
-            "_row_data", F.parse_json(F.to_json(F.struct(*data_cols)))
-        ).withColumn("_dlq_rescued_data", F.lit(None).cast("string"))
-
-    batch = (
-        batch.withColumn("_dlq_source_table", F.lit(SOURCE_TABLE_v_orders_raw))
-        .withColumn("_dlq_status", F.lit("quarantined"))
-        .withColumn("_dlq_timestamp", F.current_timestamp())
-        .select(
-            "_dlq_sk",
-            "_dlq_source_table",
-            "_dlq_status",
-            "_dlq_timestamp",
-            "_dlq_failed_rules",
-            "_dlq_rescued_data",
-            "_row_data",
+        batch = batch.withColumns(
+            {
+                "_row_data": F.parse_json(F.to_json(F.struct(*data_cols))),
+                "_dlq_rescued_data": F.lit(None).cast("string"),
+            }
         )
+
+    batch = batch.withColumns(
+        {
+            "_dlq_source_table": F.lit(SOURCE_TABLE_v_orders_raw),
+            "_dlq_status": F.lit("quarantined"),
+            "_dlq_timestamp": F.current_timestamp(),
+        }
+    ).select(
+        "_dlq_sk",
+        "_dlq_source_table",
+        "_dlq_status",
+        "_dlq_timestamp",
+        "_dlq_failed_rules",
+        "_dlq_rescued_data",
+        "_row_data",
     )
 
     dlq = DeltaTable.forName(spark, DLQ_TABLE_v_orders_raw)

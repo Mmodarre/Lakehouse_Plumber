@@ -16,7 +16,7 @@ FLOWGROUP_ID = "flowgroup_template_preset"
 
 @dp.temporary_view()
 def v_precedence_test_raw():
-    """Load data from <built-in function format> files at /data/precedence_test/*.csv"""
+    """Load data from csv files at /data/precedence_test/*.csv"""
     df = (
         spark.readStream.format("cloudFiles")
         .option("cloudFiles.format", "csv")

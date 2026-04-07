@@ -15,6 +15,8 @@ from pathlib import Path
 from lhp.bundle.manager import BundleManager
 
 
+# DEPRECATED(v1.0.0): Tests for auto-detect catalog/schema reverse-lookup.
+# Remove when the corresponding production code is removed in v1.0.0.
 class TestBundleDatabaseExtraction:
     """Test suite for Python-based catalog/schema extraction functionality."""
 

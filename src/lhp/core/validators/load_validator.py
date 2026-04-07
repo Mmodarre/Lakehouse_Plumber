@@ -103,6 +103,10 @@ class LoadActionValidator(BaseActionValidator):
     def _validate_delta_source(self, action: Action, prefix: str) -> List[str]:
         """Validate Delta source configuration."""
         errors = []
+        if not action.source.get("catalog"):
+            errors.append(f"{prefix}: Delta source must have 'catalog'")
+        if not action.source.get("schema"):
+            errors.append(f"{prefix}: Delta source must have 'schema'")
         if not action.source.get("table"):
             errors.append(f"{prefix}: Delta source must have 'table'")
         return errors

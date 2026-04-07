@@ -967,26 +967,26 @@ class TestActionOrchestratorActionAnalysis:
     ):
         """Test _extract_single_source_view with list containing dictionaries."""
         # Arrange
-        source = [{"database": "test_db", "table": "test_table"}]
+        source = [{"catalog": "test_cat", "schema": "test_db", "table": "test_table"}]
 
         # Act
         result = orchestrator_action_analysis._extract_single_source_view(source)
 
         # Assert
-        assert result == "test_db.test_table"
+        assert result == "test_cat.test_db.test_table"
 
-    def test_extract_single_source_view_dict_with_database_table(
+    def test_extract_single_source_view_dict_with_catalog_schema_table(
         self, orchestrator_action_analysis
     ):
-        """Test _extract_single_source_view with dict containing database and table."""
+        """Test _extract_single_source_view with dict containing catalog, schema, and table."""
         # Arrange
-        source = {"database": "prod_db", "table": "customer_data"}
+        source = {"catalog": "prod_cat", "schema": "prod_db", "table": "customer_data"}
 
         # Act
         result = orchestrator_action_analysis._extract_single_source_view(source)
 
         # Assert
-        assert result == "prod_db.customer_data"
+        assert result == "prod_cat.prod_db.customer_data"
 
     def test_extract_single_source_view_dict_with_table_only(
         self, orchestrator_action_analysis
@@ -1006,13 +1006,13 @@ class TestActionOrchestratorActionAnalysis:
     ):
         """Test _extract_single_source_view with dict using 'view' field."""
         # Arrange
-        source = {"database": "analytics_db", "view": "customer_view"}
+        source = {"catalog": "analytics_cat", "schema": "analytics_db", "view": "customer_view"}
 
         # Act
         result = orchestrator_action_analysis._extract_single_source_view(source)
 
         # Assert
-        assert result == "analytics_db.customer_view"
+        assert result == "analytics_cat.analytics_db.customer_view"
 
     def test_extract_single_source_view_empty_or_invalid(
         self, orchestrator_action_analysis
@@ -1065,8 +1065,8 @@ class TestActionOrchestratorActionAnalysis:
         """Test _extract_source_views_from_action with list of dictionaries."""
         # Arrange
         source = [
-            {"database": "db1", "table": "table1"},
-            {"database": "db2", "view": "view2"},
+            {"catalog": "cat1", "schema": "db1", "table": "table1"},
+            {"catalog": "cat2", "schema": "db2", "view": "view2"},
             {"table": "standalone_table"},
             {"name": "named_table"},
         ]
@@ -1075,7 +1075,7 @@ class TestActionOrchestratorActionAnalysis:
         result = orchestrator_action_analysis._extract_source_views_from_action(source)
 
         # Assert
-        expected = ["db1.table1", "db2.view2", "standalone_table", "named_table"]
+        expected = ["cat1.db1.table1", "cat2.db2.view2", "standalone_table", "named_table"]
         assert result == expected
 
     def test_extract_source_views_from_action_mixed_list(
@@ -1085,7 +1085,7 @@ class TestActionOrchestratorActionAnalysis:
         # Arrange
         source = [
             "string_table",
-            {"database": "db1", "table": "dict_table"},
+            {"catalog": "cat1", "schema": "db1", "table": "dict_table"},
             123,  # Non-string item
             {"incomplete": "dict"},  # Dict without table/view/name
         ]
@@ -1094,7 +1094,7 @@ class TestActionOrchestratorActionAnalysis:
         result = orchestrator_action_analysis._extract_source_views_from_action(source)
 
         # Assert - the incomplete dict doesn't add an empty string, it's skipped
-        expected = ["string_table", "db1.dict_table", "123"]
+        expected = ["string_table", "cat1.db1.dict_table", "123"]
         assert result == expected
 
     def test_extract_source_views_from_action_dict_single(
@@ -1102,13 +1102,13 @@ class TestActionOrchestratorActionAnalysis:
     ):
         """Test _extract_source_views_from_action with single dictionary source."""
         # Arrange
-        source = {"database": "analytics", "table": "metrics"}
+        source = {"catalog": "analytics_cat", "schema": "analytics", "table": "metrics"}
 
         # Act
         result = orchestrator_action_analysis._extract_source_views_from_action(source)
 
         # Assert
-        assert result == ["analytics.metrics"]
+        assert result == ["analytics_cat.analytics.metrics"]
 
     def test_extract_source_views_from_action_empty_invalid(
         self, orchestrator_action_analysis

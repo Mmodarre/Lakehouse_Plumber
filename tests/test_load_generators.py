@@ -54,7 +54,7 @@ class TestLoadGenerators:
             source={
                 "type": "delta",
                 "catalog": "main",
-                "database": "bronze",
+                "schema": "bronze",
                 "table": "customers",
                 "readMode": "stream",
                 "options": {
@@ -300,7 +300,8 @@ class TestDeltaLoadOptions:
             target="v_orders",
             source={
                 "type": "delta",
-                "database": "catalog.bronze",
+                "catalog": "catalog",
+                "schema": "bronze",
                 "table": "orders",
                 "options": {
                     "readChangeFeed": "true",
@@ -329,7 +330,8 @@ class TestDeltaLoadOptions:
             target="v_snapshot",
             source={
                 "type": "delta",
-                "database": "main.archive",
+                "catalog": "main",
+                "schema": "archive",
                 "table": "snapshot",
                 "options": {
                     "versionAsOf": "10"
@@ -380,7 +382,8 @@ class TestDeltaLoadOptions:
             target="v_filtered",
             source={
                 "type": "delta",
-                "database": "main.bronze",
+                "catalog": "main",
+                "schema": "bronze",
                 "table": "transactions",
                 "options": {
                     "readChangeFeed": "true"
@@ -407,7 +410,8 @@ class TestDeltaLoadOptions:
             target="v_simple",
             source={
                 "type": "delta",
-                "database": "main.bronze",
+                "catalog": "main",
+                "schema": "bronze",
                 "table": "simple"
             },
             readMode="stream"
@@ -621,7 +625,8 @@ class TestDeltaLoadOptions:
             target="v_batch_cdf",
             source={
                 "type": "delta",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "orders",
                 "options": {
                     "readChangeFeed": "true",
@@ -647,7 +652,8 @@ class TestDeltaLoadOptions:
             target="v_batch_cdf_ts",
             source={
                 "type": "delta",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "orders",
                 "options": {
                     "readChangeFeed": "true",
@@ -672,7 +678,8 @@ class TestDeltaLoadOptions:
             target="v_batch_range",
             source={
                 "type": "delta",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "orders",
                 "options": {
                     "readChangeFeed": "true",
@@ -866,7 +873,8 @@ class TestDeltaLoadOptions:
             target="v_skip",
             source={
                 "type": "delta",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "orders",
                 "options": {
                     "skipChangeCommits": "true"
@@ -890,7 +898,8 @@ class TestDeltaLoadOptions:
             target="v_cdf_warn",
             source={
                 "type": "delta",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "orders",
                 "options": {
                     "readChangeFeed": "true"
@@ -915,7 +924,7 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "catalog": "main",
-                "database": "bronze",
+                "schema": "bronze",
                 "table": "data",
                 "options": {
                     "readChangeFeed": "true",

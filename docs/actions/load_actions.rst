@@ -60,14 +60,15 @@ cloudFiles
 
 - **name**: Unique name for this action within the FlowGroup
 - **type**: Action type - brings data into a temporary view
-- **readMode**: is either *batch* or *stream* 
-  this will translate to either ``spark.read.format("cloudFiles")`` or ``spark.readStream.format("cloudFiles")``
+- **readMode**: must be *stream* (CloudFiles only supports streaming mode).
+  This translates to ``spark.readStream.format("cloudFiles")``
 - **operational_metadata**: Add custom metadata columns
 - **source**:
       - **type**: Use Databricks Auto Loader (CloudFiles)
       - **path**: File path pattern with substitution variables
       - **format**: Specify the file format as CSV, JSON, Parquet, etc.
-      - **options**: 
+      - **schema**: Path to a YAML schema file for full schema enforcement (see below)
+      - **options**:
             - **cloudFiles.format**: Explicitly set CloudFiles format to CSV
             - **header**: First row contains column headers
             - **delimiter**: Use pipe character as field separator
@@ -116,6 +117,70 @@ The ``cloudFiles.schemaHints`` option supports three formats, automatically dete
   
   Example: A YAML column defined as ``{name: c_custkey, type: BIGINT, nullable: false}`` will generate ``c_custkey BIGINT NOT NULL`` in the schema hints.
             
+**source.schema — Full Schema Enforcement**
+
+The ``source.schema`` field provides full schema enforcement by applying a ``StructType`` schema
+on the ``DataStreamReader`` before ``.load()``. This disables schema inference entirely, ensuring
+the data conforms exactly to the specified schema.
+
+**When to use ``schema`` vs ``schemaHints``:**
+
+- Use ``schema`` when you want to **enforce** a complete, exact schema and disable inference.
+- Use ``schemaHints`` when you want to **guide** Auto Loader's inference while still allowing it to discover additional columns.
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_customer_with_schema
+      type: load
+      readMode: stream
+      source:
+        type: cloudfiles
+        path: "/data/customers/*.csv"
+        format: csv
+        schema: schemas/customer_schema.yaml
+        options:
+          cloudFiles.format: csv
+      target: v_customer_raw
+      description: "Load customer CSV with explicit schema enforcement"
+
+The schema file uses the same YAML format as ``schemaHints`` files:
+
+.. code-block:: yaml
+
+  name: customer
+  version: "1.0"
+  columns:
+    - name: c_custkey
+      type: BIGINT
+      nullable: false
+    - name: c_name
+      type: STRING
+      nullable: true
+
+This generates code with ``.schema()`` applied on the reader chain before ``.load()``:
+
+.. code-block:: python
+
+  customer_schema = StructType([
+      StructField("c_custkey", LongType(), False),
+      StructField("c_name", StringType(), True),
+  ])
+
+  @dp.temporary_view()
+  def v_customer_raw():
+      df = spark.readStream \
+          .format("cloudFiles") \
+          .schema(customer_schema) \
+          .option("cloudFiles.format", "csv") \
+          .load("/data/customers/*.csv")
+      return df
+
+.. note::
+  When ``source.schema`` is provided, ``cloudFiles.schemaEvolutionMode`` defaults to ``none``
+  because inference is disabled. You cannot combine ``source.schema`` with ``cloudFiles.schemaHints``
+  — they are mutually exclusive approaches.
+
 .. seealso::
   - For full list of options see the `Databricks Auto Loader documentation <https://docs.databricks.com/en/data/data-sources/cloud-files/auto-loader/index.html>`_.
   - Operational metadata: :doc:`../operational_metadata`
@@ -170,6 +235,12 @@ The ``cloudFiles.schemaHints`` option supports three formats, automatically dete
 
 delta
 -------------------------------------------
+
+.. deprecated:: 0.7.8
+   The ``database`` field (e.g., ``database: "{catalog}.{schema}"``) is deprecated
+   for delta sources. Use explicit ``catalog`` and ``schema`` fields instead. The old
+   format is auto-converted with a deprecation warning. Removal in v1.0.0.
+
 .. code-block:: yaml
 
   actions:
@@ -179,7 +250,8 @@ delta
       readMode: stream
       source:
         type: delta
-        database: "{catalog}.{raw_schema}"
+        catalog: "{catalog}"
+        schema: "{raw_schema}"
         table: customer
       target: v_customer_raw
       description: "Load customer table from raw schema" 
@@ -192,7 +264,8 @@ delta
 - **readMode**: Either *batch* or *stream* - translates to ``spark.read.table()`` or ``spark.readStream.table()``
 - **source**:
       - **type**: Use Delta table as source
-      - **database**: Target database using substitution variables for catalog and schema
+      - **catalog**: Target catalog using substitution variables
+      - **schema**: Target schema using substitution variables
       - **table**: Name of the Delta table to read from
 - **target**: Name of the temporary view created
 - **description**: Optional documentation for the action
@@ -213,7 +286,8 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
       readMode: stream
       source:
         type: delta
-        database: "{catalog}.bronze"
+        catalog: "{catalog}"
+        schema: "bronze"
         table: orders
         options:
           readChangeFeed: "true"
@@ -267,7 +341,8 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
       readMode: batch
       source:
         type: delta
-        database: "{catalog}.bronze"
+        catalog: "{catalog}"
+        schema: "bronze"
         table: orders
         options:
           readChangeFeed: "true"
@@ -331,7 +406,8 @@ overwhelm downstream consumers. Mitigation strategies:
       readMode: batch
       source:
         type: delta
-        database: "{catalog}.silver"
+        catalog: "{catalog}"
+        schema: "silver"
         table: customers
         options:
           versionAsOf: "10"

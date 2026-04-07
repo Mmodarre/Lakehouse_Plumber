@@ -349,7 +349,8 @@ class TestBuildFlowgroup:
 
         # Write action should use overridden catalog/schema
         write = fg.actions[1]
-        assert write.write_target["database"] == "override_cat._analytics"
+        assert write.write_target["catalog"] == "override_cat"
+        assert write.write_target["schema"] == "_analytics"
 
     def test_write_action_create_table_true(self):
         config = _make_project_config()
@@ -471,7 +472,8 @@ class TestJobMonitoring:
         assert jobs_stats_write.write_target["table"] == JOBS_STATS_TABLE_NAME
         assert jobs_stats_write.write_target["sql"] == f"SELECT * FROM {JOBS_STATS_VIEW_NAME}"
         # Same catalog/schema as event log write
-        assert jobs_stats_write.write_target["database"] == event_log_write.write_target["database"]
+        assert jobs_stats_write.write_target["catalog"] == event_log_write.write_target["catalog"]
+        assert jobs_stats_write.write_target["schema"] == event_log_write.write_target["schema"]
 
     def test_job_monitoring_populates_auxiliary_files(self):
         """_auxiliary_files contains package resource content when enable_job_monitoring enabled."""

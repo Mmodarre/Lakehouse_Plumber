@@ -254,7 +254,8 @@ class ActionRegistry:
     source: v_transformed_data
     write_target:
       type: streaming_table
-      database: catalog.schema
+      catalog: my_catalog
+      schema: my_schema
       table: my_table""",
                 )
 
@@ -276,7 +277,7 @@ class ActionRegistry:
     write_target:
       type: streaming_table
       catalog: my_catalog
-      database: my_db
+      schema: my_schema
       table: my_table""",
                     )
 

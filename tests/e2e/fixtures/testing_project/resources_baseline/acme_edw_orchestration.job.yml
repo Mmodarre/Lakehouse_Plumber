@@ -46,6 +46,13 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.gold_load_pipeline.id}
             full_refresh: false
+        - task_key: namespace_validation_pipeline
+          depends_on:
+            - task_key: acmi_edw_bronze_pipeline
+            - task_key: acmi_edw_silver_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.namespace_validation_pipeline.id}
+            full_refresh: false
       queue:
         enabled: true
       performance_target: STANDARD

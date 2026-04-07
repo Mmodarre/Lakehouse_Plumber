@@ -417,3 +417,17 @@ When the user asks you to work with E2E tests:
 5. **Always read existing test files** before adding new tests to maintain consistency with established patterns.
 
 6. **Always ask the user** which CLI flags to use for generation when working with baselines.
+
+---
+
+## Gotchas
+
+Known Claude failure points — check these proactively:
+
+- **Regenerating baselines instead of writing them manually.** Baselines must be hand-written by understanding the expected output, NOT by running generation and copying the result.
+- **Forgetting to run the full E2E suite.** A single passing test is never sufficient. Always run `pytest tests/e2e/ -v -n auto` after any change.
+- **Diffing against generated output instead of baselines.** The comparison is always generated vs. baseline directory, not generated vs. generated.
+- **Modifying the shared fixture project without considering other tests.** Changes to `tests/e2e/fixtures/testing_project/` affect ALL tests. Always verify the full suite.
+- **Using `--include-tests` without asking.** Test action generation requires explicit `--include-tests` — never assume it. Ask the user which CLI flags to use.
+- **Hash mismatches are not bugs in the test.** A hash mismatch means the output changed — investigate WHY the output changed before touching baselines.
+- **Creating new test files unnecessarily.** Place tests in the most appropriate existing file first. Only create a new file if the feature truly doesn't fit.

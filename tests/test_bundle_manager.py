@@ -559,6 +559,9 @@ class TestBundleManagerUtilityMethods:
         resources_dir = self.manager._get_env_resources_dir("prod")
         assert resources_dir == self.manager.resources_base_dir
     
+    # DEPRECATED(v1.0.0): Tests for auto-detect catalog/schema reverse-lookup.
+    # Remove when the corresponding production code is removed in v1.0.0.
+
     def test_extract_most_common_database_empty_list(self):
         """Test extracting most common database from empty list."""
         result = self.manager._extract_most_common_database([])
@@ -944,6 +947,8 @@ dp.create_streaming_table(name="catalog1.schema1.table1")
         result = self.manager._extract_pipeline_name_from_filename(resource_file)
         assert result is None
     
+    # DEPRECATED(v1.0.0): Tests for auto-detect catalog/schema reverse-lookup.
+    # Remove when the corresponding production code is removed in v1.0.0.
     def test_update_configuration_files_error_handling(self):
         """Test _update_configuration_files error handling."""
         output_dir = self.project_root / "generated"

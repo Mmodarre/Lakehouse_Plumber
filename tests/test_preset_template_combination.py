@@ -94,7 +94,8 @@ class TestPresetTemplateCombination:
                         "source": "v_test_data",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "bronze.test",
+                            "catalog": "bronze",
+                            "schema": "test",
                             "table": "direct_write",
                             "table_properties": {
                                 "manual": "property"
@@ -146,7 +147,8 @@ class TestPresetTemplateCombination:
                 "use_template": "data_ingestion",
                 "template_parameters": {
                     "table_name": "orders_data",
-                    "database": "silver.orders"
+                    "target_catalog": "silver",
+                    "target_schema": "orders"
                 }
             }
             
@@ -237,7 +239,8 @@ class TestPresetTemplateCombination:
                 "use_template": "data_ingestion",
                 "template_parameters": {
                     "table_name": "inherited_data",
-                    "database": "gold.analytics"
+                    "target_catalog": "gold",
+                    "target_schema": "analytics"
                 }
             }
             
@@ -308,7 +311,8 @@ class TestPresetTemplateCombination:
             "description": "Template for data ingestion with write action",
             "parameters": [
                 {"name": "table_name", "type": "string", "required": True},
-                {"name": "database", "type": "string", "required": True}
+                {"name": "target_catalog", "type": "string", "required": True},
+                {"name": "target_schema", "type": "string", "required": True}
             ],
             "actions": [
                 {
@@ -326,7 +330,8 @@ class TestPresetTemplateCombination:
                     "source": "v_{{ table_name }}_raw",
                     "write_target": {
                         "type": "streaming_table",
-                        "database": "{{ database }}",
+                        "catalog": "{{ target_catalog }}",
+                        "schema": "{{ target_schema }}",
                         "table": "{{ table_name }}",
                         "table_properties": {
                             "source": "template_generated"
@@ -349,7 +354,8 @@ class TestPresetTemplateCombination:
             "use_template": "data_ingestion",
             "template_parameters": {
                 "table_name": "customer_data",
-                "database": "bronze.customers"
+                "target_catalog": "bronze",
+                "target_schema": "customers"
             }
         }
         
@@ -417,7 +423,8 @@ class TestPresetTemplateCombination:
                         'source': 'v_{{ table_name }}',
                         'write_target': {
                             'type': 'streaming_table',
-                            'database': 'test_db',
+                            'catalog': 'test_cat',
+                            'schema': 'test_db',
                             'table': '{{ table_name }}'
                         }
                     }
@@ -520,7 +527,8 @@ class TestPresetTemplateCombination:
                         'source': 'v_{{ table_name }}',
                         'write_target': {
                             'type': 'streaming_table',
-                            'database': 'test_db',
+                            'catalog': 'test_cat',
+                            'schema': 'test_db',
                             'table': '{{ table_name }}'
                         }
                     }
@@ -588,7 +596,8 @@ class TestPresetTemplateCombination:
                         'source': 'v_{{ table_name }}',
                         'write_target': {
                             'type': 'streaming_table',
-                            'database': 'test_db',
+                            'catalog': 'test_cat',
+                            'schema': 'test_db',
                             'table': '{{ table_name }}'
                         }
                     }

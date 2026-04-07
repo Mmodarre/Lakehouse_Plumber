@@ -18,7 +18,7 @@ def test_cdc_mode_creates_table_and_flow():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "dim_customer",
             "cdc_config": {
                 "keys": ["customer_id"],
@@ -73,7 +73,7 @@ def test_cdc_mode_with_all_parameters():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "comprehensive_table",
             "cdc_config": {
                 "keys": ["id", "partition_key"],
@@ -115,7 +115,7 @@ def test_cdc_mode_with_except_column_list():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "filtered_table",
             "cdc_config": {
                 "keys": ["id"],
@@ -147,7 +147,7 @@ def test_cdc_mode_with_struct_sequence_by():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "events_table",
             "cdc_config": {
                 "keys": ["event_id", "user_id"],
@@ -181,7 +181,7 @@ def test_cdc_mode_string_sequence_by_still_works():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "test_table",
             "cdc_config": {
                 "keys": ["id"],
@@ -217,9 +217,9 @@ def test_cdc_schema_validation():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "test_table",
-            "schema": "id BIGINT, name STRING, __START_AT TIMESTAMP, __END_AT TIMESTAMP",
+            "table_schema": "id BIGINT, name STRING, __START_AT TIMESTAMP, __END_AT TIMESTAMP",
             "cdc_config": {
                 "keys": ["id"],
                 "sequence_by": "_timestamp",
@@ -240,9 +240,9 @@ def test_cdc_schema_validation():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "test_table",
-            "schema": "id BIGINT, name STRING, __END_AT TIMESTAMP",
+            "table_schema": "id BIGINT, name STRING, __END_AT TIMESTAMP",
             "cdc_config": {
                 "keys": ["id"],
                 "sequence_by": "_timestamp",
@@ -262,9 +262,9 @@ def test_cdc_schema_validation():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "test_table",
-            "schema": "id BIGINT, name STRING, __START_AT TIMESTAMP",
+            "table_schema": "id BIGINT, name STRING, __START_AT TIMESTAMP",
             "cdc_config": {
                 "keys": ["id"],
                 "sequence_by": "_timestamp",
@@ -284,9 +284,9 @@ def test_cdc_schema_validation():
         write_target={
             "type": "streaming_table",
             "mode": "standard",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "test_table",
-            "schema": "id BIGINT, name STRING",  # No __START_AT/__END_AT required
+            "table_schema": "id BIGINT, name STRING",  # No __START_AT/__END_AT required
         }
     )
     

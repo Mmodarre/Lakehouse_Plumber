@@ -81,7 +81,8 @@ prod:
                         "source": "v_customers",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{catalog}.{bronze_schema}",
+                            "catalog": "{catalog}",
+                            "schema": "{bronze_schema}",
                             "table": "customers",
                             "create_table": True
                         }
@@ -109,7 +110,8 @@ prod:
                         "source": "v_orders",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{catalog}.{bronze_schema}",
+                            "catalog": "{catalog}",
+                            "schema": "{bronze_schema}",
                             "table": "orders",
                             "create_table": True
                         }
@@ -127,7 +129,9 @@ prod:
                         "target": "v_customers_bronze",
                         "source": {
                             "type": "delta",
-                            "table": "{catalog}.{bronze_schema}.customers"
+                            "catalog": "{catalog}",
+                            "schema": "{bronze_schema}",
+                            "table": "customers"
                         }
                     },
                     {
@@ -144,7 +148,8 @@ prod:
                         "source": "v_customers_silver",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{catalog}.{silver_schema}",
+                            "catalog": "{catalog}",
+                            "schema": "{silver_schema}",
                             "table": "customers",
                             "create_table": True
                         }
@@ -270,7 +275,8 @@ prod:
                         "source": "v_customers",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "bronze",
+                            "catalog": "test_cat",
+                            "schema": "bronze",
                             "table": "customers",
                             "create_table": True
                         }
@@ -297,7 +303,8 @@ prod:
                         "source": "v_orders",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "bronze",
+                            "catalog": "test_cat",
+                            "schema": "bronze",
                             "table": "orders",
                             "create_table": True
                         }
@@ -380,7 +387,8 @@ prod:
                             "source": "v_customers",
                             "write_target": {
                                 "type": "streaming_table",
-                                "database": "bronze",
+                                "catalog": "test_cat",
+                            "schema": "bronze",
                                 "table": "customers",
                                 "create_table": True
                             }

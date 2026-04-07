@@ -299,7 +299,6 @@ class MonitoringPipelineBuilder:
         assert self.monitoring_config is not None
 
         st_name = self.monitoring_config.streaming_table
-        database = f"{catalog}.{schema}" if catalog and schema else ""
 
         return Action(
             name="write_all_event_logs",
@@ -308,7 +307,8 @@ class MonitoringPipelineBuilder:
             readMode="stream",
             write_target={
                 "type": "streaming_table",
-                "database": database,
+                "catalog": catalog or "",
+                "schema": schema or "",
                 "table": st_name,
                 "create_table": True,
             },
@@ -336,14 +336,13 @@ class MonitoringPipelineBuilder:
         Uses a materialized view (not streaming table) because the Python
         SDK source returns batch data, not a streaming DataFrame.
         """
-        database = f"{catalog}.{schema}" if catalog and schema else ""
-
         return Action(
             name="write_jobs_stats",
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": database,
+                "catalog": catalog or "",
+                "schema": schema or "",
                 "table": JOBS_STATS_TABLE_NAME,
                 "sql": f"SELECT * FROM {JOBS_STATS_VIEW_NAME}",
             },
@@ -353,14 +352,13 @@ class MonitoringPipelineBuilder:
         self, mv_name: str, sql: str, catalog: str, schema: str
     ) -> Action:
         """Build a materialized view action."""
-        database = f"{catalog}.{schema}" if catalog and schema else ""
-
         return Action(
             name=f"mv_{mv_name}",
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": database,
+                "catalog": catalog or "",
+                "schema": schema or "",
                 "table": mv_name,
                 "sql": sql,
             },

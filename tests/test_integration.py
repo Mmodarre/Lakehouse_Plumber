@@ -115,7 +115,8 @@ actions:
     source: v_customer_raw
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
       table: customer_raw
       create_table: true
     description: "Write to bronze customer table"
@@ -195,7 +196,8 @@ actions:
     source: v_customers_raw
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
       table: customers_raw
       create_table: true
 """)
@@ -277,7 +279,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      database: "{env}_{bronze_schema}_sales"
+      catalog: "{env}"
+      schema: "{bronze_schema}_sales"
       table: customer_raw
       options:
         readChangeFeed: "true"
@@ -303,7 +306,8 @@ actions:
     write_target:
       type: streaming_table
       mode: cdc
-      database: "{env}_{silver_schema}_sales"
+      catalog: "{env}"
+      schema: "{silver_schema}_sales"
       table: dim_customer
       create_table: true
       cdc_config:
@@ -326,7 +330,7 @@ actions:
         
         # Check for Delta CDC source
         assert 'option("readChangeFeed", "true")' in code
-        assert "dev_bronze_sales.customer_raw" in code
+        assert "dev.bronze_sales.customer_raw" in code
         
         # Check for SQL transformation
         assert "UPPER(TRIM(customer_name))" in code
@@ -334,7 +338,7 @@ actions:
         
         # Check for CDC write (auto_cdc)
         assert "dp.create_streaming_table" in code  # Table must be created first
-        assert 'name="dev_silver_sales.dim_customer"' in code
+        assert 'name="dev.silver_sales.dim_customer"' in code
         assert "dp.create_auto_cdc_flow" in code
         assert 'keys=["customer_id"]' in code
         assert 'sequence_by="_commit_timestamp"' in code
@@ -387,7 +391,8 @@ actions:
     write_target:
       type: streaming_table
       # mode defaults to "standard"
-      database: "{env}_bronze_{{ schema }}"
+      catalog: "{env}"
+      schema: "bronze_{{ schema }}"
       table: "{{ table_name }}_raw"
       create_table: true
 """)
@@ -429,7 +434,7 @@ template_parameters:
         assert "v_orders_raw" in code
         assert "v_orders_with_metadata" in code
         assert "/mnt/landing/dev/orders/*.json" in code
-        assert "dev_bronze_sales.orders_raw" in code
+        assert "dev.bronze_sales.orders_raw" in code
         assert "_ingestion_timestamp" in code
         assert "_source_file" in code
     
@@ -487,7 +492,8 @@ actions:
     source: v_customers_validated
     write_target:
       type: streaming_table
-      database: "bronze"
+      catalog: "test_cat"
+      schema: "bronze"
       table: customers_validated
       create_table: true
 """)

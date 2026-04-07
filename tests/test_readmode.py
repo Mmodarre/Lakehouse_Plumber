@@ -134,15 +134,15 @@ class TestReadMode:
             source={
                 "type": "delta",
                 "catalog": "main",
-                "database": "bronze",
+                "schema": "bronze",
                 "table": "customers"
             }
         )
-        
+
         code = generator.generate(action_batch, {})
         assert "spark.read.table" in code
         assert "spark.readStream" not in code
-        
+
         # Test stream mode
         action_stream = Action(
             name="delta_stream",
@@ -152,7 +152,7 @@ class TestReadMode:
             source={
                 "type": "delta",
                 "catalog": "main",
-                "database": "bronze",
+                "schema": "bronze",
                 "table": "customers"
             }
         )
@@ -297,7 +297,7 @@ actions:
     source:
       type: delta
       catalog: main
-      database: bronze
+      schema: bronze
       table: customers
       
   - name: transform_customers
@@ -313,7 +313,8 @@ actions:
     source: v_customers_typed
     write_target:
       type: streaming_table
-      database: silver
+      catalog: test_cat
+      schema: silver
       table: customers_typed
       create_table: true
 """
@@ -378,7 +379,8 @@ environment:
             source="v_customers",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "create_table": True
             }
@@ -403,7 +405,8 @@ environment:
             readMode="stream",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "create_table": True
             }
@@ -427,7 +430,8 @@ environment:
             readMode="batch",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "create_table": True
             }
@@ -453,7 +457,8 @@ environment:
             once=True,
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "create_table": True
             }
@@ -480,7 +485,8 @@ environment:
             readMode="batch",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "create_table": True
             }
@@ -508,7 +514,8 @@ environment:
             readMode="batch",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "create_table": True
             }

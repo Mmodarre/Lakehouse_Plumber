@@ -29,19 +29,25 @@ def extract_single_source_view(source: Union[str, List, Dict]) -> str:
         if isinstance(first_item, str):
             return first_item
         elif isinstance(first_item, dict):
-            database = first_item.get("database")
+            catalog = first_item.get("catalog")
+            schema = first_item.get("schema")
             table = (
                 first_item.get("table")
                 or first_item.get("view")
                 or first_item.get("name", "")
             )
-            return f"{database}.{table}" if database and table else table
+            if catalog and schema and table:
+                return f"{catalog}.{schema}.{table}"
+            return table
         else:
             return str(first_item)
     elif isinstance(source, dict):
-        database = source.get("database")
+        catalog = source.get("catalog")
+        schema = source.get("schema")
         table = source.get("table") or source.get("view") or source.get("name", "")
-        return f"{database}.{table}" if database and table else table
+        if catalog and schema and table:
+            return f"{catalog}.{schema}.{table}"
+        return table
     else:
         return ""
 
@@ -67,20 +73,22 @@ def extract_source_views_from_action(source: Union[str, List, Dict]) -> List[str
             if isinstance(item, str):
                 result.append(item)
             elif isinstance(item, dict):
-                database = item.get("database")
+                catalog = item.get("catalog")
+                schema = item.get("schema")
                 table = item.get("table") or item.get("view") or item.get("name", "")
-                if database and table:
-                    result.append(f"{database}.{table}")
+                if catalog and schema and table:
+                    result.append(f"{catalog}.{schema}.{table}")
                 elif table:
                     result.append(table)
             else:
                 result.append(str(item))
         return result
     elif isinstance(source, dict):
-        database = source.get("database")
+        catalog = source.get("catalog")
+        schema = source.get("schema")
         table = source.get("table") or source.get("view") or source.get("name", "")
-        if database and table:
-            return [f"{database}.{table}"]
+        if catalog and schema and table:
+            return [f"{catalog}.{schema}.{table}"]
         elif table:
             return [table]
         else:
@@ -200,10 +208,13 @@ def extract_action_sources(action: Any) -> List[str]:
                 sources.extend(source_val)
         elif "sources" in source:
             sources.extend(source["sources"])
-        elif "database" in source and "table" in source:
-            database = source.get("database", "")
+        elif "table" in source:
+            catalog = source.get("catalog", "")
+            schema = source.get("schema", "")
             table = source.get("table", "")
-            if database and table:
-                sources.append(f"{database}.{table}")
+            if catalog and schema and table:
+                sources.append(f"{catalog}.{schema}.{table}")
+            elif table:
+                sources.append(table)
 
     return sources

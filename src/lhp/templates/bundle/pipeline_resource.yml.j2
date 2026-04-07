@@ -9,6 +9,8 @@ resources:
 {% if catalog and schema %}
       catalog: {{ catalog }}
       schema: {{ schema }}
+{# DEPRECATED(v1.0.0): This fallback uses databricks.yml variables from auto-detect.
+   Define catalog/schema in pipeline_config.yaml instead. #}
 {% else %}
       # Using databricks.yml variables (not defined in pipeline config)
       catalog: ${var.default_pipeline_catalog}

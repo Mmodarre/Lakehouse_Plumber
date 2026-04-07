@@ -69,13 +69,11 @@ class DltTableOptionsValidator:
         errors = []
 
         # Validate schema
-        schema = action.write_target.get("table_schema") or action.write_target.get(
-            "schema"
-        )
+        schema = action.write_target.get("table_schema")
         if schema is not None:
             if not isinstance(schema, str):
                 errors.append(
-                    f"{prefix}: 'table_schema' (or 'schema') must be a string (SQL DDL or StructType)"
+                    f"{prefix}: 'table_schema' must be a string (SQL DDL or StructType)"
                 )
 
         # Validate row_filter
@@ -473,9 +471,7 @@ class CdcSchemaValidator:
         if not action.write_target:
             return errors
 
-        schema = action.write_target.get("table_schema") or action.write_target.get(
-            "schema"
-        )
+        schema = action.write_target.get("table_schema")
         if not schema:
             return errors
 

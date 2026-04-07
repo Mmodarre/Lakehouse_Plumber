@@ -111,6 +111,11 @@ class TestActionValidator:
                 errors.append(
                     f"{prefix}: Referential integrity test requires 'reference' field"
                 )
+            elif isinstance(action.reference, str) and action.reference.count(".") != 2:
+                errors.append(
+                    f"{prefix}: 'reference' must be a 3-part name "
+                    f"(catalog.schema.table), got '{action.reference}'"
+                )
             if not action.source_columns:
                 errors.append(
                     f"{prefix}: Referential integrity test requires 'source_columns' field"
@@ -148,6 +153,11 @@ class TestActionValidator:
                 errors.append(
                     f"{prefix}: Schema match test requires 'reference' field to compare schemas"
                 )
+            elif isinstance(action.reference, str) and action.reference.count(".") != 2:
+                errors.append(
+                    f"{prefix}: 'reference' must be a 3-part name "
+                    f"(catalog.schema.table), got '{action.reference}'"
+                )
 
         elif test_type == "all_lookups_found":
             # All lookups found needs source, lookup table, and columns
@@ -158,6 +168,11 @@ class TestActionValidator:
             if not action.lookup_table:
                 errors.append(
                     f"{prefix}: All lookups found test requires 'lookup_table' field"
+                )
+            elif isinstance(action.lookup_table, str) and action.lookup_table.count(".") != 2:
+                errors.append(
+                    f"{prefix}: 'lookup_table' must be a 3-part name "
+                    f"(catalog.schema.table), got '{action.lookup_table}'"
                 )
             if not action.lookup_columns:
                 errors.append(

@@ -80,16 +80,16 @@ class TestExtractActionSources:
 
         assert result == ["v_dim_1", "v_dim_2", "v_fact"]
 
-    def test_dict_with_database_and_table_returns_qualified_name(self):
-        """A dict with 'database' and 'table' keys should return 'database.table'."""
+    def test_dict_with_catalog_schema_and_table_returns_qualified_name(self):
+        """A dict with 'catalog', 'schema', and 'table' keys should return 'catalog.schema.table'."""
         action = Mock()
         action.type = "load"
         action.write_target = None
-        action.source = {"database": "bronze_catalog", "table": "raw_events"}
+        action.source = {"catalog": "bronze_catalog", "schema": "bronze", "table": "raw_events"}
 
         result = extract_action_sources(action)
 
-        assert result == ["bronze_catalog.raw_events"]
+        assert result == ["bronze_catalog.bronze.raw_events"]
 
     def test_no_source_attribute_returns_empty(self):
         """An action without a source attribute should return an empty list."""
@@ -171,12 +171,12 @@ class TestExtractActionSources:
 
         assert result == ["v_valid", "v_also_valid"]
 
-    def test_dict_with_empty_database_and_table(self):
-        """A dict with empty database and table should not produce a dotted name."""
+    def test_dict_with_empty_catalog_schema_and_table(self):
+        """A dict with empty catalog, schema, and table should not produce a dotted name."""
         action = Mock()
         action.type = "load"
         action.write_target = None
-        action.source = {"database": "", "table": ""}
+        action.source = {"catalog": "", "schema": "", "table": ""}
 
         result = extract_action_sources(action)
 

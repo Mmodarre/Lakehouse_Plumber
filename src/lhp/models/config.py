@@ -1,5 +1,10 @@
+import warnings
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
+
+# Suppress Pydantic warning about 'schema' field shadowing BaseModel.schema() class method.
+# This is deliberate: 'schema' is a UC namespace field, not related to Pydantic's schema().
+warnings.filterwarnings("ignore", message=r".*Field name \"schema\".*shadows an attribute.*")
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
@@ -165,10 +170,14 @@ class ProjectConfig(BaseModel):
 class WriteTarget(BaseModel):
     """Write target configuration for streaming tables, materialized views, and sinks."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     type: WriteTargetType
 
     # Streaming table and materialized view fields
-    database: Optional[str] = None
+    catalog: Optional[str] = None
+    schema: Optional[str] = None  # UC namespace schema (not DDL — use table_schema for DDL)
+    database: Optional[str] = None  # REMOVE_AT_V1.0.0: deprecated, use catalog + schema
     table: Optional[str] = None
     create_table: bool = (
         True  # Default to True - optional, only set to False when needed
@@ -205,16 +214,10 @@ class WriteTarget(BaseModel):
     # Common sink options
     options: Optional[Dict[str, Any]] = None
 
-    # Backward compatibility property for 'schema' field
-    @property
-    def schema(self) -> Optional[str]:
-        """Legacy property for backward compatibility. Use table_schema instead."""
-        return self.table_schema
-
-    @schema.setter
-    def schema(self, value: Optional[str]) -> None:
-        """Legacy setter for backward compatibility. Use table_schema instead."""
-        self.table_schema = value
+    # NOTE: schema field now represents UC namespace, not DDL. Use table_schema for DDL.
+    # The legacy schema→table_schema property was removed in v0.7.8.
+    # The namespace_normalizer handles redirecting schema→table_schema when
+    # schema appears alongside database (DDL collision case).
 
 
 class Action(BaseModel):

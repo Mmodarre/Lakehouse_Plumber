@@ -21,9 +21,11 @@ def {{ target_view }}():
     {% if add_operational_metadata %}
     
     # Add operational metadata columns
-    {% for col_name, expression in metadata_columns.items()|sort %}
-    df = df.withColumn('{{ col_name }}', {{ expression }})
-    {% endfor %}
+    df = df.withColumns({
+        {%- for col_name, expression in metadata_columns.items()|sort %}
+        '{{ col_name }}': {{ expression }}{{ "," if not loop.last }}
+        {%- endfor %}
+    })
     {% endif %}
     
     return df

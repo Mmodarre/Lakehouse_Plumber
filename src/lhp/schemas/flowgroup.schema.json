@@ -215,7 +215,7 @@
                                 },
                                 "database": {
                                     "type": "string",
-                                    "description": "Database name"
+                                    "description": "DEPRECATED (v0.7.8): Use 'catalog' and 'schema' instead. Combined catalog.schema name, auto-converted. Removal in v1.0.0."
                                 },
                                 "table": {
                                     "type": "string",
@@ -223,7 +223,7 @@
                                 },
                                 "catalog": {
                                     "type": "string",
-                                    "description": "Catalog name"
+                                    "description": "Unity Catalog catalog name"
                                 },
                                 "sql": {
                                     "type": "string",
@@ -278,7 +278,7 @@
                                 },
                                 "schema": {
                                     "type": "string",
-                                    "description": "Schema definition (DDL or path). Note: For schema transforms, use 'schema_inline' or 'schema_file' at action level instead."
+                                    "description": "For delta sources: Unity Catalog schema name. For cloudfiles sources: Schema definition (DDL or path). For schema transforms, use 'schema_inline' or 'schema_file' at action level instead."
                                 },
                                 "schema_file": {
                                     "type": "string",
@@ -440,9 +440,17 @@
                     "enum": ["streaming_table", "materialized_view", "sink"],
                     "description": "Type of write target"
                 },
+                "catalog": {
+                    "type": "string",
+                    "description": "Unity Catalog catalog name"
+                },
+                "schema": {
+                    "type": "string",
+                    "description": "Unity Catalog schema name"
+                },
                 "database": {
                     "type": "string",
-                    "description": "Target database name"
+                    "description": "DEPRECATED (v0.7.8): Use 'catalog' and 'schema' instead. Combined catalog.schema name, auto-converted with deprecation warning. Removal in v1.0.0."
                 },
                 "table": {
                     "type": "string",
@@ -480,10 +488,6 @@
                     "type": "object",
                     "additionalProperties": true,
                     "description": "Spark configuration"
-                },
-                "schema": {
-                    "type": "string",
-                    "description": "Table schema (legacy, use 'table_schema' instead)"
                 },
                 "table_schema": {
                     "type": "string",

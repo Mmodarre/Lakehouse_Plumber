@@ -507,6 +507,10 @@ class BundleManager:
         """
         Extract most common database value, first one in case of tie.
 
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
+
         Args:
             database_values: List of database strings from write_targets
 
@@ -530,6 +534,10 @@ class BundleManager:
     ) -> Dict[str, str]:
         """
         Extract FIRST catalog.schema found from ANY Python file across ALL pipelines.
+
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
 
         This method:
         1. Scans all pipeline directories in the output directory
@@ -592,6 +600,10 @@ class BundleManager:
         """
         Discover all substitution environment files and return environment names.
 
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
+
         Scans the substitutions/ directory for all *.yaml files and extracts
         the environment names (filename without extension).
 
@@ -625,6 +637,10 @@ class BundleManager:
     ) -> Dict[str, str]:
         """
         Find variable names in substitution files that contain specific catalog/schema values.
+
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
 
         Parses the specified environment's substitution file to find which variable names
         contain the given catalog and schema values.
@@ -705,6 +721,10 @@ class BundleManager:
         """
         Validate that all required targets exist in databricks.yml.
 
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
+
         Checks that databricks.yml exists and contains target definitions for
         all specified environments. Raises error if any targets are missing.
 
@@ -777,6 +797,10 @@ class BundleManager:
     def _update_databricks_variables(self, output_dir: Path, current_env: str) -> None:
         """
         Update databricks.yml with pipeline variables for all environments.
+
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
 
         This method implements the complete new flow:
         1. Extract first global catalog.schema from any Python file
@@ -858,6 +882,27 @@ class BundleManager:
                 f"{sorted(pipelines_with_config)}"
             )
 
+        # DEPRECATED(v1.0.0): Auto-detect catalog/schema will be removed.
+        import click
+
+        pipelines_needing_config = sorted(all_pipeline_names - pipelines_with_config)
+        click.echo(
+            "\n"
+            "  \u26a0\ufe0f  DEPRECATION WARNING: Auto-detection of catalog/schema from generated files\n"
+            "     is deprecated and will be removed in version 1.0.0.\n"
+            "     Starting in v1.0.0, pipeline_config.yaml (--pipeline-config / -pc) will be required\n"
+            "     for bundle projects. Define 'catalog' and 'schema' either:\n"
+            "       - In project_defaults (applies to all pipelines), or\n"
+            "       - Per pipeline in pipeline_config.yaml\n"
+            "     Pipeline(s) currently missing catalog/schema config:\n"
+            f"       {', '.join(pipelines_needing_config)}\n"
+            "     See: https://lakehouse-plumber.readthedocs.io/en/latest/databricks_bundles.html#pipeline-configuration\n"
+        )
+        self.logger.warning(
+            "Auto-detect catalog/schema is deprecated (removal in v1.0.0). "
+            f"Pipelines missing config: {pipelines_needing_config}"
+        )
+
         # Step 3: Find variable names in current environment's substitution file
         variable_info = self._find_substitution_variables_for_values(
             catalog_value, schema_value, current_env
@@ -910,6 +955,10 @@ class BundleManager:
         """
         Load actual catalog and schema values from a specific environment's substitution file.
 
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
+
         Args:
             env: Environment name (e.g., 'dev')
             catalog_var: Variable name for catalog (e.g., 'catalog')
@@ -958,6 +1007,10 @@ class BundleManager:
     ) -> Dict[str, str]:
         """
         Extract database info from generated Python files using regex patterns.
+
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
 
         This method:
         1. Finds all Python files in the pipeline directory
@@ -1024,6 +1077,10 @@ class BundleManager:
         """
         Extract catalog.schema patterns from Python file content using regex.
 
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
+
         Looks for these patterns:
         - dp.create_streaming_table(name="catalog.schema.table")
         - @dp.materialized_view(name="catalog.schema.table")
@@ -1059,6 +1116,10 @@ class BundleManager:
     def _parse_resolved_database_string(self, database_string: str) -> Dict[str, str]:
         """
         Parse already-resolved database string to extract catalog and schema.
+
+        .. deprecated:: 0.7.8
+            Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+            Use pipeline_config.yaml to define catalog/schema per pipeline instead.
 
         Since Python files contain fully resolved values (templates and substitutions
         already applied), no token resolution is needed.
@@ -1311,7 +1372,8 @@ class BundleManager:
         Raises:
             BundleResourceError: If databricks.yml update fails
         """
-        # Step 3: NEW - Update databricks.yml with pipeline variables
+        # DEPRECATED(v1.0.0): Auto-detect catalog/schema reverse-lookup.
+        # Remove this call when the corresponding methods are removed in v1.0.0.
         try:
             self._update_databricks_variables(output_dir, env)
         except Exception as e:

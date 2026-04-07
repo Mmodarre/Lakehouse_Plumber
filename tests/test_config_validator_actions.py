@@ -124,7 +124,7 @@ class TestConfigValidatorActions:
             name="test_write_string_target",
             type=ActionType.WRITE,
             source="v_test",
-            write_target={"type": "streaming_table", "database": "test", "table": "test"}  # Valid initially
+            write_target={"type": "streaming_table", "catalog": "test_cat", "schema": "test_sch", "table": "test"}  # Valid initially
         )
         # Manually set invalid write_target to bypass Pydantic validation
         action.write_target = "string_target"  # Should be dict
@@ -137,7 +137,7 @@ class TestConfigValidatorActions:
             name="test_write_no_type",
             type=ActionType.WRITE,
             source="v_test",
-            write_target={"database": "test", "table": "test"}  # Missing 'type' field
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "test"}  # Missing 'type' field
         )
         errors = validator.validate_action(action, 0)
         assert any("write_target must have a 'type' field" in error for error in errors)
@@ -150,7 +150,7 @@ class TestConfigValidatorActions:
                 name="test_write_unknown_type",
                 type=ActionType.WRITE,
                 source="v_test",
-                write_target={"type": "unknown_type", "database": "test", "table": "test"}
+                write_target={"type": "unknown_type", "catalog": "test_cat", "schema": "test_sch", "table": "test"}
             )
             errors = validator.validate_action(action, 0)
             assert any("Unknown write target type 'unknown_type'" in error for error in errors)
@@ -163,11 +163,11 @@ class TestConfigValidatorActions:
                 type=ActionType.WRITE,
                 source="v_test",
                 target="v_should_not_have_target",  # Write actions shouldn't have targets
-                write_target={"type": "streaming_table", "database": "test", "table": "test"}
+                write_target={"type": "streaming_table", "catalog": "test_cat", "schema": "test_sch", "table": "test"}
             )
-            
+
             errors = validator.validate_action(action, 0)
-            
+
             # Should log warning (line 277-279)
             mock_warning.assert_called_once()
             warning_call = mock_warning.call_args[0][0]
@@ -178,7 +178,7 @@ class TestConfigValidatorActions:
         """Test write target validation edge cases.
         
         Target lines: 382, 392, 397
-        Tests unknown write target types and missing database/table combinations.
+        Tests unknown write target types and missing catalog/schema/table combinations.
         """
         validator = ConfigValidator()
         
@@ -192,7 +192,8 @@ class TestConfigValidatorActions:
                 source="v_test",
                 write_target={
                     "type": "unknown_writer_type",
-                    "database": "test",
+                    "catalog": "test_cat",
+                    "schema": "test_sch",
                     "table": "test"
                 }
             )
@@ -200,15 +201,15 @@ class TestConfigValidatorActions:
             errors = validator.validate_action(action, 0)
             assert any("Unknown write target type 'unknown_writer_type'" in error for error in errors)
         
-        # Test 2: Missing database in write target (edge case)
+        # Test 2: Missing catalog/schema in write target (edge case)
         action = Action(
-            name="test_missing_database",
+            name="test_missing_catalog_schema",
             type=ActionType.WRITE,
             source="v_test",
             write_target={
                 "type": "streaming_table",
                 "table": "test"
-                # Missing database
+                # Missing catalog and schema
             }
         )
         
@@ -223,7 +224,8 @@ class TestConfigValidatorActions:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test"
+                "catalog": "test_cat",
+                "schema": "test_sch"
                 # Missing table
             }
         )

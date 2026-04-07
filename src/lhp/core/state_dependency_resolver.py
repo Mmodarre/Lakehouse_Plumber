@@ -792,9 +792,7 @@ class StateDependencyResolver:
                 and hasattr(action, "write_target")
                 and isinstance(action.write_target, dict)
             ):
-                table_schema = action.write_target.get(
-                    "table_schema"
-                ) or action.write_target.get("schema")
+                table_schema = action.write_target.get("table_schema")
                 if table_schema and self._is_file_path(table_schema):
                     files.add(Path(table_schema).as_posix())
 

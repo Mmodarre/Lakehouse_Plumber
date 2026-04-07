@@ -49,7 +49,8 @@ class TestUnknownFieldValidation:
         """Test valid delta source configuration passes validation."""
         source_config = {
             "type": "delta",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_table",
             "readMode": "batch",
         }
@@ -61,7 +62,8 @@ class TestUnknownFieldValidation:
         """Test unknown field in delta source raises error."""
         source_config = {
             "type": "delta",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_table",
             "invalid_option": "value",
         }
@@ -76,7 +78,8 @@ class TestUnknownFieldValidation:
         """Test valid streaming table write target passes validation."""
         write_target = {
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_table",
             "create_table": True,
             "table_properties": {"delta.enableChangeDataFeed": "true"},
@@ -89,7 +92,8 @@ class TestUnknownFieldValidation:
         """Test unknown field in write target raises error."""
         write_target = {
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_table",
             "invalid_field": "value",
             "another_unknown": 123,
@@ -108,7 +112,8 @@ class TestUnknownFieldValidation:
         """Test valid materialized view write target passes validation."""
         write_target = {
             "type": "materialized_view",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_view",
             "refresh_schedule": "@daily",
             "sql": "SELECT * FROM source_table",
@@ -263,7 +268,8 @@ class TestUnknownFieldValidation:
         """Test materialized view with sql_path passes field validation."""
         write_target = {
             "type": "materialized_view",
-            "database": "gold",
+            "catalog": "gold_cat",
+            "schema": "gold_sch",
             "table": "ecomm_summary",
             "sql_path": "sql/gold/ecomm_summary.sql",
         }

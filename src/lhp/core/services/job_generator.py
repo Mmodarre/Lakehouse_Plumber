@@ -465,7 +465,7 @@ class JobGenerator:
                 pipeline_info = dependency_result.pipeline_dependencies.get(
                     pipeline_name
                 )
-                depends_on = pipeline_info.depends_on if pipeline_info else []
+                depends_on = sorted(pipeline_info.depends_on) if pipeline_info else []
 
                 job_pipeline = JobPipeline(
                     name=pipeline_name, depends_on=depends_on, stage=stage_number
