@@ -14,9 +14,11 @@
 @dp.temporary_view()
 def {{ target_view }}():
     """{{ description }}"""
-    {% if readMode == "stream" %}
     df = spark.readStream \
         .format("cloudFiles")
+    {%- if schema_variable %} \
+        .schema({{ schema_variable }})
+    {%- endif %}
     {%- for key, value in reader_options.items() %}
     {%- if value is boolean %} \
         .option("{{ key }}", {{ value|string|title }})
@@ -30,20 +32,6 @@ def {{ target_view }}():
         .option("cloudFiles.schemaHints", {{ schema_hints_variable }})
     {%- endif %} \
         .load("{{ path }}")
-    {% else %}
-    # CloudFiles (Auto Loader) in batch mode
-    df = spark.read \
-        .format("{{ format }}")
-    {%- for key, value in reader_options.items() %} \
-        .option("{{ key }}", "{{ value|replace('\\', '\\\\')|replace('"', '\\"') }}")
-    {%- endfor %} \
-        .load("{{ path }}")
-    {% endif %}
-    
-    {% if schema_variable %}
-    # Apply explicit schema
-    df = df.schema({{ schema_variable }})
-    {% endif %}
     {% if add_operational_metadata %}
     
     # Add operational metadata columns

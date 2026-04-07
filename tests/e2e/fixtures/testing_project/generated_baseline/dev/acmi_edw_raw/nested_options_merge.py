@@ -16,7 +16,7 @@ FLOWGROUP_ID = "nested_options_merge"
 
 @dp.temporary_view()
 def v_nested_raw():
-    """Load data from <built-in function format> files at /data/nested/*.parquet"""
+    """Load data from parquet files at /data/nested/*.parquet"""
     df = (
         spark.readStream.format("cloudFiles")
         .option("cloudFiles.format", "parquet")

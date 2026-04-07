@@ -194,7 +194,6 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             "action_name": action.name,
             "target_view": action.target,
             "path": path,
-            "format": file_format,
             "readMode": readMode,
             "reader_options": reader_options,
             "schema_code_lines": schema_code_lines,
@@ -202,7 +201,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             "schema_hints_variable": schema_hints_variable,
             "schema_hints_lines": schema_hints_lines,
             "description": action.description
-            or f"Load data from {format} files at {path}",
+            or f"Load data from {file_format} files at {path}",
             "add_operational_metadata": add_operational_metadata,
             "metadata_columns": metadata_columns,
             "flowgroup": context.get("flowgroup"),

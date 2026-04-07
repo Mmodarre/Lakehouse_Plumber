@@ -16,7 +16,7 @@ FLOWGROUP_ID = "write_target_preset"
 
 @dp.temporary_view()
 def v_write_preset_raw():
-    """Load data from <built-in function format> files at /data/write_preset/*.csv"""
+    """Load data from csv files at /data/write_preset/*.csv"""
     df = (
         spark.readStream.format("cloudFiles")
         .option("cloudFiles.format", "csv")

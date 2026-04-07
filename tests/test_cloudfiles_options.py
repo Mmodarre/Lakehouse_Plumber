@@ -120,8 +120,12 @@ class TestCloudFilesOptions:
         assert 'StructField("name", StringType(), False' in result
         assert 'StructField("amount", DecimalType(18, 2), True' in result
         assert 'StructField("created_at", TimestampType(), False' in result
-        assert "df = df.schema(test_schema)" in result
-    
+        assert ".schema(test_schema)" in result
+        assert "df = df.schema(" not in result
+        schema_pos = result.index(".schema(test_schema)")
+        load_pos = result.index(".load(")
+        assert schema_pos < load_pos
+
     def test_missing_prefix_error(self):
         """Test error when cloudFiles option is missing prefix."""
         action = Action(
@@ -327,7 +331,11 @@ class TestCloudFilesOptions:
         
         # Check schema enforcement
         assert "test_schema = StructType([" in result
-        assert "df = df.schema(test_schema)" in result
+        assert ".schema(test_schema)" in result
+        assert "df = df.schema(" not in result
+        schema_pos = result.index(".schema(test_schema)")
+        load_pos = result.index(".load(")
+        assert schema_pos < load_pos
         
         # Check all options are included with proper Python syntax
         assert '.option("cloudFiles.format", "csv")' in result
