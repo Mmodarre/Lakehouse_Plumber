@@ -77,14 +77,14 @@ class TestTransformOperationalMetadata:
         assert "# Add operational metadata columns" in code
         assert "df = df.withColumn('_batch_id'" in code
         assert "df = df.withColumn('_processing_timestamp'" in code
-        
+
         # Verify metadata expressions
         assert "F.monotonically_increasing_id()" in code
         assert "F.current_timestamp()" in code
-        
+
         # Verify alphabetical ordering (batch_id comes before processing_timestamp)
         batch_id_pos = code.find("_batch_id")
-        timestamp_pos = code.find("_processing_timestamp") 
+        timestamp_pos = code.find("_processing_timestamp")
         assert batch_id_pos < timestamp_pos, "Metadata columns should be in alphabetical order"
 
     def test_data_quality_transform_with_operational_metadata(self, project_config_with_metadata, flowgroup_with_metadata):
@@ -124,10 +124,11 @@ class TestTransformOperationalMetadata:
             assert "spark.readStream.table" in code  # stream mode
             assert "return df" in code
             
-            # Verify operational metadata is added
+            # Verify operational metadata is added via withColumns
             assert "# Add operational metadata columns" in code
-            assert "df = df.withColumn('_batch_id'" in code
-            assert "df = df.withColumn('_processing_timestamp'" in code
+            assert "df = df.withColumns({" in code
+            assert "'_batch_id': F.monotonically_increasing_id()" in code
+            assert "'_processing_timestamp': F.current_timestamp()" in code
             
             # Verify expectations are preserved
             assert "@dp.expect_all_or_fail" in code
