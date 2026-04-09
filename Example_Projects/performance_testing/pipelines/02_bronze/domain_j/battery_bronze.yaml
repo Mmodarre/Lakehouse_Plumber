@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: battery_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: battery_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: battery_raw
-    target: v_battery_raw
-    description: "Load battery from raw schema"
-
-  - name: battery_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_battery_raw
-    target: v_battery_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as battery_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_battery_raw
-      WHERE 1=1
-
-  - name: battery_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_battery_bronze_cleaned
-    target: v_battery_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to battery"
-
-  - name: write_battery_bronze
-    type: write
-    source: v_battery_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "battery"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: battery
+  source_table: battery_raw

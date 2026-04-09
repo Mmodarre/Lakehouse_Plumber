@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: stabilization_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: stabilization_raw
+  landing_folder: stabilization
+  schema_file: nation_schema

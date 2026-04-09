@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: patio_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: patio_raw
+  landing_folder: patio
+  schema_file: orders_schema

@@ -1,8 +1,0 @@
-pipeline: perf_bronze
-flowgroup: insurance_bronze
-presets:
-  - default_delta_properties
-use_template: bronze_cleanse_template
-template_parameters:
-  entity_name: insurance
-  source_table: insurance_raw

@@ -1,0 +1,24 @@
+pipeline: perf_gold
+flowgroup: background_check_monthly_agg_mv
+actions:
+  - name: background_check_monthly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('mon', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.background_check_dim
+        GROUP BY 1
+    target: v_background_check_monthly_agg
+
+  - name: write_background_check_monthly_agg_mv
+    type: write
+    source: v_background_check_monthly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "background_check_monthly_agg_mv"

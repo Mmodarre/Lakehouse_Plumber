@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: ancillary_service_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: ancillary_service_raw
+  landing_folder: ancillary_service
+  schema_file: product_schema

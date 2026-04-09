@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: dropship_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: dropship_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: dropship_raw
+    target: v_dropship_raw
+    description: "Load dropship from raw schema"
+
+  - name: dropship_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_dropship_raw
+    target: v_dropship_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as dropship_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_dropship_raw
+      WHERE 1=1
+
+  - name: dropship_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_dropship_bronze_cleaned
+    target: v_dropship_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to dropship"
+
+  - name: write_dropship_bronze
+    type: write
+    source: v_dropship_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "dropship"

@@ -1,8 +1,0 @@
-pipeline: perf_bronze
-flowgroup: purchase_bronze
-presets:
-  - default_delta_properties
-use_template: bronze_cleanse_template
-template_parameters:
-  entity_name: purchase
-  source_table: purchase_raw

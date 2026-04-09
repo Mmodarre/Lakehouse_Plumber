@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: jamming_detect_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: jamming_detect_raw
+  landing_folder: jamming_detect
+  schema_file: orders_schema

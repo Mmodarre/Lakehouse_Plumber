@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: wheeling_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: wheeling_raw
+  landing_folder: wheeling
+  schema_file: partsupp_schema

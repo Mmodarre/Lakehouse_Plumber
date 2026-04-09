@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: appetizer_analysis_mv
+actions:
+  - name: appetizer_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.appetizer_dim
+    target: v_appetizer_analysis
+
+  - name: write_appetizer_analysis_mv
+    type: write
+    source: v_appetizer_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "appetizer_analysis_mv"

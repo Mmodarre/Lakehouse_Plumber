@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: blend_dashboard_mv
+actions:
+  - name: blend_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.blend_dim
+    target: v_blend_dashboard
+
+  - name: write_blend_dashboard_mv
+    type: write
+    source: v_blend_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "blend_dashboard_mv"

@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: instructor_ingestion
+    template_parameters:
+      table_name: instructor_raw
+      landing_folder: instructor
+      schema_file: orders_schema
+
+  - flowgroup: scholarship_ingestion
+    template_parameters:
+      table_name: scholarship_raw
+      landing_folder: scholarship
+      schema_file: nation_schema
+
+  - flowgroup: library_book_ingestion
+    template_parameters:
+      table_name: library_book_raw
+      landing_folder: library_book
+      schema_file: partsupp_schema
+
+  - flowgroup: curriculum_ingestion
+    template_parameters:
+      table_name: curriculum_raw
+      landing_folder: curriculum
+      schema_file: part_schema
+
+  - flowgroup: fieldwork_ingestion
+    template_parameters:
+      table_name: fieldwork_raw
+      landing_folder: fieldwork
+      schema_file: orders_schema
+
+  - flowgroup: plagiarism_check_ingestion
+    template_parameters:
+      table_name: plagiarism_check_raw
+      landing_folder: plagiarism_check
+      schema_file: product_schema
+
+  - flowgroup: exchange_program_ingestion
+    template_parameters:
+      table_name: exchange_program_raw
+      landing_folder: exchange_program
+      schema_file: partsupp_schema
+
+  - flowgroup: work_study_ingestion
+    template_parameters:
+      table_name: work_study_raw
+      landing_folder: work_study
+      schema_file: part_schema

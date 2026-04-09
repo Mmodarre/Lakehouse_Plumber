@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: allele_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_allele_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/allele/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_allele_cloudfiles
+    description: "Load allele from landing volume"
+
+  - name: write_allele_raw
+    type: write
+    source: v_allele_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "allele_raw"

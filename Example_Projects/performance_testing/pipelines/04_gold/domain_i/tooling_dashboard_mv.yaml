@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: tooling_dashboard_mv
+actions:
+  - name: tooling_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.tooling_dim
+    target: v_tooling_dashboard
+
+  - name: write_tooling_dashboard_mv
+    type: write
+    source: v_tooling_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "tooling_dashboard_mv"

@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: display_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: display_raw
-  landing_folder: display
-  schema_file: partsupp_schema

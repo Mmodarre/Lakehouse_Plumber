@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: penalty_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: penalty_raw
+  landing_folder: penalty
+  schema_file: partsupp_schema

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: signal_strength_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: signal_strength_raw
+  landing_folder: signal_strength
+  schema_file: part_schema

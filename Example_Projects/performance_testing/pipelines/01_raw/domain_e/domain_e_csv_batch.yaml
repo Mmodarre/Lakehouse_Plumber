@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: tracking_ingestion
+    template_parameters:
+      table_name: tracking_raw
+      landing_folder: tracking
+      schema_file: part_schema
+
+  - flowgroup: inspection_ingestion
+    template_parameters:
+      table_name: inspection_raw
+      landing_folder: inspection
+      schema_file: customer_schema
+
+  - flowgroup: manifest_ingestion
+    template_parameters:
+      table_name: manifest_raw
+      landing_folder: manifest
+      schema_file: product_schema
+
+  - flowgroup: carrier_ingestion
+    template_parameters:
+      table_name: carrier_raw
+      landing_folder: carrier
+      schema_file: partsupp_schema
+
+  - flowgroup: weight_ticket_ingestion
+    template_parameters:
+      table_name: weight_ticket_raw
+      landing_folder: weight_ticket
+      schema_file: lineitem_schema
+
+  - flowgroup: cross_dock_ingestion
+    template_parameters:
+      table_name: cross_dock_raw
+      landing_folder: cross_dock
+      schema_file: customer_schema
+
+  - flowgroup: driver_score_ingestion
+    template_parameters:
+      table_name: driver_score_raw
+      landing_folder: driver_score
+      schema_file: product_schema
+
+  - flowgroup: hazmat_ingestion
+    template_parameters:
+      table_name: hazmat_raw
+      landing_folder: hazmat
+      schema_file: nation_schema

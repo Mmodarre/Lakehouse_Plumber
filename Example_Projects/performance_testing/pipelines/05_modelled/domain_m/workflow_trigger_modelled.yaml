@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: workflow_trigger_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: workflow_trigger_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: workflow_trigger_dim
+    target: v_workflow_trigger_silver
+    description: "Load workflow_trigger from silver for modelling"
+
+  - name: workflow_trigger_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_workflow_trigger_silver
+    target: v_workflow_trigger_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_workflow_trigger_silver
+
+  - name: write_workflow_trigger_modelled
+    type: write
+    source: v_workflow_trigger_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "workflow_trigger_modelled"

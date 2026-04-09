@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: offside_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: offside_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: offside_raw
+    target: v_offside_raw
+    description: "Load offside from raw schema"
+
+  - name: offside_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_offside_raw
+    target: v_offside_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as offside_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_offside_raw
+      WHERE 1=1
+
+  - name: offside_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_offside_bronze_cleaned
+    target: v_offside_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to offside"
+
+  - name: write_offside_bronze
+    type: write
+    source: v_offside_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "offside"

@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: pcr_run_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: pcr_run_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pcr_run_raw
+    target: v_pcr_run_raw
+    description: "Load pcr_run from raw schema"
+
+  - name: pcr_run_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_pcr_run_raw
+    target: v_pcr_run_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pcr_run_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_pcr_run_raw
+
+  - name: pcr_run_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_pcr_run_bronze_cleaned
+    target: v_pcr_run_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for pcr_run bronze"
+
+  - name: write_pcr_run_bronze
+    type: write
+    source: v_pcr_run_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pcr_run"
+
+  - name: pcr_run_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pcr_run_migration
+    target: v_pcr_run_migration
+    description: "Load pcr_run migration data"
+
+  - name: pcr_run_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pcr_run_migration
+    target: v_pcr_run_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pcr_run_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_pcr_run_migration
+
+  - name: write_pcr_run_migration
+    type: write
+    source: v_pcr_run_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pcr_run"

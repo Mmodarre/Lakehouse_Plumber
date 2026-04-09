@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: task_ingestion
-presets:
-  - default_delta_properties
-use_template: parquet_ingestion_template
-template_parameters:
-  table_name: task_raw
-  landing_folder: task
-  schema_file: orders_schema

@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: ledger_ingestion
+    template_parameters:
+      table_name: ledger_raw
+      landing_folder: ledger
+      schema_file: nation_schema
+
+  - flowgroup: compliance_ingestion
+    template_parameters:
+      table_name: compliance_raw
+      landing_folder: compliance
+      schema_file: lineitem_schema
+
+  - flowgroup: revenue_ingestion
+    template_parameters:
+      table_name: revenue_raw
+      landing_folder: revenue
+      schema_file: customer_schema
+
+  - flowgroup: profit_center_ingestion
+    template_parameters:
+      table_name: profit_center_raw
+      landing_folder: profit_center
+      schema_file: orders_schema
+
+  - flowgroup: bank_statement_ingestion
+    template_parameters:
+      table_name: bank_statement_raw
+      landing_folder: bank_statement
+      schema_file: nation_schema
+
+  - flowgroup: variance_ingestion
+    template_parameters:
+      table_name: variance_raw
+      landing_folder: variance
+      schema_file: lineitem_schema
+
+  - flowgroup: write_off_ingestion
+    template_parameters:
+      table_name: write_off_raw
+      landing_folder: write_off
+      schema_file: part_schema
+
+  - flowgroup: withholding_ingestion
+    template_parameters:
+      table_name: withholding_raw
+      landing_folder: withholding
+      schema_file: orders_schema

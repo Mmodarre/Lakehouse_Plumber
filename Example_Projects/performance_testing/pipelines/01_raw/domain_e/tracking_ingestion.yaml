@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: tracking_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: tracking_raw
-  landing_folder: tracking
-  schema_file: part_schema

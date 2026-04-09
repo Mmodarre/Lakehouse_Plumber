@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: publishing_deal_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: publishing_deal_raw
+  landing_folder: publishing_deal
+  schema_file: lineitem_schema

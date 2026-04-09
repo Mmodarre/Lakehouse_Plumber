@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: thermal_control_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_thermal_control_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/thermal_control/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_thermal_control_cloudfiles
+    description: "Load thermal_control from landing volume"
+
+  - name: write_thermal_control_raw
+    type: write
+    source: v_thermal_control_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "thermal_control_raw"

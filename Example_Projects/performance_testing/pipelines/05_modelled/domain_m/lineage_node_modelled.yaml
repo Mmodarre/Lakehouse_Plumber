@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: lineage_node_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lineage_node_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lineage_node_dim
+    target: v_lineage_node_silver
+    description: "Load lineage_node from silver for modelling"
+
+  - name: lineage_node_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lineage_node_silver
+    target: v_lineage_node_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lineage_node_silver
+
+  - name: write_lineage_node_modelled
+    type: write
+    source: v_lineage_node_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lineage_node_modelled"

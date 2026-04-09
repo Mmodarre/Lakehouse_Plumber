@@ -1,0 +1,759 @@
+pipeline: perf_modelled
+flowgroup: meter_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: meter_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: meter_dim
+    target: v_meter_silver
+    description: "Load meter from silver for modelling"
+
+  - name: meter_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_meter_silver
+    target: v_meter_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_meter_silver
+
+  - name: write_meter_modelled
+    type: write
+    source: v_meter_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "meter_modelled"
+---
+pipeline: perf_modelled
+flowgroup: reading_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: reading_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: reading_dim
+    target: v_reading_silver
+    description: "Load reading from silver for modelling"
+
+  - name: reading_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_reading_silver
+    target: v_reading_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_reading_silver
+
+  - name: write_reading_modelled
+    type: write
+    source: v_reading_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "reading_modelled"
+---
+pipeline: perf_modelled
+flowgroup: grid_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: grid_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: grid_dim
+    target: v_grid_silver
+    description: "Load grid from silver for modelling"
+
+  - name: grid_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_grid_silver
+    target: v_grid_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_grid_silver
+
+  - name: write_grid_modelled
+    type: write
+    source: v_grid_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "grid_modelled"
+---
+pipeline: perf_modelled
+flowgroup: transformer_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: transformer_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: transformer_dim
+    target: v_transformer_silver
+    description: "Load transformer from silver for modelling"
+
+  - name: transformer_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_transformer_silver
+    target: v_transformer_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_transformer_silver
+
+  - name: write_transformer_modelled
+    type: write
+    source: v_transformer_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "transformer_modelled"
+---
+pipeline: perf_modelled
+flowgroup: substation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: substation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: substation_dim
+    target: v_substation_silver
+    description: "Load substation from silver for modelling"
+
+  - name: substation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_substation_silver
+    target: v_substation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_substation_silver
+
+  - name: write_substation_modelled
+    type: write
+    source: v_substation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "substation_modelled"
+---
+pipeline: perf_modelled
+flowgroup: outage_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: outage_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: outage_dim
+    target: v_outage_silver
+    description: "Load outage from silver for modelling"
+
+  - name: outage_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_outage_silver
+    target: v_outage_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_outage_silver
+
+  - name: write_outage_modelled
+    type: write
+    source: v_outage_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "outage_modelled"
+---
+pipeline: perf_modelled
+flowgroup: load_profile_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: load_profile_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: load_profile_dim
+    target: v_load_profile_silver
+    description: "Load load_profile from silver for modelling"
+
+  - name: load_profile_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_load_profile_silver
+    target: v_load_profile_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_load_profile_silver
+
+  - name: write_load_profile_modelled
+    type: write
+    source: v_load_profile_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "load_profile_modelled"
+---
+pipeline: perf_modelled
+flowgroup: demand_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: demand_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: demand_dim
+    target: v_demand_silver
+    description: "Load demand from silver for modelling"
+
+  - name: demand_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_demand_silver
+    target: v_demand_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_demand_silver
+
+  - name: write_demand_modelled
+    type: write
+    source: v_demand_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "demand_modelled"
+---
+pipeline: perf_modelled
+flowgroup: generation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: generation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: generation_dim
+    target: v_generation_silver
+    description: "Load generation from silver for modelling"
+
+  - name: generation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_generation_silver
+    target: v_generation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_generation_silver
+
+  - name: write_generation_modelled
+    type: write
+    source: v_generation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "generation_modelled"
+---
+pipeline: perf_modelled
+flowgroup: solar_panel_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: solar_panel_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: solar_panel_dim
+    target: v_solar_panel_silver
+    description: "Load solar_panel from silver for modelling"
+
+  - name: solar_panel_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_solar_panel_silver
+    target: v_solar_panel_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_solar_panel_silver
+
+  - name: write_solar_panel_modelled
+    type: write
+    source: v_solar_panel_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "solar_panel_modelled"
+---
+pipeline: perf_modelled
+flowgroup: wind_turbine_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: wind_turbine_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: wind_turbine_dim
+    target: v_wind_turbine_silver
+    description: "Load wind_turbine from silver for modelling"
+
+  - name: wind_turbine_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_wind_turbine_silver
+    target: v_wind_turbine_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_wind_turbine_silver
+
+  - name: write_wind_turbine_modelled
+    type: write
+    source: v_wind_turbine_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "wind_turbine_modelled"
+---
+pipeline: perf_modelled
+flowgroup: battery_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: battery_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: battery_dim
+    target: v_battery_silver
+    description: "Load battery from silver for modelling"
+
+  - name: battery_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_battery_silver
+    target: v_battery_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_battery_silver
+
+  - name: write_battery_modelled
+    type: write
+    source: v_battery_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "battery_modelled"
+---
+pipeline: perf_modelled
+flowgroup: inverter_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: inverter_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: inverter_dim
+    target: v_inverter_silver
+    description: "Load inverter from silver for modelling"
+
+  - name: inverter_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_inverter_silver
+    target: v_inverter_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_inverter_silver
+
+  - name: write_inverter_modelled
+    type: write
+    source: v_inverter_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "inverter_modelled"
+---
+pipeline: perf_modelled
+flowgroup: tariff_plan_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: tariff_plan_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: tariff_plan_dim
+    target: v_tariff_plan_silver
+    description: "Load tariff_plan from silver for modelling"
+
+  - name: tariff_plan_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tariff_plan_silver
+    target: v_tariff_plan_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_tariff_plan_silver
+
+  - name: write_tariff_plan_modelled
+    type: write
+    source: v_tariff_plan_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "tariff_plan_modelled"
+---
+pipeline: perf_modelled
+flowgroup: billing_cycle_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: billing_cycle_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: billing_cycle_dim
+    target: v_billing_cycle_silver
+    description: "Load billing_cycle from silver for modelling"
+
+  - name: billing_cycle_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_billing_cycle_silver
+    target: v_billing_cycle_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_billing_cycle_silver
+
+  - name: write_billing_cycle_modelled
+    type: write
+    source: v_billing_cycle_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "billing_cycle_modelled"
+---
+pipeline: perf_modelled
+flowgroup: peak_usage_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: peak_usage_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: peak_usage_dim
+    target: v_peak_usage_silver
+    description: "Load peak_usage from silver for modelling"
+
+  - name: peak_usage_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_peak_usage_silver
+    target: v_peak_usage_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_peak_usage_silver
+
+  - name: write_peak_usage_modelled
+    type: write
+    source: v_peak_usage_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "peak_usage_modelled"
+---
+pipeline: perf_modelled
+flowgroup: off_peak_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: off_peak_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: off_peak_dim
+    target: v_off_peak_silver
+    description: "Load off_peak from silver for modelling"
+
+  - name: off_peak_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_off_peak_silver
+    target: v_off_peak_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_off_peak_silver
+
+  - name: write_off_peak_modelled
+    type: write
+    source: v_off_peak_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "off_peak_modelled"
+---
+pipeline: perf_modelled
+flowgroup: net_metering_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: net_metering_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: net_metering_dim
+    target: v_net_metering_silver
+    description: "Load net_metering from silver for modelling"
+
+  - name: net_metering_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_net_metering_silver
+    target: v_net_metering_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_net_metering_silver
+
+  - name: write_net_metering_modelled
+    type: write
+    source: v_net_metering_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "net_metering_modelled"
+---
+pipeline: perf_modelled
+flowgroup: power_factor_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: power_factor_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: power_factor_dim
+    target: v_power_factor_silver
+    description: "Load power_factor from silver for modelling"
+
+  - name: power_factor_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_power_factor_silver
+    target: v_power_factor_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_power_factor_silver
+
+  - name: write_power_factor_modelled
+    type: write
+    source: v_power_factor_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "power_factor_modelled"
+---
+pipeline: perf_modelled
+flowgroup: voltage_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: voltage_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: voltage_dim
+    target: v_voltage_silver
+    description: "Load voltage from silver for modelling"
+
+  - name: voltage_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_voltage_silver
+    target: v_voltage_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_voltage_silver
+
+  - name: write_voltage_modelled
+    type: write
+    source: v_voltage_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "voltage_modelled"

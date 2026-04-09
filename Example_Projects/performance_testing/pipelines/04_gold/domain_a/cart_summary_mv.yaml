@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: cart_summary_mv
+actions:
+  - name: cart_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.cart_dim
+    target: v_cart_summary
+
+  - name: write_cart_summary_mv
+    type: write
+    source: v_cart_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "cart_summary_mv"

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: corner_kick_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: corner_kick_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: corner_kick_dim
+    target: v_corner_kick_silver
+    description: "Load corner_kick from silver for modelling"
+
+  - name: corner_kick_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_corner_kick_silver
+    target: v_corner_kick_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_corner_kick_silver
+
+  - name: write_corner_kick_modelled
+    type: write
+    source: v_corner_kick_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "corner_kick_modelled"

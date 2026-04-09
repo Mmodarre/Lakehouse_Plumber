@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: landlord_ingestion
-presets:
-  - default_delta_properties
-use_template: parquet_ingestion_template
-template_parameters:
-  table_name: landlord_raw
-  landing_folder: landlord
-  schema_file: orders_schema

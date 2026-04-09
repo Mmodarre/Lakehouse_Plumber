@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: debris_track_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: debris_track_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: debris_track
+    target: v_debris_track_bronze
+    description: "Load debris_track from bronze for silver layer"
+
+  - name: write_debris_track_silver
+    type: write
+    source: v_debris_track_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "debris_track_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["debris_track_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

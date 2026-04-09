@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: channel_dashboard_mv
+actions:
+  - name: channel_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.channel_dim
+    target: v_channel_dashboard
+
+  - name: write_channel_dashboard_mv
+    type: write
+    source: v_channel_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "channel_dashboard_mv"

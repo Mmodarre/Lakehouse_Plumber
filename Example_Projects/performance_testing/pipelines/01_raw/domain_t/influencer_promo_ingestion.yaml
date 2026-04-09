@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: influencer_promo_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: influencer_promo_raw
+  landing_folder: influencer_promo
+  schema_file: nation_schema

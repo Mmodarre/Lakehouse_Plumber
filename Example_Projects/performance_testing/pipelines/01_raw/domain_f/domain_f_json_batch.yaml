@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: enrollment_ingestion
+    template_parameters:
+      table_name: enrollment_raw
+      landing_folder: enrollment
+      schema_file: nation_schema
+
+  - flowgroup: degree_ingestion
+    template_parameters:
+      table_name: degree_raw
+      landing_folder: degree
+      schema_file: lineitem_schema
+
+  - flowgroup: tuition_ingestion
+    template_parameters:
+      table_name: tuition_raw
+      landing_folder: tuition
+      schema_file: customer_schema
+
+  - flowgroup: faculty_ingestion
+    template_parameters:
+      table_name: faculty_raw
+      landing_folder: faculty
+      schema_file: orders_schema
+
+  - flowgroup: lab_session_ingestion
+    template_parameters:
+      table_name: lab_session_raw
+      landing_folder: lab_session
+      schema_file: nation_schema
+
+  - flowgroup: alumni_donor_ingestion
+    template_parameters:
+      table_name: alumni_donor_raw
+      landing_folder: alumni_donor
+      schema_file: lineitem_schema
+
+  - flowgroup: co_op_ingestion
+    template_parameters:
+      table_name: co_op_raw
+      landing_folder: co_op
+      schema_file: part_schema
+
+  - flowgroup: financial_aid_ingestion
+    template_parameters:
+      table_name: financial_aid_raw
+      landing_folder: financial_aid
+      schema_file: orders_schema

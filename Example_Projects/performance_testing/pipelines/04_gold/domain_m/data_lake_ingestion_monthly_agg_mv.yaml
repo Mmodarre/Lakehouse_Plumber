@@ -1,0 +1,24 @@
+pipeline: perf_gold
+flowgroup: data_lake_ingestion_monthly_agg_mv
+actions:
+  - name: data_lake_ingestion_monthly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('mon', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.data_lake_ingestion_dim
+        GROUP BY 1
+    target: v_data_lake_ingestion_monthly_agg
+
+  - name: write_data_lake_ingestion_monthly_agg_mv
+    type: write
+    source: v_data_lake_ingestion_monthly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "data_lake_ingestion_monthly_agg_mv"

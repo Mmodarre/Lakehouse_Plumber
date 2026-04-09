@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: annotation_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: annotation_raw
+  landing_folder: annotation
+  schema_file: partsupp_schema

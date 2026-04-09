@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: racking_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: racking_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: racking_dim
+    target: v_racking_silver
+    description: "Load racking from silver for modelling"
+
+  - name: racking_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_racking_silver
+    target: v_racking_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_racking_silver
+
+  - name: write_racking_modelled
+    type: write
+    source: v_racking_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "racking_modelled"

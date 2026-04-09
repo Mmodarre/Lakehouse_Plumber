@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: bill_of_lading_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: bill_of_lading_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bill_of_lading_raw
+    target: v_bill_of_lading_raw
+    description: "Load bill_of_lading from raw schema"
+
+  - name: bill_of_lading_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_bill_of_lading_raw
+    target: v_bill_of_lading_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bill_of_lading_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_bill_of_lading_raw
+
+  - name: bill_of_lading_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_bill_of_lading_bronze_cleaned
+    target: v_bill_of_lading_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for bill_of_lading bronze"
+
+  - name: write_bill_of_lading_bronze
+    type: write
+    source: v_bill_of_lading_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bill_of_lading"
+
+  - name: bill_of_lading_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bill_of_lading_migration
+    target: v_bill_of_lading_migration
+    description: "Load bill_of_lading migration data"
+
+  - name: bill_of_lading_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_bill_of_lading_migration
+    target: v_bill_of_lading_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bill_of_lading_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_bill_of_lading_migration
+
+  - name: write_bill_of_lading_migration
+    type: write
+    source: v_bill_of_lading_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bill_of_lading"

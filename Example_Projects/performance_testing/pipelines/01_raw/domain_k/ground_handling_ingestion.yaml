@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: ground_handling_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: ground_handling_raw
+  landing_folder: ground_handling
+  schema_file: product_schema

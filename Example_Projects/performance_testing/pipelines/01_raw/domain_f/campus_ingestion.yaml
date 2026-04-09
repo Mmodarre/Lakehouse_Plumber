@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: campus_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: campus_raw
-  landing_folder: campus
-  schema_file: product_schema

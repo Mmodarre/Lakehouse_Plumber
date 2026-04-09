@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: tasting_room_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: tasting_room_raw
+  landing_folder: tasting_room
+  schema_file: lineitem_schema

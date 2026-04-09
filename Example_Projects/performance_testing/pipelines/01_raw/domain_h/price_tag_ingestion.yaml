@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: price_tag_ingestion
-presets:
-  - default_delta_properties
-use_template: json_ingestion_template
-template_parameters:
-  table_name: price_tag_raw
-  landing_folder: price_tag
-  schema_file: lineitem_schema

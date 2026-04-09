@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: unit_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: unit_raw
-  landing_folder: unit
-  schema_file: part_schema

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: predictive_model_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: predictive_model_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: predictive_model_dim
+    target: v_predictive_model_silver
+    description: "Load predictive_model from silver for modelling"
+
+  - name: predictive_model_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_predictive_model_silver
+    target: v_predictive_model_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_predictive_model_silver
+
+  - name: write_predictive_model_modelled
+    type: write
+    source: v_predictive_model_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "predictive_model_modelled"

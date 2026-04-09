@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: receipt_summary_mv
+actions:
+  - name: receipt_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.receipt_dim
+    target: v_receipt_summary
+
+  - name: write_receipt_summary_mv
+    type: write
+    source: v_receipt_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "receipt_summary_mv"

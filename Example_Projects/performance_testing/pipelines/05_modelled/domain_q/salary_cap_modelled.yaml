@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: salary_cap_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: salary_cap_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: salary_cap_dim
+    target: v_salary_cap_silver
+    description: "Load salary_cap from silver for modelling"
+
+  - name: salary_cap_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_salary_cap_silver
+    target: v_salary_cap_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_salary_cap_silver
+
+  - name: write_salary_cap_modelled
+    type: write
+    source: v_salary_cap_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "salary_cap_modelled"

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: jamming_detect_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: jamming_detect_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: jamming_detect_dim
+    target: v_jamming_detect_silver
+    description: "Load jamming_detect from silver for modelling"
+
+  - name: jamming_detect_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_jamming_detect_silver
+    target: v_jamming_detect_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_jamming_detect_silver
+
+  - name: write_jamming_detect_modelled
+    type: write
+    source: v_jamming_detect_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "jamming_detect_modelled"

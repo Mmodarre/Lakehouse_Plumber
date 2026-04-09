@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: badge_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: badge_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: badge_raw
+    target: v_badge_raw
+    description: "Load badge from raw schema"
+
+  - name: badge_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_badge_raw
+    target: v_badge_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as badge_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_badge_raw
+
+  - name: badge_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_badge_bronze_cleaned
+    target: v_badge_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for badge bronze"
+
+  - name: write_badge_bronze
+    type: write
+    source: v_badge_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "badge"
+
+  - name: badge_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: badge_migration
+    target: v_badge_migration
+    description: "Load badge migration data"
+
+  - name: badge_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_badge_migration
+    target: v_badge_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as badge_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_badge_migration
+
+  - name: write_badge_migration
+    type: write
+    source: v_badge_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "badge"

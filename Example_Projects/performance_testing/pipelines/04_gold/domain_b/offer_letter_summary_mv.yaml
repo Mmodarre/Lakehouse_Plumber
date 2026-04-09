@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: offer_letter_summary_mv
+actions:
+  - name: offer_letter_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.offer_letter_dim
+    target: v_offer_letter_summary
+
+  - name: write_offer_letter_summary_mv
+    type: write
+    source: v_offer_letter_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "offer_letter_summary_mv"

@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: compliance_ingestion
-presets:
-  - default_delta_properties
-use_template: json_ingestion_template
-template_parameters:
-  table_name: compliance_raw
-  landing_folder: compliance
-  schema_file: lineitem_schema

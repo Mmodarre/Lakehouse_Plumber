@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: diagnosis_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: diagnosis_raw
-  landing_folder: diagnosis
-  schema_file: part_schema

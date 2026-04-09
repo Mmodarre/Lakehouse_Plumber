@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: quote_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: quote_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: quote_raw
+    target: v_quote_raw
+    description: "Load quote from raw schema"
+
+  - name: quote_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_quote_raw
+    target: v_quote_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as quote_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_quote_raw
+
+  - name: quote_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_quote_bronze_cleaned
+    target: v_quote_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for quote bronze"
+
+  - name: write_quote_bronze
+    type: write
+    source: v_quote_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "quote"
+
+  - name: quote_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: quote_migration
+    target: v_quote_migration
+    description: "Load quote migration data"
+
+  - name: quote_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_quote_migration
+    target: v_quote_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as quote_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_quote_migration
+
+  - name: write_quote_migration
+    type: write
+    source: v_quote_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "quote"

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: pharmacokinetics_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: pharmacokinetics_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: pharmacokinetics_dim
+    target: v_pharmacokinetics_silver
+    description: "Load pharmacokinetics from silver for modelling"
+
+  - name: pharmacokinetics_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pharmacokinetics_silver
+    target: v_pharmacokinetics_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_pharmacokinetics_silver
+
+  - name: write_pharmacokinetics_modelled
+    type: write
+    source: v_pharmacokinetics_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "pharmacokinetics_modelled"

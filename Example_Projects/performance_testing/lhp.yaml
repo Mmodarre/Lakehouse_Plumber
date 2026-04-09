@@ -1,7 +1,7 @@
 # LakehousePlumber Performance Testing Project
 name: perf_test_edw
 version: "1.0"
-description: "Performance testing project - 2000 flowgroups across 5 pipelines and 20 domains"
+description: "Performance testing project - 4000 flowgroups across 5 pipelines and 20 domains"
 author: "Performance Testing"
 created_date: "2026-04-08"
 required_lhp_version: ">=0.5.0,<0.8.0"

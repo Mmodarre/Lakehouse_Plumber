@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: work_instruction_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_work_instruction_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/work_instruction/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_work_instruction_cloudfiles
+    description: "Load work_instruction from landing volume"
+
+  - name: write_work_instruction_raw
+    type: write
+    source: v_work_instruction_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "work_instruction_raw"

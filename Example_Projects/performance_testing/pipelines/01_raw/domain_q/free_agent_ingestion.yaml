@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: free_agent_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: free_agent_raw
+  landing_folder: free_agent
+  schema_file: orders_schema

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: publishing_deal_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: publishing_deal_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: publishing_deal_dim
+    target: v_publishing_deal_silver
+    description: "Load publishing_deal from silver for modelling"
+
+  - name: publishing_deal_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_publishing_deal_silver
+    target: v_publishing_deal_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_publishing_deal_silver
+
+  - name: write_publishing_deal_modelled
+    type: write
+    source: v_publishing_deal_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "publishing_deal_modelled"

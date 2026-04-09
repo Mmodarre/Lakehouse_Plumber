@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: project_ingestion
-presets:
-  - default_delta_properties
-use_template: json_ingestion_template
-template_parameters:
-  table_name: project_raw
-  landing_folder: project
-  schema_file: nation_schema

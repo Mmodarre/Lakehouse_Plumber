@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: preventive_action_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: preventive_action_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: preventive_action_raw
+    target: v_preventive_action_raw
+    description: "Load preventive_action from raw schema"
+
+  - name: preventive_action_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_preventive_action_raw
+    target: v_preventive_action_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as preventive_action_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_preventive_action_raw
+
+  - name: preventive_action_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_preventive_action_bronze_cleaned
+    target: v_preventive_action_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for preventive_action bronze"
+
+  - name: write_preventive_action_bronze
+    type: write
+    source: v_preventive_action_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "preventive_action"
+
+  - name: preventive_action_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: preventive_action_migration
+    target: v_preventive_action_migration
+    description: "Load preventive_action migration data"
+
+  - name: preventive_action_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_preventive_action_migration
+    target: v_preventive_action_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as preventive_action_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_preventive_action_migration
+
+  - name: write_preventive_action_migration
+    type: write
+    source: v_preventive_action_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "preventive_action"

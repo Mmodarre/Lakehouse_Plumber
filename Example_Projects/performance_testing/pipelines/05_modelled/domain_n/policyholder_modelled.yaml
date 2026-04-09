@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: policyholder_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: policyholder_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: policyholder_dim
+    target: v_policyholder_silver
+    description: "Load policyholder from silver for modelling"
+
+  - name: policyholder_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_policyholder_silver
+    target: v_policyholder_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_policyholder_silver
+
+  - name: write_policyholder_modelled
+    type: write
+    source: v_policyholder_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "policyholder_modelled"

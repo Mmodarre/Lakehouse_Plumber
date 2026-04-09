@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: vendor_dashboard_mv
+actions:
+  - name: vendor_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.vendor_dim
+    target: v_vendor_dashboard
+
+  - name: write_vendor_dashboard_mv
+    type: write
+    source: v_vendor_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "vendor_dashboard_mv"

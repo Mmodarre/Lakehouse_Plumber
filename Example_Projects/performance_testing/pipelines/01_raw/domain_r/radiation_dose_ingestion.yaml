@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: radiation_dose_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: radiation_dose_raw
+  landing_folder: radiation_dose
+  schema_file: customer_schema

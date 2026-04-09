@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: var_decision_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: var_decision_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: var_decision_dim
+    target: v_var_decision_silver
+    description: "Load var_decision from silver for modelling"
+
+  - name: var_decision_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_var_decision_silver
+    target: v_var_decision_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_var_decision_silver
+
+  - name: write_var_decision_modelled
+    type: write
+    source: v_var_decision_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "var_decision_modelled"

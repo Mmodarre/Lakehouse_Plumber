@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: crawl_error_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: crawl_error_raw
+  landing_folder: crawl_error
+  schema_file: partsupp_schema

@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: foot_traffic_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: foot_traffic_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: foot_traffic_raw
+    target: v_foot_traffic_raw
+    description: "Load foot_traffic from raw schema"
+
+  - name: foot_traffic_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_foot_traffic_raw
+    target: v_foot_traffic_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as foot_traffic_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_foot_traffic_raw
+      WHERE 1=1
+
+  - name: foot_traffic_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_foot_traffic_bronze_cleaned
+    target: v_foot_traffic_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to foot_traffic"
+
+  - name: write_foot_traffic_bronze
+    type: write
+    source: v_foot_traffic_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "foot_traffic"

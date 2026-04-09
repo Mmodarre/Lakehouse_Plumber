@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: quality_rule_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: quality_rule_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: quality_rule_raw
+    target: v_quality_rule_raw
+    description: "Load quality_rule from raw schema"
+
+  - name: quality_rule_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_quality_rule_raw
+    target: v_quality_rule_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as quality_rule_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_quality_rule_raw
+
+  - name: quality_rule_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_quality_rule_bronze_cleaned
+    target: v_quality_rule_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for quality_rule bronze"
+
+  - name: write_quality_rule_bronze
+    type: write
+    source: v_quality_rule_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "quality_rule"
+
+  - name: quality_rule_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: quality_rule_migration
+    target: v_quality_rule_migration
+    description: "Load quality_rule migration data"
+
+  - name: quality_rule_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_quality_rule_migration
+    target: v_quality_rule_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as quality_rule_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_quality_rule_migration
+
+  - name: write_quality_rule_migration
+    type: write
+    source: v_quality_rule_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "quality_rule"

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: propulsion_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: propulsion_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: propulsion_dim
+    target: v_propulsion_silver
+    description: "Load propulsion from silver for modelling"
+
+  - name: propulsion_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_propulsion_silver
+    target: v_propulsion_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_propulsion_silver
+
+  - name: write_propulsion_modelled
+    type: write
+    source: v_propulsion_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "propulsion_modelled"

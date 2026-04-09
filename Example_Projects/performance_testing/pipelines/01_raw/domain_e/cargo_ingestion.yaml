@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: cargo_ingestion
-presets:
-  - default_delta_properties
-use_template: parquet_ingestion_template
-template_parameters:
-  table_name: cargo_raw
-  landing_folder: cargo
-  schema_file: partsupp_schema

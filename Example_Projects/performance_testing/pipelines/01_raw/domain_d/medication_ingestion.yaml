@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: medication_ingestion
-presets:
-  - default_delta_properties
-use_template: parquet_ingestion_template
-template_parameters:
-  table_name: medication_raw
-  landing_folder: medication
-  schema_file: partsupp_schema

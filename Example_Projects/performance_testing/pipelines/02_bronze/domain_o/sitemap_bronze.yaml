@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: sitemap_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: sitemap_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: sitemap_raw
+    target: v_sitemap_raw
+    description: "Load sitemap from raw schema"
+
+  - name: sitemap_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_sitemap_raw
+    target: v_sitemap_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as sitemap_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_sitemap_raw
+
+  - name: sitemap_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_sitemap_bronze_cleaned
+    target: v_sitemap_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for sitemap bronze"
+
+  - name: write_sitemap_bronze
+    type: write
+    source: v_sitemap_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "sitemap"
+
+  - name: sitemap_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: sitemap_migration
+    target: v_sitemap_migration
+    description: "Load sitemap migration data"
+
+  - name: sitemap_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_sitemap_migration
+    target: v_sitemap_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as sitemap_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_sitemap_migration
+
+  - name: write_sitemap_migration
+    type: write
+    source: v_sitemap_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "sitemap"

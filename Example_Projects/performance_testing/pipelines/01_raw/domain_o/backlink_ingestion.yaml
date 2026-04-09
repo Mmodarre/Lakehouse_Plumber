@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: backlink_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_backlink_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/backlink/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_backlink_cloudfiles
+    description: "Load backlink from landing volume"
+
+  - name: write_backlink_raw
+    type: write
+    source: v_backlink_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "backlink_raw"

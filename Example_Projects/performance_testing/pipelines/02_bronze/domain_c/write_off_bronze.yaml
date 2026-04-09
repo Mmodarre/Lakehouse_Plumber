@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: write_off_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: write_off_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: write_off_raw
+    target: v_write_off_raw
+    description: "Load write_off from raw schema"
+
+  - name: write_off_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_write_off_raw
+    target: v_write_off_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as write_off_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_write_off_raw
+      WHERE 1=1
+
+  - name: write_off_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_write_off_bronze_cleaned
+    target: v_write_off_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to write_off"
+
+  - name: write_write_off_bronze
+    type: write
+    source: v_write_off_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "write_off"

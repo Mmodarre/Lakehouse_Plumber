@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: possession_stat_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: possession_stat_raw
+  landing_folder: possession_stat
+  schema_file: part_schema

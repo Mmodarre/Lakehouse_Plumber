@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: cost_center_summary_mv
+actions:
+  - name: cost_center_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.cost_center_dim
+    target: v_cost_center_summary
+
+  - name: write_cost_center_summary_mv
+    type: write
+    source: v_cost_center_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "cost_center_summary_mv"

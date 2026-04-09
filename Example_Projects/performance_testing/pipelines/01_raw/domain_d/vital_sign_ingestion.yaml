@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: vital_sign_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: vital_sign_raw
-  landing_folder: vital_sign
-  schema_file: partsupp_schema

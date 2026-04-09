@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: liner_note_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: liner_note_raw
+  landing_folder: liner_note
+  schema_file: part_schema

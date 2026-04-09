@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: data_catalog_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: data_catalog_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: data_catalog_raw
+    target: v_data_catalog_raw
+    description: "Load data_catalog from raw schema"
+
+  - name: data_catalog_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_data_catalog_raw
+    target: v_data_catalog_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as data_catalog_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_data_catalog_raw
+      WHERE 1=1
+
+  - name: data_catalog_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_data_catalog_bronze_cleaned
+    target: v_data_catalog_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to data_catalog"
+
+  - name: write_data_catalog_bronze
+    type: write
+    source: v_data_catalog_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "data_catalog"

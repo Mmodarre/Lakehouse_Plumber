@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: profit_center_analysis_mv
+actions:
+  - name: profit_center_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.profit_center_dim
+    target: v_profit_center_analysis
+
+  - name: write_profit_center_analysis_mv
+    type: write
+    source: v_profit_center_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "profit_center_analysis_mv"

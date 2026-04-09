@@ -1,0 +1,24 @@
+pipeline: perf_gold
+flowgroup: student_club_daily_agg_mv
+actions:
+  - name: student_club_daily_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('day', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.student_club_dim
+        GROUP BY 1
+    target: v_student_club_daily_agg
+
+  - name: write_student_club_daily_agg_mv
+    type: write
+    source: v_student_club_daily_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "student_club_daily_agg_mv"

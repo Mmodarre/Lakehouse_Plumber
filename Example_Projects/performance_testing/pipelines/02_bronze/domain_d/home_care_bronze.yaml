@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: home_care_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: home_care_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: home_care_raw
+    target: v_home_care_raw
+    description: "Load home_care from raw schema"
+
+  - name: home_care_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_home_care_raw
+    target: v_home_care_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as home_care_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_home_care_raw
+      WHERE 1=1
+
+  - name: home_care_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_home_care_bronze_cleaned
+    target: v_home_care_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to home_care"
+
+  - name: write_home_care_bronze
+    type: write
+    source: v_home_care_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "home_care"

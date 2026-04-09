@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: lyric_sheet_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lyric_sheet_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lyric_sheet_dim
+    target: v_lyric_sheet_silver
+    description: "Load lyric_sheet from silver for modelling"
+
+  - name: lyric_sheet_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lyric_sheet_silver
+    target: v_lyric_sheet_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lyric_sheet_silver
+
+  - name: write_lyric_sheet_modelled
+    type: write
+    source: v_lyric_sheet_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lyric_sheet_modelled"

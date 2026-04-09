@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: customs_check_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: customs_check_raw
+  landing_folder: customs_check
+  schema_file: part_schema

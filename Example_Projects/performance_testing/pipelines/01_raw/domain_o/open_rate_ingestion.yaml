@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: open_rate_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_open_rate_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/open_rate/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_open_rate_cloudfiles
+    description: "Load open_rate from landing volume"
+
+  - name: write_open_rate_raw
+    type: write
+    source: v_open_rate_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "open_rate_raw"

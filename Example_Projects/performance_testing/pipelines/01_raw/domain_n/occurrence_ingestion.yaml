@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: occurrence_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: occurrence_raw
+  landing_folder: occurrence
+  schema_file: partsupp_schema

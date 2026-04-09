@@ -1,8 +1,0 @@
-pipeline: perf_bronze
-flowgroup: building_bronze
-presets:
-  - default_delta_properties
-use_template: bronze_cleanse_template
-template_parameters:
-  entity_name: building
-  source_table: building_raw

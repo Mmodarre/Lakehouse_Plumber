@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: escalation_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: escalation_raw
+  landing_folder: escalation
+  schema_file: product_schema

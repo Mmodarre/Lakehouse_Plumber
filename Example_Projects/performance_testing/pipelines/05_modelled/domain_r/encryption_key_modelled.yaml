@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: encryption_key_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: encryption_key_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: encryption_key_dim
+    target: v_encryption_key_silver
+    description: "Load encryption_key from silver for modelling"
+
+  - name: encryption_key_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_encryption_key_silver
+    target: v_encryption_key_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_encryption_key_silver
+
+  - name: write_encryption_key_modelled
+    type: write
+    source: v_encryption_key_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "encryption_key_modelled"

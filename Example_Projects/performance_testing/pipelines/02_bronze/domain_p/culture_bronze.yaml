@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: culture_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: culture_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: culture_raw
-    target: v_culture_raw
-    description: "Load culture from raw schema"
-
-  - name: culture_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_culture_raw
-    target: v_culture_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as culture_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_culture_raw
-      WHERE 1=1
-
-  - name: culture_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_culture_bronze_cleaned
-    target: v_culture_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to culture"
-
-  - name: write_culture_bronze
-    type: write
-    source: v_culture_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "culture"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: culture
+  source_table: culture_raw

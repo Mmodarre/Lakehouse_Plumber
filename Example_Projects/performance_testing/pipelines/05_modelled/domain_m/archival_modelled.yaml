@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: archival_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: archival_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: archival_dim
+    target: v_archival_silver
+    description: "Load archival from silver for modelling"
+
+  - name: archival_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_archival_silver
+    target: v_archival_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_archival_silver
+
+  - name: write_archival_modelled
+    type: write
+    source: v_archival_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "archival_modelled"

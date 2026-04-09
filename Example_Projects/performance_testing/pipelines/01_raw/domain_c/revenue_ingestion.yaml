@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: revenue_ingestion
-presets:
-  - default_delta_properties
-use_template: json_ingestion_template
-template_parameters:
-  table_name: revenue_raw
-  landing_folder: revenue
-  schema_file: customer_schema

@@ -1,8 +1,0 @@
-pipeline: perf_bronze
-flowgroup: driver_bronze
-presets:
-  - default_delta_properties
-use_template: bronze_cleanse_template
-template_parameters:
-  entity_name: driver
-  source_table: driver_raw

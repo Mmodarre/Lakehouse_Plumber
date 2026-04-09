@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: transcript_dashboard_mv
+actions:
+  - name: transcript_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.transcript_dim
+    target: v_transcript_dashboard
+
+  - name: write_transcript_dashboard_mv
+    type: write
+    source: v_transcript_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "transcript_dashboard_mv"

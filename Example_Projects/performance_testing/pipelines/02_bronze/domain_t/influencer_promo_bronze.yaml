@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: influencer_promo_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: influencer_promo_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: influencer_promo_raw
+    target: v_influencer_promo_raw
+    description: "Load influencer_promo from raw schema"
+
+  - name: influencer_promo_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_influencer_promo_raw
+    target: v_influencer_promo_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as influencer_promo_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_influencer_promo_raw
+      WHERE 1=1
+
+  - name: influencer_promo_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_influencer_promo_bronze_cleaned
+    target: v_influencer_promo_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to influencer_promo"
+
+  - name: write_influencer_promo_bronze
+    type: write
+    source: v_influencer_promo_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "influencer_promo"

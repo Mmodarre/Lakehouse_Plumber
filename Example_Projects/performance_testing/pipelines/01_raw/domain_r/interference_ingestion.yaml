@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: interference_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: interference_raw
+  landing_folder: interference
+  schema_file: nation_schema

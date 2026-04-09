@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: spam_report_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: spam_report_raw
+  landing_folder: spam_report
+  schema_file: orders_schema

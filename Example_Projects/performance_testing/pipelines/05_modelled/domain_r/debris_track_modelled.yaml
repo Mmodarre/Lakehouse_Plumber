@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: debris_track_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: debris_track_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: debris_track_dim
+    target: v_debris_track_silver
+    description: "Load debris_track from silver for modelling"
+
+  - name: debris_track_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_debris_track_silver
+    target: v_debris_track_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_debris_track_silver
+
+  - name: write_debris_track_modelled
+    type: write
+    source: v_debris_track_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "debris_track_modelled"

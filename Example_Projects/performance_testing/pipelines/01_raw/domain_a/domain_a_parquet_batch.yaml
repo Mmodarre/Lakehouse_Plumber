@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: supplier_ingestion
+    template_parameters:
+      table_name: supplier_raw
+      landing_folder: supplier
+      schema_file: orders_schema
+
+  - flowgroup: promotion_ingestion
+    template_parameters:
+      table_name: promotion_raw
+      landing_folder: promotion
+      schema_file: nation_schema
+
+  - flowgroup: category_ingestion
+    template_parameters:
+      table_name: category_raw
+      landing_folder: category
+      schema_file: partsupp_schema
+
+  - flowgroup: contact_ingestion
+    template_parameters:
+      table_name: contact_raw
+      landing_folder: contact
+      schema_file: part_schema
+
+  - flowgroup: tax_rate_ingestion
+    template_parameters:
+      table_name: tax_rate_raw
+      landing_folder: tax_rate
+      schema_file: orders_schema
+
+  - flowgroup: barcode_item_ingestion
+    template_parameters:
+      table_name: barcode_item_raw
+      landing_folder: barcode_item
+      schema_file: product_schema
+
+  - flowgroup: flash_sale_ingestion
+    template_parameters:
+      table_name: flash_sale_raw
+      landing_folder: flash_sale
+      schema_file: partsupp_schema
+
+  - flowgroup: packing_slip_ingestion
+    template_parameters:
+      table_name: packing_slip_raw
+      landing_folder: packing_slip
+      schema_file: part_schema

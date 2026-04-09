@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: cargo_hold_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: cargo_hold_raw
+  landing_folder: cargo_hold
+  schema_file: lineitem_schema

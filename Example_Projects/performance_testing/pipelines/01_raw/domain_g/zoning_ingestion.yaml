@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: zoning_ingestion
-presets:
-  - default_delta_properties
-use_template: parquet_ingestion_template
-template_parameters:
-  table_name: zoning_raw
-  landing_folder: zoning
-  schema_file: part_schema

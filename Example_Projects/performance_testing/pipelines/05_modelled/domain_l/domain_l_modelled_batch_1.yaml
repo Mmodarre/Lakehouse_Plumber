@@ -1,0 +1,759 @@
+pipeline: perf_modelled
+flowgroup: restaurant_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: restaurant_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: restaurant_dim
+    target: v_restaurant_silver
+    description: "Load restaurant from silver for modelling"
+
+  - name: restaurant_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_restaurant_silver
+    target: v_restaurant_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_restaurant_silver
+
+  - name: write_restaurant_modelled
+    type: write
+    source: v_restaurant_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "restaurant_modelled"
+---
+pipeline: perf_modelled
+flowgroup: menu_item_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: menu_item_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: menu_item_dim
+    target: v_menu_item_silver
+    description: "Load menu_item from silver for modelling"
+
+  - name: menu_item_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_menu_item_silver
+    target: v_menu_item_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_menu_item_silver
+
+  - name: write_menu_item_modelled
+    type: write
+    source: v_menu_item_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "menu_item_modelled"
+---
+pipeline: perf_modelled
+flowgroup: table_seat_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: table_seat_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: table_seat_dim
+    target: v_table_seat_silver
+    description: "Load table_seat from silver for modelling"
+
+  - name: table_seat_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_table_seat_silver
+    target: v_table_seat_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_table_seat_silver
+
+  - name: write_table_seat_modelled
+    type: write
+    source: v_table_seat_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "table_seat_modelled"
+---
+pipeline: perf_modelled
+flowgroup: reservation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: reservation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: reservation_dim
+    target: v_reservation_silver
+    description: "Load reservation from silver for modelling"
+
+  - name: reservation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_reservation_silver
+    target: v_reservation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_reservation_silver
+
+  - name: write_reservation_modelled
+    type: write
+    source: v_reservation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "reservation_modelled"
+---
+pipeline: perf_modelled
+flowgroup: chef_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: chef_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: chef_dim
+    target: v_chef_silver
+    description: "Load chef from silver for modelling"
+
+  - name: chef_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_chef_silver
+    target: v_chef_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_chef_silver
+
+  - name: write_chef_modelled
+    type: write
+    source: v_chef_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "chef_modelled"
+---
+pipeline: perf_modelled
+flowgroup: waiter_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: waiter_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: waiter_dim
+    target: v_waiter_silver
+    description: "Load waiter from silver for modelling"
+
+  - name: waiter_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_waiter_silver
+    target: v_waiter_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_waiter_silver
+
+  - name: write_waiter_modelled
+    type: write
+    source: v_waiter_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "waiter_modelled"
+---
+pipeline: perf_modelled
+flowgroup: kitchen_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: kitchen_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: kitchen_dim
+    target: v_kitchen_silver
+    description: "Load kitchen from silver for modelling"
+
+  - name: kitchen_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_kitchen_silver
+    target: v_kitchen_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_kitchen_silver
+
+  - name: write_kitchen_modelled
+    type: write
+    source: v_kitchen_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "kitchen_modelled"
+---
+pipeline: perf_modelled
+flowgroup: food_order_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: food_order_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: food_order_dim
+    target: v_food_order_silver
+    description: "Load food_order from silver for modelling"
+
+  - name: food_order_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_food_order_silver
+    target: v_food_order_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_food_order_silver
+
+  - name: write_food_order_modelled
+    type: write
+    source: v_food_order_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "food_order_modelled"
+---
+pipeline: perf_modelled
+flowgroup: ingredient_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: ingredient_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: ingredient_dim
+    target: v_ingredient_silver
+    description: "Load ingredient from silver for modelling"
+
+  - name: ingredient_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_ingredient_silver
+    target: v_ingredient_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_ingredient_silver
+
+  - name: write_ingredient_modelled
+    type: write
+    source: v_ingredient_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "ingredient_modelled"
+---
+pipeline: perf_modelled
+flowgroup: recipe_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: recipe_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: recipe_dim
+    target: v_recipe_silver
+    description: "Load recipe from silver for modelling"
+
+  - name: recipe_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_recipe_silver
+    target: v_recipe_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_recipe_silver
+
+  - name: write_recipe_modelled
+    type: write
+    source: v_recipe_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "recipe_modelled"
+---
+pipeline: perf_modelled
+flowgroup: supplier_contract_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: supplier_contract_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: supplier_contract_dim
+    target: v_supplier_contract_silver
+    description: "Load supplier_contract from silver for modelling"
+
+  - name: supplier_contract_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_supplier_contract_silver
+    target: v_supplier_contract_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_supplier_contract_silver
+
+  - name: write_supplier_contract_modelled
+    type: write
+    source: v_supplier_contract_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "supplier_contract_modelled"
+---
+pipeline: perf_modelled
+flowgroup: health_inspection_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: health_inspection_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: health_inspection_dim
+    target: v_health_inspection_silver
+    description: "Load health_inspection from silver for modelling"
+
+  - name: health_inspection_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_health_inspection_silver
+    target: v_health_inspection_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_health_inspection_silver
+
+  - name: write_health_inspection_modelled
+    type: write
+    source: v_health_inspection_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "health_inspection_modelled"
+---
+pipeline: perf_modelled
+flowgroup: tip_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: tip_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: tip_dim
+    target: v_tip_silver
+    description: "Load tip from silver for modelling"
+
+  - name: tip_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tip_silver
+    target: v_tip_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_tip_silver
+
+  - name: write_tip_modelled
+    type: write
+    source: v_tip_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "tip_modelled"
+---
+pipeline: perf_modelled
+flowgroup: shift_schedule_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: shift_schedule_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: shift_schedule_dim
+    target: v_shift_schedule_silver
+    description: "Load shift_schedule from silver for modelling"
+
+  - name: shift_schedule_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_shift_schedule_silver
+    target: v_shift_schedule_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_shift_schedule_silver
+
+  - name: write_shift_schedule_modelled
+    type: write
+    source: v_shift_schedule_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "shift_schedule_modelled"
+---
+pipeline: perf_modelled
+flowgroup: pantry_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: pantry_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: pantry_dim
+    target: v_pantry_silver
+    description: "Load pantry from silver for modelling"
+
+  - name: pantry_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pantry_silver
+    target: v_pantry_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_pantry_silver
+
+  - name: write_pantry_modelled
+    type: write
+    source: v_pantry_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "pantry_modelled"
+---
+pipeline: perf_modelled
+flowgroup: dish_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: dish_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: dish_dim
+    target: v_dish_silver
+    description: "Load dish from silver for modelling"
+
+  - name: dish_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_dish_silver
+    target: v_dish_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_dish_silver
+
+  - name: write_dish_modelled
+    type: write
+    source: v_dish_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "dish_modelled"
+---
+pipeline: perf_modelled
+flowgroup: beverage_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: beverage_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: beverage_dim
+    target: v_beverage_silver
+    description: "Load beverage from silver for modelling"
+
+  - name: beverage_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_beverage_silver
+    target: v_beverage_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_beverage_silver
+
+  - name: write_beverage_modelled
+    type: write
+    source: v_beverage_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "beverage_modelled"
+---
+pipeline: perf_modelled
+flowgroup: appetizer_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: appetizer_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: appetizer_dim
+    target: v_appetizer_silver
+    description: "Load appetizer from silver for modelling"
+
+  - name: appetizer_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_appetizer_silver
+    target: v_appetizer_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_appetizer_silver
+
+  - name: write_appetizer_modelled
+    type: write
+    source: v_appetizer_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "appetizer_modelled"
+---
+pipeline: perf_modelled
+flowgroup: dessert_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: dessert_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: dessert_dim
+    target: v_dessert_silver
+    description: "Load dessert from silver for modelling"
+
+  - name: dessert_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_dessert_silver
+    target: v_dessert_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_dessert_silver
+
+  - name: write_dessert_modelled
+    type: write
+    source: v_dessert_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "dessert_modelled"
+---
+pipeline: perf_modelled
+flowgroup: special_menu_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: special_menu_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: special_menu_dim
+    target: v_special_menu_silver
+    description: "Load special_menu from silver for modelling"
+
+  - name: special_menu_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_special_menu_silver
+    target: v_special_menu_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_special_menu_silver
+
+  - name: write_special_menu_modelled
+    type: write
+    source: v_special_menu_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "special_menu_modelled"

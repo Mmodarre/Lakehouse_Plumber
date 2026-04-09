@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: attitude_control_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: attitude_control_raw
+  landing_folder: attitude_control
+  schema_file: lineitem_schema

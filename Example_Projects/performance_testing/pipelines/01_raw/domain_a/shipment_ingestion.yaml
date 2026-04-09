@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: shipment_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: shipment_raw
-  landing_folder: shipment
-  schema_file: part_schema

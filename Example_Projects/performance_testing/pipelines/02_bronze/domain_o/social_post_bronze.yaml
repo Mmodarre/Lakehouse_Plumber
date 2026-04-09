@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: social_post_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: social_post_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: social_post_raw
+    target: v_social_post_raw
+    description: "Load social_post from raw schema"
+
+  - name: social_post_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_social_post_raw
+    target: v_social_post_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as social_post_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_social_post_raw
+      WHERE 1=1
+
+  - name: social_post_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_social_post_bronze_cleaned
+    target: v_social_post_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to social_post"
+
+  - name: write_social_post_bronze
+    type: write
+    source: v_social_post_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "social_post"

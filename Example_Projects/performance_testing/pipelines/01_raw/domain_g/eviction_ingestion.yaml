@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: eviction_ingestion
-presets:
-  - default_delta_properties
-use_template: parquet_ingestion_template
-template_parameters:
-  table_name: eviction_raw
-  landing_folder: eviction
-  schema_file: nation_schema

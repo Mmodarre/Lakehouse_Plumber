@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: work_order_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: work_order_raw
-  landing_folder: work_order
-  schema_file: customer_schema

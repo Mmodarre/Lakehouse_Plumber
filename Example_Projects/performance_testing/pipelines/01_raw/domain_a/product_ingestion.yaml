@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: product_ingestion
-presets:
-  - default_delta_properties
-use_template: json_ingestion_template
-template_parameters:
-  table_name: product_raw
-  landing_folder: product
-  schema_file: nation_schema

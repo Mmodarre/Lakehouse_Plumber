@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: waste_log_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: waste_log_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: waste_log_raw
+    target: v_waste_log_raw
+    description: "Load waste_log from raw schema"
+
+  - name: waste_log_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_waste_log_raw
+    target: v_waste_log_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as waste_log_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_waste_log_raw
+      WHERE 1=1
+
+  - name: waste_log_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_waste_log_bronze_cleaned
+    target: v_waste_log_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to waste_log"
+
+  - name: write_waste_log_bronze
+    type: write
+    source: v_waste_log_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "waste_log"

@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: cta_dashboard_mv
+actions:
+  - name: cta_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.cta_dim
+    target: v_cta_dashboard
+
+  - name: write_cta_dashboard_mv
+    type: write
+    source: v_cta_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "cta_dashboard_mv"

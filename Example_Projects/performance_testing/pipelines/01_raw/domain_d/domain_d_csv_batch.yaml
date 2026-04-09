@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: diagnosis_ingestion
+    template_parameters:
+      table_name: diagnosis_raw
+      landing_folder: diagnosis
+      schema_file: part_schema
+
+  - flowgroup: claim_ingestion
+    template_parameters:
+      table_name: claim_raw
+      landing_folder: claim
+      schema_file: customer_schema
+
+  - flowgroup: allergy_ingestion
+    template_parameters:
+      table_name: allergy_raw
+      landing_folder: allergy
+      schema_file: product_schema
+
+  - flowgroup: vital_sign_ingestion
+    template_parameters:
+      table_name: vital_sign_raw
+      landing_folder: vital_sign
+      schema_file: partsupp_schema
+
+  - flowgroup: pathology_ingestion
+    template_parameters:
+      table_name: pathology_raw
+      landing_folder: pathology
+      schema_file: lineitem_schema
+
+  - flowgroup: rehab_ingestion
+    template_parameters:
+      table_name: rehab_raw
+      landing_folder: rehab
+      schema_file: customer_schema
+
+  - flowgroup: consent_form_ingestion
+    template_parameters:
+      table_name: consent_form_raw
+      landing_folder: consent_form
+      schema_file: product_schema
+
+  - flowgroup: home_care_ingestion
+    template_parameters:
+      table_name: home_care_raw
+      landing_folder: home_care
+      schema_file: nation_schema

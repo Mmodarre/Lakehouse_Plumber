@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: depot_summary_mv
+actions:
+  - name: depot_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.depot_dim
+    target: v_depot_summary
+
+  - name: write_depot_summary_mv
+    type: write
+    source: v_depot_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "depot_summary_mv"

@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: semester_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: semester_raw
-  landing_folder: semester
-  schema_file: customer_schema

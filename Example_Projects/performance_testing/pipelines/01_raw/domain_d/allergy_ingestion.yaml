@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: allergy_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: allergy_raw
-  landing_folder: allergy
-  schema_file: product_schema

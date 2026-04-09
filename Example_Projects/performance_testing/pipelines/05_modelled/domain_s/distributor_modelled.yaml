@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: distributor_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: distributor_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: distributor_dim
+    target: v_distributor_silver
+    description: "Load distributor from silver for modelling"
+
+  - name: distributor_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_distributor_silver
+    target: v_distributor_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_distributor_silver
+
+  - name: write_distributor_modelled
+    type: write
+    source: v_distributor_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "distributor_modelled"

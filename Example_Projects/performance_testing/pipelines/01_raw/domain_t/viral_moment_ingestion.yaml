@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: viral_moment_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: viral_moment_raw
+  landing_folder: viral_moment
+  schema_file: part_schema

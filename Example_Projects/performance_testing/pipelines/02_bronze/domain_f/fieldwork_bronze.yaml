@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: fieldwork_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: fieldwork_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: fieldwork_raw
+    target: v_fieldwork_raw
+    description: "Load fieldwork from raw schema"
+
+  - name: fieldwork_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_fieldwork_raw
+    target: v_fieldwork_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as fieldwork_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_fieldwork_raw
+
+  - name: fieldwork_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_fieldwork_bronze_cleaned
+    target: v_fieldwork_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for fieldwork bronze"
+
+  - name: write_fieldwork_bronze
+    type: write
+    source: v_fieldwork_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "fieldwork"
+
+  - name: fieldwork_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: fieldwork_migration
+    target: v_fieldwork_migration
+    description: "Load fieldwork migration data"
+
+  - name: fieldwork_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_fieldwork_migration
+    target: v_fieldwork_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as fieldwork_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_fieldwork_migration
+
+  - name: write_fieldwork_migration
+    type: write
+    source: v_fieldwork_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "fieldwork"

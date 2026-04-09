@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: tariff_plan_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: tariff_plan_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: tariff_plan_raw
-    target: v_tariff_plan_raw
-    description: "Load tariff_plan from raw schema"
-
-  - name: tariff_plan_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_tariff_plan_raw
-    target: v_tariff_plan_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as tariff_plan_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_tariff_plan_raw
-      WHERE 1=1
-
-  - name: tariff_plan_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_tariff_plan_bronze_cleaned
-    target: v_tariff_plan_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to tariff_plan"
-
-  - name: write_tariff_plan_bronze
-    type: write
-    source: v_tariff_plan_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "tariff_plan"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: tariff_plan
+  source_table: tariff_plan_raw

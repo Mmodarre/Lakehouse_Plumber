@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: custom_audience_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: custom_audience_raw
+  landing_folder: custom_audience
+  schema_file: nation_schema

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: online_order_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: online_order_raw
+  landing_folder: online_order
+  schema_file: product_schema

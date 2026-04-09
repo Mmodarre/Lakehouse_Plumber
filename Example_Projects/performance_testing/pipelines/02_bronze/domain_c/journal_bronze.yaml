@@ -1,8 +1,0 @@
-pipeline: perf_bronze
-flowgroup: journal_bronze
-presets:
-  - default_delta_properties
-use_template: bronze_cleanse_template
-template_parameters:
-  entity_name: journal
-  source_table: journal_raw

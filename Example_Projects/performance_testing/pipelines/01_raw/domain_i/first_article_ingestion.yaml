@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: first_article_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_first_article_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/first_article/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_first_article_cloudfiles
+    description: "Load first_article from landing volume"
+
+  - name: write_first_article_raw
+    type: write
+    source: v_first_article_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "first_article_raw"

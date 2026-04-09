@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: auction_lot_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: auction_lot_raw
+  landing_folder: auction_lot
+  schema_file: partsupp_schema

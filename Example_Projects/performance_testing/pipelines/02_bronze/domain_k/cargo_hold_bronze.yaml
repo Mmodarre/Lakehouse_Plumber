@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: cargo_hold_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: cargo_hold_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cargo_hold_raw
+    target: v_cargo_hold_raw
+    description: "Load cargo_hold from raw schema"
+
+  - name: cargo_hold_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_cargo_hold_raw
+    target: v_cargo_hold_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cargo_hold_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_cargo_hold_raw
+
+  - name: cargo_hold_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_cargo_hold_bronze_cleaned
+    target: v_cargo_hold_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for cargo_hold bronze"
+
+  - name: write_cargo_hold_bronze
+    type: write
+    source: v_cargo_hold_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cargo_hold"
+
+  - name: cargo_hold_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cargo_hold_migration
+    target: v_cargo_hold_migration
+    description: "Load cargo_hold migration data"
+
+  - name: cargo_hold_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cargo_hold_migration
+    target: v_cargo_hold_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cargo_hold_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_cargo_hold_migration
+
+  - name: write_cargo_hold_migration
+    type: write
+    source: v_cargo_hold_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cargo_hold"

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: nutritional_info_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: nutritional_info_raw
+  landing_folder: nutritional_info
+  schema_file: lineitem_schema

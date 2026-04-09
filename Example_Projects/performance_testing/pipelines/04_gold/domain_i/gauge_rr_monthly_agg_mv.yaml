@@ -1,0 +1,24 @@
+pipeline: perf_gold
+flowgroup: gauge_rr_monthly_agg_mv
+actions:
+  - name: gauge_rr_monthly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('mon', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.gauge_rr_dim
+        GROUP BY 1
+    target: v_gauge_rr_monthly_agg
+
+  - name: write_gauge_rr_monthly_agg_mv
+    type: write
+    source: v_gauge_rr_monthly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "gauge_rr_monthly_agg_mv"

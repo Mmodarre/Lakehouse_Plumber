@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: audit_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: audit_raw
-  landing_folder: audit
-  schema_file: customer_schema

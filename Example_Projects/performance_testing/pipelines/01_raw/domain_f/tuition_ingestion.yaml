@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: tuition_ingestion
-presets:
-  - default_delta_properties
-use_template: json_ingestion_template
-template_parameters:
-  table_name: tuition_raw
-  landing_folder: tuition
-  schema_file: customer_schema

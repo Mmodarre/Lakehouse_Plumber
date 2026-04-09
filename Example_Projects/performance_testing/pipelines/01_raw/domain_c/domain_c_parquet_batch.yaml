@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: journal_ingestion
+    template_parameters:
+      table_name: journal_raw
+      landing_folder: journal
+      schema_file: orders_schema
+
+  - flowgroup: regulation_ingestion
+    template_parameters:
+      table_name: regulation_raw
+      landing_folder: regulation
+      schema_file: nation_schema
+
+  - flowgroup: liability_ingestion
+    template_parameters:
+      table_name: liability_raw
+      landing_folder: liability
+      schema_file: partsupp_schema
+
+  - flowgroup: currency_ingestion
+    template_parameters:
+      table_name: currency_raw
+      landing_folder: currency
+      schema_file: part_schema
+
+  - flowgroup: reconciliation_ingestion
+    template_parameters:
+      table_name: reconciliation_raw
+      landing_folder: reconciliation
+      schema_file: orders_schema
+
+  - flowgroup: balance_sheet_ingestion
+    template_parameters:
+      table_name: balance_sheet_raw
+      landing_folder: balance_sheet
+      schema_file: product_schema
+
+  - flowgroup: provision_ingestion
+    template_parameters:
+      table_name: provision_raw
+      landing_folder: provision
+      schema_file: partsupp_schema
+
+  - flowgroup: vat_return_ingestion
+    template_parameters:
+      table_name: vat_return_raw
+      landing_folder: vat_return
+      schema_file: part_schema

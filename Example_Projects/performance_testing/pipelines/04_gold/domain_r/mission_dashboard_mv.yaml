@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: mission_dashboard_mv
+actions:
+  - name: mission_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.mission_dim
+    target: v_mission_dashboard
+
+  - name: write_mission_dashboard_mv
+    type: write
+    source: v_mission_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "mission_dashboard_mv"

@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: payload_data_dashboard_mv
+actions:
+  - name: payload_data_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.payload_data_dim
+    target: v_payload_data_dashboard
+
+  - name: write_payload_data_dashboard_mv
+    type: write
+    source: v_payload_data_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "payload_data_dashboard_mv"

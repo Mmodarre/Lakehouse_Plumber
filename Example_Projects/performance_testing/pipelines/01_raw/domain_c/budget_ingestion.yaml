@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: budget_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: budget_raw
-  landing_folder: budget
-  schema_file: part_schema

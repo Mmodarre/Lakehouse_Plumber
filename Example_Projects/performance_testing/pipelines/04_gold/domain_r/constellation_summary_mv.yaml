@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: constellation_summary_mv
+actions:
+  - name: constellation_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.constellation_dim
+    target: v_constellation_summary
+
+  - name: write_constellation_summary_mv
+    type: write
+    source: v_constellation_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "constellation_summary_mv"

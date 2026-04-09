@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: filtration_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: filtration_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: filtration_raw
-    target: v_filtration_raw
-    description: "Load filtration from raw schema"
-
-  - name: filtration_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_filtration_raw
-    target: v_filtration_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as filtration_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_filtration_raw
-      WHERE 1=1
-
-  - name: filtration_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_filtration_bronze_cleaned
-    target: v_filtration_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to filtration"
-
-  - name: write_filtration_bronze
-    type: write
-    source: v_filtration_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "filtration"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: filtration
+  source_table: filtration_raw

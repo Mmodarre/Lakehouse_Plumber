@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: domain_authority_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: domain_authority_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: domain_authority_dim
+    target: v_domain_authority_silver
+    description: "Load domain_authority from silver for modelling"
+
+  - name: domain_authority_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_domain_authority_silver
+    target: v_domain_authority_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_domain_authority_silver
+
+  - name: write_domain_authority_modelled
+    type: write
+    source: v_domain_authority_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "domain_authority_modelled"

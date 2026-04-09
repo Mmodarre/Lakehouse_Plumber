@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: job_posting_dashboard_mv
+actions:
+  - name: job_posting_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.job_posting_dim
+    target: v_job_posting_dashboard
+
+  - name: write_job_posting_dashboard_mv
+    type: write
+    source: v_job_posting_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "job_posting_dashboard_mv"

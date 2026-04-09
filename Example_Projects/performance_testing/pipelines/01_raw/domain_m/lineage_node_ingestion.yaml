@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: lineage_node_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: lineage_node_raw
+  landing_folder: lineage_node
+  schema_file: partsupp_schema

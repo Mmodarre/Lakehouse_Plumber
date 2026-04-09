@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: radiation_dose_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: radiation_dose_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: radiation_dose
+    target: v_radiation_dose_bronze
+    description: "Load radiation_dose from bronze for silver layer"
+
+  - name: write_radiation_dose_silver
+    type: write
+    source: v_radiation_dose_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "radiation_dose_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["radiation_dose_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

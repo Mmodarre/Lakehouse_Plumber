@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: health_inspection_dashboard_mv
+actions:
+  - name: health_inspection_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.health_inspection_dim
+    target: v_health_inspection_dashboard
+
+  - name: write_health_inspection_dashboard_mv
+    type: write
+    source: v_health_inspection_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "health_inspection_dashboard_mv"

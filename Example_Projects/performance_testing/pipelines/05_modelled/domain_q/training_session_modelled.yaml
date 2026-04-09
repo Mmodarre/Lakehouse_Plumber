@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: training_session_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: training_session_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: training_session_dim
+    target: v_training_session_silver
+    description: "Load training_session from silver for modelling"
+
+  - name: training_session_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_training_session_silver
+    target: v_training_session_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_training_session_silver
+
+  - name: write_training_session_modelled
+    type: write
+    source: v_training_session_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "training_session_modelled"

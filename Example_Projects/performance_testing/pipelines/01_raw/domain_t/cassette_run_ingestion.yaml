@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: cassette_run_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: cassette_run_raw
+  landing_folder: cassette_run
+  schema_file: lineitem_schema

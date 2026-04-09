@@ -1,8 +1,0 @@
-pipeline: perf_bronze
-flowgroup: project_bronze
-presets:
-  - default_delta_properties
-use_template: bronze_cleanse_template
-template_parameters:
-  entity_name: project
-  source_table: project_raw

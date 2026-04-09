@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: free_agent_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: free_agent_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: free_agent
+    target: v_free_agent_bronze
+    description: "Load free_agent from bronze for silver layer"
+
+  - name: write_free_agent_silver
+    type: write
+    source: v_free_agent_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "free_agent_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["free_agent_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

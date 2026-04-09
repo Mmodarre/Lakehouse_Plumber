@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: sitemap_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: sitemap_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: sitemap_dim
+    target: v_sitemap_silver
+    description: "Load sitemap from silver for modelling"
+
+  - name: sitemap_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_sitemap_silver
+    target: v_sitemap_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_sitemap_silver
+
+  - name: write_sitemap_modelled
+    type: write
+    source: v_sitemap_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "sitemap_modelled"

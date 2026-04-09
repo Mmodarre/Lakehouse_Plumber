@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: return_item_ingestion
-presets:
-  - default_delta_properties
-use_template: parquet_ingestion_template
-template_parameters:
-  table_name: return_item_raw
-  landing_folder: return_item
-  schema_file: orders_schema

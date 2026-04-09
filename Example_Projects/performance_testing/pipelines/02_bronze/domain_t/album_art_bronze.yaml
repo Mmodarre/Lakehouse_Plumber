@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: album_art_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: album_art_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: album_art_raw
+    target: v_album_art_raw
+    description: "Load album_art from raw schema"
+
+  - name: album_art_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_album_art_raw
+    target: v_album_art_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as album_art_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_album_art_raw
+      WHERE 1=1
+
+  - name: album_art_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_album_art_bronze_cleaned
+    target: v_album_art_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to album_art"
+
+  - name: write_album_art_bronze
+    type: write
+    source: v_album_art_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "album_art"

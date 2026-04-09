@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: dormitory_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: dormitory_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: dormitory_raw
+    target: v_dormitory_raw
+    description: "Load dormitory from raw schema"
+
+  - name: dormitory_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_dormitory_raw
+    target: v_dormitory_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as dormitory_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_dormitory_raw
+
+  - name: dormitory_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_dormitory_bronze_cleaned
+    target: v_dormitory_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for dormitory bronze"
+
+  - name: write_dormitory_bronze
+    type: write
+    source: v_dormitory_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "dormitory"
+
+  - name: dormitory_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: dormitory_migration
+    target: v_dormitory_migration
+    description: "Load dormitory migration data"
+
+  - name: dormitory_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_dormitory_migration
+    target: v_dormitory_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as dormitory_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_dormitory_migration
+
+  - name: write_dormitory_migration
+    type: write
+    source: v_dormitory_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "dormitory"

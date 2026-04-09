@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: reinsurance_dashboard_mv
+actions:
+  - name: reinsurance_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.reinsurance_dim
+    target: v_reinsurance_dashboard
+
+  - name: write_reinsurance_dashboard_mv
+    type: write
+    source: v_reinsurance_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "reinsurance_dashboard_mv"

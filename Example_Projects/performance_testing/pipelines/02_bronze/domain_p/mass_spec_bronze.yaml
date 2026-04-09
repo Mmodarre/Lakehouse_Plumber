@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: mass_spec_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: mass_spec_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: mass_spec_raw
+    target: v_mass_spec_raw
+    description: "Load mass_spec from raw schema"
+
+  - name: mass_spec_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_mass_spec_raw
+    target: v_mass_spec_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as mass_spec_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_mass_spec_raw
+
+  - name: mass_spec_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_mass_spec_bronze_cleaned
+    target: v_mass_spec_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for mass_spec bronze"
+
+  - name: write_mass_spec_bronze
+    type: write
+    source: v_mass_spec_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "mass_spec"
+
+  - name: mass_spec_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: mass_spec_migration
+    target: v_mass_spec_migration
+    description: "Load mass_spec migration data"
+
+  - name: mass_spec_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_mass_spec_migration
+    target: v_mass_spec_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as mass_spec_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_mass_spec_migration
+
+  - name: write_mass_spec_migration
+    type: write
+    source: v_mass_spec_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "mass_spec"

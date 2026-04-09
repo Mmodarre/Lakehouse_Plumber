@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: waste_log_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: waste_log_raw
+  landing_folder: waste_log
+  schema_file: product_schema

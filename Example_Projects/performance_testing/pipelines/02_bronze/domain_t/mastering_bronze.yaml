@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: mastering_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: mastering_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: mastering_raw
-    target: v_mastering_raw
-    description: "Load mastering from raw schema"
-
-  - name: mastering_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_mastering_raw
-    target: v_mastering_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as mastering_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_mastering_raw
-      WHERE 1=1
-
-  - name: mastering_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_mastering_bronze_cleaned
-    target: v_mastering_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to mastering"
-
-  - name: write_mastering_bronze
-    type: write
-    source: v_mastering_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "mastering"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: mastering
+  source_table: mastering_raw

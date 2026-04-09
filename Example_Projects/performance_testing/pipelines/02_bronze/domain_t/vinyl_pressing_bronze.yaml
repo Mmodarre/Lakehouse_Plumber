@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: vinyl_pressing_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: vinyl_pressing_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: vinyl_pressing_raw
+    target: v_vinyl_pressing_raw
+    description: "Load vinyl_pressing from raw schema"
+
+  - name: vinyl_pressing_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_vinyl_pressing_raw
+    target: v_vinyl_pressing_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as vinyl_pressing_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_vinyl_pressing_raw
+      WHERE 1=1
+
+  - name: vinyl_pressing_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_vinyl_pressing_bronze_cleaned
+    target: v_vinyl_pressing_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to vinyl_pressing"
+
+  - name: write_vinyl_pressing_bronze
+    type: write
+    source: v_vinyl_pressing_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "vinyl_pressing"

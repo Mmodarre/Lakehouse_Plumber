@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: email_blast_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: email_blast_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: email_blast_dim
+    target: v_email_blast_silver
+    description: "Load email_blast from silver for modelling"
+
+  - name: email_blast_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_email_blast_silver
+    target: v_email_blast_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_email_blast_silver
+
+  - name: write_email_blast_modelled
+    type: write
+    source: v_email_blast_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "email_blast_modelled"

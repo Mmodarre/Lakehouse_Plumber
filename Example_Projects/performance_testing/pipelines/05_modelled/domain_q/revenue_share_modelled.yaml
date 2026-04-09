@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: revenue_share_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: revenue_share_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: revenue_share_dim
+    target: v_revenue_share_silver
+    description: "Load revenue_share from silver for modelling"
+
+  - name: revenue_share_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_revenue_share_silver
+    target: v_revenue_share_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_revenue_share_silver
+
+  - name: write_revenue_share_modelled
+    type: write
+    source: v_revenue_share_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "revenue_share_modelled"

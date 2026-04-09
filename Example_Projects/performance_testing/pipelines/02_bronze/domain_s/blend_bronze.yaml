@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: blend_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: blend_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: blend_raw
-    target: v_blend_raw
-    description: "Load blend from raw schema"
-
-  - name: blend_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_blend_raw
-    target: v_blend_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as blend_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_blend_raw
-      WHERE 1=1
-
-  - name: blend_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_blend_bronze_cleaned
-    target: v_blend_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to blend"
-
-  - name: write_blend_bronze
-    type: write
-    source: v_blend_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "blend"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: blend
+  source_table: blend_raw

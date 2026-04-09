@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: airline_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: airline_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: airline_raw
-    target: v_airline_raw
-    description: "Load airline from raw schema"
-
-  - name: airline_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_airline_raw
-    target: v_airline_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as airline_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_airline_raw
-      WHERE 1=1
-
-  - name: airline_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_airline_bronze_cleaned
-    target: v_airline_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to airline"
-
-  - name: write_airline_bronze
-    type: write
-    source: v_airline_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "airline"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: airline
+  source_table: airline_raw

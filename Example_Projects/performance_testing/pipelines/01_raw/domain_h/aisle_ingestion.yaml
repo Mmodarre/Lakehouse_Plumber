@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: aisle_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: aisle_raw
-  landing_folder: aisle
-  schema_file: customer_schema

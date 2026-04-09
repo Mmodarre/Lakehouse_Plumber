@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: investigation_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: investigation_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: investigation_raw
+    target: v_investigation_raw
+    description: "Load investigation from raw schema"
+
+  - name: investigation_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_investigation_raw
+    target: v_investigation_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as investigation_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_investigation_raw
+
+  - name: investigation_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_investigation_bronze_cleaned
+    target: v_investigation_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for investigation bronze"
+
+  - name: write_investigation_bronze
+    type: write
+    source: v_investigation_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "investigation"
+
+  - name: investigation_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: investigation_migration
+    target: v_investigation_migration
+    description: "Load investigation migration data"
+
+  - name: investigation_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_investigation_migration
+    target: v_investigation_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as investigation_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_investigation_migration
+
+  - name: write_investigation_migration
+    type: write
+    source: v_investigation_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "investigation"

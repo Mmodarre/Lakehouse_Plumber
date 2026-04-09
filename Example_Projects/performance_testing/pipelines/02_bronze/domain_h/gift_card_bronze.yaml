@@ -1,8 +1,0 @@
-pipeline: perf_bronze
-flowgroup: gift_card_bronze
-presets:
-  - default_delta_properties
-use_template: bronze_cleanse_template
-template_parameters:
-  entity_name: gift_card
-  source_table: gift_card_raw

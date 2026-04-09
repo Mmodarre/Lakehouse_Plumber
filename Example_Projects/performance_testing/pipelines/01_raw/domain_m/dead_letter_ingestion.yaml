@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: dead_letter_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: dead_letter_raw
+  landing_folder: dead_letter
+  schema_file: orders_schema

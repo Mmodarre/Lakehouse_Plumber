@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: open_rate_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: open_rate_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: open_rate_dim
+    target: v_open_rate_silver
+    description: "Load open_rate from silver for modelling"
+
+  - name: open_rate_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_open_rate_silver
+    target: v_open_rate_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_open_rate_silver
+
+  - name: write_open_rate_modelled
+    type: write
+    source: v_open_rate_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "open_rate_modelled"

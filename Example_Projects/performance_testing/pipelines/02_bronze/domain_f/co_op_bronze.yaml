@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: co_op_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: co_op_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: co_op_raw
+    target: v_co_op_raw
+    description: "Load co_op from raw schema"
+
+  - name: co_op_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_co_op_raw
+    target: v_co_op_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as co_op_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_co_op_raw
+      WHERE 1=1
+
+  - name: co_op_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_co_op_bronze_cleaned
+    target: v_co_op_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to co_op"
+
+  - name: write_co_op_bronze
+    type: write
+    source: v_co_op_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "co_op"

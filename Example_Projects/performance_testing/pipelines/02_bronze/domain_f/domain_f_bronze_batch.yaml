@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: student_bronze
+    template_parameters:
+      entity_name: student
+      source_table: student_raw
+
+  - flowgroup: course_bronze
+    template_parameters:
+      entity_name: course
+      source_table: course_raw
+
+  - flowgroup: enrollment_bronze
+    template_parameters:
+      entity_name: enrollment
+      source_table: enrollment_raw
+
+  - flowgroup: instructor_bronze
+    template_parameters:
+      entity_name: instructor
+      source_table: instructor_raw
+
+  - flowgroup: classroom_bronze
+    template_parameters:
+      entity_name: classroom
+      source_table: classroom_raw
+
+  - flowgroup: assignment_bronze
+    template_parameters:
+      entity_name: assignment
+      source_table: assignment_raw
+
+  - flowgroup: grade_bronze
+    template_parameters:
+      entity_name: grade
+      source_table: grade_raw
+
+  - flowgroup: semester_bronze
+    template_parameters:
+      entity_name: semester
+      source_table: semester_raw
+
+  - flowgroup: degree_bronze
+    template_parameters:
+      entity_name: degree
+      source_table: degree_raw
+
+  - flowgroup: scholarship_bronze
+    template_parameters:
+      entity_name: scholarship
+      source_table: scholarship_raw
+
+  - flowgroup: lecture_bronze
+    template_parameters:
+      entity_name: lecture
+      source_table: lecture_raw
+
+  - flowgroup: exam_bronze
+    template_parameters:
+      entity_name: exam
+      source_table: exam_raw
+
+  - flowgroup: library_book_bronze
+    template_parameters:
+      entity_name: library_book
+      source_table: library_book_raw
+
+  - flowgroup: campus_bronze
+    template_parameters:
+      entity_name: campus
+      source_table: campus_raw
+
+  - flowgroup: tuition_bronze
+    template_parameters:
+      entity_name: tuition
+      source_table: tuition_raw
+
+  - flowgroup: transcript_bronze
+    template_parameters:
+      entity_name: transcript
+      source_table: transcript_raw

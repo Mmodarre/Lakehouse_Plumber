@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: loyalty_ingestion
+    template_parameters:
+      table_name: loyalty_raw
+      landing_folder: loyalty
+      schema_file: part_schema
+
+  - flowgroup: aisle_ingestion
+    template_parameters:
+      table_name: aisle_raw
+      landing_folder: aisle
+      schema_file: customer_schema
+
+  - flowgroup: stock_count_ingestion
+    template_parameters:
+      table_name: stock_count_raw
+      landing_folder: stock_count
+      schema_file: product_schema
+
+  - flowgroup: display_ingestion
+    template_parameters:
+      table_name: display_raw
+      landing_folder: display
+      schema_file: partsupp_schema
+
+  - flowgroup: signage_ingestion
+    template_parameters:
+      table_name: signage_raw
+      landing_folder: signage
+      schema_file: lineitem_schema
+
+  - flowgroup: mystery_shopper_ingestion
+    template_parameters:
+      table_name: mystery_shopper_raw
+      landing_folder: mystery_shopper
+      schema_file: customer_schema
+
+  - flowgroup: click_collect_ingestion
+    template_parameters:
+      table_name: click_collect_raw
+      landing_folder: click_collect
+      schema_file: product_schema
+
+  - flowgroup: pos_terminal_ingestion
+    template_parameters:
+      table_name: pos_terminal_raw
+      landing_folder: pos_terminal
+      schema_file: nation_schema

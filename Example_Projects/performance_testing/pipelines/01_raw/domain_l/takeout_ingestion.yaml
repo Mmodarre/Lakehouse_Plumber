@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: takeout_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: takeout_raw
+  landing_folder: takeout
+  schema_file: part_schema

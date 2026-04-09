@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: liner_note_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: liner_note_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: liner_note_raw
+    target: v_liner_note_raw
+    description: "Load liner_note from raw schema"
+
+  - name: liner_note_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_liner_note_raw
+    target: v_liner_note_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as liner_note_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_liner_note_raw
+      WHERE 1=1
+
+  - name: liner_note_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_liner_note_bronze_cleaned
+    target: v_liner_note_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to liner_note"
+
+  - name: write_liner_note_bronze
+    type: write
+    source: v_liner_note_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "liner_note"

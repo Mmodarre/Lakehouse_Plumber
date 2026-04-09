@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: classroom_ingestion
-presets:
-  - default_delta_properties
-use_template: csv_ingestion_template
-template_parameters:
-  table_name: classroom_raw
-  landing_folder: classroom
-  schema_file: part_schema

@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: signal_strength_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: signal_strength_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: signal_strength_raw
+    target: v_signal_strength_raw
+    description: "Load signal_strength from raw schema"
+
+  - name: signal_strength_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_signal_strength_raw
+    target: v_signal_strength_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as signal_strength_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_signal_strength_raw
+      WHERE 1=1
+
+  - name: signal_strength_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_signal_strength_bronze_cleaned
+    target: v_signal_strength_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to signal_strength"
+
+  - name: write_signal_strength_bronze
+    type: write
+    source: v_signal_strength_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "signal_strength"

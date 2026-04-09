@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: case_production_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: case_production_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: case_production
+    target: v_case_production_bronze
+    description: "Load case_production from bronze for silver layer"
+
+  - name: write_case_production_silver
+    type: write
+    source: v_case_production_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "case_production_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["case_production_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

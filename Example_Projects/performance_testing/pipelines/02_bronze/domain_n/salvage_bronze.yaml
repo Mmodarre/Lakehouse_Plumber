@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: salvage_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: salvage_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: salvage_raw
-    target: v_salvage_raw
-    description: "Load salvage from raw schema"
-
-  - name: salvage_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_salvage_raw
-    target: v_salvage_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as salvage_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_salvage_raw
-      WHERE 1=1
-
-  - name: salvage_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_salvage_bronze_cleaned
-    target: v_salvage_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to salvage"
-
-  - name: write_salvage_bronze
-    type: write
-    source: v_salvage_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "salvage"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: salvage
+  source_table: salvage_raw

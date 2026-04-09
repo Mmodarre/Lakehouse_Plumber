@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: pixel_event_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: pixel_event_raw
+  landing_folder: pixel_event
+  schema_file: orders_schema

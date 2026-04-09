@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: triage_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: triage_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: triage_raw
+    target: v_triage_raw
+    description: "Load triage from raw schema"
+
+  - name: triage_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_triage_raw
+    target: v_triage_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as triage_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_triage_raw
+      WHERE 1=1
+
+  - name: triage_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_triage_bronze_cleaned
+    target: v_triage_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to triage"
+
+  - name: write_triage_bronze
+    type: write
+    source: v_triage_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "triage"

@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: incubator_report_mv
+actions:
+  - name: incubator_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.incubator_dim
+    target: v_incubator_report
+
+  - name: write_incubator_report_mv
+    type: write
+    source: v_incubator_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "incubator_report_mv"

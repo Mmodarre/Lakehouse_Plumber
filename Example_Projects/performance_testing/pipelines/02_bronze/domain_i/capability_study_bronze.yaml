@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: capability_study_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: capability_study_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: capability_study_raw
+    target: v_capability_study_raw
+    description: "Load capability_study from raw schema"
+
+  - name: capability_study_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_capability_study_raw
+    target: v_capability_study_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as capability_study_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_capability_study_raw
+      WHERE 1=1
+
+  - name: capability_study_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_capability_study_bronze_cleaned
+    target: v_capability_study_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to capability_study"
+
+  - name: write_capability_study_bronze
+    type: write
+    source: v_capability_study_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "capability_study"

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: vinyl_pressing_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: vinyl_pressing_raw
+  landing_folder: vinyl_pressing
+  schema_file: product_schema

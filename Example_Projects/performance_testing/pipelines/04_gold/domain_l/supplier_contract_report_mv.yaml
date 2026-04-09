@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: supplier_contract_report_mv
+actions:
+  - name: supplier_contract_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.supplier_contract_dim
+    target: v_supplier_contract_report
+
+  - name: write_supplier_contract_report_mv
+    type: write
+    source: v_supplier_contract_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "supplier_contract_report_mv"

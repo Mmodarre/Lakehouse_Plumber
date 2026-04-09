@@ -1,0 +1,24 @@
+pipeline: perf_gold
+flowgroup: title_search_quarterly_agg_mv
+actions:
+  - name: title_search_quarterly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('quarter', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.title_search_dim
+        GROUP BY 1
+    target: v_title_search_quarterly_agg
+
+  - name: write_title_search_quarterly_agg_mv
+    type: write
+    source: v_title_search_quarterly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "title_search_quarterly_agg_mv"

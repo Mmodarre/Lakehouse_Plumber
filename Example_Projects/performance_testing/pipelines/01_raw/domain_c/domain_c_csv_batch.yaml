@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: budget_ingestion
+    template_parameters:
+      table_name: budget_raw
+      landing_folder: budget
+      schema_file: part_schema
+
+  - flowgroup: audit_ingestion
+    template_parameters:
+      table_name: audit_raw
+      landing_folder: audit
+      schema_file: customer_schema
+
+  - flowgroup: equity_ingestion
+    template_parameters:
+      table_name: equity_raw
+      landing_folder: equity
+      schema_file: product_schema
+
+  - flowgroup: exchange_rate_ingestion
+    template_parameters:
+      table_name: exchange_rate_raw
+      landing_folder: exchange_rate
+      schema_file: partsupp_schema
+
+  - flowgroup: debit_note_ingestion
+    template_parameters:
+      table_name: debit_note_raw
+      landing_folder: debit_note
+      schema_file: lineitem_schema
+
+  - flowgroup: income_statement_ingestion
+    template_parameters:
+      table_name: income_statement_raw
+      landing_folder: income_statement
+      schema_file: customer_schema
+
+  - flowgroup: intercompany_ingestion
+    template_parameters:
+      table_name: intercompany_raw
+      landing_folder: intercompany
+      schema_file: product_schema
+
+  - flowgroup: tax_filing_ingestion
+    template_parameters:
+      table_name: tax_filing_raw
+      landing_folder: tax_filing
+      schema_file: nation_schema

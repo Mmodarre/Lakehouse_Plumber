@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: retargeting_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: retargeting_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: retargeting_raw
+    target: v_retargeting_raw
+    description: "Load retargeting from raw schema"
+
+  - name: retargeting_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_retargeting_raw
+    target: v_retargeting_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as retargeting_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_retargeting_raw
+      WHERE 1=1
+
+  - name: retargeting_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_retargeting_bronze_cleaned
+    target: v_retargeting_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to retargeting"
+
+  - name: write_retargeting_bronze
+    type: write
+    source: v_retargeting_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "retargeting"

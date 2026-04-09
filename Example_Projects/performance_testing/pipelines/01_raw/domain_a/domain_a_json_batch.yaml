@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: product_ingestion
+    template_parameters:
+      table_name: product_raw
+      landing_folder: product
+      schema_file: nation_schema
+
+  - flowgroup: coupon_ingestion
+    template_parameters:
+      table_name: coupon_raw
+      landing_folder: coupon
+      schema_file: lineitem_schema
+
+  - flowgroup: review_ingestion
+    template_parameters:
+      table_name: review_raw
+      landing_folder: review
+      schema_file: customer_schema
+
+  - flowgroup: address_ingestion
+    template_parameters:
+      table_name: address_raw
+      landing_folder: address
+      schema_file: orders_schema
+
+  - flowgroup: price_rule_ingestion
+    template_parameters:
+      table_name: price_rule_raw
+      landing_folder: price_rule
+      schema_file: nation_schema
+
+  - flowgroup: catalog_entry_ingestion
+    template_parameters:
+      table_name: catalog_entry_raw
+      landing_folder: catalog_entry
+      schema_file: lineitem_schema
+
+  - flowgroup: bundle_offer_ingestion
+    template_parameters:
+      table_name: bundle_offer_raw
+      landing_folder: bundle_offer
+      schema_file: part_schema
+
+  - flowgroup: pick_list_ingestion
+    template_parameters:
+      table_name: pick_list_raw
+      landing_folder: pick_list
+      schema_file: orders_schema

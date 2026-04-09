@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: return_request_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: return_request_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: return_request_raw
+    target: v_return_request_raw
+    description: "Load return_request from raw schema"
+
+  - name: return_request_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_return_request_raw
+    target: v_return_request_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as return_request_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_return_request_raw
+      WHERE 1=1
+
+  - name: return_request_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_return_request_bronze_cleaned
+    target: v_return_request_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to return_request"
+
+  - name: write_return_request_bronze
+    type: write
+    source: v_return_request_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "return_request"

@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: cross_dock_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: cross_dock_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cross_dock_raw
+    target: v_cross_dock_raw
+    description: "Load cross_dock from raw schema"
+
+  - name: cross_dock_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_cross_dock_raw
+    target: v_cross_dock_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cross_dock_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_cross_dock_raw
+      WHERE 1=1
+
+  - name: cross_dock_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_cross_dock_bronze_cleaned
+    target: v_cross_dock_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to cross_dock"
+
+  - name: write_cross_dock_bronze
+    type: write
+    source: v_cross_dock_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cross_dock"

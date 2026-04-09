@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: ticket_sale_dashboard_mv
+actions:
+  - name: ticket_sale_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.ticket_sale_dim
+    target: v_ticket_sale_dashboard
+
+  - name: write_ticket_sale_dashboard_mv
+    type: write
+    source: v_ticket_sale_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "ticket_sale_dashboard_mv"

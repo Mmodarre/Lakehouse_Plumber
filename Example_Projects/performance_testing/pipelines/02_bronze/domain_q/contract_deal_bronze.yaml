@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: contract_deal_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: contract_deal_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: contract_deal_raw
-    target: v_contract_deal_raw
-    description: "Load contract_deal from raw schema"
-
-  - name: contract_deal_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_contract_deal_raw
-    target: v_contract_deal_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as contract_deal_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_contract_deal_raw
-      WHERE 1=1
-
-  - name: contract_deal_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_contract_deal_bronze_cleaned
-    target: v_contract_deal_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to contract_deal"
-
-  - name: write_contract_deal_bronze
-    type: write
-    source: v_contract_deal_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "contract_deal"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: contract_deal
+  source_table: contract_deal_raw

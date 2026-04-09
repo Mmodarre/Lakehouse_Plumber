@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: dot_inspection_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: dot_inspection_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: dot_inspection_raw
+    target: v_dot_inspection_raw
+    description: "Load dot_inspection from raw schema"
+
+  - name: dot_inspection_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_dot_inspection_raw
+    target: v_dot_inspection_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as dot_inspection_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_dot_inspection_raw
+      WHERE 1=1
+
+  - name: dot_inspection_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_dot_inspection_bronze_cleaned
+    target: v_dot_inspection_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to dot_inspection"
+
+  - name: write_dot_inspection_bronze
+    type: write
+    source: v_dot_inspection_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "dot_inspection"

@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: hospital_ingestion
-presets:
-  - default_delta_properties
-use_template: json_ingestion_template
-template_parameters:
-  table_name: hospital_raw
-  landing_folder: hospital
-  schema_file: lineitem_schema

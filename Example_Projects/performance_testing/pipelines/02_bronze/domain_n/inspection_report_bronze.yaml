@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: inspection_report_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: inspection_report_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: inspection_report_raw
+    target: v_inspection_report_raw
+    description: "Load inspection_report from raw schema"
+
+  - name: inspection_report_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_inspection_report_raw
+    target: v_inspection_report_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as inspection_report_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_inspection_report_raw
+      WHERE 1=1
+
+  - name: inspection_report_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_inspection_report_bronze_cleaned
+    target: v_inspection_report_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to inspection_report"
+
+  - name: write_inspection_report_bronze
+    type: write
+    source: v_inspection_report_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "inspection_report"

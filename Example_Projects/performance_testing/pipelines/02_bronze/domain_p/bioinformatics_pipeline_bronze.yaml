@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: bioinformatics_pipeline_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: bioinformatics_pipeline_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bioinformatics_pipeline_raw
+    target: v_bioinformatics_pipeline_raw
+    description: "Load bioinformatics_pipeline from raw schema"
+
+  - name: bioinformatics_pipeline_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_bioinformatics_pipeline_raw
+    target: v_bioinformatics_pipeline_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bioinformatics_pipeline_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_bioinformatics_pipeline_raw
+      WHERE 1=1
+
+  - name: bioinformatics_pipeline_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_bioinformatics_pipeline_bronze_cleaned
+    target: v_bioinformatics_pipeline_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to bioinformatics_pipeline"
+
+  - name: write_bioinformatics_pipeline_bronze
+    type: write
+    source: v_bioinformatics_pipeline_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bioinformatics_pipeline"

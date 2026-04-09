@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: trophy_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: trophy_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: trophy_raw
-    target: v_trophy_raw
-    description: "Load trophy from raw schema"
-
-  - name: trophy_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_trophy_raw
-    target: v_trophy_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as trophy_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_trophy_raw
-      WHERE 1=1
-
-  - name: trophy_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_trophy_bronze_cleaned
-    target: v_trophy_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to trophy"
-
-  - name: write_trophy_bronze
-    type: write
-    source: v_trophy_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "trophy"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: trophy
+  source_table: trophy_raw

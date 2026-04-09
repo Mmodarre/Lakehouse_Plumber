@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: table_turn_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_table_turn_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/table_turn/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_table_turn_cloudfiles
+    description: "Load table_turn from landing volume"
+
+  - name: write_table_turn_raw
+    type: write
+    source: v_table_turn_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "table_turn_raw"

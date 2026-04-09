@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: dry_storage_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: dry_storage_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: dry_storage_raw
+    target: v_dry_storage_raw
+    description: "Load dry_storage from raw schema"
+
+  - name: dry_storage_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_dry_storage_raw
+    target: v_dry_storage_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as dry_storage_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_dry_storage_raw
+
+  - name: dry_storage_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_dry_storage_bronze_cleaned
+    target: v_dry_storage_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for dry_storage bronze"
+
+  - name: write_dry_storage_bronze
+    type: write
+    source: v_dry_storage_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "dry_storage"
+
+  - name: dry_storage_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: dry_storage_migration
+    target: v_dry_storage_migration
+    description: "Load dry_storage migration data"
+
+  - name: dry_storage_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_dry_storage_migration
+    target: v_dry_storage_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as dry_storage_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_dry_storage_migration
+
+  - name: write_dry_storage_migration
+    type: write
+    source: v_dry_storage_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "dry_storage"

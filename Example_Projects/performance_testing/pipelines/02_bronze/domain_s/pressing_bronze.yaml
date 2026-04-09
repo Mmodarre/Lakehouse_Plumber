@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: pressing_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: pressing_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: pressing_raw
-    target: v_pressing_raw
-    description: "Load pressing from raw schema"
-
-  - name: pressing_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_pressing_raw
-    target: v_pressing_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as pressing_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_pressing_raw
-      WHERE 1=1
-
-  - name: pressing_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_pressing_bronze_cleaned
-    target: v_pressing_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to pressing"
-
-  - name: write_pressing_bronze
-    type: write
-    source: v_pressing_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "pressing"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: pressing
+  source_table: pressing_raw

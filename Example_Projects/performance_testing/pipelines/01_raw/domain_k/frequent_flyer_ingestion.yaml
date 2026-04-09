@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: frequent_flyer_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: frequent_flyer_raw
+  landing_folder: frequent_flyer
+  schema_file: nation_schema

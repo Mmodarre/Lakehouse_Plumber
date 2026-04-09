@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: packing_slip_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: packing_slip_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: packing_slip_raw
+    target: v_packing_slip_raw
+    description: "Load packing_slip from raw schema"
+
+  - name: packing_slip_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_packing_slip_raw
+    target: v_packing_slip_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as packing_slip_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_packing_slip_raw
+
+  - name: packing_slip_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_packing_slip_bronze_cleaned
+    target: v_packing_slip_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for packing_slip bronze"
+
+  - name: write_packing_slip_bronze
+    type: write
+    source: v_packing_slip_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "packing_slip"
+
+  - name: packing_slip_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: packing_slip_migration
+    target: v_packing_slip_migration
+    description: "Load packing_slip migration data"
+
+  - name: packing_slip_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_packing_slip_migration
+    target: v_packing_slip_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as packing_slip_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_packing_slip_migration
+
+  - name: write_packing_slip_migration
+    type: write
+    source: v_packing_slip_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "packing_slip"

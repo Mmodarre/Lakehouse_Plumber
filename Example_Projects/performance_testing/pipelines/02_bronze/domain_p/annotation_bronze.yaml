@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: annotation_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: annotation_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: annotation_raw
+    target: v_annotation_raw
+    description: "Load annotation from raw schema"
+
+  - name: annotation_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_annotation_raw
+    target: v_annotation_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as annotation_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_annotation_raw
+      WHERE 1=1
+
+  - name: annotation_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_annotation_bronze_cleaned
+    target: v_annotation_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to annotation"
+
+  - name: write_annotation_bronze
+    type: write
+    source: v_annotation_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "annotation"

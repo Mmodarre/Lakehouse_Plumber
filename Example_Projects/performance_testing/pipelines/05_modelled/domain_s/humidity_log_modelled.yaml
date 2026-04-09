@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: humidity_log_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: humidity_log_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: humidity_log_dim
+    target: v_humidity_log_silver
+    description: "Load humidity_log from silver for modelling"
+
+  - name: humidity_log_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_humidity_log_silver
+    target: v_humidity_log_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_humidity_log_silver
+
+  - name: write_humidity_log_modelled
+    type: write
+    source: v_humidity_log_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "humidity_log_modelled"

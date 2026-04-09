@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: creative_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: creative_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: creative_raw
-    target: v_creative_raw
-    description: "Load creative from raw schema"
-
-  - name: creative_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_creative_raw
-    target: v_creative_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as creative_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_creative_raw
-      WHERE 1=1
-
-  - name: creative_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_creative_bronze_cleaned
-    target: v_creative_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to creative"
-
-  - name: write_creative_bronze
-    type: write
-    source: v_creative_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "creative"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: creative
+  source_table: creative_raw

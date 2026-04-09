@@ -1,0 +1,53 @@
+pipeline: perf_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: project_ingestion
+    template_parameters:
+      table_name: project_raw
+      landing_folder: project
+      schema_file: nation_schema
+
+  - flowgroup: training_ingestion
+    template_parameters:
+      table_name: training_raw
+      landing_folder: training
+      schema_file: lineitem_schema
+
+  - flowgroup: candidate_ingestion
+    template_parameters:
+      table_name: candidate_raw
+      landing_folder: candidate
+      schema_file: customer_schema
+
+  - flowgroup: onboarding_ingestion
+    template_parameters:
+      table_name: onboarding_raw
+      landing_folder: onboarding
+      schema_file: orders_schema
+
+  - flowgroup: attendance_ingestion
+    template_parameters:
+      table_name: attendance_raw
+      landing_folder: attendance
+      schema_file: nation_schema
+
+  - flowgroup: requisition_ingestion
+    template_parameters:
+      table_name: requisition_raw
+      landing_folder: requisition
+      schema_file: lineitem_schema
+
+  - flowgroup: exit_interview_ingestion
+    template_parameters:
+      table_name: exit_interview_raw
+      landing_folder: exit_interview
+      schema_file: part_schema
+
+  - flowgroup: workforce_plan_ingestion
+    template_parameters:
+      table_name: workforce_plan_raw
+      landing_folder: workforce_plan
+      schema_file: orders_schema

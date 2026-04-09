@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: online_order_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: online_order_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: online_order_raw
+    target: v_online_order_raw
+    description: "Load online_order from raw schema"
+
+  - name: online_order_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_online_order_raw
+    target: v_online_order_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as online_order_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_online_order_raw
+
+  - name: online_order_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_online_order_bronze_cleaned
+    target: v_online_order_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for online_order bronze"
+
+  - name: write_online_order_bronze
+    type: write
+    source: v_online_order_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "online_order"
+
+  - name: online_order_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: online_order_migration
+    target: v_online_order_migration
+    description: "Load online_order migration data"
+
+  - name: online_order_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_online_order_migration
+    target: v_online_order_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as online_order_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_online_order_migration
+
+  - name: write_online_order_migration
+    type: write
+    source: v_online_order_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "online_order"

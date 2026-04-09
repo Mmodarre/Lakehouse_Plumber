@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: mechanical_royalty_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: mechanical_royalty_raw
+  landing_folder: mechanical_royalty
+  schema_file: orders_schema

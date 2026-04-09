@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: mixing_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: mixing_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: mixing_raw
-    target: v_mixing_raw
-    description: "Load mixing from raw schema"
-
-  - name: mixing_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_mixing_raw
-    target: v_mixing_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as mixing_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_mixing_raw
-      WHERE 1=1
-
-  - name: mixing_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_mixing_bronze_cleaned
-    target: v_mixing_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to mixing"
-
-  - name: write_mixing_bronze
-    type: write
-    source: v_mixing_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "mixing"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: mixing
+  source_table: mixing_raw

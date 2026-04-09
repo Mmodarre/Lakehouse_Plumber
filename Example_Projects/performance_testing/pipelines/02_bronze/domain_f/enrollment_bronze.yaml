@@ -1,8 +1,0 @@
-pipeline: perf_bronze
-flowgroup: enrollment_bronze
-presets:
-  - default_delta_properties
-use_template: bronze_cleanse_template
-template_parameters:
-  entity_name: enrollment
-  source_table: enrollment_raw

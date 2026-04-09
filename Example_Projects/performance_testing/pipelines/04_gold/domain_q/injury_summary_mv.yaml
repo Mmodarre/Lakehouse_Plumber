@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: injury_summary_mv
+actions:
+  - name: injury_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.injury_dim
+    target: v_injury_summary
+
+  - name: write_injury_summary_mv
+    type: write
+    source: v_injury_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "injury_summary_mv"

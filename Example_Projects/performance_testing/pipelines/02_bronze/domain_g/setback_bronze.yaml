@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: setback_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: setback_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: setback_raw
+    target: v_setback_raw
+    description: "Load setback from raw schema"
+
+  - name: setback_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_setback_raw
+    target: v_setback_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as setback_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_setback_raw
+
+  - name: setback_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_setback_bronze_cleaned
+    target: v_setback_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for setback bronze"
+
+  - name: write_setback_bronze
+    type: write
+    source: v_setback_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "setback"
+
+  - name: setback_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: setback_migration
+    target: v_setback_migration
+    description: "Load setback migration data"
+
+  - name: setback_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_setback_migration
+    target: v_setback_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as setback_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_setback_migration
+
+  - name: write_setback_migration
+    type: write
+    source: v_setback_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "setback"

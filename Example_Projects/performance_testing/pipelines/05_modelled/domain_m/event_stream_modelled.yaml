@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: event_stream_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: event_stream_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: event_stream_dim
+    target: v_event_stream_silver
+    description: "Load event_stream from silver for modelling"
+
+  - name: event_stream_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_event_stream_silver
+    target: v_event_stream_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_event_stream_silver
+
+  - name: write_event_stream_modelled
+    type: write
+    source: v_event_stream_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "event_stream_modelled"

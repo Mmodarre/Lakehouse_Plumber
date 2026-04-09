@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: property_bronze
+    template_parameters:
+      entity_name: property
+      source_table: property_raw
+
+  - flowgroup: tenant_bronze
+    template_parameters:
+      entity_name: tenant
+      source_table: tenant_raw
+
+  - flowgroup: lease_bronze
+    template_parameters:
+      entity_name: lease
+      source_table: lease_raw
+
+  - flowgroup: landlord_bronze
+    template_parameters:
+      entity_name: landlord
+      source_table: landlord_raw
+
+  - flowgroup: unit_bronze
+    template_parameters:
+      entity_name: unit
+      source_table: unit_raw
+
+  - flowgroup: building_bronze
+    template_parameters:
+      entity_name: building
+      source_table: building_raw
+
+  - flowgroup: amenity_bronze
+    template_parameters:
+      entity_name: amenity
+      source_table: amenity_raw
+
+  - flowgroup: work_order_bronze
+    template_parameters:
+      entity_name: work_order
+      source_table: work_order_raw
+
+  - flowgroup: rent_payment_bronze
+    template_parameters:
+      entity_name: rent_payment
+      source_table: rent_payment_raw
+
+  - flowgroup: eviction_bronze
+    template_parameters:
+      entity_name: eviction
+      source_table: eviction_raw
+
+  - flowgroup: listing_bronze
+    template_parameters:
+      entity_name: listing
+      source_table: listing_raw
+
+  - flowgroup: showing_bronze
+    template_parameters:
+      entity_name: showing
+      source_table: showing_raw
+
+  - flowgroup: appraisal_bronze
+    template_parameters:
+      entity_name: appraisal
+      source_table: appraisal_raw
+
+  - flowgroup: mortgage_bronze
+    template_parameters:
+      entity_name: mortgage
+      source_table: mortgage_raw
+
+  - flowgroup: escrow_bronze
+    template_parameters:
+      entity_name: escrow
+      source_table: escrow_raw
+
+  - flowgroup: closing_bronze
+    template_parameters:
+      entity_name: closing
+      source_table: closing_raw

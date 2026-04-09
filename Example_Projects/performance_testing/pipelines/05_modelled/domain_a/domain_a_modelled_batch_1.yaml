@@ -1,0 +1,759 @@
+pipeline: perf_modelled
+flowgroup: customer_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: customer_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: customer_dim
+    target: v_customer_silver
+    description: "Load customer from silver for modelling"
+
+  - name: customer_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_customer_silver
+    target: v_customer_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_customer_silver
+
+  - name: write_customer_modelled
+    type: write
+    source: v_customer_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "customer_modelled"
+---
+pipeline: perf_modelled
+flowgroup: order_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: order_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: order_dim
+    target: v_order_silver
+    description: "Load order from silver for modelling"
+
+  - name: order_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_order_silver
+    target: v_order_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_order_silver
+
+  - name: write_order_modelled
+    type: write
+    source: v_order_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "order_modelled"
+---
+pipeline: perf_modelled
+flowgroup: product_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: product_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: product_dim
+    target: v_product_silver
+    description: "Load product from silver for modelling"
+
+  - name: product_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_product_silver
+    target: v_product_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_product_silver
+
+  - name: write_product_modelled
+    type: write
+    source: v_product_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "product_modelled"
+---
+pipeline: perf_modelled
+flowgroup: supplier_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: supplier_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: supplier_dim
+    target: v_supplier_silver
+    description: "Load supplier from silver for modelling"
+
+  - name: supplier_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_supplier_silver
+    target: v_supplier_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_supplier_silver
+
+  - name: write_supplier_modelled
+    type: write
+    source: v_supplier_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "supplier_modelled"
+---
+pipeline: perf_modelled
+flowgroup: shipment_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: shipment_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: shipment_dim
+    target: v_shipment_silver
+    description: "Load shipment from silver for modelling"
+
+  - name: shipment_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_shipment_silver
+    target: v_shipment_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_shipment_silver
+
+  - name: write_shipment_modelled
+    type: write
+    source: v_shipment_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "shipment_modelled"
+---
+pipeline: perf_modelled
+flowgroup: invoice_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: invoice_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: invoice_dim
+    target: v_invoice_silver
+    description: "Load invoice from silver for modelling"
+
+  - name: invoice_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_invoice_silver
+    target: v_invoice_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_invoice_silver
+
+  - name: write_invoice_modelled
+    type: write
+    source: v_invoice_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "invoice_modelled"
+---
+pipeline: perf_modelled
+flowgroup: payment_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: payment_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: payment_dim
+    target: v_payment_silver
+    description: "Load payment from silver for modelling"
+
+  - name: payment_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_payment_silver
+    target: v_payment_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_payment_silver
+
+  - name: write_payment_modelled
+    type: write
+    source: v_payment_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "payment_modelled"
+---
+pipeline: perf_modelled
+flowgroup: refund_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: refund_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: refund_dim
+    target: v_refund_silver
+    description: "Load refund from silver for modelling"
+
+  - name: refund_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_refund_silver
+    target: v_refund_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_refund_silver
+
+  - name: write_refund_modelled
+    type: write
+    source: v_refund_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "refund_modelled"
+---
+pipeline: perf_modelled
+flowgroup: coupon_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: coupon_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: coupon_dim
+    target: v_coupon_silver
+    description: "Load coupon from silver for modelling"
+
+  - name: coupon_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_coupon_silver
+    target: v_coupon_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_coupon_silver
+
+  - name: write_coupon_modelled
+    type: write
+    source: v_coupon_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "coupon_modelled"
+---
+pipeline: perf_modelled
+flowgroup: promotion_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: promotion_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: promotion_dim
+    target: v_promotion_silver
+    description: "Load promotion from silver for modelling"
+
+  - name: promotion_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_promotion_silver
+    target: v_promotion_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_promotion_silver
+
+  - name: write_promotion_modelled
+    type: write
+    source: v_promotion_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "promotion_modelled"
+---
+pipeline: perf_modelled
+flowgroup: warehouse_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: warehouse_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: warehouse_dim
+    target: v_warehouse_silver
+    description: "Load warehouse from silver for modelling"
+
+  - name: warehouse_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_warehouse_silver
+    target: v_warehouse_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_warehouse_silver
+
+  - name: write_warehouse_modelled
+    type: write
+    source: v_warehouse_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "warehouse_modelled"
+---
+pipeline: perf_modelled
+flowgroup: inventory_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: inventory_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: inventory_dim
+    target: v_inventory_silver
+    description: "Load inventory from silver for modelling"
+
+  - name: inventory_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_inventory_silver
+    target: v_inventory_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_inventory_silver
+
+  - name: write_inventory_modelled
+    type: write
+    source: v_inventory_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "inventory_modelled"
+---
+pipeline: perf_modelled
+flowgroup: category_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: category_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: category_dim
+    target: v_category_silver
+    description: "Load category from silver for modelling"
+
+  - name: category_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_category_silver
+    target: v_category_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_category_silver
+
+  - name: write_category_modelled
+    type: write
+    source: v_category_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "category_modelled"
+---
+pipeline: perf_modelled
+flowgroup: brand_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: brand_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: brand_dim
+    target: v_brand_silver
+    description: "Load brand from silver for modelling"
+
+  - name: brand_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_brand_silver
+    target: v_brand_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_brand_silver
+
+  - name: write_brand_modelled
+    type: write
+    source: v_brand_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "brand_modelled"
+---
+pipeline: perf_modelled
+flowgroup: review_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: review_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: review_dim
+    target: v_review_silver
+    description: "Load review from silver for modelling"
+
+  - name: review_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_review_silver
+    target: v_review_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_review_silver
+
+  - name: write_review_modelled
+    type: write
+    source: v_review_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "review_modelled"
+---
+pipeline: perf_modelled
+flowgroup: wishlist_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: wishlist_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: wishlist_dim
+    target: v_wishlist_silver
+    description: "Load wishlist from silver for modelling"
+
+  - name: wishlist_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_wishlist_silver
+    target: v_wishlist_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_wishlist_silver
+
+  - name: write_wishlist_modelled
+    type: write
+    source: v_wishlist_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "wishlist_modelled"
+---
+pipeline: perf_modelled
+flowgroup: cart_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: cart_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: cart_dim
+    target: v_cart_silver
+    description: "Load cart from silver for modelling"
+
+  - name: cart_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cart_silver
+    target: v_cart_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_cart_silver
+
+  - name: write_cart_modelled
+    type: write
+    source: v_cart_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "cart_modelled"
+---
+pipeline: perf_modelled
+flowgroup: address_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: address_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: address_dim
+    target: v_address_silver
+    description: "Load address from silver for modelling"
+
+  - name: address_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_address_silver
+    target: v_address_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_address_silver
+
+  - name: write_address_modelled
+    type: write
+    source: v_address_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "address_modelled"
+---
+pipeline: perf_modelled
+flowgroup: contact_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: contact_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: contact_dim
+    target: v_contact_silver
+    description: "Load contact from silver for modelling"
+
+  - name: contact_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_contact_silver
+    target: v_contact_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_contact_silver
+
+  - name: write_contact_modelled
+    type: write
+    source: v_contact_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "contact_modelled"
+---
+pipeline: perf_modelled
+flowgroup: subscription_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: subscription_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: subscription_dim
+    target: v_subscription_silver
+    description: "Load subscription from silver for modelling"
+
+  - name: subscription_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_subscription_silver
+    target: v_subscription_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_subscription_silver
+
+  - name: write_subscription_modelled
+    type: write
+    source: v_subscription_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "subscription_modelled"

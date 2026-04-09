@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: radio_play_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: radio_play_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: radio_play_raw
+    target: v_radio_play_raw
+    description: "Load radio_play from raw schema"
+
+  - name: radio_play_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_radio_play_raw
+    target: v_radio_play_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as radio_play_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_radio_play_raw
+      WHERE 1=1
+
+  - name: radio_play_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_radio_play_bronze_cleaned
+    target: v_radio_play_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to radio_play"
+
+  - name: write_radio_play_bronze
+    type: write
+    source: v_radio_play_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "radio_play"

@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: event_stream_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: event_stream_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: event_stream_raw
+    target: v_event_stream_raw
+    description: "Load event_stream from raw schema"
+
+  - name: event_stream_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_event_stream_raw
+    target: v_event_stream_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as event_stream_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_event_stream_raw
+
+  - name: event_stream_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_event_stream_bronze_cleaned
+    target: v_event_stream_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for event_stream bronze"
+
+  - name: write_event_stream_bronze
+    type: write
+    source: v_event_stream_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "event_stream"
+
+  - name: event_stream_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: event_stream_migration
+    target: v_event_stream_migration
+    description: "Load event_stream migration data"
+
+  - name: event_stream_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_event_stream_migration
+    target: v_event_stream_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as event_stream_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_event_stream_migration
+
+  - name: write_event_stream_migration
+    type: write
+    source: v_event_stream_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "event_stream"

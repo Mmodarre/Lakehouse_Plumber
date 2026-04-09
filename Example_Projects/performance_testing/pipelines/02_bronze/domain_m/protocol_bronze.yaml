@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: protocol_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: protocol_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: protocol_raw
-    target: v_protocol_raw
-    description: "Load protocol from raw schema"
-
-  - name: protocol_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_protocol_raw
-    target: v_protocol_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as protocol_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_protocol_raw
-      WHERE 1=1
-
-  - name: protocol_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_protocol_bronze_cleaned
-    target: v_protocol_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to protocol"
-
-  - name: write_protocol_bronze
-    type: write
-    source: v_protocol_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "protocol"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: protocol
+  source_table: protocol_raw

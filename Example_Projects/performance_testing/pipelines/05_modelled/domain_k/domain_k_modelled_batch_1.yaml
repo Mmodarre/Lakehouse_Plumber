@@ -1,0 +1,759 @@
+pipeline: perf_modelled
+flowgroup: flight_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: flight_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: flight_dim
+    target: v_flight_silver
+    description: "Load flight from silver for modelling"
+
+  - name: flight_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_flight_silver
+    target: v_flight_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_flight_silver
+
+  - name: write_flight_modelled
+    type: write
+    source: v_flight_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "flight_modelled"
+---
+pipeline: perf_modelled
+flowgroup: passenger_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: passenger_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: passenger_dim
+    target: v_passenger_silver
+    description: "Load passenger from silver for modelling"
+
+  - name: passenger_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_passenger_silver
+    target: v_passenger_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_passenger_silver
+
+  - name: write_passenger_modelled
+    type: write
+    source: v_passenger_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "passenger_modelled"
+---
+pipeline: perf_modelled
+flowgroup: booking_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: booking_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: booking_dim
+    target: v_booking_silver
+    description: "Load booking from silver for modelling"
+
+  - name: booking_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_booking_silver
+    target: v_booking_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_booking_silver
+
+  - name: write_booking_modelled
+    type: write
+    source: v_booking_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "booking_modelled"
+---
+pipeline: perf_modelled
+flowgroup: airport_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: airport_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: airport_dim
+    target: v_airport_silver
+    description: "Load airport from silver for modelling"
+
+  - name: airport_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_airport_silver
+    target: v_airport_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_airport_silver
+
+  - name: write_airport_modelled
+    type: write
+    source: v_airport_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "airport_modelled"
+---
+pipeline: perf_modelled
+flowgroup: runway_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: runway_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: runway_dim
+    target: v_runway_silver
+    description: "Load runway from silver for modelling"
+
+  - name: runway_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_runway_silver
+    target: v_runway_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_runway_silver
+
+  - name: write_runway_modelled
+    type: write
+    source: v_runway_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "runway_modelled"
+---
+pipeline: perf_modelled
+flowgroup: gate_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: gate_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: gate_dim
+    target: v_gate_silver
+    description: "Load gate from silver for modelling"
+
+  - name: gate_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_gate_silver
+    target: v_gate_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_gate_silver
+
+  - name: write_gate_modelled
+    type: write
+    source: v_gate_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "gate_modelled"
+---
+pipeline: perf_modelled
+flowgroup: baggage_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: baggage_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: baggage_dim
+    target: v_baggage_silver
+    description: "Load baggage from silver for modelling"
+
+  - name: baggage_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_baggage_silver
+    target: v_baggage_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_baggage_silver
+
+  - name: write_baggage_modelled
+    type: write
+    source: v_baggage_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "baggage_modelled"
+---
+pipeline: perf_modelled
+flowgroup: boarding_pass_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: boarding_pass_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: boarding_pass_dim
+    target: v_boarding_pass_silver
+    description: "Load boarding_pass from silver for modelling"
+
+  - name: boarding_pass_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_boarding_pass_silver
+    target: v_boarding_pass_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_boarding_pass_silver
+
+  - name: write_boarding_pass_modelled
+    type: write
+    source: v_boarding_pass_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "boarding_pass_modelled"
+---
+pipeline: perf_modelled
+flowgroup: crew_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: crew_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: crew_dim
+    target: v_crew_silver
+    description: "Load crew from silver for modelling"
+
+  - name: crew_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_crew_silver
+    target: v_crew_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_crew_silver
+
+  - name: write_crew_modelled
+    type: write
+    source: v_crew_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "crew_modelled"
+---
+pipeline: perf_modelled
+flowgroup: cockpit_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: cockpit_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: cockpit_dim
+    target: v_cockpit_silver
+    description: "Load cockpit from silver for modelling"
+
+  - name: cockpit_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cockpit_silver
+    target: v_cockpit_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_cockpit_silver
+
+  - name: write_cockpit_modelled
+    type: write
+    source: v_cockpit_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "cockpit_modelled"
+---
+pipeline: perf_modelled
+flowgroup: cabin_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: cabin_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: cabin_dim
+    target: v_cabin_silver
+    description: "Load cabin from silver for modelling"
+
+  - name: cabin_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cabin_silver
+    target: v_cabin_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_cabin_silver
+
+  - name: write_cabin_modelled
+    type: write
+    source: v_cabin_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "cabin_modelled"
+---
+pipeline: perf_modelled
+flowgroup: ticket_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: ticket_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: ticket_dim
+    target: v_ticket_silver
+    description: "Load ticket from silver for modelling"
+
+  - name: ticket_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_ticket_silver
+    target: v_ticket_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_ticket_silver
+
+  - name: write_ticket_modelled
+    type: write
+    source: v_ticket_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "ticket_modelled"
+---
+pipeline: perf_modelled
+flowgroup: itinerary_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: itinerary_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: itinerary_dim
+    target: v_itinerary_silver
+    description: "Load itinerary from silver for modelling"
+
+  - name: itinerary_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_itinerary_silver
+    target: v_itinerary_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_itinerary_silver
+
+  - name: write_itinerary_modelled
+    type: write
+    source: v_itinerary_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "itinerary_modelled"
+---
+pipeline: perf_modelled
+flowgroup: lounge_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lounge_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lounge_dim
+    target: v_lounge_silver
+    description: "Load lounge from silver for modelling"
+
+  - name: lounge_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lounge_silver
+    target: v_lounge_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lounge_silver
+
+  - name: write_lounge_modelled
+    type: write
+    source: v_lounge_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lounge_modelled"
+---
+pipeline: perf_modelled
+flowgroup: terminal_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: terminal_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: terminal_dim
+    target: v_terminal_silver
+    description: "Load terminal from silver for modelling"
+
+  - name: terminal_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_terminal_silver
+    target: v_terminal_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_terminal_silver
+
+  - name: write_terminal_modelled
+    type: write
+    source: v_terminal_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "terminal_modelled"
+---
+pipeline: perf_modelled
+flowgroup: airline_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: airline_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: airline_dim
+    target: v_airline_silver
+    description: "Load airline from silver for modelling"
+
+  - name: airline_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_airline_silver
+    target: v_airline_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_airline_silver
+
+  - name: write_airline_modelled
+    type: write
+    source: v_airline_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "airline_modelled"
+---
+pipeline: perf_modelled
+flowgroup: charter_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: charter_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: charter_dim
+    target: v_charter_silver
+    description: "Load charter from silver for modelling"
+
+  - name: charter_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_charter_silver
+    target: v_charter_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_charter_silver
+
+  - name: write_charter_modelled
+    type: write
+    source: v_charter_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "charter_modelled"
+---
+pipeline: perf_modelled
+flowgroup: fuel_tank_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: fuel_tank_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: fuel_tank_dim
+    target: v_fuel_tank_silver
+    description: "Load fuel_tank from silver for modelling"
+
+  - name: fuel_tank_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_fuel_tank_silver
+    target: v_fuel_tank_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_fuel_tank_silver
+
+  - name: write_fuel_tank_modelled
+    type: write
+    source: v_fuel_tank_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "fuel_tank_modelled"
+---
+pipeline: perf_modelled
+flowgroup: hangar_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: hangar_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: hangar_dim
+    target: v_hangar_silver
+    description: "Load hangar from silver for modelling"
+
+  - name: hangar_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_hangar_silver
+    target: v_hangar_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_hangar_silver
+
+  - name: write_hangar_modelled
+    type: write
+    source: v_hangar_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "hangar_modelled"
+---
+pipeline: perf_modelled
+flowgroup: air_route_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: air_route_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: air_route_dim
+    target: v_air_route_silver
+    description: "Load air_route from silver for modelling"
+
+  - name: air_route_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_air_route_silver
+    target: v_air_route_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_air_route_silver
+
+  - name: write_air_route_modelled
+    type: write
+    source: v_air_route_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "air_route_modelled"

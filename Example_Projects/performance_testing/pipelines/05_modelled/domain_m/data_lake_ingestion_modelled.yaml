@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: data_lake_ingestion_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: data_lake_ingestion_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: data_lake_ingestion_dim
+    target: v_data_lake_ingestion_silver
+    description: "Load data_lake_ingestion from silver for modelling"
+
+  - name: data_lake_ingestion_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_data_lake_ingestion_silver
+    target: v_data_lake_ingestion_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_data_lake_ingestion_silver
+
+  - name: write_data_lake_ingestion_modelled
+    type: write
+    source: v_data_lake_ingestion_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "data_lake_ingestion_modelled"

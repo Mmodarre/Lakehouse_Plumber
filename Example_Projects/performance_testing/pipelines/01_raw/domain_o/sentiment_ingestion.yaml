@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: sentiment_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: sentiment_raw
+  landing_folder: sentiment
+  schema_file: lineitem_schema

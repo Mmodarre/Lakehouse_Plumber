@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: tasting_note_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: tasting_note_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: tasting_note_raw
-    target: v_tasting_note_raw
-    description: "Load tasting_note from raw schema"
-
-  - name: tasting_note_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_tasting_note_raw
-    target: v_tasting_note_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as tasting_note_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_tasting_note_raw
-      WHERE 1=1
-
-  - name: tasting_note_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_tasting_note_bronze_cleaned
-    target: v_tasting_note_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to tasting_note"
-
-  - name: write_tasting_note_bronze
-    type: write
-    source: v_tasting_note_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "tasting_note"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: tasting_note
+  source_table: tasting_note_raw

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: streaming_rights_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: streaming_rights_raw
+  landing_folder: streaming_rights
+  schema_file: lineitem_schema

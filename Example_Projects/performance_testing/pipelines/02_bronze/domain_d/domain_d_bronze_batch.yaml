@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: patient_bronze
+    template_parameters:
+      entity_name: patient
+      source_table: patient_raw
+
+  - flowgroup: doctor_bronze
+    template_parameters:
+      entity_name: doctor
+      source_table: doctor_raw
+
+  - flowgroup: appointment_bronze
+    template_parameters:
+      entity_name: appointment
+      source_table: appointment_raw
+
+  - flowgroup: prescription_bronze
+    template_parameters:
+      entity_name: prescription
+      source_table: prescription_raw
+
+  - flowgroup: diagnosis_bronze
+    template_parameters:
+      entity_name: diagnosis
+      source_table: diagnosis_raw
+
+  - flowgroup: treatment_bronze
+    template_parameters:
+      entity_name: treatment
+      source_table: treatment_raw
+
+  - flowgroup: insurance_bronze
+    template_parameters:
+      entity_name: insurance
+      source_table: insurance_raw
+
+  - flowgroup: claim_bronze
+    template_parameters:
+      entity_name: claim
+      source_table: claim_raw
+
+  - flowgroup: hospital_bronze
+    template_parameters:
+      entity_name: hospital
+      source_table: hospital_raw
+
+  - flowgroup: ward_bronze
+    template_parameters:
+      entity_name: ward
+      source_table: ward_raw
+
+  - flowgroup: lab_test_bronze
+    template_parameters:
+      entity_name: lab_test
+      source_table: lab_test_raw
+
+  - flowgroup: lab_result_bronze
+    template_parameters:
+      entity_name: lab_result
+      source_table: lab_result_raw
+
+  - flowgroup: medication_bronze
+    template_parameters:
+      entity_name: medication
+      source_table: medication_raw
+
+  - flowgroup: allergy_bronze
+    template_parameters:
+      entity_name: allergy
+      source_table: allergy_raw
+
+  - flowgroup: immunization_bronze
+    template_parameters:
+      entity_name: immunization
+      source_table: immunization_raw
+
+  - flowgroup: referral_bronze
+    template_parameters:
+      entity_name: referral
+      source_table: referral_raw

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: var_decision_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: var_decision_raw
+  landing_folder: var_decision
+  schema_file: part_schema

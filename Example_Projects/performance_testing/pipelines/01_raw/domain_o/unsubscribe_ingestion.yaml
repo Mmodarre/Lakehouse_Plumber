@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: unsubscribe_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: unsubscribe_raw
+  landing_folder: unsubscribe
+  schema_file: nation_schema

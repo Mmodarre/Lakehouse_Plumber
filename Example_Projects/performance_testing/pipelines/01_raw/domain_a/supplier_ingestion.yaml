@@ -1,9 +1,0 @@
-pipeline: perf_raw
-flowgroup: supplier_ingestion
-presets:
-  - default_delta_properties
-use_template: parquet_ingestion_template
-template_parameters:
-  table_name: supplier_raw
-  landing_folder: supplier
-  schema_file: orders_schema

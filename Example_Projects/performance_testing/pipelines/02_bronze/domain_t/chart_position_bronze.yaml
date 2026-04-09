@@ -2,47 +2,7 @@ pipeline: perf_bronze
 flowgroup: chart_position_bronze
 presets:
   - default_delta_properties
-actions:
-  - name: chart_position_raw_load
-    type: load
-    operational_metadata: ["_processing_timestamp"]
-    readMode: stream
-    source:
-      type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
-      table: chart_position_raw
-    target: v_chart_position_raw
-    description: "Load chart_position from raw schema"
-
-  - name: chart_position_bronze_cleanse
-    type: transform
-    transform_type: sql
-    source: v_chart_position_raw
-    target: v_chart_position_bronze_cleaned
-    sql: |
-      SELECT
-        xxhash64(*) as chart_position_key,
-        *,
-        current_timestamp() as _etl_timestamp
-      FROM v_chart_position_raw
-      WHERE 1=1
-
-  - name: chart_position_bronze_dqe
-    type: transform
-    transform_type: data_quality
-    source: v_chart_position_bronze_cleaned
-    target: v_chart_position_bronze_dqe
-    readMode: stream
-    expectations_file: "expectations/generic_quality.json"
-    description: "Apply data quality checks to chart_position"
-
-  - name: write_chart_position_bronze
-    type: write
-    source: v_chart_position_bronze_dqe
-    write_target:
-      create_table: true
-      type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
-      table: "chart_position"
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: chart_position
+  source_table: chart_position_raw

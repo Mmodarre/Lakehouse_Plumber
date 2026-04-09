@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: digital_twin_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: digital_twin_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: digital_twin_dim
+    target: v_digital_twin_silver
+    description: "Load digital_twin from silver for modelling"
+
+  - name: digital_twin_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_digital_twin_silver
+    target: v_digital_twin_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_digital_twin_silver
+
+  - name: write_digital_twin_modelled
+    type: write
+    source: v_digital_twin_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "digital_twin_modelled"

@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: circuit_breaker_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: circuit_breaker_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: circuit_breaker_raw
+    target: v_circuit_breaker_raw
+    description: "Load circuit_breaker from raw schema"
+
+  - name: circuit_breaker_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_circuit_breaker_raw
+    target: v_circuit_breaker_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as circuit_breaker_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_circuit_breaker_raw
+
+  - name: circuit_breaker_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_circuit_breaker_bronze_cleaned
+    target: v_circuit_breaker_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for circuit_breaker bronze"
+
+  - name: write_circuit_breaker_bronze
+    type: write
+    source: v_circuit_breaker_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "circuit_breaker"
+
+  - name: circuit_breaker_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: circuit_breaker_migration
+    target: v_circuit_breaker_migration
+    description: "Load circuit_breaker migration data"
+
+  - name: circuit_breaker_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_circuit_breaker_migration
+    target: v_circuit_breaker_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as circuit_breaker_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_circuit_breaker_migration
+
+  - name: write_circuit_breaker_migration
+    type: write
+    source: v_circuit_breaker_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "circuit_breaker"

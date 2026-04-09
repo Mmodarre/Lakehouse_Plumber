@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: gel_electrophoresis_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: gel_electrophoresis_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: gel_electrophoresis_dim
+    target: v_gel_electrophoresis_silver
+    description: "Load gel_electrophoresis from silver for modelling"
+
+  - name: gel_electrophoresis_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_gel_electrophoresis_silver
+    target: v_gel_electrophoresis_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_gel_electrophoresis_silver
+
+  - name: write_gel_electrophoresis_modelled
+    type: write
+    source: v_gel_electrophoresis_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "gel_electrophoresis_modelled"

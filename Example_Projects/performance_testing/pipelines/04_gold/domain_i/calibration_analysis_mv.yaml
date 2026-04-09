@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: calibration_analysis_mv
+actions:
+  - name: calibration_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.calibration_dim
+    target: v_calibration_analysis
+
+  - name: write_calibration_analysis_mv
+    type: write
+    source: v_calibration_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "calibration_analysis_mv"

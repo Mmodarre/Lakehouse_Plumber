@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: customer_bronze
+    template_parameters:
+      entity_name: customer
+      source_table: customer_raw
+
+  - flowgroup: order_bronze
+    template_parameters:
+      entity_name: order
+      source_table: order_raw
+
+  - flowgroup: product_bronze
+    template_parameters:
+      entity_name: product
+      source_table: product_raw
+
+  - flowgroup: supplier_bronze
+    template_parameters:
+      entity_name: supplier
+      source_table: supplier_raw
+
+  - flowgroup: shipment_bronze
+    template_parameters:
+      entity_name: shipment
+      source_table: shipment_raw
+
+  - flowgroup: invoice_bronze
+    template_parameters:
+      entity_name: invoice
+      source_table: invoice_raw
+
+  - flowgroup: payment_bronze
+    template_parameters:
+      entity_name: payment
+      source_table: payment_raw
+
+  - flowgroup: refund_bronze
+    template_parameters:
+      entity_name: refund
+      source_table: refund_raw
+
+  - flowgroup: coupon_bronze
+    template_parameters:
+      entity_name: coupon
+      source_table: coupon_raw
+
+  - flowgroup: promotion_bronze
+    template_parameters:
+      entity_name: promotion
+      source_table: promotion_raw
+
+  - flowgroup: warehouse_bronze
+    template_parameters:
+      entity_name: warehouse
+      source_table: warehouse_raw
+
+  - flowgroup: inventory_bronze
+    template_parameters:
+      entity_name: inventory
+      source_table: inventory_raw
+
+  - flowgroup: category_bronze
+    template_parameters:
+      entity_name: category
+      source_table: category_raw
+
+  - flowgroup: brand_bronze
+    template_parameters:
+      entity_name: brand
+      source_table: brand_raw
+
+  - flowgroup: review_bronze
+    template_parameters:
+      entity_name: review
+      source_table: review_raw
+
+  - flowgroup: wishlist_bronze
+    template_parameters:
+      entity_name: wishlist
+      source_table: wishlist_raw

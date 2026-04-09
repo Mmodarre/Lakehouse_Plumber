@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: eclipse_period_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: eclipse_period_raw
+  landing_folder: eclipse_period
+  schema_file: lineitem_schema
