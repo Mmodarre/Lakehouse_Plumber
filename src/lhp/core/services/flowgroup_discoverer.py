@@ -1,8 +1,9 @@
 """Flowgroup discovery service for LakehousePlumber."""
 
 import logging
+import threading
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from ...models.config import FlowGroup
 from ...parsers.yaml_parser import YAMLParser
@@ -36,6 +37,11 @@ class FlowgroupDiscoverer:
         self.yaml_parser = yaml_parser or YAMLParser()
         self.logger = logging.getLogger(__name__)
         self._project_config = None
+
+        # Lazy source-path index: maps (pipeline, flowgroup_name) -> YAML file path.
+        # Built on first find_source_yaml_for_flowgroup call, then O(1) lookups.
+        self._source_path_index: Optional[Dict[Tuple[str, str], Path]] = None
+        self._index_lock = threading.Lock()
 
         # Load project configuration if config loader provided
         if self.config_loader:
@@ -164,33 +170,20 @@ class FlowgroupDiscoverer:
         return matching_flowgroups
 
     def get_include_patterns(self) -> List[str]:
-        """
-        Get include patterns from project configuration.
+        """Get include patterns from project configuration.
 
-        FIXED: Always reload config to catch runtime changes (E2E test compatibility).
+        Uses the project config loaded at construction time. Safe because
+        FlowgroupDiscoverer is created once per CLI invocation and no code
+        modifies lhp.yaml during a single generate run. E2E tests that
+        change include patterns do so between runs, creating a fresh
+        discoverer each time.
 
         Returns:
             List of include patterns, or empty list if none specified
         """
-        with perf_timer("get_include_patterns"):
-            # Always try to reload project config to catch runtime changes
-            # This is needed for E2E tests that modify lhp.yaml during execution
-            if self.config_loader:
-                try:
-                    current_config = self.config_loader.load_project_config()
-                    if current_config and current_config.include:
-                        return current_config.include
-                except Exception as e:
-                    self.logger.warning(
-                        f"Could not load current project config for include patterns: {e}"
-                    )
-
-            # Fallback to cached config if reload fails
-            if self._project_config and self._project_config.include:
-                return self._project_config.include
-
-            # No include patterns specified, return empty list (no filtering)
-            return []
+        if self._project_config and self._project_config.include:
+            return self._project_config.include
+        return []
 
     def get_pipeline_fields(self) -> set[str]:
         """
@@ -286,8 +279,27 @@ class FlowgroupDiscoverer:
 
         return flowgroups_with_paths
 
+    def _build_source_path_index(self) -> Dict[Tuple[str, str], Path]:
+        """Build a mapping from (pipeline, flowgroup_name) to source YAML path.
+
+        Performs a single pass over all YAML files using
+        discover_all_flowgroups_with_paths(). First-found entry wins,
+        consistent with the original linear-scan behavior.
+        """
+        index: Dict[Tuple[str, str], Path] = {}
+        for fg, yaml_path in self.discover_all_flowgroups_with_paths():
+            key = (fg.pipeline, fg.flowgroup)
+            if key not in index:
+                index[key] = yaml_path
+        self.logger.debug(f"Built source path index with {len(index)} entries")
+        return index
+
     def find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
         """Find the source YAML file for a given flowgroup.
+
+        Uses a lazily-built index for O(1) lookups. The index is constructed
+        on first call via discover_all_flowgroups_with_paths(). Thread-safe
+        via double-checked locking.
 
         Supports multi-document (---) and flowgroups array syntax.
 
@@ -298,24 +310,10 @@ class FlowgroupDiscoverer:
             Path to the source YAML file, or None if not found
         """
         with perf_timer(f"find_source_yaml_for_flowgroup [{flowgroup.flowgroup}]"):
-            pipelines_dir = self.project_root / "pipelines"
-
-            if not pipelines_dir.exists():
-                return None
-
-            # Search both .yaml and .yml extensions
-            for extension in ["*.yaml", "*.yml"]:
-                for yaml_file in pipelines_dir.rglob(extension):
-                    try:
-                        # Use parse_flowgroups_from_file to support multi-flowgroup files
-                        flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
-                        for parsed_flowgroup in flowgroups:
-                            if (
-                                parsed_flowgroup.pipeline == flowgroup.pipeline
-                                and parsed_flowgroup.flowgroup == flowgroup.flowgroup
-                            ):
-                                return yaml_file
-                    except Exception as e:
-                        self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
-
-            return None
+            if self._source_path_index is None:
+                with self._index_lock:
+                    if self._source_path_index is None:
+                        self._source_path_index = self._build_source_path_index()
+            return self._source_path_index.get(
+                (flowgroup.pipeline, flowgroup.flowgroup)
+            )

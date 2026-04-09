@@ -19,7 +19,7 @@ from ..utils.error_formatter import (
     LHPFileError,
     LHPValidationError,
 )
-from ..utils.formatter import format_code
+from ..utils.formatter import CodeFormatter
 from ..utils.performance_timer import perf_timer
 from ..utils.smart_file_writer import SmartFileWriter
 from ..utils.source_extractor import (
@@ -161,6 +161,7 @@ class ActionOrchestrator:
         self.planning_service = GenerationPlanningService(project_root, self.discoverer)
         self.command_registry = CommandRegistry()
         self.parallel_processor = ParallelFlowgroupProcessor()
+        self._formatter = CodeFormatter()
 
         # Enforce version requirements if specified and enabled
         if self.enforce_version:
@@ -663,6 +664,7 @@ class ActionOrchestrator:
                 specific_flowgroups=specific_flowgroups,
                 state_manager=state_manager,
                 use_directory_discovery=False,
+                pre_discovered_flowgroups=all_flowgroups,
             )
 
         # Early return if no flowgroups to generate
@@ -871,7 +873,7 @@ class ActionOrchestrator:
                         f"format_code [{fg_name}]",
                         category="format_code",
                     ):
-                        formatted_code = format_code(code)
+                        formatted_code = self._formatter.format_code(code)
                     filename = f"{processed_flowgroup.flowgroup}.py"
 
                     # Handle empty content
@@ -1089,6 +1091,7 @@ class ActionOrchestrator:
         specific_flowgroups: List[str] = None,
         state_manager=None,
         use_directory_discovery: bool = False,
+        pre_discovered_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> List[FlowGroup]:
         """
         Discover and filter flowgroups based on generation requirements.
@@ -1132,9 +1135,25 @@ class ActionOrchestrator:
                 )
             all_flowgroups = self.discoverer.discover_flowgroups(pipeline_dir)
         else:
-            all_flowgroups = self.discover_flowgroups_by_pipeline_field(
-                pipeline_identifier
-            )
+            if pre_discovered_flowgroups is not None:
+                all_flowgroups = [
+                    fg
+                    for fg in pre_discovered_flowgroups
+                    if fg.pipeline == pipeline_identifier
+                ]
+                if all_flowgroups:
+                    self.logger.info(
+                        f"Found {len(all_flowgroups)} flowgroup(s) for pipeline: "
+                        f"{pipeline_identifier}"
+                    )
+                else:
+                    self.logger.warning(
+                        f"No flowgroups found for pipeline: {pipeline_identifier}"
+                    )
+            else:
+                all_flowgroups = self.discover_flowgroups_by_pipeline_field(
+                    pipeline_identifier
+                )
 
         # Check if discovery truly failed (no flowgroups exist for this pipeline)
         if not all_flowgroups:
@@ -1418,7 +1437,7 @@ class ActionOrchestrator:
                     f"format_code [{fg.flowgroup}]",
                     category="format_code",
                 ):
-                    formatted = format_code(code)
+                    formatted = self._formatter.format_code(code)
 
                 return FlowgroupResult(
                     flowgroup_name=fg.flowgroup,
