@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 
 from ...models.config import FlowGroup
 from ...parsers.yaml_parser import YAMLParser
+from ...utils.performance_timer import perf_timer
 
 
 class FlowgroupDiscoverer:
@@ -93,45 +94,46 @@ class FlowgroupDiscoverer:
         Returns:
             List of all discovered flowgroups
         """
-        flowgroups = []
-        pipelines_dir = self.project_root / "pipelines"
+        with perf_timer("discover_all_flowgroups [discoverer]"):
+            flowgroups = []
+            pipelines_dir = self.project_root / "pipelines"
 
-        if not pipelines_dir.exists():
-            return flowgroups
+            if not pipelines_dir.exists():
+                return flowgroups
 
-        # Get include patterns from project configuration
-        include_patterns = self.get_include_patterns()
+            # Get include patterns from project configuration
+            include_patterns = self.get_include_patterns()
 
-        if include_patterns:
-            # Use include filtering
-            from ...utils.file_pattern_matcher import discover_files_with_patterns
+            if include_patterns:
+                # Use include filtering
+                from ...utils.file_pattern_matcher import discover_files_with_patterns
 
-            yaml_files = discover_files_with_patterns(pipelines_dir, include_patterns)
-        else:
-            # No include patterns, discover all YAML files (backwards compatibility)
-            yaml_files = []
-            yaml_files.extend(pipelines_dir.rglob("*.yaml"))
-            yaml_files.extend(pipelines_dir.rglob("*.yml"))
+                yaml_files = discover_files_with_patterns(pipelines_dir, include_patterns)
+            else:
+                # No include patterns, discover all YAML files (backwards compatibility)
+                yaml_files = []
+                yaml_files.extend(pipelines_dir.rglob("*.yaml"))
+                yaml_files.extend(pipelines_dir.rglob("*.yml"))
 
-        skipped_files = []
-        for yaml_file in yaml_files:
-            try:
-                # Use parse_flowgroups_from_file() to support multi-flowgroup files
-                file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
-                flowgroups.extend(file_flowgroups)
-                self.logger.debug(
-                    f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
+            skipped_files = []
+            for yaml_file in yaml_files:
+                try:
+                    # Use parse_flowgroups_from_file() to support multi-flowgroup files
+                    file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+                    flowgroups.extend(file_flowgroups)
+                    self.logger.debug(
+                        f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
+                    )
+                except Exception as e:
+                    self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
+                    skipped_files.append(yaml_file.name)
+
+            if skipped_files:
+                self.logger.warning(
+                    f"Skipped {len(skipped_files)} file(s) due to parse errors: {skipped_files}"
                 )
-            except Exception as e:
-                self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
-                skipped_files.append(yaml_file.name)
 
-        if skipped_files:
-            self.logger.warning(
-                f"Skipped {len(skipped_files)} file(s) due to parse errors: {skipped_files}"
-            )
-
-        return flowgroups
+            return flowgroups
 
     def discover_flowgroups_by_pipeline_field(
         self, pipeline_field: str
@@ -170,24 +172,25 @@ class FlowgroupDiscoverer:
         Returns:
             List of include patterns, or empty list if none specified
         """
-        # Always try to reload project config to catch runtime changes
-        # This is needed for E2E tests that modify lhp.yaml during execution
-        if self.config_loader:
-            try:
-                current_config = self.config_loader.load_project_config()
-                if current_config and current_config.include:
-                    return current_config.include
-            except Exception as e:
-                self.logger.warning(
-                    f"Could not load current project config for include patterns: {e}"
-                )
+        with perf_timer("get_include_patterns"):
+            # Always try to reload project config to catch runtime changes
+            # This is needed for E2E tests that modify lhp.yaml during execution
+            if self.config_loader:
+                try:
+                    current_config = self.config_loader.load_project_config()
+                    if current_config and current_config.include:
+                        return current_config.include
+                except Exception as e:
+                    self.logger.warning(
+                        f"Could not load current project config for include patterns: {e}"
+                    )
 
-        # Fallback to cached config if reload fails
-        if self._project_config and self._project_config.include:
-            return self._project_config.include
+            # Fallback to cached config if reload fails
+            if self._project_config and self._project_config.include:
+                return self._project_config.include
 
-        # No include patterns specified, return empty list (no filtering)
-        return []
+            # No include patterns specified, return empty list (no filtering)
+            return []
 
     def get_pipeline_fields(self) -> set[str]:
         """
@@ -294,24 +297,25 @@ class FlowgroupDiscoverer:
         Returns:
             Path to the source YAML file, or None if not found
         """
-        pipelines_dir = self.project_root / "pipelines"
+        with perf_timer(f"find_source_yaml_for_flowgroup [{flowgroup.flowgroup}]"):
+            pipelines_dir = self.project_root / "pipelines"
 
-        if not pipelines_dir.exists():
+            if not pipelines_dir.exists():
+                return None
+
+            # Search both .yaml and .yml extensions
+            for extension in ["*.yaml", "*.yml"]:
+                for yaml_file in pipelines_dir.rglob(extension):
+                    try:
+                        # Use parse_flowgroups_from_file to support multi-flowgroup files
+                        flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+                        for parsed_flowgroup in flowgroups:
+                            if (
+                                parsed_flowgroup.pipeline == flowgroup.pipeline
+                                and parsed_flowgroup.flowgroup == flowgroup.flowgroup
+                            ):
+                                return yaml_file
+                    except Exception as e:
+                        self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
+
             return None
-
-        # Search both .yaml and .yml extensions
-        for extension in ["*.yaml", "*.yml"]:
-            for yaml_file in pipelines_dir.rglob(extension):
-                try:
-                    # Use parse_flowgroups_from_file to support multi-flowgroup files
-                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
-                    for parsed_flowgroup in flowgroups:
-                        if (
-                            parsed_flowgroup.pipeline == flowgroup.pipeline
-                            and parsed_flowgroup.flowgroup == flowgroup.flowgroup
-                        ):
-                            return yaml_file
-                except Exception as e:
-                    self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
-
-        return None

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional
 
+from ..utils.performance_timer import perf_timer
+
 if TYPE_CHECKING:
     from ..models.config import FlowGroup
 
@@ -81,7 +83,9 @@ class ParallelFlowgroupProcessor:
         total: int = len(flowgroups)
         completed: int = 0
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+        with perf_timer(
+            f"parallel_processing [{len(flowgroups)} flowgroups, {self.max_workers} workers]"
+        ), ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # Submit all tasks
             future_to_fg = {executor.submit(process_func, fg): fg for fg in flowgroups}
 

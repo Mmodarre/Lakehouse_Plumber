@@ -20,6 +20,7 @@ from ..utils.error_formatter import (
     LHPValidationError,
 )
 from ..utils.formatter import format_code
+from ..utils.performance_timer import perf_timer
 from ..utils.smart_file_writer import SmartFileWriter
 from ..utils.source_extractor import (
     extract_single_source_view,
@@ -512,7 +513,8 @@ class ActionOrchestrator:
         Returns:
             List of all discovered flowgroups
         """
-        flowgroups = self.discoverer.discover_all_flowgroups()
+        with perf_timer("discover_all_flowgroups [orchestrator]"):
+            flowgroups = self.discoverer.discover_all_flowgroups()
 
         # Append monitoring pipeline if configured
         monitoring_fg = self._build_monitoring_flowgroup(flowgroups)
@@ -579,7 +581,8 @@ class ActionOrchestrator:
         Returns:
             List of flowgroups with the specified pipeline field
         """
-        all_flowgroups = self.discover_all_flowgroups()
+        with perf_timer(f"discover_by_pipeline_field [{pipeline_field}]"):
+            all_flowgroups = self.discover_all_flowgroups()
         matching_flowgroups = []
 
         for flowgroup in all_flowgroups:
@@ -646,18 +649,21 @@ class ActionOrchestrator:
         )
 
         # 1. Validate no duplicates and discover flowgroups
-        all_flowgroups = self.discover_all_flowgroups()
-        self.validate_duplicate_pipeline_flowgroup_combinations(all_flowgroups)
+        with perf_timer("discover_all_flowgroups"):
+            all_flowgroups = self.discover_all_flowgroups()
+        with perf_timer("validate_duplicates"):
+            self.validate_duplicate_pipeline_flowgroup_combinations(all_flowgroups)
 
-        flowgroups = self._discover_and_filter_flowgroups(
-            env=env,
-            pipeline_identifier=pipeline_field,
-            include_tests=include_tests,
-            force_all=force_all,
-            specific_flowgroups=specific_flowgroups,
-            state_manager=state_manager,
-            use_directory_discovery=False,
-        )
+        with perf_timer("discover_and_filter_flowgroups"):
+            flowgroups = self._discover_and_filter_flowgroups(
+                env=env,
+                pipeline_identifier=pipeline_field,
+                include_tests=include_tests,
+                force_all=force_all,
+                specific_flowgroups=specific_flowgroups,
+                state_manager=state_manager,
+                use_directory_discovery=False,
+            )
 
         # Early return if no flowgroups to generate
         # Note: Empty list can be due to smart filtering (everything up-to-date), not an error
@@ -671,9 +677,10 @@ class ActionOrchestrator:
             pipeline_output_dir.mkdir(parents=True, exist_ok=True)
 
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
-        substitution_mgr = self.dependencies.create_substitution_manager(
-            substitution_file, env
-        )
+        with perf_timer("create_substitution_manager"):
+            substitution_mgr = self.dependencies.create_substitution_manager(
+                substitution_file, env
+            )
         smart_writer = self.dependencies.create_file_writer()
 
         # 3. Check if parallel processing should be used
@@ -723,9 +730,10 @@ class ActionOrchestrator:
 
         # 4. Validate table creation rules
         try:
-            errors = self.config_validator.validate_table_creation_rules(
-                processed_flowgroups
-            )
+            with perf_timer("validate_table_creation_rules"):
+                errors = self.config_validator.validate_table_creation_rules(
+                    processed_flowgroups
+                )
             if errors:
                 raise LHPValidationError(
                     category=ErrorCategory.VALIDATION,
@@ -836,21 +844,34 @@ class ActionOrchestrator:
                 )
 
                 try:
-                    source_yaml = self._find_source_yaml_for_flowgroup(
-                        processed_flowgroup
-                    )
+                    fg_name = processed_flowgroup.flowgroup
+                    with perf_timer(
+                        f"find_source_yaml [{fg_name}]",
+                        category="find_source_yaml",
+                    ):
+                        source_yaml = self._find_source_yaml_for_flowgroup(
+                            processed_flowgroup
+                        )
 
-                    code = self.generate_flowgroup_code(
-                        processed_flowgroup,
-                        substitution_mgr,
-                        pipeline_output_dir,
-                        state_manager,
-                        source_yaml,
-                        env,
-                        include_tests,
-                        python_copier,
-                    )
-                    formatted_code = format_code(code)
+                    with perf_timer(
+                        f"generate_code [{fg_name}]",
+                        category="generate_code",
+                    ):
+                        code = self.generate_flowgroup_code(
+                            processed_flowgroup,
+                            substitution_mgr,
+                            pipeline_output_dir,
+                            state_manager,
+                            source_yaml,
+                            env,
+                            include_tests,
+                            python_copier,
+                        )
+                    with perf_timer(
+                        f"format_code [{fg_name}]",
+                        category="format_code",
+                    ):
+                        formatted_code = format_code(code)
                     filename = f"{processed_flowgroup.flowgroup}.py"
 
                     # Handle empty content
@@ -868,7 +889,11 @@ class ActionOrchestrator:
                     generated_files[filename] = formatted_code
                     if pipeline_output_dir:
                         output_file = pipeline_output_dir / filename
-                        smart_writer.write_if_changed(output_file, formatted_code)
+                        with perf_timer(
+                            f"write_file [{fg_name}]",
+                            category="write_file",
+                        ):
+                            smart_writer.write_if_changed(output_file, formatted_code)
 
                         # Track in state manager (using helper)
                         if state_manager and source_yaml:
@@ -907,7 +932,8 @@ class ActionOrchestrator:
 
         # 6. Finalize
         if state_manager:
-            state_manager.save()
+            with perf_timer("state_save"):
+                state_manager.save()
         if pipeline_output_dir:
             files_written, files_skipped = smart_writer.get_stats()
             self.logger.info(
@@ -1230,7 +1256,11 @@ class ActionOrchestrator:
         for flowgroup in flowgroups:
             self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
             try:
-                processed_fg = self.process_flowgroup(flowgroup, substitution_mgr)
+                with perf_timer(
+                    f"process_flowgroup [{flowgroup.flowgroup}]",
+                    category="process_flowgroup",
+                ):
+                    processed_fg = self.process_flowgroup(flowgroup, substitution_mgr)
                 # Propagate private attributes that don't survive model_dump/reconstruct
                 if flowgroup._auxiliary_files:
                     processed_fg._auxiliary_files = flowgroup._auxiliary_files
@@ -1353,26 +1383,42 @@ class ActionOrchestrator:
             """Process a single flowgroup (runs in worker thread)."""
             try:
                 # Process flowgroup
-                processed = self.process_flowgroup(fg, substitution_mgr)
+                with perf_timer(
+                    f"process_flowgroup [{fg.flowgroup}]",
+                    category="process_flowgroup",
+                ):
+                    processed = self.process_flowgroup(fg, substitution_mgr)
                 # Propagate private attributes that don't survive model_dump/reconstruct
                 if fg._auxiliary_files:
                     processed._auxiliary_files = fg._auxiliary_files
-                source_yaml = self._find_source_yaml_for_flowgroup(fg)
+                with perf_timer(
+                    f"find_source_yaml [{fg.flowgroup}]",
+                    category="find_source_yaml",
+                ):
+                    source_yaml = self._find_source_yaml_for_flowgroup(fg)
 
                 # Generate code with shared Python file copier
-                code = self.generate_flowgroup_code(
-                    processed,
-                    substitution_mgr,
-                    output_dir,
-                    None,
-                    source_yaml,
-                    env,
-                    include_tests,
-                    python_copier,
-                )
+                with perf_timer(
+                    f"generate_code [{fg.flowgroup}]",
+                    category="generate_code",
+                ):
+                    code = self.generate_flowgroup_code(
+                        processed,
+                        substitution_mgr,
+                        output_dir,
+                        None,
+                        source_yaml,
+                        env,
+                        include_tests,
+                        python_copier,
+                    )
 
                 # Format code
-                formatted = format_code(code)
+                with perf_timer(
+                    f"format_code [{fg.flowgroup}]",
+                    category="format_code",
+                ):
+                    formatted = format_code(code)
 
                 return FlowgroupResult(
                     flowgroup_name=fg.flowgroup,

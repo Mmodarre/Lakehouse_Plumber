@@ -8,6 +8,7 @@ import click
 
 from ...bundle.exceptions import BundleResourceError
 from ...bundle.manager import BundleManager
+from ...utils.performance_timer import log_perf_summary, perf_timer
 from ...core.layers import (
     AnalysisResponse,
     GenerationResponse,
@@ -88,14 +89,16 @@ class GenerateCommand(BaseCommand):
         self.check_substitution_file(env)
 
         # 4. Initialize application layer facade
-        application_facade = self._create_application_facade(
-            project_root, no_cleanup, pipeline_config
-        )
+        with perf_timer("Orchestrator init", phase=True):
+            application_facade = self._create_application_facade(
+                project_root, no_cleanup, pipeline_config
+            )
 
         # 5. Discover pipelines to generate (coordinate with application layer)
-        pipelines_to_generate = self._discover_pipelines_for_generation(
-            pipeline, application_facade
-        )
+        with perf_timer("Pipeline discovery", phase=True):
+            pipelines_to_generate = self._discover_pipelines_for_generation(
+                pipeline, application_facade
+            )
 
         if not pipelines_to_generate:
             from ...utils.error_formatter import ErrorCategory, LHPConfigError
@@ -116,19 +119,21 @@ class GenerateCommand(BaseCommand):
 
         # 6. Handle cleanup operations (coordinate)
         if not no_cleanup:
-            self._handle_cleanup_operations(
-                application_facade, env, output_dir, dry_run
-            )
+            with perf_timer("Cleanup operations", phase=True):
+                self._handle_cleanup_operations(
+                    application_facade, env, output_dir, dry_run
+                )
 
         # 7. Analyze generation requirements (show context changes)
-        self._display_generation_analysis(
-            application_facade,
-            pipelines_to_generate,
-            env,
-            include_tests,
-            force,
-            no_cleanup,
-        )
+        with perf_timer("Staleness analysis", phase=True):
+            self._display_generation_analysis(
+                application_facade,
+                pipelines_to_generate,
+                env,
+                include_tests,
+                force,
+                no_cleanup,
+            )
 
         # 8. Execute generation for each pipeline (pure coordination)
         total_files = 0
@@ -136,17 +141,20 @@ class GenerateCommand(BaseCommand):
 
         for pipeline_identifier in pipelines_to_generate:
             logger.debug(f"Starting generation for pipeline: {pipeline_identifier}")
-            response = self._execute_pipeline_generation(
-                application_facade,
-                pipeline_identifier,
-                env,
-                output_dir,
-                dry_run,
-                force,
-                include_tests,
-                no_cleanup,
-                pipeline_config,
-            )
+            with perf_timer(
+                f"Pipeline generation [{pipeline_identifier}]", phase=True
+            ):
+                response = self._execute_pipeline_generation(
+                    application_facade,
+                    pipeline_identifier,
+                    env,
+                    output_dir,
+                    dry_run,
+                    force,
+                    include_tests,
+                    no_cleanup,
+                    pipeline_config,
+                )
 
             # Display results (presentation)
             self._display_generation_response(response, pipeline_identifier)
@@ -157,18 +165,22 @@ class GenerateCommand(BaseCommand):
 
         # 9. Handle bundle operations (coordinate)
         if not no_bundle:
-            self._handle_bundle_operations(
-                project_root,
-                output_dir,
-                env,
-                no_bundle,
-                dry_run,
-                force,
-                pipeline_config,
-                project_config=application_facade.orchestrator.project_config,
-            )
+            with perf_timer("Bundle sync", phase=True):
+                self._handle_bundle_operations(
+                    project_root,
+                    output_dir,
+                    env,
+                    no_bundle,
+                    dry_run,
+                    force,
+                    pipeline_config,
+                    project_config=application_facade.orchestrator.project_config,
+                )
 
-        # 10. Display completion message (presentation)
+        # 10. Log performance summary (before completion message)
+        log_perf_summary()
+
+        # 11. Display completion message (presentation)
         logger.info(
             f"Generation complete: {total_files} file(s) generated, "
             f"{len(all_generated_files)} total output file(s)"
