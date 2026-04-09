@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: asset_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_asset_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/asset/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_asset_cloudfiles
+    description: "Load asset from landing volume"
+
+  - name: write_asset_raw
+    type: write
+    source: v_asset_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "asset_raw"

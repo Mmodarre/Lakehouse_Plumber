@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: supplier_contract_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: supplier_contract_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: supplier_contract_dim
+    target: v_supplier_contract_silver
+    description: "Load supplier_contract from silver for modelling"
+
+  - name: supplier_contract_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_supplier_contract_silver
+    target: v_supplier_contract_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_supplier_contract_silver
+
+  - name: write_supplier_contract_modelled
+    type: write
+    source: v_supplier_contract_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "supplier_contract_modelled"

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: lease_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: lease_raw
+  landing_folder: lease
+  schema_file: nation_schema

@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: scholarship_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: scholarship_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: scholarship_raw
+    target: v_scholarship_raw
+    description: "Load scholarship from raw schema"
+
+  - name: scholarship_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_scholarship_raw
+    target: v_scholarship_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as scholarship_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_scholarship_raw
+
+  - name: scholarship_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_scholarship_bronze_cleaned
+    target: v_scholarship_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for scholarship bronze"
+
+  - name: write_scholarship_bronze
+    type: write
+    source: v_scholarship_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "scholarship"
+
+  - name: scholarship_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: scholarship_migration
+    target: v_scholarship_migration
+    description: "Load scholarship migration data"
+
+  - name: scholarship_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_scholarship_migration
+    target: v_scholarship_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as scholarship_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_scholarship_migration
+
+  - name: write_scholarship_migration
+    type: write
+    source: v_scholarship_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "scholarship"

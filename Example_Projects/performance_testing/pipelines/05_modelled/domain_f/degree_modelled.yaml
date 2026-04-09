@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: degree_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: degree_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: degree_dim
+    target: v_degree_silver
+    description: "Load degree from silver for modelling"
+
+  - name: degree_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_degree_silver
+    target: v_degree_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_degree_silver
+
+  - name: write_degree_modelled
+    type: write
+    source: v_degree_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "degree_modelled"

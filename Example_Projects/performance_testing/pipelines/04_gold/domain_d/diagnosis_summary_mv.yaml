@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: diagnosis_summary_mv
+actions:
+  - name: diagnosis_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.diagnosis_dim
+    target: v_diagnosis_summary
+
+  - name: write_diagnosis_summary_mv
+    type: write
+    source: v_diagnosis_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "diagnosis_summary_mv"

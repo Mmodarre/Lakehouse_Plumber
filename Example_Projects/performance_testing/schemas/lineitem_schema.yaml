@@ -1,0 +1,78 @@
+# This schema is used to define the orders table schema
+# It is used for the schema_hint column of autoloader to overeride the inferred schema
+name: orders
+version: "1.0"
+description: "Orders fact table schema"
+
+
+columns:
+  - name: l_orderkey
+    type: BIGINT
+    nullable: false
+    comment: "Order key - primary identifier" 
+  - name: l_partkey
+    type: BIGINT
+    nullable: false
+    comment: "Part key - foreign key to part"
+  - name: l_suppkey
+    type: BIGINT
+    nullable: false
+    comment: "Supplier key - foreign key to supplier"
+  - name: l_linenumber
+    type: INT
+    nullable: false
+    comment: "Line number"
+  - name: l_quantity
+    type: DECIMAL(18,2)
+    nullable: false
+    comment: "Quantity"
+  - name: l_extendedprice
+    type: DECIMAL(18,2)
+    nullable: false
+    comment: "Extended price"
+  - name: l_discount
+    type: DECIMAL(18,2)
+    nullable: false
+    comment: "Discount"
+  - name: l_tax
+    type: DECIMAL(18,2)
+    nullable: false
+    comment: "Tax"
+  - name: l_returnflag
+    type: STRING
+    nullable: false
+    comment: "Return flag"
+  - name: l_linestatus
+    type: STRING
+    nullable: false
+    comment: "Line status"
+  - name: l_shipdate
+    type: DATE
+    nullable: false
+    comment: "Ship date"
+  - name: l_commitdate
+    type: DATE
+    nullable: false
+    comment: "Commit date"
+  - name: l_receiptdate
+    type: DATE
+    nullable: false
+    comment: "Receipt date"
+  - name: l_shipinstruct
+    type: STRING
+    nullable: false
+    comment: "Ship instruction"
+  - name: l_shipmode
+    type: STRING
+    nullable: false
+    comment: "Ship mode"
+  - name: l_comment
+    type: STRING
+    nullable: false
+    comment: "Comment"
+  - name: last_modified_dt
+    type: TIMESTAMP
+    nullable: true
+    comment: "Last modified date"
+
+primary_key: [l_orderkey] 

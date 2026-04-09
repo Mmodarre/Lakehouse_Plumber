@@ -1,0 +1,24 @@
+pipeline: perf_gold
+flowgroup: hub_quarterly_agg_mv
+actions:
+  - name: hub_quarterly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('quarter', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.hub_dim
+        GROUP BY 1
+    target: v_hub_quarterly_agg
+
+  - name: write_hub_quarterly_agg_mv
+    type: write
+    source: v_hub_quarterly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "hub_quarterly_agg_mv"

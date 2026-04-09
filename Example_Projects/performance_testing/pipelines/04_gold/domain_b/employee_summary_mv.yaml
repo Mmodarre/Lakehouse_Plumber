@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: employee_summary_mv
+actions:
+  - name: employee_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.employee_dim
+    target: v_employee_summary
+
+  - name: write_employee_summary_mv
+    type: write
+    source: v_employee_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "employee_summary_mv"

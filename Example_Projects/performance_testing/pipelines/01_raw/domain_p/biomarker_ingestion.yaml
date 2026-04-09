@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: biomarker_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: biomarker_raw
+  landing_folder: biomarker
+  schema_file: customer_schema

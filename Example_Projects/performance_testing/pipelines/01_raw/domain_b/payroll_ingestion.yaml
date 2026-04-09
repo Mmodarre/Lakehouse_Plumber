@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: payroll_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: payroll_raw
+  landing_folder: payroll
+  schema_file: partsupp_schema

@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: itinerary_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: itinerary_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: itinerary_raw
+    target: v_itinerary_raw
+    description: "Load itinerary from raw schema"
+
+  - name: itinerary_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_itinerary_raw
+    target: v_itinerary_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as itinerary_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_itinerary_raw
+      WHERE 1=1
+
+  - name: itinerary_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_itinerary_bronze_cleaned
+    target: v_itinerary_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to itinerary"
+
+  - name: write_itinerary_bronze
+    type: write
+    source: v_itinerary_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "itinerary"

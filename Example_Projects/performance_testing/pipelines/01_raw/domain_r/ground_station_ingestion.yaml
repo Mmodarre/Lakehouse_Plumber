@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: ground_station_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: ground_station_raw
+  landing_folder: ground_station
+  schema_file: nation_schema

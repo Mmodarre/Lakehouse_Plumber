@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: petri_dish_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: petri_dish_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: petri_dish_dim
+    target: v_petri_dish_silver
+    description: "Load petri_dish from silver for modelling"
+
+  - name: petri_dish_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_petri_dish_silver
+    target: v_petri_dish_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_petri_dish_silver
+
+  - name: write_petri_dish_modelled
+    type: write
+    source: v_petri_dish_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "petri_dish_modelled"

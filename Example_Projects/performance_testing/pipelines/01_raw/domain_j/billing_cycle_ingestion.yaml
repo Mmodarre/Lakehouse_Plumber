@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: billing_cycle_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: billing_cycle_raw
+  landing_folder: billing_cycle
+  schema_file: customer_schema

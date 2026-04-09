@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: boarding_pass_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: boarding_pass_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: boarding_pass_dim
+    target: v_boarding_pass_silver
+    description: "Load boarding_pass from silver for modelling"
+
+  - name: boarding_pass_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_boarding_pass_silver
+    target: v_boarding_pass_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_boarding_pass_silver
+
+  - name: write_boarding_pass_modelled
+    type: write
+    source: v_boarding_pass_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "boarding_pass_modelled"

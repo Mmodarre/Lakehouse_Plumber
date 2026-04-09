@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: scrap_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: scrap_raw
+  landing_folder: scrap
+  schema_file: customer_schema

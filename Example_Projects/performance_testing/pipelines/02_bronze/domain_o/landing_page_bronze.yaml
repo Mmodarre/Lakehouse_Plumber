@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: landing_page_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: landing_page
+  source_table: landing_page_raw

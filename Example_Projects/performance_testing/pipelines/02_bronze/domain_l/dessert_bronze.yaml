@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: dessert_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: dessert_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: dessert_raw
+    target: v_dessert_raw
+    description: "Load dessert from raw schema"
+
+  - name: dessert_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_dessert_raw
+    target: v_dessert_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as dessert_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_dessert_raw
+      WHERE 1=1
+
+  - name: dessert_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_dessert_bronze_cleaned
+    target: v_dessert_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to dessert"
+
+  - name: write_dessert_bronze
+    type: write
+    source: v_dessert_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "dessert"

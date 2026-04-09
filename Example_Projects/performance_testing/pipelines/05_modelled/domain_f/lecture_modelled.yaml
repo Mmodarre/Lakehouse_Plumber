@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: lecture_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lecture_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lecture_dim
+    target: v_lecture_silver
+    description: "Load lecture from silver for modelling"
+
+  - name: lecture_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lecture_silver
+    target: v_lecture_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lecture_silver
+
+  - name: write_lecture_modelled
+    type: write
+    source: v_lecture_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lecture_modelled"

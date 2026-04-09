@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: beneficiary_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: beneficiary_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: beneficiary_dim
+    target: v_beneficiary_silver
+    description: "Load beneficiary from silver for modelling"
+
+  - name: beneficiary_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_beneficiary_silver
+    target: v_beneficiary_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_beneficiary_silver
+
+  - name: write_beneficiary_modelled
+    type: write
+    source: v_beneficiary_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "beneficiary_modelled"

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: generation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: generation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: generation_dim
+    target: v_generation_silver
+    description: "Load generation from silver for modelling"
+
+  - name: generation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_generation_silver
+    target: v_generation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_generation_silver
+
+  - name: write_generation_modelled
+    type: write
+    source: v_generation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "generation_modelled"

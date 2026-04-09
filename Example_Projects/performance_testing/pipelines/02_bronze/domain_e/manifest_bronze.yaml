@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: manifest_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: manifest_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: manifest_raw
+    target: v_manifest_raw
+    description: "Load manifest from raw schema"
+
+  - name: manifest_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_manifest_raw
+    target: v_manifest_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as manifest_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_manifest_raw
+      WHERE 1=1
+
+  - name: manifest_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_manifest_bronze_cleaned
+    target: v_manifest_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to manifest"
+
+  - name: write_manifest_bronze
+    type: write
+    source: v_manifest_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "manifest"

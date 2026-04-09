@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: tenant_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: tenant_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: tenant
+    target: v_tenant_bronze
+    description: "Load tenant from bronze for silver layer"
+
+  - name: write_tenant_silver
+    type: write
+    source: v_tenant_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "tenant_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["tenant_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

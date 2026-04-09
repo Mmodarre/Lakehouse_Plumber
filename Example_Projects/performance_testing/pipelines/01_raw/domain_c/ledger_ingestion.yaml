@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: ledger_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: ledger_raw
+  landing_folder: ledger
+  schema_file: nation_schema

@@ -1,0 +1,24 @@
+pipeline: perf_gold
+flowgroup: constellation_daily_agg_mv
+actions:
+  - name: constellation_daily_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('day', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.constellation_dim
+        GROUP BY 1
+    target: v_constellation_daily_agg
+
+  - name: write_constellation_daily_agg_mv
+    type: write
+    source: v_constellation_daily_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "constellation_daily_agg_mv"

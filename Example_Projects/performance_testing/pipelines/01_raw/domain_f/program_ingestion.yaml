@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: program_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: program_raw
+  landing_folder: program
+  schema_file: partsupp_schema

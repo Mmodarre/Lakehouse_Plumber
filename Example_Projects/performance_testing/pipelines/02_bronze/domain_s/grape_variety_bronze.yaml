@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: grape_variety_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: grape_variety
+  source_table: grape_variety_raw

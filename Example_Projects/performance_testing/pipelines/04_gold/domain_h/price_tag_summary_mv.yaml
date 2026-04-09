@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: price_tag_summary_mv
+actions:
+  - name: price_tag_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.price_tag_dim
+    target: v_price_tag_summary
+
+  - name: write_price_tag_summary_mv
+    type: write
+    source: v_price_tag_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "price_tag_summary_mv"

@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: assay_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: assay_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: assay_raw
+    target: v_assay_raw
+    description: "Load assay from raw schema"
+
+  - name: assay_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_assay_raw
+    target: v_assay_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as assay_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_assay_raw
+      WHERE 1=1
+
+  - name: assay_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_assay_bronze_cleaned
+    target: v_assay_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to assay"
+
+  - name: write_assay_bronze
+    type: write
+    source: v_assay_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "assay"

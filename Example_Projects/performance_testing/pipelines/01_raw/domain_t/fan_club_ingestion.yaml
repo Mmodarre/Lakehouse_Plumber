@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: fan_club_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: fan_club_raw
+  landing_folder: fan_club
+  schema_file: partsupp_schema

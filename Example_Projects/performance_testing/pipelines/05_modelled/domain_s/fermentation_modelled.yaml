@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: fermentation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: fermentation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: fermentation_dim
+    target: v_fermentation_silver
+    description: "Load fermentation from silver for modelling"
+
+  - name: fermentation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_fermentation_silver
+    target: v_fermentation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_fermentation_silver
+
+  - name: write_fermentation_modelled
+    type: write
+    source: v_fermentation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "fermentation_modelled"

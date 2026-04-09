@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "table": "customer",
+  "expectations": [
+    {
+      "name": "valid_custkey",
+      "expression": "customer_id IS NOT NULL AND customer_id > 0",
+      "failureAction": "fail"
+    },
+    {
+      "name": "valid_customer_name",
+      "expression": "name IS NOT NULL AND LENGTH(TRIM(name)) > 0",
+      "failureAction": "fail"
+    },
+    {
+      "name": "valid_nation_key",
+      "expression": "nation_id IS NOT NULL AND nation_id >= 0",
+      "failureAction": "fail"
+    },
+    {
+      "name": "valid_phone_format",
+      "expression": "phone IS NULL OR LENGTH(phone) >= 10",
+      "failureAction": "warn"
+    },
+    {
+      "name": "valid_account_balance",
+      "expression": "account_balance IS NULL OR account_balance >= -10000",
+      "failureAction": "warn"
+    },
+    {
+      "name": "valid_market_segment",
+      "expression": "market_segment IS NULL OR market_segment IN ('BUILDING', 'FURNITURE', 'HOUSEHOLD', 'MACHINERY')",
+      "failureAction": "warn"
+    }
+  ]
+} 

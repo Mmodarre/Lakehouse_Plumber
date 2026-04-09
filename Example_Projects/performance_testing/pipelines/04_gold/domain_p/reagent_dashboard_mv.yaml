@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: reagent_dashboard_mv
+actions:
+  - name: reagent_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.reagent_dim
+    target: v_reagent_dashboard
+
+  - name: write_reagent_dashboard_mv
+    type: write
+    source: v_reagent_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "reagent_dashboard_mv"

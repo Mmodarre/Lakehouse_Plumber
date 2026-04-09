@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: medication_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: medication_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: medication_raw
+    target: v_medication_raw
+    description: "Load medication from raw schema"
+
+  - name: medication_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_medication_raw
+    target: v_medication_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as medication_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_medication_raw
+      WHERE 1=1
+
+  - name: medication_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_medication_bronze_cleaned
+    target: v_medication_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to medication"
+
+  - name: write_medication_bronze
+    type: write
+    source: v_medication_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "medication"

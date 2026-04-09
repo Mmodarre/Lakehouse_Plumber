@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: customer_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: customer
+  source_table: customer_raw

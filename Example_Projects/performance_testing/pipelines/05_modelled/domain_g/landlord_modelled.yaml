@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: landlord_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: landlord_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: landlord_dim
+    target: v_landlord_silver
+    description: "Load landlord from silver for modelling"
+
+  - name: landlord_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_landlord_silver
+    target: v_landlord_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_landlord_silver
+
+  - name: write_landlord_modelled
+    type: write
+    source: v_landlord_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "landlord_modelled"

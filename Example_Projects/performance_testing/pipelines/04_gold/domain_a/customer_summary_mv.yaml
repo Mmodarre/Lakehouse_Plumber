@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: customer_summary_mv
+actions:
+  - name: customer_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.customer_dim
+    target: v_customer_summary
+
+  - name: write_customer_summary_mv
+    type: write
+    source: v_customer_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "customer_summary_mv"

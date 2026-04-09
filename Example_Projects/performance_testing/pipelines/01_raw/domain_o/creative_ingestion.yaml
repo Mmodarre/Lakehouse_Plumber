@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: creative_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: creative_raw
+  landing_folder: creative
+  schema_file: lineitem_schema

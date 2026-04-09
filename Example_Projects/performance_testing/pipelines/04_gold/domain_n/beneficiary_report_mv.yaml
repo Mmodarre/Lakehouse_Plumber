@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: beneficiary_report_mv
+actions:
+  - name: beneficiary_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.beneficiary_dim
+    target: v_beneficiary_report
+
+  - name: write_beneficiary_report_mv
+    type: write
+    source: v_beneficiary_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "beneficiary_report_mv"

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: currency_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: currency_raw
+  landing_folder: currency
+  schema_file: part_schema

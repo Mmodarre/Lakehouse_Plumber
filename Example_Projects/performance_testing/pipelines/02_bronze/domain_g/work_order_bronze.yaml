@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: work_order_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: work_order
+  source_table: work_order_raw

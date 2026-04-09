@@ -1,0 +1,25 @@
+# This schema is used to define the nation table schema
+# It is used for the schema_hint column of autoloader to overeride the inferred schema
+name: orders
+version: "1.0"
+description: "Orders fact table schema"
+
+columns:
+  - name: n_nationkey
+    type: BIGINT
+    nullable: false
+    comment: "Nation key - primary identifier"
+  - name: n_name
+    type: STRING
+    nullable: false
+    comment: "Nation name"
+  - name: n_regionkey
+    type: BIGINT
+    nullable: false
+    comment: "Region key - foreign key to region"
+  - name: last_modified_dt
+    type: TIMESTAMP
+    nullable: true
+    comment: "Last modified date"
+
+primary_key: [n_nationkey]

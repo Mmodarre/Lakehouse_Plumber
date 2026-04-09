@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: student_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: student_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: student_dim
+    target: v_student_silver
+    description: "Load student from silver for modelling"
+
+  - name: student_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_student_silver
+    target: v_student_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_student_silver
+
+  - name: write_student_modelled
+    type: write
+    source: v_student_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "student_modelled"

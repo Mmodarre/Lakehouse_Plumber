@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: discharge_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: discharge_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: discharge_raw
+    target: v_discharge_raw
+    description: "Load discharge from raw schema"
+
+  - name: discharge_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_discharge_raw
+    target: v_discharge_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as discharge_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_discharge_raw
+      WHERE 1=1
+
+  - name: discharge_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_discharge_bronze_cleaned
+    target: v_discharge_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to discharge"
+
+  - name: write_discharge_bronze
+    type: write
+    source: v_discharge_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "discharge"

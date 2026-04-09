@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: aging_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: aging_raw
+  landing_folder: aging
+  schema_file: customer_schema

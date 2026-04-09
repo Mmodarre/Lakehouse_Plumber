@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: threshold_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: threshold_raw
+  landing_folder: threshold
+  schema_file: lineitem_schema

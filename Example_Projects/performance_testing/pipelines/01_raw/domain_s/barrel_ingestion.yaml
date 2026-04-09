@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: barrel_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: barrel_raw
+  landing_folder: barrel
+  schema_file: part_schema

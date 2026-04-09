@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: settlement_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: settlement_raw
+  landing_folder: settlement
+  schema_file: part_schema

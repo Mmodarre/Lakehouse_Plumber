@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: profit_center_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: profit_center_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: profit_center_dim
+    target: v_profit_center_silver
+    description: "Load profit_center from silver for modelling"
+
+  - name: profit_center_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_profit_center_silver
+    target: v_profit_center_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_profit_center_silver
+
+  - name: write_profit_center_modelled
+    type: write
+    source: v_profit_center_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "profit_center_modelled"

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: net_metering_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: net_metering_raw
+  landing_folder: net_metering
+  schema_file: orders_schema

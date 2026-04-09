@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: vintage_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: vintage_raw
+  landing_folder: vintage
+  schema_file: customer_schema

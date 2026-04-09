@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: leave_request_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: leave_request_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: leave_request_dim
+    target: v_leave_request_silver
+    description: "Load leave_request from silver for modelling"
+
+  - name: leave_request_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_leave_request_silver
+    target: v_leave_request_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_leave_request_silver
+
+  - name: write_leave_request_modelled
+    type: write
+    source: v_leave_request_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "leave_request_modelled"

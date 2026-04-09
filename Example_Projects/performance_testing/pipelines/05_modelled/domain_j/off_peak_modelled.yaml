@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: off_peak_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: off_peak_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: off_peak_dim
+    target: v_off_peak_silver
+    description: "Load off_peak from silver for modelling"
+
+  - name: off_peak_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_off_peak_silver
+    target: v_off_peak_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_off_peak_silver
+
+  - name: write_off_peak_modelled
+    type: write
+    source: v_off_peak_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "off_peak_modelled"

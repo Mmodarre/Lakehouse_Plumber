@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: restaurant_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: restaurant_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: restaurant_dim
+    target: v_restaurant_silver
+    description: "Load restaurant from silver for modelling"
+
+  - name: restaurant_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_restaurant_silver
+    target: v_restaurant_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_restaurant_silver
+
+  - name: write_restaurant_modelled
+    type: write
+    source: v_restaurant_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "restaurant_modelled"

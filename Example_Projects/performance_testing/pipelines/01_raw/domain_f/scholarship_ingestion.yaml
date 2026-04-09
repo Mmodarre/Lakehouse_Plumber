@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: scholarship_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: scholarship_raw
+  landing_folder: scholarship
+  schema_file: nation_schema

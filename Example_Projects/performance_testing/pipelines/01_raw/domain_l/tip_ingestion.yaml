@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: tip_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: tip_raw
+  landing_folder: tip
+  schema_file: partsupp_schema

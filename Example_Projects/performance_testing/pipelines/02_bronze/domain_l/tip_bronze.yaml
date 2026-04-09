@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: tip_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: tip_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: tip_raw
+    target: v_tip_raw
+    description: "Load tip from raw schema"
+
+  - name: tip_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_tip_raw
+    target: v_tip_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as tip_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_tip_raw
+      WHERE 1=1
+
+  - name: tip_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_tip_bronze_cleaned
+    target: v_tip_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to tip"
+
+  - name: write_tip_bronze
+    type: write
+    source: v_tip_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "tip"

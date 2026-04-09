@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: cost_center_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: cost_center_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cost_center_raw
+    target: v_cost_center_raw
+    description: "Load cost_center from raw schema"
+
+  - name: cost_center_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_cost_center_raw
+    target: v_cost_center_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cost_center_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_cost_center_raw
+      WHERE 1=1
+
+  - name: cost_center_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_cost_center_bronze_cleaned
+    target: v_cost_center_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to cost_center"
+
+  - name: write_cost_center_bronze
+    type: write
+    source: v_cost_center_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cost_center"

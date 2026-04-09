@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: genre_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: genre_raw
+  landing_folder: genre
+  schema_file: lineitem_schema

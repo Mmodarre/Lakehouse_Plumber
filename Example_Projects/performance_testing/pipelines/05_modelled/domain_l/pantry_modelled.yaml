@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: pantry_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: pantry_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: pantry_dim
+    target: v_pantry_silver
+    description: "Load pantry from silver for modelling"
+
+  - name: pantry_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pantry_silver
+    target: v_pantry_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_pantry_silver
+
+  - name: write_pantry_modelled
+    type: write
+    source: v_pantry_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "pantry_modelled"

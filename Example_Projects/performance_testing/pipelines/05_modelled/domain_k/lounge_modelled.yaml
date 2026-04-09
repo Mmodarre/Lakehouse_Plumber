@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: lounge_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lounge_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lounge_dim
+    target: v_lounge_silver
+    description: "Load lounge from silver for modelling"
+
+  - name: lounge_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lounge_silver
+    target: v_lounge_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lounge_silver
+
+  - name: write_lounge_modelled
+    type: write
+    source: v_lounge_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lounge_modelled"

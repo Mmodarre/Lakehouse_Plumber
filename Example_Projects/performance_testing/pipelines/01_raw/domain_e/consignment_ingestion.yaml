@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: consignment_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: consignment_raw
+  landing_folder: consignment
+  schema_file: customer_schema

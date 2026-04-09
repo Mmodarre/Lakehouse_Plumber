@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: gene_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: gene
+  source_table: gene_raw

@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: brand_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: brand_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: brand_raw
+    target: v_brand_raw
+    description: "Load brand from raw schema"
+
+  - name: brand_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_brand_raw
+    target: v_brand_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as brand_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_brand_raw
+      WHERE 1=1
+
+  - name: brand_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_brand_bronze_cleaned
+    target: v_brand_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to brand"
+
+  - name: write_brand_bronze
+    type: write
+    source: v_brand_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "brand"

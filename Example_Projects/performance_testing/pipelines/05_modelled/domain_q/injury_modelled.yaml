@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: injury_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: injury_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: injury_dim
+    target: v_injury_silver
+    description: "Load injury from silver for modelling"
+
+  - name: injury_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_injury_silver
+    target: v_injury_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_injury_silver
+
+  - name: write_injury_modelled
+    type: write
+    source: v_injury_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "injury_modelled"

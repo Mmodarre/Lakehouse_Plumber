@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: cockpit_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: cockpit_raw
+  landing_folder: cockpit
+  schema_file: nation_schema

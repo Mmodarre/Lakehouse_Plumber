@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: voltage_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: voltage_raw
+  landing_folder: voltage
+  schema_file: partsupp_schema

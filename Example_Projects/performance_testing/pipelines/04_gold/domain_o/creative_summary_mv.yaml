@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: creative_summary_mv
+actions:
+  - name: creative_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.creative_dim
+    target: v_creative_summary
+
+  - name: write_creative_summary_mv
+    type: write
+    source: v_creative_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "creative_summary_mv"

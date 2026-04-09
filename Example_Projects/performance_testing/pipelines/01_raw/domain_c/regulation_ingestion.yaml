@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: regulation_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: regulation_raw
+  landing_folder: regulation
+  schema_file: nation_schema

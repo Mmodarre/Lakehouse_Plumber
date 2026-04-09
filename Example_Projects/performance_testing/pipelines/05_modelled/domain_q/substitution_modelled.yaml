@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: substitution_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: substitution_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: substitution_dim
+    target: v_substitution_silver
+    description: "Load substitution from silver for modelling"
+
+  - name: substitution_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_substitution_silver
+    target: v_substitution_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_substitution_silver
+
+  - name: write_substitution_modelled
+    type: write
+    source: v_substitution_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "substitution_modelled"

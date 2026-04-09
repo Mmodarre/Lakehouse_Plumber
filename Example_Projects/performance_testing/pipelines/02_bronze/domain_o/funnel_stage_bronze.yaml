@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: funnel_stage_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: funnel_stage_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: funnel_stage_raw
+    target: v_funnel_stage_raw
+    description: "Load funnel_stage from raw schema"
+
+  - name: funnel_stage_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_funnel_stage_raw
+    target: v_funnel_stage_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as funnel_stage_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_funnel_stage_raw
+      WHERE 1=1
+
+  - name: funnel_stage_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_funnel_stage_bronze_cleaned
+    target: v_funnel_stage_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to funnel_stage"
+
+  - name: write_funnel_stage_bronze
+    type: write
+    source: v_funnel_stage_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "funnel_stage"

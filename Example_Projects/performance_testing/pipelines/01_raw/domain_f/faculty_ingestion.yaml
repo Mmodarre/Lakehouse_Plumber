@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: faculty_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: faculty_raw
+  landing_folder: faculty
+  schema_file: orders_schema

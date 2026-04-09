@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: modulation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: modulation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: modulation_dim
+    target: v_modulation_silver
+    description: "Load modulation from silver for modelling"
+
+  - name: modulation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_modulation_silver
+    target: v_modulation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_modulation_silver
+
+  - name: write_modulation_modelled
+    type: write
+    source: v_modulation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "modulation_modelled"

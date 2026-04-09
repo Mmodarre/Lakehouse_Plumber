@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: record_label_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: record_label_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: record_label_dim
+    target: v_record_label_silver
+    description: "Load record_label from silver for modelling"
+
+  - name: record_label_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_record_label_silver
+    target: v_record_label_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_record_label_silver
+
+  - name: write_record_label_modelled
+    type: write
+    source: v_record_label_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "record_label_modelled"

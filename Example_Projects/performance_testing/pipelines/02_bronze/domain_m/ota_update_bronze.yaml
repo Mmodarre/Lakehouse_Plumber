@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: ota_update_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: ota_update_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: ota_update_raw
+    target: v_ota_update_raw
+    description: "Load ota_update from raw schema"
+
+  - name: ota_update_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_ota_update_raw
+    target: v_ota_update_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as ota_update_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_ota_update_raw
+      WHERE 1=1
+
+  - name: ota_update_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_ota_update_bronze_cleaned
+    target: v_ota_update_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to ota_update"
+
+  - name: write_ota_update_bronze
+    type: write
+    source: v_ota_update_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "ota_update"

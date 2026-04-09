@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: outage_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: outage
+  source_table: outage_raw

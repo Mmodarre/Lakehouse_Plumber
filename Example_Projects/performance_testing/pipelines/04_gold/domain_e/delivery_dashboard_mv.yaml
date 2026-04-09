@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: delivery_dashboard_mv
+actions:
+  - name: delivery_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.delivery_dim
+    target: v_delivery_dashboard
+
+  - name: write_delivery_dashboard_mv
+    type: write
+    source: v_delivery_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "delivery_dashboard_mv"

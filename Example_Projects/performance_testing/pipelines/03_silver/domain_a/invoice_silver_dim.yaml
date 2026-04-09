@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: invoice_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: invoice_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: invoice
+    target: v_invoice_bronze
+    description: "Load invoice from bronze for silver layer"
+
+  - name: write_invoice_silver
+    type: write
+    source: v_invoice_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "invoice_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["invoice_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

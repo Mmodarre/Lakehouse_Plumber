@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: enrollment_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: enrollment_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: enrollment_dim
+    target: v_enrollment_silver
+    description: "Load enrollment from silver for modelling"
+
+  - name: enrollment_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_enrollment_silver
+    target: v_enrollment_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_enrollment_silver
+
+  - name: write_enrollment_modelled
+    type: write
+    source: v_enrollment_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "enrollment_modelled"

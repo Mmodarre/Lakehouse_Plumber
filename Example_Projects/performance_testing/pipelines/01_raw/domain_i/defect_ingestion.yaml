@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: defect_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: defect_raw
+  landing_folder: defect
+  schema_file: customer_schema

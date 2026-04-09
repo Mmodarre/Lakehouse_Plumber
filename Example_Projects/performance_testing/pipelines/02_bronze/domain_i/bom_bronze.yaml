@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: bom_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: bom_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bom_raw
+    target: v_bom_raw
+    description: "Load bom from raw schema"
+
+  - name: bom_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_bom_raw
+    target: v_bom_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bom_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_bom_raw
+
+  - name: bom_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_bom_bronze_cleaned
+    target: v_bom_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for bom bronze"
+
+  - name: write_bom_bronze
+    type: write
+    source: v_bom_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bom"
+
+  - name: bom_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bom_migration
+    target: v_bom_migration
+    description: "Load bom migration data"
+
+  - name: bom_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_bom_migration
+    target: v_bom_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bom_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_bom_migration
+
+  - name: write_bom_migration
+    type: write
+    source: v_bom_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bom"

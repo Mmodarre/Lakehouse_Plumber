@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: fuel_tank_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: fuel_tank_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: fuel_tank_dim
+    target: v_fuel_tank_silver
+    description: "Load fuel_tank from silver for modelling"
+
+  - name: fuel_tank_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_fuel_tank_silver
+    target: v_fuel_tank_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_fuel_tank_silver
+
+  - name: write_fuel_tank_modelled
+    type: write
+    source: v_fuel_tank_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "fuel_tank_modelled"

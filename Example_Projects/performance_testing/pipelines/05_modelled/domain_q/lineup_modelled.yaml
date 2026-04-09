@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: lineup_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lineup_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lineup_dim
+    target: v_lineup_silver
+    description: "Load lineup from silver for modelling"
+
+  - name: lineup_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lineup_silver
+    target: v_lineup_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lineup_silver
+
+  - name: write_lineup_modelled
+    type: write
+    source: v_lineup_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lineup_modelled"

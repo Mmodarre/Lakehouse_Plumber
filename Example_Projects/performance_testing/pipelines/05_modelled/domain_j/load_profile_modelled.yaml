@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: load_profile_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: load_profile_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: load_profile_dim
+    target: v_load_profile_silver
+    description: "Load load_profile from silver for modelling"
+
+  - name: load_profile_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_load_profile_silver
+    target: v_load_profile_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_load_profile_silver
+
+  - name: write_load_profile_modelled
+    type: write
+    source: v_load_profile_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "load_profile_modelled"

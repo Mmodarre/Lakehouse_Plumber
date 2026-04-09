@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: semester_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: semester
+  source_table: semester_raw

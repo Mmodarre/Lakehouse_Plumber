@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: depreciation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: depreciation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: depreciation_dim
+    target: v_depreciation_silver
+    description: "Load depreciation from silver for modelling"
+
+  - name: depreciation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_depreciation_silver
+    target: v_depreciation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_depreciation_silver
+
+  - name: write_depreciation_modelled
+    type: write
+    source: v_depreciation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "depreciation_modelled"

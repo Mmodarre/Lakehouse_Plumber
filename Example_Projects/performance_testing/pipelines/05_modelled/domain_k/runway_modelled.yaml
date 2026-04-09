@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: runway_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: runway_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: runway_dim
+    target: v_runway_silver
+    description: "Load runway from silver for modelling"
+
+  - name: runway_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_runway_silver
+    target: v_runway_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_runway_silver
+
+  - name: write_runway_modelled
+    type: write
+    source: v_runway_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "runway_modelled"

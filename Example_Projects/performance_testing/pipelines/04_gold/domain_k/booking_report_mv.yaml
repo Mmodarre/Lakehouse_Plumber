@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: booking_report_mv
+actions:
+  - name: booking_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.booking_dim
+    target: v_booking_report
+
+  - name: write_booking_report_mv
+    type: write
+    source: v_booking_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "booking_report_mv"

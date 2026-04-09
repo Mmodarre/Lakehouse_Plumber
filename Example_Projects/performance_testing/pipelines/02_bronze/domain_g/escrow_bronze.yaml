@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: escrow_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: escrow_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: escrow_raw
+    target: v_escrow_raw
+    description: "Load escrow from raw schema"
+
+  - name: escrow_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_escrow_raw
+    target: v_escrow_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as escrow_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_escrow_raw
+
+  - name: escrow_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_escrow_bronze_cleaned
+    target: v_escrow_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for escrow bronze"
+
+  - name: write_escrow_bronze
+    type: write
+    source: v_escrow_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "escrow"
+
+  - name: escrow_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: escrow_migration
+    target: v_escrow_migration
+    description: "Load escrow migration data"
+
+  - name: escrow_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_escrow_migration
+    target: v_escrow_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as escrow_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_escrow_migration
+
+  - name: write_escrow_migration
+    type: write
+    source: v_escrow_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "escrow"

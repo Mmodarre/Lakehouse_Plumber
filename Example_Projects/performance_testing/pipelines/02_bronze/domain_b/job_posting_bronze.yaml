@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: job_posting_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: job_posting_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: job_posting_raw
+    target: v_job_posting_raw
+    description: "Load job_posting from raw schema"
+
+  - name: job_posting_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_job_posting_raw
+    target: v_job_posting_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as job_posting_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_job_posting_raw
+      WHERE 1=1
+
+  - name: job_posting_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_job_posting_bronze_cleaned
+    target: v_job_posting_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to job_posting"
+
+  - name: write_job_posting_bronze
+    type: write
+    source: v_job_posting_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "job_posting"

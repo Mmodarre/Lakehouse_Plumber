@@ -1,0 +1,24 @@
+pipeline: perf_gold
+flowgroup: hangar_monthly_agg_mv
+actions:
+  - name: hangar_monthly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('mon', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.hangar_dim
+        GROUP BY 1
+    target: v_hangar_monthly_agg
+
+  - name: write_hangar_monthly_agg_mv
+    type: write
+    source: v_hangar_monthly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "hangar_monthly_agg_mv"

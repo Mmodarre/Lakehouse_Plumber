@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: mqtt_topic_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: mqtt_topic_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: mqtt_topic_raw
+    target: v_mqtt_topic_raw
+    description: "Load mqtt_topic from raw schema"
+
+  - name: mqtt_topic_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_mqtt_topic_raw
+    target: v_mqtt_topic_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as mqtt_topic_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_mqtt_topic_raw
+      WHERE 1=1
+
+  - name: mqtt_topic_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_mqtt_topic_bronze_cleaned
+    target: v_mqtt_topic_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to mqtt_topic"
+
+  - name: write_mqtt_topic_bronze
+    type: write
+    source: v_mqtt_topic_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "mqtt_topic"

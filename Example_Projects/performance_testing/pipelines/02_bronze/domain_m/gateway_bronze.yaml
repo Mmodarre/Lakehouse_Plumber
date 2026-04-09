@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: gateway_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: gateway
+  source_table: gateway_raw

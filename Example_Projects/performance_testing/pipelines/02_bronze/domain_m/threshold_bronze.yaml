@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: threshold_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: threshold_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: threshold_raw
+    target: v_threshold_raw
+    description: "Load threshold from raw schema"
+
+  - name: threshold_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_threshold_raw
+    target: v_threshold_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as threshold_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_threshold_raw
+      WHERE 1=1
+
+  - name: threshold_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_threshold_bronze_cleaned
+    target: v_threshold_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to threshold"
+
+  - name: write_threshold_bronze
+    type: write
+    source: v_threshold_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "threshold"

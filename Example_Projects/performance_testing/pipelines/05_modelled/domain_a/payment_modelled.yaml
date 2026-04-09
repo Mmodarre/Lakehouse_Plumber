@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: payment_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: payment_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: payment_dim
+    target: v_payment_silver
+    description: "Load payment from silver for modelling"
+
+  - name: payment_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_payment_silver
+    target: v_payment_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_payment_silver
+
+  - name: write_payment_modelled
+    type: write
+    source: v_payment_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "payment_modelled"

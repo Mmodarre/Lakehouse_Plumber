@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: airport_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: airport
+  source_table: airport_raw

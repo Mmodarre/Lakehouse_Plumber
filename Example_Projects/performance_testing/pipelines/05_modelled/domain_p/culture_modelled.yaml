@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: culture_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: culture_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: culture_dim
+    target: v_culture_silver
+    description: "Load culture from silver for modelling"
+
+  - name: culture_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_culture_silver
+    target: v_culture_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_culture_silver
+
+  - name: write_culture_modelled
+    type: write
+    source: v_culture_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "culture_modelled"

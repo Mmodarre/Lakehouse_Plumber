@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: health_inspection_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_health_inspection_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/health_inspection/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_health_inspection_cloudfiles
+    description: "Load health_inspection from landing volume"
+
+  - name: write_health_inspection_raw
+    type: write
+    source: v_health_inspection_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "health_inspection_raw"

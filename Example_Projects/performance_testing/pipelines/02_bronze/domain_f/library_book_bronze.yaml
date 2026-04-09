@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: library_book_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: library_book_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: library_book_raw
+    target: v_library_book_raw
+    description: "Load library_book from raw schema"
+
+  - name: library_book_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_library_book_raw
+    target: v_library_book_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as library_book_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_library_book_raw
+      WHERE 1=1
+
+  - name: library_book_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_library_book_bronze_cleaned
+    target: v_library_book_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to library_book"
+
+  - name: write_library_book_bronze
+    type: write
+    source: v_library_book_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "library_book"

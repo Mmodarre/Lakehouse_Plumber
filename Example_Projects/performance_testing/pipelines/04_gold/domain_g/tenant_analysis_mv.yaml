@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: tenant_analysis_mv
+actions:
+  - name: tenant_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.tenant_dim
+    target: v_tenant_analysis
+
+  - name: write_tenant_analysis_mv
+    type: write
+    source: v_tenant_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "tenant_analysis_mv"

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: shift_schedule_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: shift_schedule_raw
+  landing_folder: shift_schedule
+  schema_file: product_schema

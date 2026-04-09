@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: data_stream_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: data_stream
+  source_table: data_stream_raw

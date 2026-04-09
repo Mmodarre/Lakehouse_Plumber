@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: patient_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: patient_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: patient_dim
+    target: v_patient_silver
+    description: "Load patient from silver for modelling"
+
+  - name: patient_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_patient_silver
+    target: v_patient_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_patient_silver
+
+  - name: write_patient_modelled
+    type: write
+    source: v_patient_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "patient_modelled"

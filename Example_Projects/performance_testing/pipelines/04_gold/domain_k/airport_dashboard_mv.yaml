@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: airport_dashboard_mv
+actions:
+  - name: airport_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.airport_dim
+    target: v_airport_dashboard
+
+  - name: write_airport_dashboard_mv
+    type: write
+    source: v_airport_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "airport_dashboard_mv"

@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: cork_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: cork_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cork_raw
+    target: v_cork_raw
+    description: "Load cork from raw schema"
+
+  - name: cork_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_cork_raw
+    target: v_cork_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cork_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_cork_raw
+      WHERE 1=1
+
+  - name: cork_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_cork_bronze_cleaned
+    target: v_cork_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to cork"
+
+  - name: write_cork_bronze
+    type: write
+    source: v_cork_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cork"

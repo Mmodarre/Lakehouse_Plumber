@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: permit_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: permit_raw
+  landing_folder: permit
+  schema_file: partsupp_schema

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: modulation_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: modulation_raw
+  landing_folder: modulation
+  schema_file: part_schema

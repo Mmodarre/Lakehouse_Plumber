@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: rent_payment_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: rent_payment_raw
+  landing_folder: rent_payment
+  schema_file: lineitem_schema

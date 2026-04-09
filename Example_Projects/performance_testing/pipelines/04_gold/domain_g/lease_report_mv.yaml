@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: lease_report_mv
+actions:
+  - name: lease_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.lease_dim
+    target: v_lease_report
+
+  - name: write_lease_report_mv
+    type: write
+    source: v_lease_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "lease_report_mv"

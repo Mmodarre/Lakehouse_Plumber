@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: depot_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: depot_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: depot_dim
+    target: v_depot_silver
+    description: "Load depot from silver for modelling"
+
+  - name: depot_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_depot_silver
+    target: v_depot_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_depot_silver
+
+  - name: write_depot_modelled
+    type: write
+    source: v_depot_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "depot_modelled"

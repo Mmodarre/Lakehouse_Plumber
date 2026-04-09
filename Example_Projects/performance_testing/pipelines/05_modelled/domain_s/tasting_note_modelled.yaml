@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: tasting_note_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: tasting_note_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: tasting_note_dim
+    target: v_tasting_note_silver
+    description: "Load tasting_note from silver for modelling"
+
+  - name: tasting_note_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tasting_note_silver
+    target: v_tasting_note_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_tasting_note_silver
+
+  - name: write_tasting_note_modelled
+    type: write
+    source: v_tasting_note_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "tasting_note_modelled"

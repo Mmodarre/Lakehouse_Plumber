@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: trophy_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: trophy_raw
+  landing_folder: trophy
+  schema_file: lineitem_schema

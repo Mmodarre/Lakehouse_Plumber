@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: feedback_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: feedback_raw
+  landing_folder: feedback
+  schema_file: partsupp_schema

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: satellite_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: satellite_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: satellite_dim
+    target: v_satellite_silver
+    description: "Load satellite from silver for modelling"
+
+  - name: satellite_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_satellite_silver
+    target: v_satellite_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_satellite_silver
+
+  - name: write_satellite_modelled
+    type: write
+    source: v_satellite_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "satellite_modelled"

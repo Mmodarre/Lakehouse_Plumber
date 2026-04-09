@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: payroll_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: payroll_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: payroll_raw
+    target: v_payroll_raw
+    description: "Load payroll from raw schema"
+
+  - name: payroll_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_payroll_raw
+    target: v_payroll_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as payroll_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_payroll_raw
+
+  - name: payroll_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_payroll_bronze_cleaned
+    target: v_payroll_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for payroll bronze"
+
+  - name: write_payroll_bronze
+    type: write
+    source: v_payroll_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "payroll"
+
+  - name: payroll_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: payroll_migration
+    target: v_payroll_migration
+    description: "Load payroll migration data"
+
+  - name: payroll_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_payroll_migration
+    target: v_payroll_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as payroll_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_payroll_migration
+
+  - name: write_payroll_migration
+    type: write
+    source: v_payroll_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "payroll"

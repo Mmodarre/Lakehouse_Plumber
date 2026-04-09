@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: cargo_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: cargo_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cargo_raw
+    target: v_cargo_raw
+    description: "Load cargo from raw schema"
+
+  - name: cargo_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_cargo_raw
+    target: v_cargo_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cargo_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_cargo_raw
+      WHERE 1=1
+
+  - name: cargo_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_cargo_bronze_cleaned
+    target: v_cargo_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to cargo"
+
+  - name: write_cargo_bronze
+    type: write
+    source: v_cargo_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cargo"

@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: deductible_dashboard_mv
+actions:
+  - name: deductible_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.deductible_dim
+    target: v_deductible_dashboard
+
+  - name: write_deductible_dashboard_mv
+    type: write
+    source: v_deductible_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "deductible_dashboard_mv"

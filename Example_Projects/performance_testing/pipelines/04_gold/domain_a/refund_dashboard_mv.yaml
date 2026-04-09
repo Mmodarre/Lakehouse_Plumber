@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: refund_dashboard_mv
+actions:
+  - name: refund_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.refund_dim
+    target: v_refund_dashboard
+
+  - name: write_refund_dashboard_mv
+    type: write
+    source: v_refund_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "refund_dashboard_mv"

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: configuration_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: configuration_raw
+  landing_folder: configuration
+  schema_file: orders_schema

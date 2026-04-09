@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: goal_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: goal_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: goal_dim
+    target: v_goal_silver
+    description: "Load goal from silver for modelling"
+
+  - name: goal_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_goal_silver
+    target: v_goal_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_goal_silver
+
+  - name: write_goal_modelled
+    type: write
+    source: v_goal_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "goal_modelled"

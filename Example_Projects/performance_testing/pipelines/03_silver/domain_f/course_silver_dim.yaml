@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: course_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: course_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: course
+    target: v_course_bronze
+    description: "Load course from bronze for silver layer"
+
+  - name: write_course_silver
+    type: write
+    source: v_course_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "course_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["course_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

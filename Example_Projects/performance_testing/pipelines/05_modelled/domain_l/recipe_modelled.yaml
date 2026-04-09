@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: recipe_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: recipe_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: recipe_dim
+    target: v_recipe_silver
+    description: "Load recipe from silver for modelling"
+
+  - name: recipe_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_recipe_silver
+    target: v_recipe_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_recipe_silver
+
+  - name: write_recipe_modelled
+    type: write
+    source: v_recipe_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "recipe_modelled"

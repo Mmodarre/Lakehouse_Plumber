@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: review_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: review_raw
+  landing_folder: review
+  schema_file: customer_schema

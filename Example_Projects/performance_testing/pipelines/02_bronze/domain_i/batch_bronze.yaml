@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: batch_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: batch_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: batch_raw
+    target: v_batch_raw
+    description: "Load batch from raw schema"
+
+  - name: batch_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_batch_raw
+    target: v_batch_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as batch_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_batch_raw
+      WHERE 1=1
+
+  - name: batch_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_batch_bronze_cleaned
+    target: v_batch_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to batch"
+
+  - name: write_batch_bronze
+    type: write
+    source: v_batch_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "batch"

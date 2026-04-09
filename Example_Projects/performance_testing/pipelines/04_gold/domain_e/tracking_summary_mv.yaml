@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: tracking_summary_mv
+actions:
+  - name: tracking_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.tracking_dim
+    target: v_tracking_summary
+
+  - name: write_tracking_summary_mv
+    type: write
+    source: v_tracking_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "tracking_summary_mv"

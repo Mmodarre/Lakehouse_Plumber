@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: calibration_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: calibration_raw
+  landing_folder: calibration
+  schema_file: orders_schema

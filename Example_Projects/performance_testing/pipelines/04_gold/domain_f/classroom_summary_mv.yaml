@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: classroom_summary_mv
+actions:
+  - name: classroom_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.classroom_dim
+    target: v_classroom_summary
+
+  - name: write_classroom_summary_mv
+    type: write
+    source: v_classroom_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "classroom_summary_mv"

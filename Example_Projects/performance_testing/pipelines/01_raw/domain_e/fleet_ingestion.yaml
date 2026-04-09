@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: fleet_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_fleet_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/fleet/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_fleet_cloudfiles
+    description: "Load fleet from landing volume"
+
+  - name: write_fleet_raw
+    type: write
+    source: v_fleet_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "fleet_raw"

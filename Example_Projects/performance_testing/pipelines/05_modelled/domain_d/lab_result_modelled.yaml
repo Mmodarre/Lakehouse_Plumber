@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: lab_result_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lab_result_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lab_result_dim
+    target: v_lab_result_silver
+    description: "Load lab_result from silver for modelling"
+
+  - name: lab_result_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lab_result_silver
+    target: v_lab_result_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lab_result_silver
+
+  - name: write_lab_result_modelled
+    type: write
+    source: v_lab_result_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lab_result_modelled"

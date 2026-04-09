@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: cabin_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: cabin_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: cabin_dim
+    target: v_cabin_silver
+    description: "Load cabin from silver for modelling"
+
+  - name: cabin_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cabin_silver
+    target: v_cabin_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_cabin_silver
+
+  - name: write_cabin_modelled
+    type: write
+    source: v_cabin_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "cabin_modelled"

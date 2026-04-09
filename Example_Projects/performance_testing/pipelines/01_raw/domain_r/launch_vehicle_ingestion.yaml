@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: launch_vehicle_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: launch_vehicle_raw
+  landing_folder: launch_vehicle
+  schema_file: customer_schema

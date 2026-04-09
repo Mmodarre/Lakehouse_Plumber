@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: menu_item_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: menu_item_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: menu_item_dim
+    target: v_menu_item_silver
+    description: "Load menu_item from silver for modelling"
+
+  - name: menu_item_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_menu_item_silver
+    target: v_menu_item_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_menu_item_silver
+
+  - name: write_menu_item_modelled
+    type: write
+    source: v_menu_item_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "menu_item_modelled"

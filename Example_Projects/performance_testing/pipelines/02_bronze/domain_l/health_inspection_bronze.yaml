@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: health_inspection_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: health_inspection_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: health_inspection_raw
+    target: v_health_inspection_raw
+    description: "Load health_inspection from raw schema"
+
+  - name: health_inspection_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_health_inspection_raw
+    target: v_health_inspection_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as health_inspection_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_health_inspection_raw
+      WHERE 1=1
+
+  - name: health_inspection_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_health_inspection_bronze_cleaned
+    target: v_health_inspection_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to health_inspection"
+
+  - name: write_health_inspection_bronze
+    type: write
+    source: v_health_inspection_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "health_inspection"

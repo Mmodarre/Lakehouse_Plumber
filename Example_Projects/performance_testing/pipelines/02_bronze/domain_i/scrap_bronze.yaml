@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: scrap_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: scrap_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: scrap_raw
+    target: v_scrap_raw
+    description: "Load scrap from raw schema"
+
+  - name: scrap_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_scrap_raw
+    target: v_scrap_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as scrap_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_scrap_raw
+
+  - name: scrap_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_scrap_bronze_cleaned
+    target: v_scrap_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for scrap bronze"
+
+  - name: write_scrap_bronze
+    type: write
+    source: v_scrap_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "scrap"
+
+  - name: scrap_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: scrap_migration
+    target: v_scrap_migration
+    description: "Load scrap migration data"
+
+  - name: scrap_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_scrap_migration
+    target: v_scrap_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as scrap_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_scrap_migration
+
+  - name: write_scrap_migration
+    type: write
+    source: v_scrap_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "scrap"

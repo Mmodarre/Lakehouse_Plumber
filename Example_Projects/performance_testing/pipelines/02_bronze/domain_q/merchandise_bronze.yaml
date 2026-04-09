@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: merchandise_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: merchandise_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: merchandise_raw
+    target: v_merchandise_raw
+    description: "Load merchandise from raw schema"
+
+  - name: merchandise_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_merchandise_raw
+    target: v_merchandise_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as merchandise_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_merchandise_raw
+      WHERE 1=1
+
+  - name: merchandise_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_merchandise_bronze_cleaned
+    target: v_merchandise_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to merchandise"
+
+  - name: write_merchandise_bronze
+    type: write
+    source: v_merchandise_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "merchandise"

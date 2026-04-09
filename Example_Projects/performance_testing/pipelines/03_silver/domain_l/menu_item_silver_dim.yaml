@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: menu_item_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: menu_item_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: menu_item
+    target: v_menu_item_bronze
+    description: "Load menu_item from bronze for silver layer"
+
+  - name: write_menu_item_silver
+    type: write
+    source: v_menu_item_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "menu_item_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["menu_item_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: coverage_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: coverage_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: coverage_dim
+    target: v_coverage_silver
+    description: "Load coverage from silver for modelling"
+
+  - name: coverage_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_coverage_silver
+    target: v_coverage_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_coverage_silver
+
+  - name: write_coverage_modelled
+    type: write
+    source: v_coverage_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "coverage_modelled"

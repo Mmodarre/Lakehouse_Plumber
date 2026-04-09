@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: anomaly_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: anomaly_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: anomaly_raw
+    target: v_anomaly_raw
+    description: "Load anomaly from raw schema"
+
+  - name: anomaly_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_anomaly_raw
+    target: v_anomaly_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as anomaly_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_anomaly_raw
+
+  - name: anomaly_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_anomaly_bronze_cleaned
+    target: v_anomaly_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for anomaly bronze"
+
+  - name: write_anomaly_bronze
+    type: write
+    source: v_anomaly_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "anomaly"
+
+  - name: anomaly_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: anomaly_migration
+    target: v_anomaly_migration
+    description: "Load anomaly migration data"
+
+  - name: anomaly_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_anomaly_migration
+    target: v_anomaly_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as anomaly_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_anomaly_migration
+
+  - name: write_anomaly_migration
+    type: write
+    source: v_anomaly_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "anomaly"

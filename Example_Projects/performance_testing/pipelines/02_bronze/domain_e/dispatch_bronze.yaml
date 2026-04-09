@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: dispatch_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: dispatch_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: dispatch_raw
+    target: v_dispatch_raw
+    description: "Load dispatch from raw schema"
+
+  - name: dispatch_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_dispatch_raw
+    target: v_dispatch_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as dispatch_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_dispatch_raw
+      WHERE 1=1
+
+  - name: dispatch_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_dispatch_bronze_cleaned
+    target: v_dispatch_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to dispatch"
+
+  - name: write_dispatch_bronze
+    type: write
+    source: v_dispatch_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "dispatch"

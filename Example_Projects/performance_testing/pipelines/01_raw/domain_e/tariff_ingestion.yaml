@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: tariff_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: tariff_raw
+  landing_folder: tariff
+  schema_file: part_schema

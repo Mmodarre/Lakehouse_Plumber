@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: payload_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: payload_raw
+  landing_folder: payload
+  schema_file: product_schema

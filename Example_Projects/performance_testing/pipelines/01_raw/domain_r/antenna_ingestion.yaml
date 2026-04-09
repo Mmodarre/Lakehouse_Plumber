@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: antenna_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: antenna_raw
+  landing_folder: antenna
+  schema_file: orders_schema

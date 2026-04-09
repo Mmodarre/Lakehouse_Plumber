@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: terminal_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: terminal_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: terminal_dim
+    target: v_terminal_silver
+    description: "Load terminal from silver for modelling"
+
+  - name: terminal_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_terminal_silver
+    target: v_terminal_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_terminal_silver
+
+  - name: write_terminal_modelled
+    type: write
+    source: v_terminal_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "terminal_modelled"

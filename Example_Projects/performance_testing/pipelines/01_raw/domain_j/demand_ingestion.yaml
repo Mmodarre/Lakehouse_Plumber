@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: demand_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: demand_raw
+  landing_folder: demand
+  schema_file: customer_schema

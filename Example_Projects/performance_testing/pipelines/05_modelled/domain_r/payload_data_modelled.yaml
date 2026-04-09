@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: payload_data_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: payload_data_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: payload_data_dim
+    target: v_payload_data_silver
+    description: "Load payload_data from silver for modelling"
+
+  - name: payload_data_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_payload_data_silver
+    target: v_payload_data_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_payload_data_silver
+
+  - name: write_payload_data_modelled
+    type: write
+    source: v_payload_data_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "payload_data_modelled"

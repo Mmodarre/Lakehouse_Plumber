@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: yield_rate_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: yield_rate_raw
+  landing_folder: yield_rate
+  schema_file: product_schema

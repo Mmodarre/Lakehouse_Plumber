@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: candidate_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: candidate_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: candidate_raw
+    target: v_candidate_raw
+    description: "Load candidate from raw schema"
+
+  - name: candidate_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_candidate_raw
+    target: v_candidate_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as candidate_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_candidate_raw
+
+  - name: candidate_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_candidate_bronze_cleaned
+    target: v_candidate_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for candidate bronze"
+
+  - name: write_candidate_bronze
+    type: write
+    source: v_candidate_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "candidate"
+
+  - name: candidate_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: candidate_migration
+    target: v_candidate_migration
+    description: "Load candidate migration data"
+
+  - name: candidate_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_candidate_migration
+    target: v_candidate_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as candidate_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_candidate_migration
+
+  - name: write_candidate_migration
+    type: write
+    source: v_candidate_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "candidate"

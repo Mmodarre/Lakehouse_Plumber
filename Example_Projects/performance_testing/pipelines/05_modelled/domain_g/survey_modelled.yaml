@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: survey_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: survey_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: survey_dim
+    target: v_survey_silver
+    description: "Load survey from silver for modelling"
+
+  - name: survey_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_survey_silver
+    target: v_survey_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_survey_silver
+
+  - name: write_survey_modelled
+    type: write
+    source: v_survey_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "survey_modelled"

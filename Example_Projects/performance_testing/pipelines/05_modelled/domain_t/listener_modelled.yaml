@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: listener_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: listener_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: listener_dim
+    target: v_listener_silver
+    description: "Load listener from silver for modelling"
+
+  - name: listener_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_listener_silver
+    target: v_listener_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_listener_silver
+
+  - name: write_listener_modelled
+    type: write
+    source: v_listener_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "listener_modelled"

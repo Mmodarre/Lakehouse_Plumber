@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: quality_check_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: quality_check
+  source_table: quality_check_raw

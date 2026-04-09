@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: actuator_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: actuator_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: actuator_raw
+    target: v_actuator_raw
+    description: "Load actuator from raw schema"
+
+  - name: actuator_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_actuator_raw
+    target: v_actuator_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as actuator_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_actuator_raw
+      WHERE 1=1
+
+  - name: actuator_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_actuator_bronze_cleaned
+    target: v_actuator_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to actuator"
+
+  - name: write_actuator_bronze
+    type: write
+    source: v_actuator_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "actuator"

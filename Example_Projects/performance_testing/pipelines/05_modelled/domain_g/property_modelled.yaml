@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: property_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: property_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: property_dim
+    target: v_property_silver
+    description: "Load property from silver for modelling"
+
+  - name: property_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_property_silver
+    target: v_property_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_property_silver
+
+  - name: write_property_modelled
+    type: write
+    source: v_property_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "property_modelled"

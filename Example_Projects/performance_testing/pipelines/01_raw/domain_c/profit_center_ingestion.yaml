@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: profit_center_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: profit_center_raw
+  landing_folder: profit_center
+  schema_file: orders_schema

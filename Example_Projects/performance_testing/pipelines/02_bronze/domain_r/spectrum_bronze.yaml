@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: spectrum_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: spectrum_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: spectrum_raw
+    target: v_spectrum_raw
+    description: "Load spectrum from raw schema"
+
+  - name: spectrum_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_spectrum_raw
+    target: v_spectrum_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as spectrum_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_spectrum_raw
+      WHERE 1=1
+
+  - name: spectrum_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_spectrum_bronze_cleaned
+    target: v_spectrum_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to spectrum"
+
+  - name: write_spectrum_bronze
+    type: write
+    source: v_spectrum_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "spectrum"

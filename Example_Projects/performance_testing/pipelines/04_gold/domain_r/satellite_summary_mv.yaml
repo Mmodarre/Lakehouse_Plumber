@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: satellite_summary_mv
+actions:
+  - name: satellite_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.satellite_dim
+    target: v_satellite_summary
+
+  - name: write_satellite_summary_mv
+    type: write
+    source: v_satellite_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "satellite_summary_mv"

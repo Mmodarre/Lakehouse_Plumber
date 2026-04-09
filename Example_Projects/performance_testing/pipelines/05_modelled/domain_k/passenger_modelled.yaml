@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: passenger_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: passenger_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: passenger_dim
+    target: v_passenger_silver
+    description: "Load passenger from silver for modelling"
+
+  - name: passenger_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_passenger_silver
+    target: v_passenger_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_passenger_silver
+
+  - name: write_passenger_modelled
+    type: write
+    source: v_passenger_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "passenger_modelled"

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: store_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: store_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: store_dim
+    target: v_store_silver
+    description: "Load store from silver for modelling"
+
+  - name: store_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_store_silver
+    target: v_store_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_store_silver
+
+  - name: write_store_modelled
+    type: write
+    source: v_store_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "store_modelled"

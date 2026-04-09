@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: work_order_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: work_order_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: work_order_dim
+    target: v_work_order_silver
+    description: "Load work_order from silver for modelling"
+
+  - name: work_order_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_work_order_silver
+    target: v_work_order_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_work_order_silver
+
+  - name: write_work_order_modelled
+    type: write
+    source: v_work_order_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "work_order_modelled"

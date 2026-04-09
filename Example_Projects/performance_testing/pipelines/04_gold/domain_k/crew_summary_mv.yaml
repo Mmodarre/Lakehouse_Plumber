@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: crew_summary_mv
+actions:
+  - name: crew_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.crew_dim
+    target: v_crew_summary
+
+  - name: write_crew_summary_mv
+    type: write
+    source: v_crew_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "crew_summary_mv"

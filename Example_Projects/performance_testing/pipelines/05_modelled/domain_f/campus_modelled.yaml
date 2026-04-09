@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: campus_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: campus_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: campus_dim
+    target: v_campus_silver
+    description: "Load campus from silver for modelling"
+
+  - name: campus_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_campus_silver
+    target: v_campus_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_campus_silver
+
+  - name: write_campus_modelled
+    type: write
+    source: v_campus_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "campus_modelled"

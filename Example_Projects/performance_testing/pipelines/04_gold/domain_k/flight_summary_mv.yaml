@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: flight_summary_mv
+actions:
+  - name: flight_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.flight_dim
+    target: v_flight_summary
+
+  - name: write_flight_summary_mv
+    type: write
+    source: v_flight_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "flight_summary_mv"

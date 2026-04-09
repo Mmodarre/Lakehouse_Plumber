@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: scholarship_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: scholarship_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: scholarship_dim
+    target: v_scholarship_silver
+    description: "Load scholarship from silver for modelling"
+
+  - name: scholarship_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_scholarship_silver
+    target: v_scholarship_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_scholarship_silver
+
+  - name: write_scholarship_modelled
+    type: write
+    source: v_scholarship_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "scholarship_modelled"

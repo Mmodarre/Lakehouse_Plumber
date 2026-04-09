@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: promotion_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: promotion_raw
+  landing_folder: promotion
+  schema_file: nation_schema

@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: product_listing_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: product_listing
+  source_table: product_listing_raw

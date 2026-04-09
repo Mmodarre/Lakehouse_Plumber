@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: vineyard_summary_mv
+actions:
+  - name: vineyard_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.vineyard_dim
+    target: v_vineyard_summary
+
+  - name: write_vineyard_summary_mv
+    type: write
+    source: v_vineyard_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "vineyard_summary_mv"

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: substation_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: substation_raw
+  landing_folder: substation
+  schema_file: part_schema

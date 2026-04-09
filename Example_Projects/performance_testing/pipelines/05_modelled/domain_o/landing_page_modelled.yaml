@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: landing_page_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: landing_page_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: landing_page_dim
+    target: v_landing_page_silver
+    description: "Load landing_page from silver for modelling"
+
+  - name: landing_page_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_landing_page_silver
+    target: v_landing_page_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_landing_page_silver
+
+  - name: write_landing_page_modelled
+    type: write
+    source: v_landing_page_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "landing_page_modelled"

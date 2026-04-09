@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: permit_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: permit_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: permit_dim
+    target: v_permit_silver
+    description: "Load permit from silver for modelling"
+
+  - name: permit_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_permit_silver
+    target: v_permit_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_permit_silver
+
+  - name: write_permit_modelled
+    type: write
+    source: v_permit_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "permit_modelled"

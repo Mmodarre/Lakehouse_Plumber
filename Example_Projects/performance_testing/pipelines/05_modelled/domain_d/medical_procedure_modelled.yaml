@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: medical_procedure_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: medical_procedure_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: medical_procedure_dim
+    target: v_medical_procedure_silver
+    description: "Load medical_procedure from silver for modelling"
+
+  - name: medical_procedure_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_medical_procedure_silver
+    target: v_medical_procedure_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_medical_procedure_silver
+
+  - name: write_medical_procedure_modelled
+    type: write
+    source: v_medical_procedure_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "medical_procedure_modelled"

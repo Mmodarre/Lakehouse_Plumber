@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: fermentation_dashboard_mv
+actions:
+  - name: fermentation_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.fermentation_dim
+    target: v_fermentation_dashboard
+
+  - name: write_fermentation_dashboard_mv
+    type: write
+    source: v_fermentation_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "fermentation_dashboard_mv"

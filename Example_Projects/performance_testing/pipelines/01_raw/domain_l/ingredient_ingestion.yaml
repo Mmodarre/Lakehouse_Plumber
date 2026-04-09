@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: ingredient_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: ingredient_raw
+  landing_folder: ingredient
+  schema_file: lineitem_schema

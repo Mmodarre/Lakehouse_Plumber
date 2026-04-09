@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: airport_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: airport_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: airport_dim
+    target: v_airport_silver
+    description: "Load airport from silver for modelling"
+
+  - name: airport_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_airport_silver
+    target: v_airport_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_airport_silver
+
+  - name: write_airport_modelled
+    type: write
+    source: v_airport_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "airport_modelled"

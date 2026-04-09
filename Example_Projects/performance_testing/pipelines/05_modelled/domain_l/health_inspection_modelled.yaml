@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: health_inspection_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: health_inspection_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: health_inspection_dim
+    target: v_health_inspection_silver
+    description: "Load health_inspection from silver for modelling"
+
+  - name: health_inspection_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_health_inspection_silver
+    target: v_health_inspection_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_health_inspection_silver
+
+  - name: write_health_inspection_modelled
+    type: write
+    source: v_health_inspection_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "health_inspection_modelled"

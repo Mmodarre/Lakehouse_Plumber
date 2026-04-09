@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: trial_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: trial_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: trial_dim
+    target: v_trial_silver
+    description: "Load trial from silver for modelling"
+
+  - name: trial_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_trial_silver
+    target: v_trial_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_trial_silver
+
+  - name: write_trial_modelled
+    type: write
+    source: v_trial_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "trial_modelled"

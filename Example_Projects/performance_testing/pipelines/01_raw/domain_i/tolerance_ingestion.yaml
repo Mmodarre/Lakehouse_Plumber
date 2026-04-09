@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: tolerance_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: tolerance_raw
+  landing_folder: tolerance
+  schema_file: partsupp_schema

@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: instructor_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: instructor
+  source_table: instructor_raw

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: attribution_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: attribution_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: attribution_dim
+    target: v_attribution_silver
+    description: "Load attribution from silver for modelling"
+
+  - name: attribution_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_attribution_silver
+    target: v_attribution_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_attribution_silver
+
+  - name: write_attribution_modelled
+    type: write
+    source: v_attribution_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "attribution_modelled"

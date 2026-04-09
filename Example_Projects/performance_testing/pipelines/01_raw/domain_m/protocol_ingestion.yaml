@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: protocol_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_protocol_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/protocol/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_protocol_cloudfiles
+    description: "Load protocol from landing volume"
+
+  - name: write_protocol_raw
+    type: write
+    source: v_protocol_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "protocol_raw"

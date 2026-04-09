@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: transponder_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: transponder_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: transponder_dim
+    target: v_transponder_silver
+    description: "Load transponder from silver for modelling"
+
+  - name: transponder_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_transponder_silver
+    target: v_transponder_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_transponder_silver
+
+  - name: write_transponder_modelled
+    type: write
+    source: v_transponder_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "transponder_modelled"

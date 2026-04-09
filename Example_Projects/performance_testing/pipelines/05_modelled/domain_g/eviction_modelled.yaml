@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: eviction_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: eviction_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: eviction_dim
+    target: v_eviction_silver
+    description: "Load eviction from silver for modelling"
+
+  - name: eviction_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_eviction_silver
+    target: v_eviction_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_eviction_silver
+
+  - name: write_eviction_modelled
+    type: write
+    source: v_eviction_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "eviction_modelled"

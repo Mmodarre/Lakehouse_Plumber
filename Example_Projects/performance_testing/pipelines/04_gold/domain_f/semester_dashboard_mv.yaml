@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: semester_dashboard_mv
+actions:
+  - name: semester_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.semester_dim
+    target: v_semester_dashboard
+
+  - name: write_semester_dashboard_mv
+    type: write
+    source: v_semester_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "semester_dashboard_mv"

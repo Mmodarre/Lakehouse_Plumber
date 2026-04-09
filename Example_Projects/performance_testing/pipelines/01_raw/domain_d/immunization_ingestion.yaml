@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: immunization_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: immunization_raw
+  landing_folder: immunization
+  schema_file: customer_schema

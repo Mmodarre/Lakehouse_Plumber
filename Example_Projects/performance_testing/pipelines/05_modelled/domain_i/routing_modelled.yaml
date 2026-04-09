@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: routing_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: routing_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: routing_dim
+    target: v_routing_silver
+    description: "Load routing from silver for modelling"
+
+  - name: routing_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_routing_silver
+    target: v_routing_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_routing_silver
+
+  - name: write_routing_modelled
+    type: write
+    source: v_routing_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "routing_modelled"

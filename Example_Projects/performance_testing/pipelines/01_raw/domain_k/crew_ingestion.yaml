@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: crew_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: crew_raw
+  landing_folder: crew
+  schema_file: lineitem_schema

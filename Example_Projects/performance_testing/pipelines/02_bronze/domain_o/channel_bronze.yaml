@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: channel_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: channel_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: channel_raw
+    target: v_channel_raw
+    description: "Load channel from raw schema"
+
+  - name: channel_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_channel_raw
+    target: v_channel_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as channel_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_channel_raw
+      WHERE 1=1
+
+  - name: channel_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_channel_bronze_cleaned
+    target: v_channel_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to channel"
+
+  - name: write_channel_bronze
+    type: write
+    source: v_channel_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "channel"

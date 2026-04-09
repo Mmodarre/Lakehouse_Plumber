@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: expense_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: expense_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: expense
+    target: v_expense_bronze
+    description: "Load expense from bronze for silver layer"
+
+  - name: write_expense_silver
+    type: write
+    source: v_expense_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "expense_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["expense_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

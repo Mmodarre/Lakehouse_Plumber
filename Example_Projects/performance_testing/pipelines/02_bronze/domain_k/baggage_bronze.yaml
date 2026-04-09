@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: baggage_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: baggage
+  source_table: baggage_raw

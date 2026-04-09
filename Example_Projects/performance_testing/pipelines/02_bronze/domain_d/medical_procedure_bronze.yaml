@@ -1,0 +1,48 @@
+pipeline: perf_bronze
+flowgroup: medical_procedure_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: medical_procedure_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: medical_procedure_raw
+    target: v_medical_procedure_raw
+    description: "Load medical_procedure from raw schema"
+
+  - name: medical_procedure_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_medical_procedure_raw
+    target: v_medical_procedure_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as medical_procedure_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_medical_procedure_raw
+      WHERE 1=1
+
+  - name: medical_procedure_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_medical_procedure_bronze_cleaned
+    target: v_medical_procedure_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to medical_procedure"
+
+  - name: write_medical_procedure_bronze
+    type: write
+    source: v_medical_procedure_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "medical_procedure"

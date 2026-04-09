@@ -1,0 +1,85 @@
+pipeline: perf_bronze
+flowgroup: concert_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: concert_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: concert_raw
+    target: v_concert_raw
+    description: "Load concert from raw schema"
+
+  - name: concert_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_concert_raw
+    target: v_concert_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as concert_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_concert_raw
+
+  - name: concert_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_concert_bronze_cleaned
+    target: v_concert_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for concert bronze"
+
+  - name: write_concert_bronze
+    type: write
+    source: v_concert_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "concert"
+
+  - name: concert_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: concert_migration
+    target: v_concert_migration
+    description: "Load concert migration data"
+
+  - name: concert_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_concert_migration
+    target: v_concert_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as concert_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_concert_migration
+
+  - name: write_concert_migration
+    type: write
+    source: v_concert_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "concert"

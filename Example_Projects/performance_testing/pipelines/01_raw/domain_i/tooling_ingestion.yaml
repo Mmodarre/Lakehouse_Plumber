@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: tooling_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_tooling_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/tooling/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_tooling_cloudfiles
+    description: "Load tooling from landing volume"
+
+  - name: write_tooling_raw
+    type: write
+    source: v_tooling_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "tooling_raw"

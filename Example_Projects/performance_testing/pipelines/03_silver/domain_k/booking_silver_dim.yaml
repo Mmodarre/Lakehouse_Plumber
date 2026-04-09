@@ -1,0 +1,32 @@
+pipeline: perf_silver
+flowgroup: booking_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: booking_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: booking
+    target: v_booking_bronze
+    description: "Load booking from bronze for silver layer"
+
+  - name: write_booking_silver
+    type: write
+    source: v_booking_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "booking_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["booking_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

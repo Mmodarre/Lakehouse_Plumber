@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: sensor_summary_mv
+actions:
+  - name: sensor_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.sensor_dim
+    target: v_sensor_summary
+
+  - name: write_sensor_summary_mv
+    type: write
+    source: v_sensor_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "sensor_summary_mv"

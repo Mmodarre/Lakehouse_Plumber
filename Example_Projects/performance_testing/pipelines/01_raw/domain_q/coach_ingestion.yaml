@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: coach_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: coach_raw
+  landing_folder: coach
+  schema_file: nation_schema

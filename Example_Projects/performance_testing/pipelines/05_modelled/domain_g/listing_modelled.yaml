@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: listing_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: listing_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: listing_dim
+    target: v_listing_silver
+    description: "Load listing from silver for modelling"
+
+  - name: listing_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_listing_silver
+    target: v_listing_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_listing_silver
+
+  - name: write_listing_modelled
+    type: write
+    source: v_listing_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "listing_modelled"

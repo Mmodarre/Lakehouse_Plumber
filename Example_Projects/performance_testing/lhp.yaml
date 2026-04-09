@@ -1,0 +1,81 @@
+# LakehousePlumber Performance Testing Project
+name: perf_test_edw
+version: "1.0"
+description: "Performance testing project - 2000 flowgroups across 5 pipelines and 20 domains"
+author: "Performance Testing"
+created_date: "2026-04-08"
+required_lhp_version: ">=0.5.0,<0.8.0"
+
+# Use include patterns to select subsets for targeted testing
+# Uncomment specific patterns to test with smaller subsets:
+
+# include:
+  # --- By domain (each ~100 flowgroups) ---
+  # - "*/domain_a/**"
+  # - "*/domain_b/**"
+  # - "*/domain_c/**"
+  # - "*/domain_d/**"
+  # - "*/domain_e/**"
+  # - "*/domain_f/**"
+  # - "*/domain_g/**"
+  # - "*/domain_h/**"
+  # - "*/domain_i/**"
+  # - "*/domain_j/**"
+  # - "*/domain_k/**"
+  # - "*/domain_l/**"
+  # - "*/domain_m/**"
+  # - "*/domain_n/**"
+  # - "*/domain_o/**"
+  # - "*/domain_p/**"
+  # - "*/domain_q/**"
+  # - "*/domain_r/**"
+  # - "*/domain_s/**"
+  # - "*/domain_t/**"
+
+  # --- By layer (each ~400 flowgroups) ---
+  # - "01_raw/**"
+  # - "02_bronze/**"
+  # - "03_silver/**"
+  # - "04_gold/**"
+  # - "05_modelled/**"
+
+  # --- Small: single domain + single layer (~20 flowgroups) ---
+  # - "02_bronze/domain_a/**"
+
+  # --- Medium: one domain across all layers (~100 flowgroups) ---
+  # - "*/domain_c/**"
+
+  # --- ~500 flowgroups: 5 domains ---
+  # - "*/domain_a/**"
+  # - "*/domain_b/**"
+  # - "*/domain_c/**"
+  # - "*/domain_d/**"
+  # - "*/domain_e/**"
+
+  # --- ~1000 flowgroups: 10 domains ---
+  # - "*/domain_a/**"
+  # - "*/domain_b/**"
+  # - "*/domain_c/**"
+  # - "*/domain_d/**"
+  # - "*/domain_e/**"
+  # - "*/domain_f/**"
+  # - "*/domain_g/**"
+  # - "*/domain_h/**"
+  # - "*/domain_i/**"
+  # - "*/domain_j/**"
+
+  # --- Two layers (~800 flowgroups) ---
+  # - "01_raw/**"
+  # - "02_bronze/**"
+
+operational_metadata:
+  columns:
+    _source_file_path:
+      expression: "F.col('_metadata.file_path')"
+      description: "File paths"
+      applies_to: ["view"]
+
+    _processing_timestamp:
+      expression: "F.current_timestamp()"
+      description: "When the record was processed by the pipeline"
+      applies_to: ["streaming_table", "materialized_view", "view"]

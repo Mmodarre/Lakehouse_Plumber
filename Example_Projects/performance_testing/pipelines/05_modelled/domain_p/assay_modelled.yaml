@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: assay_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: assay_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: assay_dim
+    target: v_assay_silver
+    description: "Load assay from silver for modelling"
+
+  - name: assay_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_assay_silver
+    target: v_assay_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_assay_silver
+
+  - name: write_assay_modelled
+    type: write
+    source: v_assay_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "assay_modelled"

@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: batch_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: batch_raw
+  landing_folder: batch
+  schema_file: lineitem_schema

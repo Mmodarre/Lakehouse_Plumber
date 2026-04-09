@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: prescription_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: prescription_raw
+  landing_folder: prescription
+  schema_file: orders_schema

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: ticket_sale_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: ticket_sale_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: ticket_sale_dim
+    target: v_ticket_sale_silver
+    description: "Load ticket_sale from silver for modelling"
+
+  - name: ticket_sale_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_ticket_sale_silver
+    target: v_ticket_sale_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_ticket_sale_silver
+
+  - name: write_ticket_sale_modelled
+    type: write
+    source: v_ticket_sale_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "ticket_sale_modelled"

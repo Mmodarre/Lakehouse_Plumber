@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: grade_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: grade_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: grade_dim
+    target: v_grade_silver
+    description: "Load grade from silver for modelling"
+
+  - name: grade_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_grade_silver
+    target: v_grade_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_grade_silver
+
+  - name: write_grade_modelled
+    type: write
+    source: v_grade_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "grade_modelled"

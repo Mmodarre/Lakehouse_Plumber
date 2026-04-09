@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: transcript_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: transcript_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: transcript_dim
+    target: v_transcript_silver
+    description: "Load transcript from silver for modelling"
+
+  - name: transcript_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_transcript_silver
+    target: v_transcript_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_transcript_silver
+
+  - name: write_transcript_modelled
+    type: write
+    source: v_transcript_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "transcript_modelled"

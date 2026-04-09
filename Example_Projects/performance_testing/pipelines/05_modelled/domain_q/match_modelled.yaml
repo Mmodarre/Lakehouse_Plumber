@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: match_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: match_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: match_dim
+    target: v_match_silver
+    description: "Load match from silver for modelling"
+
+  - name: match_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_match_silver
+    target: v_match_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_match_silver
+
+  - name: write_match_modelled
+    type: write
+    source: v_match_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "match_modelled"

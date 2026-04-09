@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: bom_analysis_mv
+actions:
+  - name: bom_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.bom_dim
+    target: v_bom_analysis
+
+  - name: write_bom_analysis_mv
+    type: write
+    source: v_bom_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "bom_analysis_mv"

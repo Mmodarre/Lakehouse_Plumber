@@ -1,0 +1,8 @@
+pipeline: perf_bronze
+flowgroup: table_seat_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: table_seat
+  source_table: table_seat_raw

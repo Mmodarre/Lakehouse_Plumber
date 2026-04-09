@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: loyalty_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: loyalty_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: loyalty_dim
+    target: v_loyalty_silver
+    description: "Load loyalty from silver for modelling"
+
+  - name: loyalty_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_loyalty_silver
+    target: v_loyalty_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_loyalty_silver
+
+  - name: write_loyalty_modelled
+    type: write
+    source: v_loyalty_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "loyalty_modelled"

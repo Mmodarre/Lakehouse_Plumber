@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: tenant_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: tenant_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: tenant_dim
+    target: v_tenant_silver
+    description: "Load tenant from silver for modelling"
+
+  - name: tenant_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tenant_silver
+    target: v_tenant_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_tenant_silver
+
+  - name: write_tenant_modelled
+    type: write
+    source: v_tenant_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "tenant_modelled"

@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: producer_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: producer_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: producer_dim
+    target: v_producer_silver
+    description: "Load producer from silver for modelling"
+
+  - name: producer_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_producer_silver
+    target: v_producer_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_producer_silver
+
+  - name: write_producer_modelled
+    type: write
+    source: v_producer_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "producer_modelled"

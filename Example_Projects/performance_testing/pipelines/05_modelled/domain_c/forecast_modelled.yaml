@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: forecast_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: forecast_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: forecast_dim
+    target: v_forecast_silver
+    description: "Load forecast from silver for modelling"
+
+  - name: forecast_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_forecast_silver
+    target: v_forecast_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_forecast_silver
+
+  - name: write_forecast_modelled
+    type: write
+    source: v_forecast_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "forecast_modelled"

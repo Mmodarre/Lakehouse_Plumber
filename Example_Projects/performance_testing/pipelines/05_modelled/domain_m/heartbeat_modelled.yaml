@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: heartbeat_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: heartbeat_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: heartbeat_dim
+    target: v_heartbeat_silver
+    description: "Load heartbeat from silver for modelling"
+
+  - name: heartbeat_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_heartbeat_silver
+    target: v_heartbeat_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_heartbeat_silver
+
+  - name: write_heartbeat_modelled
+    type: write
+    source: v_heartbeat_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "heartbeat_modelled"

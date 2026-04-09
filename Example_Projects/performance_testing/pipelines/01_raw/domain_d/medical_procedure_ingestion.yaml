@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: medical_procedure_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: medical_procedure_raw
+  landing_folder: medical_procedure
+  schema_file: part_schema

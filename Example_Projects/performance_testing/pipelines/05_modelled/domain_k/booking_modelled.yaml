@@ -1,0 +1,37 @@
+pipeline: perf_modelled
+flowgroup: booking_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: booking_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: booking_dim
+    target: v_booking_silver
+    description: "Load booking from silver for modelling"
+
+  - name: booking_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_booking_silver
+    target: v_booking_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_booking_silver
+
+  - name: write_booking_modelled
+    type: write
+    source: v_booking_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "booking_modelled"

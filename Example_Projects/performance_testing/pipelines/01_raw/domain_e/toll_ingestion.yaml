@@ -1,0 +1,9 @@
+pipeline: perf_raw
+flowgroup: toll_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: toll_raw
+  landing_folder: toll
+  schema_file: lineitem_schema

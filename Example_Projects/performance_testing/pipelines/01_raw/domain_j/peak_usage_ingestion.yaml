@@ -1,0 +1,31 @@
+pipeline: perf_raw
+flowgroup: peak_usage_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_peak_usage_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/peak_usage/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_peak_usage_cloudfiles
+    description: "Load peak_usage from landing volume"
+
+  - name: write_peak_usage_raw
+    type: write
+    source: v_peak_usage_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "peak_usage_raw"

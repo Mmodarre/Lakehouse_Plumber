@@ -1,0 +1,22 @@
+pipeline: perf_gold
+flowgroup: audience_dashboard_mv
+actions:
+  - name: audience_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.audience_dim
+    target: v_audience_dashboard
+
+  - name: write_audience_dashboard_mv
+    type: write
+    source: v_audience_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "audience_dashboard_mv"
