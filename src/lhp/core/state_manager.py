@@ -9,7 +9,7 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from .state.dependency_tracker import DependencyTracker
 from .state.state_analyzer import StateAnalyzer
@@ -67,6 +67,22 @@ class StateManager:
         self.logger.info(
             f"Initialized StateManager with service-based architecture: {project_root}"
         )
+
+    def set_checksum_cache(self, cache) -> None:
+        """Inject a shared ChecksumCache into all sub-services.
+
+        Must be called before any staleness analysis to ensure all
+        DependencyTracker and StateDependencyResolver instances share
+        the same cache.
+
+        Args:
+            cache: ChecksumCache instance
+        """
+        self._checksum_cache = cache
+        # Distribute to analyzer's tracker and resolver
+        self.analyzer.set_checksum_cache(cache)
+        # Distribute to top-level tracker
+        self.tracker.set_checksum_cache(cache)
 
     # ============================================================================
     # PUBLIC API PROPERTIES (Facade Pattern)
@@ -208,19 +224,25 @@ class StateManager:
         """
         return self.tracker.get_files_by_source(self._state, source_yaml, environment)
 
-    def find_orphaned_files(self, environment: str) -> List[FileState]:
+    def find_orphaned_files(
+        self,
+        environment: str,
+        active_flowgroups: Optional[Set[Tuple[str, str]]] = None,
+    ) -> List[FileState]:
         """
         Find generated files whose source YAML files no longer exist or don't match include patterns.
 
         Args:
             environment: Environment name
+            active_flowgroups: Optional set of (pipeline, flowgroup) tuples for fast-path lookup
 
         Returns:
             List of orphaned FileState objects
         """
         include_patterns = self.get_include_patterns()
         return self.cleaner.find_orphaned_files(
-            self._state, environment, include_patterns
+            self._state, environment, include_patterns,
+            active_flowgroups=active_flowgroups,
         )
 
     def find_stale_files(self, environment: str) -> List[FileState]:
@@ -257,6 +279,27 @@ class StateManager:
         include_patterns = self.get_include_patterns()
         return self.analyzer.get_files_needing_generation(
             self._state, environment, include_patterns, pipeline, generation_context
+        )
+
+    def get_all_files_needing_generation(
+        self, environment: str
+    ) -> Dict[str, Dict[str, List]]:
+        """
+        Get files needing generation for ALL pipelines in a single pass.
+
+        Calls find_stale_files() once and detects new files once, then
+        partitions results by pipeline. Much faster than calling
+        get_files_needing_generation() per pipeline.
+
+        Args:
+            environment: Environment name
+
+        Returns:
+            Dict mapping pipeline_name -> {"new": [...], "stale": [...], "up_to_date": [...]}
+        """
+        include_patterns = self.get_include_patterns()
+        return self.analyzer.get_all_files_needing_generation(
+            self._state, environment, include_patterns
         )
 
     def cleanup_orphaned_files(

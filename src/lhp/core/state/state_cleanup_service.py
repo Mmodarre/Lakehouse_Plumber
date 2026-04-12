@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Tuple
 
 # Import state models from separate module
 from ..state_models import FileState, ProjectState
@@ -31,110 +31,125 @@ class StateCleanupService:
         state: ProjectState,
         environment: str,
         include_patterns: Optional[List[str]] = None,
+        active_flowgroups: Optional[Set[Tuple[str, str]]] = None,
     ) -> List[FileState]:
         """
         Find generated files whose source YAML files no longer exist or don't match include patterns.
 
         A file is considered orphaned if:
         1. The source YAML file doesn't exist anymore, OR
-        2. The source YAML file doesn't match include patterns (if patterns are specified)
+        2. The source YAML file doesn't match include patterns (if patterns are specified), OR
+        3. The (pipeline, flowgroup) pair is no longer in the active discovery set
+
+        When active_flowgroups is provided (fast path from generate command), uses a
+        simple set membership check instead of re-parsing each source YAML.
 
         Args:
             state: ProjectState to analyze
             environment: Environment name
             include_patterns: Optional include patterns for filtering
+            active_flowgroups: Optional set of (pipeline, flowgroup) tuples from discovery
 
         Returns:
             List of orphaned FileState objects
         """
-
-        # Pattern matching utility function
-        def check_pattern_match(file_path, patterns):
-            """Check if file matches include patterns."""
-            if not patterns:
-                return True  # No patterns = all files match (backward compatibility)
-
-            try:
-                from ...utils.file_pattern_matcher import discover_files_with_patterns
-
-                # Use the same logic as get_current_yaml_files() for consistency
-                pipelines_dir = self.project_root / "pipelines"
-                if pipelines_dir.exists():
-                    # Get all matching files using proper base directory context
-                    matched_files = discover_files_with_patterns(
-                        pipelines_dir, patterns
-                    )
-                    # Check if our specific file is in the matched set
-                    return file_path in matched_files
-                return False
-            except ImportError:
-                self.logger.warning(
-                    "file_pattern_matcher not available, assuming files match patterns"
-                )
-                return True
-            except Exception as e:
-                self.logger.warning(
-                    f"Error checking pattern match for {file_path}: {e}"
-                )
-                return True
-
         orphaned_files = []
         env_files = state.environments.get(environment, {})
 
-        for file_state in env_files.values():
-            source_path = self.project_root / file_state.source_yaml
+        if active_flowgroups is not None:
+            # Fast path: use pre-built active set (discovery already respects include patterns)
+            for file_state in env_files.values():
+                source_path = self.project_root / file_state.source_yaml
 
-            # Check if source YAML file exists
-            if not source_path.exists():
-                orphaned_files.append(file_state)
-                self.logger.info(
-                    f"Found orphaned file (source missing): {file_state.generated_path}"
-                )
-                continue
-
-            # Check if source file matches include patterns (if patterns specified)
-            if include_patterns:
-                if not check_pattern_match(source_path, include_patterns):
+                if not source_path.exists():
                     orphaned_files.append(file_state)
                     self.logger.info(
-                        f"Found orphaned file (include pattern mismatch): {file_state.generated_path}"
+                        f"Found orphaned file (source missing): {file_state.generated_path}"
                     )
                     continue
 
-            # Check if pipeline or flowgroup field in source YAML has changed
-            # Support multi-flowgroup files
-            try:
-                from ...parsers.yaml_parser import YAMLParser
-
-                yaml_parser = YAMLParser()
-
-                # Parse all flowgroups from file (supports multi-document and array syntax)
-                flowgroups_in_file = yaml_parser.parse_flowgroups_from_file(source_path)
-
-                # Check if the flowgroup still exists in the file
-                flowgroup_found = False
-                for fg in flowgroups_in_file:
-                    if (
-                        fg.pipeline == file_state.pipeline
-                        and fg.flowgroup == file_state.flowgroup
-                    ):
-                        flowgroup_found = True
-                        break
-
-                # If flowgroup not found in file, consider it orphaned
-                if not flowgroup_found:
+                if (file_state.pipeline, file_state.flowgroup) not in active_flowgroups:
                     orphaned_files.append(file_state)
                     self.logger.info(
-                        f"Found orphaned file (flowgroup '{file_state.flowgroup}' no longer in source): {file_state.generated_path}"
+                        f"Found orphaned file (flowgroup '{file_state.flowgroup}' no longer active): {file_state.generated_path}"
+                    )
+        else:
+            # Legacy path: full YAML re-parsing (for callers outside generate command)
+            # Pattern matching utility function
+            def check_pattern_match(file_path, patterns):
+                """Check if file matches include patterns."""
+                if not patterns:
+                    return True
+
+                try:
+                    from ...utils.file_pattern_matcher import (
+                        discover_files_with_patterns,
+                    )
+
+                    pipelines_dir = self.project_root / "pipelines"
+                    if pipelines_dir.exists():
+                        matched_files = discover_files_with_patterns(
+                            pipelines_dir, patterns
+                        )
+                        return file_path in matched_files
+                    return False
+                except ImportError:
+                    self.logger.warning(
+                        "file_pattern_matcher not available, assuming files match patterns"
+                    )
+                    return True
+                except Exception as e:
+                    self.logger.warning(
+                        f"Error checking pattern match for {file_path}: {e}"
+                    )
+                    return True
+
+            for file_state in env_files.values():
+                source_path = self.project_root / file_state.source_yaml
+
+                if not source_path.exists():
+                    orphaned_files.append(file_state)
+                    self.logger.info(
+                        f"Found orphaned file (source missing): {file_state.generated_path}"
                     )
                     continue
 
-            except Exception as e:
-                # If we can't parse the YAML, log warning but don't consider it orphaned
-                # This prevents false positives from temporarily invalid YAML files
-                self.logger.warning(
-                    f"Could not parse YAML file {source_path} for orphaned check: {e}"
-                )
+                if include_patterns:
+                    if not check_pattern_match(source_path, include_patterns):
+                        orphaned_files.append(file_state)
+                        self.logger.info(
+                            f"Found orphaned file (include pattern mismatch): {file_state.generated_path}"
+                        )
+                        continue
+
+                try:
+                    from ...parsers.yaml_parser import YAMLParser
+
+                    yaml_parser = YAMLParser()
+                    flowgroups_in_file = yaml_parser.parse_flowgroups_from_file(
+                        source_path
+                    )
+
+                    flowgroup_found = False
+                    for fg in flowgroups_in_file:
+                        if (
+                            fg.pipeline == file_state.pipeline
+                            and fg.flowgroup == file_state.flowgroup
+                        ):
+                            flowgroup_found = True
+                            break
+
+                    if not flowgroup_found:
+                        orphaned_files.append(file_state)
+                        self.logger.info(
+                            f"Found orphaned file (flowgroup '{file_state.flowgroup}' no longer in source): {file_state.generated_path}"
+                        )
+                        continue
+
+                except Exception as e:
+                    self.logger.warning(
+                        f"Could not parse YAML file {source_path} for orphaned check: {e}"
+                    )
 
         if orphaned_files:
             self.logger.info(

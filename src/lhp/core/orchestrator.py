@@ -177,6 +177,11 @@ class ActionOrchestrator:
         else:
             self.logger.info("No project configuration found, using defaults")
 
+    @property
+    def cached_yaml_parser(self) -> CachingYAMLParser:
+        """Public accessor for the shared CachingYAMLParser instance."""
+        return self._cached_yaml_parser
+
     def _enforce_version_requirements(self) -> None:
         """Enforce version requirements if specified in project config."""
         # Skip if no project config or no version requirement
@@ -366,6 +371,7 @@ class ActionOrchestrator:
         include_tests: bool,
         force: bool = False,
         state_manager: Optional[StateManager] = None,
+        pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> GenerationAnalysis:
         """
         Analyze generation requirements including generation context awareness.
@@ -435,13 +441,15 @@ class ActionOrchestrator:
                 detailed_staleness_info=staleness_info,
             )
 
-        # Analyze each pipeline for staleness (including generation context)
+        # Analyze all pipelines for staleness in a SINGLE pass
+        # (avoids calling find_stale_files and find_new_yaml_files per pipeline)
+        all_generation_info = state_manager.get_all_files_needing_generation(env)
         include_tests_stale_found = False
 
         for pipeline_name in pipeline_names:
-            # Get basic staleness info
-            generation_info = state_manager.get_files_needing_generation(
-                env, pipeline_name
+            # Look up pre-computed info; fall back to empty if pipeline has no state
+            generation_info = all_generation_info.get(
+                pipeline_name, {"new": [], "stale": [], "up_to_date": []}
             )
 
             new_count = len(generation_info["new"])
@@ -449,7 +457,16 @@ class ActionOrchestrator:
             up_to_date_count = len(generation_info["up_to_date"])
 
             # Check for generation context staleness using planning service
-            all_flowgroups = self.discover_flowgroups_by_pipeline_field(pipeline_name)
+            if pre_discovered_all_flowgroups is not None:
+                all_flowgroups = [
+                    fg
+                    for fg in pre_discovered_all_flowgroups
+                    if fg.pipeline == pipeline_name
+                ]
+            else:
+                all_flowgroups = self.discover_flowgroups_by_pipeline_field(
+                    pipeline_name
+                )
             generation_context_stale = (
                 self.planning_service.analyze_generation_context_staleness(
                     all_flowgroups, env, include_tests, state_manager
@@ -631,6 +648,7 @@ class ActionOrchestrator:
         force_all: bool = False,
         specific_flowgroups: List[str] = None,
         include_tests: bool = False,
+        pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> Dict[str, str]:
         """Generate complete pipeline from YAML configs using pipeline field.
 
@@ -641,6 +659,7 @@ class ActionOrchestrator:
             state_manager: Optional state manager for tracking generated files
             force_all: If True, generate all flowgroups regardless of changes
             specific_flowgroups: If provided, only generate these specific flowgroups
+            pre_discovered_all_flowgroups: Pre-discovered flowgroups to avoid redundant discovery
 
         Returns:
             Dictionary mapping filename to generated code content
@@ -649,11 +668,14 @@ class ActionOrchestrator:
             f"Starting pipeline generation by field: {pipeline_field} for env: {env}"
         )
 
-        # 1. Validate no duplicates and discover flowgroups
-        with perf_timer("discover_all_flowgroups"):
-            all_flowgroups = self.discover_all_flowgroups()
-        with perf_timer("validate_duplicates"):
-            self.validate_duplicate_pipeline_flowgroup_combinations(all_flowgroups)
+        # 1. Use pre-discovered flowgroups or discover + validate
+        if pre_discovered_all_flowgroups is not None:
+            all_flowgroups = pre_discovered_all_flowgroups
+        else:
+            with perf_timer("discover_all_flowgroups"):
+                all_flowgroups = self.discover_all_flowgroups()
+            with perf_timer("validate_duplicates"):
+                self.validate_duplicate_pipeline_flowgroup_combinations(all_flowgroups)
 
         with perf_timer("discover_and_filter_flowgroups"):
             flowgroups = self._discover_and_filter_flowgroups(

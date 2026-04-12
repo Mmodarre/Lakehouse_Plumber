@@ -134,12 +134,13 @@ class TestApplicationFacade:
         # Verify orchestrator was called correctly
         mock_orchestrator.generate_pipeline_by_field.assert_called_once_with(
             pipeline_field="test_pipeline",
-            env="dev", 
+            env="dev",
             output_dir=Path("/output"),
             state_manager=facade.state_manager,
             force_all=False,
             specific_flowgroups=None,
-            include_tests=True
+            include_tests=True,
+            pre_discovered_all_flowgroups=None,
         )
     
     def test_generate_pipeline_failure(self):
