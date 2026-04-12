@@ -1,0 +1,22 @@
+pipeline: domain_l_gold
+flowgroup: kitchen_report_mv
+actions:
+  - name: kitchen_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.kitchen_fct
+    target: v_kitchen_report
+
+  - name: write_kitchen_report_mv
+    type: write
+    source: v_kitchen_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "kitchen_report_mv"

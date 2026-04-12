@@ -1,0 +1,9 @@
+pipeline: domain_o_raw
+flowgroup: hashtag_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: hashtag_raw
+  landing_folder: hashtag
+  schema_file: product_schema

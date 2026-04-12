@@ -1,0 +1,9 @@
+pipeline: domain_k_raw
+flowgroup: radar_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: radar_raw
+  landing_folder: radar
+  schema_file: nation_schema

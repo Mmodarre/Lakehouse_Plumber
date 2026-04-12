@@ -1,0 +1,22 @@
+pipeline: domain_g_gold
+flowgroup: landlord_dashboard_mv
+actions:
+  - name: landlord_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.landlord_fct
+    target: v_landlord_dashboard
+
+  - name: write_landlord_dashboard_mv
+    type: write
+    source: v_landlord_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "landlord_dashboard_mv"

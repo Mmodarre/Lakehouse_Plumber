@@ -1,0 +1,659 @@
+pipeline: domain_l_silver
+flowgroup: restaurant_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: restaurant_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: restaurant
+    target: v_restaurant_bronze
+    description: "Load restaurant from bronze for silver layer"
+
+  - name: write_restaurant_silver
+    type: write
+    source: v_restaurant_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "restaurant_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["restaurant_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: menu_item_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: menu_item_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: menu_item
+    target: v_menu_item_bronze
+    description: "Load menu_item from bronze for silver layer"
+
+  - name: write_menu_item_silver
+    type: write
+    source: v_menu_item_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "menu_item_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["menu_item_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: table_seat_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: table_seat_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: table_seat
+    target: v_table_seat_bronze
+    description: "Load table_seat from bronze for silver layer"
+
+  - name: write_table_seat_silver
+    type: write
+    source: v_table_seat_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "table_seat_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["table_seat_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: reservation_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: reservation_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: reservation
+    target: v_reservation_bronze
+    description: "Load reservation from bronze for silver layer"
+
+  - name: write_reservation_silver
+    type: write
+    source: v_reservation_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "reservation_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["reservation_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: chef_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: chef_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: chef
+    target: v_chef_bronze
+    description: "Load chef from bronze for silver layer"
+
+  - name: write_chef_silver
+    type: write
+    source: v_chef_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "chef_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["chef_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: waiter_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: waiter_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: waiter
+    target: v_waiter_bronze
+    description: "Load waiter from bronze for silver layer"
+
+  - name: write_waiter_silver
+    type: write
+    source: v_waiter_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "waiter_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["waiter_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: kitchen_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: kitchen_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: kitchen
+    target: v_kitchen_bronze
+    description: "Load kitchen from bronze for silver layer"
+
+  - name: write_kitchen_silver
+    type: write
+    source: v_kitchen_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "kitchen_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["kitchen_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: food_order_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: food_order_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: food_order
+    target: v_food_order_bronze
+    description: "Load food_order from bronze for silver layer"
+
+  - name: write_food_order_silver
+    type: write
+    source: v_food_order_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "food_order_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["food_order_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: ingredient_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: ingredient_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: ingredient
+    target: v_ingredient_bronze
+    description: "Load ingredient from bronze for silver layer"
+
+  - name: write_ingredient_silver
+    type: write
+    source: v_ingredient_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "ingredient_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["ingredient_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: recipe_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: recipe_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: recipe
+    target: v_recipe_bronze
+    description: "Load recipe from bronze for silver layer"
+
+  - name: write_recipe_silver
+    type: write
+    source: v_recipe_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "recipe_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["recipe_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: supplier_contract_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: supplier_contract_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: supplier_contract
+    target: v_supplier_contract_bronze
+    description: "Load supplier_contract from bronze for silver layer"
+
+  - name: write_supplier_contract_silver
+    type: write
+    source: v_supplier_contract_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "supplier_contract_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["supplier_contract_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: health_inspection_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: health_inspection_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: health_inspection
+    target: v_health_inspection_bronze
+    description: "Load health_inspection from bronze for silver layer"
+
+  - name: write_health_inspection_silver
+    type: write
+    source: v_health_inspection_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "health_inspection_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["health_inspection_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: tip_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: tip_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: tip
+    target: v_tip_bronze
+    description: "Load tip from bronze for silver layer"
+
+  - name: write_tip_silver
+    type: write
+    source: v_tip_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "tip_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["tip_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: shift_schedule_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: shift_schedule_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: shift_schedule
+    target: v_shift_schedule_bronze
+    description: "Load shift_schedule from bronze for silver layer"
+
+  - name: write_shift_schedule_silver
+    type: write
+    source: v_shift_schedule_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "shift_schedule_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["shift_schedule_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: pantry_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: pantry_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: pantry
+    target: v_pantry_bronze
+    description: "Load pantry from bronze for silver layer"
+
+  - name: write_pantry_silver
+    type: write
+    source: v_pantry_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "pantry_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["pantry_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: dish_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: dish_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: dish
+    target: v_dish_bronze
+    description: "Load dish from bronze for silver layer"
+
+  - name: write_dish_silver
+    type: write
+    source: v_dish_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "dish_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["dish_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: beverage_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: beverage_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: beverage
+    target: v_beverage_bronze
+    description: "Load beverage from bronze for silver layer"
+
+  - name: write_beverage_silver
+    type: write
+    source: v_beverage_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "beverage_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["beverage_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: appetizer_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: appetizer_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: appetizer
+    target: v_appetizer_bronze
+    description: "Load appetizer from bronze for silver layer"
+
+  - name: write_appetizer_silver
+    type: write
+    source: v_appetizer_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "appetizer_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["appetizer_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: dessert_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: dessert_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: dessert
+    target: v_dessert_bronze
+    description: "Load dessert from bronze for silver layer"
+
+  - name: write_dessert_silver
+    type: write
+    source: v_dessert_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "dessert_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["dessert_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_l_silver
+flowgroup: special_menu_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: special_menu_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: special_menu
+    target: v_special_menu_bronze
+    description: "Load special_menu from bronze for silver layer"
+
+  - name: write_special_menu_silver
+    type: write
+    source: v_special_menu_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "special_menu_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["special_menu_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

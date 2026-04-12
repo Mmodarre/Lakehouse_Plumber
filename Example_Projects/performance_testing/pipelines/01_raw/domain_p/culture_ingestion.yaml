@@ -1,0 +1,9 @@
+pipeline: domain_p_raw
+flowgroup: culture_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: culture_raw
+  landing_folder: culture
+  schema_file: partsupp_schema

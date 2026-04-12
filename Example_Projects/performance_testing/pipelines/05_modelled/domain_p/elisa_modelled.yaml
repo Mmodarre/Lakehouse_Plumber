@@ -1,0 +1,37 @@
+pipeline: domain_p_modelled
+flowgroup: elisa_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: elisa_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: elisa_fct
+    target: v_elisa_silver
+    description: "Load elisa from silver for modelling"
+
+  - name: elisa_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_elisa_silver
+    target: v_elisa_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_elisa_silver
+
+  - name: write_elisa_modelled
+    type: write
+    source: v_elisa_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "elisa_modelled"

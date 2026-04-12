@@ -1,0 +1,31 @@
+pipeline: domain_q_raw
+flowgroup: season_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_season_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/season/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_season_cloudfiles
+    description: "Load season from landing volume"
+
+  - name: write_season_raw
+    type: write
+    source: v_season_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "season_raw"

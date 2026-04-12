@@ -1,0 +1,9 @@
+pipeline: domain_j_raw
+flowgroup: transmission_line_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: transmission_line_raw
+  landing_folder: transmission_line
+  schema_file: product_schema

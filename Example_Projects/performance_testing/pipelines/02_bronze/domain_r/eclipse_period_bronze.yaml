@@ -1,0 +1,85 @@
+pipeline: domain_r_bronze
+flowgroup: eclipse_period_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: eclipse_period_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: eclipse_period_raw
+    target: v_eclipse_period_raw
+    description: "Load eclipse_period from raw schema"
+
+  - name: eclipse_period_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_eclipse_period_raw
+    target: v_eclipse_period_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as eclipse_period_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_eclipse_period_raw
+
+  - name: eclipse_period_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_eclipse_period_bronze_cleaned
+    target: v_eclipse_period_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for eclipse_period bronze"
+
+  - name: write_eclipse_period_bronze
+    type: write
+    source: v_eclipse_period_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "eclipse_period"
+
+  - name: eclipse_period_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: eclipse_period_migration
+    target: v_eclipse_period_migration
+    description: "Load eclipse_period migration data"
+
+  - name: eclipse_period_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_eclipse_period_migration
+    target: v_eclipse_period_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as eclipse_period_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_eclipse_period_migration
+
+  - name: write_eclipse_period_migration
+    type: write
+    source: v_eclipse_period_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "eclipse_period"

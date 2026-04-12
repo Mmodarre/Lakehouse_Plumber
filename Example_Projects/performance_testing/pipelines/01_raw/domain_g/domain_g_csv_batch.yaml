@@ -1,0 +1,53 @@
+pipeline: domain_g_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: unit_ingestion
+    template_parameters:
+      table_name: unit_raw
+      landing_folder: unit
+      schema_file: part_schema
+
+  - flowgroup: work_order_ingestion
+    template_parameters:
+      table_name: work_order_raw
+      landing_folder: work_order
+      schema_file: customer_schema
+
+  - flowgroup: mortgage_ingestion
+    template_parameters:
+      table_name: mortgage_raw
+      landing_folder: mortgage
+      schema_file: product_schema
+
+  - flowgroup: permit_ingestion
+    template_parameters:
+      table_name: permit_raw
+      landing_folder: permit
+      schema_file: partsupp_schema
+
+  - flowgroup: property_tax_ingestion
+    template_parameters:
+      table_name: property_tax_raw
+      landing_folder: property_tax
+      schema_file: lineitem_schema
+
+  - flowgroup: plat_ingestion
+    template_parameters:
+      table_name: plat_raw
+      landing_folder: plat
+      schema_file: customer_schema
+
+  - flowgroup: earnest_money_ingestion
+    template_parameters:
+      table_name: earnest_money_raw
+      landing_folder: earnest_money
+      schema_file: product_schema
+
+  - flowgroup: radon_test_ingestion
+    template_parameters:
+      table_name: radon_test_raw
+      landing_folder: radon_test
+      schema_file: nation_schema

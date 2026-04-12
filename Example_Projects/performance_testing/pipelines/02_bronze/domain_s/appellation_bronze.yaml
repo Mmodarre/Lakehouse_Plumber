@@ -1,0 +1,48 @@
+pipeline: domain_s_bronze
+flowgroup: appellation_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: appellation_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: appellation_raw
+    target: v_appellation_raw
+    description: "Load appellation from raw schema"
+
+  - name: appellation_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_appellation_raw
+    target: v_appellation_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as appellation_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_appellation_raw
+      WHERE 1=1
+
+  - name: appellation_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_appellation_bronze_cleaned
+    target: v_appellation_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to appellation"
+
+  - name: write_appellation_bronze
+    type: write
+    source: v_appellation_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "appellation"

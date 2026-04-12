@@ -1,0 +1,8 @@
+pipeline: domain_r_bronze
+flowgroup: telemetry_frame_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: telemetry_frame
+  source_table: telemetry_frame_raw

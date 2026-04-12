@@ -1,0 +1,22 @@
+pipeline: domain_e_gold
+flowgroup: consignment_report_mv
+actions:
+  - name: consignment_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.consignment_dim
+    target: v_consignment_report
+
+  - name: write_consignment_report_mv
+    type: write
+    source: v_consignment_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "consignment_report_mv"

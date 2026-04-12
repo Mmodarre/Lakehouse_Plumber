@@ -293,6 +293,50 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
           track_history_except_column_list: ["created_at", "updated_at", "_metadata"]
       description: "Product dimension excluding audit columns from history"
 
+**Option 4: Parameterized Function Source**
+
+Use ``parameters`` to pass keyword arguments to the snapshot function via ``functools.partial``.
+This makes the function reusable and testable outside LHP — no substitution tokens baked into the function body.
+
+.. code-block:: yaml
+
+  actions:
+    - name: write_supplier_silver_snapshot
+      type: write
+      write_target:
+        type: streaming_table
+        catalog: "{catalog}"
+        schema: "{silver_schema}"
+        table: "supplier_dim"
+        mode: "snapshot_cdc"
+        snapshot_cdc_config:
+          source_function:
+            file: "py_functions/supplier_snapshot_func.py"
+            function: "next_supplier_snapshot"
+            parameters:
+              catalog: "{catalog}"
+              schema: "{bronze_schema}"
+              table: "supplier"
+          keys: ["supplier_id"]
+          stored_as_scd_type: 2
+      description: "Supplier dimension with parameterized snapshot function"
+
+The function must declare parameters as keyword-only arguments (after ``*``):
+
+.. code-block:: python
+
+  def next_supplier_snapshot(
+      latest_version: Optional[int],
+      *,
+      catalog: str,
+      schema: str,
+      table: str,
+  ) -> Optional[Tuple[DataFrame, int]]:
+      ...
+
+This generates ``source=partial(next_supplier_snapshot, catalog="prod", schema="bronze", table="supplier")``
+instead of a bare function reference.
+
 **Anatomy of snapshot CDC configuration**
 
 - **snapshot_cdc_config**: Required configuration block for snapshot CDC
@@ -300,6 +344,7 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
       - **source_function**: Python function configuration (mutually exclusive with source)
         - **file**: Path to Python file containing the function
         - **function**: Name of the function to call
+        - **parameters**: (optional) Keyword arguments to bind via ``functools.partial``. The function must declare these as keyword-only args (after ``*``). Substitution tokens are resolved before binding.
       - **keys**: Primary key columns for CDC (required, list of strings)
       - **stored_as_scd_type**: SCD type - "1" or "2" (required)
       - **track_history_column_list**: Specific columns to track history for (optional)
@@ -505,6 +550,7 @@ Create file `py_functions/part_snapshot_func.py`:
   - When using `source_function`, the Python function is embedded directly into the generated DLT code
   - Function file paths are relative to the YAML file location
   - **Substitution support**: Python functions support ``{token}`` and ``${secret:scope/key}`` substitutions
+  - **Parameters support**: Use ``parameters`` inside ``source_function`` to bind keyword arguments via ``functools.partial``. The function must use a ``*`` separator for keyword-only args. Substitution tokens in parameter values are resolved before binding.
   
   **⚠️ Source Field Redundancy**: When using ``source_function`` in snapshot CDC configuration, do NOT include a ``source`` field at the action level. The ``source`` field becomes redundant and may cause false dependency errors. The ``source_function`` provides the data source internally.
 

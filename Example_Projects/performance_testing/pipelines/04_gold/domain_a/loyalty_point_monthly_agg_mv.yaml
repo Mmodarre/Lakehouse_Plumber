@@ -1,0 +1,24 @@
+pipeline: domain_a_gold
+flowgroup: loyalty_point_monthly_agg_mv
+actions:
+  - name: loyalty_point_monthly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('mon', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.loyalty_point_dim
+        GROUP BY 1
+    target: v_loyalty_point_monthly_agg
+
+  - name: write_loyalty_point_monthly_agg_mv
+    type: write
+    source: v_loyalty_point_monthly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "loyalty_point_monthly_agg_mv"

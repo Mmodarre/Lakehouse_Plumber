@@ -1,0 +1,37 @@
+pipeline: domain_o_modelled
+flowgroup: seo_rank_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: seo_rank_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: seo_rank_fct
+    target: v_seo_rank_silver
+    description: "Load seo_rank from silver for modelling"
+
+  - name: seo_rank_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_seo_rank_silver
+    target: v_seo_rank_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_seo_rank_silver
+
+  - name: write_seo_rank_modelled
+    type: write
+    source: v_seo_rank_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "seo_rank_modelled"

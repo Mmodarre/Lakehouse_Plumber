@@ -1,0 +1,22 @@
+pipeline: domain_r_gold
+flowgroup: downlink_dashboard_mv
+actions:
+  - name: downlink_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.downlink_dim
+    target: v_downlink_dashboard
+
+  - name: write_downlink_dashboard_mv
+    type: write
+    source: v_downlink_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "downlink_dashboard_mv"

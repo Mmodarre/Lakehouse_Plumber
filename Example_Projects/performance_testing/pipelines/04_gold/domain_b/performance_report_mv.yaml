@@ -1,0 +1,22 @@
+pipeline: domain_b_gold
+flowgroup: performance_report_mv
+actions:
+  - name: performance_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.performance_dim
+    target: v_performance_report
+
+  - name: write_performance_report_mv
+    type: write
+    source: v_performance_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "performance_report_mv"

@@ -1,0 +1,48 @@
+pipeline: domain_f_bronze
+flowgroup: meal_plan_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: meal_plan_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: meal_plan_raw
+    target: v_meal_plan_raw
+    description: "Load meal_plan from raw schema"
+
+  - name: meal_plan_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_meal_plan_raw
+    target: v_meal_plan_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as meal_plan_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_meal_plan_raw
+      WHERE 1=1
+
+  - name: meal_plan_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_meal_plan_bronze_cleaned
+    target: v_meal_plan_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to meal_plan"
+
+  - name: write_meal_plan_bronze
+    type: write
+    source: v_meal_plan_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "meal_plan"

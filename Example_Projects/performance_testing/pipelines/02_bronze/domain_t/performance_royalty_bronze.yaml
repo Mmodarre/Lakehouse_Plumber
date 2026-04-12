@@ -1,0 +1,48 @@
+pipeline: domain_t_bronze
+flowgroup: performance_royalty_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: performance_royalty_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: performance_royalty_raw
+    target: v_performance_royalty_raw
+    description: "Load performance_royalty from raw schema"
+
+  - name: performance_royalty_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_performance_royalty_raw
+    target: v_performance_royalty_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as performance_royalty_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_performance_royalty_raw
+      WHERE 1=1
+
+  - name: performance_royalty_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_performance_royalty_bronze_cleaned
+    target: v_performance_royalty_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to performance_royalty"
+
+  - name: write_performance_royalty_bronze
+    type: write
+    source: v_performance_royalty_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "performance_royalty"

@@ -1,0 +1,9 @@
+pipeline: domain_q_raw
+flowgroup: red_card_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: red_card_raw
+  landing_folder: red_card
+  schema_file: product_schema

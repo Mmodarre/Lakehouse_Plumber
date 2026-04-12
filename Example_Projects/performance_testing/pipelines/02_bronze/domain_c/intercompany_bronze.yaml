@@ -1,0 +1,85 @@
+pipeline: domain_c_bronze
+flowgroup: intercompany_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: intercompany_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: intercompany_raw
+    target: v_intercompany_raw
+    description: "Load intercompany from raw schema"
+
+  - name: intercompany_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_intercompany_raw
+    target: v_intercompany_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as intercompany_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_intercompany_raw
+
+  - name: intercompany_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_intercompany_bronze_cleaned
+    target: v_intercompany_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for intercompany bronze"
+
+  - name: write_intercompany_bronze
+    type: write
+    source: v_intercompany_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "intercompany"
+
+  - name: intercompany_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: intercompany_migration
+    target: v_intercompany_migration
+    description: "Load intercompany migration data"
+
+  - name: intercompany_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_intercompany_migration
+    target: v_intercompany_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as intercompany_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_intercompany_migration
+
+  - name: write_intercompany_migration
+    type: write
+    source: v_intercompany_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "intercompany"

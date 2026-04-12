@@ -1,0 +1,37 @@
+pipeline: domain_r_modelled
+flowgroup: attitude_control_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: attitude_control_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: attitude_control_dim
+    target: v_attitude_control_silver
+    description: "Load attitude_control from silver for modelling"
+
+  - name: attitude_control_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_attitude_control_silver
+    target: v_attitude_control_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_attitude_control_silver
+
+  - name: write_attitude_control_modelled
+    type: write
+    source: v_attitude_control_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "attitude_control_modelled"

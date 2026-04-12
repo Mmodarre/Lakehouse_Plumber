@@ -1,0 +1,85 @@
+pipeline: domain_h_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: store_bronze
+    template_parameters:
+      entity_name: store
+      source_table: store_raw
+
+  - flowgroup: product_listing_bronze
+    template_parameters:
+      entity_name: product_listing
+      source_table: product_listing_raw
+
+  - flowgroup: purchase_bronze
+    template_parameters:
+      entity_name: purchase
+      source_table: purchase_raw
+
+  - flowgroup: return_item_bronze
+    template_parameters:
+      entity_name: return_item
+      source_table: return_item_raw
+
+  - flowgroup: loyalty_bronze
+    template_parameters:
+      entity_name: loyalty
+      source_table: loyalty_raw
+
+  - flowgroup: gift_card_bronze
+    template_parameters:
+      entity_name: gift_card
+      source_table: gift_card_raw
+
+  - flowgroup: shelf_bronze
+    template_parameters:
+      entity_name: shelf
+      source_table: shelf_raw
+
+  - flowgroup: aisle_bronze
+    template_parameters:
+      entity_name: aisle
+      source_table: aisle_raw
+
+  - flowgroup: price_tag_bronze
+    template_parameters:
+      entity_name: price_tag
+      source_table: price_tag_raw
+
+  - flowgroup: barcode_bronze
+    template_parameters:
+      entity_name: barcode
+      source_table: barcode_raw
+
+  - flowgroup: cashier_bronze
+    template_parameters:
+      entity_name: cashier
+      source_table: cashier_raw
+
+  - flowgroup: register_bronze
+    template_parameters:
+      entity_name: register
+      source_table: register_raw
+
+  - flowgroup: receipt_bronze
+    template_parameters:
+      entity_name: receipt
+      source_table: receipt_raw
+
+  - flowgroup: stock_count_bronze
+    template_parameters:
+      entity_name: stock_count
+      source_table: stock_count_raw
+
+  - flowgroup: reorder_bronze
+    template_parameters:
+      entity_name: reorder
+      source_table: reorder_raw
+
+  - flowgroup: vendor_bronze
+    template_parameters:
+      entity_name: vendor
+      source_table: vendor_raw

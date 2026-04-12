@@ -1,0 +1,9 @@
+pipeline: domain_n_raw
+flowgroup: endorsement_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: endorsement_raw
+  landing_folder: endorsement
+  schema_file: lineitem_schema

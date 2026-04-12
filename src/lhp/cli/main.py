@@ -196,7 +196,8 @@ def _discover_yaml_files_with_include(
 @click.group()
 @click.version_option(version=get_version(), prog_name="lhp")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
-def cli(verbose):
+@click.option("--perf", is_flag=True, hidden=True)
+def cli(verbose, perf):
     """LakehousePlumber - Generate Lakeflow pipelines from YAML configs."""
     # Try to find project root for better logging setup
     project_root = _find_project_root()
@@ -207,6 +208,12 @@ def cli(verbose):
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
     ctx.obj["log_file"] = log_file
+    ctx.obj["perf"] = perf
+
+    if perf:
+        from ..utils.performance_timer import enable_perf_timing
+
+        enable_perf_timing(project_root)
 
 
 # ============================================================================

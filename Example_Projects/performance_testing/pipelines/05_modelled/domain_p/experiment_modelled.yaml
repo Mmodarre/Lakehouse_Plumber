@@ -1,0 +1,37 @@
+pipeline: domain_p_modelled
+flowgroup: experiment_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: experiment_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: experiment_fct
+    target: v_experiment_silver
+    description: "Load experiment from silver for modelling"
+
+  - name: experiment_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_experiment_silver
+    target: v_experiment_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_experiment_silver
+
+  - name: write_experiment_modelled
+    type: write
+    source: v_experiment_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "experiment_modelled"

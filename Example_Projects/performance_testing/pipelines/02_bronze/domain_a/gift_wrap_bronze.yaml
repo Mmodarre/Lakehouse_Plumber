@@ -1,0 +1,48 @@
+pipeline: domain_a_bronze
+flowgroup: gift_wrap_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: gift_wrap_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: gift_wrap_raw
+    target: v_gift_wrap_raw
+    description: "Load gift_wrap from raw schema"
+
+  - name: gift_wrap_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_gift_wrap_raw
+    target: v_gift_wrap_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as gift_wrap_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_gift_wrap_raw
+      WHERE 1=1
+
+  - name: gift_wrap_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_gift_wrap_bronze_cleaned
+    target: v_gift_wrap_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to gift_wrap"
+
+  - name: write_gift_wrap_bronze
+    type: write
+    source: v_gift_wrap_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "gift_wrap"

@@ -1,0 +1,8 @@
+pipeline: domain_o_bronze
+flowgroup: segment_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: segment
+  source_table: segment_raw

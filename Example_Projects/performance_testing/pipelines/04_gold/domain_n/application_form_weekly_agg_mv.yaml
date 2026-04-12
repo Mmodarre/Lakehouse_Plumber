@@ -1,0 +1,24 @@
+pipeline: domain_n_gold
+flowgroup: application_form_weekly_agg_mv
+actions:
+  - name: application_form_weekly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('week', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.application_form_dim
+        GROUP BY 1
+    target: v_application_form_weekly_agg
+
+  - name: write_application_form_weekly_agg_mv
+    type: write
+    source: v_application_form_weekly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "application_form_weekly_agg_mv"

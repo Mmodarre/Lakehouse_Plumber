@@ -1,0 +1,85 @@
+pipeline: domain_d_bronze
+flowgroup: blood_bank_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: blood_bank_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: blood_bank_raw
+    target: v_blood_bank_raw
+    description: "Load blood_bank from raw schema"
+
+  - name: blood_bank_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_blood_bank_raw
+    target: v_blood_bank_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as blood_bank_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_blood_bank_raw
+
+  - name: blood_bank_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_blood_bank_bronze_cleaned
+    target: v_blood_bank_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for blood_bank bronze"
+
+  - name: write_blood_bank_bronze
+    type: write
+    source: v_blood_bank_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "blood_bank"
+
+  - name: blood_bank_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: blood_bank_migration
+    target: v_blood_bank_migration
+    description: "Load blood_bank migration data"
+
+  - name: blood_bank_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_blood_bank_migration
+    target: v_blood_bank_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as blood_bank_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_blood_bank_migration
+
+  - name: write_blood_bank_migration
+    type: write
+    source: v_blood_bank_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "blood_bank"

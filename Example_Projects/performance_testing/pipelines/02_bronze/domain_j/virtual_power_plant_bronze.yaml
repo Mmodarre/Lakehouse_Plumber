@@ -1,0 +1,85 @@
+pipeline: domain_j_bronze
+flowgroup: virtual_power_plant_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: virtual_power_plant_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: virtual_power_plant_raw
+    target: v_virtual_power_plant_raw
+    description: "Load virtual_power_plant from raw schema"
+
+  - name: virtual_power_plant_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_virtual_power_plant_raw
+    target: v_virtual_power_plant_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as virtual_power_plant_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_virtual_power_plant_raw
+
+  - name: virtual_power_plant_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_virtual_power_plant_bronze_cleaned
+    target: v_virtual_power_plant_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for virtual_power_plant bronze"
+
+  - name: write_virtual_power_plant_bronze
+    type: write
+    source: v_virtual_power_plant_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "virtual_power_plant"
+
+  - name: virtual_power_plant_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: virtual_power_plant_migration
+    target: v_virtual_power_plant_migration
+    description: "Load virtual_power_plant migration data"
+
+  - name: virtual_power_plant_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_virtual_power_plant_migration
+    target: v_virtual_power_plant_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as virtual_power_plant_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_virtual_power_plant_migration
+
+  - name: write_virtual_power_plant_migration
+    type: write
+    source: v_virtual_power_plant_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "virtual_power_plant"

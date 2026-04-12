@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ...models.config import Action, ActionType, FlowGroup, TransformType
 from ...utils.error_formatter import ErrorCategory, LHPError, LHPValidationError
+from ...utils.performance_timer import perf_timer
 from ...utils.source_extractor import extract_source_views_from_action
 from ...utils.substitution import EnhancedSubstitutionManager
 
@@ -71,14 +72,16 @@ class CodeGenerator:
         Returns:
             Complete Python code for the flowgroup
         """
+        fg = flowgroup.flowgroup
         self.logger.debug(
-            f"Starting code generation for flowgroup '{flowgroup.flowgroup}' in pipeline '{flowgroup.pipeline}'"
+            f"Starting code generation for flowgroup '{fg}' in pipeline '{flowgroup.pipeline}'"
         )
 
         # 1. Resolve action dependencies
-        ordered_actions = self.dependency_resolver.resolve_dependencies(
-            flowgroup.actions
-        )
+        with perf_timer(f"resolve_dependencies [{fg}]"):
+            ordered_actions = self.dependency_resolver.resolve_dependencies(
+                flowgroup.actions
+            )
         self.logger.debug(
             f"Resolved action ordering: {[a.name for a in ordered_actions]} ({len(ordered_actions)} actions)"
         )
@@ -88,7 +91,7 @@ class CodeGenerator:
         if flowgroup.presets:
             preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
             self.logger.debug(
-                f"Resolved preset chain for flowgroup '{flowgroup.flowgroup}': {flowgroup.presets}"
+                f"Resolved preset chain for flowgroup '{fg}': {flowgroup.presets}"
             )
 
         # 3. Check for test-only flowgroups when include_tests is False
@@ -99,35 +102,35 @@ class CodeGenerator:
             if not non_test_actions:
                 # This is a test-only flowgroup, skip entirely
                 self.logger.info(
-                    f"Skipping test-only flowgroup: {flowgroup.flowgroup} (--include-tests not specified)"
+                    f"Skipping test-only flowgroup: {fg} (--include-tests not specified)"
                 )
                 return ""  # Return empty string to skip this flowgroup
 
         # 4. Generate code sections
-        generated_sections, all_imports, custom_source_sections = (
-            self._generate_action_sections(
-                flowgroup,
-                ordered_actions,
-                substitution_mgr,
-                preset_config,
-                output_dir,
-                state_manager,
-                source_yaml,
-                env,
-                include_tests,
-                python_file_copier,
+        with perf_timer(f"generate_action_sections [{fg}]"):
+            generated_sections, all_imports, custom_source_sections = (
+                self._generate_action_sections(
+                    flowgroup,
+                    ordered_actions,
+                    substitution_mgr,
+                    preset_config,
+                    output_dir,
+                    state_manager,
+                    source_yaml,
+                    env,
+                    include_tests,
+                    python_file_copier,
+                )
             )
-        )
 
-        # 5. Apply secret substitutions to generated code
-        complete_code = self._apply_secret_substitutions(
-            generated_sections, substitution_mgr
-        )
-
-        # 6. Assemble final code with imports and headers
-        return self._assemble_final_code(
-            flowgroup, all_imports, custom_source_sections, complete_code
-        )
+        # 5-6. Apply secret substitutions and assemble final code
+        with perf_timer(f"assemble_code [{fg}]"):
+            complete_code = self._apply_secret_substitutions(
+                generated_sections, substitution_mgr
+            )
+            return self._assemble_final_code(
+                flowgroup, all_imports, custom_source_sections, complete_code
+            )
 
     def _generate_action_sections(
         self,

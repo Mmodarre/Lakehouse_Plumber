@@ -1,0 +1,53 @@
+pipeline: domain_h_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: return_item_ingestion
+    template_parameters:
+      table_name: return_item_raw
+      landing_folder: return_item
+      schema_file: orders_schema
+
+  - flowgroup: barcode_ingestion
+    template_parameters:
+      table_name: barcode_raw
+      landing_folder: barcode
+      schema_file: nation_schema
+
+  - flowgroup: receipt_ingestion
+    template_parameters:
+      table_name: receipt_raw
+      landing_folder: receipt
+      schema_file: partsupp_schema
+
+  - flowgroup: seasonal_ingestion
+    template_parameters:
+      table_name: seasonal_raw
+      landing_folder: seasonal
+      schema_file: part_schema
+
+  - flowgroup: conversion_rate_ingestion
+    template_parameters:
+      table_name: conversion_rate_raw
+      landing_folder: conversion_rate
+      schema_file: orders_schema
+
+  - flowgroup: loss_prevention_ingestion
+    template_parameters:
+      table_name: loss_prevention_raw
+      landing_folder: loss_prevention
+      schema_file: product_schema
+
+  - flowgroup: curbside_ingestion
+    template_parameters:
+      table_name: curbside_raw
+      landing_folder: curbside
+      schema_file: partsupp_schema
+
+  - flowgroup: rain_check_ingestion
+    template_parameters:
+      table_name: rain_check_raw
+      landing_folder: rain_check
+      schema_file: part_schema

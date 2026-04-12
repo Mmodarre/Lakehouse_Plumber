@@ -1,0 +1,22 @@
+pipeline: domain_q_gold
+flowgroup: stadium_dashboard_mv
+actions:
+  - name: stadium_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.stadium_fct
+    target: v_stadium_dashboard
+
+  - name: write_stadium_dashboard_mv
+    type: write
+    source: v_stadium_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "stadium_dashboard_mv"

@@ -1,0 +1,37 @@
+pipeline: domain_m_modelled
+flowgroup: ota_update_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: ota_update_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: ota_update_dim
+    target: v_ota_update_silver
+    description: "Load ota_update from silver for modelling"
+
+  - name: ota_update_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_ota_update_silver
+    target: v_ota_update_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_ota_update_silver
+
+  - name: write_ota_update_modelled
+    type: write
+    source: v_ota_update_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "ota_update_modelled"

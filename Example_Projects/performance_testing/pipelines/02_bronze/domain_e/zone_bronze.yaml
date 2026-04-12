@@ -1,0 +1,48 @@
+pipeline: domain_e_bronze
+flowgroup: zone_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: zone_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: zone_raw
+    target: v_zone_raw
+    description: "Load zone from raw schema"
+
+  - name: zone_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_zone_raw
+    target: v_zone_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as zone_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_zone_raw
+      WHERE 1=1
+
+  - name: zone_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_zone_bronze_cleaned
+    target: v_zone_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to zone"
+
+  - name: write_zone_bronze
+    type: write
+    source: v_zone_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "zone"

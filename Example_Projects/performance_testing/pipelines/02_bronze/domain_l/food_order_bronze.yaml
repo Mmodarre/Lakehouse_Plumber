@@ -1,0 +1,8 @@
+pipeline: domain_l_bronze
+flowgroup: food_order_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: food_order
+  source_table: food_order_raw

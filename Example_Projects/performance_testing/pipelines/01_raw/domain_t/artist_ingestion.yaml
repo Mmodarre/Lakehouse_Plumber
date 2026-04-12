@@ -1,0 +1,9 @@
+pipeline: domain_t_raw
+flowgroup: artist_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: artist_raw
+  landing_folder: artist
+  schema_file: nation_schema

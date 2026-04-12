@@ -1,0 +1,37 @@
+pipeline: domain_s_modelled
+flowgroup: retail_partner_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: retail_partner_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: retail_partner_dim
+    target: v_retail_partner_silver
+    description: "Load retail_partner from silver for modelling"
+
+  - name: retail_partner_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_retail_partner_silver
+    target: v_retail_partner_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_retail_partner_silver
+
+  - name: write_retail_partner_modelled
+    type: write
+    source: v_retail_partner_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "retail_partner_modelled"

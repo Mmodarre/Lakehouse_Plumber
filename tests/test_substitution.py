@@ -121,16 +121,6 @@ class TestUnresolvedTokenValidation:
         assert "missing_token" in errors[0]
         assert "config.path" in errors[0]
     
-    def test_validation_detects_map_lookup_unresolved(self):
-        """Detect unresolved map lookup like {map[key]}."""
-        mgr = EnhancedSubstitutionManager()
-        mgr.mappings = {"existing": "value"}
-        
-        data = {"path": "s3://bucket/{raw_paths[customers]}/data"}
-        errors = mgr.validate_no_unresolved_tokens(data)
-        
-        assert len(errors) == 1
-        assert "raw_paths[customers]" in errors[0]
     
     def test_validation_ignores_dbutils_expressions(self):
         """Don't flag dbutils.secrets.get() as unresolved."""

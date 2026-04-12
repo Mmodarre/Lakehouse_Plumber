@@ -1,0 +1,9 @@
+pipeline: domain_s_raw
+flowgroup: tasting_note_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: tasting_note_raw
+  landing_folder: tasting_note
+  schema_file: lineitem_schema

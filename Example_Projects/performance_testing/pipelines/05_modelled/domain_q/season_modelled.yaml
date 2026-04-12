@@ -1,0 +1,37 @@
+pipeline: domain_q_modelled
+flowgroup: season_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: season_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: season_fct
+    target: v_season_silver
+    description: "Load season from silver for modelling"
+
+  - name: season_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_season_silver
+    target: v_season_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_season_silver
+
+  - name: write_season_modelled
+    type: write
+    source: v_season_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "season_modelled"

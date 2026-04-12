@@ -1,0 +1,24 @@
+pipeline: domain_e_gold
+flowgroup: route_optimization_monthly_agg_mv
+actions:
+  - name: route_optimization_monthly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('mon', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.route_optimization_fct
+        GROUP BY 1
+    target: v_route_optimization_monthly_agg
+
+  - name: write_route_optimization_monthly_agg_mv
+    type: write
+    source: v_route_optimization_monthly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "route_optimization_monthly_agg_mv"

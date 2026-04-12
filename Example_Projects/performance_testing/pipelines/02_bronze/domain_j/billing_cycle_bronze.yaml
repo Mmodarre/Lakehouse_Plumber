@@ -1,0 +1,8 @@
+pipeline: domain_j_bronze
+flowgroup: billing_cycle_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: billing_cycle
+  source_table: billing_cycle_raw

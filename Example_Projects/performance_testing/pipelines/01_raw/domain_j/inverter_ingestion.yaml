@@ -1,0 +1,9 @@
+pipeline: domain_j_raw
+flowgroup: inverter_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: inverter_raw
+  landing_folder: inverter
+  schema_file: partsupp_schema

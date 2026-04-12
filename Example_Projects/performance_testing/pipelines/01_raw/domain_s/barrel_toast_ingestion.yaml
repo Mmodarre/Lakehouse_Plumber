@@ -1,0 +1,9 @@
+pipeline: domain_s_raw
+flowgroup: barrel_toast_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: barrel_toast_raw
+  landing_folder: barrel_toast
+  schema_file: nation_schema

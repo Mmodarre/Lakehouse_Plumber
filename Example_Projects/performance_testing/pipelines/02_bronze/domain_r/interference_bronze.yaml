@@ -1,0 +1,48 @@
+pipeline: domain_r_bronze
+flowgroup: interference_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: interference_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: interference_raw
+    target: v_interference_raw
+    description: "Load interference from raw schema"
+
+  - name: interference_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_interference_raw
+    target: v_interference_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as interference_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_interference_raw
+      WHERE 1=1
+
+  - name: interference_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_interference_bronze_cleaned
+    target: v_interference_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to interference"
+
+  - name: write_interference_bronze
+    type: write
+    source: v_interference_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "interference"

@@ -1,0 +1,37 @@
+pipeline: domain_r_modelled
+flowgroup: footprint_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: footprint_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: footprint_fct
+    target: v_footprint_silver
+    description: "Load footprint from silver for modelling"
+
+  - name: footprint_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_footprint_silver
+    target: v_footprint_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_footprint_silver
+
+  - name: write_footprint_modelled
+    type: write
+    source: v_footprint_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "footprint_modelled"

@@ -1,0 +1,9 @@
+pipeline: domain_p_raw
+flowgroup: dose_response_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: dose_response_raw
+  landing_folder: dose_response
+  schema_file: nation_schema

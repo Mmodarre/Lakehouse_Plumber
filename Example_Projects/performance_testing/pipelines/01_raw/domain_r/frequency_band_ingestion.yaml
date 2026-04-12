@@ -1,0 +1,9 @@
+pipeline: domain_r_raw
+flowgroup: frequency_band_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: frequency_band_raw
+  landing_folder: frequency_band
+  schema_file: orders_schema

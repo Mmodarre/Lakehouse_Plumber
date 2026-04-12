@@ -1,0 +1,9 @@
+pipeline: domain_q_raw
+flowgroup: scouting_report_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: scouting_report_raw
+  landing_folder: scouting_report
+  schema_file: lineitem_schema

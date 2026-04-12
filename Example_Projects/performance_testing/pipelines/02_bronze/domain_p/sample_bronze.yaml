@@ -1,0 +1,8 @@
+pipeline: domain_p_bronze
+flowgroup: sample_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: sample
+  source_table: sample_raw

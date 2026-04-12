@@ -48,6 +48,15 @@ class StateAnalyzer:
 
         self.tracker = DependencyTracker(project_root)
 
+    def set_checksum_cache(self, cache) -> None:
+        """Inject shared ChecksumCache into analyzer's tracker and resolver.
+
+        Args:
+            cache: ChecksumCache instance
+        """
+        self.tracker.set_checksum_cache(cache)
+        self.dependency_resolver.set_checksum_cache(cache)
+
     def find_stale_files(
         self, state: ProjectState, environment: str, checksum_calculator
     ) -> List[FileState]:
@@ -98,20 +107,23 @@ class StateAnalyzer:
                 or current_source_checksum != file_state.source_yaml_checksum
             )
 
+            # Short-circuit: skip expensive dependency check if source already changed
+            if source_changed:
+                stale.append(file_state)
+                self.logger.debug(
+                    f"File {file_state.generated_path} is stale: source YAML changed"
+                )
+                continue
+
             # Check if file-specific dependencies have changed
             file_deps_changed = self.check_file_dependencies_changed(
                 file_state, environment
             )
 
-            if source_changed or file_deps_changed:
+            if file_deps_changed:
                 stale.append(file_state)
-                reason = []
-                if source_changed:
-                    reason.append("source YAML changed")
-                if file_deps_changed:
-                    reason.append("file dependencies changed")
                 self.logger.debug(
-                    f"File {file_state.generated_path} is stale: {', '.join(reason)}"
+                    f"File {file_state.generated_path} is stale: file dependencies changed"
                 )
 
         return stale
@@ -276,7 +288,7 @@ class StateAnalyzer:
             state, environment, include_patterns, pipeline
         )
 
-        # Find up-to-date files (reuse shared tracker instance)
+        # Compute up-to-date by exclusion (avoids re-hashing every source YAML)
         all_tracked = self.tracker.get_generated_files(state, environment)
         if pipeline:
             all_tracked = {
@@ -285,16 +297,15 @@ class StateAnalyzer:
                 if file_state.pipeline == pipeline
             }
 
-        up_to_date = []
-        for file_state in all_tracked.values():
-            source_path = self.project_root / file_state.source_yaml
-            if (
-                source_path.exists()
-                and file_state.source_yaml_checksum
-                and self.tracker.calculate_checksum(source_path)
-                == file_state.source_yaml_checksum
-            ):
-                up_to_date.append(file_state)
+        stale_keys = {f.generated_path for f in stale_files}
+        new_source_paths = {str(p) for p in new_files}
+        up_to_date = [
+            fs
+            for fs in all_tracked.values()
+            if fs.generated_path not in stale_keys
+            and str(self.project_root / fs.source_yaml) not in new_source_paths
+            and (self.project_root / fs.source_yaml).exists()
+        ]
 
         return {"new": new_files, "stale": stale_files, "up_to_date": up_to_date}
 
@@ -723,6 +734,111 @@ class StateAnalyzer:
             changes.append(f"Failed to analyze dependencies: {e}")
 
         return changes
+
+    def get_all_files_needing_generation(
+        self,
+        state: ProjectState,
+        environment: str,
+        include_patterns: Optional[List[str]] = None,
+    ) -> Dict[str, Dict[str, List]]:
+        """
+        Get files needing generation for ALL pipelines in a single pass.
+
+        Calls find_stale_files() once and detects new files once, then
+        partitions results by pipeline. This avoids the O(pipelines × files)
+        cost of calling get_files_needing_generation() per pipeline.
+
+        Args:
+            state: ProjectState to analyze
+            environment: Environment name
+            include_patterns: Optional include patterns for filtering
+
+        Returns:
+            Dict mapping pipeline_name -> {"new": [...], "stale": [...], "up_to_date": [...]}
+        """
+        # --- Step 1: find_stale_files() ONCE for entire environment ---
+        all_stale = self.find_stale_files(
+            state, environment, lambda p: self._calculate_checksum_via_tracker(p)
+        )
+
+        # Partition stale files by pipeline
+        stale_by_pipeline: Dict[str, List[FileState]] = defaultdict(list)
+        for fs in all_stale:
+            stale_by_pipeline[fs.pipeline].append(fs)
+
+        # --- Step 2: detect new files ONCE (Fix B — per-pipeline semantics) ---
+        # 2a. One rglob
+        current_yamls = self.get_current_yaml_files(include_patterns)
+
+        # 2b. One parse pass: build file_path -> [(pipeline, flowgroup), ...] map
+        file_pipelines: Dict[Path, Set[str]] = {}
+        for yaml_file in current_yamls:
+            try:
+                flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+                pipelines_in_file = {fg.pipeline for fg in flowgroups}
+                file_pipelines[yaml_file] = pipelines_in_file
+            except Exception as e:
+                self.logger.warning(f"Could not parse YAML file {yaml_file}: {e}")
+                continue
+
+        # 2c. Build per-pipeline tracked source sets from state (one iteration)
+        tracked_sources_by_pipeline: Dict[str, Set[Path]] = defaultdict(set)
+        env_files = state.environments.get(environment, {})
+        for file_state in env_files.values():
+            tracked_path = self.project_root / file_state.source_yaml
+            tracked_sources_by_pipeline[file_state.pipeline].add(tracked_path)
+
+        # Collect all pipeline names (from state + from current YAML files)
+        all_pipeline_names: Set[str] = set(tracked_sources_by_pipeline.keys())
+        for pipelines_in_file in file_pipelines.values():
+            all_pipeline_names.update(pipelines_in_file)
+
+        # 2d. Per-pipeline new files
+        new_by_pipeline: Dict[str, List[Path]] = defaultdict(list)
+        for yaml_file, pipelines_in_file in file_pipelines.items():
+            for pipeline in pipelines_in_file:
+                if yaml_file not in tracked_sources_by_pipeline[pipeline]:
+                    new_by_pipeline[pipeline].append(yaml_file)
+
+        # --- Step 3: build per-pipeline tracked files, then compute up_to_date ---
+        all_tracked = self.tracker.get_generated_files(state, environment)
+
+        # Group tracked files by pipeline
+        tracked_by_pipeline: Dict[str, Dict[str, FileState]] = defaultdict(dict)
+        for path, file_state in all_tracked.items():
+            tracked_by_pipeline[file_state.pipeline][path] = file_state
+
+        # --- Step 4: assemble result per pipeline ---
+        result: Dict[str, Dict[str, List]] = {}
+        for pipeline in all_pipeline_names:
+            pipeline_stale = stale_by_pipeline.get(pipeline, [])
+            pipeline_new = new_by_pipeline.get(pipeline, [])
+            pipeline_tracked = tracked_by_pipeline.get(pipeline, {})
+
+            # up_to_date: tracked for THIS pipeline, minus stale and new
+            stale_keys = {f.generated_path for f in pipeline_stale}
+            new_source_paths = {str(p) for p in pipeline_new}
+            up_to_date = [
+                fs
+                for fs in pipeline_tracked.values()
+                if fs.generated_path not in stale_keys
+                and str(self.project_root / fs.source_yaml) not in new_source_paths
+                and (self.project_root / fs.source_yaml).exists()
+            ]
+
+            result[pipeline] = {
+                "new": pipeline_new,
+                "stale": pipeline_stale,
+                "up_to_date": up_to_date,
+            }
+
+        if new_by_pipeline:
+            total_new = sum(len(v) for v in new_by_pipeline.values())
+            self.logger.info(
+                f"Found {total_new} new YAML file(s) across all pipelines for {environment}"
+            )
+
+        return result
 
     def _calculate_checksum_via_tracker(self, file_path: Path) -> str:
         """Helper to calculate checksum via DependencyTracker (reuses shared instance)."""

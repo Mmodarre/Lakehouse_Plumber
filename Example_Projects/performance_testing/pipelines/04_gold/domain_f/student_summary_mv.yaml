@@ -1,0 +1,22 @@
+pipeline: domain_f_gold
+flowgroup: student_summary_mv
+actions:
+  - name: student_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.student_fct
+    target: v_student_summary
+
+  - name: write_student_summary_mv
+    type: write
+    source: v_student_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "student_summary_mv"

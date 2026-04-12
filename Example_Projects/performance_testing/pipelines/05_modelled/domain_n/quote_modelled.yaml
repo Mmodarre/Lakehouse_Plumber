@@ -1,0 +1,37 @@
+pipeline: domain_n_modelled
+flowgroup: quote_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: quote_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: quote_fct
+    target: v_quote_silver
+    description: "Load quote from silver for modelling"
+
+  - name: quote_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_quote_silver
+    target: v_quote_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_quote_silver
+
+  - name: write_quote_modelled
+    type: write
+    source: v_quote_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "quote_modelled"

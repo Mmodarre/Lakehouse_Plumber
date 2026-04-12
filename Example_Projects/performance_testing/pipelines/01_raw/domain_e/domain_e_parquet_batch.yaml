@@ -1,0 +1,53 @@
+pipeline: domain_e_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: delivery_ingestion
+    template_parameters:
+      table_name: delivery_raw
+      landing_folder: delivery
+      schema_file: orders_schema
+
+  - flowgroup: parking_ingestion
+    template_parameters:
+      table_name: parking_raw
+      landing_folder: parking
+      schema_file: nation_schema
+
+  - flowgroup: cargo_ingestion
+    template_parameters:
+      table_name: cargo_raw
+      landing_folder: cargo
+      schema_file: partsupp_schema
+
+  - flowgroup: tariff_ingestion
+    template_parameters:
+      table_name: tariff_raw
+      landing_folder: tariff
+      schema_file: part_schema
+
+  - flowgroup: bill_of_lading_ingestion
+    template_parameters:
+      table_name: bill_of_lading_raw
+      landing_folder: bill_of_lading
+      schema_file: orders_schema
+
+  - flowgroup: return_shipment_ingestion
+    template_parameters:
+      table_name: return_shipment_raw
+      landing_folder: return_shipment
+      schema_file: product_schema
+
+  - flowgroup: idle_time_ingestion
+    template_parameters:
+      table_name: idle_time_raw
+      landing_folder: idle_time
+      schema_file: partsupp_schema
+
+  - flowgroup: chain_of_custody_ingestion
+    template_parameters:
+      table_name: chain_of_custody_raw
+      landing_folder: chain_of_custody
+      schema_file: part_schema

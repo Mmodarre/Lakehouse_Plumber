@@ -1,0 +1,8 @@
+pipeline: domain_s_bronze
+flowgroup: sommelier_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: sommelier
+  source_table: sommelier_raw

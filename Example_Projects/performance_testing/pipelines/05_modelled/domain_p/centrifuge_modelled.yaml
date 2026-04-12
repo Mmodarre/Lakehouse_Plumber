@@ -1,0 +1,37 @@
+pipeline: domain_p_modelled
+flowgroup: centrifuge_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: centrifuge_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: centrifuge_fct
+    target: v_centrifuge_silver
+    description: "Load centrifuge from silver for modelling"
+
+  - name: centrifuge_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_centrifuge_silver
+    target: v_centrifuge_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_centrifuge_silver
+
+  - name: write_centrifuge_modelled
+    type: write
+    source: v_centrifuge_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "centrifuge_modelled"

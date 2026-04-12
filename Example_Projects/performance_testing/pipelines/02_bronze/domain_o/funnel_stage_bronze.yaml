@@ -1,0 +1,8 @@
+pipeline: domain_o_bronze
+flowgroup: funnel_stage_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: funnel_stage
+  source_table: funnel_stage_raw

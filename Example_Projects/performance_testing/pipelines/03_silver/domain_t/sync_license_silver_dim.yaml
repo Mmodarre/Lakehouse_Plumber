@@ -1,0 +1,32 @@
+pipeline: domain_t_silver
+flowgroup: sync_license_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: sync_license_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: sync_license
+    target: v_sync_license_bronze
+    description: "Load sync_license from bronze for silver layer"
+
+  - name: write_sync_license_silver
+    type: write
+    source: v_sync_license_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "sync_license_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["sync_license_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

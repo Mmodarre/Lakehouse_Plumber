@@ -1,0 +1,25 @@
+# Supplier dimension using snapshot CDC with parameterized source function
+# Demonstrates the parameters feature: keyword args bound via functools.partial
+pipeline: acmi_edw_silver
+flowgroup: supplier_silver_dim
+preset: default_delta_properties
+actions:
+  - name: write_supplier_silver_snapshot
+    type: write
+    source: v_supplier_bronze_snapshot
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{silver_schema}"
+      table: "supplier_dim"
+      mode: "snapshot_cdc"
+      snapshot_cdc_config:
+        source_function:
+          file: "py_functions/supplier_param_snapshot_func.py"
+          function: "next_supplier_snapshot"
+          parameters:
+            catalog: "{catalog}"
+            schema: "{bronze_schema}"
+            table: "supplier"
+        keys: ["supplier_id"]
+        stored_as_scd_type: 2
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "snapshot_id", "last_modified_dt"]

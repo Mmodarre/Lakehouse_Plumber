@@ -1,0 +1,8 @@
+pipeline: domain_n_bronze
+flowgroup: endorsement_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: endorsement
+  source_table: endorsement_raw

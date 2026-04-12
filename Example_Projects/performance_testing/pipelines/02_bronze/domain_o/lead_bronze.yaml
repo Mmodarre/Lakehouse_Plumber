@@ -1,0 +1,8 @@
+pipeline: domain_o_bronze
+flowgroup: lead_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: lead
+  source_table: lead_raw

@@ -1,0 +1,22 @@
+pipeline: domain_a_gold
+flowgroup: coupon_summary_mv
+actions:
+  - name: coupon_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.coupon_dim
+    target: v_coupon_summary
+
+  - name: write_coupon_summary_mv
+    type: write
+    source: v_coupon_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "coupon_summary_mv"

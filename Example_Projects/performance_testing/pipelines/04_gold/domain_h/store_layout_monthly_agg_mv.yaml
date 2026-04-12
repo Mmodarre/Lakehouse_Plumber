@@ -1,0 +1,24 @@
+pipeline: domain_h_gold
+flowgroup: store_layout_monthly_agg_mv
+actions:
+  - name: store_layout_monthly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('mon', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.store_layout_fct
+        GROUP BY 1
+    target: v_store_layout_monthly_agg
+
+  - name: write_store_layout_monthly_agg_mv
+    type: write
+    source: v_store_layout_monthly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "store_layout_monthly_agg_mv"

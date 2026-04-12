@@ -1,0 +1,37 @@
+pipeline: domain_n_modelled
+flowgroup: litigation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: litigation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: litigation_dim
+    target: v_litigation_silver
+    description: "Load litigation from silver for modelling"
+
+  - name: litigation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_litigation_silver
+    target: v_litigation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_litigation_silver
+
+  - name: write_litigation_modelled
+    type: write
+    source: v_litigation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "litigation_modelled"

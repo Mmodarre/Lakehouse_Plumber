@@ -1,0 +1,85 @@
+pipeline: domain_j_bronze
+flowgroup: ancillary_service_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: ancillary_service_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: ancillary_service_raw
+    target: v_ancillary_service_raw
+    description: "Load ancillary_service from raw schema"
+
+  - name: ancillary_service_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_ancillary_service_raw
+    target: v_ancillary_service_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as ancillary_service_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_ancillary_service_raw
+
+  - name: ancillary_service_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_ancillary_service_bronze_cleaned
+    target: v_ancillary_service_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for ancillary_service bronze"
+
+  - name: write_ancillary_service_bronze
+    type: write
+    source: v_ancillary_service_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "ancillary_service"
+
+  - name: ancillary_service_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: ancillary_service_migration
+    target: v_ancillary_service_migration
+    description: "Load ancillary_service migration data"
+
+  - name: ancillary_service_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_ancillary_service_migration
+    target: v_ancillary_service_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as ancillary_service_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_ancillary_service_migration
+
+  - name: write_ancillary_service_migration
+    type: write
+    source: v_ancillary_service_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "ancillary_service"

@@ -1,0 +1,659 @@
+pipeline: domain_a_silver
+flowgroup: customer_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: customer_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: customer
+    target: v_customer_bronze
+    description: "Load customer from bronze for silver layer"
+
+  - name: write_customer_silver
+    type: write
+    source: v_customer_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "customer_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["customer_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: order_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: order_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: order
+    target: v_order_bronze
+    description: "Load order from bronze for silver layer"
+
+  - name: write_order_silver
+    type: write
+    source: v_order_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "order_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["order_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: product_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: product_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: product
+    target: v_product_bronze
+    description: "Load product from bronze for silver layer"
+
+  - name: write_product_silver
+    type: write
+    source: v_product_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "product_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["product_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: supplier_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: supplier_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: supplier
+    target: v_supplier_bronze
+    description: "Load supplier from bronze for silver layer"
+
+  - name: write_supplier_silver
+    type: write
+    source: v_supplier_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "supplier_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["supplier_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: shipment_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: shipment_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: shipment
+    target: v_shipment_bronze
+    description: "Load shipment from bronze for silver layer"
+
+  - name: write_shipment_silver
+    type: write
+    source: v_shipment_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "shipment_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["shipment_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: invoice_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: invoice_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: invoice
+    target: v_invoice_bronze
+    description: "Load invoice from bronze for silver layer"
+
+  - name: write_invoice_silver
+    type: write
+    source: v_invoice_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "invoice_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["invoice_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: payment_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: payment_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: payment
+    target: v_payment_bronze
+    description: "Load payment from bronze for silver layer"
+
+  - name: write_payment_silver
+    type: write
+    source: v_payment_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "payment_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["payment_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: refund_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: refund_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: refund
+    target: v_refund_bronze
+    description: "Load refund from bronze for silver layer"
+
+  - name: write_refund_silver
+    type: write
+    source: v_refund_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "refund_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["refund_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: coupon_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: coupon_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: coupon
+    target: v_coupon_bronze
+    description: "Load coupon from bronze for silver layer"
+
+  - name: write_coupon_silver
+    type: write
+    source: v_coupon_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "coupon_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["coupon_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: promotion_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: promotion_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: promotion
+    target: v_promotion_bronze
+    description: "Load promotion from bronze for silver layer"
+
+  - name: write_promotion_silver
+    type: write
+    source: v_promotion_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "promotion_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["promotion_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: warehouse_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: warehouse_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: warehouse
+    target: v_warehouse_bronze
+    description: "Load warehouse from bronze for silver layer"
+
+  - name: write_warehouse_silver
+    type: write
+    source: v_warehouse_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "warehouse_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["warehouse_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: inventory_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: inventory_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: inventory
+    target: v_inventory_bronze
+    description: "Load inventory from bronze for silver layer"
+
+  - name: write_inventory_silver
+    type: write
+    source: v_inventory_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "inventory_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["inventory_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: category_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: category_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: category
+    target: v_category_bronze
+    description: "Load category from bronze for silver layer"
+
+  - name: write_category_silver
+    type: write
+    source: v_category_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "category_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["category_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: brand_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: brand_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: brand
+    target: v_brand_bronze
+    description: "Load brand from bronze for silver layer"
+
+  - name: write_brand_silver
+    type: write
+    source: v_brand_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "brand_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["brand_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: review_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: review_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: review
+    target: v_review_bronze
+    description: "Load review from bronze for silver layer"
+
+  - name: write_review_silver
+    type: write
+    source: v_review_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "review_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["review_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: wishlist_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: wishlist_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: wishlist
+    target: v_wishlist_bronze
+    description: "Load wishlist from bronze for silver layer"
+
+  - name: write_wishlist_silver
+    type: write
+    source: v_wishlist_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "wishlist_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["wishlist_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: cart_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: cart_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: cart
+    target: v_cart_bronze
+    description: "Load cart from bronze for silver layer"
+
+  - name: write_cart_silver
+    type: write
+    source: v_cart_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "cart_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["cart_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: address_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: address_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: address
+    target: v_address_bronze
+    description: "Load address from bronze for silver layer"
+
+  - name: write_address_silver
+    type: write
+    source: v_address_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "address_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["address_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: contact_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: contact_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: contact
+    target: v_contact_bronze
+    description: "Load contact from bronze for silver layer"
+
+  - name: write_contact_silver
+    type: write
+    source: v_contact_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "contact_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["contact_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_a_silver
+flowgroup: subscription_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: subscription_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: subscription
+    target: v_subscription_bronze
+    description: "Load subscription from bronze for silver layer"
+
+  - name: write_subscription_silver
+    type: write
+    source: v_subscription_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "subscription_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["subscription_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

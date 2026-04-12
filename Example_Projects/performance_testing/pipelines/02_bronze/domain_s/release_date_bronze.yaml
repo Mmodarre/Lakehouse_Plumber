@@ -1,0 +1,48 @@
+pipeline: domain_s_bronze
+flowgroup: release_date_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: release_date_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: release_date_raw
+    target: v_release_date_raw
+    description: "Load release_date from raw schema"
+
+  - name: release_date_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_release_date_raw
+    target: v_release_date_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as release_date_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_release_date_raw
+      WHERE 1=1
+
+  - name: release_date_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_release_date_bronze_cleaned
+    target: v_release_date_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to release_date"
+
+  - name: write_release_date_bronze
+    type: write
+    source: v_release_date_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "release_date"

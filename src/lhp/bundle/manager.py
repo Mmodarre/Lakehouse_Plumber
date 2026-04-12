@@ -13,6 +13,7 @@ from typing import List, Dict, Optional, Union, Any
 from .exceptions import BundleResourceError, YAMLParsingError
 from .error_factories import create_missing_databricks_file_error
 from ..utils.error_formatter import ErrorCategory, LHPConfigError, LHPError
+from ..utils.performance_timer import perf_timer
 from ..utils.template_renderer import TemplateRenderer
 
 logger = logging.getLogger(__name__)
@@ -143,25 +144,26 @@ class BundleManager:
         """
         self.logger.info("Syncing bundle resources for environment: %s", env)
 
-        # Setup: Prepare environment and gather current state
-        current_pipeline_dirs, current_pipeline_names, existing_resource_files = (
-            self._setup_sync_environment(env, output_dir)
-        )
+        with perf_timer("bundle_sync_resources"):
+            # Setup: Prepare environment and gather current state
+            current_pipeline_dirs, current_pipeline_names, existing_resource_files = (
+                self._setup_sync_environment(env, output_dir)
+            )
 
-        # Step 1: Process current pipelines using Conservative Approach
-        updated_count = self._process_current_pipelines(
-            current_pipeline_dirs, env, force, has_pipeline_config
-        )
+            # Step 1: Process current pipelines using Conservative Approach
+            updated_count = self._process_current_pipelines(
+                current_pipeline_dirs, env, force, has_pipeline_config
+            )
 
-        # Step 2: Clean up orphaned resources
-        removed_count = self._cleanup_orphaned_resources(current_pipeline_names)
+            # Step 2: Clean up orphaned resources
+            removed_count = self._cleanup_orphaned_resources(current_pipeline_names)
 
-        # Step 3: Update configuration files
-        self._update_configuration_files(output_dir, env)
+            # Step 3: Update configuration files
+            self._update_configuration_files(output_dir, env)
 
-        # Step 4: Log results and return summary
-        self._log_sync_summary(updated_count, removed_count)
-        return updated_count + removed_count
+            # Step 4: Log results and return summary
+            self._log_sync_summary(updated_count, removed_count)
+            return updated_count + removed_count
 
     def _sync_pipeline_resource(
         self,

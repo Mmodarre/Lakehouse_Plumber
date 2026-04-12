@@ -1,0 +1,9 @@
+pipeline: domain_r_raw
+flowgroup: spectrum_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: spectrum_raw
+  landing_folder: spectrum
+  schema_file: lineitem_schema

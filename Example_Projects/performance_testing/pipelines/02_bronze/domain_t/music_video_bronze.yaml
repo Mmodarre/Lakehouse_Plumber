@@ -1,0 +1,48 @@
+pipeline: domain_t_bronze
+flowgroup: music_video_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: music_video_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: music_video_raw
+    target: v_music_video_raw
+    description: "Load music_video from raw schema"
+
+  - name: music_video_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_music_video_raw
+    target: v_music_video_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as music_video_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_music_video_raw
+      WHERE 1=1
+
+  - name: music_video_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_music_video_bronze_cleaned
+    target: v_music_video_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to music_video"
+
+  - name: write_music_video_bronze
+    type: write
+    source: v_music_video_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "music_video"

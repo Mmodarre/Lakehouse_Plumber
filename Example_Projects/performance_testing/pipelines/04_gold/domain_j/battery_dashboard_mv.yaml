@@ -1,0 +1,22 @@
+pipeline: domain_j_gold
+flowgroup: battery_dashboard_mv
+actions:
+  - name: battery_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.battery_dim
+    target: v_battery_dashboard
+
+  - name: write_battery_dashboard_mv
+    type: write
+    source: v_battery_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "battery_dashboard_mv"

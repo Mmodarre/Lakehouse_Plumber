@@ -1,0 +1,8 @@
+pipeline: domain_o_bronze
+flowgroup: bid_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: bid
+  source_table: bid_raw

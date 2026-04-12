@@ -1,0 +1,9 @@
+pipeline: domain_q_raw
+flowgroup: revenue_share_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: revenue_share_raw
+  landing_folder: revenue_share
+  schema_file: product_schema

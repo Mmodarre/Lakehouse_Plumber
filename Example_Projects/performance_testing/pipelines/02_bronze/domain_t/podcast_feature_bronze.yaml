@@ -1,0 +1,48 @@
+pipeline: domain_t_bronze
+flowgroup: podcast_feature_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: podcast_feature_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: podcast_feature_raw
+    target: v_podcast_feature_raw
+    description: "Load podcast_feature from raw schema"
+
+  - name: podcast_feature_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_podcast_feature_raw
+    target: v_podcast_feature_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as podcast_feature_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_podcast_feature_raw
+      WHERE 1=1
+
+  - name: podcast_feature_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_podcast_feature_bronze_cleaned
+    target: v_podcast_feature_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to podcast_feature"
+
+  - name: write_podcast_feature_bronze
+    type: write
+    source: v_podcast_feature_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "podcast_feature"

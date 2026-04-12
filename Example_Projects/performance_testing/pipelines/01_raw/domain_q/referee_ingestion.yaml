@@ -1,0 +1,9 @@
+pipeline: domain_q_raw
+flowgroup: referee_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: referee_raw
+  landing_folder: referee
+  schema_file: part_schema

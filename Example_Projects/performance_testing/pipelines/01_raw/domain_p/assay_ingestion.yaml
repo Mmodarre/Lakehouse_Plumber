@@ -1,0 +1,9 @@
+pipeline: domain_p_raw
+flowgroup: assay_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: assay_raw
+  landing_folder: assay
+  schema_file: product_schema

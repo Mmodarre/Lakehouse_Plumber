@@ -1,0 +1,48 @@
+pipeline: domain_b_bronze
+flowgroup: competency_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: competency_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: competency_raw
+    target: v_competency_raw
+    description: "Load competency from raw schema"
+
+  - name: competency_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_competency_raw
+    target: v_competency_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as competency_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_competency_raw
+      WHERE 1=1
+
+  - name: competency_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_competency_bronze_cleaned
+    target: v_competency_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to competency"
+
+  - name: write_competency_bronze
+    type: write
+    source: v_competency_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "competency"

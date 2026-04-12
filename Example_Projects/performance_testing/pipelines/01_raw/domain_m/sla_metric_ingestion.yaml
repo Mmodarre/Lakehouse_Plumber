@@ -1,0 +1,9 @@
+pipeline: domain_m_raw
+flowgroup: sla_metric_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: sla_metric_raw
+  landing_folder: sla_metric
+  schema_file: customer_schema

@@ -1,0 +1,8 @@
+pipeline: domain_t_bronze
+flowgroup: chart_position_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: chart_position
+  source_table: chart_position_raw

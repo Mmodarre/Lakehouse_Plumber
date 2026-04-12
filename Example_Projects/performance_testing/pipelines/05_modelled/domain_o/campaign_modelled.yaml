@@ -1,0 +1,37 @@
+pipeline: domain_o_modelled
+flowgroup: campaign_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: campaign_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: campaign_fct
+    target: v_campaign_silver
+    description: "Load campaign from silver for modelling"
+
+  - name: campaign_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_campaign_silver
+    target: v_campaign_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_campaign_silver
+
+  - name: write_campaign_modelled
+    type: write
+    source: v_campaign_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "campaign_modelled"

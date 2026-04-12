@@ -1,0 +1,48 @@
+pipeline: domain_f_bronze
+flowgroup: career_fair_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: career_fair_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: career_fair_raw
+    target: v_career_fair_raw
+    description: "Load career_fair from raw schema"
+
+  - name: career_fair_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_career_fair_raw
+    target: v_career_fair_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as career_fair_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_career_fair_raw
+      WHERE 1=1
+
+  - name: career_fair_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_career_fair_bronze_cleaned
+    target: v_career_fair_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to career_fair"
+
+  - name: write_career_fair_bronze
+    type: write
+    source: v_career_fair_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "career_fair"

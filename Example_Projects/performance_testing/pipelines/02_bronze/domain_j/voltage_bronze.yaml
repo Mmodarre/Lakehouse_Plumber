@@ -1,0 +1,85 @@
+pipeline: domain_j_bronze
+flowgroup: voltage_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: voltage_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: voltage_raw
+    target: v_voltage_raw
+    description: "Load voltage from raw schema"
+
+  - name: voltage_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_voltage_raw
+    target: v_voltage_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as voltage_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_voltage_raw
+
+  - name: voltage_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_voltage_bronze_cleaned
+    target: v_voltage_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for voltage bronze"
+
+  - name: write_voltage_bronze
+    type: write
+    source: v_voltage_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "voltage"
+
+  - name: voltage_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: voltage_migration
+    target: v_voltage_migration
+    description: "Load voltage migration data"
+
+  - name: voltage_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_voltage_migration
+    target: v_voltage_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as voltage_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_voltage_migration
+
+  - name: write_voltage_migration
+    type: write
+    source: v_voltage_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "voltage"

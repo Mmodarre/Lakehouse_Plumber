@@ -1,0 +1,9 @@
+pipeline: domain_l_raw
+flowgroup: cooler_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: cooler_raw
+  landing_folder: cooler
+  schema_file: lineitem_schema

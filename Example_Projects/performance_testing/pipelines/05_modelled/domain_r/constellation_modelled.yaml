@@ -1,0 +1,37 @@
+pipeline: domain_r_modelled
+flowgroup: constellation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: constellation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: constellation_dim
+    target: v_constellation_silver
+    description: "Load constellation from silver for modelling"
+
+  - name: constellation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_constellation_silver
+    target: v_constellation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_constellation_silver
+
+  - name: write_constellation_modelled
+    type: write
+    source: v_constellation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "constellation_modelled"

@@ -1,0 +1,37 @@
+pipeline: domain_s_modelled
+flowgroup: fining_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: fining_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: fining_dim
+    target: v_fining_silver
+    description: "Load fining from silver for modelling"
+
+  - name: fining_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_fining_silver
+    target: v_fining_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_fining_silver
+
+  - name: write_fining_modelled
+    type: write
+    source: v_fining_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "fining_modelled"

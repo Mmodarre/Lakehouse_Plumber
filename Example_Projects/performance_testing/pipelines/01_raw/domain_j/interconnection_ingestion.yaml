@@ -1,0 +1,9 @@
+pipeline: domain_j_raw
+flowgroup: interconnection_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: interconnection_raw
+  landing_folder: interconnection
+  schema_file: part_schema

@@ -1,0 +1,9 @@
+pipeline: domain_n_raw
+flowgroup: deductible_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: deductible_raw
+  landing_folder: deductible
+  schema_file: customer_schema

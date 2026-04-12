@@ -1,0 +1,48 @@
+pipeline: domain_r_bronze
+flowgroup: space_weather_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: space_weather_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: space_weather_raw
+    target: v_space_weather_raw
+    description: "Load space_weather from raw schema"
+
+  - name: space_weather_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_space_weather_raw
+    target: v_space_weather_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as space_weather_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_space_weather_raw
+      WHERE 1=1
+
+  - name: space_weather_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_space_weather_bronze_cleaned
+    target: v_space_weather_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to space_weather"
+
+  - name: write_space_weather_bronze
+    type: write
+    source: v_space_weather_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "space_weather"

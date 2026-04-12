@@ -1,0 +1,9 @@
+pipeline: domain_p_raw
+flowgroup: protein_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: protein_raw
+  landing_folder: protein
+  schema_file: nation_schema

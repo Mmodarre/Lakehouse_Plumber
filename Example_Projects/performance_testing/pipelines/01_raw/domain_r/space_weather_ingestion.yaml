@@ -1,0 +1,9 @@
+pipeline: domain_r_raw
+flowgroup: space_weather_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: space_weather_raw
+  landing_folder: space_weather
+  schema_file: product_schema

@@ -1,0 +1,9 @@
+pipeline: domain_r_raw
+flowgroup: link_budget_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: link_budget_raw
+  landing_folder: link_budget
+  schema_file: partsupp_schema

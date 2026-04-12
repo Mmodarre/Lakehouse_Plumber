@@ -1,0 +1,8 @@
+pipeline: domain_j_bronze
+flowgroup: generation_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: generation
+  source_table: generation_raw

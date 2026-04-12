@@ -1,0 +1,48 @@
+pipeline: domain_e_bronze
+flowgroup: depot_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: depot_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: depot_raw
+    target: v_depot_raw
+    description: "Load depot from raw schema"
+
+  - name: depot_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_depot_raw
+    target: v_depot_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as depot_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_depot_raw
+      WHERE 1=1
+
+  - name: depot_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_depot_bronze_cleaned
+    target: v_depot_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to depot"
+
+  - name: write_depot_bronze
+    type: write
+    source: v_depot_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "depot"

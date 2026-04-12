@@ -1,0 +1,48 @@
+pipeline: domain_s_bronze
+flowgroup: case_production_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: case_production_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: case_production_raw
+    target: v_case_production_raw
+    description: "Load case_production from raw schema"
+
+  - name: case_production_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_case_production_raw
+    target: v_case_production_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as case_production_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_case_production_raw
+      WHERE 1=1
+
+  - name: case_production_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_case_production_bronze_cleaned
+    target: v_case_production_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to case_production"
+
+  - name: write_case_production_bronze
+    type: write
+    source: v_case_production_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "case_production"

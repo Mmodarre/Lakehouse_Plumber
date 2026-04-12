@@ -1,0 +1,8 @@
+pipeline: domain_m_bronze
+flowgroup: threshold_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: threshold
+  source_table: threshold_raw

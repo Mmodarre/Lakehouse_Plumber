@@ -1,0 +1,48 @@
+pipeline: domain_j_bronze
+flowgroup: transmission_line_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: transmission_line_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: transmission_line_raw
+    target: v_transmission_line_raw
+    description: "Load transmission_line from raw schema"
+
+  - name: transmission_line_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_transmission_line_raw
+    target: v_transmission_line_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as transmission_line_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_transmission_line_raw
+      WHERE 1=1
+
+  - name: transmission_line_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_transmission_line_bronze_cleaned
+    target: v_transmission_line_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to transmission_line"
+
+  - name: write_transmission_line_bronze
+    type: write
+    source: v_transmission_line_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "transmission_line"

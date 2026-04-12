@@ -1,0 +1,37 @@
+pipeline: domain_n_modelled
+flowgroup: application_form_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: application_form_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: application_form_dim
+    target: v_application_form_silver
+    description: "Load application_form from silver for modelling"
+
+  - name: application_form_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_application_form_silver
+    target: v_application_form_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_application_form_silver
+
+  - name: write_application_form_modelled
+    type: write
+    source: v_application_form_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "application_form_modelled"

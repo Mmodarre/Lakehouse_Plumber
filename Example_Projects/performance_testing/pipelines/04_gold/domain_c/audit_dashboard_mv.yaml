@@ -1,0 +1,22 @@
+pipeline: domain_c_gold
+flowgroup: audit_dashboard_mv
+actions:
+  - name: audit_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.audit_dim
+    target: v_audit_dashboard
+
+  - name: write_audit_dashboard_mv
+    type: write
+    source: v_audit_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "audit_dashboard_mv"

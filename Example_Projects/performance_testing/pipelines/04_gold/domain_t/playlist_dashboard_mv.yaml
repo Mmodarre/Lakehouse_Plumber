@@ -1,0 +1,22 @@
+pipeline: domain_t_gold
+flowgroup: playlist_dashboard_mv
+actions:
+  - name: playlist_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.playlist_fct
+    target: v_playlist_dashboard
+
+  - name: write_playlist_dashboard_mv
+    type: write
+    source: v_playlist_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "playlist_dashboard_mv"

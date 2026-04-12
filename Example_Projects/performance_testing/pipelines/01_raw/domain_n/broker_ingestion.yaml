@@ -1,0 +1,9 @@
+pipeline: domain_n_raw
+flowgroup: broker_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: broker_raw
+  landing_folder: broker
+  schema_file: lineitem_schema

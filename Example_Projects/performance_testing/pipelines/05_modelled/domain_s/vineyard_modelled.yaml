@@ -1,0 +1,37 @@
+pipeline: domain_s_modelled
+flowgroup: vineyard_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: vineyard_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: vineyard_fct
+    target: v_vineyard_silver
+    description: "Load vineyard from silver for modelling"
+
+  - name: vineyard_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_vineyard_silver
+    target: v_vineyard_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_vineyard_silver
+
+  - name: write_vineyard_modelled
+    type: write
+    source: v_vineyard_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "vineyard_modelled"

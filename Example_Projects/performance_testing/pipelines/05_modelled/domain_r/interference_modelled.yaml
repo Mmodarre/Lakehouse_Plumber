@@ -1,0 +1,37 @@
+pipeline: domain_r_modelled
+flowgroup: interference_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: interference_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: interference_dim
+    target: v_interference_silver
+    description: "Load interference from silver for modelling"
+
+  - name: interference_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_interference_silver
+    target: v_interference_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_interference_silver
+
+  - name: write_interference_modelled
+    type: write
+    source: v_interference_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "interference_modelled"

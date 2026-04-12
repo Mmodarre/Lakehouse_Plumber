@@ -1,0 +1,31 @@
+pipeline: domain_t_raw
+flowgroup: performance_royalty_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_performance_royalty_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/performance_royalty/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_performance_royalty_cloudfiles
+    description: "Load performance_royalty from landing volume"
+
+  - name: write_performance_royalty_raw
+    type: write
+    source: v_performance_royalty_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "performance_royalty_raw"

@@ -1,0 +1,22 @@
+pipeline: domain_q_gold
+flowgroup: contract_deal_dashboard_mv
+actions:
+  - name: contract_deal_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.contract_deal_dim
+    target: v_contract_deal_dashboard
+
+  - name: write_contract_deal_dashboard_mv
+    type: write
+    source: v_contract_deal_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "contract_deal_dashboard_mv"

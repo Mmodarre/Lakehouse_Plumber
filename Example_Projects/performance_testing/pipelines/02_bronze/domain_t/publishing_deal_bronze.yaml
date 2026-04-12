@@ -1,0 +1,48 @@
+pipeline: domain_t_bronze
+flowgroup: publishing_deal_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: publishing_deal_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: publishing_deal_raw
+    target: v_publishing_deal_raw
+    description: "Load publishing_deal from raw schema"
+
+  - name: publishing_deal_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_publishing_deal_raw
+    target: v_publishing_deal_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as publishing_deal_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_publishing_deal_raw
+      WHERE 1=1
+
+  - name: publishing_deal_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_publishing_deal_bronze_cleaned
+    target: v_publishing_deal_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to publishing_deal"
+
+  - name: write_publishing_deal_bronze
+    type: write
+    source: v_publishing_deal_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "publishing_deal"

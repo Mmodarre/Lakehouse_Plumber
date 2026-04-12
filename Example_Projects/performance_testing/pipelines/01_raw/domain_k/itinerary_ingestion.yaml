@@ -1,0 +1,9 @@
+pipeline: domain_k_raw
+flowgroup: itinerary_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: itinerary_raw
+  landing_folder: itinerary
+  schema_file: partsupp_schema

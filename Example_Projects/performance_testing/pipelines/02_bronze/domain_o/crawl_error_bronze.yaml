@@ -1,0 +1,48 @@
+pipeline: domain_o_bronze
+flowgroup: crawl_error_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: crawl_error_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: crawl_error_raw
+    target: v_crawl_error_raw
+    description: "Load crawl_error from raw schema"
+
+  - name: crawl_error_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_crawl_error_raw
+    target: v_crawl_error_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as crawl_error_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_crawl_error_raw
+      WHERE 1=1
+
+  - name: crawl_error_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_crawl_error_bronze_cleaned
+    target: v_crawl_error_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to crawl_error"
+
+  - name: write_crawl_error_bronze
+    type: write
+    source: v_crawl_error_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "crawl_error"

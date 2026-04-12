@@ -1,0 +1,48 @@
+pipeline: domain_j_bronze
+flowgroup: voltage_regulator_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: voltage_regulator_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: voltage_regulator_raw
+    target: v_voltage_regulator_raw
+    description: "Load voltage_regulator from raw schema"
+
+  - name: voltage_regulator_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_voltage_regulator_raw
+    target: v_voltage_regulator_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as voltage_regulator_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_voltage_regulator_raw
+      WHERE 1=1
+
+  - name: voltage_regulator_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_voltage_regulator_bronze_cleaned
+    target: v_voltage_regulator_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to voltage_regulator"
+
+  - name: write_voltage_regulator_bronze
+    type: write
+    source: v_voltage_regulator_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "voltage_regulator"

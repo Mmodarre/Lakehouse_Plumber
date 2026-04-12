@@ -1,0 +1,9 @@
+pipeline: domain_s_raw
+flowgroup: oak_origin_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: oak_origin_raw
+  landing_folder: oak_origin
+  schema_file: orders_schema

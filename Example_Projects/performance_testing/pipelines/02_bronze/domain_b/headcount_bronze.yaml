@@ -1,0 +1,48 @@
+pipeline: domain_b_bronze
+flowgroup: headcount_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: headcount_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: headcount_raw
+    target: v_headcount_raw
+    description: "Load headcount from raw schema"
+
+  - name: headcount_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_headcount_raw
+    target: v_headcount_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as headcount_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_headcount_raw
+      WHERE 1=1
+
+  - name: headcount_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_headcount_bronze_cleaned
+    target: v_headcount_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to headcount"
+
+  - name: write_headcount_bronze
+    type: write
+    source: v_headcount_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "headcount"

@@ -1,0 +1,32 @@
+pipeline: domain_t_silver
+flowgroup: release_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: release_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: release
+    target: v_release_bronze
+    description: "Load release from bronze for silver layer"
+
+  - name: write_release_silver
+    type: write
+    source: v_release_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "release_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["release_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

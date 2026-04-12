@@ -1,0 +1,48 @@
+pipeline: domain_h_bronze
+flowgroup: planogram_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: planogram_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: planogram_raw
+    target: v_planogram_raw
+    description: "Load planogram from raw schema"
+
+  - name: planogram_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_planogram_raw
+    target: v_planogram_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as planogram_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_planogram_raw
+      WHERE 1=1
+
+  - name: planogram_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_planogram_bronze_cleaned
+    target: v_planogram_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to planogram"
+
+  - name: write_planogram_bronze
+    type: write
+    source: v_planogram_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "planogram"

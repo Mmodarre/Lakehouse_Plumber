@@ -1,0 +1,37 @@
+pipeline: domain_q_modelled
+flowgroup: referee_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: referee_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: referee_dim
+    target: v_referee_silver
+    description: "Load referee from silver for modelling"
+
+  - name: referee_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_referee_silver
+    target: v_referee_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_referee_silver
+
+  - name: write_referee_modelled
+    type: write
+    source: v_referee_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "referee_modelled"

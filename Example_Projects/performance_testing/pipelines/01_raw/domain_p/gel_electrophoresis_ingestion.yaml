@@ -1,0 +1,31 @@
+pipeline: domain_p_raw
+flowgroup: gel_electrophoresis_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_gel_electrophoresis_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/gel_electrophoresis/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_gel_electrophoresis_cloudfiles
+    description: "Load gel_electrophoresis from landing volume"
+
+  - name: write_gel_electrophoresis_raw
+    type: write
+    source: v_gel_electrophoresis_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "gel_electrophoresis_raw"

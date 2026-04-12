@@ -1,0 +1,9 @@
+pipeline: domain_s_raw
+flowgroup: cuvee_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: cuvee_raw
+  landing_folder: cuvee
+  schema_file: partsupp_schema

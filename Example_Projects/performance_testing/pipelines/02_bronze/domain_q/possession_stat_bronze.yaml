@@ -1,0 +1,85 @@
+pipeline: domain_q_bronze
+flowgroup: possession_stat_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: possession_stat_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: possession_stat_raw
+    target: v_possession_stat_raw
+    description: "Load possession_stat from raw schema"
+
+  - name: possession_stat_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_possession_stat_raw
+    target: v_possession_stat_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as possession_stat_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_possession_stat_raw
+
+  - name: possession_stat_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_possession_stat_bronze_cleaned
+    target: v_possession_stat_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for possession_stat bronze"
+
+  - name: write_possession_stat_bronze
+    type: write
+    source: v_possession_stat_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "possession_stat"
+
+  - name: possession_stat_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: possession_stat_migration
+    target: v_possession_stat_migration
+    description: "Load possession_stat migration data"
+
+  - name: possession_stat_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_possession_stat_migration
+    target: v_possession_stat_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as possession_stat_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_possession_stat_migration
+
+  - name: write_possession_stat_migration
+    type: write
+    source: v_possession_stat_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "possession_stat"

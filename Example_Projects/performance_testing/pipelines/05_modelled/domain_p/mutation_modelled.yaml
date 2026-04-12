@@ -1,0 +1,37 @@
+pipeline: domain_p_modelled
+flowgroup: mutation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: mutation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: mutation_dim
+    target: v_mutation_silver
+    description: "Load mutation from silver for modelling"
+
+  - name: mutation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_mutation_silver
+    target: v_mutation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_mutation_silver
+
+  - name: write_mutation_modelled
+    type: write
+    source: v_mutation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "mutation_modelled"

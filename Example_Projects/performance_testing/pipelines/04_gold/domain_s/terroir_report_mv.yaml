@@ -1,0 +1,22 @@
+pipeline: domain_s_gold
+flowgroup: terroir_report_mv
+actions:
+  - name: terroir_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.terroir_fct
+    target: v_terroir_report
+
+  - name: write_terroir_report_mv
+    type: write
+    source: v_terroir_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "terroir_report_mv"

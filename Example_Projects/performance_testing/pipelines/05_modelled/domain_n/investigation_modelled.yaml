@@ -1,0 +1,37 @@
+pipeline: domain_n_modelled
+flowgroup: investigation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: investigation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: investigation_dim
+    target: v_investigation_silver
+    description: "Load investigation from silver for modelling"
+
+  - name: investigation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_investigation_silver
+    target: v_investigation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_investigation_silver
+
+  - name: write_investigation_modelled
+    type: write
+    source: v_investigation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "investigation_modelled"

@@ -1,0 +1,85 @@
+pipeline: domain_d_bronze
+flowgroup: outpatient_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: outpatient_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: outpatient_raw
+    target: v_outpatient_raw
+    description: "Load outpatient from raw schema"
+
+  - name: outpatient_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_outpatient_raw
+    target: v_outpatient_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as outpatient_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_outpatient_raw
+
+  - name: outpatient_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_outpatient_bronze_cleaned
+    target: v_outpatient_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for outpatient bronze"
+
+  - name: write_outpatient_bronze
+    type: write
+    source: v_outpatient_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "outpatient"
+
+  - name: outpatient_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: outpatient_migration
+    target: v_outpatient_migration
+    description: "Load outpatient migration data"
+
+  - name: outpatient_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_outpatient_migration
+    target: v_outpatient_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as outpatient_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_outpatient_migration
+
+  - name: write_outpatient_migration
+    type: write
+    source: v_outpatient_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "outpatient"

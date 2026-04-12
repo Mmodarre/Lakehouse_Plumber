@@ -1,0 +1,22 @@
+pipeline: domain_o_gold
+flowgroup: attribution_summary_mv
+actions:
+  - name: attribution_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.attribution_fct
+    target: v_attribution_summary
+
+  - name: write_attribution_summary_mv
+    type: write
+    source: v_attribution_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "attribution_summary_mv"

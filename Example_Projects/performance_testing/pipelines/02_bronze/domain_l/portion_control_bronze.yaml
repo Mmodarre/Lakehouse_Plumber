@@ -1,0 +1,48 @@
+pipeline: domain_l_bronze
+flowgroup: portion_control_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: portion_control_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: portion_control_raw
+    target: v_portion_control_raw
+    description: "Load portion_control from raw schema"
+
+  - name: portion_control_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_portion_control_raw
+    target: v_portion_control_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as portion_control_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_portion_control_raw
+      WHERE 1=1
+
+  - name: portion_control_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_portion_control_bronze_cleaned
+    target: v_portion_control_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to portion_control"
+
+  - name: write_portion_control_bronze
+    type: write
+    source: v_portion_control_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "portion_control"

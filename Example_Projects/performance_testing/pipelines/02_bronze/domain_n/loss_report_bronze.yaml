@@ -1,0 +1,8 @@
+pipeline: domain_n_bronze
+flowgroup: loss_report_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: loss_report
+  source_table: loss_report_raw

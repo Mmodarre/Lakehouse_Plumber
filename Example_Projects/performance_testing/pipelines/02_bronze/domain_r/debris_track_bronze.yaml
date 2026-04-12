@@ -1,0 +1,85 @@
+pipeline: domain_r_bronze
+flowgroup: debris_track_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: debris_track_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: debris_track_raw
+    target: v_debris_track_raw
+    description: "Load debris_track from raw schema"
+
+  - name: debris_track_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_debris_track_raw
+    target: v_debris_track_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as debris_track_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_debris_track_raw
+
+  - name: debris_track_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_debris_track_bronze_cleaned
+    target: v_debris_track_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for debris_track bronze"
+
+  - name: write_debris_track_bronze
+    type: write
+    source: v_debris_track_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "debris_track"
+
+  - name: debris_track_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: debris_track_migration
+    target: v_debris_track_migration
+    description: "Load debris_track migration data"
+
+  - name: debris_track_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_debris_track_migration
+    target: v_debris_track_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as debris_track_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_debris_track_migration
+
+  - name: write_debris_track_migration
+    type: write
+    source: v_debris_track_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "debris_track"

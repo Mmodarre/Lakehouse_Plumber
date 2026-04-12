@@ -1,0 +1,8 @@
+pipeline: domain_s_bronze
+flowgroup: label_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: label
+  source_table: label_raw

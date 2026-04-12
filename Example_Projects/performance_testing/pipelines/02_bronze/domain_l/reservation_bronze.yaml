@@ -1,0 +1,8 @@
+pipeline: domain_l_bronze
+flowgroup: reservation_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: reservation
+  source_table: reservation_raw

@@ -1,0 +1,53 @@
+pipeline: domain_a_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: shipment_ingestion
+    template_parameters:
+      table_name: shipment_raw
+      landing_folder: shipment
+      schema_file: part_schema
+
+  - flowgroup: refund_ingestion
+    template_parameters:
+      table_name: refund_raw
+      landing_folder: refund
+      schema_file: customer_schema
+
+  - flowgroup: brand_ingestion
+    template_parameters:
+      table_name: brand_raw
+      landing_folder: brand
+      schema_file: product_schema
+
+  - flowgroup: subscription_ingestion
+    template_parameters:
+      table_name: subscription_raw
+      landing_folder: subscription
+      schema_file: partsupp_schema
+
+  - flowgroup: loyalty_point_ingestion
+    template_parameters:
+      table_name: loyalty_point_raw
+      landing_folder: loyalty_point
+      schema_file: lineitem_schema
+
+  - flowgroup: sku_ingestion
+    template_parameters:
+      table_name: sku_raw
+      landing_folder: sku
+      schema_file: customer_schema
+
+  - flowgroup: pre_order_ingestion
+    template_parameters:
+      table_name: pre_order_raw
+      landing_folder: pre_order
+      schema_file: product_schema
+
+  - flowgroup: fulfillment_ingestion
+    template_parameters:
+      table_name: fulfillment_raw
+      landing_folder: fulfillment
+      schema_file: nation_schema

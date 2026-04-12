@@ -1,0 +1,48 @@
+pipeline: domain_a_bronze
+flowgroup: packaging_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: packaging_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: packaging_raw
+    target: v_packaging_raw
+    description: "Load packaging from raw schema"
+
+  - name: packaging_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_packaging_raw
+    target: v_packaging_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as packaging_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_packaging_raw
+      WHERE 1=1
+
+  - name: packaging_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_packaging_bronze_cleaned
+    target: v_packaging_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to packaging"
+
+  - name: write_packaging_bronze
+    type: write
+    source: v_packaging_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "packaging"

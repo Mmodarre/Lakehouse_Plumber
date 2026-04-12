@@ -1,0 +1,53 @@
+pipeline: domain_e_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: route_ingestion
+    template_parameters:
+      table_name: route_raw
+      landing_folder: route
+      schema_file: nation_schema
+
+  - flowgroup: toll_ingestion
+    template_parameters:
+      table_name: toll_raw
+      landing_folder: toll
+      schema_file: lineitem_schema
+
+  - flowgroup: consignment_ingestion
+    template_parameters:
+      table_name: consignment_raw
+      landing_folder: consignment
+      schema_file: customer_schema
+
+  - flowgroup: zone_ingestion
+    template_parameters:
+      table_name: zone_raw
+      landing_folder: zone
+      schema_file: orders_schema
+
+  - flowgroup: customs_doc_ingestion
+    template_parameters:
+      table_name: customs_doc_raw
+      landing_folder: customs_doc
+      schema_file: nation_schema
+
+  - flowgroup: last_mile_ingestion
+    template_parameters:
+      table_name: last_mile_raw
+      landing_folder: last_mile
+      schema_file: lineitem_schema
+
+  - flowgroup: speed_alert_ingestion
+    template_parameters:
+      table_name: speed_alert_raw
+      landing_folder: speed_alert
+      schema_file: part_schema
+
+  - flowgroup: temperature_log_ingestion
+    template_parameters:
+      table_name: temperature_log_raw
+      landing_folder: temperature_log
+      schema_file: orders_schema

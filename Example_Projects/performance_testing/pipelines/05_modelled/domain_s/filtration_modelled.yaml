@@ -1,0 +1,37 @@
+pipeline: domain_s_modelled
+flowgroup: filtration_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: filtration_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: filtration_dim
+    target: v_filtration_silver
+    description: "Load filtration from silver for modelling"
+
+  - name: filtration_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_filtration_silver
+    target: v_filtration_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_filtration_silver
+
+  - name: write_filtration_modelled
+    type: write
+    source: v_filtration_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "filtration_modelled"

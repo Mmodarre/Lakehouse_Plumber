@@ -1,0 +1,37 @@
+pipeline: domain_s_modelled
+flowgroup: harvest_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: harvest_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: harvest_dim
+    target: v_harvest_silver
+    description: "Load harvest from silver for modelling"
+
+  - name: harvest_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_harvest_silver
+    target: v_harvest_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_harvest_silver
+
+  - name: write_harvest_modelled
+    type: write
+    source: v_harvest_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "harvest_modelled"

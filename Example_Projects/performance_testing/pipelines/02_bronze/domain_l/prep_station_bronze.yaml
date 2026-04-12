@@ -1,0 +1,48 @@
+pipeline: domain_l_bronze
+flowgroup: prep_station_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: prep_station_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: prep_station_raw
+    target: v_prep_station_raw
+    description: "Load prep_station from raw schema"
+
+  - name: prep_station_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_prep_station_raw
+    target: v_prep_station_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as prep_station_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_prep_station_raw
+      WHERE 1=1
+
+  - name: prep_station_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_prep_station_bronze_cleaned
+    target: v_prep_station_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to prep_station"
+
+  - name: write_prep_station_bronze
+    type: write
+    source: v_prep_station_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "prep_station"

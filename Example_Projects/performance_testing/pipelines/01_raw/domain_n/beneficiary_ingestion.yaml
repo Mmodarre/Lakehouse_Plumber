@@ -1,0 +1,9 @@
+pipeline: domain_n_raw
+flowgroup: beneficiary_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: beneficiary_raw
+  landing_folder: beneficiary
+  schema_file: nation_schema

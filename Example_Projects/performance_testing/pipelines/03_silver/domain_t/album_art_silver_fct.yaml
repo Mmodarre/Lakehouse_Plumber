@@ -1,0 +1,32 @@
+pipeline: domain_t_silver
+flowgroup: album_art_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: album_art_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: album_art
+    target: v_album_art_bronze
+    description: "Load album_art from bronze for silver layer"
+
+  - name: write_album_art_silver
+    type: write
+    source: v_album_art_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "album_art_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["album_art_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

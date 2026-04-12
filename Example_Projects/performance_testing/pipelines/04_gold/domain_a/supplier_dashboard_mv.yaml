@@ -1,0 +1,22 @@
+pipeline: domain_a_gold
+flowgroup: supplier_dashboard_mv
+actions:
+  - name: supplier_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.supplier_fct
+    target: v_supplier_dashboard
+
+  - name: write_supplier_dashboard_mv
+    type: write
+    source: v_supplier_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "supplier_dashboard_mv"

@@ -1,0 +1,9 @@
+pipeline: domain_s_raw
+flowgroup: fermentation_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: fermentation_raw
+  landing_folder: fermentation
+  schema_file: orders_schema

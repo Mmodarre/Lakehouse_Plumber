@@ -1,0 +1,8 @@
+pipeline: domain_q_bronze
+flowgroup: match_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: match
+  source_table: match_raw

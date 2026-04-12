@@ -1,0 +1,85 @@
+pipeline: domain_e_bronze
+flowgroup: driver_score_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: driver_score_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: driver_score_raw
+    target: v_driver_score_raw
+    description: "Load driver_score from raw schema"
+
+  - name: driver_score_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_driver_score_raw
+    target: v_driver_score_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as driver_score_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_driver_score_raw
+
+  - name: driver_score_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_driver_score_bronze_cleaned
+    target: v_driver_score_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for driver_score bronze"
+
+  - name: write_driver_score_bronze
+    type: write
+    source: v_driver_score_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "driver_score"
+
+  - name: driver_score_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: driver_score_migration
+    target: v_driver_score_migration
+    description: "Load driver_score migration data"
+
+  - name: driver_score_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_driver_score_migration
+    target: v_driver_score_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as driver_score_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_driver_score_migration
+
+  - name: write_driver_score_migration
+    type: write
+    source: v_driver_score_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "driver_score"

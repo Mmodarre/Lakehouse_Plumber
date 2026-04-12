@@ -1,0 +1,37 @@
+pipeline: domain_n_modelled
+flowgroup: occurrence_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: occurrence_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: occurrence_fct
+    target: v_occurrence_silver
+    description: "Load occurrence from silver for modelling"
+
+  - name: occurrence_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_occurrence_silver
+    target: v_occurrence_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_occurrence_silver
+
+  - name: write_occurrence_modelled
+    type: write
+    source: v_occurrence_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "occurrence_modelled"

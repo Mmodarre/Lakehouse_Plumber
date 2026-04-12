@@ -1,0 +1,31 @@
+pipeline: domain_f_raw
+flowgroup: tutoring_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_tutoring_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/tutoring/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_tutoring_cloudfiles
+    description: "Load tutoring from landing volume"
+
+  - name: write_tutoring_raw
+    type: write
+    source: v_tutoring_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "tutoring_raw"

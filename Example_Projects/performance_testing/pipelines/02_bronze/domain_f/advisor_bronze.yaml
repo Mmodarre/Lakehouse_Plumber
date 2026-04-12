@@ -1,0 +1,48 @@
+pipeline: domain_f_bronze
+flowgroup: advisor_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: advisor_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: advisor_raw
+    target: v_advisor_raw
+    description: "Load advisor from raw schema"
+
+  - name: advisor_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_advisor_raw
+    target: v_advisor_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as advisor_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_advisor_raw
+      WHERE 1=1
+
+  - name: advisor_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_advisor_bronze_cleaned
+    target: v_advisor_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to advisor"
+
+  - name: write_advisor_bronze
+    type: write
+    source: v_advisor_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "advisor"

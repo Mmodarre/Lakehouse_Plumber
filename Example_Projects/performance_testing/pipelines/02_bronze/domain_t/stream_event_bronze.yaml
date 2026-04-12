@@ -1,0 +1,8 @@
+pipeline: domain_t_bronze
+flowgroup: stream_event_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: stream_event
+  source_table: stream_event_raw

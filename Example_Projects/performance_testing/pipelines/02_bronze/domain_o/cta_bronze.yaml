@@ -1,0 +1,85 @@
+pipeline: domain_o_bronze
+flowgroup: cta_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: cta_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cta_raw
+    target: v_cta_raw
+    description: "Load cta from raw schema"
+
+  - name: cta_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_cta_raw
+    target: v_cta_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cta_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_cta_raw
+
+  - name: cta_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_cta_bronze_cleaned
+    target: v_cta_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for cta bronze"
+
+  - name: write_cta_bronze
+    type: write
+    source: v_cta_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cta"
+
+  - name: cta_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cta_migration
+    target: v_cta_migration
+    description: "Load cta migration data"
+
+  - name: cta_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cta_migration
+    target: v_cta_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cta_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_cta_migration
+
+  - name: write_cta_migration
+    type: write
+    source: v_cta_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cta"

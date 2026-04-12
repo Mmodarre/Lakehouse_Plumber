@@ -1,0 +1,22 @@
+pipeline: domain_e_gold
+flowgroup: cargo_summary_mv
+actions:
+  - name: cargo_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.cargo_fct
+    target: v_cargo_summary
+
+  - name: write_cargo_summary_mv
+    type: write
+    source: v_cargo_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "cargo_summary_mv"

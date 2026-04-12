@@ -1,0 +1,8 @@
+pipeline: domain_p_bronze
+flowgroup: genome_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: genome
+  source_table: genome_raw

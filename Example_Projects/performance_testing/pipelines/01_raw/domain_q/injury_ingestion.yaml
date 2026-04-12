@@ -1,0 +1,9 @@
+pipeline: domain_q_raw
+flowgroup: injury_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: injury_raw
+  landing_folder: injury
+  schema_file: partsupp_schema

@@ -1,0 +1,9 @@
+pipeline: domain_q_raw
+flowgroup: draft_pick_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: draft_pick_raw
+  landing_folder: draft_pick
+  schema_file: nation_schema

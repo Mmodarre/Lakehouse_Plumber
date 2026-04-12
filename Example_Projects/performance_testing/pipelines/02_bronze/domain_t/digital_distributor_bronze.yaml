@@ -1,0 +1,48 @@
+pipeline: domain_t_bronze
+flowgroup: digital_distributor_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: digital_distributor_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: digital_distributor_raw
+    target: v_digital_distributor_raw
+    description: "Load digital_distributor from raw schema"
+
+  - name: digital_distributor_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_digital_distributor_raw
+    target: v_digital_distributor_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as digital_distributor_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_digital_distributor_raw
+      WHERE 1=1
+
+  - name: digital_distributor_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_digital_distributor_bronze_cleaned
+    target: v_digital_distributor_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to digital_distributor"
+
+  - name: write_digital_distributor_bronze
+    type: write
+    source: v_digital_distributor_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "digital_distributor"

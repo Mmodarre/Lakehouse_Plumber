@@ -1,0 +1,22 @@
+pipeline: domain_t_gold
+flowgroup: mixing_report_mv
+actions:
+  - name: mixing_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.mixing_dim
+    target: v_mixing_report
+
+  - name: write_mixing_report_mv
+    type: write
+    source: v_mixing_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "mixing_report_mv"

@@ -1,0 +1,9 @@
+pipeline: domain_j_raw
+flowgroup: voltage_regulator_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: voltage_regulator_raw
+  landing_folder: voltage_regulator
+  schema_file: customer_schema

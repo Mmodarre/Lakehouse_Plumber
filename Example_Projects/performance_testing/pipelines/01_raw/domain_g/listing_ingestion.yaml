@@ -1,0 +1,31 @@
+pipeline: domain_g_raw
+flowgroup: listing_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_listing_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/listing/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_listing_cloudfiles
+    description: "Load listing from landing volume"
+
+  - name: write_listing_raw
+    type: write
+    source: v_listing_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "listing_raw"

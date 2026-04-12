@@ -1,0 +1,22 @@
+pipeline: domain_m_gold
+flowgroup: telemetry_report_mv
+actions:
+  - name: telemetry_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.telemetry_dim
+    target: v_telemetry_report
+
+  - name: write_telemetry_report_mv
+    type: write
+    source: v_telemetry_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "telemetry_report_mv"

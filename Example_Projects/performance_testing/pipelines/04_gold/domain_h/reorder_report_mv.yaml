@@ -1,0 +1,22 @@
+pipeline: domain_h_gold
+flowgroup: reorder_report_mv
+actions:
+  - name: reorder_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.reorder_dim
+    target: v_reorder_report
+
+  - name: write_reorder_report_mv
+    type: write
+    source: v_reorder_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "reorder_report_mv"

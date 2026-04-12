@@ -1,0 +1,37 @@
+pipeline: domain_o_modelled
+flowgroup: impression_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: impression_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: impression_fct
+    target: v_impression_silver
+    description: "Load impression from silver for modelling"
+
+  - name: impression_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_impression_silver
+    target: v_impression_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_impression_silver
+
+  - name: write_impression_modelled
+    type: write
+    source: v_impression_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "impression_modelled"

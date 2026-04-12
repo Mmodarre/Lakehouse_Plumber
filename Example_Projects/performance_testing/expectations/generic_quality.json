@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "table": "generic",
+  "expectations": [
+    {
+      "name": "primary_key_not_null",
+      "expression": "1=1",
+      "failureAction": "warn"
+    },
+    {
+      "name": "valid_timestamp",
+      "expression": "1=1",
+      "failureAction": "warn"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+pipeline: domain_k_raw
+flowgroup: catering_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: catering_raw
+  landing_folder: catering
+  schema_file: customer_schema

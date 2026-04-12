@@ -1,0 +1,659 @@
+pipeline: domain_c_silver
+flowgroup: transaction_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: transaction_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: transaction
+    target: v_transaction_bronze
+    description: "Load transaction from bronze for silver layer"
+
+  - name: write_transaction_silver
+    type: write
+    source: v_transaction_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "transaction_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["transaction_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: account_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: account_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: account
+    target: v_account_bronze
+    description: "Load account from bronze for silver layer"
+
+  - name: write_account_silver
+    type: write
+    source: v_account_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "account_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["account_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: ledger_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: ledger_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: ledger
+    target: v_ledger_bronze
+    description: "Load ledger from bronze for silver layer"
+
+  - name: write_ledger_silver
+    type: write
+    source: v_ledger_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "ledger_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["ledger_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: journal_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: journal_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: journal
+    target: v_journal_bronze
+    description: "Load journal from bronze for silver layer"
+
+  - name: write_journal_silver
+    type: write
+    source: v_journal_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "journal_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["journal_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: budget_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: budget_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: budget
+    target: v_budget_bronze
+    description: "Load budget from bronze for silver layer"
+
+  - name: write_budget_silver
+    type: write
+    source: v_budget_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "budget_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["budget_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: forecast_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: forecast_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: forecast
+    target: v_forecast_bronze
+    description: "Load forecast from bronze for silver layer"
+
+  - name: write_forecast_silver
+    type: write
+    source: v_forecast_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "forecast_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["forecast_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: tax_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: tax_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: tax
+    target: v_tax_bronze
+    description: "Load tax from bronze for silver layer"
+
+  - name: write_tax_silver
+    type: write
+    source: v_tax_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "tax_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["tax_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: audit_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: audit_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: audit
+    target: v_audit_bronze
+    description: "Load audit from bronze for silver layer"
+
+  - name: write_audit_silver
+    type: write
+    source: v_audit_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "audit_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["audit_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: compliance_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: compliance_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: compliance
+    target: v_compliance_bronze
+    description: "Load compliance from bronze for silver layer"
+
+  - name: write_compliance_silver
+    type: write
+    source: v_compliance_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "compliance_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["compliance_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: regulation_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: regulation_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: regulation
+    target: v_regulation_bronze
+    description: "Load regulation from bronze for silver layer"
+
+  - name: write_regulation_silver
+    type: write
+    source: v_regulation_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "regulation_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["regulation_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: asset_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: asset_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: asset
+    target: v_asset_bronze
+    description: "Load asset from bronze for silver layer"
+
+  - name: write_asset_silver
+    type: write
+    source: v_asset_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "asset_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["asset_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: depreciation_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: depreciation_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: depreciation
+    target: v_depreciation_bronze
+    description: "Load depreciation from bronze for silver layer"
+
+  - name: write_depreciation_silver
+    type: write
+    source: v_depreciation_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "depreciation_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["depreciation_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: liability_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: liability_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: liability
+    target: v_liability_bronze
+    description: "Load liability from bronze for silver layer"
+
+  - name: write_liability_silver
+    type: write
+    source: v_liability_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "liability_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["liability_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: equity_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: equity_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: equity
+    target: v_equity_bronze
+    description: "Load equity from bronze for silver layer"
+
+  - name: write_equity_silver
+    type: write
+    source: v_equity_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "equity_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["equity_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: revenue_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: revenue_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: revenue
+    target: v_revenue_bronze
+    description: "Load revenue from bronze for silver layer"
+
+  - name: write_revenue_silver
+    type: write
+    source: v_revenue_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "revenue_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["revenue_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: expense_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: expense_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: expense
+    target: v_expense_bronze
+    description: "Load expense from bronze for silver layer"
+
+  - name: write_expense_silver
+    type: write
+    source: v_expense_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "expense_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["expense_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: cost_center_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: cost_center_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: cost_center
+    target: v_cost_center_bronze
+    description: "Load cost_center from bronze for silver layer"
+
+  - name: write_cost_center_silver
+    type: write
+    source: v_cost_center_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "cost_center_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["cost_center_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: profit_center_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: profit_center_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: profit_center
+    target: v_profit_center_bronze
+    description: "Load profit_center from bronze for silver layer"
+
+  - name: write_profit_center_silver
+    type: write
+    source: v_profit_center_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "profit_center_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["profit_center_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: currency_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: currency_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: currency
+    target: v_currency_bronze
+    description: "Load currency from bronze for silver layer"
+
+  - name: write_currency_silver
+    type: write
+    source: v_currency_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "currency_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["currency_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_c_silver
+flowgroup: exchange_rate_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: exchange_rate_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: exchange_rate
+    target: v_exchange_rate_bronze
+    description: "Load exchange_rate from bronze for silver layer"
+
+  - name: write_exchange_rate_silver
+    type: write
+    source: v_exchange_rate_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "exchange_rate_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["exchange_rate_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

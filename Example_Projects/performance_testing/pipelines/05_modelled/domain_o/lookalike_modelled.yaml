@@ -1,0 +1,37 @@
+pipeline: domain_o_modelled
+flowgroup: lookalike_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lookalike_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lookalike_fct
+    target: v_lookalike_silver
+    description: "Load lookalike from silver for modelling"
+
+  - name: lookalike_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lookalike_silver
+    target: v_lookalike_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lookalike_silver
+
+  - name: write_lookalike_modelled
+    type: write
+    source: v_lookalike_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lookalike_modelled"

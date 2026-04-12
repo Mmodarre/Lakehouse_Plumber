@@ -1,0 +1,85 @@
+pipeline: domain_p_bronze
+flowgroup: pharmacokinetics_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: pharmacokinetics_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pharmacokinetics_raw
+    target: v_pharmacokinetics_raw
+    description: "Load pharmacokinetics from raw schema"
+
+  - name: pharmacokinetics_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_pharmacokinetics_raw
+    target: v_pharmacokinetics_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pharmacokinetics_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_pharmacokinetics_raw
+
+  - name: pharmacokinetics_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_pharmacokinetics_bronze_cleaned
+    target: v_pharmacokinetics_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for pharmacokinetics bronze"
+
+  - name: write_pharmacokinetics_bronze
+    type: write
+    source: v_pharmacokinetics_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pharmacokinetics"
+
+  - name: pharmacokinetics_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pharmacokinetics_migration
+    target: v_pharmacokinetics_migration
+    description: "Load pharmacokinetics migration data"
+
+  - name: pharmacokinetics_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pharmacokinetics_migration
+    target: v_pharmacokinetics_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pharmacokinetics_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_pharmacokinetics_migration
+
+  - name: write_pharmacokinetics_migration
+    type: write
+    source: v_pharmacokinetics_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pharmacokinetics"

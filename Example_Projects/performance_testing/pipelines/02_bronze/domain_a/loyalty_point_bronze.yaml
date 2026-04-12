@@ -1,0 +1,48 @@
+pipeline: domain_a_bronze
+flowgroup: loyalty_point_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: loyalty_point_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: loyalty_point_raw
+    target: v_loyalty_point_raw
+    description: "Load loyalty_point from raw schema"
+
+  - name: loyalty_point_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_loyalty_point_raw
+    target: v_loyalty_point_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as loyalty_point_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_loyalty_point_raw
+      WHERE 1=1
+
+  - name: loyalty_point_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_loyalty_point_bronze_cleaned
+    target: v_loyalty_point_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to loyalty_point"
+
+  - name: write_loyalty_point_bronze
+    type: write
+    source: v_loyalty_point_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "loyalty_point"

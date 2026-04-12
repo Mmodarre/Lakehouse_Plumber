@@ -1,0 +1,8 @@
+pipeline: domain_j_bronze
+flowgroup: tariff_plan_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: tariff_plan
+  source_table: tariff_plan_raw

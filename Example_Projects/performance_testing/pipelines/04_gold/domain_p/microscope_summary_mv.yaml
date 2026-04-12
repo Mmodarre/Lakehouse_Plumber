@@ -1,0 +1,22 @@
+pipeline: domain_p_gold
+flowgroup: microscope_summary_mv
+actions:
+  - name: microscope_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.microscope_dim
+    target: v_microscope_summary
+
+  - name: write_microscope_summary_mv
+    type: write
+    source: v_microscope_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "microscope_summary_mv"

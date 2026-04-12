@@ -1,0 +1,22 @@
+pipeline: domain_i_gold
+flowgroup: fixture_summary_mv
+actions:
+  - name: fixture_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.fixture_dim
+    target: v_fixture_summary
+
+  - name: write_fixture_summary_mv
+    type: write
+    source: v_fixture_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "fixture_summary_mv"

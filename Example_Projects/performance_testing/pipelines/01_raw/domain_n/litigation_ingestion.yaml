@@ -1,0 +1,9 @@
+pipeline: domain_n_raw
+flowgroup: litigation_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: litigation_raw
+  landing_folder: litigation
+  schema_file: partsupp_schema

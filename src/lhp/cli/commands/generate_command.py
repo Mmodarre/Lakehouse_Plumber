@@ -8,16 +8,20 @@ import click
 
 from ...bundle.exceptions import BundleResourceError
 from ...bundle.manager import BundleManager
+from ...utils.performance_timer import log_perf_summary, perf_timer
 from ...core.layers import (
     AnalysisResponse,
     GenerationResponse,
     LakehousePlumberApplicationFacade,
     PipelineGenerationRequest,
     PresentationLayer,
+    StalenessAnalysisRequest,
     ValidationResponse,
 )
 from ...core.orchestrator import ActionOrchestrator
+from ...core.state.checksum_cache import ChecksumCache
 from ...core.state_manager import StateManager
+from ...models.config import FlowGroup
 from ...utils.bundle_detection import should_enable_bundle_support
 from .base_command import BaseCommand
 
@@ -88,14 +92,20 @@ class GenerateCommand(BaseCommand):
         self.check_substitution_file(env)
 
         # 4. Initialize application layer facade
-        application_facade = self._create_application_facade(
-            project_root, no_cleanup, pipeline_config
-        )
+        with perf_timer("Orchestrator init", phase=True):
+            application_facade = self._create_application_facade(
+                project_root, no_cleanup, pipeline_config
+            )
 
-        # 5. Discover pipelines to generate (coordinate with application layer)
-        pipelines_to_generate = self._discover_pipelines_for_generation(
-            pipeline, application_facade
-        )
+        # 5. Discover all flowgroups ONCE (used by cleanup, analysis, and generation)
+        with perf_timer("Pipeline discovery", phase=True):
+            all_flowgroups = application_facade.orchestrator.discover_all_flowgroups()
+            application_facade.orchestrator.validate_duplicate_pipeline_flowgroup_combinations(
+                all_flowgroups
+            )
+            pipelines_to_generate = self._get_pipeline_names(
+                pipeline, all_flowgroups
+            )
 
         if not pipelines_to_generate:
             from ...utils.error_formatter import ErrorCategory, LHPConfigError
@@ -114,39 +124,60 @@ class GenerateCommand(BaseCommand):
 
         logger.debug(f"Pipelines discovered for generation: {pipelines_to_generate}")
 
-        # 6. Handle cleanup operations (coordinate)
-        if not no_cleanup:
-            self._handle_cleanup_operations(
-                application_facade, env, output_dir, dry_run
+        # 6. Create per-run checksum cache (shared across analysis + generation)
+        checksum_cache = ChecksumCache()
+        if application_facade.state_manager:
+            application_facade.state_manager.set_checksum_cache(checksum_cache)
+
+        # 7. Handle cleanup operations (coordinate)
+        if force and not no_cleanup:
+            with perf_timer("Cleanup operations", phase=True):
+                self._wipe_generated_directory(
+                    application_facade, output_dir, dry_run
+                )
+        elif not no_cleanup:
+            with perf_timer("Cleanup operations", phase=True):
+                active_flowgroups = {
+                    (fg.pipeline, fg.flowgroup) for fg in all_flowgroups
+                }
+                self._handle_cleanup_operations(
+                    application_facade, env, output_dir, dry_run,
+                    active_flowgroups=active_flowgroups,
+                )
+
+        # 8. Analyze generation requirements (show context changes)
+        with perf_timer("Staleness analysis", phase=True):
+            self._display_generation_analysis(
+                application_facade,
+                pipelines_to_generate,
+                env,
+                include_tests,
+                force,
+                no_cleanup,
+                all_flowgroups=all_flowgroups,
             )
 
-        # 7. Analyze generation requirements (show context changes)
-        self._display_generation_analysis(
-            application_facade,
-            pipelines_to_generate,
-            env,
-            include_tests,
-            force,
-            no_cleanup,
-        )
-
-        # 8. Execute generation for each pipeline (pure coordination)
+        # 9. Execute generation for each pipeline (pure coordination)
         total_files = 0
         all_generated_files = {}
 
         for pipeline_identifier in pipelines_to_generate:
             logger.debug(f"Starting generation for pipeline: {pipeline_identifier}")
-            response = self._execute_pipeline_generation(
-                application_facade,
-                pipeline_identifier,
-                env,
-                output_dir,
-                dry_run,
-                force,
-                include_tests,
-                no_cleanup,
-                pipeline_config,
-            )
+            with perf_timer(
+                f"Pipeline generation [{pipeline_identifier}]", phase=True
+            ):
+                response = self._execute_pipeline_generation(
+                    application_facade,
+                    pipeline_identifier,
+                    env,
+                    output_dir,
+                    dry_run,
+                    force,
+                    include_tests,
+                    no_cleanup,
+                    pipeline_config,
+                    all_flowgroups=all_flowgroups,
+                )
 
             # Display results (presentation)
             self._display_generation_response(response, pipeline_identifier)
@@ -155,20 +186,24 @@ class GenerateCommand(BaseCommand):
                 total_files += response.files_written
                 all_generated_files.update(response.generated_files)
 
-        # 9. Handle bundle operations (coordinate)
+        # 10. Handle bundle operations (coordinate)
         if not no_bundle:
-            self._handle_bundle_operations(
-                project_root,
-                output_dir,
-                env,
-                no_bundle,
-                dry_run,
-                force,
-                pipeline_config,
-                project_config=application_facade.orchestrator.project_config,
-            )
+            with perf_timer("Bundle sync", phase=True):
+                self._handle_bundle_operations(
+                    project_root,
+                    output_dir,
+                    env,
+                    no_bundle,
+                    dry_run,
+                    force,
+                    pipeline_config,
+                    project_config=application_facade.orchestrator.project_config,
+                )
 
-        # 10. Display completion message (presentation)
+        # 11. Log performance summary (before completion message)
+        log_perf_summary()
+
+        # 12. Display completion message (presentation)
         logger.info(
             f"Generation complete: {total_files} file(s) generated, "
             f"{len(all_generated_files)} total output file(s)"
@@ -185,7 +220,13 @@ class GenerateCommand(BaseCommand):
         orchestrator = ActionOrchestrator(
             project_root, pipeline_config_path=pipeline_config_path
         )
-        state_manager = StateManager(project_root) if not no_cleanup else None
+        state_manager = (
+            StateManager(
+                project_root, yaml_parser=orchestrator.cached_yaml_parser
+            )
+            if not no_cleanup
+            else None
+        )
         return LakehousePlumberApplicationFacade(orchestrator, state_manager)
 
     def _execute_pipeline_generation(
@@ -199,6 +240,7 @@ class GenerateCommand(BaseCommand):
         include_tests: bool,
         no_cleanup: bool,
         pipeline_config_path: Optional[str] = None,
+        all_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> GenerationResponse:
         """Execute generation for single pipeline using application facade."""
         logger.debug(
@@ -219,7 +261,9 @@ class GenerateCommand(BaseCommand):
         )
 
         # Delegate to application layer
-        return application_facade.generate_pipeline(request)
+        return application_facade.generate_pipeline(
+            request, pre_discovered_all_flowgroups=all_flowgroups
+        )
 
     # ========================================================================
     # PURE PRESENTATION METHODS
@@ -275,6 +319,16 @@ class GenerateCommand(BaseCommand):
         """Get input from user - pure presentation."""
         return input(prompt)
 
+    @staticmethod
+    def _get_pipeline_names(
+        pipeline: Optional[str], all_flowgroups: List[FlowGroup]
+    ) -> List[str]:
+        """Extract pipeline names from discovered flowgroups, or return specific pipeline."""
+        if pipeline:
+            return [pipeline]
+        pipeline_fields = {fg.pipeline for fg in all_flowgroups}
+        return list(pipeline_fields) if pipeline_fields else []
+
     def _display_startup_message(self, env: str) -> None:
         """Display startup message."""
         click.echo(f"🚀 Generating pipeline code for environment: {env}")
@@ -318,26 +372,6 @@ class GenerateCommand(BaseCommand):
         else:
             click.echo("✨ All files are up-to-date! Nothing to generate.")
 
-    def _discover_pipelines_for_generation(
-        self,
-        pipeline: Optional[str],
-        application_facade: LakehousePlumberApplicationFacade,
-    ) -> List[str]:
-        """Discover which pipelines to generate - coordinate with application layer."""
-        if pipeline:
-            # Specific pipeline requested
-            return [pipeline]
-        else:
-            # Discover all available pipelines
-            # Use orchestrator through facade for discovery
-            all_flowgroups = application_facade.orchestrator.discover_all_flowgroups()
-            pipeline_fields = {fg.pipeline for fg in all_flowgroups}
-
-            if not pipeline_fields:
-                return []
-
-            return list(pipeline_fields)
-
     def _display_generation_analysis(
         self,
         application_facade: LakehousePlumberApplicationFacade,
@@ -346,14 +380,12 @@ class GenerateCommand(BaseCommand):
         include_tests: bool,
         force: bool,
         no_cleanup: bool,
+        all_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> None:
         """Display generation analysis including context change detection."""
         # Display force mode message if force flag is used
         if force:
             click.echo("🔄 Force mode: regenerating all files regardless of changes")
-
-        # Create analysis request
-        from ...core.layers import StalenessAnalysisRequest
 
         analysis_request = StalenessAnalysisRequest(
             environment=env,
@@ -363,7 +395,10 @@ class GenerateCommand(BaseCommand):
         )
 
         # Get analysis from application facade
-        analysis_response = application_facade.analyze_staleness(analysis_request)
+        analysis_response = application_facade.analyze_staleness(
+            analysis_request,
+            pre_discovered_all_flowgroups=all_flowgroups,
+        )
 
         # Display analysis results (includes context change detection)
         self.display_analysis_results(analysis_response)
@@ -374,13 +409,14 @@ class GenerateCommand(BaseCommand):
         env: str,
         output_dir: Path,
         dry_run: bool,
+        active_flowgroups: Optional[set] = None,
     ) -> None:
         """Handle cleanup operations - coordinate with application layer."""
-        # This could be enhanced to use application facade for cleanup coordination
-        # For now, direct state manager access
         if application_facade.state_manager:
             click.echo("🧹 Checking for orphaned files in environment: " + env)
-            orphaned_files = application_facade.state_manager.find_orphaned_files(env)
+            orphaned_files = application_facade.state_manager.find_orphaned_files(
+                env, active_flowgroups=active_flowgroups
+            )
 
             if orphaned_files:
                 if dry_run:
@@ -396,6 +432,71 @@ class GenerateCommand(BaseCommand):
                         click.echo(f"   • Deleted: {deleted_file}")
             else:
                 click.echo("✅ No orphaned files found")
+
+    def _wipe_generated_directory(
+        self,
+        application_facade: LakehousePlumberApplicationFacade,
+        output_dir: Path,
+        dry_run: bool,
+    ) -> None:
+        """Wipe LHP-generated files in output dir (force mode replacement for orphan detection)."""
+        if not output_dir.exists():
+            click.echo("🧹 No generated directory to clean")
+            return
+
+        deleted_count = 0
+        cleaner = (
+            application_facade.state_manager.cleaner
+            if application_facade.state_manager
+            else None
+        )
+
+        for py_file in output_dir.rglob("*.py"):
+            # Safety: only delete files with the LHP header
+            is_lhp = False
+            if cleaner:
+                is_lhp = cleaner.is_lhp_generated_file(py_file)
+            else:
+                # Fallback inline check
+                try:
+                    with open(py_file, "r", encoding="utf-8") as f:
+                        for i, line in enumerate(f):
+                            if i >= 5:
+                                break
+                            if "Generated by LakehousePlumber" in line:
+                                is_lhp = True
+                                break
+                except (OSError, UnicodeDecodeError):
+                    pass
+
+            if is_lhp:
+                if dry_run:
+                    deleted_count += 1
+                else:
+                    py_file.unlink()
+                    deleted_count += 1
+                    logger.debug(f"Wiped generated file: {py_file}")
+
+        # Clean up empty directories (deepest first)
+        if not dry_run and deleted_count > 0:
+            for dirpath in sorted(
+                (d for d in output_dir.rglob("*") if d.is_dir()),
+                key=lambda x: len(x.parts),
+                reverse=True,
+            ):
+                try:
+                    if not any(dirpath.iterdir()):
+                        dirpath.rmdir()
+                        logger.debug(f"Removed empty directory: {dirpath}")
+                except OSError:
+                    pass
+
+        if dry_run:
+            click.echo(f"🧹 Force mode: would wipe {deleted_count} generated file(s)")
+        elif deleted_count > 0:
+            click.echo(f"🧹 Force mode: wiped {deleted_count} generated file(s)")
+        else:
+            click.echo("🧹 No generated files to clean")
 
     def _handle_bundle_operations(
         self,

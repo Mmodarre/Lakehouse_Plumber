@@ -1,0 +1,85 @@
+pipeline: domain_c_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: transaction_bronze
+    template_parameters:
+      entity_name: transaction
+      source_table: transaction_raw
+
+  - flowgroup: account_bronze
+    template_parameters:
+      entity_name: account
+      source_table: account_raw
+
+  - flowgroup: ledger_bronze
+    template_parameters:
+      entity_name: ledger
+      source_table: ledger_raw
+
+  - flowgroup: journal_bronze
+    template_parameters:
+      entity_name: journal
+      source_table: journal_raw
+
+  - flowgroup: budget_bronze
+    template_parameters:
+      entity_name: budget
+      source_table: budget_raw
+
+  - flowgroup: forecast_bronze
+    template_parameters:
+      entity_name: forecast
+      source_table: forecast_raw
+
+  - flowgroup: tax_bronze
+    template_parameters:
+      entity_name: tax
+      source_table: tax_raw
+
+  - flowgroup: audit_bronze
+    template_parameters:
+      entity_name: audit
+      source_table: audit_raw
+
+  - flowgroup: compliance_bronze
+    template_parameters:
+      entity_name: compliance
+      source_table: compliance_raw
+
+  - flowgroup: regulation_bronze
+    template_parameters:
+      entity_name: regulation
+      source_table: regulation_raw
+
+  - flowgroup: asset_bronze
+    template_parameters:
+      entity_name: asset
+      source_table: asset_raw
+
+  - flowgroup: depreciation_bronze
+    template_parameters:
+      entity_name: depreciation
+      source_table: depreciation_raw
+
+  - flowgroup: liability_bronze
+    template_parameters:
+      entity_name: liability
+      source_table: liability_raw
+
+  - flowgroup: equity_bronze
+    template_parameters:
+      entity_name: equity
+      source_table: equity_raw
+
+  - flowgroup: revenue_bronze
+    template_parameters:
+      entity_name: revenue
+      source_table: revenue_raw
+
+  - flowgroup: expense_bronze
+    template_parameters:
+      entity_name: expense
+      source_table: expense_raw

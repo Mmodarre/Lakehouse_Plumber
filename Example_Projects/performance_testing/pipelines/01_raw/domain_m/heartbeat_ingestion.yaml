@@ -1,0 +1,9 @@
+pipeline: domain_m_raw
+flowgroup: heartbeat_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: heartbeat_raw
+  landing_folder: heartbeat
+  schema_file: customer_schema

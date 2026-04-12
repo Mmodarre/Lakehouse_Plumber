@@ -1,0 +1,8 @@
+pipeline: domain_i_bronze
+flowgroup: work_cell_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: work_cell
+  source_table: work_cell_raw

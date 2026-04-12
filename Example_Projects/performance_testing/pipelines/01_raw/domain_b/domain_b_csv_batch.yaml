@@ -1,0 +1,53 @@
+pipeline: domain_b_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: timesheet_ingestion
+    template_parameters:
+      table_name: timesheet_raw
+      landing_folder: timesheet
+      schema_file: part_schema
+
+  - flowgroup: leave_request_ingestion
+    template_parameters:
+      table_name: leave_request_raw
+      landing_folder: leave_request
+      schema_file: customer_schema
+
+  - flowgroup: interview_ingestion
+    template_parameters:
+      table_name: interview_raw
+      landing_folder: interview
+      schema_file: product_schema
+
+  - flowgroup: payroll_ingestion
+    template_parameters:
+      table_name: payroll_raw
+      landing_folder: payroll
+      schema_file: partsupp_schema
+
+  - flowgroup: overtime_ingestion
+    template_parameters:
+      table_name: overtime_raw
+      landing_folder: overtime
+      schema_file: lineitem_schema
+
+  - flowgroup: headcount_ingestion
+    template_parameters:
+      table_name: headcount_raw
+      landing_folder: headcount
+      schema_file: customer_schema
+
+  - flowgroup: mentor_ingestion
+    template_parameters:
+      table_name: mentor_raw
+      landing_folder: mentor
+      schema_file: product_schema
+
+  - flowgroup: succession_plan_ingestion
+    template_parameters:
+      table_name: succession_plan_raw
+      landing_folder: succession_plan
+      schema_file: nation_schema

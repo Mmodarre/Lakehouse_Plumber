@@ -1,0 +1,22 @@
+pipeline: domain_q_gold
+flowgroup: match_summary_mv
+actions:
+  - name: match_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.match_fct
+    target: v_match_summary
+
+  - name: write_match_summary_mv
+    type: write
+    source: v_match_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "match_summary_mv"

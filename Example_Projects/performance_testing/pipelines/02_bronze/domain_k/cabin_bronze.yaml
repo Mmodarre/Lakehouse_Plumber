@@ -1,0 +1,8 @@
+pipeline: domain_k_bronze
+flowgroup: cabin_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: cabin
+  source_table: cabin_raw

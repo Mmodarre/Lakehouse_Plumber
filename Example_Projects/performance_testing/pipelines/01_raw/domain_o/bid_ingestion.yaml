@@ -1,0 +1,9 @@
+pipeline: domain_o_raw
+flowgroup: bid_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: bid_raw
+  landing_folder: bid
+  schema_file: nation_schema

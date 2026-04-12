@@ -1,0 +1,22 @@
+pipeline: domain_s_gold
+flowgroup: cellar_report_mv
+actions:
+  - name: cellar_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.cellar_dim
+    target: v_cellar_report
+
+  - name: write_cellar_report_mv
+    type: write
+    source: v_cellar_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "cellar_report_mv"

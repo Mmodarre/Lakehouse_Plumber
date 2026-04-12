@@ -1,0 +1,37 @@
+pipeline: domain_m_modelled
+flowgroup: sla_metric_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: sla_metric_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: sla_metric_dim
+    target: v_sla_metric_silver
+    description: "Load sla_metric from silver for modelling"
+
+  - name: sla_metric_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_sla_metric_silver
+    target: v_sla_metric_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_sla_metric_silver
+
+  - name: write_sla_metric_modelled
+    type: write
+    source: v_sla_metric_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "sla_metric_modelled"

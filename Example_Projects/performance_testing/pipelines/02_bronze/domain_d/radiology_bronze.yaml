@@ -1,0 +1,48 @@
+pipeline: domain_d_bronze
+flowgroup: radiology_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: radiology_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: radiology_raw
+    target: v_radiology_raw
+    description: "Load radiology from raw schema"
+
+  - name: radiology_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_radiology_raw
+    target: v_radiology_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as radiology_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_radiology_raw
+      WHERE 1=1
+
+  - name: radiology_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_radiology_bronze_cleaned
+    target: v_radiology_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to radiology"
+
+  - name: write_radiology_bronze
+    type: write
+    source: v_radiology_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "radiology"

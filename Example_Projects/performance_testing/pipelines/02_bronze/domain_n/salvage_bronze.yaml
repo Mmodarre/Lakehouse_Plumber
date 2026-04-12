@@ -1,0 +1,8 @@
+pipeline: domain_n_bronze
+flowgroup: salvage_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: salvage
+  source_table: salvage_raw

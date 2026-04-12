@@ -1,0 +1,37 @@
+pipeline: domain_t_modelled
+flowgroup: cd_pressing_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: cd_pressing_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: cd_pressing_dim
+    target: v_cd_pressing_silver
+    description: "Load cd_pressing from silver for modelling"
+
+  - name: cd_pressing_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cd_pressing_silver
+    target: v_cd_pressing_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_cd_pressing_silver
+
+  - name: write_cd_pressing_modelled
+    type: write
+    source: v_cd_pressing_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "cd_pressing_modelled"

@@ -1,0 +1,9 @@
+pipeline: domain_l_raw
+flowgroup: appetizer_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: appetizer_raw
+  landing_folder: appetizer
+  schema_file: orders_schema

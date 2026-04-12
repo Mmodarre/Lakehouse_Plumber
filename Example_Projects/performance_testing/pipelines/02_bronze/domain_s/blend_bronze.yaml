@@ -1,0 +1,8 @@
+pipeline: domain_s_bronze
+flowgroup: blend_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: blend
+  source_table: blend_raw

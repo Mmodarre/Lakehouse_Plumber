@@ -1,0 +1,22 @@
+pipeline: domain_c_gold
+flowgroup: depreciation_dashboard_mv
+actions:
+  - name: depreciation_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.depreciation_dim
+    target: v_depreciation_dashboard
+
+  - name: write_depreciation_dashboard_mv
+    type: write
+    source: v_depreciation_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "depreciation_dashboard_mv"

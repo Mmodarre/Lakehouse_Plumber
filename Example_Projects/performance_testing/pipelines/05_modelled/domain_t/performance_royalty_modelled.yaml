@@ -1,0 +1,37 @@
+pipeline: domain_t_modelled
+flowgroup: performance_royalty_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: performance_royalty_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: performance_royalty_dim
+    target: v_performance_royalty_silver
+    description: "Load performance_royalty from silver for modelling"
+
+  - name: performance_royalty_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_performance_royalty_silver
+    target: v_performance_royalty_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_performance_royalty_silver
+
+  - name: write_performance_royalty_modelled
+    type: write
+    source: v_performance_royalty_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "performance_royalty_modelled"

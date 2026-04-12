@@ -1,0 +1,22 @@
+pipeline: domain_l_gold
+flowgroup: reservation_dashboard_mv
+actions:
+  - name: reservation_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.reservation_fct
+    target: v_reservation_dashboard
+
+  - name: write_reservation_dashboard_mv
+    type: write
+    source: v_reservation_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "reservation_dashboard_mv"

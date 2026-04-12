@@ -1,0 +1,22 @@
+pipeline: domain_j_gold
+flowgroup: voltage_dashboard_mv
+actions:
+  - name: voltage_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.voltage_dim
+    target: v_voltage_dashboard
+
+  - name: write_voltage_dashboard_mv
+    type: write
+    source: v_voltage_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "voltage_dashboard_mv"

@@ -1,0 +1,22 @@
+pipeline: domain_p_gold
+flowgroup: culture_summary_mv
+actions:
+  - name: culture_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.culture_fct
+    target: v_culture_summary
+
+  - name: write_culture_summary_mv
+    type: write
+    source: v_culture_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "culture_summary_mv"

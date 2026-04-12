@@ -1,0 +1,9 @@
+pipeline: domain_s_raw
+flowgroup: sommelier_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: sommelier_raw
+  landing_folder: sommelier
+  schema_file: nation_schema

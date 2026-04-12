@@ -1,0 +1,48 @@
+pipeline: domain_k_bronze
+flowgroup: catering_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: catering_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: catering_raw
+    target: v_catering_raw
+    description: "Load catering from raw schema"
+
+  - name: catering_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_catering_raw
+    target: v_catering_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as catering_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_catering_raw
+      WHERE 1=1
+
+  - name: catering_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_catering_bronze_cleaned
+    target: v_catering_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to catering"
+
+  - name: write_catering_bronze
+    type: write
+    source: v_catering_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "catering"

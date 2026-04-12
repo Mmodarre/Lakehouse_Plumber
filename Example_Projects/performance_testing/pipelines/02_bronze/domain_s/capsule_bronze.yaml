@@ -1,0 +1,48 @@
+pipeline: domain_s_bronze
+flowgroup: capsule_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: capsule_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: capsule_raw
+    target: v_capsule_raw
+    description: "Load capsule from raw schema"
+
+  - name: capsule_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_capsule_raw
+    target: v_capsule_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as capsule_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_capsule_raw
+      WHERE 1=1
+
+  - name: capsule_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_capsule_bronze_cleaned
+    target: v_capsule_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to capsule"
+
+  - name: write_capsule_bronze
+    type: write
+    source: v_capsule_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "capsule"

@@ -1,0 +1,48 @@
+pipeline: domain_r_bronze
+flowgroup: radiation_dose_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: radiation_dose_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: radiation_dose_raw
+    target: v_radiation_dose_raw
+    description: "Load radiation_dose from raw schema"
+
+  - name: radiation_dose_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_radiation_dose_raw
+    target: v_radiation_dose_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as radiation_dose_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_radiation_dose_raw
+      WHERE 1=1
+
+  - name: radiation_dose_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_radiation_dose_bronze_cleaned
+    target: v_radiation_dose_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to radiation_dose"
+
+  - name: write_radiation_dose_bronze
+    type: write
+    source: v_radiation_dose_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "radiation_dose"

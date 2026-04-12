@@ -1,0 +1,8 @@
+pipeline: domain_i_bronze
+flowgroup: operator_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: operator
+  source_table: operator_raw

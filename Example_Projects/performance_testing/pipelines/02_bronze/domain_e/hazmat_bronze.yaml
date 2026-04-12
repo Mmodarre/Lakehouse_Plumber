@@ -1,0 +1,48 @@
+pipeline: domain_e_bronze
+flowgroup: hazmat_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: hazmat_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: hazmat_raw
+    target: v_hazmat_raw
+    description: "Load hazmat from raw schema"
+
+  - name: hazmat_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_hazmat_raw
+    target: v_hazmat_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as hazmat_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_hazmat_raw
+      WHERE 1=1
+
+  - name: hazmat_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_hazmat_bronze_cleaned
+    target: v_hazmat_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to hazmat"
+
+  - name: write_hazmat_bronze
+    type: write
+    source: v_hazmat_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "hazmat"

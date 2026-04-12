@@ -1,0 +1,8 @@
+pipeline: domain_j_bronze
+flowgroup: load_profile_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: load_profile
+  source_table: load_profile_raw

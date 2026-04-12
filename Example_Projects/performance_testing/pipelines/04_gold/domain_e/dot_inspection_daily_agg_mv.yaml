@@ -1,0 +1,24 @@
+pipeline: domain_e_gold
+flowgroup: dot_inspection_daily_agg_mv
+actions:
+  - name: dot_inspection_daily_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('day', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.dot_inspection_fct
+        GROUP BY 1
+    target: v_dot_inspection_daily_agg
+
+  - name: write_dot_inspection_daily_agg_mv
+    type: write
+    source: v_dot_inspection_daily_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "dot_inspection_daily_agg_mv"

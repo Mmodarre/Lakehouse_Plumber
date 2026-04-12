@@ -1,0 +1,48 @@
+pipeline: domain_c_bronze
+flowgroup: prepayment_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: prepayment_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: prepayment_raw
+    target: v_prepayment_raw
+    description: "Load prepayment from raw schema"
+
+  - name: prepayment_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_prepayment_raw
+    target: v_prepayment_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as prepayment_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_prepayment_raw
+      WHERE 1=1
+
+  - name: prepayment_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_prepayment_bronze_cleaned
+    target: v_prepayment_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to prepayment"
+
+  - name: write_prepayment_bronze
+    type: write
+    source: v_prepayment_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "prepayment"

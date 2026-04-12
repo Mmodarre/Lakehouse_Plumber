@@ -1,0 +1,8 @@
+pipeline: domain_i_bronze
+flowgroup: defect_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: defect
+  source_table: defect_raw

@@ -1,0 +1,9 @@
+pipeline: domain_t_raw
+flowgroup: record_label_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: record_label_raw
+  landing_folder: record_label
+  schema_file: customer_schema

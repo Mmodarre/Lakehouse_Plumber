@@ -1,0 +1,8 @@
+pipeline: domain_t_bronze
+flowgroup: playlist_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: playlist
+  source_table: playlist_raw

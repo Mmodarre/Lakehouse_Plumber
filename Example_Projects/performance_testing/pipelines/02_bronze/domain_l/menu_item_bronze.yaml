@@ -1,0 +1,8 @@
+pipeline: domain_l_bronze
+flowgroup: menu_item_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: menu_item
+  source_table: menu_item_raw

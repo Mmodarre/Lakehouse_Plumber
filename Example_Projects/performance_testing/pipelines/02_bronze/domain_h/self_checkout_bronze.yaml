@@ -1,0 +1,48 @@
+pipeline: domain_h_bronze
+flowgroup: self_checkout_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: self_checkout_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: self_checkout_raw
+    target: v_self_checkout_raw
+    description: "Load self_checkout from raw schema"
+
+  - name: self_checkout_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_self_checkout_raw
+    target: v_self_checkout_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as self_checkout_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_self_checkout_raw
+      WHERE 1=1
+
+  - name: self_checkout_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_self_checkout_bronze_cleaned
+    target: v_self_checkout_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to self_checkout"
+
+  - name: write_self_checkout_bronze
+    type: write
+    source: v_self_checkout_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "self_checkout"

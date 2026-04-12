@@ -1,0 +1,48 @@
+pipeline: domain_m_bronze
+flowgroup: time_series_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: time_series_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: time_series_raw
+    target: v_time_series_raw
+    description: "Load time_series from raw schema"
+
+  - name: time_series_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_time_series_raw
+    target: v_time_series_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as time_series_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_time_series_raw
+      WHERE 1=1
+
+  - name: time_series_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_time_series_bronze_cleaned
+    target: v_time_series_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to time_series"
+
+  - name: write_time_series_bronze
+    type: write
+    source: v_time_series_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "time_series"

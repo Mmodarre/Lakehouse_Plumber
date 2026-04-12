@@ -1,0 +1,22 @@
+pipeline: domain_l_gold
+flowgroup: food_order_dashboard_mv
+actions:
+  - name: food_order_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.food_order_dim
+    target: v_food_order_dashboard
+
+  - name: write_food_order_dashboard_mv
+    type: write
+    source: v_food_order_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "food_order_dashboard_mv"

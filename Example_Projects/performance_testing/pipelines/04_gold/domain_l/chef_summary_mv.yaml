@@ -1,0 +1,22 @@
+pipeline: domain_l_gold
+flowgroup: chef_summary_mv
+actions:
+  - name: chef_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.chef_dim
+    target: v_chef_summary
+
+  - name: write_chef_summary_mv
+    type: write
+    source: v_chef_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "chef_summary_mv"

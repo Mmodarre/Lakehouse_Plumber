@@ -1,0 +1,85 @@
+pipeline: domain_b_bronze
+flowgroup: mentor_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: mentor_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: mentor_raw
+    target: v_mentor_raw
+    description: "Load mentor from raw schema"
+
+  - name: mentor_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_mentor_raw
+    target: v_mentor_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as mentor_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_mentor_raw
+
+  - name: mentor_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_mentor_bronze_cleaned
+    target: v_mentor_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for mentor bronze"
+
+  - name: write_mentor_bronze
+    type: write
+    source: v_mentor_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "mentor"
+
+  - name: mentor_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: mentor_migration
+    target: v_mentor_migration
+    description: "Load mentor migration data"
+
+  - name: mentor_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_mentor_migration
+    target: v_mentor_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as mentor_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_mentor_migration
+
+  - name: write_mentor_migration
+    type: write
+    source: v_mentor_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "mentor"

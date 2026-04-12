@@ -1,0 +1,85 @@
+pipeline: domain_a_bronze
+flowgroup: subscription_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: subscription_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: subscription_raw
+    target: v_subscription_raw
+    description: "Load subscription from raw schema"
+
+  - name: subscription_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_subscription_raw
+    target: v_subscription_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as subscription_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_subscription_raw
+
+  - name: subscription_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_subscription_bronze_cleaned
+    target: v_subscription_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for subscription bronze"
+
+  - name: write_subscription_bronze
+    type: write
+    source: v_subscription_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "subscription"
+
+  - name: subscription_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: subscription_migration
+    target: v_subscription_migration
+    description: "Load subscription migration data"
+
+  - name: subscription_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_subscription_migration
+    target: v_subscription_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as subscription_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_subscription_migration
+
+  - name: write_subscription_migration
+    type: write
+    source: v_subscription_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "subscription"

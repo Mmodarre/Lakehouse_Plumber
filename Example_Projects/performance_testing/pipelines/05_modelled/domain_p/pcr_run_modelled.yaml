@@ -1,0 +1,37 @@
+pipeline: domain_p_modelled
+flowgroup: pcr_run_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: pcr_run_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: pcr_run_fct
+    target: v_pcr_run_silver
+    description: "Load pcr_run from silver for modelling"
+
+  - name: pcr_run_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pcr_run_silver
+    target: v_pcr_run_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_pcr_run_silver
+
+  - name: write_pcr_run_modelled
+    type: write
+    source: v_pcr_run_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "pcr_run_modelled"

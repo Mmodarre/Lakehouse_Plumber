@@ -1,0 +1,8 @@
+pipeline: domain_k_bronze
+flowgroup: itinerary_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: itinerary
+  source_table: itinerary_raw

@@ -1,0 +1,48 @@
+pipeline: domain_r_bronze
+flowgroup: attitude_control_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: attitude_control_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: attitude_control_raw
+    target: v_attitude_control_raw
+    description: "Load attitude_control from raw schema"
+
+  - name: attitude_control_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_attitude_control_raw
+    target: v_attitude_control_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as attitude_control_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_attitude_control_raw
+      WHERE 1=1
+
+  - name: attitude_control_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_attitude_control_bronze_cleaned
+    target: v_attitude_control_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to attitude_control"
+
+  - name: write_attitude_control_bronze
+    type: write
+    source: v_attitude_control_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "attitude_control"

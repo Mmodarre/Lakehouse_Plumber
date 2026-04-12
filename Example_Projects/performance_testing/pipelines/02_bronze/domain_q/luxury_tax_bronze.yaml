@@ -1,0 +1,48 @@
+pipeline: domain_q_bronze
+flowgroup: luxury_tax_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: luxury_tax_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: luxury_tax_raw
+    target: v_luxury_tax_raw
+    description: "Load luxury_tax from raw schema"
+
+  - name: luxury_tax_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_luxury_tax_raw
+    target: v_luxury_tax_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as luxury_tax_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_luxury_tax_raw
+      WHERE 1=1
+
+  - name: luxury_tax_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_luxury_tax_bronze_cleaned
+    target: v_luxury_tax_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to luxury_tax"
+
+  - name: write_luxury_tax_bronze
+    type: write
+    source: v_luxury_tax_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "luxury_tax"

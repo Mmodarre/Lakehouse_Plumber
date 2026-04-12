@@ -1,0 +1,24 @@
+pipeline: domain_r_gold
+flowgroup: radiation_dose_daily_agg_mv
+actions:
+  - name: radiation_dose_daily_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('day', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.radiation_dose_dim
+        GROUP BY 1
+    target: v_radiation_dose_daily_agg
+
+  - name: write_radiation_dose_daily_agg_mv
+    type: write
+    source: v_radiation_dose_daily_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "radiation_dose_daily_agg_mv"

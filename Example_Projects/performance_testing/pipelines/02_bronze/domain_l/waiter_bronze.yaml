@@ -1,0 +1,8 @@
+pipeline: domain_l_bronze
+flowgroup: waiter_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: waiter
+  source_table: waiter_raw

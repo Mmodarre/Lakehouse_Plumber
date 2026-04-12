@@ -1,0 +1,22 @@
+pipeline: domain_i_gold
+flowgroup: scrap_report_mv
+actions:
+  - name: scrap_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.scrap_dim
+    target: v_scrap_report
+
+  - name: write_scrap_report_mv
+    type: write
+    source: v_scrap_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "scrap_report_mv"

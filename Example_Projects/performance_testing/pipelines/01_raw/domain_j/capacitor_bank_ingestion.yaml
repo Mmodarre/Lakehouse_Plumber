@@ -1,0 +1,9 @@
+pipeline: domain_j_raw
+flowgroup: capacitor_bank_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: capacitor_bank_raw
+  landing_folder: capacitor_bank
+  schema_file: lineitem_schema

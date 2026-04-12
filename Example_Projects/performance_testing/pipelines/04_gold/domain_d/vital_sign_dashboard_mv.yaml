@@ -1,0 +1,22 @@
+pipeline: domain_d_gold
+flowgroup: vital_sign_dashboard_mv
+actions:
+  - name: vital_sign_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.vital_sign_dim
+    target: v_vital_sign_dashboard
+
+  - name: write_vital_sign_dashboard_mv
+    type: write
+    source: v_vital_sign_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "vital_sign_dashboard_mv"

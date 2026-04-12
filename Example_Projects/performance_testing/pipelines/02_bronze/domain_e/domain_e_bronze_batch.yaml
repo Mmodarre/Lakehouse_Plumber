@@ -1,0 +1,85 @@
+pipeline: domain_e_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: vehicle_bronze
+    template_parameters:
+      entity_name: vehicle
+      source_table: vehicle_raw
+
+  - flowgroup: driver_bronze
+    template_parameters:
+      entity_name: driver
+      source_table: driver_raw
+
+  - flowgroup: route_bronze
+    template_parameters:
+      entity_name: route
+      source_table: route_raw
+
+  - flowgroup: delivery_bronze
+    template_parameters:
+      entity_name: delivery
+      source_table: delivery_raw
+
+  - flowgroup: tracking_bronze
+    template_parameters:
+      entity_name: tracking
+      source_table: tracking_raw
+
+  - flowgroup: fuel_log_bronze
+    template_parameters:
+      entity_name: fuel_log
+      source_table: fuel_log_raw
+
+  - flowgroup: maintenance_bronze
+    template_parameters:
+      entity_name: maintenance
+      source_table: maintenance_raw
+
+  - flowgroup: inspection_bronze
+    template_parameters:
+      entity_name: inspection
+      source_table: inspection_raw
+
+  - flowgroup: toll_bronze
+    template_parameters:
+      entity_name: toll
+      source_table: toll_raw
+
+  - flowgroup: parking_bronze
+    template_parameters:
+      entity_name: parking
+      source_table: parking_raw
+
+  - flowgroup: fleet_bronze
+    template_parameters:
+      entity_name: fleet
+      source_table: fleet_raw
+
+  - flowgroup: dispatch_bronze
+    template_parameters:
+      entity_name: dispatch
+      source_table: dispatch_raw
+
+  - flowgroup: cargo_bronze
+    template_parameters:
+      entity_name: cargo
+      source_table: cargo_raw
+
+  - flowgroup: manifest_bronze
+    template_parameters:
+      entity_name: manifest
+      source_table: manifest_raw
+
+  - flowgroup: consignment_bronze
+    template_parameters:
+      entity_name: consignment
+      source_table: consignment_raw
+
+  - flowgroup: hub_bronze
+    template_parameters:
+      entity_name: hub
+      source_table: hub_raw

@@ -1,0 +1,37 @@
+pipeline: domain_q_modelled
+flowgroup: free_kick_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: free_kick_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: free_kick_dim
+    target: v_free_kick_silver
+    description: "Load free_kick from silver for modelling"
+
+  - name: free_kick_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_free_kick_silver
+    target: v_free_kick_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_free_kick_silver
+
+  - name: write_free_kick_modelled
+    type: write
+    source: v_free_kick_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "free_kick_modelled"

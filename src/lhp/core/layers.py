@@ -2,9 +2,11 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
+from typing import Dict, List, Any, Optional, Sequence, TYPE_CHECKING
 from dataclasses import dataclass
 import logging
+
+from ..utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
     from .services.generation_planning_service import GenerationPlan
@@ -224,7 +226,9 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         self.logger = logging.getLogger(__name__)
 
     def generate_pipeline(
-        self, request: PipelineGenerationRequest
+        self,
+        request: PipelineGenerationRequest,
+        pre_discovered_all_flowgroups=None,
     ) -> GenerationResponse:
         """
         Coordinate pipeline generation use case.
@@ -234,15 +238,19 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         """
         try:
             # Execute generation through orchestrator
-            generated_files = self.orchestrator.generate_pipeline_by_field(
-                pipeline_field=request.pipeline_identifier,
-                env=request.environment,
-                output_dir=request.output_directory if not request.dry_run else None,
-                state_manager=self.state_manager if not request.no_cleanup else None,
-                force_all=request.force_all,
-                specific_flowgroups=request.specific_flowgroups,
-                include_tests=request.include_tests,
-            )
+            with perf_timer(
+                f"facade.generate_pipeline [{request.pipeline_identifier}]"
+            ):
+                generated_files = self.orchestrator.generate_pipeline_by_field(
+                    pipeline_field=request.pipeline_identifier,
+                    env=request.environment,
+                    output_dir=request.output_directory if not request.dry_run else None,
+                    state_manager=self.state_manager if not request.no_cleanup else None,
+                    force_all=request.force_all,
+                    specific_flowgroups=request.specific_flowgroups,
+                    include_tests=request.include_tests,
+                    pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+                )
 
             return GenerationResponse(
                 success=True,
@@ -306,16 +314,22 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 error_message=str(e),
             )
 
-    def analyze_staleness(self, request: StalenessAnalysisRequest) -> AnalysisResponse:
+    def analyze_staleness(
+        self,
+        request: StalenessAnalysisRequest,
+        pre_discovered_all_flowgroups=None,
+    ) -> AnalysisResponse:
         """Coordinate staleness analysis use case."""
         try:
-            analysis = self.orchestrator.analyze_generation_requirements(
-                env=request.environment,
-                pipeline_names=request.pipeline_names,
-                include_tests=request.include_tests,
-                force=request.force,
-                state_manager=self.state_manager,
-            )
+            with perf_timer("facade.analyze_staleness"):
+                analysis = self.orchestrator.analyze_generation_requirements(
+                    env=request.environment,
+                    pipeline_names=request.pipeline_names,
+                    include_tests=request.include_tests,
+                    force=request.force,
+                    state_manager=self.state_manager,
+                    pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+                )
 
             return AnalysisResponse(
                 success=True,

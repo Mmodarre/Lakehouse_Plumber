@@ -1,0 +1,9 @@
+pipeline: domain_j_raw
+flowgroup: tariff_plan_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: tariff_plan_raw
+  landing_folder: tariff_plan
+  schema_file: product_schema

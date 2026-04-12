@@ -1,0 +1,85 @@
+pipeline: domain_a_bronze
+flowgroup: tax_rate_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: tax_rate_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: tax_rate_raw
+    target: v_tax_rate_raw
+    description: "Load tax_rate from raw schema"
+
+  - name: tax_rate_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_tax_rate_raw
+    target: v_tax_rate_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as tax_rate_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_tax_rate_raw
+
+  - name: tax_rate_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_tax_rate_bronze_cleaned
+    target: v_tax_rate_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for tax_rate bronze"
+
+  - name: write_tax_rate_bronze
+    type: write
+    source: v_tax_rate_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "tax_rate"
+
+  - name: tax_rate_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: tax_rate_migration
+    target: v_tax_rate_migration
+    description: "Load tax_rate migration data"
+
+  - name: tax_rate_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tax_rate_migration
+    target: v_tax_rate_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as tax_rate_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_tax_rate_migration
+
+  - name: write_tax_rate_migration
+    type: write
+    source: v_tax_rate_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "tax_rate"

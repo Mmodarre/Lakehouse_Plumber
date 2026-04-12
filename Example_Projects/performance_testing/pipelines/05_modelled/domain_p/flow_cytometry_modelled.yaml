@@ -1,0 +1,37 @@
+pipeline: domain_p_modelled
+flowgroup: flow_cytometry_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: flow_cytometry_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: flow_cytometry_dim
+    target: v_flow_cytometry_silver
+    description: "Load flow_cytometry from silver for modelling"
+
+  - name: flow_cytometry_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_flow_cytometry_silver
+    target: v_flow_cytometry_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_flow_cytometry_silver
+
+  - name: write_flow_cytometry_modelled
+    type: write
+    source: v_flow_cytometry_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "flow_cytometry_modelled"

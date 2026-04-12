@@ -1,0 +1,9 @@
+pipeline: domain_m_raw
+flowgroup: time_series_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: time_series_raw
+  landing_folder: time_series
+  schema_file: nation_schema

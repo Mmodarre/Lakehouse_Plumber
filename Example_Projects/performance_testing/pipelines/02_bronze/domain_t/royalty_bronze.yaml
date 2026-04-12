@@ -1,0 +1,8 @@
+pipeline: domain_t_bronze
+flowgroup: royalty_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: royalty
+  source_table: royalty_raw

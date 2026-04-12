@@ -1,0 +1,22 @@
+pipeline: domain_q_gold
+flowgroup: substitution_report_mv
+actions:
+  - name: substitution_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.substitution_dim
+    target: v_substitution_report
+
+  - name: write_substitution_report_mv
+    type: write
+    source: v_substitution_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "substitution_report_mv"

@@ -30,6 +30,7 @@ class StateDependencyResolver:
         self.yaml_parser = yaml_parser or YAMLParser()
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
+        self._checksum_cache = None
 
         # Cache for dependency paths (not checksums!)
         # Key: (yaml_file, source_checksum, environment, pipeline, flowgroup)
@@ -37,6 +38,14 @@ class StateDependencyResolver:
         self._dependency_paths_cache: Dict[
             Tuple[str, str, str, str, str], Dict[str, Tuple[str, str]]
         ] = {}
+
+    def set_checksum_cache(self, cache) -> None:
+        """Inject shared ChecksumCache.
+
+        Args:
+            cache: ChecksumCache instance
+        """
+        self._checksum_cache = cache
 
     def resolve_file_dependencies(
         self,
@@ -582,12 +591,17 @@ class StateDependencyResolver:
     def _calculate_checksum(self, file_path: Path) -> str:
         """Calculate SHA256 checksum of a file.
 
+        Uses shared ChecksumCache when available for deduplication.
+
         Args:
             file_path: Path to the file
 
         Returns:
             SHA256 checksum as hex string
         """
+        if self._checksum_cache is not None:
+            return self._checksum_cache.get(file_path)
+
         import hashlib
 
         try:

@@ -1,0 +1,31 @@
+pipeline: domain_i_raw
+flowgroup: kanban_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_kanban_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/kanban/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_kanban_cloudfiles
+    description: "Load kanban from landing volume"
+
+  - name: write_kanban_raw
+    type: write
+    source: v_kanban_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "kanban_raw"

@@ -1,0 +1,9 @@
+pipeline: domain_s_raw
+flowgroup: bottling_line_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: bottling_line_raw
+  landing_folder: bottling_line
+  schema_file: orders_schema

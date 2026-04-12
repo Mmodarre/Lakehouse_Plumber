@@ -1,0 +1,9 @@
+pipeline: domain_p_raw
+flowgroup: pharmacokinetics_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: pharmacokinetics_raw
+  landing_folder: pharmacokinetics
+  schema_file: part_schema

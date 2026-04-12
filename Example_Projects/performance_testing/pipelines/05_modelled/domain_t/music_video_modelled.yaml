@@ -1,0 +1,37 @@
+pipeline: domain_t_modelled
+flowgroup: music_video_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: music_video_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: music_video_fct
+    target: v_music_video_silver
+    description: "Load music_video from silver for modelling"
+
+  - name: music_video_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_music_video_silver
+    target: v_music_video_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_music_video_silver
+
+  - name: write_music_video_modelled
+    type: write
+    source: v_music_video_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "music_video_modelled"

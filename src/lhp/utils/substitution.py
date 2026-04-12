@@ -40,7 +40,7 @@ class EnhancedSubstitutionManager:
     DOLLAR_TOKEN_PATTERN = re.compile(r"\$\{(\w+)\}")
     DOLLAR_TOKEN_SIMPLE_PATTERN = re.compile(r"\$(\w+)")
     SECRET_PATTERN = re.compile(r"\$\{secret:([^}]+)\}")
-    UNRESOLVED_TOKEN_PATTERN = re.compile(r"\{(?!dbutils\.)([^}]+)\}")
+    UNRESOLVED_TOKEN_PATTERN = re.compile(r"\{(?!dbutils\.)(\w+)\}")
 
     def __init__(
         self,

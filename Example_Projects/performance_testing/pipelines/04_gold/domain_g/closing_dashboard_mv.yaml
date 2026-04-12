@@ -1,0 +1,22 @@
+pipeline: domain_g_gold
+flowgroup: closing_dashboard_mv
+actions:
+  - name: closing_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.closing_fct
+    target: v_closing_dashboard
+
+  - name: write_closing_dashboard_mv
+    type: write
+    source: v_closing_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "closing_dashboard_mv"

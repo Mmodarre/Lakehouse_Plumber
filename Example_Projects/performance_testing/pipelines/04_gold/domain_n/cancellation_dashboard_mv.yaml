@@ -1,0 +1,22 @@
+pipeline: domain_n_gold
+flowgroup: cancellation_dashboard_mv
+actions:
+  - name: cancellation_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.cancellation_dim
+    target: v_cancellation_dashboard
+
+  - name: write_cancellation_dashboard_mv
+    type: write
+    source: v_cancellation_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "cancellation_dashboard_mv"

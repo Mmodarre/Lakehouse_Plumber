@@ -1,0 +1,9 @@
+pipeline: domain_s_raw
+flowgroup: critic_score_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: critic_score_raw
+  landing_folder: critic_score
+  schema_file: part_schema

@@ -1,0 +1,31 @@
+pipeline: domain_g_raw
+flowgroup: termite_report_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_termite_report_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/termite_report/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_termite_report_cloudfiles
+    description: "Load termite_report from landing volume"
+
+  - name: write_termite_report_raw
+    type: write
+    source: v_termite_report_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "termite_report_raw"

@@ -1,0 +1,9 @@
+pipeline: domain_r_raw
+flowgroup: coding_scheme_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: coding_scheme_raw
+  landing_folder: coding_scheme
+  schema_file: product_schema

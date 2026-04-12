@@ -27,11 +27,21 @@ class DependencyTracker:
         """
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
+        self._checksum_cache = None
 
         # Initialize dependency resolver
         from ..state_dependency_resolver import StateDependencyResolver
 
         self.dependency_resolver = StateDependencyResolver(project_root)
+
+    def set_checksum_cache(self, cache) -> None:
+        """Inject shared ChecksumCache.
+
+        Args:
+            cache: ChecksumCache instance
+        """
+        self._checksum_cache = cache
+        self.dependency_resolver.set_checksum_cache(cache)
 
     def track_generated_file(
         self,
@@ -223,12 +233,17 @@ class DependencyTracker:
         """
         Calculate SHA256 checksum of a file.
 
+        Uses shared ChecksumCache when available for deduplication.
+
         Args:
             file_path: Path to file for checksum calculation
 
         Returns:
             SHA256 hexdigest string, empty string if calculation fails
         """
+        if self._checksum_cache is not None:
+            return self._checksum_cache.get(file_path)
+
         sha256_hash = hashlib.sha256()
         try:
             with open(file_path, "rb") as f:

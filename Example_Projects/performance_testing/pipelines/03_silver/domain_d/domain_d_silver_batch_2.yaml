@@ -1,0 +1,659 @@
+pipeline: domain_d_silver
+flowgroup: nursing_note_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: nursing_note_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: nursing_note
+    target: v_nursing_note_bronze
+    description: "Load nursing_note from bronze for silver layer"
+
+  - name: write_nursing_note_silver
+    type: write
+    source: v_nursing_note_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "nursing_note_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["nursing_note_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: radiology_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: radiology_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: radiology
+    target: v_radiology_bronze
+    description: "Load radiology from bronze for silver layer"
+
+  - name: write_radiology_silver
+    type: write
+    source: v_radiology_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "radiology_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["radiology_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: pathology_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: pathology_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: pathology
+    target: v_pathology_bronze
+    description: "Load pathology from bronze for silver layer"
+
+  - name: write_pathology_silver
+    type: write
+    source: v_pathology_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "pathology_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["pathology_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: pharmacy_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: pharmacy_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: pharmacy
+    target: v_pharmacy_bronze
+    description: "Load pharmacy from bronze for silver layer"
+
+  - name: write_pharmacy_silver
+    type: write
+    source: v_pharmacy_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "pharmacy_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["pharmacy_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: blood_bank_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: blood_bank_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: blood_bank
+    target: v_blood_bank_bronze
+    description: "Load blood_bank from bronze for silver layer"
+
+  - name: write_blood_bank_silver
+    type: write
+    source: v_blood_bank_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "blood_bank_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["blood_bank_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: surgery_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: surgery_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: surgery
+    target: v_surgery_bronze
+    description: "Load surgery from bronze for silver layer"
+
+  - name: write_surgery_silver
+    type: write
+    source: v_surgery_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "surgery_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["surgery_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: anesthesia_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: anesthesia_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: anesthesia
+    target: v_anesthesia_bronze
+    description: "Load anesthesia from bronze for silver layer"
+
+  - name: write_anesthesia_silver
+    type: write
+    source: v_anesthesia_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "anesthesia_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["anesthesia_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: recovery_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: recovery_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: recovery
+    target: v_recovery_bronze
+    description: "Load recovery from bronze for silver layer"
+
+  - name: write_recovery_silver
+    type: write
+    source: v_recovery_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "recovery_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["recovery_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: rehab_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: rehab_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: rehab
+    target: v_rehab_bronze
+    description: "Load rehab from bronze for silver layer"
+
+  - name: write_rehab_silver
+    type: write
+    source: v_rehab_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "rehab_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["rehab_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: outpatient_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: outpatient_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: outpatient
+    target: v_outpatient_bronze
+    description: "Load outpatient from bronze for silver layer"
+
+  - name: write_outpatient_silver
+    type: write
+    source: v_outpatient_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "outpatient_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["outpatient_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: emergency_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: emergency_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: emergency
+    target: v_emergency_bronze
+    description: "Load emergency from bronze for silver layer"
+
+  - name: write_emergency_silver
+    type: write
+    source: v_emergency_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "emergency_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["emergency_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: triage_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: triage_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: triage
+    target: v_triage_bronze
+    description: "Load triage from bronze for silver layer"
+
+  - name: write_triage_silver
+    type: write
+    source: v_triage_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "triage_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["triage_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: bed_assignment_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: bed_assignment_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: bed_assignment
+    target: v_bed_assignment_bronze
+    description: "Load bed_assignment from bronze for silver layer"
+
+  - name: write_bed_assignment_silver
+    type: write
+    source: v_bed_assignment_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "bed_assignment_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["bed_assignment_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: diet_plan_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: diet_plan_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: diet_plan
+    target: v_diet_plan_bronze
+    description: "Load diet_plan from bronze for silver layer"
+
+  - name: write_diet_plan_silver
+    type: write
+    source: v_diet_plan_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "diet_plan_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["diet_plan_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: consent_form_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: consent_form_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: consent_form
+    target: v_consent_form_bronze
+    description: "Load consent_form from bronze for silver layer"
+
+  - name: write_consent_form_silver
+    type: write
+    source: v_consent_form_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "consent_form_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["consent_form_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: care_plan_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: care_plan_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: care_plan
+    target: v_care_plan_bronze
+    description: "Load care_plan from bronze for silver layer"
+
+  - name: write_care_plan_silver
+    type: write
+    source: v_care_plan_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "care_plan_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["care_plan_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: case_manager_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: case_manager_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: case_manager
+    target: v_case_manager_bronze
+    description: "Load case_manager from bronze for silver layer"
+
+  - name: write_case_manager_silver
+    type: write
+    source: v_case_manager_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "case_manager_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["case_manager_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: home_care_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: home_care_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: home_care
+    target: v_home_care_bronze
+    description: "Load home_care from bronze for silver layer"
+
+  - name: write_home_care_silver
+    type: write
+    source: v_home_care_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "home_care_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["home_care_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: telemedicine_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: telemedicine_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: telemedicine
+    target: v_telemedicine_bronze
+    description: "Load telemedicine from bronze for silver layer"
+
+  - name: write_telemedicine_silver
+    type: write
+    source: v_telemedicine_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "telemedicine_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["telemedicine_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+---
+pipeline: domain_d_silver
+flowgroup: wearable_data_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: wearable_data_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: wearable_data
+    target: v_wearable_data_bronze
+    description: "Load wearable_data from bronze for silver layer"
+
+  - name: write_wearable_data_silver
+    type: write
+    source: v_wearable_data_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "wearable_data_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["wearable_data_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

@@ -1,0 +1,22 @@
+pipeline: domain_o_gold
+flowgroup: ab_test_summary_mv
+actions:
+  - name: ab_test_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.ab_test_dim
+    target: v_ab_test_summary
+
+  - name: write_ab_test_summary_mv
+    type: write
+    source: v_ab_test_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "ab_test_summary_mv"

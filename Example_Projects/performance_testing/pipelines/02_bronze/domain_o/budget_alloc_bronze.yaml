@@ -1,0 +1,8 @@
+pipeline: domain_o_bronze
+flowgroup: budget_alloc_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: budget_alloc
+  source_table: budget_alloc_raw

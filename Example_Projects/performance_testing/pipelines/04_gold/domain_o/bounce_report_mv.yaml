@@ -1,0 +1,22 @@
+pipeline: domain_o_gold
+flowgroup: bounce_report_mv
+actions:
+  - name: bounce_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.bounce_fct
+    target: v_bounce_report
+
+  - name: write_bounce_report_mv
+    type: write
+    source: v_bounce_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "bounce_report_mv"

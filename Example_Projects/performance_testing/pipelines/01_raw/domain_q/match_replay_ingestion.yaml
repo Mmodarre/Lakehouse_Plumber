@@ -1,0 +1,31 @@
+pipeline: domain_q_raw
+flowgroup: match_replay_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_match_replay_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/match_replay/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_match_replay_cloudfiles
+    description: "Load match_replay from landing volume"
+
+  - name: write_match_replay_raw
+    type: write
+    source: v_match_replay_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "match_replay_raw"

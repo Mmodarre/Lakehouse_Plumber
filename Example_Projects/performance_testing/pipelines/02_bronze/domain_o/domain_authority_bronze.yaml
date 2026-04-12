@@ -1,0 +1,48 @@
+pipeline: domain_o_bronze
+flowgroup: domain_authority_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: domain_authority_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: domain_authority_raw
+    target: v_domain_authority_raw
+    description: "Load domain_authority from raw schema"
+
+  - name: domain_authority_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_domain_authority_raw
+    target: v_domain_authority_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as domain_authority_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_domain_authority_raw
+      WHERE 1=1
+
+  - name: domain_authority_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_domain_authority_bronze_cleaned
+    target: v_domain_authority_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to domain_authority"
+
+  - name: write_domain_authority_bronze
+    type: write
+    source: v_domain_authority_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "domain_authority"

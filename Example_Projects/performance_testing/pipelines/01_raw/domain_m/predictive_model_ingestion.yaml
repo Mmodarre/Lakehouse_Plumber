@@ -1,0 +1,9 @@
+pipeline: domain_m_raw
+flowgroup: predictive_model_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: predictive_model_raw
+  landing_folder: predictive_model
+  schema_file: lineitem_schema

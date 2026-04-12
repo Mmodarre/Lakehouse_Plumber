@@ -1,0 +1,85 @@
+pipeline: domain_c_bronze
+flowgroup: vat_return_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: vat_return_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: vat_return_raw
+    target: v_vat_return_raw
+    description: "Load vat_return from raw schema"
+
+  - name: vat_return_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_vat_return_raw
+    target: v_vat_return_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as vat_return_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_vat_return_raw
+
+  - name: vat_return_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_vat_return_bronze_cleaned
+    target: v_vat_return_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for vat_return bronze"
+
+  - name: write_vat_return_bronze
+    type: write
+    source: v_vat_return_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "vat_return"
+
+  - name: vat_return_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: vat_return_migration
+    target: v_vat_return_migration
+    description: "Load vat_return migration data"
+
+  - name: vat_return_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_vat_return_migration
+    target: v_vat_return_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as vat_return_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_vat_return_migration
+
+  - name: write_vat_return_migration
+    type: write
+    source: v_vat_return_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "vat_return"

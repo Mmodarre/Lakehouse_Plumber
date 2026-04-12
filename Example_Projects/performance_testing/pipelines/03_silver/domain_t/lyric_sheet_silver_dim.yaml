@@ -1,0 +1,32 @@
+pipeline: domain_t_silver
+flowgroup: lyric_sheet_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: lyric_sheet_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: lyric_sheet
+    target: v_lyric_sheet_bronze
+    description: "Load lyric_sheet from bronze for silver layer"
+
+  - name: write_lyric_sheet_silver
+    type: write
+    source: v_lyric_sheet_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "lyric_sheet_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["lyric_sheet_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]

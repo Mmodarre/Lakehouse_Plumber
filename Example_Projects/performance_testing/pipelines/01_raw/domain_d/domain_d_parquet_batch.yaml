@@ -1,0 +1,53 @@
+pipeline: domain_d_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: prescription_ingestion
+    template_parameters:
+      table_name: prescription_raw
+      landing_folder: prescription
+      schema_file: orders_schema
+
+  - flowgroup: ward_ingestion
+    template_parameters:
+      table_name: ward_raw
+      landing_folder: ward
+      schema_file: nation_schema
+
+  - flowgroup: medication_ingestion
+    template_parameters:
+      table_name: medication_raw
+      landing_folder: medication
+      schema_file: partsupp_schema
+
+  - flowgroup: medical_procedure_ingestion
+    template_parameters:
+      table_name: medical_procedure_raw
+      landing_folder: medical_procedure
+      schema_file: part_schema
+
+  - flowgroup: blood_bank_ingestion
+    template_parameters:
+      table_name: blood_bank_raw
+      landing_folder: blood_bank
+      schema_file: orders_schema
+
+  - flowgroup: recovery_ingestion
+    template_parameters:
+      table_name: recovery_raw
+      landing_folder: recovery
+      schema_file: product_schema
+
+  - flowgroup: diet_plan_ingestion
+    template_parameters:
+      table_name: diet_plan_raw
+      landing_folder: diet_plan
+      schema_file: partsupp_schema
+
+  - flowgroup: wearable_data_ingestion
+    template_parameters:
+      table_name: wearable_data_raw
+      landing_folder: wearable_data
+      schema_file: part_schema

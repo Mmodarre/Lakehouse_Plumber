@@ -1,0 +1,9 @@
+pipeline: domain_n_raw
+flowgroup: aggregate_limit_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: aggregate_limit_raw
+  landing_folder: aggregate_limit
+  schema_file: part_schema

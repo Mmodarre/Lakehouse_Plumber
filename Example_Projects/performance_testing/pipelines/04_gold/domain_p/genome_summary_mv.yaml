@@ -1,0 +1,22 @@
+pipeline: domain_p_gold
+flowgroup: genome_summary_mv
+actions:
+  - name: genome_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.genome_fct
+    target: v_genome_summary
+
+  - name: write_genome_summary_mv
+    type: write
+    source: v_genome_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "genome_summary_mv"

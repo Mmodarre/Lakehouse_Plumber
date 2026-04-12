@@ -1,0 +1,85 @@
+pipeline: domain_p_bronze
+flowgroup: pathway_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: pathway_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pathway_raw
+    target: v_pathway_raw
+    description: "Load pathway from raw schema"
+
+  - name: pathway_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_pathway_raw
+    target: v_pathway_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pathway_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_pathway_raw
+
+  - name: pathway_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_pathway_bronze_cleaned
+    target: v_pathway_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for pathway bronze"
+
+  - name: write_pathway_bronze
+    type: write
+    source: v_pathway_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pathway"
+
+  - name: pathway_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pathway_migration
+    target: v_pathway_migration
+    description: "Load pathway migration data"
+
+  - name: pathway_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pathway_migration
+    target: v_pathway_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pathway_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_pathway_migration
+
+  - name: write_pathway_migration
+    type: write
+    source: v_pathway_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pathway"

@@ -1,0 +1,8 @@
+pipeline: domain_k_bronze
+flowgroup: ticket_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: ticket
+  source_table: ticket_raw

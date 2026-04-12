@@ -1,0 +1,9 @@
+pipeline: domain_p_raw
+flowgroup: flow_cytometry_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: flow_cytometry_raw
+  landing_folder: flow_cytometry
+  schema_file: customer_schema

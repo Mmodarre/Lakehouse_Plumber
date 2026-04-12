@@ -1,0 +1,9 @@
+pipeline: domain_o_raw
+flowgroup: bounce_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: bounce_raw
+  landing_folder: bounce
+  schema_file: part_schema

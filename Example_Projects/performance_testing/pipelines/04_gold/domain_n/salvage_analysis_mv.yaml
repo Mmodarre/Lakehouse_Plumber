@@ -1,0 +1,22 @@
+pipeline: domain_n_gold
+flowgroup: salvage_analysis_mv
+actions:
+  - name: salvage_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.salvage_dim
+    target: v_salvage_analysis
+
+  - name: write_salvage_analysis_mv
+    type: write
+    source: v_salvage_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "salvage_analysis_mv"

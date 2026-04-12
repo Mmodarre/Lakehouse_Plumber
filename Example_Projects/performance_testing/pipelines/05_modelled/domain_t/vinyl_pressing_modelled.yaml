@@ -1,0 +1,37 @@
+pipeline: domain_t_modelled
+flowgroup: vinyl_pressing_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: vinyl_pressing_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: vinyl_pressing_fct
+    target: v_vinyl_pressing_silver
+    description: "Load vinyl_pressing from silver for modelling"
+
+  - name: vinyl_pressing_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_vinyl_pressing_silver
+    target: v_vinyl_pressing_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_vinyl_pressing_silver
+
+  - name: write_vinyl_pressing_modelled
+    type: write
+    source: v_vinyl_pressing_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "vinyl_pressing_modelled"

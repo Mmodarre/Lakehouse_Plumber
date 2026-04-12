@@ -1,0 +1,22 @@
+pipeline: domain_j_gold
+flowgroup: inverter_summary_mv
+actions:
+  - name: inverter_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.inverter_fct
+    target: v_inverter_summary
+
+  - name: write_inverter_summary_mv
+    type: write
+    source: v_inverter_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "inverter_summary_mv"

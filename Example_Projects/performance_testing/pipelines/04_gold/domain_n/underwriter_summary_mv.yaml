@@ -1,0 +1,22 @@
+pipeline: domain_n_gold
+flowgroup: underwriter_summary_mv
+actions:
+  - name: underwriter_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.underwriter_dim
+    target: v_underwriter_summary
+
+  - name: write_underwriter_summary_mv
+    type: write
+    source: v_underwriter_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "underwriter_summary_mv"

@@ -1,0 +1,22 @@
+pipeline: domain_k_gold
+flowgroup: cabin_report_mv
+actions:
+  - name: cabin_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.cabin_dim
+    target: v_cabin_report
+
+  - name: write_cabin_report_mv
+    type: write
+    source: v_cabin_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "cabin_report_mv"

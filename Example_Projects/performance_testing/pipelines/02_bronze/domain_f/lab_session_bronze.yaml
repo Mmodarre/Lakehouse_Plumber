@@ -1,0 +1,48 @@
+pipeline: domain_f_bronze
+flowgroup: lab_session_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: lab_session_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: lab_session_raw
+    target: v_lab_session_raw
+    description: "Load lab_session from raw schema"
+
+  - name: lab_session_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_lab_session_raw
+    target: v_lab_session_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as lab_session_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_lab_session_raw
+      WHERE 1=1
+
+  - name: lab_session_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_lab_session_bronze_cleaned
+    target: v_lab_session_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to lab_session"
+
+  - name: write_lab_session_bronze
+    type: write
+    source: v_lab_session_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "lab_session"

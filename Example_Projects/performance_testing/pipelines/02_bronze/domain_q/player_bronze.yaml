@@ -1,0 +1,8 @@
+pipeline: domain_q_bronze
+flowgroup: player_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: player
+  source_table: player_raw

@@ -1,0 +1,48 @@
+pipeline: domain_j_bronze
+flowgroup: wheeling_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: wheeling_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: wheeling_raw
+    target: v_wheeling_raw
+    description: "Load wheeling from raw schema"
+
+  - name: wheeling_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_wheeling_raw
+    target: v_wheeling_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as wheeling_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_wheeling_raw
+      WHERE 1=1
+
+  - name: wheeling_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_wheeling_bronze_cleaned
+    target: v_wheeling_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to wheeling"
+
+  - name: write_wheeling_bronze
+    type: write
+    source: v_wheeling_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "wheeling"

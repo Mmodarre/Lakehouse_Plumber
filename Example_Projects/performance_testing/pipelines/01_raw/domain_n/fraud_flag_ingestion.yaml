@@ -1,0 +1,9 @@
+pipeline: domain_n_raw
+flowgroup: fraud_flag_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: fraud_flag_raw
+  landing_folder: fraud_flag
+  schema_file: customer_schema

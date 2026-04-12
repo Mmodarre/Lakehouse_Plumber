@@ -1,0 +1,22 @@
+pipeline: domain_j_gold
+flowgroup: demand_dashboard_mv
+actions:
+  - name: demand_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.demand_dim
+    target: v_demand_dashboard
+
+  - name: write_demand_dashboard_mv
+    type: write
+    source: v_demand_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "demand_dashboard_mv"

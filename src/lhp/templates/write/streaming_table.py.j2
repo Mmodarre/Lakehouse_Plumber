@@ -104,7 +104,7 @@ dp.create_streaming_table(
 # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
 dp.create_auto_cdc_from_snapshot_flow(
     target="{{ full_table_name }}",
-    {% if source_function_name %}source={{ source_function_name }},
+    {% if source_expression %}source={{ source_expression }},
     {% else %}source="{{ snapshot_cdc_config['source'] }}",
     {% endif %}
     keys={{ snapshot_cdc_config['keys'] | tojson }},

@@ -1,0 +1,8 @@
+pipeline: domain_q_bronze
+flowgroup: contract_deal_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: contract_deal
+  source_table: contract_deal_raw

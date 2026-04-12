@@ -1,0 +1,9 @@
+pipeline: domain_t_raw
+flowgroup: tiktok_clip_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: tiktok_clip_raw
+  landing_folder: tiktok_clip
+  schema_file: orders_schema

@@ -1,0 +1,22 @@
+pipeline: domain_l_gold
+flowgroup: beverage_summary_mv
+actions:
+  - name: beverage_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.beverage_dim
+    target: v_beverage_summary
+
+  - name: write_beverage_summary_mv
+    type: write
+    source: v_beverage_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "beverage_summary_mv"

@@ -1,0 +1,9 @@
+pipeline: domain_t_raw
+flowgroup: chart_position_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: chart_position_raw
+  landing_folder: chart_position
+  schema_file: product_schema

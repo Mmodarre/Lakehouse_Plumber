@@ -1,0 +1,37 @@
+pipeline: domain_t_modelled
+flowgroup: artist_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: artist_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: artist_dim
+    target: v_artist_silver
+    description: "Load artist from silver for modelling"
+
+  - name: artist_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_artist_silver
+    target: v_artist_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_artist_silver
+
+  - name: write_artist_modelled
+    type: write
+    source: v_artist_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "artist_modelled"

@@ -1,0 +1,22 @@
+pipeline: domain_a_gold
+flowgroup: subscription_dashboard_mv
+actions:
+  - name: subscription_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.subscription_dim
+    target: v_subscription_dashboard
+
+  - name: write_subscription_dashboard_mv
+    type: write
+    source: v_subscription_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "subscription_dashboard_mv"

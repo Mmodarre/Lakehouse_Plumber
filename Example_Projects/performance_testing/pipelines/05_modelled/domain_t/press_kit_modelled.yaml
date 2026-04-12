@@ -1,0 +1,37 @@
+pipeline: domain_t_modelled
+flowgroup: press_kit_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: press_kit_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: press_kit_dim
+    target: v_press_kit_silver
+    description: "Load press_kit from silver for modelling"
+
+  - name: press_kit_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_press_kit_silver
+    target: v_press_kit_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_press_kit_silver
+
+  - name: write_press_kit_modelled
+    type: write
+    source: v_press_kit_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "press_kit_modelled"

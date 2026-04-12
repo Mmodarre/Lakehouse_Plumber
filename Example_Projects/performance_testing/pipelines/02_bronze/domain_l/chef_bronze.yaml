@@ -1,0 +1,8 @@
+pipeline: domain_l_bronze
+flowgroup: chef_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: chef
+  source_table: chef_raw

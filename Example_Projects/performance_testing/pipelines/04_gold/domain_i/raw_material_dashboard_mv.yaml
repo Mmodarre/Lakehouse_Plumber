@@ -1,0 +1,22 @@
+pipeline: domain_i_gold
+flowgroup: raw_material_dashboard_mv
+actions:
+  - name: raw_material_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.raw_material_fct
+    target: v_raw_material_dashboard
+
+  - name: write_raw_material_dashboard_mv
+    type: write
+    source: v_raw_material_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "raw_material_dashboard_mv"

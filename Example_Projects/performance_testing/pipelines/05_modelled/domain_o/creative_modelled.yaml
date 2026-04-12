@@ -1,0 +1,37 @@
+pipeline: domain_o_modelled
+flowgroup: creative_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: creative_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: creative_dim
+    target: v_creative_silver
+    description: "Load creative from silver for modelling"
+
+  - name: creative_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_creative_silver
+    target: v_creative_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_creative_silver
+
+  - name: write_creative_modelled
+    type: write
+    source: v_creative_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "creative_modelled"

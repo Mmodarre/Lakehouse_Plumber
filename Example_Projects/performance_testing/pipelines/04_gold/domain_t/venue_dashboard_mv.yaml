@@ -1,0 +1,22 @@
+pipeline: domain_t_gold
+flowgroup: venue_dashboard_mv
+actions:
+  - name: venue_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.venue_fct
+    target: v_venue_dashboard
+
+  - name: write_venue_dashboard_mv
+    type: write
+    source: v_venue_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "venue_dashboard_mv"

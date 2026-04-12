@@ -1,0 +1,48 @@
+pipeline: domain_m_bronze
+flowgroup: dead_letter_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: dead_letter_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: dead_letter_raw
+    target: v_dead_letter_raw
+    description: "Load dead_letter from raw schema"
+
+  - name: dead_letter_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_dead_letter_raw
+    target: v_dead_letter_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as dead_letter_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_dead_letter_raw
+      WHERE 1=1
+
+  - name: dead_letter_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_dead_letter_bronze_cleaned
+    target: v_dead_letter_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to dead_letter"
+
+  - name: write_dead_letter_bronze
+    type: write
+    source: v_dead_letter_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "dead_letter"

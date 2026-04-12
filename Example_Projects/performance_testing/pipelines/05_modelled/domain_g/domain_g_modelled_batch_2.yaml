@@ -1,0 +1,759 @@
+pipeline: domain_g_modelled
+flowgroup: hoa_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: hoa_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: hoa_dim
+    target: v_hoa_silver
+    description: "Load hoa from silver for modelling"
+
+  - name: hoa_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_hoa_silver
+    target: v_hoa_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_hoa_silver
+
+  - name: write_hoa_modelled
+    type: write
+    source: v_hoa_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "hoa_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: condo_fee_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: condo_fee_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: condo_fee_fct
+    target: v_condo_fee_silver
+    description: "Load condo_fee from silver for modelling"
+
+  - name: condo_fee_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_condo_fee_silver
+    target: v_condo_fee_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_condo_fee_silver
+
+  - name: write_condo_fee_modelled
+    type: write
+    source: v_condo_fee_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "condo_fee_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: property_tax_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: property_tax_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: property_tax_dim
+    target: v_property_tax_silver
+    description: "Load property_tax from silver for modelling"
+
+  - name: property_tax_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_property_tax_silver
+    target: v_property_tax_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_property_tax_silver
+
+  - name: write_property_tax_modelled
+    type: write
+    source: v_property_tax_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "property_tax_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: title_search_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: title_search_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: title_search_dim
+    target: v_title_search_silver
+    description: "Load title_search from silver for modelling"
+
+  - name: title_search_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_title_search_silver
+    target: v_title_search_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_title_search_silver
+
+  - name: write_title_search_modelled
+    type: write
+    source: v_title_search_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "title_search_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: lien_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lien_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lien_fct
+    target: v_lien_silver
+    description: "Load lien from silver for modelling"
+
+  - name: lien_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lien_silver
+    target: v_lien_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lien_silver
+
+  - name: write_lien_modelled
+    type: write
+    source: v_lien_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lien_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: easement_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: easement_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: easement_dim
+    target: v_easement_silver
+    description: "Load easement from silver for modelling"
+
+  - name: easement_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_easement_silver
+    target: v_easement_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_easement_silver
+
+  - name: write_easement_modelled
+    type: write
+    source: v_easement_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "easement_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: covenant_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: covenant_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: covenant_dim
+    target: v_covenant_silver
+    description: "Load covenant from silver for modelling"
+
+  - name: covenant_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_covenant_silver
+    target: v_covenant_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_covenant_silver
+
+  - name: write_covenant_modelled
+    type: write
+    source: v_covenant_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "covenant_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: subdivision_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: subdivision_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: subdivision_fct
+    target: v_subdivision_silver
+    description: "Load subdivision from silver for modelling"
+
+  - name: subdivision_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_subdivision_silver
+    target: v_subdivision_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_subdivision_silver
+
+  - name: write_subdivision_modelled
+    type: write
+    source: v_subdivision_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "subdivision_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: plat_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: plat_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: plat_dim
+    target: v_plat_silver
+    description: "Load plat from silver for modelling"
+
+  - name: plat_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_plat_silver
+    target: v_plat_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_plat_silver
+
+  - name: write_plat_modelled
+    type: write
+    source: v_plat_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "plat_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: setback_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: setback_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: setback_dim
+    target: v_setback_silver
+    description: "Load setback from silver for modelling"
+
+  - name: setback_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_setback_silver
+    target: v_setback_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_setback_silver
+
+  - name: write_setback_modelled
+    type: write
+    source: v_setback_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "setback_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: floor_plan_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: floor_plan_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: floor_plan_fct
+    target: v_floor_plan_silver
+    description: "Load floor_plan from silver for modelling"
+
+  - name: floor_plan_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_floor_plan_silver
+    target: v_floor_plan_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_floor_plan_silver
+
+  - name: write_floor_plan_modelled
+    type: write
+    source: v_floor_plan_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "floor_plan_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: staging_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: staging_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: staging_dim
+    target: v_staging_silver
+    description: "Load staging from silver for modelling"
+
+  - name: staging_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_staging_silver
+    target: v_staging_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_staging_silver
+
+  - name: write_staging_modelled
+    type: write
+    source: v_staging_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "staging_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: open_house_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: open_house_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: open_house_dim
+    target: v_open_house_silver
+    description: "Load open_house from silver for modelling"
+
+  - name: open_house_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_open_house_silver
+    target: v_open_house_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_open_house_silver
+
+  - name: write_open_house_modelled
+    type: write
+    source: v_open_house_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "open_house_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: counteroffer_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: counteroffer_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: counteroffer_fct
+    target: v_counteroffer_silver
+    description: "Load counteroffer from silver for modelling"
+
+  - name: counteroffer_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_counteroffer_silver
+    target: v_counteroffer_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_counteroffer_silver
+
+  - name: write_counteroffer_modelled
+    type: write
+    source: v_counteroffer_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "counteroffer_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: earnest_money_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: earnest_money_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: earnest_money_dim
+    target: v_earnest_money_silver
+    description: "Load earnest_money from silver for modelling"
+
+  - name: earnest_money_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_earnest_money_silver
+    target: v_earnest_money_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_earnest_money_silver
+
+  - name: write_earnest_money_modelled
+    type: write
+    source: v_earnest_money_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "earnest_money_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: home_inspection_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: home_inspection_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: home_inspection_dim
+    target: v_home_inspection_silver
+    description: "Load home_inspection from silver for modelling"
+
+  - name: home_inspection_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_home_inspection_silver
+    target: v_home_inspection_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_home_inspection_silver
+
+  - name: write_home_inspection_modelled
+    type: write
+    source: v_home_inspection_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "home_inspection_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: termite_report_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: termite_report_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: termite_report_fct
+    target: v_termite_report_silver
+    description: "Load termite_report from silver for modelling"
+
+  - name: termite_report_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_termite_report_silver
+    target: v_termite_report_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_termite_report_silver
+
+  - name: write_termite_report_modelled
+    type: write
+    source: v_termite_report_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "termite_report_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: radon_test_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: radon_test_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: radon_test_dim
+    target: v_radon_test_silver
+    description: "Load radon_test from silver for modelling"
+
+  - name: radon_test_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_radon_test_silver
+    target: v_radon_test_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_radon_test_silver
+
+  - name: write_radon_test_modelled
+    type: write
+    source: v_radon_test_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "radon_test_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: lead_paint_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lead_paint_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lead_paint_dim
+    target: v_lead_paint_silver
+    description: "Load lead_paint from silver for modelling"
+
+  - name: lead_paint_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lead_paint_silver
+    target: v_lead_paint_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lead_paint_silver
+
+  - name: write_lead_paint_modelled
+    type: write
+    source: v_lead_paint_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lead_paint_modelled"
+---
+pipeline: domain_g_modelled
+flowgroup: roof_cert_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: roof_cert_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: roof_cert_fct
+    target: v_roof_cert_silver
+    description: "Load roof_cert from silver for modelling"
+
+  - name: roof_cert_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_roof_cert_silver
+    target: v_roof_cert_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_roof_cert_silver
+
+  - name: write_roof_cert_modelled
+    type: write
+    source: v_roof_cert_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "roof_cert_modelled"

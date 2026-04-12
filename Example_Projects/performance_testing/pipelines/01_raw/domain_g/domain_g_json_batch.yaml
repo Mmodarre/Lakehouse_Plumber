@@ -1,0 +1,53 @@
+pipeline: domain_g_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: lease_ingestion
+    template_parameters:
+      table_name: lease_raw
+      landing_folder: lease
+      schema_file: nation_schema
+
+  - flowgroup: rent_payment_ingestion
+    template_parameters:
+      table_name: rent_payment_raw
+      landing_folder: rent_payment
+      schema_file: lineitem_schema
+
+  - flowgroup: escrow_ingestion
+    template_parameters:
+      table_name: escrow_raw
+      landing_folder: escrow
+      schema_file: customer_schema
+
+  - flowgroup: survey_ingestion
+    template_parameters:
+      table_name: survey_raw
+      landing_folder: survey
+      schema_file: orders_schema
+
+  - flowgroup: title_search_ingestion
+    template_parameters:
+      table_name: title_search_raw
+      landing_folder: title_search
+      schema_file: nation_schema
+
+  - flowgroup: setback_ingestion
+    template_parameters:
+      table_name: setback_raw
+      landing_folder: setback
+      schema_file: lineitem_schema
+
+  - flowgroup: open_house_ingestion
+    template_parameters:
+      table_name: open_house_raw
+      landing_folder: open_house
+      schema_file: part_schema
+
+  - flowgroup: lead_paint_ingestion
+    template_parameters:
+      table_name: lead_paint_raw
+      landing_folder: lead_paint
+      schema_file: orders_schema

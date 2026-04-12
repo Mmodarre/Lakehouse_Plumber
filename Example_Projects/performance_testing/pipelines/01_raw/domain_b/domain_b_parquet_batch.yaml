@@ -1,0 +1,53 @@
+pipeline: domain_b_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: task_ingestion
+    template_parameters:
+      table_name: task_raw
+      landing_folder: task
+      schema_file: orders_schema
+
+  - flowgroup: certification_ingestion
+    template_parameters:
+      table_name: certification_raw
+      landing_folder: certification
+      schema_file: nation_schema
+
+  - flowgroup: feedback_ingestion
+    template_parameters:
+      table_name: feedback_raw
+      landing_folder: feedback
+      schema_file: partsupp_schema
+
+  - flowgroup: offboarding_ingestion
+    template_parameters:
+      table_name: offboarding_raw
+      landing_folder: offboarding
+      schema_file: part_schema
+
+  - flowgroup: badge_ingestion
+    template_parameters:
+      table_name: badge_raw
+      landing_folder: badge
+      schema_file: orders_schema
+
+  - flowgroup: org_chart_ingestion
+    template_parameters:
+      table_name: org_chart_raw
+      landing_folder: org_chart
+      schema_file: product_schema
+
+  - flowgroup: alumni_ingestion
+    template_parameters:
+      table_name: alumni_raw
+      landing_folder: alumni
+      schema_file: partsupp_schema
+
+  - flowgroup: labor_cost_ingestion
+    template_parameters:
+      table_name: labor_cost_raw
+      landing_folder: labor_cost
+      schema_file: part_schema

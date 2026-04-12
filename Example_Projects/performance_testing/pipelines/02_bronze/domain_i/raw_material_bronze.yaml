@@ -1,0 +1,8 @@
+pipeline: domain_i_bronze
+flowgroup: raw_material_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: raw_material
+  source_table: raw_material_raw

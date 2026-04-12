@@ -1,0 +1,9 @@
+pipeline: domain_o_raw
+flowgroup: attribution_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: attribution_raw
+  landing_folder: attribution
+  schema_file: partsupp_schema

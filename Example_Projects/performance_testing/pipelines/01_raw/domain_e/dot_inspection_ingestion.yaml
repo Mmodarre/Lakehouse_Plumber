@@ -1,0 +1,31 @@
+pipeline: domain_e_raw
+flowgroup: dot_inspection_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_dot_inspection_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/dot_inspection/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_dot_inspection_cloudfiles
+    description: "Load dot_inspection from landing volume"
+
+  - name: write_dot_inspection_raw
+    type: write
+    source: v_dot_inspection_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "dot_inspection_raw"

@@ -1,0 +1,759 @@
+pipeline: domain_f_modelled
+flowgroup: thesis_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: thesis_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: thesis_dim
+    target: v_thesis_silver
+    description: "Load thesis from silver for modelling"
+
+  - name: thesis_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_thesis_silver
+    target: v_thesis_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_thesis_silver
+
+  - name: write_thesis_modelled
+    type: write
+    source: v_thesis_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "thesis_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: dissertation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: dissertation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: dissertation_fct
+    target: v_dissertation_silver
+    description: "Load dissertation from silver for modelling"
+
+  - name: dissertation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_dissertation_silver
+    target: v_dissertation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_dissertation_silver
+
+  - name: write_dissertation_modelled
+    type: write
+    source: v_dissertation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "dissertation_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: research_grant_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: research_grant_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: research_grant_dim
+    target: v_research_grant_silver
+    description: "Load research_grant from silver for modelling"
+
+  - name: research_grant_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_research_grant_silver
+    target: v_research_grant_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_research_grant_silver
+
+  - name: write_research_grant_modelled
+    type: write
+    source: v_research_grant_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "research_grant_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: lab_session_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lab_session_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lab_session_dim
+    target: v_lab_session_silver
+    description: "Load lab_session from silver for modelling"
+
+  - name: lab_session_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lab_session_silver
+    target: v_lab_session_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lab_session_silver
+
+  - name: write_lab_session_modelled
+    type: write
+    source: v_lab_session_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lab_session_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: fieldwork_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: fieldwork_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: fieldwork_fct
+    target: v_fieldwork_silver
+    description: "Load fieldwork from silver for modelling"
+
+  - name: fieldwork_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_fieldwork_silver
+    target: v_fieldwork_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_fieldwork_silver
+
+  - name: write_fieldwork_modelled
+    type: write
+    source: v_fieldwork_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "fieldwork_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: study_group_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: study_group_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: study_group_dim
+    target: v_study_group_silver
+    description: "Load study_group from silver for modelling"
+
+  - name: study_group_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_study_group_silver
+    target: v_study_group_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_study_group_silver
+
+  - name: write_study_group_modelled
+    type: write
+    source: v_study_group_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "study_group_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: tutoring_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: tutoring_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: tutoring_dim
+    target: v_tutoring_silver
+    description: "Load tutoring from silver for modelling"
+
+  - name: tutoring_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tutoring_silver
+    target: v_tutoring_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_tutoring_silver
+
+  - name: write_tutoring_modelled
+    type: write
+    source: v_tutoring_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "tutoring_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: plagiarism_check_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: plagiarism_check_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: plagiarism_check_fct
+    target: v_plagiarism_check_silver
+    description: "Load plagiarism_check from silver for modelling"
+
+  - name: plagiarism_check_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_plagiarism_check_silver
+    target: v_plagiarism_check_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_plagiarism_check_silver
+
+  - name: write_plagiarism_check_modelled
+    type: write
+    source: v_plagiarism_check_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "plagiarism_check_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: accreditation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: accreditation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: accreditation_dim
+    target: v_accreditation_silver
+    description: "Load accreditation from silver for modelling"
+
+  - name: accreditation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_accreditation_silver
+    target: v_accreditation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_accreditation_silver
+
+  - name: write_accreditation_modelled
+    type: write
+    source: v_accreditation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "accreditation_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: alumni_donor_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: alumni_donor_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: alumni_donor_dim
+    target: v_alumni_donor_silver
+    description: "Load alumni_donor from silver for modelling"
+
+  - name: alumni_donor_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_alumni_donor_silver
+    target: v_alumni_donor_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_alumni_donor_silver
+
+  - name: write_alumni_donor_modelled
+    type: write
+    source: v_alumni_donor_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "alumni_donor_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: career_fair_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: career_fair_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: career_fair_fct
+    target: v_career_fair_silver
+    description: "Load career_fair from silver for modelling"
+
+  - name: career_fair_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_career_fair_silver
+    target: v_career_fair_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_career_fair_silver
+
+  - name: write_career_fair_modelled
+    type: write
+    source: v_career_fair_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "career_fair_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: internship_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: internship_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: internship_dim
+    target: v_internship_silver
+    description: "Load internship from silver for modelling"
+
+  - name: internship_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_internship_silver
+    target: v_internship_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_internship_silver
+
+  - name: write_internship_modelled
+    type: write
+    source: v_internship_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "internship_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: co_op_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: co_op_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: co_op_dim
+    target: v_co_op_silver
+    description: "Load co_op from silver for modelling"
+
+  - name: co_op_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_co_op_silver
+    target: v_co_op_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_co_op_silver
+
+  - name: write_co_op_modelled
+    type: write
+    source: v_co_op_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "co_op_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: exchange_program_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: exchange_program_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: exchange_program_fct
+    target: v_exchange_program_silver
+    description: "Load exchange_program from silver for modelling"
+
+  - name: exchange_program_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_exchange_program_silver
+    target: v_exchange_program_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_exchange_program_silver
+
+  - name: write_exchange_program_modelled
+    type: write
+    source: v_exchange_program_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "exchange_program_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: dormitory_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: dormitory_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: dormitory_dim
+    target: v_dormitory_silver
+    description: "Load dormitory from silver for modelling"
+
+  - name: dormitory_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_dormitory_silver
+    target: v_dormitory_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_dormitory_silver
+
+  - name: write_dormitory_modelled
+    type: write
+    source: v_dormitory_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "dormitory_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: meal_plan_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: meal_plan_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: meal_plan_dim
+    target: v_meal_plan_silver
+    description: "Load meal_plan from silver for modelling"
+
+  - name: meal_plan_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_meal_plan_silver
+    target: v_meal_plan_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_meal_plan_silver
+
+  - name: write_meal_plan_modelled
+    type: write
+    source: v_meal_plan_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "meal_plan_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: student_club_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: student_club_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: student_club_fct
+    target: v_student_club_silver
+    description: "Load student_club from silver for modelling"
+
+  - name: student_club_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_student_club_silver
+    target: v_student_club_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_student_club_silver
+
+  - name: write_student_club_modelled
+    type: write
+    source: v_student_club_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "student_club_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: athletics_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: athletics_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: athletics_dim
+    target: v_athletics_silver
+    description: "Load athletics from silver for modelling"
+
+  - name: athletics_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_athletics_silver
+    target: v_athletics_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_athletics_silver
+
+  - name: write_athletics_modelled
+    type: write
+    source: v_athletics_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "athletics_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: financial_aid_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: financial_aid_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: financial_aid_dim
+    target: v_financial_aid_silver
+    description: "Load financial_aid from silver for modelling"
+
+  - name: financial_aid_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_financial_aid_silver
+    target: v_financial_aid_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_financial_aid_silver
+
+  - name: write_financial_aid_modelled
+    type: write
+    source: v_financial_aid_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "financial_aid_modelled"
+---
+pipeline: domain_f_modelled
+flowgroup: work_study_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: work_study_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: work_study_fct
+    target: v_work_study_silver
+    description: "Load work_study from silver for modelling"
+
+  - name: work_study_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_work_study_silver
+    target: v_work_study_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_work_study_silver
+
+  - name: write_work_study_modelled
+    type: write
+    source: v_work_study_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "work_study_modelled"

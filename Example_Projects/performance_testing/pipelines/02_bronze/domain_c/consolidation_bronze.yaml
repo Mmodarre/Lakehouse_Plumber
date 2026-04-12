@@ -1,0 +1,48 @@
+pipeline: domain_c_bronze
+flowgroup: consolidation_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: consolidation_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: consolidation_raw
+    target: v_consolidation_raw
+    description: "Load consolidation from raw schema"
+
+  - name: consolidation_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_consolidation_raw
+    target: v_consolidation_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as consolidation_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_consolidation_raw
+      WHERE 1=1
+
+  - name: consolidation_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_consolidation_bronze_cleaned
+    target: v_consolidation_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to consolidation"
+
+  - name: write_consolidation_bronze
+    type: write
+    source: v_consolidation_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "consolidation"

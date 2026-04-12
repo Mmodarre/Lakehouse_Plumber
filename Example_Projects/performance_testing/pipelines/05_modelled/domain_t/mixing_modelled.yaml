@@ -1,0 +1,37 @@
+pipeline: domain_t_modelled
+flowgroup: mixing_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: mixing_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: mixing_dim
+    target: v_mixing_silver
+    description: "Load mixing from silver for modelling"
+
+  - name: mixing_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_mixing_silver
+    target: v_mixing_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_mixing_silver
+
+  - name: write_mixing_modelled
+    type: write
+    source: v_mixing_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "mixing_modelled"

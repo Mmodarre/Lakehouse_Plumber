@@ -1,0 +1,9 @@
+pipeline: domain_j_raw
+flowgroup: island_mode_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: island_mode_raw
+  landing_folder: island_mode
+  schema_file: nation_schema

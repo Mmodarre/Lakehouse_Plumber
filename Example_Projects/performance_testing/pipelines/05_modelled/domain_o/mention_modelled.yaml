@@ -1,0 +1,37 @@
+pipeline: domain_o_modelled
+flowgroup: mention_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: mention_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: mention_dim
+    target: v_mention_silver
+    description: "Load mention from silver for modelling"
+
+  - name: mention_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_mention_silver
+    target: v_mention_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_mention_silver
+
+  - name: write_mention_modelled
+    type: write
+    source: v_mention_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "mention_modelled"

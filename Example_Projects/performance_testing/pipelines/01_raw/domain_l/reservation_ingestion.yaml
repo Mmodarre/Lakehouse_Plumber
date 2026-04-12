@@ -1,0 +1,9 @@
+pipeline: domain_l_raw
+flowgroup: reservation_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: reservation_raw
+  landing_folder: reservation
+  schema_file: orders_schema

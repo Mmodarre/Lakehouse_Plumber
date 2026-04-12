@@ -1,0 +1,48 @@
+pipeline: domain_i_bronze
+flowgroup: oee_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: oee_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: oee_raw
+    target: v_oee_raw
+    description: "Load oee from raw schema"
+
+  - name: oee_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_oee_raw
+    target: v_oee_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as oee_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_oee_raw
+      WHERE 1=1
+
+  - name: oee_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_oee_bronze_cleaned
+    target: v_oee_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to oee"
+
+  - name: write_oee_bronze
+    type: write
+    source: v_oee_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "oee"

@@ -1,0 +1,37 @@
+pipeline: domain_r_modelled
+flowgroup: orbit_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: orbit_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: orbit_dim
+    target: v_orbit_silver
+    description: "Load orbit from silver for modelling"
+
+  - name: orbit_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_orbit_silver
+    target: v_orbit_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_orbit_silver
+
+  - name: write_orbit_modelled
+    type: write
+    source: v_orbit_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "orbit_modelled"

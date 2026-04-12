@@ -1,0 +1,9 @@
+pipeline: domain_k_raw
+flowgroup: control_tower_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: control_tower_raw
+  landing_folder: control_tower
+  schema_file: lineitem_schema

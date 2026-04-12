@@ -1,0 +1,22 @@
+pipeline: domain_j_gold
+flowgroup: peak_usage_dashboard_mv
+actions:
+  - name: peak_usage_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.peak_usage_fct
+    target: v_peak_usage_dashboard
+
+  - name: write_peak_usage_dashboard_mv
+    type: write
+    source: v_peak_usage_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "peak_usage_dashboard_mv"

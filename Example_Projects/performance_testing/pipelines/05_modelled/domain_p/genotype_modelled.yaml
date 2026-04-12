@@ -1,0 +1,37 @@
+pipeline: domain_p_modelled
+flowgroup: genotype_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: genotype_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: genotype_dim
+    target: v_genotype_silver
+    description: "Load genotype from silver for modelling"
+
+  - name: genotype_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_genotype_silver
+    target: v_genotype_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_genotype_silver
+
+  - name: write_genotype_modelled
+    type: write
+    source: v_genotype_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "genotype_modelled"

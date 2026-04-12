@@ -1,0 +1,37 @@
+pipeline: domain_n_modelled
+flowgroup: fraud_flag_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: fraud_flag_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: fraud_flag_dim
+    target: v_fraud_flag_silver
+    description: "Load fraud_flag from silver for modelling"
+
+  - name: fraud_flag_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_fraud_flag_silver
+    target: v_fraud_flag_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_fraud_flag_silver
+
+  - name: write_fraud_flag_modelled
+    type: write
+    source: v_fraud_flag_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "fraud_flag_modelled"

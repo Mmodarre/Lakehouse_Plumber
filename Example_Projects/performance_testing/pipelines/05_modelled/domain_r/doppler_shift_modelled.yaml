@@ -1,0 +1,37 @@
+pipeline: domain_r_modelled
+flowgroup: doppler_shift_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: doppler_shift_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: doppler_shift_dim
+    target: v_doppler_shift_silver
+    description: "Load doppler_shift from silver for modelling"
+
+  - name: doppler_shift_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_doppler_shift_silver
+    target: v_doppler_shift_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_doppler_shift_silver
+
+  - name: write_doppler_shift_modelled
+    type: write
+    source: v_doppler_shift_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "doppler_shift_modelled"

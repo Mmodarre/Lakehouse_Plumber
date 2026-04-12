@@ -1,0 +1,31 @@
+pipeline: domain_i_raw
+flowgroup: gauge_rr_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_gauge_rr_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/gauge_rr/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_gauge_rr_cloudfiles
+    description: "Load gauge_rr from landing volume"
+
+  - name: write_gauge_rr_raw
+    type: write
+    source: v_gauge_rr_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "gauge_rr_raw"

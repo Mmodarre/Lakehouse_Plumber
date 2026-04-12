@@ -1,0 +1,9 @@
+pipeline: domain_r_raw
+flowgroup: propulsion_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: propulsion_raw
+  landing_folder: propulsion
+  schema_file: nation_schema

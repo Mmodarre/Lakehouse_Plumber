@@ -1,0 +1,31 @@
+pipeline: domain_h_raw
+flowgroup: checkout_lane_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_checkout_lane_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/checkout_lane/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_checkout_lane_cloudfiles
+    description: "Load checkout_lane from landing volume"
+
+  - name: write_checkout_lane_raw
+    type: write
+    source: v_checkout_lane_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "checkout_lane_raw"

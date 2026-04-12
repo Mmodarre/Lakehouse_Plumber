@@ -1,0 +1,37 @@
+pipeline: domain_r_modelled
+flowgroup: spectrum_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: spectrum_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: spectrum_dim
+    target: v_spectrum_silver
+    description: "Load spectrum from silver for modelling"
+
+  - name: spectrum_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_spectrum_silver
+    target: v_spectrum_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_spectrum_silver
+
+  - name: write_spectrum_modelled
+    type: write
+    source: v_spectrum_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "spectrum_modelled"

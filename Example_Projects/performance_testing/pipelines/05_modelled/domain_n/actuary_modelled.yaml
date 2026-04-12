@@ -1,0 +1,37 @@
+pipeline: domain_n_modelled
+flowgroup: actuary_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: actuary_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: actuary_dim
+    target: v_actuary_silver
+    description: "Load actuary from silver for modelling"
+
+  - name: actuary_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_actuary_silver
+    target: v_actuary_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_actuary_silver
+
+  - name: write_actuary_modelled
+    type: write
+    source: v_actuary_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "actuary_modelled"

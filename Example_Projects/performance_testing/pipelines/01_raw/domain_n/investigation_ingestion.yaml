@@ -1,0 +1,9 @@
+pipeline: domain_n_raw
+flowgroup: investigation_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: investigation_raw
+  landing_folder: investigation
+  schema_file: lineitem_schema

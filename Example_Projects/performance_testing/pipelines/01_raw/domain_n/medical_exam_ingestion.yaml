@@ -1,0 +1,31 @@
+pipeline: domain_n_raw
+flowgroup: medical_exam_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_medical_exam_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/medical_exam/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_medical_exam_cloudfiles
+    description: "Load medical_exam from landing volume"
+
+  - name: write_medical_exam_raw
+    type: write
+    source: v_medical_exam_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "medical_exam_raw"

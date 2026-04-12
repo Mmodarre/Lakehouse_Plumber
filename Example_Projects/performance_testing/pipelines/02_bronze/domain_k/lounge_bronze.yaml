@@ -1,0 +1,8 @@
+pipeline: domain_k_bronze
+flowgroup: lounge_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: lounge
+  source_table: lounge_raw

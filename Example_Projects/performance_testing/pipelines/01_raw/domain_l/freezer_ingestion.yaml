@@ -1,0 +1,9 @@
+pipeline: domain_l_raw
+flowgroup: freezer_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: freezer_raw
+  landing_folder: freezer
+  schema_file: nation_schema

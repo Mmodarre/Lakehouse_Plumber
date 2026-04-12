@@ -1,0 +1,9 @@
+pipeline: domain_q_raw
+flowgroup: free_kick_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: free_kick_raw
+  landing_folder: free_kick
+  schema_file: nation_schema

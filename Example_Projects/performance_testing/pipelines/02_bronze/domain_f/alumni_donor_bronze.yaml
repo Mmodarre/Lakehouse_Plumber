@@ -1,0 +1,85 @@
+pipeline: domain_f_bronze
+flowgroup: alumni_donor_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: alumni_donor_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: alumni_donor_raw
+    target: v_alumni_donor_raw
+    description: "Load alumni_donor from raw schema"
+
+  - name: alumni_donor_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_alumni_donor_raw
+    target: v_alumni_donor_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as alumni_donor_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_alumni_donor_raw
+
+  - name: alumni_donor_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_alumni_donor_bronze_cleaned
+    target: v_alumni_donor_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for alumni_donor bronze"
+
+  - name: write_alumni_donor_bronze
+    type: write
+    source: v_alumni_donor_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "alumni_donor"
+
+  - name: alumni_donor_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: alumni_donor_migration
+    target: v_alumni_donor_migration
+    description: "Load alumni_donor migration data"
+
+  - name: alumni_donor_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_alumni_donor_migration
+    target: v_alumni_donor_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as alumni_donor_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_alumni_donor_migration
+
+  - name: write_alumni_donor_migration
+    type: write
+    source: v_alumni_donor_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "alumni_donor"

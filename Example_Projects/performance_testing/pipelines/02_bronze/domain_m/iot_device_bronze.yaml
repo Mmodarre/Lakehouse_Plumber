@@ -1,0 +1,8 @@
+pipeline: domain_m_bronze
+flowgroup: iot_device_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: iot_device
+  source_table: iot_device_raw

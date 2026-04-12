@@ -1,0 +1,8 @@
+pipeline: domain_r_bronze
+flowgroup: launch_vehicle_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: launch_vehicle
+  source_table: launch_vehicle_raw

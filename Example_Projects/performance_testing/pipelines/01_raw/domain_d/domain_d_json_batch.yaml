@@ -1,0 +1,53 @@
+pipeline: domain_d_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: appointment_ingestion
+    template_parameters:
+      table_name: appointment_raw
+      landing_folder: appointment
+      schema_file: nation_schema
+
+  - flowgroup: hospital_ingestion
+    template_parameters:
+      table_name: hospital_raw
+      landing_folder: hospital
+      schema_file: lineitem_schema
+
+  - flowgroup: immunization_ingestion
+    template_parameters:
+      table_name: immunization_raw
+      landing_folder: immunization
+      schema_file: customer_schema
+
+  - flowgroup: admission_ingestion
+    template_parameters:
+      table_name: admission_raw
+      landing_folder: admission
+      schema_file: orders_schema
+
+  - flowgroup: pharmacy_ingestion
+    template_parameters:
+      table_name: pharmacy_raw
+      landing_folder: pharmacy
+      schema_file: nation_schema
+
+  - flowgroup: outpatient_ingestion
+    template_parameters:
+      table_name: outpatient_raw
+      landing_folder: outpatient
+      schema_file: lineitem_schema
+
+  - flowgroup: bed_assignment_ingestion
+    template_parameters:
+      table_name: bed_assignment_raw
+      landing_folder: bed_assignment
+      schema_file: part_schema
+
+  - flowgroup: telemedicine_ingestion
+    template_parameters:
+      table_name: telemedicine_raw
+      landing_folder: telemedicine
+      schema_file: orders_schema

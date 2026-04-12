@@ -1,0 +1,85 @@
+pipeline: domain_r_bronze
+flowgroup: coding_scheme_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: coding_scheme_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: coding_scheme_raw
+    target: v_coding_scheme_raw
+    description: "Load coding_scheme from raw schema"
+
+  - name: coding_scheme_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_coding_scheme_raw
+    target: v_coding_scheme_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as coding_scheme_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_coding_scheme_raw
+
+  - name: coding_scheme_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_coding_scheme_bronze_cleaned
+    target: v_coding_scheme_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for coding_scheme bronze"
+
+  - name: write_coding_scheme_bronze
+    type: write
+    source: v_coding_scheme_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "coding_scheme"
+
+  - name: coding_scheme_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: coding_scheme_migration
+    target: v_coding_scheme_migration
+    description: "Load coding_scheme migration data"
+
+  - name: coding_scheme_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_coding_scheme_migration
+    target: v_coding_scheme_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as coding_scheme_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_coding_scheme_migration
+
+  - name: write_coding_scheme_migration
+    type: write
+    source: v_coding_scheme_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "coding_scheme"

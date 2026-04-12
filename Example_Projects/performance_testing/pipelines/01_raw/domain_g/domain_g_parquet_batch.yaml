@@ -1,0 +1,53 @@
+pipeline: domain_g_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: landlord_ingestion
+    template_parameters:
+      table_name: landlord_raw
+      landing_folder: landlord
+      schema_file: orders_schema
+
+  - flowgroup: eviction_ingestion
+    template_parameters:
+      table_name: eviction_raw
+      landing_folder: eviction
+      schema_file: nation_schema
+
+  - flowgroup: appraisal_ingestion
+    template_parameters:
+      table_name: appraisal_raw
+      landing_folder: appraisal
+      schema_file: partsupp_schema
+
+  - flowgroup: zoning_ingestion
+    template_parameters:
+      table_name: zoning_raw
+      landing_folder: zoning
+      schema_file: part_schema
+
+  - flowgroup: lien_ingestion
+    template_parameters:
+      table_name: lien_raw
+      landing_folder: lien
+      schema_file: orders_schema
+
+  - flowgroup: subdivision_ingestion
+    template_parameters:
+      table_name: subdivision_raw
+      landing_folder: subdivision
+      schema_file: product_schema
+
+  - flowgroup: counteroffer_ingestion
+    template_parameters:
+      table_name: counteroffer_raw
+      landing_folder: counteroffer
+      schema_file: partsupp_schema
+
+  - flowgroup: roof_cert_ingestion
+    template_parameters:
+      table_name: roof_cert_raw
+      landing_folder: roof_cert
+      schema_file: part_schema

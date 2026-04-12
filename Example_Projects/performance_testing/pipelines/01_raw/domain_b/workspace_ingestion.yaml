@@ -1,0 +1,31 @@
+pipeline: domain_b_raw
+flowgroup: workspace_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_workspace_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/workspace/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_workspace_cloudfiles
+    description: "Load workspace from landing volume"
+
+  - name: write_workspace_raw
+    type: write
+    source: v_workspace_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "workspace_raw"

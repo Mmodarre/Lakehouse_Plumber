@@ -1,0 +1,37 @@
+pipeline: domain_s_modelled
+flowgroup: cork_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: cork_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: cork_fct
+    target: v_cork_silver
+    description: "Load cork from silver for modelling"
+
+  - name: cork_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cork_silver
+    target: v_cork_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_cork_silver
+
+  - name: write_cork_modelled
+    type: write
+    source: v_cork_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "cork_modelled"

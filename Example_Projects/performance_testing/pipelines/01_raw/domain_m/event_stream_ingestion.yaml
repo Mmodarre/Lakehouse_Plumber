@@ -1,0 +1,9 @@
+pipeline: domain_m_raw
+flowgroup: event_stream_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: event_stream_raw
+  landing_folder: event_stream
+  schema_file: orders_schema

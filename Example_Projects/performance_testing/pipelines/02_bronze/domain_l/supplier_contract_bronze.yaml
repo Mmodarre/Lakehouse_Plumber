@@ -1,0 +1,8 @@
+pipeline: domain_l_bronze
+flowgroup: supplier_contract_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: supplier_contract
+  source_table: supplier_contract_raw

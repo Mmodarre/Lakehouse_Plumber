@@ -1,0 +1,48 @@
+pipeline: domain_d_bronze
+flowgroup: nursing_note_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: nursing_note_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: nursing_note_raw
+    target: v_nursing_note_raw
+    description: "Load nursing_note from raw schema"
+
+  - name: nursing_note_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_nursing_note_raw
+    target: v_nursing_note_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as nursing_note_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_nursing_note_raw
+      WHERE 1=1
+
+  - name: nursing_note_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_nursing_note_bronze_cleaned
+    target: v_nursing_note_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to nursing_note"
+
+  - name: write_nursing_note_bronze
+    type: write
+    source: v_nursing_note_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "nursing_note"

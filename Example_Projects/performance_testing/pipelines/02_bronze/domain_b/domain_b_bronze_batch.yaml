@@ -1,0 +1,85 @@
+pipeline: domain_b_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: employee_bronze
+    template_parameters:
+      entity_name: employee
+      source_table: employee_raw
+
+  - flowgroup: department_bronze
+    template_parameters:
+      entity_name: department
+      source_table: department_raw
+
+  - flowgroup: project_bronze
+    template_parameters:
+      entity_name: project
+      source_table: project_raw
+
+  - flowgroup: task_bronze
+    template_parameters:
+      entity_name: task
+      source_table: task_raw
+
+  - flowgroup: timesheet_bronze
+    template_parameters:
+      entity_name: timesheet
+      source_table: timesheet_raw
+
+  - flowgroup: salary_bronze
+    template_parameters:
+      entity_name: salary
+      source_table: salary_raw
+
+  - flowgroup: benefit_bronze
+    template_parameters:
+      entity_name: benefit
+      source_table: benefit_raw
+
+  - flowgroup: leave_request_bronze
+    template_parameters:
+      entity_name: leave_request
+      source_table: leave_request_raw
+
+  - flowgroup: training_bronze
+    template_parameters:
+      entity_name: training
+      source_table: training_raw
+
+  - flowgroup: certification_bronze
+    template_parameters:
+      entity_name: certification
+      source_table: certification_raw
+
+  - flowgroup: performance_bronze
+    template_parameters:
+      entity_name: performance
+      source_table: performance_raw
+
+  - flowgroup: goal_bronze
+    template_parameters:
+      entity_name: goal
+      source_table: goal_raw
+
+  - flowgroup: feedback_bronze
+    template_parameters:
+      entity_name: feedback
+      source_table: feedback_raw
+
+  - flowgroup: interview_bronze
+    template_parameters:
+      entity_name: interview
+      source_table: interview_raw
+
+  - flowgroup: candidate_bronze
+    template_parameters:
+      entity_name: candidate
+      source_table: candidate_raw
+
+  - flowgroup: job_posting_bronze
+    template_parameters:
+      entity_name: job_posting
+      source_table: job_posting_raw

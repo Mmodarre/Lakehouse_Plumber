@@ -1,0 +1,85 @@
+pipeline: domain_h_bronze
+flowgroup: display_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: display_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: display_raw
+    target: v_display_raw
+    description: "Load display from raw schema"
+
+  - name: display_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_display_raw
+    target: v_display_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as display_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_display_raw
+
+  - name: display_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_display_bronze_cleaned
+    target: v_display_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for display bronze"
+
+  - name: write_display_bronze
+    type: write
+    source: v_display_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "display"
+
+  - name: display_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: display_migration
+    target: v_display_migration
+    description: "Load display migration data"
+
+  - name: display_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_display_migration
+    target: v_display_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as display_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_display_migration
+
+  - name: write_display_migration
+    type: write
+    source: v_display_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "display"

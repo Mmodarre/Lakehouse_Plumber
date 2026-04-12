@@ -1,0 +1,48 @@
+pipeline: domain_f_bronze
+flowgroup: exchange_program_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: exchange_program_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: exchange_program_raw
+    target: v_exchange_program_raw
+    description: "Load exchange_program from raw schema"
+
+  - name: exchange_program_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_exchange_program_raw
+    target: v_exchange_program_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as exchange_program_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_exchange_program_raw
+      WHERE 1=1
+
+  - name: exchange_program_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_exchange_program_bronze_cleaned
+    target: v_exchange_program_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to exchange_program"
+
+  - name: write_exchange_program_bronze
+    type: write
+    source: v_exchange_program_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "exchange_program"

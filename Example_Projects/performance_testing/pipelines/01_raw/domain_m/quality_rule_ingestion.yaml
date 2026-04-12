@@ -1,0 +1,9 @@
+pipeline: domain_m_raw
+flowgroup: quality_rule_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: quality_rule_raw
+  landing_folder: quality_rule
+  schema_file: product_schema

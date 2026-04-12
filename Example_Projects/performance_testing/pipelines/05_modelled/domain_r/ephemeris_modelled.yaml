@@ -1,0 +1,37 @@
+pipeline: domain_r_modelled
+flowgroup: ephemeris_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: ephemeris_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: ephemeris_fct
+    target: v_ephemeris_silver
+    description: "Load ephemeris from silver for modelling"
+
+  - name: ephemeris_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_ephemeris_silver
+    target: v_ephemeris_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_ephemeris_silver
+
+  - name: write_ephemeris_modelled
+    type: write
+    source: v_ephemeris_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "ephemeris_modelled"

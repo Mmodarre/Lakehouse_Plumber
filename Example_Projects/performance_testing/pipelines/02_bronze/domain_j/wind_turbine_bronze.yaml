@@ -1,0 +1,8 @@
+pipeline: domain_j_bronze
+flowgroup: wind_turbine_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: wind_turbine
+  source_table: wind_turbine_raw

@@ -1,0 +1,24 @@
+pipeline: domain_g_gold
+flowgroup: lien_daily_agg_mv
+actions:
+  - name: lien_daily_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('day', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.lien_fct
+        GROUP BY 1
+    target: v_lien_daily_agg
+
+  - name: write_lien_daily_agg_mv
+    type: write
+    source: v_lien_daily_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "lien_daily_agg_mv"

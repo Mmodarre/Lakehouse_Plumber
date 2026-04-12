@@ -1,0 +1,22 @@
+pipeline: domain_l_gold
+flowgroup: special_menu_dashboard_mv
+actions:
+  - name: special_menu_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.special_menu_dim
+    target: v_special_menu_dashboard
+
+  - name: write_special_menu_dashboard_mv
+    type: write
+    source: v_special_menu_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "special_menu_dashboard_mv"

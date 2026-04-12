@@ -1,0 +1,31 @@
+pipeline: domain_m_raw
+flowgroup: schema_registry_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_schema_registry_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/schema_registry/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_schema_registry_cloudfiles
+    description: "Load schema_registry from landing volume"
+
+  - name: write_schema_registry_raw
+    type: write
+    source: v_schema_registry_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "schema_registry_raw"

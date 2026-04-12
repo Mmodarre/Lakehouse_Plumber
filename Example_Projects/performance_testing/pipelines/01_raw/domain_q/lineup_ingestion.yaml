@@ -1,0 +1,9 @@
+pipeline: domain_q_raw
+flowgroup: lineup_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: lineup_raw
+  landing_folder: lineup
+  schema_file: product_schema

@@ -1,0 +1,22 @@
+pipeline: domain_h_gold
+flowgroup: register_dashboard_mv
+actions:
+  - name: register_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.register_dim
+    target: v_register_dashboard
+
+  - name: write_register_dashboard_mv
+    type: write
+    source: v_register_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "register_dashboard_mv"

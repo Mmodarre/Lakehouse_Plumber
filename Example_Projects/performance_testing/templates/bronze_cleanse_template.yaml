@@ -1,0 +1,56 @@
+name: bronze_cleanse_template
+version: "1.0"
+description: "Standard template for bronze layer cleansing with DQ checks"
+
+parameters:
+  - name: entity_name
+    required: true
+    description: "Name of the entity being processed"
+  - name: source_table
+    required: true
+    description: "Source table name in raw schema"
+
+actions:
+  - name: load_{{ entity_name }}_raw
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "{{ source_table }}"
+    target: v_{{ entity_name }}_raw
+    description: "Load {{ entity_name }} from raw schema"
+
+  - name: cleanse_{{ entity_name }}
+    type: transform
+    transform_type: sql
+    source: v_{{ entity_name }}_raw
+    target: v_{{ entity_name }}_cleansed
+    sql: |
+      SELECT
+        xxhash64(*) as {{ entity_name }}_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_{{ entity_name }}_raw
+      WHERE 1=1
+
+  - name: dqe_{{ entity_name }}
+    type: transform
+    transform_type: data_quality
+    source: v_{{ entity_name }}_cleansed
+    target: v_{{ entity_name }}_validated
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality checks for {{ entity_name }}"
+
+  - name: write_{{ entity_name }}_bronze
+    type: write
+    source: v_{{ entity_name }}_validated
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "{{ entity_name }}"

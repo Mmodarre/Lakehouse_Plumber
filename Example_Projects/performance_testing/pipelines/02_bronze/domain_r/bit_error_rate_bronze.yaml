@@ -1,0 +1,48 @@
+pipeline: domain_r_bronze
+flowgroup: bit_error_rate_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: bit_error_rate_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bit_error_rate_raw
+    target: v_bit_error_rate_raw
+    description: "Load bit_error_rate from raw schema"
+
+  - name: bit_error_rate_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_bit_error_rate_raw
+    target: v_bit_error_rate_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bit_error_rate_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_bit_error_rate_raw
+      WHERE 1=1
+
+  - name: bit_error_rate_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_bit_error_rate_bronze_cleaned
+    target: v_bit_error_rate_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to bit_error_rate"
+
+  - name: write_bit_error_rate_bronze
+    type: write
+    source: v_bit_error_rate_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bit_error_rate"
