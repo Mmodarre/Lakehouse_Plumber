@@ -116,7 +116,7 @@ def enable_perf_timing(project_root: Optional[Path] = None) -> None:
         project_root: Project root for placing .lhp/logs/perf.log.
             If None, timing is still enabled but no file handler is set up.
     """
-    global _enabled, _start_wall_clock, _summary
+    global _enabled, _start_wall_clock
 
     _enabled = True
     _start_wall_clock = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
