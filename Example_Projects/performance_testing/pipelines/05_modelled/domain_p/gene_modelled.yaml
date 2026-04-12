@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_p_modelled
 flowgroup: gene_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: gene_dim
+      table: gene_fct
     target: v_gene_silver
     description: "Load gene from silver for modelling"
 

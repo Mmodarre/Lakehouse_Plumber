@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: lineup_analysis_mv
 actions:
   - name: lineup_analysis_sql

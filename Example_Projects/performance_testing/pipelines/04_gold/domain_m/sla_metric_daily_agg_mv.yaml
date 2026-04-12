@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: sla_metric_daily_agg_mv
 actions:
   - name: sla_metric_daily_agg_load

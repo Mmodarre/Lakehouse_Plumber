@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_m_bronze
 flowgroup: time_series_bronze
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: trailer_daily_agg_mv
 actions:
   - name: trailer_daily_agg_load

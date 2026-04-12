@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_t_bronze
 flowgroup: cd_pressing_bronze
 presets:
   - default_delta_properties

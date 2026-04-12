@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: genotype_dashboard_mv
 actions:
   - name: genotype_dashboard_sql

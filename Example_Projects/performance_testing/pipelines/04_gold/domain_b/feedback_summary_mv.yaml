@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: feedback_summary_mv
 actions:
   - name: feedback_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.feedback_dim
+        FROM {catalog}.{silver_schema}.feedback_fct
     target: v_feedback_summary
 
   - name: write_feedback_summary_mv

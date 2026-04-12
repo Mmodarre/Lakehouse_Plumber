@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_s_modelled
 flowgroup: terroir_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: terroir_dim
+      table: terroir_fct
     target: v_terroir_silver
     description: "Load terroir from silver for modelling"
 

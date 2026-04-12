@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: label_report_mv
 actions:
   - name: label_report_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.label_dim
+        FROM {catalog}.{silver_schema}.label_fct
     target: v_label_report
 
   - name: write_label_report_mv

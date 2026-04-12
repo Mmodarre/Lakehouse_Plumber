@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_e_bronze
 flowgroup: chain_of_custody_bronze
 presets:
   - default_delta_properties

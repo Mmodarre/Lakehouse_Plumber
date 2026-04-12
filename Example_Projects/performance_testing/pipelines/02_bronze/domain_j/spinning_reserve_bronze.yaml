@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_j_bronze
 flowgroup: spinning_reserve_bronze
 presets:
   - default_delta_properties

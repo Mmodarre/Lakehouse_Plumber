@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: net_metering_analysis_mv
 actions:
   - name: net_metering_analysis_sql

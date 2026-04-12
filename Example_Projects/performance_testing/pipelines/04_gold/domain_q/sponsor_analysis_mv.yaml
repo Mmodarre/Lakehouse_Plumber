@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: sponsor_analysis_mv
 actions:
   - name: sponsor_analysis_sql

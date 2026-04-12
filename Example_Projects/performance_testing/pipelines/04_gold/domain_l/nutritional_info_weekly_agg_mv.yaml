@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: nutritional_info_weekly_agg_mv
 actions:
   - name: nutritional_info_weekly_agg_load

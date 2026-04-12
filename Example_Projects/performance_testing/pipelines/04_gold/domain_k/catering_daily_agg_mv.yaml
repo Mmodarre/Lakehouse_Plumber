@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: catering_daily_agg_mv
 actions:
   - name: catering_daily_agg_load

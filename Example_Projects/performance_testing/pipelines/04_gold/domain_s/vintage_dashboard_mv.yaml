@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: vintage_dashboard_mv
 actions:
   - name: vintage_dashboard_sql

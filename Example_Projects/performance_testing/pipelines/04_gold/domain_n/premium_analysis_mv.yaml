@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: premium_analysis_mv
 actions:
   - name: premium_analysis_sql

@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_d_bronze
 flowgroup: blood_bank_bronze
 presets:
   - default_delta_properties

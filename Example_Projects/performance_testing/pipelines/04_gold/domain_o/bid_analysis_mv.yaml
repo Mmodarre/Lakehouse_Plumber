@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: bid_analysis_mv
 actions:
   - name: bid_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.bid_dim
+        FROM {catalog}.{silver_schema}.bid_fct
     target: v_bid_analysis
 
   - name: write_bid_analysis_mv

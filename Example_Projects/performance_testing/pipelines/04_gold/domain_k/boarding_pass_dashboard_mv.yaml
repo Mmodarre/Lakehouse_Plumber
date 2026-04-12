@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: boarding_pass_dashboard_mv
 actions:
   - name: boarding_pass_dashboard_sql

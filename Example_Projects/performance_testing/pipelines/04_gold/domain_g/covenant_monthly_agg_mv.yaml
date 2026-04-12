@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: covenant_monthly_agg_mv
 actions:
   - name: covenant_monthly_agg_load

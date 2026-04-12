@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: expense_dashboard_mv
 actions:
   - name: expense_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.expense_dim
+        FROM {catalog}.{silver_schema}.expense_fct
     target: v_expense_dashboard
 
   - name: write_expense_dashboard_mv

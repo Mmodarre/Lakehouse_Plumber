@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: appointment_report_mv
 actions:
   - name: appointment_report_sql

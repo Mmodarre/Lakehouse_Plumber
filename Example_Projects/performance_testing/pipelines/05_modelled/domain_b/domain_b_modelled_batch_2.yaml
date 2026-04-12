@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: bonus_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "bonus_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: commission_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: commission_dim
+      table: commission_fct
     target: v_commission_silver
     description: "Load commission from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "commission_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: overtime_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "overtime_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: attendance_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "attendance_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: badge_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: badge_dim
+      table: badge_fct
     target: v_badge_silver
     description: "Load badge from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "badge_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: workspace_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "workspace_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: team_lead_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "team_lead_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: org_chart_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: org_chart_dim
+      table: org_chart_fct
     target: v_org_chart_silver
     description: "Load org_chart from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "org_chart_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: headcount_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "headcount_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: requisition_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "requisition_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: background_check_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: background_check_dim
+      table: background_check_fct
     target: v_background_check_silver
     description: "Load background_check from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "background_check_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: drug_test_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "drug_test_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: exit_interview_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "exit_interview_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: alumni_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: alumni_dim
+      table: alumni_fct
     target: v_alumni_silver
     description: "Load alumni from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "alumni_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: mentor_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "mentor_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: skill_matrix_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "skill_matrix_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: competency_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: competency_dim
+      table: competency_fct
     target: v_competency_silver
     description: "Load competency from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "competency_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: succession_plan_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "succession_plan_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: workforce_plan_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "workforce_plan_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: labor_cost_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: labor_cost_dim
+      table: labor_cost_fct
     target: v_labor_cost_silver
     description: "Load labor_cost from silver for modelling"
 

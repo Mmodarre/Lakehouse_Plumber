@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: medical_exam_monthly_agg_mv
 actions:
   - name: medical_exam_monthly_agg_load

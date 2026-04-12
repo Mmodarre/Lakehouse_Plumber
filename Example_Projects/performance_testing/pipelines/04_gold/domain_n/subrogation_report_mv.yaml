@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: subrogation_report_mv
 actions:
   - name: subrogation_report_sql

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_m_modelled
 flowgroup: payload_modelled
 presets:
   - default_delta_properties

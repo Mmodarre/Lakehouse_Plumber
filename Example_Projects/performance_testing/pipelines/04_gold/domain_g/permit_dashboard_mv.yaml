@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: permit_dashboard_mv
 actions:
   - name: permit_dashboard_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: eld_log_quarterly_agg_mv
 actions:
   - name: eld_log_quarterly_agg_load

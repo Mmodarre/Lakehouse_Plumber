@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: tax_filing_weekly_agg_mv
 actions:
   - name: tax_filing_weekly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: special_menu_dashboard_mv
 actions:
   - name: special_menu_dashboard_sql

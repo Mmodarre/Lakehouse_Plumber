@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: basket_size_weekly_agg_mv
 actions:
   - name: basket_size_weekly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_r_raw
 flowgroup: jamming_detect_ingestion
 presets:
   - default_delta_properties

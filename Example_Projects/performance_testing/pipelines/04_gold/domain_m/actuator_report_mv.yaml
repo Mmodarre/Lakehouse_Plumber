@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: actuator_report_mv
 actions:
   - name: actuator_report_sql

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_m_modelled
 flowgroup: escalation_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: escalation_dim
+      table: escalation_fct
     target: v_escalation_silver
     description: "Load escalation from silver for modelling"
 

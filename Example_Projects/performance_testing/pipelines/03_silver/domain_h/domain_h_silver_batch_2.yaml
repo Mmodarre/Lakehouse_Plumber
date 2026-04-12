@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: planogram_silver_dim
 presets:
   - default_delta_properties
@@ -31,7 +31,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: endcap_silver_fct
 presets:
   - default_delta_properties
@@ -64,7 +64,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: signage_silver_dim
 presets:
   - default_delta_properties
@@ -97,7 +97,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: foot_traffic_silver_dim
 presets:
   - default_delta_properties
@@ -130,7 +130,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: conversion_rate_silver_fct
 presets:
   - default_delta_properties
@@ -163,7 +163,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: basket_size_silver_dim
 presets:
   - default_delta_properties
@@ -196,7 +196,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: shrinkage_silver_dim
 presets:
   - default_delta_properties
@@ -229,7 +229,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: loss_prevention_silver_fct
 presets:
   - default_delta_properties
@@ -262,7 +262,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: mystery_shopper_silver_dim
 presets:
   - default_delta_properties
@@ -295,7 +295,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: nps_score_silver_dim
 presets:
   - default_delta_properties
@@ -328,7 +328,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: store_layout_silver_fct
 presets:
   - default_delta_properties
@@ -361,7 +361,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: checkout_lane_silver_dim
 presets:
   - default_delta_properties
@@ -394,7 +394,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: self_checkout_silver_dim
 presets:
   - default_delta_properties
@@ -427,7 +427,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: curbside_silver_fct
 presets:
   - default_delta_properties
@@ -460,7 +460,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: click_collect_silver_dim
 presets:
   - default_delta_properties
@@ -493,7 +493,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: endless_aisle_silver_dim
 presets:
   - default_delta_properties
@@ -526,7 +526,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: clienteling_silver_fct
 presets:
   - default_delta_properties
@@ -559,7 +559,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: pos_terminal_silver_dim
 presets:
   - default_delta_properties
@@ -592,7 +592,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: price_override_silver_dim
 presets:
   - default_delta_properties
@@ -625,7 +625,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_h_silver
 flowgroup: rain_check_silver_fct
 presets:
   - default_delta_properties

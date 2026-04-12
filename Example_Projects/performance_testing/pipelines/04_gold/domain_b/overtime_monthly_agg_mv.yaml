@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: overtime_monthly_agg_mv
 actions:
   - name: overtime_monthly_agg_load

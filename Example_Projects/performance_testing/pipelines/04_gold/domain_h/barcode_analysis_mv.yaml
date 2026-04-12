@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: barcode_analysis_mv
 actions:
   - name: barcode_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.barcode_dim
+        FROM {catalog}.{silver_schema}.barcode_fct
     target: v_barcode_analysis
 
   - name: write_barcode_analysis_mv

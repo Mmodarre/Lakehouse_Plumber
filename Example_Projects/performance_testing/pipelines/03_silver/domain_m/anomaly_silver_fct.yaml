@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_m_silver
 flowgroup: anomaly_silver_fct
 presets:
   - default_delta_properties

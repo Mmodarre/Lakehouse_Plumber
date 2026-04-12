@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_o_bronze
 flowgroup: pixel_event_bronze
 presets:
   - default_delta_properties

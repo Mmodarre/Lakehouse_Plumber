@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: oak_origin_monthly_agg_mv
 actions:
   - name: oak_origin_monthly_agg_load

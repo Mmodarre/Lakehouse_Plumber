@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: routing_report_mv
 actions:
   - name: routing_report_sql

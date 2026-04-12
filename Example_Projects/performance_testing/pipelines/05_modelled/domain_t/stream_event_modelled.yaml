@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_t_modelled
 flowgroup: stream_event_modelled
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_e_raw
 flowgroup: route_optimization_ingestion
 presets:
   - default_delta_properties

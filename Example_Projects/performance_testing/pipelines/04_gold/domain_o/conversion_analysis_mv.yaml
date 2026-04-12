@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: conversion_analysis_mv
 actions:
   - name: conversion_analysis_sql

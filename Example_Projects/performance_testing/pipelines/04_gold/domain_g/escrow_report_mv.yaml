@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: escrow_report_mv
 actions:
   - name: escrow_report_sql

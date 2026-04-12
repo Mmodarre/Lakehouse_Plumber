@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: home_inspection_quarterly_agg_mv
 actions:
   - name: home_inspection_quarterly_agg_load

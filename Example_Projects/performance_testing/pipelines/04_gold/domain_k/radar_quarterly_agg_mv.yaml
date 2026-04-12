@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: radar_quarterly_agg_mv
 actions:
   - name: radar_quarterly_agg_load

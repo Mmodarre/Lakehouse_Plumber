@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_s_bronze
 flowgroup: bottling_line_bronze
 presets:
   - default_delta_properties

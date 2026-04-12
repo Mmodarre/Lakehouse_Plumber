@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: allele_daily_agg_mv
 actions:
   - name: allele_daily_agg_load

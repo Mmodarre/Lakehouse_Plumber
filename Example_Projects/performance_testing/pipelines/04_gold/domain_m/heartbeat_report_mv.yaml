@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: heartbeat_report_mv
 actions:
   - name: heartbeat_report_sql

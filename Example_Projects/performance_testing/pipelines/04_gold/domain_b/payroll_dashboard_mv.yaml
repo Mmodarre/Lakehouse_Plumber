@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: payroll_dashboard_mv
 actions:
   - name: payroll_dashboard_sql

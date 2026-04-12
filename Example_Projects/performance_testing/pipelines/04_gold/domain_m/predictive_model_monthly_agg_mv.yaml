@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: predictive_model_monthly_agg_mv
 actions:
   - name: predictive_model_monthly_agg_load

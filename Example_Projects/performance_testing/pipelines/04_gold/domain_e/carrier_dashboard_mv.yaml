@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: carrier_dashboard_mv
 actions:
   - name: carrier_dashboard_sql

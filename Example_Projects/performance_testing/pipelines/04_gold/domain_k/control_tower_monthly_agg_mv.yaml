@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: control_tower_monthly_agg_mv
 actions:
   - name: control_tower_monthly_agg_load

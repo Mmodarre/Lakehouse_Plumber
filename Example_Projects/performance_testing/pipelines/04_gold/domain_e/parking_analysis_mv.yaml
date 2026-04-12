@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: parking_analysis_mv
 actions:
   - name: parking_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.parking_dim
+        FROM {catalog}.{silver_schema}.parking_fct
     target: v_parking_analysis
 
   - name: write_parking_analysis_mv

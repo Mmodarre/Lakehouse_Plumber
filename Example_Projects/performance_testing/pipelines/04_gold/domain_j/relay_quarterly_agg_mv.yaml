@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: relay_quarterly_agg_mv
 actions:
   - name: relay_quarterly_agg_load

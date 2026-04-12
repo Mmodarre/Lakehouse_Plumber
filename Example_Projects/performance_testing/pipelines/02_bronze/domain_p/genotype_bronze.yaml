@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_p_bronze
 flowgroup: genotype_bronze
 presets:
   - default_delta_properties

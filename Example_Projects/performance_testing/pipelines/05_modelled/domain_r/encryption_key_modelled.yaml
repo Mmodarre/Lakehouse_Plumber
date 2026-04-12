@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_r_modelled
 flowgroup: encryption_key_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: encryption_key_dim
+      table: encryption_key_fct
     target: v_encryption_key_silver
     description: "Load encryption_key from silver for modelling"
 

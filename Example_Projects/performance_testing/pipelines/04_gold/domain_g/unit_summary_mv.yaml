@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: unit_summary_mv
 actions:
   - name: unit_summary_sql

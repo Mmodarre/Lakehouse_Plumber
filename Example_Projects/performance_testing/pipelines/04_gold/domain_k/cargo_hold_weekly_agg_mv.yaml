@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: cargo_hold_weekly_agg_mv
 actions:
   - name: cargo_hold_weekly_agg_load

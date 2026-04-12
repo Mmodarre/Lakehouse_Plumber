@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: campus_analysis_mv
 actions:
   - name: campus_analysis_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: study_group_weekly_agg_mv
 actions:
   - name: study_group_weekly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_r_modelled
 flowgroup: ephemeris_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: ephemeris_dim
+      table: ephemeris_fct
     target: v_ephemeris_silver
     description: "Load ephemeris from silver for modelling"
 

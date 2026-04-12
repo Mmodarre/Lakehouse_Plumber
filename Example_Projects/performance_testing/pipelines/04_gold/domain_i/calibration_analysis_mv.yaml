@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: calibration_analysis_mv
 actions:
   - name: calibration_analysis_sql

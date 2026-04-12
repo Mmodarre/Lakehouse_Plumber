@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: gift_card_analysis_mv
 actions:
   - name: gift_card_analysis_sql

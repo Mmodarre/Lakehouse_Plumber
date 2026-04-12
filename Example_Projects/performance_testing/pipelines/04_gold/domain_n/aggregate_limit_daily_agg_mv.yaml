@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: aggregate_limit_daily_agg_mv
 actions:
   - name: aggregate_limit_daily_agg_load

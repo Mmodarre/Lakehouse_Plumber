@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: sommelier_analysis_mv
 actions:
   - name: sommelier_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.sommelier_dim
+        FROM {catalog}.{silver_schema}.sommelier_fct
     target: v_sommelier_analysis
 
   - name: write_sommelier_analysis_mv

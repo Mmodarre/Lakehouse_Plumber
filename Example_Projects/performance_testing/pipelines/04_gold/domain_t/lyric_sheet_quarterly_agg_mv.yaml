@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: lyric_sheet_quarterly_agg_mv
 actions:
   - name: lyric_sheet_quarterly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: price_tag_summary_mv
 actions:
   - name: price_tag_summary_sql

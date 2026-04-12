@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: power_factor_report_mv
 actions:
   - name: power_factor_report_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.power_factor_dim
+        FROM {catalog}.{silver_schema}.power_factor_fct
     target: v_power_factor_report
 
   - name: write_power_factor_report_mv

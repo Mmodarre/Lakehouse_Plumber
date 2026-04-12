@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: variant_quarterly_agg_mv
 actions:
   - name: variant_quarterly_agg_load

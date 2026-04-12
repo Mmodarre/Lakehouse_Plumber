@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: bank_statement_quarterly_agg_mv
 actions:
   - name: bank_statement_quarterly_agg_load

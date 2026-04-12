@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: account_analysis_mv
 actions:
   - name: account_analysis_sql

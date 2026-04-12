@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: ephemeris_summary_mv
 actions:
   - name: ephemeris_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.ephemeris_dim
+        FROM {catalog}.{silver_schema}.ephemeris_fct
     target: v_ephemeris_summary
 
   - name: write_ephemeris_summary_mv

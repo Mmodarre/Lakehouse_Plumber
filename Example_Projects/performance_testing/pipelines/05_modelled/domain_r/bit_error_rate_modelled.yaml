@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_r_modelled
 flowgroup: bit_error_rate_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: bit_error_rate_dim
+      table: bit_error_rate_fct
     target: v_bit_error_rate_silver
     description: "Load bit_error_rate from silver for modelling"
 

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: menu_item_analysis_mv
 actions:
   - name: menu_item_analysis_sql

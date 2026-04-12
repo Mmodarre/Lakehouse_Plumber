@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: fuel_tank_analysis_mv
 actions:
   - name: fuel_tank_analysis_sql

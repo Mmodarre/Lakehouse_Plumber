@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_d_bronze
 flowgroup: case_manager_bronze
 presets:
   - default_delta_properties

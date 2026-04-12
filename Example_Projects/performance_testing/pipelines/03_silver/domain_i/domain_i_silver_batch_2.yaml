@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: work_instruction_silver_dim
 presets:
   - default_delta_properties
@@ -31,7 +31,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: spc_chart_silver_fct
 presets:
   - default_delta_properties
@@ -64,7 +64,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: control_plan_silver_dim
 presets:
   - default_delta_properties
@@ -97,7 +97,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: fmea_silver_dim
 presets:
   - default_delta_properties
@@ -130,7 +130,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: ppap_silver_fct
 presets:
   - default_delta_properties
@@ -163,7 +163,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: first_article_silver_dim
 presets:
   - default_delta_properties
@@ -196,7 +196,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: gauge_rr_silver_dim
 presets:
   - default_delta_properties
@@ -229,7 +229,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: capability_study_silver_fct
 presets:
   - default_delta_properties
@@ -262,7 +262,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: corrective_action_silver_dim
 presets:
   - default_delta_properties
@@ -295,7 +295,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: preventive_action_silver_dim
 presets:
   - default_delta_properties
@@ -328,7 +328,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: kaizen_silver_fct
 presets:
   - default_delta_properties
@@ -361,7 +361,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: kanban_silver_dim
 presets:
   - default_delta_properties
@@ -394,7 +394,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: andon_silver_dim
 presets:
   - default_delta_properties
@@ -427,7 +427,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: poka_yoke_silver_fct
 presets:
   - default_delta_properties
@@ -460,7 +460,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: takt_time_silver_dim
 presets:
   - default_delta_properties
@@ -493,7 +493,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: cycle_time_silver_dim
 presets:
   - default_delta_properties
@@ -526,7 +526,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: oee_silver_fct
 presets:
   - default_delta_properties
@@ -559,7 +559,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: mtbf_silver_dim
 presets:
   - default_delta_properties
@@ -592,7 +592,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: mttr_silver_dim
 presets:
   - default_delta_properties
@@ -625,7 +625,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_i_silver
 flowgroup: spare_part_silver_fct
 presets:
   - default_delta_properties

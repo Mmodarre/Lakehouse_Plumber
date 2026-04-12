@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: transaction_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: transaction_dim
+      table: transaction_fct
     target: v_transaction_silver
     description: "Load transaction from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "transaction_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: account_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "account_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: ledger_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "ledger_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: journal_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: journal_dim
+      table: journal_fct
     target: v_journal_silver
     description: "Load journal from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "journal_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: budget_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "budget_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: forecast_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "forecast_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: tax_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: tax_dim
+      table: tax_fct
     target: v_tax_silver
     description: "Load tax from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tax_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: audit_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "audit_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: compliance_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "compliance_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: regulation_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: regulation_dim
+      table: regulation_fct
     target: v_regulation_silver
     description: "Load regulation from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "regulation_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: asset_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "asset_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: depreciation_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "depreciation_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: liability_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: liability_dim
+      table: liability_fct
     target: v_liability_silver
     description: "Load liability from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "liability_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: equity_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "equity_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: revenue_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "revenue_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: expense_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: expense_dim
+      table: expense_fct
     target: v_expense_silver
     description: "Load expense from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "expense_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: cost_center_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "cost_center_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: profit_center_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "profit_center_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: currency_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: currency_dim
+      table: currency_fct
     target: v_currency_silver
     description: "Load currency from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "currency_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: exchange_rate_modelled
 presets:
   - default_delta_properties

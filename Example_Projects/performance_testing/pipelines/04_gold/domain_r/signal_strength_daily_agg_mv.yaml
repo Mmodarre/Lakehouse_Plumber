@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: signal_strength_daily_agg_mv
 actions:
   - name: signal_strength_daily_agg_load

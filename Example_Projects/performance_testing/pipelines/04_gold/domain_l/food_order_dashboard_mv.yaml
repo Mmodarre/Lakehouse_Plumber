@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: food_order_dashboard_mv
 actions:
   - name: food_order_dashboard_sql

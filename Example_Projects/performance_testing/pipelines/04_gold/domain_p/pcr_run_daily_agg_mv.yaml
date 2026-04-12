@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: pcr_run_daily_agg_mv
 actions:
   - name: pcr_run_daily_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('day', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.pcr_run_dim
+        FROM {catalog}.{silver_schema}.pcr_run_fct
         GROUP BY 1
     target: v_pcr_run_daily_agg
 

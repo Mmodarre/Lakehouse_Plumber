@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: tenant_analysis_mv
 actions:
   - name: tenant_analysis_sql

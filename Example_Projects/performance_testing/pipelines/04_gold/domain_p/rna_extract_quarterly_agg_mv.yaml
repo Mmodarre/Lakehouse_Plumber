@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: rna_extract_quarterly_agg_mv
 actions:
   - name: rna_extract_quarterly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: meal_plan_quarterly_agg_mv
 actions:
   - name: meal_plan_quarterly_agg_load

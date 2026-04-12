@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_f_bronze
 flowgroup: research_grant_bronze
 presets:
   - default_delta_properties

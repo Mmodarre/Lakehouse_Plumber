@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: custom_audience_weekly_agg_mv
 actions:
   - name: custom_audience_weekly_agg_load

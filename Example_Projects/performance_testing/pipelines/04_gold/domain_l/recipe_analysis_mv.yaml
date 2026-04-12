@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: recipe_analysis_mv
 actions:
   - name: recipe_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.recipe_dim
+        FROM {catalog}.{silver_schema}.recipe_fct
     target: v_recipe_analysis
 
   - name: write_recipe_analysis_mv

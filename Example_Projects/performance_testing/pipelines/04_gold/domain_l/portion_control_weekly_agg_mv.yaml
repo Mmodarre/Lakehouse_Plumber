@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: portion_control_weekly_agg_mv
 actions:
   - name: portion_control_weekly_agg_load

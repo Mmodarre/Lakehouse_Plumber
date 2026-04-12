@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_f_bronze
 flowgroup: alumni_donor_bronze
 presets:
   - default_delta_properties

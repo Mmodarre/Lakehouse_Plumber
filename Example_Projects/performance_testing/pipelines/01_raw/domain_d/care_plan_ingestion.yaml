@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_d_raw
 flowgroup: care_plan_ingestion
 presets:
   - default_delta_properties

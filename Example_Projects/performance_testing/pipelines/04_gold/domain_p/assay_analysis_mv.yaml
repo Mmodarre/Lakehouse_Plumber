@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: assay_analysis_mv
 actions:
   - name: assay_analysis_sql

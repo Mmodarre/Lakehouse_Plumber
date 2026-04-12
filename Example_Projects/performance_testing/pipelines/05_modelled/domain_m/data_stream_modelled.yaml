@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_m_modelled
 flowgroup: data_stream_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: data_stream_dim
+      table: data_stream_fct
     target: v_data_stream_silver
     description: "Load data_stream from silver for modelling"
 

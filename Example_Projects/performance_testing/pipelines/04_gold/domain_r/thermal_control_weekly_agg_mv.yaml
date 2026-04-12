@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: thermal_control_weekly_agg_mv
 actions:
   - name: thermal_control_weekly_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('week', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.thermal_control_dim
+        FROM {catalog}.{silver_schema}.thermal_control_fct
         GROUP BY 1
     target: v_thermal_control_weekly_agg
 

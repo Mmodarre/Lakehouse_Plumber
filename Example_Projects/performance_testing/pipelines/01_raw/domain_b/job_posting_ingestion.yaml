@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_b_raw
 flowgroup: job_posting_ingestion
 presets:
   - default_delta_properties

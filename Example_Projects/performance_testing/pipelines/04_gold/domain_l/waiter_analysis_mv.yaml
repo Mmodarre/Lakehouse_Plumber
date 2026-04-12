@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: waiter_analysis_mv
 actions:
   - name: waiter_analysis_sql

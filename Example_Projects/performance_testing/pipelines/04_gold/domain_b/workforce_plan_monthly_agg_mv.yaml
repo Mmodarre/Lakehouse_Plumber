@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: workforce_plan_monthly_agg_mv
 actions:
   - name: workforce_plan_monthly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_q_modelled
 flowgroup: possession_stat_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: possession_stat_dim
+      table: possession_stat_fct
     target: v_possession_stat_silver
     description: "Load possession_stat from silver for modelling"
 

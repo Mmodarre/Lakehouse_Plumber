@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: patient_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: patient_dim
+      table: patient_fct
     target: v_patient_silver
     description: "Load patient from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "patient_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: doctor_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "doctor_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: appointment_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "appointment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: prescription_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: prescription_dim
+      table: prescription_fct
     target: v_prescription_silver
     description: "Load prescription from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "prescription_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: diagnosis_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "diagnosis_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: treatment_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "treatment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: insurance_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: insurance_dim
+      table: insurance_fct
     target: v_insurance_silver
     description: "Load insurance from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "insurance_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: claim_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "claim_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: hospital_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "hospital_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: ward_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: ward_dim
+      table: ward_fct
     target: v_ward_silver
     description: "Load ward from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "ward_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: lab_test_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "lab_test_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: lab_result_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "lab_result_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: medication_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: medication_dim
+      table: medication_fct
     target: v_medication_silver
     description: "Load medication from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "medication_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: allergy_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "allergy_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: immunization_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "immunization_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: referral_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: referral_dim
+      table: referral_fct
     target: v_referral_silver
     description: "Load referral from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "referral_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: discharge_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "discharge_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: admission_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "admission_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: medical_procedure_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: medical_procedure_dim
+      table: medical_procedure_fct
     target: v_medical_procedure_silver
     description: "Load medical_procedure from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "medical_procedure_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: vital_sign_modelled
 presets:
   - default_delta_properties

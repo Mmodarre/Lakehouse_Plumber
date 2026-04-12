@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: sync_license_quarterly_agg_mv
 actions:
   - name: sync_license_quarterly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: social_post_weekly_agg_mv
 actions:
   - name: social_post_weekly_agg_load

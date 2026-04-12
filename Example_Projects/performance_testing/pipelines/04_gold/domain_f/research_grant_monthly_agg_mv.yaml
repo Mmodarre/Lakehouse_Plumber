@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: research_grant_monthly_agg_mv
 actions:
   - name: research_grant_monthly_agg_load

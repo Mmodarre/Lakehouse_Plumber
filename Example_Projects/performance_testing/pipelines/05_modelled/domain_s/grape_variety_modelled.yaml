@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_s_modelled
 flowgroup: grape_variety_modelled
 presets:
   - default_delta_properties

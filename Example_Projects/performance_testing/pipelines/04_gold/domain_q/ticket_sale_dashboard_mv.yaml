@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: ticket_sale_dashboard_mv
 actions:
   - name: ticket_sale_dashboard_sql

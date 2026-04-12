@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_q_silver
 flowgroup: draft_pick_silver_dim
 presets:
   - default_delta_properties

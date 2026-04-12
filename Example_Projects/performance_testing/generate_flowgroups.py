@@ -234,7 +234,7 @@ SCHEMA_FILES = ["customer_schema", "lineitem_schema", "nation_schema", "orders_s
 # ---------------------------------------------------------------------------
 
 # --- RAW LAYER: template-based ingestion ---
-RAW_TMPL_BASED = """pipeline: perf_raw
+RAW_TMPL_BASED = """pipeline: PIPELINE
 flowgroup: ENTITY_ingestion
 presets:
   - default_delta_properties
@@ -246,7 +246,7 @@ template_parameters:
 """
 
 # --- RAW LAYER: direct CloudFiles (no template) ---
-RAW_DIRECT = """pipeline: perf_raw
+RAW_DIRECT = """pipeline: PIPELINE
 flowgroup: ENTITY_ingestion
 presets:
   - default_delta_properties
@@ -280,7 +280,7 @@ actions:
 """
 
 # --- BRONZE LAYER: template-based ---
-BRONZE_TMPL_BASED = """pipeline: perf_bronze
+BRONZE_TMPL_BASED = """pipeline: PIPELINE
 flowgroup: ENTITY_bronze
 presets:
   - default_delta_properties
@@ -291,7 +291,7 @@ template_parameters:
 """
 
 # --- BRONZE LAYER: direct multi-action ---
-BRONZE_DIRECT = """pipeline: perf_bronze
+BRONZE_DIRECT = """pipeline: PIPELINE
 flowgroup: ENTITY_bronze
 presets:
   - default_delta_properties
@@ -342,7 +342,7 @@ actions:
 """
 
 # --- BRONZE LAYER: direct with migration (7 actions) ---
-BRONZE_MIGRATION = """pipeline: perf_bronze
+BRONZE_MIGRATION = """pipeline: PIPELINE
 flowgroup: ENTITY_bronze
 presets:
   - default_delta_properties
@@ -430,7 +430,7 @@ actions:
 """
 
 # --- SILVER LAYER: direct CDC ---
-SILVER_CDC = """pipeline: perf_silver
+SILVER_CDC = """pipeline: PIPELINE
 flowgroup: ENTITY_silver_SUFFIX
 presets:
   - default_delta_properties
@@ -465,7 +465,7 @@ actions:
 """
 
 # --- GOLD LAYER: direct MV ---
-GOLD_MV = """pipeline: perf_gold
+GOLD_MV = """pipeline: PIPELINE
 flowgroup: ENTITY_MVTYPE_mv
 actions:
   - name: ENTITY_MVTYPE_sql
@@ -476,7 +476,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.ENTITY_dim
+        FROM {catalog}.{silver_schema}.ENTITY_SUFFIX
     target: v_ENTITY_MVTYPE
 
   - name: write_ENTITY_MVTYPE_mv
@@ -490,7 +490,7 @@ actions:
 """
 
 # --- GOLD LAYER: direct aggregation MV ---
-GOLD_AGG = """pipeline: perf_gold
+GOLD_AGG = """pipeline: PIPELINE
 flowgroup: ENTITY_AGGTYPE_agg_mv
 actions:
   - name: ENTITY_AGGTYPE_agg_load
@@ -502,7 +502,7 @@ actions:
           date_trunc('AGGTRUNC', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.ENTITY_dim
+        FROM {catalog}.{silver_schema}.ENTITY_SUFFIX
         GROUP BY 1
     target: v_ENTITY_AGGTYPE_agg
 
@@ -517,7 +517,7 @@ actions:
 """
 
 # --- MODELLED LAYER: direct load + transform + write ---
-MODELLED_DIRECT = """pipeline: perf_modelled
+MODELLED_DIRECT = """pipeline: PIPELINE
 flowgroup: ENTITY_modelled
 presets:
   - default_delta_properties
@@ -529,7 +529,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: ENTITY_dim
+      table: ENTITY_SUFFIX
     target: v_ENTITY_silver
     description: "Load ENTITY from silver for modelling"
 
@@ -665,6 +665,13 @@ def main():
 
     for domain in DOMAINS:
         entities = ENTITIES_PER_DOMAIN[domain]
+        # Pipeline per domain+layer: e.g. "domain_a_raw", "domain_a_bronze", etc.
+        # 20 domains × 5 layers = 100 pipelines
+        pip_raw = f"{domain}_raw"
+        pip_bronze = f"{domain}_bronze"
+        pip_silver = f"{domain}_silver"
+        pip_gold = f"{domain}_gold"
+        pip_modelled = f"{domain}_modelled"
 
         # =================================================================
         # RAW LAYER (40 entities per domain)
@@ -673,7 +680,7 @@ def main():
         for i, entity in enumerate(entities):
             if i % 5 in (0, 1):
                 # Direct CloudFiles — always individual file
-                content = RAW_DIRECT.replace("ENTITY", entity)
+                content = RAW_DIRECT.replace("ENTITY", entity).replace("PIPELINE", pip_raw)
                 path = BASE / "01_raw" / domain / f"{entity}_ingestion.yaml"
                 path.write_text(content)
                 direct_count += 1
@@ -702,7 +709,8 @@ def main():
                     content = (RAW_TMPL_BASED
                                .replace("ENTITY", entity)
                                .replace("TMPL_NAME", tmpl)
-                               .replace("SCHEMA_NAME", schema))
+                               .replace("SCHEMA_NAME", schema)
+                               .replace("PIPELINE", pip_raw))
                     path = BASE / "01_raw" / domain / f"{entity}_ingestion.yaml"
                     path.write_text(content)
                     single_file_fgs += 1
@@ -726,7 +734,7 @@ def main():
                     fname = f"{domain}_{short_tmpl}_batch{suffix}.yaml"
                     fpath = BASE / "01_raw" / domain / fname
                     write_array_syntax_file(
-                        fpath, "perf_raw", tmpl_name,
+                        fpath, pip_raw, tmpl_name,
                         ["default_delta_properties"],
                         chunk,
                     )
@@ -751,14 +759,14 @@ def main():
                         },
                     })
                 else:
-                    content = BRONZE_TMPL_BASED.replace("ENTITY", entity)
+                    content = BRONZE_TMPL_BASED.replace("ENTITY", entity).replace("PIPELINE", pip_bronze)
                     path = BASE / "02_bronze" / domain / f"{entity}_bronze.yaml"
                     path.write_text(content)
                     single_file_fgs += 1
                     total_files += 1
             elif i % 5 == 4:
                 # Direct with migration — always individual (too complex to bundle)
-                content = BRONZE_MIGRATION.replace("ENTITY", entity)
+                content = BRONZE_MIGRATION.replace("ENTITY", entity).replace("PIPELINE", pip_bronze)
                 path = BASE / "02_bronze" / domain / f"{entity}_bronze.yaml"
                 path.write_text(content)
                 direct_count += 1
@@ -766,7 +774,7 @@ def main():
                 total_files += 1
             else:
                 # Direct multi-action — always individual
-                content = BRONZE_DIRECT.replace("ENTITY", entity)
+                content = BRONZE_DIRECT.replace("ENTITY", entity).replace("PIPELINE", pip_bronze)
                 path = BASE / "02_bronze" / domain / f"{entity}_bronze.yaml"
                 path.write_text(content)
                 direct_count += 1
@@ -784,7 +792,7 @@ def main():
                 fname = f"{domain}_bronze_batch{suffix}.yaml"
                 fpath = BASE / "02_bronze" / domain / fname
                 write_array_syntax_file(
-                    fpath, "perf_bronze", "bronze_cleanse_template",
+                    fpath, pip_bronze, "bronze_cleanse_template",
                     ["default_delta_properties"],
                     chunk,
                 )
@@ -801,10 +809,10 @@ def main():
 
             if domain in SILVER_MULTIDOC_DOMAINS:
                 silver_docs.append(
-                    SILVER_CDC.replace("ENTITY", entity).replace("SUFFIX", suffix)
+                    SILVER_CDC.replace("ENTITY", entity).replace("SUFFIX", suffix).replace("PIPELINE", pip_silver)
                 )
             else:
-                content = SILVER_CDC.replace("ENTITY", entity).replace("SUFFIX", suffix)
+                content = SILVER_CDC.replace("ENTITY", entity).replace("SUFFIX", suffix).replace("PIPELINE", pip_silver)
                 path = BASE / "03_silver" / domain / f"{entity}_silver_{suffix}.yaml"
                 path.write_text(content)
                 single_file_fgs += 1
@@ -827,9 +835,10 @@ def main():
         # GOLD LAYER (40 entities per domain) — always individual files
         # =================================================================
         for i, entity in enumerate(entities):
+            suffix = "dim" if i % 3 != 0 else "fct"
             if i < 20:
                 mv_type = ["summary", "analysis", "report", "dashboard"][i % 4]
-                content = GOLD_MV.replace("ENTITY", entity).replace("MVTYPE", mv_type)
+                content = GOLD_MV.replace("ENTITY", entity).replace("MVTYPE", mv_type).replace("SUFFIX", suffix).replace("PIPELINE", pip_gold)
                 path = BASE / "04_gold" / domain / f"{entity}_{mv_type}_mv.yaml"
             else:
                 agg_type = ["daily", "weekly", "monthly", "quarterly"][i % 4]
@@ -837,7 +846,9 @@ def main():
                 content = (GOLD_AGG
                            .replace("ENTITY", entity)
                            .replace("AGGTYPE", agg_type)
-                           .replace("AGGTRUNC", agg_trunc))
+                           .replace("AGGTRUNC", agg_trunc)
+                           .replace("SUFFIX", suffix)
+                           .replace("PIPELINE", pip_gold))
                 path = BASE / "04_gold" / domain / f"{entity}_{agg_type}_agg_mv.yaml"
             path.write_text(content)
             direct_count += 1
@@ -850,11 +861,12 @@ def main():
         # =================================================================
         modelled_docs = []
         for i, entity in enumerate(entities):
+            suffix = "dim" if i % 3 != 0 else "fct"
             direct_count += 1
             if domain in MODELLED_MULTIDOC_DOMAINS:
-                modelled_docs.append(MODELLED_DIRECT.replace("ENTITY", entity))
+                modelled_docs.append(MODELLED_DIRECT.replace("ENTITY", entity).replace("SUFFIX", suffix).replace("PIPELINE", pip_modelled))
             else:
-                content = MODELLED_DIRECT.replace("ENTITY", entity)
+                content = MODELLED_DIRECT.replace("ENTITY", entity).replace("SUFFIX", suffix).replace("PIPELINE", pip_modelled)
                 path = BASE / "05_modelled" / domain / f"{entity}_modelled.yaml"
                 path.write_text(content)
                 single_file_fgs += 1

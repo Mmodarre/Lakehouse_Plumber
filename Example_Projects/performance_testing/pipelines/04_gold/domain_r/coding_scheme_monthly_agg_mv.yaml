@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: coding_scheme_monthly_agg_mv
 actions:
   - name: coding_scheme_monthly_agg_load

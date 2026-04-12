@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: iot_device_analysis_mv
 actions:
   - name: iot_device_analysis_sql

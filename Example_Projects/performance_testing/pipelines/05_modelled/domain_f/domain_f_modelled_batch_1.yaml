@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: student_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: student_dim
+      table: student_fct
     target: v_student_silver
     description: "Load student from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "student_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: course_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "course_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: enrollment_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "enrollment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: instructor_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: instructor_dim
+      table: instructor_fct
     target: v_instructor_silver
     description: "Load instructor from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "instructor_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: classroom_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "classroom_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: assignment_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "assignment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: grade_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: grade_dim
+      table: grade_fct
     target: v_grade_silver
     description: "Load grade from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "grade_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: semester_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "semester_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: degree_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "degree_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: scholarship_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: scholarship_dim
+      table: scholarship_fct
     target: v_scholarship_silver
     description: "Load scholarship from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "scholarship_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: lecture_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "lecture_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: exam_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "exam_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: library_book_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: library_book_dim
+      table: library_book_fct
     target: v_library_book_silver
     description: "Load library_book from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "library_book_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: campus_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "campus_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: tuition_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tuition_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: transcript_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: transcript_dim
+      table: transcript_fct
     target: v_transcript_silver
     description: "Load transcript from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "transcript_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: advisor_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "advisor_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: faculty_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "faculty_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: curriculum_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: curriculum_dim
+      table: curriculum_fct
     target: v_curriculum_silver
     description: "Load curriculum from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "curriculum_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: program_modelled
 presets:
   - default_delta_properties

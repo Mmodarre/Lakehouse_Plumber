@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: voltage_regulator_daily_agg_mv
 actions:
   - name: voltage_regulator_daily_agg_load

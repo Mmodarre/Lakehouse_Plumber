@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: freezer_quarterly_agg_mv
 actions:
   - name: freezer_quarterly_agg_load

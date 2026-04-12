@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: flight_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: flight_dim
+      table: flight_fct
     target: v_flight_silver
     description: "Load flight from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "flight_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: passenger_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "passenger_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: booking_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "booking_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: airport_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: airport_dim
+      table: airport_fct
     target: v_airport_silver
     description: "Load airport from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "airport_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: runway_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "runway_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: gate_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "gate_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: baggage_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: baggage_dim
+      table: baggage_fct
     target: v_baggage_silver
     description: "Load baggage from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "baggage_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: boarding_pass_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "boarding_pass_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: crew_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "crew_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: cockpit_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: cockpit_dim
+      table: cockpit_fct
     target: v_cockpit_silver
     description: "Load cockpit from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "cockpit_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: cabin_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "cabin_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: ticket_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "ticket_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: itinerary_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: itinerary_dim
+      table: itinerary_fct
     target: v_itinerary_silver
     description: "Load itinerary from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "itinerary_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: lounge_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "lounge_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: terminal_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "terminal_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: airline_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: airline_dim
+      table: airline_fct
     target: v_airline_silver
     description: "Load airline from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "airline_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: charter_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "charter_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: fuel_tank_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "fuel_tank_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: hangar_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: hangar_dim
+      table: hangar_fct
     target: v_hangar_silver
     description: "Load hangar from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "hangar_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: air_route_modelled
 presets:
   - default_delta_properties

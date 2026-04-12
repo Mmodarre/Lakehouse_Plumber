@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: audience_dashboard_mv
 actions:
   - name: audience_dashboard_sql

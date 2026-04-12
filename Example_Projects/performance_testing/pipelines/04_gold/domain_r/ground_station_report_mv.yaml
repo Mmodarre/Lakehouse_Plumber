@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: ground_station_report_mv
 actions:
   - name: ground_station_report_sql

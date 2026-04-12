@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: fleet_report_mv
 actions:
   - name: fleet_report_sql

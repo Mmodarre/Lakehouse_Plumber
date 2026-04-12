@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_s_modelled
 flowgroup: vineyard_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: vineyard_dim
+      table: vineyard_fct
     target: v_vineyard_silver
     description: "Load vineyard from silver for modelling"
 

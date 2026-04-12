@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: transaction_summary_mv
 actions:
   - name: transaction_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.transaction_dim
+        FROM {catalog}.{silver_schema}.transaction_fct
     target: v_transaction_summary
 
   - name: write_transaction_summary_mv

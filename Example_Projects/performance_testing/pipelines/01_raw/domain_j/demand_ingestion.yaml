@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_j_raw
 flowgroup: demand_ingestion
 presets:
   - default_delta_properties

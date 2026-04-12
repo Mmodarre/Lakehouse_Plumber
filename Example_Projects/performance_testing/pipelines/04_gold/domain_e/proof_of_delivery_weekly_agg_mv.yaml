@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: proof_of_delivery_weekly_agg_mv
 actions:
   - name: proof_of_delivery_weekly_agg_load

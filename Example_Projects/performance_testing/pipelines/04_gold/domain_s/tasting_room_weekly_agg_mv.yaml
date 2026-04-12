@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: tasting_room_weekly_agg_mv
 actions:
   - name: tasting_room_weekly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: salary_cap_weekly_agg_mv
 actions:
   - name: salary_cap_weekly_agg_load

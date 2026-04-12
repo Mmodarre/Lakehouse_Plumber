@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: medication_summary_mv
 actions:
   - name: medication_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.medication_dim
+        FROM {catalog}.{silver_schema}.medication_fct
     target: v_medication_summary
 
   - name: write_medication_summary_mv

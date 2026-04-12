@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_o_modelled
 flowgroup: spam_report_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: spam_report_dim
+      table: spam_report_fct
     target: v_spam_report_silver
     description: "Load spam_report from silver for modelling"
 

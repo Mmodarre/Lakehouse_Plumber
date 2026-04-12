@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: meter_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: meter_dim
+      table: meter_fct
     target: v_meter_silver
     description: "Load meter from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "meter_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: reading_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "reading_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: grid_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "grid_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: transformer_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: transformer_dim
+      table: transformer_fct
     target: v_transformer_silver
     description: "Load transformer from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "transformer_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: substation_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "substation_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: outage_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "outage_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: load_profile_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: load_profile_dim
+      table: load_profile_fct
     target: v_load_profile_silver
     description: "Load load_profile from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "load_profile_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: demand_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "demand_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: generation_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "generation_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: solar_panel_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: solar_panel_dim
+      table: solar_panel_fct
     target: v_solar_panel_silver
     description: "Load solar_panel from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "solar_panel_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: wind_turbine_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "wind_turbine_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: battery_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "battery_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: inverter_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: inverter_dim
+      table: inverter_fct
     target: v_inverter_silver
     description: "Load inverter from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "inverter_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: tariff_plan_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tariff_plan_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: billing_cycle_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "billing_cycle_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: peak_usage_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: peak_usage_dim
+      table: peak_usage_fct
     target: v_peak_usage_silver
     description: "Load peak_usage from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "peak_usage_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: off_peak_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "off_peak_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: net_metering_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "net_metering_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: power_factor_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: power_factor_dim
+      table: power_factor_fct
     target: v_power_factor_silver
     description: "Load power_factor from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "power_factor_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_j_modelled
 flowgroup: voltage_modelled
 presets:
   - default_delta_properties

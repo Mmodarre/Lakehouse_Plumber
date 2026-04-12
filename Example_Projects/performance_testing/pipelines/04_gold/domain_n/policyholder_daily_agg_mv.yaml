@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: policyholder_daily_agg_mv
 actions:
   - name: policyholder_daily_agg_load

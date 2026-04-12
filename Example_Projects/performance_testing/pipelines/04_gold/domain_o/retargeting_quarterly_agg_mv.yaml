@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: retargeting_quarterly_agg_mv
 actions:
   - name: retargeting_quarterly_agg_load

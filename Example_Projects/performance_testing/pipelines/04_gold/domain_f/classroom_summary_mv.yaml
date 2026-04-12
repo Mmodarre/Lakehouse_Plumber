@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: classroom_summary_mv
 actions:
   - name: classroom_summary_sql

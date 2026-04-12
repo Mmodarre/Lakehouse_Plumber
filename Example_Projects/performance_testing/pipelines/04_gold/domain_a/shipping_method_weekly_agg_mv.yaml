@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: shipping_method_weekly_agg_mv
 actions:
   - name: shipping_method_weekly_agg_load

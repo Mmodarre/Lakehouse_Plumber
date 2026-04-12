@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: pantry_report_mv
 actions:
   - name: pantry_report_sql

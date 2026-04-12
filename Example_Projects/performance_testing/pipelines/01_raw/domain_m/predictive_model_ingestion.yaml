@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_m_raw
 flowgroup: predictive_model_ingestion
 presets:
   - default_delta_properties

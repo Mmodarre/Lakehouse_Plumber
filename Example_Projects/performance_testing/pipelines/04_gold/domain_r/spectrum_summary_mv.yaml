@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: spectrum_summary_mv
 actions:
   - name: spectrum_summary_sql

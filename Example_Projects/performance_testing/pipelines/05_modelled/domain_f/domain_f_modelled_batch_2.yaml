@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: thesis_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "thesis_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: dissertation_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: dissertation_dim
+      table: dissertation_fct
     target: v_dissertation_silver
     description: "Load dissertation from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "dissertation_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: research_grant_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "research_grant_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: lab_session_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "lab_session_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: fieldwork_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: fieldwork_dim
+      table: fieldwork_fct
     target: v_fieldwork_silver
     description: "Load fieldwork from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "fieldwork_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: study_group_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "study_group_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: tutoring_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tutoring_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: plagiarism_check_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: plagiarism_check_dim
+      table: plagiarism_check_fct
     target: v_plagiarism_check_silver
     description: "Load plagiarism_check from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "plagiarism_check_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: accreditation_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "accreditation_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: alumni_donor_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "alumni_donor_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: career_fair_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: career_fair_dim
+      table: career_fair_fct
     target: v_career_fair_silver
     description: "Load career_fair from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "career_fair_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: internship_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "internship_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: co_op_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "co_op_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: exchange_program_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: exchange_program_dim
+      table: exchange_program_fct
     target: v_exchange_program_silver
     description: "Load exchange_program from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "exchange_program_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: dormitory_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "dormitory_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: meal_plan_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "meal_plan_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: student_club_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: student_club_dim
+      table: student_club_fct
     target: v_student_club_silver
     description: "Load student_club from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "student_club_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: athletics_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "athletics_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: financial_aid_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "financial_aid_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_f_modelled
 flowgroup: work_study_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: work_study_dim
+      table: work_study_fct
     target: v_work_study_silver
     description: "Load work_study from silver for modelling"
 

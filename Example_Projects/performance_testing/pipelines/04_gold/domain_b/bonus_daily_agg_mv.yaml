@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: bonus_daily_agg_mv
 actions:
   - name: bonus_daily_agg_load

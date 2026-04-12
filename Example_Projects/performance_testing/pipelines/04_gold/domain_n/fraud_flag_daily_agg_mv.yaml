@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: fraud_flag_daily_agg_mv
 actions:
   - name: fraud_flag_daily_agg_load

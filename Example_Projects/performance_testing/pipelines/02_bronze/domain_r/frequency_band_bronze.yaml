@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_r_bronze
 flowgroup: frequency_band_bronze
 presets:
   - default_delta_properties

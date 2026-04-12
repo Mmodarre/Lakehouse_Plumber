@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: western_blot_monthly_agg_mv
 actions:
   - name: western_blot_monthly_agg_load

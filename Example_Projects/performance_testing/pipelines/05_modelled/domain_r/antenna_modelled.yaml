@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_r_modelled
 flowgroup: antenna_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: antenna_dim
+      table: antenna_fct
     target: v_antenna_silver
     description: "Load antenna from silver for modelling"
 

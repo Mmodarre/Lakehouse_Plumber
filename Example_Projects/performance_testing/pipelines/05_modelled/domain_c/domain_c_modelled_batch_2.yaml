@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: invoice_line_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "invoice_line_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: credit_note_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: credit_note_dim
+      table: credit_note_fct
     target: v_credit_note_silver
     description: "Load credit_note from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "credit_note_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: debit_note_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "debit_note_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: bank_statement_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "bank_statement_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: reconciliation_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: reconciliation_dim
+      table: reconciliation_fct
     target: v_reconciliation_silver
     description: "Load reconciliation from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "reconciliation_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: cash_flow_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "cash_flow_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: trial_balance_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "trial_balance_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: balance_sheet_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: balance_sheet_dim
+      table: balance_sheet_fct
     target: v_balance_sheet_silver
     description: "Load balance_sheet from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "balance_sheet_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: income_statement_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "income_statement_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: variance_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "variance_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: accrual_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: accrual_dim
+      table: accrual_fct
     target: v_accrual_silver
     description: "Load accrual from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "accrual_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: prepayment_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "prepayment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: write_off_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "write_off_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: provision_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: provision_dim
+      table: provision_fct
     target: v_provision_silver
     description: "Load provision from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "provision_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: intercompany_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "intercompany_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: consolidation_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "consolidation_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: segment_report_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: segment_report_dim
+      table: segment_report_fct
     target: v_segment_report_silver
     description: "Load segment_report from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "segment_report_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: tax_filing_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tax_filing_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: withholding_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "withholding_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_c_modelled
 flowgroup: vat_return_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: vat_return_dim
+      table: vat_return_fct
     target: v_vat_return_silver
     description: "Load vat_return from silver for modelling"
 

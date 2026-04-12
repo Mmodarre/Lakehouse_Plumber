@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_m_bronze
 flowgroup: data_lake_ingestion_bronze
 presets:
   - default_delta_properties

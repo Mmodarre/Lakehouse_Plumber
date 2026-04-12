@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: catering_event_quarterly_agg_mv
 actions:
   - name: catering_event_quarterly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: actuary_summary_mv
 actions:
   - name: actuary_summary_sql

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: taxiway_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "taxiway_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: apron_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: apron_dim
+      table: apron_fct
     target: v_apron_silver
     description: "Load apron from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "apron_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: control_tower_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "control_tower_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: radar_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "radar_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: waypoint_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: waypoint_dim
+      table: waypoint_fct
     target: v_waypoint_silver
     description: "Load waypoint from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "waypoint_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: airspace_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "airspace_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: slot_time_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "slot_time_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: ground_handling_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: ground_handling_dim
+      table: ground_handling_fct
     target: v_ground_handling_silver
     description: "Load ground_handling from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "ground_handling_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: catering_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "catering_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: cargo_hold_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "cargo_hold_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: duty_free_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: duty_free_dim
+      table: duty_free_fct
     target: v_duty_free_silver
     description: "Load duty_free from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "duty_free_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: immigration_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "immigration_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: customs_check_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "customs_check_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: visa_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: visa_dim
+      table: visa_fct
     target: v_visa_silver
     description: "Load visa from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "visa_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: transit_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "transit_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: codeshare_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "codeshare_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: interline_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: interline_dim
+      table: interline_fct
     target: v_interline_silver
     description: "Load interline from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "interline_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: frequent_flyer_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "frequent_flyer_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: upgrade_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "upgrade_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_k_modelled
 flowgroup: standby_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: standby_dim
+      table: standby_fct
     target: v_standby_silver
     description: "Load standby from silver for modelling"
 

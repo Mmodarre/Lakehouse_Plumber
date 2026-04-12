@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_t_modelled
 flowgroup: mechanical_royalty_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: mechanical_royalty_dim
+      table: mechanical_royalty_fct
     target: v_mechanical_royalty_silver
     description: "Load mechanical_royalty from silver for modelling"
 

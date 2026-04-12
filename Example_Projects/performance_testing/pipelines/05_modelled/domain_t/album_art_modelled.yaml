@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_t_modelled
 flowgroup: album_art_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: album_art_dim
+      table: album_art_fct
     target: v_album_art_silver
     description: "Load album_art from silver for modelling"
 

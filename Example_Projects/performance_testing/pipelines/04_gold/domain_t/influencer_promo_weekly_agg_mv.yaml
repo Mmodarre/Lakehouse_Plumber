@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: influencer_promo_weekly_agg_mv
 actions:
   - name: influencer_promo_weekly_agg_load

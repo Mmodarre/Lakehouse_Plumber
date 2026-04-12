@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_j_bronze
 flowgroup: curtailment_bronze
 presets:
   - default_delta_properties

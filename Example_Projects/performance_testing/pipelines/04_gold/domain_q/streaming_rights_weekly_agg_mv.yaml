@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: streaming_rights_weekly_agg_mv
 actions:
   - name: streaming_rights_weekly_agg_load

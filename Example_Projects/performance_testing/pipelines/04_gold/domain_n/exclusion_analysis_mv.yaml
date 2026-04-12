@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: exclusion_analysis_mv
 actions:
   - name: exclusion_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.exclusion_dim
+        FROM {catalog}.{silver_schema}.exclusion_fct
     target: v_exclusion_analysis
 
   - name: write_exclusion_analysis_mv

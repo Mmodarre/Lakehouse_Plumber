@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: dessert_report_mv
 actions:
   - name: dessert_report_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.dessert_dim
+        FROM {catalog}.{silver_schema}.dessert_fct
     target: v_dessert_report
 
   - name: write_dessert_report_mv

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: protein_report_mv
 actions:
   - name: protein_report_sql

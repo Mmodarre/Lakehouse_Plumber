@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: tutoring_monthly_agg_mv
 actions:
   - name: tutoring_monthly_agg_load

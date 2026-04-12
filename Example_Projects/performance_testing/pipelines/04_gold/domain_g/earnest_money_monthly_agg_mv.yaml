@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: earnest_money_monthly_agg_mv
 actions:
   - name: earnest_money_monthly_agg_load

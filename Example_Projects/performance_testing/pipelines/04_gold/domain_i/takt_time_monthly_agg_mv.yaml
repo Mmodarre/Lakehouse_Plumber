@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: takt_time_monthly_agg_mv
 actions:
   - name: takt_time_monthly_agg_load

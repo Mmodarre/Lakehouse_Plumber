@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: subscription_dashboard_mv
 actions:
   - name: subscription_dashboard_sql

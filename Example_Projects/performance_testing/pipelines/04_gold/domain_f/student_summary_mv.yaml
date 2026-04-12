@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: student_summary_mv
 actions:
   - name: student_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.student_dim
+        FROM {catalog}.{silver_schema}.student_fct
     target: v_student_summary
 
   - name: write_student_summary_mv

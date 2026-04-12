@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: staging_quarterly_agg_mv
 actions:
   - name: staging_quarterly_agg_load

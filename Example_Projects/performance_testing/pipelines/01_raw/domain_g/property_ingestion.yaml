@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_g_raw
 flowgroup: property_ingestion
 presets:
   - default_delta_properties

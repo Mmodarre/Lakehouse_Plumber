@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_s_modelled
 flowgroup: wine_club_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: wine_club_dim
+      table: wine_club_fct
     target: v_wine_club_silver
     description: "Load wine_club from silver for modelling"
 

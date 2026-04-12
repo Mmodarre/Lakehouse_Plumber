@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: reservation_dashboard_mv
 actions:
   - name: reservation_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.reservation_dim
+        FROM {catalog}.{silver_schema}.reservation_fct
     target: v_reservation_dashboard
 
   - name: write_reservation_dashboard_mv

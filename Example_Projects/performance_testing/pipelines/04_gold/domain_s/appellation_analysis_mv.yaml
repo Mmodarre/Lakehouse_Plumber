@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: appellation_analysis_mv
 actions:
   - name: appellation_analysis_sql

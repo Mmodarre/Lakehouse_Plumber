@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: review_report_mv
 actions:
   - name: review_report_sql

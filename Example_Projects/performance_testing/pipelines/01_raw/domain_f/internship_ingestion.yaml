@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_f_raw
 flowgroup: internship_ingestion
 presets:
   - default_delta_properties

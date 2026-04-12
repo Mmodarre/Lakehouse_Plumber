@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: online_order_monthly_agg_mv
 actions:
   - name: online_order_monthly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: hoa_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "hoa_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: condo_fee_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: condo_fee_dim
+      table: condo_fee_fct
     target: v_condo_fee_silver
     description: "Load condo_fee from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "condo_fee_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: property_tax_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "property_tax_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: title_search_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "title_search_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: lien_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: lien_dim
+      table: lien_fct
     target: v_lien_silver
     description: "Load lien from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "lien_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: easement_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "easement_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: covenant_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "covenant_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: subdivision_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: subdivision_dim
+      table: subdivision_fct
     target: v_subdivision_silver
     description: "Load subdivision from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "subdivision_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: plat_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "plat_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: setback_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "setback_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: floor_plan_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: floor_plan_dim
+      table: floor_plan_fct
     target: v_floor_plan_silver
     description: "Load floor_plan from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "floor_plan_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: staging_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "staging_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: open_house_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "open_house_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: counteroffer_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: counteroffer_dim
+      table: counteroffer_fct
     target: v_counteroffer_silver
     description: "Load counteroffer from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "counteroffer_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: earnest_money_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "earnest_money_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: home_inspection_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "home_inspection_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: termite_report_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: termite_report_dim
+      table: termite_report_fct
     target: v_termite_report_silver
     description: "Load termite_report from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "termite_report_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: radon_test_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "radon_test_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: lead_paint_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "lead_paint_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: roof_cert_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: roof_cert_dim
+      table: roof_cert_fct
     target: v_roof_cert_silver
     description: "Load roof_cert from silver for modelling"
 

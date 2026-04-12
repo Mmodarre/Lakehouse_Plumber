@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_t_modelled
 flowgroup: radio_play_modelled
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: meter_summary_mv
 actions:
   - name: meter_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.meter_dim
+        FROM {catalog}.{silver_schema}.meter_fct
     target: v_meter_summary
 
   - name: write_meter_summary_mv

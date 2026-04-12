@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: invoice_line_silver_dim
 presets:
   - default_delta_properties
@@ -31,7 +31,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: credit_note_silver_fct
 presets:
   - default_delta_properties
@@ -64,7 +64,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: debit_note_silver_dim
 presets:
   - default_delta_properties
@@ -97,7 +97,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: bank_statement_silver_dim
 presets:
   - default_delta_properties
@@ -130,7 +130,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: reconciliation_silver_fct
 presets:
   - default_delta_properties
@@ -163,7 +163,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: cash_flow_silver_dim
 presets:
   - default_delta_properties
@@ -196,7 +196,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: trial_balance_silver_dim
 presets:
   - default_delta_properties
@@ -229,7 +229,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: balance_sheet_silver_fct
 presets:
   - default_delta_properties
@@ -262,7 +262,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: income_statement_silver_dim
 presets:
   - default_delta_properties
@@ -295,7 +295,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: variance_silver_dim
 presets:
   - default_delta_properties
@@ -328,7 +328,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: accrual_silver_fct
 presets:
   - default_delta_properties
@@ -361,7 +361,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: prepayment_silver_dim
 presets:
   - default_delta_properties
@@ -394,7 +394,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: write_off_silver_dim
 presets:
   - default_delta_properties
@@ -427,7 +427,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: provision_silver_fct
 presets:
   - default_delta_properties
@@ -460,7 +460,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: intercompany_silver_dim
 presets:
   - default_delta_properties
@@ -493,7 +493,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: consolidation_silver_dim
 presets:
   - default_delta_properties
@@ -526,7 +526,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: segment_report_silver_fct
 presets:
   - default_delta_properties
@@ -559,7 +559,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: tax_filing_silver_dim
 presets:
   - default_delta_properties
@@ -592,7 +592,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: withholding_silver_dim
 presets:
   - default_delta_properties
@@ -625,7 +625,7 @@ actions:
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
 ---
-pipeline: perf_silver
+pipeline: domain_c_silver
 flowgroup: vat_return_silver_fct
 presets:
   - default_delta_properties

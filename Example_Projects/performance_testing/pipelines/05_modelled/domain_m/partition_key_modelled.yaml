@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_m_modelled
 flowgroup: partition_key_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: partition_key_dim
+      table: partition_key_fct
     target: v_partition_key_silver
     description: "Load partition_key from silver for modelling"
 

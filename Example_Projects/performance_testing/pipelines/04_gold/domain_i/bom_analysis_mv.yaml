@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: bom_analysis_mv
 actions:
   - name: bom_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.bom_dim
+        FROM {catalog}.{silver_schema}.bom_fct
     target: v_bom_analysis
 
   - name: write_bom_analysis_mv

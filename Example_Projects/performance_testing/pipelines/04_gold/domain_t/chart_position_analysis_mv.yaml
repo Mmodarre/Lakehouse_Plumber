@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: chart_position_analysis_mv
 actions:
   - name: chart_position_analysis_sql

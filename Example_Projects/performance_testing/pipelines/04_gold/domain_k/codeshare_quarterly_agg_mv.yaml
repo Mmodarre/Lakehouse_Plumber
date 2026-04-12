@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: codeshare_quarterly_agg_mv
 actions:
   - name: codeshare_quarterly_agg_load

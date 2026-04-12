@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: lab_test_report_mv
 actions:
   - name: lab_test_report_sql

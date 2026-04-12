@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_h_raw
 flowgroup: store_layout_ingestion
 presets:
   - default_delta_properties

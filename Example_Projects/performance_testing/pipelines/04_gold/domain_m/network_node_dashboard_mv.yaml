@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: network_node_dashboard_mv
 actions:
   - name: network_node_dashboard_sql

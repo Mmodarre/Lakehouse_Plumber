@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_r_modelled
 flowgroup: space_weather_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: space_weather_dim
+      table: space_weather_fct
     target: v_space_weather_silver
     description: "Load space_weather from silver for modelling"
 

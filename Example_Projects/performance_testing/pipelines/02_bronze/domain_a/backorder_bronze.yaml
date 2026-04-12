@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_a_bronze
 flowgroup: backorder_bronze
 presets:
   - default_delta_properties

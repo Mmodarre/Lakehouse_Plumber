@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_q_bronze
 flowgroup: league_bronze
 presets:
   - default_delta_properties

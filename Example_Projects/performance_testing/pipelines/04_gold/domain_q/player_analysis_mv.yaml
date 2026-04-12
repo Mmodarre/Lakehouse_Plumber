@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: player_analysis_mv
 actions:
   - name: player_analysis_sql

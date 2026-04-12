@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: mentor_monthly_agg_mv
 actions:
   - name: mentor_monthly_agg_load

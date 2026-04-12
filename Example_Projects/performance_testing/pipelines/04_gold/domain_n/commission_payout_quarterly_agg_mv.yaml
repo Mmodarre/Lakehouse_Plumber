@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: commission_payout_quarterly_agg_mv
 actions:
   - name: commission_payout_quarterly_agg_load

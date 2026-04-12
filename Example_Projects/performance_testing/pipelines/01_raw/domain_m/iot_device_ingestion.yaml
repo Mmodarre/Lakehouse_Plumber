@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_m_raw
 flowgroup: iot_device_ingestion
 presets:
   - default_delta_properties

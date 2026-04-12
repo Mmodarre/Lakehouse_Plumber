@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: renewal_report_mv
 actions:
   - name: renewal_report_sql

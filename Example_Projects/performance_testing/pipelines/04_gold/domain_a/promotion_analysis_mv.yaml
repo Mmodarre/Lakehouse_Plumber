@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: promotion_analysis_mv
 actions:
   - name: promotion_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.promotion_dim
+        FROM {catalog}.{silver_schema}.promotion_fct
     target: v_promotion_analysis
 
   - name: write_promotion_analysis_mv

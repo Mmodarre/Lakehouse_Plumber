@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: consignment_report_mv
 actions:
   - name: consignment_report_sql

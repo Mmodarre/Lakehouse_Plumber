@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: hoa_daily_agg_mv
 actions:
   - name: hoa_daily_agg_load

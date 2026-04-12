@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: fan_dashboard_mv
 actions:
   - name: fan_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.fan_dim
+        FROM {catalog}.{silver_schema}.fan_fct
     target: v_fan_dashboard
 
   - name: write_fan_dashboard_mv

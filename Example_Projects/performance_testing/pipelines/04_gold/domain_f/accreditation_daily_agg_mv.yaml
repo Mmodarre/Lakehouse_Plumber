@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: accreditation_daily_agg_mv
 actions:
   - name: accreditation_daily_agg_load

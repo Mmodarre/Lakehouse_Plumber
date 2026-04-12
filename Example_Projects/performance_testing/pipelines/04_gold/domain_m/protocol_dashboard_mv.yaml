@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: protocol_dashboard_mv
 actions:
   - name: protocol_dashboard_sql

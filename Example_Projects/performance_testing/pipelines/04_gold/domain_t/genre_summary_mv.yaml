@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: genre_summary_mv
 actions:
   - name: genre_summary_sql

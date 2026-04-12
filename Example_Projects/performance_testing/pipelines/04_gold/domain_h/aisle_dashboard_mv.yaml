@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: aisle_dashboard_mv
 actions:
   - name: aisle_dashboard_sql

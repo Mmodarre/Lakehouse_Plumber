@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: solar_panel_analysis_mv
 actions:
   - name: solar_panel_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.solar_panel_dim
+        FROM {catalog}.{silver_schema}.solar_panel_fct
     target: v_solar_panel_analysis
 
   - name: write_solar_panel_analysis_mv

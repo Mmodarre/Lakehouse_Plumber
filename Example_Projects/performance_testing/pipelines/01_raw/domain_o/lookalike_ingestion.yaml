@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_o_raw
 flowgroup: lookalike_ingestion
 presets:
   - default_delta_properties

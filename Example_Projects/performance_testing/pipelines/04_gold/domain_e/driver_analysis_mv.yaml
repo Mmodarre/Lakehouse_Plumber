@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: driver_analysis_mv
 actions:
   - name: driver_analysis_sql

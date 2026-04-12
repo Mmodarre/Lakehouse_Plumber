@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: tle_analysis_mv
 actions:
   - name: tle_analysis_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: rule_engine_weekly_agg_mv
 actions:
   - name: rule_engine_weekly_agg_load

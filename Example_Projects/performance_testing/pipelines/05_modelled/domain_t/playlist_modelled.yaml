@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_t_modelled
 flowgroup: playlist_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: playlist_dim
+      table: playlist_fct
     target: v_playlist_silver
     description: "Load playlist from silver for modelling"
 

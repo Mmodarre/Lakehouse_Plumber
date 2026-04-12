@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_o_modelled
 flowgroup: retargeting_modelled
 presets:
   - default_delta_properties

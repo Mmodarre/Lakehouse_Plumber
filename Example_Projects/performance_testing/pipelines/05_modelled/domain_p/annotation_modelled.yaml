@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_p_modelled
 flowgroup: annotation_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: annotation_dim
+      table: annotation_fct
     target: v_annotation_silver
     description: "Load annotation from silver for modelling"
 

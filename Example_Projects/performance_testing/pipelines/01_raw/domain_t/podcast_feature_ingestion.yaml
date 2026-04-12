@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_t_raw
 flowgroup: podcast_feature_ingestion
 presets:
   - default_delta_properties

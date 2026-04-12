@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: airline_dashboard_mv
 actions:
   - name: airline_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.airline_dim
+        FROM {catalog}.{silver_schema}.airline_fct
     target: v_airline_dashboard
 
   - name: write_airline_dashboard_mv

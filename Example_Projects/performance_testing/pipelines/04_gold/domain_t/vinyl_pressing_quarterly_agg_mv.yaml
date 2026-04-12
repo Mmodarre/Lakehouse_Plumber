@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: vinyl_pressing_quarterly_agg_mv
 actions:
   - name: vinyl_pressing_quarterly_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('quarter', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.vinyl_pressing_dim
+        FROM {catalog}.{silver_schema}.vinyl_pressing_fct
         GROUP BY 1
     target: v_vinyl_pressing_quarterly_agg
 

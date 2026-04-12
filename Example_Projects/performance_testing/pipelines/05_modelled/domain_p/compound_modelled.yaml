@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_p_modelled
 flowgroup: compound_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: compound_dim
+      table: compound_fct
     target: v_compound_silver
     description: "Load compound from silver for modelling"
 

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: transponder_summary_mv
 actions:
   - name: transponder_summary_sql

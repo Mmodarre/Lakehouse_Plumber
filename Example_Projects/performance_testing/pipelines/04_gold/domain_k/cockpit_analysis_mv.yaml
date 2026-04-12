@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: cockpit_analysis_mv
 actions:
   - name: cockpit_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.cockpit_dim
+        FROM {catalog}.{silver_schema}.cockpit_fct
     target: v_cockpit_analysis
 
   - name: write_cockpit_analysis_mv

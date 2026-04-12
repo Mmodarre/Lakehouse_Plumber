@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: click_summary_mv
 actions:
   - name: click_summary_sql

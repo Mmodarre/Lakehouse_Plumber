@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: multiplexing_quarterly_agg_mv
 actions:
   - name: multiplexing_quarterly_agg_load

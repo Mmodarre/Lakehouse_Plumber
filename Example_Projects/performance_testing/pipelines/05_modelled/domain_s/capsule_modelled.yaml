@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_s_modelled
 flowgroup: capsule_modelled
 presets:
   - default_delta_properties

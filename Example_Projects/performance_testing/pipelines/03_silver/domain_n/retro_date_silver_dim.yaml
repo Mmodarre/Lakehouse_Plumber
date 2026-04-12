@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_n_silver
 flowgroup: retro_date_silver_dim
 presets:
   - default_delta_properties

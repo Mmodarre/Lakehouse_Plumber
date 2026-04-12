@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_s_modelled
 flowgroup: yeast_strain_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: yeast_strain_dim
+      table: yeast_strain_fct
     target: v_yeast_strain_silver
     description: "Load yeast_strain from silver for modelling"
 

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: property_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: property_dim
+      table: property_fct
     target: v_property_silver
     description: "Load property from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "property_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: tenant_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tenant_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: lease_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "lease_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: landlord_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: landlord_dim
+      table: landlord_fct
     target: v_landlord_silver
     description: "Load landlord from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "landlord_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: unit_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "unit_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: building_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "building_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: amenity_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: amenity_dim
+      table: amenity_fct
     target: v_amenity_silver
     description: "Load amenity from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "amenity_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: work_order_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "work_order_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: rent_payment_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "rent_payment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: eviction_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: eviction_dim
+      table: eviction_fct
     target: v_eviction_silver
     description: "Load eviction from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "eviction_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: listing_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "listing_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: showing_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "showing_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: appraisal_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: appraisal_dim
+      table: appraisal_fct
     target: v_appraisal_silver
     description: "Load appraisal from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "appraisal_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: mortgage_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "mortgage_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: escrow_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "escrow_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: closing_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: closing_dim
+      table: closing_fct
     target: v_closing_silver
     description: "Load closing from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "closing_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: deed_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "deed_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: survey_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "survey_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: zoning_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: zoning_dim
+      table: zoning_fct
     target: v_zoning_silver
     description: "Load zoning from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "zoning_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_g_modelled
 flowgroup: permit_modelled
 presets:
   - default_delta_properties

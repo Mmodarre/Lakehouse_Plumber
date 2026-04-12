@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: drug_test_quarterly_agg_mv
 actions:
   - name: drug_test_quarterly_agg_load

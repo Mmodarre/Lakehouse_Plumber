@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: filtration_analysis_mv
 actions:
   - name: filtration_analysis_sql

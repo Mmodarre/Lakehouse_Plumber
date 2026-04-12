@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_t_modelled
 flowgroup: songwriter_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: songwriter_dim
+      table: songwriter_fct
     target: v_songwriter_silver
     description: "Load songwriter from silver for modelling"
 

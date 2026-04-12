@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: currency_report_mv
 actions:
   - name: currency_report_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.currency_dim
+        FROM {catalog}.{silver_schema}.currency_fct
     target: v_currency_report
 
   - name: write_currency_report_mv

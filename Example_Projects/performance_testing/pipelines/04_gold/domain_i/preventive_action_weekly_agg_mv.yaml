@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: preventive_action_weekly_agg_mv
 actions:
   - name: preventive_action_weekly_agg_load

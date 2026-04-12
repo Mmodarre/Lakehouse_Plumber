@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: bordereaux_weekly_agg_mv
 actions:
   - name: bordereaux_weekly_agg_load

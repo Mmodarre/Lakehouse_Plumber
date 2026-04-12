@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: anomaly_analysis_mv
 actions:
   - name: anomaly_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.anomaly_dim
+        FROM {catalog}.{silver_schema}.anomaly_fct
     target: v_anomaly_analysis
 
   - name: write_anomaly_analysis_mv

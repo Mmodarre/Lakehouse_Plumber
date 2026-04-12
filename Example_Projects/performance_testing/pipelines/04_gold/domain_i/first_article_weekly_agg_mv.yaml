@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: first_article_weekly_agg_mv
 actions:
   - name: first_article_weekly_agg_load

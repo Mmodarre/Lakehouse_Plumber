@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: yield_rate_analysis_mv
 actions:
   - name: yield_rate_analysis_sql

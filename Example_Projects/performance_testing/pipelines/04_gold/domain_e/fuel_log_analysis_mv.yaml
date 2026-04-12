@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: fuel_log_analysis_mv
 actions:
   - name: fuel_log_analysis_sql

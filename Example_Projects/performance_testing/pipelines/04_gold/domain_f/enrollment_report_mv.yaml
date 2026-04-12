@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: enrollment_report_mv
 actions:
   - name: enrollment_report_sql

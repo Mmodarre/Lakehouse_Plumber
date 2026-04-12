@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: transfer_report_mv
 actions:
   - name: transfer_report_sql

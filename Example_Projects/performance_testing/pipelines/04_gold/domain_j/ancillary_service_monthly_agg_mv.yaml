@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: ancillary_service_monthly_agg_mv
 actions:
   - name: ancillary_service_monthly_agg_load

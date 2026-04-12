@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: reagent_dashboard_mv
 actions:
   - name: reagent_dashboard_sql

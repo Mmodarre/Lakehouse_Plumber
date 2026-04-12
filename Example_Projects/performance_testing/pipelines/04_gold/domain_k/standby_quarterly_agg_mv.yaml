@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: standby_quarterly_agg_mv
 actions:
   - name: standby_quarterly_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('quarter', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.standby_dim
+        FROM {catalog}.{silver_schema}.standby_fct
         GROUP BY 1
     target: v_standby_quarterly_agg
 

@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_i_raw
 flowgroup: ppap_ingestion
 presets:
   - default_delta_properties

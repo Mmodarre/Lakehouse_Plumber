@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: customer_summary_mv
 actions:
   - name: customer_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.customer_dim
+        FROM {catalog}.{silver_schema}.customer_fct
     target: v_customer_summary
 
   - name: write_customer_summary_mv

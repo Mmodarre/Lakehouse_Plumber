@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: signage_monthly_agg_mv
 actions:
   - name: signage_monthly_agg_load

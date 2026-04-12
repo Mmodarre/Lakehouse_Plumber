@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_q_bronze
 flowgroup: merchandise_bronze
 presets:
   - default_delta_properties

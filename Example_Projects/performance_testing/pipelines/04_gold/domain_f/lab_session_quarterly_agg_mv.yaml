@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: lab_session_quarterly_agg_mv
 actions:
   - name: lab_session_quarterly_agg_load

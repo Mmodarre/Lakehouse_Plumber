@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: radon_test_weekly_agg_mv
 actions:
   - name: radon_test_weekly_agg_load

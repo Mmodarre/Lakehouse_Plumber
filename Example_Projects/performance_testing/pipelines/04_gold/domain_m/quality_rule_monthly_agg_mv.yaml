@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: quality_rule_monthly_agg_mv
 actions:
   - name: quality_rule_monthly_agg_load

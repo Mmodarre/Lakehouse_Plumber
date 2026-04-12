@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_s_silver
 flowgroup: harvest_silver_dim
 presets:
   - default_delta_properties

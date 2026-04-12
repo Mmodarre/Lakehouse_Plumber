@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: last_mile_weekly_agg_mv
 actions:
   - name: last_mile_weekly_agg_load

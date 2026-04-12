@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: merch_item_report_mv
 actions:
   - name: merch_item_report_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.merch_item_dim
+        FROM {catalog}.{silver_schema}.merch_item_fct
     target: v_merch_item_report
 
   - name: write_merch_item_report_mv

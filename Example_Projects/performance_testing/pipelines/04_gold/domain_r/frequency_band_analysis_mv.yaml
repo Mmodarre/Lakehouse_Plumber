@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: frequency_band_analysis_mv
 actions:
   - name: frequency_band_analysis_sql

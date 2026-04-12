@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: scrap_report_mv
 actions:
   - name: scrap_report_sql

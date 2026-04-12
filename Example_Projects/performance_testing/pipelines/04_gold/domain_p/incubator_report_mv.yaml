@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: incubator_report_mv
 actions:
   - name: incubator_report_sql

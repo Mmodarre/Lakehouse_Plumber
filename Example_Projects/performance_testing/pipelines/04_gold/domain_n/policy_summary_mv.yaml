@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: policy_summary_mv
 actions:
   - name: policy_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.policy_dim
+        FROM {catalog}.{silver_schema}.policy_fct
     target: v_policy_summary
 
   - name: write_policy_summary_mv

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: cart_summary_mv
 actions:
   - name: cart_summary_sql

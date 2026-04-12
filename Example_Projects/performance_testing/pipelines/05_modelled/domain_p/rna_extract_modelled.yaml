@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_p_modelled
 flowgroup: rna_extract_modelled
 presets:
   - default_delta_properties

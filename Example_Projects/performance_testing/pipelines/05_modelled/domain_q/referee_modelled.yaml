@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_q_modelled
 flowgroup: referee_modelled
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: training_session_daily_agg_mv
 actions:
   - name: training_session_daily_agg_load

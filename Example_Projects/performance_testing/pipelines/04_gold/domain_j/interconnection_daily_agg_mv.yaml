@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: interconnection_daily_agg_mv
 actions:
   - name: interconnection_daily_agg_load

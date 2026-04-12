@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_m_modelled
 flowgroup: diagnostic_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: diagnostic_dim
+      table: diagnostic_fct
     target: v_diagnostic_silver
     description: "Load diagnostic from silver for modelling"
 

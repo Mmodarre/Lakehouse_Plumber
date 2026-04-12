@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_q_modelled
 flowgroup: fan_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: fan_dim
+      table: fan_fct
     target: v_fan_silver
     description: "Load fan from silver for modelling"
 

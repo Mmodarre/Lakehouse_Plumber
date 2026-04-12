@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_r_modelled
 flowgroup: thermal_control_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: thermal_control_dim
+      table: thermal_control_fct
     target: v_thermal_control_silver
     description: "Load thermal_control from silver for modelling"
 

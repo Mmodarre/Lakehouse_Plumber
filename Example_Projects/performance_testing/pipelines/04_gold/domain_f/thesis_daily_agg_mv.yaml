@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: thesis_daily_agg_mv
 actions:
   - name: thesis_daily_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: beam_report_mv
 actions:
   - name: beam_report_sql

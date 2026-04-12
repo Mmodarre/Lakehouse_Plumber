@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: doppler_shift_quarterly_agg_mv
 actions:
   - name: doppler_shift_quarterly_agg_load

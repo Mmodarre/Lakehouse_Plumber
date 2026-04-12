@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_q_raw
 flowgroup: trophy_ingestion
 presets:
   - default_delta_properties

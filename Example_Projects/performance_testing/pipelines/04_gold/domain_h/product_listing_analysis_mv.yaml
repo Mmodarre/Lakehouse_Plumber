@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: product_listing_analysis_mv
 actions:
   - name: product_listing_analysis_sql

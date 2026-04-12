@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_c_raw
 flowgroup: cost_center_ingestion
 presets:
   - default_delta_properties

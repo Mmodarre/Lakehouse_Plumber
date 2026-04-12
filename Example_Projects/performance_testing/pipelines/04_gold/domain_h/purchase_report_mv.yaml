@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: purchase_report_mv
 actions:
   - name: purchase_report_sql

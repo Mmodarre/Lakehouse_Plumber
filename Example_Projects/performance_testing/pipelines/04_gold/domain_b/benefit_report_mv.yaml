@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: benefit_report_mv
 actions:
   - name: benefit_report_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.benefit_dim
+        FROM {catalog}.{silver_schema}.benefit_fct
     target: v_benefit_report
 
   - name: write_benefit_report_mv

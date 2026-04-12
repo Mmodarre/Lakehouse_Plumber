@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: segment_dashboard_mv
 actions:
   - name: segment_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.segment_dim
+        FROM {catalog}.{silver_schema}.segment_fct
     target: v_segment_dashboard
 
   - name: write_segment_dashboard_mv

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: funnel_stage_analysis_mv
 actions:
   - name: funnel_stage_analysis_sql

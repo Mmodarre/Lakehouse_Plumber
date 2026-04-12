@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: broadcast_summary_mv
 actions:
   - name: broadcast_summary_sql

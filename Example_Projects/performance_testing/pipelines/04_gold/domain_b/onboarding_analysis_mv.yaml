@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: onboarding_analysis_mv
 actions:
   - name: onboarding_analysis_sql

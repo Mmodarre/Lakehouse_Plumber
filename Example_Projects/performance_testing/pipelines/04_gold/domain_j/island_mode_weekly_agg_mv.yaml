@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: island_mode_weekly_agg_mv
 actions:
   - name: island_mode_weekly_agg_load

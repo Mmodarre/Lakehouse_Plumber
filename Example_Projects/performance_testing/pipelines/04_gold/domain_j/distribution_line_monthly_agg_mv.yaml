@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: distribution_line_monthly_agg_mv
 actions:
   - name: distribution_line_monthly_agg_load

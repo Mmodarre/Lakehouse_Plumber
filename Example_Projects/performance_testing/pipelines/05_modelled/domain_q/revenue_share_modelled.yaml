@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_q_modelled
 flowgroup: revenue_share_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: revenue_share_dim
+      table: revenue_share_fct
     target: v_revenue_share_silver
     description: "Load revenue_share from silver for modelling"
 

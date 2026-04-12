@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: price_rule_quarterly_agg_mv
 actions:
   - name: price_rule_quarterly_agg_load

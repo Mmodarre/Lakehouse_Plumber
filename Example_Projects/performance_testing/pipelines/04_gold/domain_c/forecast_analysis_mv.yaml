@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: forecast_analysis_mv
 actions:
   - name: forecast_analysis_sql

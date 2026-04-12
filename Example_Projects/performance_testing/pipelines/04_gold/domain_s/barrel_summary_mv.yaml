@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: barrel_summary_mv
 actions:
   - name: barrel_summary_sql

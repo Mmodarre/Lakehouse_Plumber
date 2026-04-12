@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: underwriter_summary_mv
 actions:
   - name: underwriter_summary_sql

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_t_modelled
 flowgroup: merch_item_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: merch_item_dim
+      table: merch_item_fct
     target: v_merch_item_silver
     description: "Load merch_item from silver for modelling"
 

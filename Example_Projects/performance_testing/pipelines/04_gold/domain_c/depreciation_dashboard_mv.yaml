@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: depreciation_dashboard_mv
 actions:
   - name: depreciation_dashboard_sql

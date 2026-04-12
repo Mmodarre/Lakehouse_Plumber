@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_p_modelled
 flowgroup: pcr_run_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: pcr_run_dim
+      table: pcr_run_fct
     target: v_pcr_run_silver
     description: "Load pcr_run from silver for modelling"
 

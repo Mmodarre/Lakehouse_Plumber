@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_a_bronze
 flowgroup: gift_wrap_bronze
 presets:
   - default_delta_properties

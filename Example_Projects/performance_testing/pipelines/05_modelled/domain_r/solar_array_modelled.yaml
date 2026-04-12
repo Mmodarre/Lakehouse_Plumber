@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_r_modelled
 flowgroup: solar_array_modelled
 presets:
   - default_delta_properties

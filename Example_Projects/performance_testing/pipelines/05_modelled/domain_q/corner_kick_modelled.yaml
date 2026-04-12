@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_q_modelled
 flowgroup: corner_kick_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: corner_kick_dim
+      table: corner_kick_fct
     target: v_corner_kick_silver
     description: "Load corner_kick from silver for modelling"
 

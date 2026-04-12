@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: air_route_dashboard_mv
 actions:
   - name: air_route_dashboard_sql

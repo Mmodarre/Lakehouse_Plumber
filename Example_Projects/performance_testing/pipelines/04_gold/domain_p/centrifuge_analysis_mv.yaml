@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: centrifuge_analysis_mv
 actions:
   - name: centrifuge_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.centrifuge_dim
+        FROM {catalog}.{silver_schema}.centrifuge_fct
     target: v_centrifuge_analysis
 
   - name: write_centrifuge_analysis_mv

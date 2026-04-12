@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: trailer_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "trailer_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: load_plan_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: load_plan_dim
+      table: load_plan_fct
     target: v_load_plan_silver
     description: "Load load_plan from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "load_plan_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: weight_ticket_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "weight_ticket_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: customs_doc_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "customs_doc_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: bill_of_lading_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: bill_of_lading_dim
+      table: bill_of_lading_fct
     target: v_bill_of_lading_silver
     description: "Load bill_of_lading from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "bill_of_lading_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: proof_of_delivery_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "proof_of_delivery_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: damage_report_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "damage_report_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: return_shipment_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: return_shipment_dim
+      table: return_shipment_fct
     target: v_return_shipment_silver
     description: "Load return_shipment from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "return_shipment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: cross_dock_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "cross_dock_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: last_mile_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "last_mile_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: route_optimization_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: route_optimization_dim
+      table: route_optimization_fct
     target: v_route_optimization_silver
     description: "Load route_optimization from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "route_optimization_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: geofence_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "geofence_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: speed_alert_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "speed_alert_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: idle_time_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: idle_time_dim
+      table: idle_time_fct
     target: v_idle_time_silver
     description: "Load idle_time from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "idle_time_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: driver_score_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "driver_score_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: eld_log_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "eld_log_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: dot_inspection_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: dot_inspection_dim
+      table: dot_inspection_fct
     target: v_dot_inspection_silver
     description: "Load dot_inspection from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "dot_inspection_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: hazmat_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "hazmat_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: temperature_log_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "temperature_log_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: chain_of_custody_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: chain_of_custody_dim
+      table: chain_of_custody_fct
     target: v_chain_of_custody_silver
     description: "Load chain_of_custody from silver for modelling"
 

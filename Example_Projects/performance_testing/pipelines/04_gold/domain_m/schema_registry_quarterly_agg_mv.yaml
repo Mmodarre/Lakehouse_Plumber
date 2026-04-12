@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: schema_registry_quarterly_agg_mv
 actions:
   - name: schema_registry_quarterly_agg_load

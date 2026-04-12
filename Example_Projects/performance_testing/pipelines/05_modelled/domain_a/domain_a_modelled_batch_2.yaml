@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: return_request_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "return_request_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: gift_wrap_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: gift_wrap_dim
+      table: gift_wrap_fct
     target: v_gift_wrap_silver
     description: "Load gift_wrap from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "gift_wrap_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: loyalty_point_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "loyalty_point_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: price_rule_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "price_rule_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: tax_rate_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: tax_rate_dim
+      table: tax_rate_fct
     target: v_tax_rate_silver
     description: "Load tax_rate from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tax_rate_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: shipping_method_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "shipping_method_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: packaging_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "packaging_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: barcode_item_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: barcode_item_dim
+      table: barcode_item_fct
     target: v_barcode_item_silver
     description: "Load barcode_item from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "barcode_item_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: sku_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "sku_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: catalog_entry_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "catalog_entry_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: product_image_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: product_image_dim
+      table: product_image_fct
     target: v_product_image_silver
     description: "Load product_image from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "product_image_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: variant_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "variant_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: bundle_offer_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "bundle_offer_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: flash_sale_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: flash_sale_dim
+      table: flash_sale_fct
     target: v_flash_sale_silver
     description: "Load flash_sale from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "flash_sale_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: pre_order_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "pre_order_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: backorder_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "backorder_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: dropship_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: dropship_dim
+      table: dropship_fct
     target: v_dropship_silver
     description: "Load dropship from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "dropship_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: fulfillment_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "fulfillment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: pick_list_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "pick_list_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: packing_slip_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: packing_slip_dim
+      table: packing_slip_fct
     target: v_packing_slip_silver
     description: "Load packing_slip from silver for modelling"
 

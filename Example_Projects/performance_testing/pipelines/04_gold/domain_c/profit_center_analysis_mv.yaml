@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: profit_center_analysis_mv
 actions:
   - name: profit_center_analysis_sql

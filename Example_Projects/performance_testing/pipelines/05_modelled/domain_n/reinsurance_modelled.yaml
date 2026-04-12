@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_n_modelled
 flowgroup: reinsurance_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: reinsurance_dim
+      table: reinsurance_fct
     target: v_reinsurance_silver
     description: "Load reinsurance from silver for modelling"
 

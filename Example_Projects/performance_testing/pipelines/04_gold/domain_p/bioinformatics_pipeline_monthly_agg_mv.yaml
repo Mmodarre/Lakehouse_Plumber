@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: bioinformatics_pipeline_monthly_agg_mv
 actions:
   - name: bioinformatics_pipeline_monthly_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('mon', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.bioinformatics_pipeline_dim
+        FROM {catalog}.{silver_schema}.bioinformatics_pipeline_fct
         GROUP BY 1
     target: v_bioinformatics_pipeline_monthly_agg
 

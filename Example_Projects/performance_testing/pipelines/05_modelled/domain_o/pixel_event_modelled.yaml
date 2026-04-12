@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_o_modelled
 flowgroup: pixel_event_modelled
 presets:
   - default_delta_properties

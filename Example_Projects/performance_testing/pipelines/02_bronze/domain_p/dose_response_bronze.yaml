@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_p_bronze
 flowgroup: dose_response_bronze
 presets:
   - default_delta_properties

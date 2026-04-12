@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_t_modelled
 flowgroup: viral_moment_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: viral_moment_dim
+      table: viral_moment_fct
     target: v_viral_moment_silver
     description: "Load viral_moment from silver for modelling"
 

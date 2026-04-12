@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_q_bronze
 flowgroup: yellow_card_bronze
 presets:
   - default_delta_properties

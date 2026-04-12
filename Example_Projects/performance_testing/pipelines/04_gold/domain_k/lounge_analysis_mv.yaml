@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: lounge_analysis_mv
 actions:
   - name: lounge_analysis_sql

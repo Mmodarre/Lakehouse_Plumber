@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: telemetry_report_mv
 actions:
   - name: telemetry_report_sql

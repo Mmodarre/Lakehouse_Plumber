@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_g_bronze
 flowgroup: zoning_bronze
 presets:
   - default_delta_properties

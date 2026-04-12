@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: regulation_analysis_mv
 actions:
   - name: regulation_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.regulation_dim
+        FROM {catalog}.{silver_schema}.regulation_fct
     target: v_regulation_analysis
 
   - name: write_regulation_analysis_mv

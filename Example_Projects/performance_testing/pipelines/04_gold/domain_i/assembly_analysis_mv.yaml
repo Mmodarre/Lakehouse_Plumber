@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: assembly_analysis_mv
 actions:
   - name: assembly_analysis_sql

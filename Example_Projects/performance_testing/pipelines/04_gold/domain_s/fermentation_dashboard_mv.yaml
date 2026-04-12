@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: fermentation_dashboard_mv
 actions:
   - name: fermentation_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.fermentation_dim
+        FROM {catalog}.{silver_schema}.fermentation_fct
     target: v_fermentation_dashboard
 
   - name: write_fermentation_dashboard_mv

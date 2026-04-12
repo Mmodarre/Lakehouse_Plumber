@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: coach_analysis_mv
 actions:
   - name: coach_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.coach_dim
+        FROM {catalog}.{silver_schema}.coach_fct
     target: v_coach_analysis
 
   - name: write_coach_analysis_mv

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: planogram_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "planogram_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: endcap_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: endcap_dim
+      table: endcap_fct
     target: v_endcap_silver
     description: "Load endcap from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "endcap_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: signage_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "signage_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: foot_traffic_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "foot_traffic_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: conversion_rate_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: conversion_rate_dim
+      table: conversion_rate_fct
     target: v_conversion_rate_silver
     description: "Load conversion_rate from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "conversion_rate_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: basket_size_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "basket_size_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: shrinkage_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "shrinkage_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: loss_prevention_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: loss_prevention_dim
+      table: loss_prevention_fct
     target: v_loss_prevention_silver
     description: "Load loss_prevention from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "loss_prevention_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: mystery_shopper_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "mystery_shopper_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: nps_score_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "nps_score_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: store_layout_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: store_layout_dim
+      table: store_layout_fct
     target: v_store_layout_silver
     description: "Load store_layout from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "store_layout_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: checkout_lane_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "checkout_lane_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: self_checkout_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "self_checkout_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: curbside_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: curbside_dim
+      table: curbside_fct
     target: v_curbside_silver
     description: "Load curbside from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "curbside_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: click_collect_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "click_collect_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: endless_aisle_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "endless_aisle_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: clienteling_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: clienteling_dim
+      table: clienteling_fct
     target: v_clienteling_silver
     description: "Load clienteling from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "clienteling_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: pos_terminal_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "pos_terminal_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: price_override_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "price_override_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_h_modelled
 flowgroup: rain_check_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: rain_check_dim
+      table: rain_check_fct
     target: v_rain_check_silver
     description: "Load rain_check from silver for modelling"
 

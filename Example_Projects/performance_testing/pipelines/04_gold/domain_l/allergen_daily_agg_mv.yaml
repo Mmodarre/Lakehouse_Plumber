@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: allergen_daily_agg_mv
 actions:
   - name: allergen_daily_agg_load

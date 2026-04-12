@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_r_silver
 flowgroup: radiation_dose_silver_dim
 presets:
   - default_delta_properties

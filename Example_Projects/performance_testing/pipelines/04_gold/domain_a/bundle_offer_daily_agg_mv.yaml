@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: bundle_offer_daily_agg_mv
 actions:
   - name: bundle_offer_daily_agg_load

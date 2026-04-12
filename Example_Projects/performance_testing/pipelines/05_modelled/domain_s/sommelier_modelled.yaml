@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_s_modelled
 flowgroup: sommelier_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: sommelier_dim
+      table: sommelier_fct
     target: v_sommelier_silver
     description: "Load sommelier from silver for modelling"
 

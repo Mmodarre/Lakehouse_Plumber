@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: zone_analysis_mv
 actions:
   - name: zone_analysis_sql

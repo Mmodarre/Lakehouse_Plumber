@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_r_raw
 flowgroup: space_weather_ingestion
 presets:
   - default_delta_properties

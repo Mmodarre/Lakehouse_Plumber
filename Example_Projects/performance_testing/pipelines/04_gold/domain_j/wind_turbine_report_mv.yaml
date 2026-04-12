@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: wind_turbine_report_mv
 actions:
   - name: wind_turbine_report_sql

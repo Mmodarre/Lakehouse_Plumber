@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: satellite_summary_mv
 actions:
   - name: satellite_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.satellite_dim
+        FROM {catalog}.{silver_schema}.satellite_fct
     target: v_satellite_summary
 
   - name: write_satellite_summary_mv

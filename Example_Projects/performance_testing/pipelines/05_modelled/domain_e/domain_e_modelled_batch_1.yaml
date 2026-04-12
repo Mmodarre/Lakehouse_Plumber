@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: vehicle_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: vehicle_dim
+      table: vehicle_fct
     target: v_vehicle_silver
     description: "Load vehicle from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "vehicle_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: driver_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "driver_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: route_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "route_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: delivery_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: delivery_dim
+      table: delivery_fct
     target: v_delivery_silver
     description: "Load delivery from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "delivery_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: tracking_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tracking_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: fuel_log_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "fuel_log_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: maintenance_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: maintenance_dim
+      table: maintenance_fct
     target: v_maintenance_silver
     description: "Load maintenance from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "maintenance_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: inspection_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "inspection_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: toll_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "toll_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: parking_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: parking_dim
+      table: parking_fct
     target: v_parking_silver
     description: "Load parking from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "parking_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: fleet_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "fleet_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: dispatch_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "dispatch_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: cargo_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: cargo_dim
+      table: cargo_fct
     target: v_cargo_silver
     description: "Load cargo from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "cargo_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: manifest_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "manifest_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: consignment_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "consignment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: hub_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: hub_dim
+      table: hub_fct
     target: v_hub_silver
     description: "Load hub from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "hub_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: depot_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "depot_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: zone_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "zone_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: tariff_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: tariff_dim
+      table: tariff_fct
     target: v_tariff_silver
     description: "Load tariff from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tariff_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_e_modelled
 flowgroup: carrier_modelled
 presets:
   - default_delta_properties

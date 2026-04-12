@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: creative_summary_mv
 actions:
   - name: creative_summary_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: cycle_time_quarterly_agg_mv
 actions:
   - name: cycle_time_quarterly_agg_load

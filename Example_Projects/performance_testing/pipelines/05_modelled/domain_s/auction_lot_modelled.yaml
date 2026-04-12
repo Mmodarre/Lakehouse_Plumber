@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_s_modelled
 flowgroup: auction_lot_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: auction_lot_dim
+      table: auction_lot_fct
     target: v_auction_lot_silver
     description: "Load auction_lot from silver for modelling"
 

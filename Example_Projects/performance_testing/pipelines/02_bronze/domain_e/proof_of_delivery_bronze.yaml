@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_e_bronze
 flowgroup: proof_of_delivery_bronze
 presets:
   - default_delta_properties

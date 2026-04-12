@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: tolerance_dashboard_mv
 actions:
   - name: tolerance_dashboard_sql

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_n_modelled
 flowgroup: exclusion_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: exclusion_dim
+      table: exclusion_fct
     target: v_exclusion_silver
     description: "Load exclusion from silver for modelling"
 

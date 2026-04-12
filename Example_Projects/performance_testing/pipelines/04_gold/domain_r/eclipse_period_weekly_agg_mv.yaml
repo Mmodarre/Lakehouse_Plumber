@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: eclipse_period_weekly_agg_mv
 actions:
   - name: eclipse_period_weekly_agg_load

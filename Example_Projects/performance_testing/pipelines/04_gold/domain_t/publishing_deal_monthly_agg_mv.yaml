@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: publishing_deal_monthly_agg_mv
 actions:
   - name: publishing_deal_monthly_agg_load

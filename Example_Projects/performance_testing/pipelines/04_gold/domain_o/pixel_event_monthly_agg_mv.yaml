@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: pixel_event_monthly_agg_mv
 actions:
   - name: pixel_event_monthly_agg_load

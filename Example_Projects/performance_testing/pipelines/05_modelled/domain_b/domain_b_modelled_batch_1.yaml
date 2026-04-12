@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: employee_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: employee_dim
+      table: employee_fct
     target: v_employee_silver
     description: "Load employee from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "employee_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: department_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "department_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: project_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "project_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: task_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: task_dim
+      table: task_fct
     target: v_task_silver
     description: "Load task from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "task_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: timesheet_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "timesheet_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: salary_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "salary_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: benefit_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: benefit_dim
+      table: benefit_fct
     target: v_benefit_silver
     description: "Load benefit from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "benefit_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: leave_request_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "leave_request_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: training_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "training_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: certification_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: certification_dim
+      table: certification_fct
     target: v_certification_silver
     description: "Load certification from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "certification_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: performance_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "performance_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: goal_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "goal_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: feedback_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: feedback_dim
+      table: feedback_fct
     target: v_feedback_silver
     description: "Load feedback from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "feedback_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: interview_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "interview_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: candidate_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "candidate_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: job_posting_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: job_posting_dim
+      table: job_posting_fct
     target: v_job_posting_silver
     description: "Load job_posting from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "job_posting_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: offer_letter_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "offer_letter_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: onboarding_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "onboarding_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: offboarding_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: offboarding_dim
+      table: offboarding_fct
     target: v_offboarding_silver
     description: "Load offboarding from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "offboarding_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_b_modelled
 flowgroup: payroll_modelled
 presets:
   - default_delta_properties

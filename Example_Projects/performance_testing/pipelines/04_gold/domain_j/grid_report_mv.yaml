@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: grid_report_mv
 actions:
   - name: grid_report_sql

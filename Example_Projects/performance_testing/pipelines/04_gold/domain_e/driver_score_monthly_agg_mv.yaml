@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: driver_score_monthly_agg_mv
 actions:
   - name: driver_score_monthly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: budget_alloc_report_mv
 actions:
   - name: budget_alloc_report_sql

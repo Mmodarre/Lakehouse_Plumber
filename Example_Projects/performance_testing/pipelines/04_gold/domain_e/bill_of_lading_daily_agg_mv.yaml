@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: bill_of_lading_daily_agg_mv
 actions:
   - name: bill_of_lading_daily_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('day', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.bill_of_lading_dim
+        FROM {catalog}.{silver_schema}.bill_of_lading_fct
         GROUP BY 1
     target: v_bill_of_lading_daily_agg
 

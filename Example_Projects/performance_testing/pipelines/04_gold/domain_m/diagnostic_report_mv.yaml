@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: diagnostic_report_mv
 actions:
   - name: diagnostic_report_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.diagnostic_dim
+        FROM {catalog}.{silver_schema}.diagnostic_fct
     target: v_diagnostic_report
 
   - name: write_diagnostic_report_mv

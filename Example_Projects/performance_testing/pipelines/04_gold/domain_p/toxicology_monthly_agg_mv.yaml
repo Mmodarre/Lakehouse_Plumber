@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: toxicology_monthly_agg_mv
 actions:
   - name: toxicology_monthly_agg_load

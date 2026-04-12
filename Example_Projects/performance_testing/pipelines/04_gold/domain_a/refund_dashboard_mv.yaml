@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: refund_dashboard_mv
 actions:
   - name: refund_dashboard_sql

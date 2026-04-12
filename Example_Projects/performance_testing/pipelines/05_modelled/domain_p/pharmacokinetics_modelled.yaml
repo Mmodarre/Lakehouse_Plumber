@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_p_modelled
 flowgroup: pharmacokinetics_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: pharmacokinetics_dim
+      table: pharmacokinetics_fct
     target: v_pharmacokinetics_silver
     description: "Load pharmacokinetics from silver for modelling"
 

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: capacitor_bank_monthly_agg_mv
 actions:
   - name: capacitor_bank_monthly_agg_load

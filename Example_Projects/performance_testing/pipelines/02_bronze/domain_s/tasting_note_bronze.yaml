@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_s_bronze
 flowgroup: tasting_note_bronze
 presets:
   - default_delta_properties

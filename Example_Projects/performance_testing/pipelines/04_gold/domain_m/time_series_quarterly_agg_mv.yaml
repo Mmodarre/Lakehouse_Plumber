@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: time_series_quarterly_agg_mv
 actions:
   - name: time_series_quarterly_agg_load

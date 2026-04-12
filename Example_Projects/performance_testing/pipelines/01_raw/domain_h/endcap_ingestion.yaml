@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_h_raw
 flowgroup: endcap_ingestion
 presets:
   - default_delta_properties

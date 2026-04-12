@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_l_raw
 flowgroup: supplier_contract_ingestion
 presets:
   - default_delta_properties

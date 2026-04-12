@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: ledger_report_mv
 actions:
   - name: ledger_report_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: capsule_summary_mv
 actions:
   - name: capsule_summary_sql

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: work_instruction_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "work_instruction_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: spc_chart_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: spc_chart_dim
+      table: spc_chart_fct
     target: v_spc_chart_silver
     description: "Load spc_chart from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "spc_chart_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: control_plan_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "control_plan_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: fmea_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "fmea_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: ppap_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: ppap_dim
+      table: ppap_fct
     target: v_ppap_silver
     description: "Load ppap from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "ppap_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: first_article_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "first_article_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: gauge_rr_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "gauge_rr_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: capability_study_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: capability_study_dim
+      table: capability_study_fct
     target: v_capability_study_silver
     description: "Load capability_study from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "capability_study_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: corrective_action_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "corrective_action_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: preventive_action_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "preventive_action_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: kaizen_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: kaizen_dim
+      table: kaizen_fct
     target: v_kaizen_silver
     description: "Load kaizen from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "kaizen_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: kanban_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "kanban_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: andon_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "andon_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: poka_yoke_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: poka_yoke_dim
+      table: poka_yoke_fct
     target: v_poka_yoke_silver
     description: "Load poka_yoke from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "poka_yoke_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: takt_time_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "takt_time_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: cycle_time_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "cycle_time_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: oee_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: oee_dim
+      table: oee_fct
     target: v_oee_silver
     description: "Load oee from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "oee_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: mtbf_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "mtbf_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: mttr_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "mttr_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: spare_part_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: spare_part_dim
+      table: spare_part_fct
     target: v_spare_part_silver
     description: "Load spare_part from silver for modelling"
 

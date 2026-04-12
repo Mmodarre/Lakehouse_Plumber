@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: scouting_report_monthly_agg_mv
 actions:
   - name: scouting_report_monthly_agg_load

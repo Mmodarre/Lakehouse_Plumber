@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_s_raw
 flowgroup: case_production_ingestion
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_r_bronze
 flowgroup: signal_strength_bronze
 presets:
   - default_delta_properties

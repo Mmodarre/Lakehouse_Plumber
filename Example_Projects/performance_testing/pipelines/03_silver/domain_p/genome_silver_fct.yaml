@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_p_silver
 flowgroup: genome_silver_fct
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: interline_daily_agg_mv
 actions:
   - name: interline_daily_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('day', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.interline_dim
+        FROM {catalog}.{silver_schema}.interline_fct
         GROUP BY 1
     target: v_interline_daily_agg
 

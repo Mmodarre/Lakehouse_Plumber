@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: endless_aisle_quarterly_agg_mv
 actions:
   - name: endless_aisle_quarterly_agg_load

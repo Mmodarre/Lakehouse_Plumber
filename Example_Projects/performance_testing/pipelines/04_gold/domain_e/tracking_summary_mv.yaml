@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: tracking_summary_mv
 actions:
   - name: tracking_summary_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: exposure_quarterly_agg_mv
 actions:
   - name: exposure_quarterly_agg_load

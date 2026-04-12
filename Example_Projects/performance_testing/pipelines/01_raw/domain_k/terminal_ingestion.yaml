@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_k_raw
 flowgroup: terminal_ingestion
 presets:
   - default_delta_properties

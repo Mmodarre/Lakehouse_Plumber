@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: radiation_dose_daily_agg_mv
 actions:
   - name: radiation_dose_daily_agg_load

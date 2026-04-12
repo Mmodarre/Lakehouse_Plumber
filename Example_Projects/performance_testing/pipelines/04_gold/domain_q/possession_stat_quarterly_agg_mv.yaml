@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: possession_stat_quarterly_agg_mv
 actions:
   - name: possession_stat_quarterly_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('quarter', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.possession_stat_dim
+        FROM {catalog}.{silver_schema}.possession_stat_fct
         GROUP BY 1
     target: v_possession_stat_quarterly_agg
 

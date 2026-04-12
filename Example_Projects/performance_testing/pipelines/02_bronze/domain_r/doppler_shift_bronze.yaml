@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_r_bronze
 flowgroup: doppler_shift_bronze
 presets:
   - default_delta_properties

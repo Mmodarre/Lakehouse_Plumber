@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_h_bronze
 flowgroup: click_collect_bronze
 presets:
   - default_delta_properties

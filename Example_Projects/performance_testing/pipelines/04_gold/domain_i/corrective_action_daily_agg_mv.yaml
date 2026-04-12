@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: corrective_action_daily_agg_mv
 actions:
   - name: corrective_action_daily_agg_load

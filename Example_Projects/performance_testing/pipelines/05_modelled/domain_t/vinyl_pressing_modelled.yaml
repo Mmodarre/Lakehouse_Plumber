@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_t_modelled
 flowgroup: vinyl_pressing_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: vinyl_pressing_dim
+      table: vinyl_pressing_fct
     target: v_vinyl_pressing_silver
     description: "Load vinyl_pressing from silver for modelling"
 

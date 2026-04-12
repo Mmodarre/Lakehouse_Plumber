@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: table_seat_report_mv
 actions:
   - name: table_seat_report_sql

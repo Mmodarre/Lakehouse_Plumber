@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: vital_sign_dashboard_mv
 actions:
   - name: vital_sign_dashboard_sql

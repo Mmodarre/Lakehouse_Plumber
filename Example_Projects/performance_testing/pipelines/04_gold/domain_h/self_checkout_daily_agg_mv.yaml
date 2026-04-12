@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: self_checkout_daily_agg_mv
 actions:
   - name: self_checkout_daily_agg_load

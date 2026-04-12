@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: broker_monthly_agg_mv
 actions:
   - name: broker_monthly_agg_load

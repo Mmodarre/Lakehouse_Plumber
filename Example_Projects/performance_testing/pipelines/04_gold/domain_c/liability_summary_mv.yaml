@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: liability_summary_mv
 actions:
   - name: liability_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.liability_dim
+        FROM {catalog}.{silver_schema}.liability_fct
     target: v_liability_summary
 
   - name: write_liability_summary_mv

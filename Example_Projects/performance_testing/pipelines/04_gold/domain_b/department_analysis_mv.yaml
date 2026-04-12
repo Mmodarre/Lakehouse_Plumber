@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: department_analysis_mv
 actions:
   - name: department_analysis_sql

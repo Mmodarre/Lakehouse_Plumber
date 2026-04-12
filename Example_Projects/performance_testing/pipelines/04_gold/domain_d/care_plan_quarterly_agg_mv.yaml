@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: care_plan_quarterly_agg_mv
 actions:
   - name: care_plan_quarterly_agg_load

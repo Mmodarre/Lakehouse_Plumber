@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: takeout_daily_agg_mv
 actions:
   - name: takeout_daily_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: tv_deal_daily_agg_mv
 actions:
   - name: tv_deal_daily_agg_load

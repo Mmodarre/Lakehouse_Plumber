@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: click_through_monthly_agg_mv
 actions:
   - name: click_through_monthly_agg_load

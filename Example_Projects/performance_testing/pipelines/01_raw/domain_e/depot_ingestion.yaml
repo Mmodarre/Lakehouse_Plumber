@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_e_raw
 flowgroup: depot_ingestion
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: propulsion_quarterly_agg_mv
 actions:
   - name: propulsion_quarterly_agg_load

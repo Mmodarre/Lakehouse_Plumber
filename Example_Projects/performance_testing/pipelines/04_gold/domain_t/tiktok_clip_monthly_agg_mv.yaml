@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: tiktok_clip_monthly_agg_mv
 actions:
   - name: tiktok_clip_monthly_agg_load

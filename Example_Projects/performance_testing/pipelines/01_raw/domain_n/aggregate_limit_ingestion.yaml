@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_n_raw
 flowgroup: aggregate_limit_ingestion
 presets:
   - default_delta_properties

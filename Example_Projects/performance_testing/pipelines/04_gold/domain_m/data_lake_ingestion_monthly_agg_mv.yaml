@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: data_lake_ingestion_monthly_agg_mv
 actions:
   - name: data_lake_ingestion_monthly_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('mon', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.data_lake_ingestion_dim
+        FROM {catalog}.{silver_schema}.data_lake_ingestion_fct
         GROUP BY 1
     target: v_data_lake_ingestion_monthly_agg
 

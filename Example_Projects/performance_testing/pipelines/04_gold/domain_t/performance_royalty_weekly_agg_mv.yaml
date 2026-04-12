@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: performance_royalty_weekly_agg_mv
 actions:
   - name: performance_royalty_weekly_agg_load

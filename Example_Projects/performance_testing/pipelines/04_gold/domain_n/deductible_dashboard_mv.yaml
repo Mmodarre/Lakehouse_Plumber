@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: deductible_dashboard_mv
 actions:
   - name: deductible_dashboard_sql

@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_t_silver
 flowgroup: album_art_silver_fct
 presets:
   - default_delta_properties

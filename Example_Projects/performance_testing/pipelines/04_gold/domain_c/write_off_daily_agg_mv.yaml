@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: write_off_daily_agg_mv
 actions:
   - name: write_off_daily_agg_load

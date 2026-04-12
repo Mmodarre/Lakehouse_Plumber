@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: degree_summary_mv
 actions:
   - name: degree_summary_sql

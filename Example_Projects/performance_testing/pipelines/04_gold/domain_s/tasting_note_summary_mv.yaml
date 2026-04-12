@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: tasting_note_summary_mv
 actions:
   - name: tasting_note_summary_sql

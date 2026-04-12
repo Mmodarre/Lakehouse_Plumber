@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: downtime_dashboard_mv
 actions:
   - name: downtime_dashboard_sql

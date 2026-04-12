@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: pharmacy_quarterly_agg_mv
 actions:
   - name: pharmacy_quarterly_agg_load

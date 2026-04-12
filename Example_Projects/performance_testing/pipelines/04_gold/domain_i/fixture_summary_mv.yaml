@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: fixture_summary_mv
 actions:
   - name: fixture_summary_sql

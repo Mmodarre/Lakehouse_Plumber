@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: petri_dish_dashboard_mv
 actions:
   - name: petri_dish_dashboard_sql

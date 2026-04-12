@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_i_bronze
 flowgroup: kaizen_bronze
 presets:
   - default_delta_properties

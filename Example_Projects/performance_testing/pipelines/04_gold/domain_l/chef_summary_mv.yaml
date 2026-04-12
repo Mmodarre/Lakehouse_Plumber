@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: chef_summary_mv
 actions:
   - name: chef_summary_sql

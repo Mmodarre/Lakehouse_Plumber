@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: constellation_summary_mv
 actions:
   - name: constellation_summary_sql

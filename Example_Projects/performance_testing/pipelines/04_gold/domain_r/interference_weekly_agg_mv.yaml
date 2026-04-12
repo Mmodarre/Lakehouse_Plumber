@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: interference_weekly_agg_mv
 actions:
   - name: interference_weekly_agg_load

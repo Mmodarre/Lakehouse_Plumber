@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: showing_dashboard_mv
 actions:
   - name: showing_dashboard_sql

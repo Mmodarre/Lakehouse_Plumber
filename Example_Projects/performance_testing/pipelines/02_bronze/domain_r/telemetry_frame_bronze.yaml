@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_r_bronze
 flowgroup: telemetry_frame_bronze
 presets:
   - default_delta_properties

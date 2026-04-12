@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: pos_terminal_weekly_agg_mv
 actions:
   - name: pos_terminal_weekly_agg_load

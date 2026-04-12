@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: discharge_summary_mv
 actions:
   - name: discharge_summary_sql

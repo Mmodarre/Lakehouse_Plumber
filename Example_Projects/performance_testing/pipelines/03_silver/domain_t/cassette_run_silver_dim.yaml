@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_t_silver
 flowgroup: cassette_run_silver_dim
 presets:
   - default_delta_properties

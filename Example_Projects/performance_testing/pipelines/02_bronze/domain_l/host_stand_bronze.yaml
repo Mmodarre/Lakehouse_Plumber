@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_l_bronze
 flowgroup: host_stand_bronze
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: budget_summary_mv
 actions:
   - name: budget_summary_sql

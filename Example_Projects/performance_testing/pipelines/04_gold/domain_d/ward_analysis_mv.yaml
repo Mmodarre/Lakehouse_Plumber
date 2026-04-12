@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: ward_analysis_mv
 actions:
   - name: ward_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.ward_dim
+        FROM {catalog}.{silver_schema}.ward_fct
     target: v_ward_analysis
 
   - name: write_ward_analysis_mv

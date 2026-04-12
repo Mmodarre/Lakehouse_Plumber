@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: host_stand_weekly_agg_mv
 actions:
   - name: host_stand_weekly_agg_load

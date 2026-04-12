@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: andon_daily_agg_mv
 actions:
   - name: andon_daily_agg_load

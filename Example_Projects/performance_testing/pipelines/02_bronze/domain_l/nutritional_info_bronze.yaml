@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_l_bronze
 flowgroup: nutritional_info_bronze
 presets:
   - default_delta_properties

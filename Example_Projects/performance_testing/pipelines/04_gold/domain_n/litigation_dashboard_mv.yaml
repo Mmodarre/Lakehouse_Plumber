@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: litigation_dashboard_mv
 actions:
   - name: litigation_dashboard_sql

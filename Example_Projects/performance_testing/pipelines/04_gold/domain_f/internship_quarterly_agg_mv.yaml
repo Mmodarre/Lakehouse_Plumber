@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: internship_quarterly_agg_mv
 actions:
   - name: internship_quarterly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_o_modelled
 flowgroup: crawl_error_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: crawl_error_dim
+      table: crawl_error_fct
     target: v_crawl_error_silver
     description: "Load crawl_error from silver for modelling"
 

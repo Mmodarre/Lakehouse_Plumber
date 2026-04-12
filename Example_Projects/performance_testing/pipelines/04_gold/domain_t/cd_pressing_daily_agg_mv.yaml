@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: cd_pressing_daily_agg_mv
 actions:
   - name: cd_pressing_daily_agg_load

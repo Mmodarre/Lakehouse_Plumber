@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: mystery_shopper_daily_agg_mv
 actions:
   - name: mystery_shopper_daily_agg_load

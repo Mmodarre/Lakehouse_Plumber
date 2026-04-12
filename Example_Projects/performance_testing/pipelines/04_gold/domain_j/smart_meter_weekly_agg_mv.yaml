@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: smart_meter_weekly_agg_mv
 actions:
   - name: smart_meter_weekly_agg_load

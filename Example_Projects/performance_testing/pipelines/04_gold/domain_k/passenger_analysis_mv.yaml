@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: passenger_analysis_mv
 actions:
   - name: passenger_analysis_sql

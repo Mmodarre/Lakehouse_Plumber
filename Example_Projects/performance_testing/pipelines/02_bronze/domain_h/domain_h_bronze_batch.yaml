@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_h_bronze
 use_template: bronze_cleanse_template
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: certification_analysis_mv
 actions:
   - name: certification_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.certification_dim
+        FROM {catalog}.{silver_schema}.certification_fct
     target: v_certification_analysis
 
   - name: write_certification_analysis_mv

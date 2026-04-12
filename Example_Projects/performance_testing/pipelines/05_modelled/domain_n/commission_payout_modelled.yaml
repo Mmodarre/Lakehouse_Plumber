@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_n_modelled
 flowgroup: commission_payout_modelled
 presets:
   - default_delta_properties

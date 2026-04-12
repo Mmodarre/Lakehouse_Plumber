@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: fan_club_dashboard_mv
 actions:
   - name: fan_club_dashboard_sql

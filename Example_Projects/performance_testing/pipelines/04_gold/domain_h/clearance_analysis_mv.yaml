@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: clearance_analysis_mv
 actions:
   - name: clearance_analysis_sql

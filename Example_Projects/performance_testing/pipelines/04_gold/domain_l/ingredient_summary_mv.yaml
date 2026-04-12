@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: ingredient_summary_mv
 actions:
   - name: ingredient_summary_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: inverter_summary_mv
 actions:
   - name: inverter_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.inverter_dim
+        FROM {catalog}.{silver_schema}.inverter_fct
     target: v_inverter_summary
 
   - name: write_inverter_summary_mv

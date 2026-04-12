@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: home_care_weekly_agg_mv
 actions:
   - name: home_care_weekly_agg_load

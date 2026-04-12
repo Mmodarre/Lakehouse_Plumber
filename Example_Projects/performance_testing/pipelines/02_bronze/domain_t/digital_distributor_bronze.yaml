@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_t_bronze
 flowgroup: digital_distributor_bronze
 presets:
   - default_delta_properties

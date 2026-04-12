@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_d_bronze
 flowgroup: home_care_bronze
 presets:
   - default_delta_properties

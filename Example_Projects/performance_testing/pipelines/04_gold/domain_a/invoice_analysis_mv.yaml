@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_a_gold
 flowgroup: invoice_analysis_mv
 actions:
   - name: invoice_analysis_sql

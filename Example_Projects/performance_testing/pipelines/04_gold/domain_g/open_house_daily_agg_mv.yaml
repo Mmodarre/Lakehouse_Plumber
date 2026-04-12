@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: open_house_daily_agg_mv
 actions:
   - name: open_house_daily_agg_load

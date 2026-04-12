@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_o_modelled
 flowgroup: dynamic_ad_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: dynamic_ad_dim
+      table: dynamic_ad_fct
     target: v_dynamic_ad_silver
     description: "Load dynamic_ad from silver for modelling"
 

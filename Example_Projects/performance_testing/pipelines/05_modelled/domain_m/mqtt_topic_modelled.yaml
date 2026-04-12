@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_m_modelled
 flowgroup: mqtt_topic_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: mqtt_topic_dim
+      table: mqtt_topic_fct
     target: v_mqtt_topic_silver
     description: "Load mqtt_topic from silver for modelling"
 

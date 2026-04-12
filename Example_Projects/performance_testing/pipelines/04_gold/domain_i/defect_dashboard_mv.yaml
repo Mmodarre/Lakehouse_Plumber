@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: defect_dashboard_mv
 actions:
   - name: defect_dashboard_sql

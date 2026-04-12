@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: store_summary_mv
 actions:
   - name: store_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.store_dim
+        FROM {catalog}.{silver_schema}.store_fct
     target: v_store_summary
 
   - name: write_store_summary_mv

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: score_analysis_mv
 actions:
   - name: score_analysis_sql

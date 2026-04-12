@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: firmware_dashboard_mv
 actions:
   - name: firmware_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.firmware_dim
+        FROM {catalog}.{silver_schema}.firmware_fct
     target: v_firmware_dashboard
 
   - name: write_firmware_dashboard_mv

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: immunization_report_mv
 actions:
   - name: immunization_report_sql

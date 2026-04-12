@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: dead_letter_monthly_agg_mv
 actions:
   - name: dead_letter_monthly_agg_load

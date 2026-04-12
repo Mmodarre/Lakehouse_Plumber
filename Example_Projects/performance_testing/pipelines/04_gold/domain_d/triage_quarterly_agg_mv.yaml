@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: triage_quarterly_agg_mv
 actions:
   - name: triage_quarterly_agg_load

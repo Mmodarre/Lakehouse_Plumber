@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: voltage_dashboard_mv
 actions:
   - name: voltage_dashboard_sql

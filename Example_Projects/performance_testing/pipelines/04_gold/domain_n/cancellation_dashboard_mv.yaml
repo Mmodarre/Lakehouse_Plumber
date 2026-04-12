@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: cancellation_dashboard_mv
 actions:
   - name: cancellation_dashboard_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: injury_summary_mv
 actions:
   - name: injury_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.injury_dim
+        FROM {catalog}.{silver_schema}.injury_fct
     target: v_injury_summary
 
   - name: write_injury_summary_mv

@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_d_raw
 use_template: json_ingestion_template
 presets:
   - default_delta_properties

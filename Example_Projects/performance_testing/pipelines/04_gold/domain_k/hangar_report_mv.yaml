@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: hangar_report_mv
 actions:
   - name: hangar_report_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.hangar_dim
+        FROM {catalog}.{silver_schema}.hangar_fct
     target: v_hangar_report
 
   - name: write_hangar_report_mv

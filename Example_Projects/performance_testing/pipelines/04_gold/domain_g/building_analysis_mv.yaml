@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: building_analysis_mv
 actions:
   - name: building_analysis_sql

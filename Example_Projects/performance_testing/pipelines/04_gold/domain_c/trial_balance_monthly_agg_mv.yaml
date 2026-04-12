@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: trial_balance_monthly_agg_mv
 actions:
   - name: trial_balance_monthly_agg_load

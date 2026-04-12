@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: semester_dashboard_mv
 actions:
   - name: semester_dashboard_sql

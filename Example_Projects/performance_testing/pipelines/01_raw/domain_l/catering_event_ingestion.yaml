@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_l_raw
 flowgroup: catering_event_ingestion
 presets:
   - default_delta_properties

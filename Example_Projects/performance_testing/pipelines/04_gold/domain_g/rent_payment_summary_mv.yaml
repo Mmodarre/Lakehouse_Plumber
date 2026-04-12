@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: rent_payment_summary_mv
 actions:
   - name: rent_payment_summary_sql

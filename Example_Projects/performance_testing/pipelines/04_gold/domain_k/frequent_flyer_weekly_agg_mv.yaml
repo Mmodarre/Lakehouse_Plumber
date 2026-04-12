@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: frequent_flyer_weekly_agg_mv
 actions:
   - name: frequent_flyer_weekly_agg_load

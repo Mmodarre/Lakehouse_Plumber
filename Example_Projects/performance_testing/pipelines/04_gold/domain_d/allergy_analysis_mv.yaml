@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: allergy_analysis_mv
 actions:
   - name: allergy_analysis_sql

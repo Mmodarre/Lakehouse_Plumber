@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_r_raw
 flowgroup: radiation_dose_ingestion
 presets:
   - default_delta_properties

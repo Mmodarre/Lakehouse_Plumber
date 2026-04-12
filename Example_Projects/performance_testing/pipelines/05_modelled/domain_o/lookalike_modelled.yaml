@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_o_modelled
 flowgroup: lookalike_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: lookalike_dim
+      table: lookalike_fct
     target: v_lookalike_silver
     description: "Load lookalike from silver for modelling"
 

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: closing_dashboard_mv
 actions:
   - name: closing_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.closing_dim
+        FROM {catalog}.{silver_schema}.closing_fct
     target: v_closing_dashboard
 
   - name: write_closing_dashboard_mv

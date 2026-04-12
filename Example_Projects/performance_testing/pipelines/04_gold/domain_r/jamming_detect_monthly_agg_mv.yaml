@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: jamming_detect_monthly_agg_mv
 actions:
   - name: jamming_detect_monthly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: team_report_mv
 actions:
   - name: team_report_sql

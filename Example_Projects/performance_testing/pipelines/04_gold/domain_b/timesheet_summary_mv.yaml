@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: timesheet_summary_mv
 actions:
   - name: timesheet_summary_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: job_posting_dashboard_mv
 actions:
   - name: job_posting_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.job_posting_dim
+        FROM {catalog}.{silver_schema}.job_posting_fct
     target: v_job_posting_dashboard
 
   - name: write_job_posting_dashboard_mv

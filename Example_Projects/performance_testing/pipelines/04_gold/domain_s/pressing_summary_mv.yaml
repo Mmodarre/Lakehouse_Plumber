@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: pressing_summary_mv
 actions:
   - name: pressing_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.pressing_dim
+        FROM {catalog}.{silver_schema}.pressing_fct
     target: v_pressing_summary
 
   - name: write_pressing_summary_mv

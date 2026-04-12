@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: foot_traffic_quarterly_agg_mv
 actions:
   - name: foot_traffic_quarterly_agg_load

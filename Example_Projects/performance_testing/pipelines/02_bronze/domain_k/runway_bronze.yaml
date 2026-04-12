@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_k_bronze
 flowgroup: runway_bronze
 presets:
   - default_delta_properties

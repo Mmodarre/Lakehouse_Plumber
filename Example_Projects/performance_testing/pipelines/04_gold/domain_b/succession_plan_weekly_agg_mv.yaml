@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: succession_plan_weekly_agg_mv
 actions:
   - name: succession_plan_weekly_agg_load

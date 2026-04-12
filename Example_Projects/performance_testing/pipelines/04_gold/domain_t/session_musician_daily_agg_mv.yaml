@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: session_musician_daily_agg_mv
 actions:
   - name: session_musician_daily_agg_load

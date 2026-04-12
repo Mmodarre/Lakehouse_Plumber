@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: alumni_donor_weekly_agg_mv
 actions:
   - name: alumni_donor_weekly_agg_load

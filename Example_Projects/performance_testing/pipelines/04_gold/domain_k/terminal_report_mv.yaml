@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: terminal_report_mv
 actions:
   - name: terminal_report_sql

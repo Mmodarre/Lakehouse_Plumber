@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_r_silver
 flowgroup: telemetry_frame_silver_dim
 presets:
   - default_delta_properties

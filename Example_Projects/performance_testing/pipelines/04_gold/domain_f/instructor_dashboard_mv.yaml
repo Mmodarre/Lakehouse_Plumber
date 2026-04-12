@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: instructor_dashboard_mv
 actions:
   - name: instructor_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.instructor_dim
+        FROM {catalog}.{silver_schema}.instructor_fct
     target: v_instructor_dashboard
 
   - name: write_instructor_dashboard_mv

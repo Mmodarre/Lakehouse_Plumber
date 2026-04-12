@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: kaizen_monthly_agg_mv
 actions:
   - name: kaizen_monthly_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('mon', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.kaizen_dim
+        FROM {catalog}.{silver_schema}.kaizen_fct
         GROUP BY 1
     target: v_kaizen_monthly_agg
 

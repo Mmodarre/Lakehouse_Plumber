@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: campaign_summary_mv
 actions:
   - name: campaign_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.campaign_dim
+        FROM {catalog}.{silver_schema}.campaign_fct
     target: v_campaign_summary
 
   - name: write_campaign_summary_mv

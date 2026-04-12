@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: footprint_analysis_mv
 actions:
   - name: footprint_analysis_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.footprint_dim
+        FROM {catalog}.{silver_schema}.footprint_fct
     target: v_footprint_analysis
 
   - name: write_footprint_analysis_mv

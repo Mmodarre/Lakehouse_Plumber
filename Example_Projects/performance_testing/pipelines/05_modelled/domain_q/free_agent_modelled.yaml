@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_q_modelled
 flowgroup: free_agent_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: free_agent_dim
+      table: free_agent_fct
     target: v_free_agent_silver
     description: "Load free_agent from silver for modelling"
 

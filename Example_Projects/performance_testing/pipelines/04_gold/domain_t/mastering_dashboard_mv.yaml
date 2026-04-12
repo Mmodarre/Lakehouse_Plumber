@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: mastering_dashboard_mv
 actions:
   - name: mastering_dashboard_sql

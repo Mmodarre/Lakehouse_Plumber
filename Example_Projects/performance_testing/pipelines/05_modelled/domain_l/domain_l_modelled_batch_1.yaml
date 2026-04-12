@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: restaurant_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: restaurant_dim
+      table: restaurant_fct
     target: v_restaurant_silver
     description: "Load restaurant from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "restaurant_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: menu_item_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "menu_item_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: table_seat_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "table_seat_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: reservation_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: reservation_dim
+      table: reservation_fct
     target: v_reservation_silver
     description: "Load reservation from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "reservation_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: chef_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "chef_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: waiter_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "waiter_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: kitchen_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: kitchen_dim
+      table: kitchen_fct
     target: v_kitchen_silver
     description: "Load kitchen from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "kitchen_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: food_order_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "food_order_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: ingredient_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "ingredient_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: recipe_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: recipe_dim
+      table: recipe_fct
     target: v_recipe_silver
     description: "Load recipe from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "recipe_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: supplier_contract_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "supplier_contract_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: health_inspection_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "health_inspection_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: tip_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: tip_dim
+      table: tip_fct
     target: v_tip_silver
     description: "Load tip from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tip_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: shift_schedule_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "shift_schedule_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: pantry_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "pantry_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: dish_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: dish_dim
+      table: dish_fct
     target: v_dish_silver
     description: "Load dish from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "dish_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: beverage_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "beverage_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: appetizer_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "appetizer_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: dessert_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: dessert_dim
+      table: dessert_fct
     target: v_dessert_silver
     description: "Load dessert from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "dessert_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_l_modelled
 flowgroup: special_menu_modelled
 presets:
   - default_delta_properties

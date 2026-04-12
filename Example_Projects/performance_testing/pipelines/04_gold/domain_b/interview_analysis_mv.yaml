@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: interview_analysis_mv
 actions:
   - name: interview_analysis_sql

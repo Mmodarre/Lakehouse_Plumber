@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: temperature_log_monthly_agg_mv
 actions:
   - name: temperature_log_monthly_agg_load

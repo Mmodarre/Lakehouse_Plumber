@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: customs_check_daily_agg_mv
 actions:
   - name: customs_check_daily_agg_load

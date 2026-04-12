@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_d_gold
 flowgroup: lab_result_dashboard_mv
 actions:
   - name: lab_result_dashboard_sql

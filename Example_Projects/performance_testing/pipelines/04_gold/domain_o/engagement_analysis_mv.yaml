@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: engagement_analysis_mv
 actions:
   - name: engagement_analysis_sql

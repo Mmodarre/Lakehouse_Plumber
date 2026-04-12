@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: slot_time_monthly_agg_mv
 actions:
   - name: slot_time_monthly_agg_load

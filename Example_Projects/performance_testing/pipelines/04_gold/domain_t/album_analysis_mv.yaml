@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: album_analysis_mv
 actions:
   - name: album_analysis_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: poka_yoke_weekly_agg_mv
 actions:
   - name: poka_yoke_weekly_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('week', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.poka_yoke_dim
+        FROM {catalog}.{silver_schema}.poka_yoke_fct
         GROUP BY 1
     target: v_poka_yoke_weekly_agg
 

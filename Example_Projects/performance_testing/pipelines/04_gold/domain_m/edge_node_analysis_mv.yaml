@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: edge_node_analysis_mv
 actions:
   - name: edge_node_analysis_sql

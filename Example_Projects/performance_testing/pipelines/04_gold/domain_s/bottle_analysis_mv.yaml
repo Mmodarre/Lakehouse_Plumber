@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: bottle_analysis_mv
 actions:
   - name: bottle_analysis_sql

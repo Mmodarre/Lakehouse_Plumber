@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: transcript_dashboard_mv
 actions:
   - name: transcript_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.transcript_dim
+        FROM {catalog}.{silver_schema}.transcript_fct
     target: v_transcript_dashboard
 
   - name: write_transcript_dashboard_mv

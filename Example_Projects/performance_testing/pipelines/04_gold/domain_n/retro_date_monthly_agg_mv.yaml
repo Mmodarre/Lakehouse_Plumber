@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_n_gold
 flowgroup: retro_date_monthly_agg_mv
 actions:
   - name: retro_date_monthly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: crew_summary_mv
 actions:
   - name: crew_summary_sql

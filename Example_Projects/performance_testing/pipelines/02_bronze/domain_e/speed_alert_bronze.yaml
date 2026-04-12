@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_e_bronze
 flowgroup: speed_alert_bronze
 presets:
   - default_delta_properties

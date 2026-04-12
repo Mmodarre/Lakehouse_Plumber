@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: upgrade_monthly_agg_mv
 actions:
   - name: upgrade_monthly_agg_load

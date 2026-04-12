@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: hub_dashboard_mv
 actions:
   - name: hub_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.hub_dim
+        FROM {catalog}.{silver_schema}.hub_fct
     target: v_hub_dashboard
 
   - name: write_hub_dashboard_mv

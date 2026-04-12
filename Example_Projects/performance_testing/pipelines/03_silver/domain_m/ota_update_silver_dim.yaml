@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_m_silver
 flowgroup: ota_update_silver_dim
 presets:
   - default_delta_properties

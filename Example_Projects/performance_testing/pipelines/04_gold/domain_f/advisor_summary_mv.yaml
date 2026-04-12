@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: advisor_summary_mv
 actions:
   - name: advisor_summary_sql

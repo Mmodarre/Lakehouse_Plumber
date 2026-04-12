@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: solar_array_daily_agg_mv
 actions:
   - name: solar_array_daily_agg_load

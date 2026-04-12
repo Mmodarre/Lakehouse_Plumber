@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: workspace_weekly_agg_mv
 actions:
   - name: workspace_weekly_agg_load

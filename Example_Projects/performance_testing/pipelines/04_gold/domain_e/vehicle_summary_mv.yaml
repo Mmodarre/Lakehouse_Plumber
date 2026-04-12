@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: vehicle_summary_mv
 actions:
   - name: vehicle_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.vehicle_dim
+        FROM {catalog}.{silver_schema}.vehicle_fct
     target: v_vehicle_summary
 
   - name: write_vehicle_summary_mv

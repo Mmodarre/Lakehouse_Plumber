@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: variant_call_daily_agg_mv
 actions:
   - name: variant_call_daily_agg_load

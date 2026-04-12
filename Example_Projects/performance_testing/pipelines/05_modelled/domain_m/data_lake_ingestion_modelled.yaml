@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_m_modelled
 flowgroup: data_lake_ingestion_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: data_lake_ingestion_dim
+      table: data_lake_ingestion_fct
     target: v_data_lake_ingestion_silver
     description: "Load data_lake_ingestion from silver for modelling"
 

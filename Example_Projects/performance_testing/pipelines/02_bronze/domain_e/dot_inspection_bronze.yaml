@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_e_bronze
 flowgroup: dot_inspection_bronze
 presets:
   - default_delta_properties

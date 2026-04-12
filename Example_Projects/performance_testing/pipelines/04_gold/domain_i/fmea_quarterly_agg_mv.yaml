@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_i_gold
 flowgroup: fmea_quarterly_agg_mv
 actions:
   - name: fmea_quarterly_agg_load

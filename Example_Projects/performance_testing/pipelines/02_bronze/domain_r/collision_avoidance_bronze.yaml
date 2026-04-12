@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_r_bronze
 flowgroup: collision_avoidance_bronze
 presets:
   - default_delta_properties

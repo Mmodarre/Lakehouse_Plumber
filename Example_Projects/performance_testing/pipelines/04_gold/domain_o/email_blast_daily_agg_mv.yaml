@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_o_gold
 flowgroup: email_blast_daily_agg_mv
 actions:
   - name: email_blast_daily_agg_load

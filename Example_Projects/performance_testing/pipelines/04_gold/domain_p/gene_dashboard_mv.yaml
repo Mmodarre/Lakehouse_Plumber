@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: gene_dashboard_mv
 actions:
   - name: gene_dashboard_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.gene_dim
+        FROM {catalog}.{silver_schema}.gene_fct
     target: v_gene_dashboard
 
   - name: write_gene_dashboard_mv

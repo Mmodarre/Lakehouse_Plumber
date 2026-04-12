@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_l_bronze
 flowgroup: takeout_bronze
 presets:
   - default_delta_properties

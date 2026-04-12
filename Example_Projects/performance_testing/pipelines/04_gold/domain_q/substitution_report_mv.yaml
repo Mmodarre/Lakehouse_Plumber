@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: substitution_report_mv
 actions:
   - name: substitution_report_sql

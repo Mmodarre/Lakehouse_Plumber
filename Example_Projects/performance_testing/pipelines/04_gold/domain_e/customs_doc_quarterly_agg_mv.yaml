@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: customs_doc_quarterly_agg_mv
 actions:
   - name: customs_doc_quarterly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: listing_report_mv
 actions:
   - name: listing_report_sql

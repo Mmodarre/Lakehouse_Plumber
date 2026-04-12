@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: maintenance_report_mv
 actions:
   - name: maintenance_report_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.maintenance_dim
+        FROM {catalog}.{silver_schema}.maintenance_fct
     target: v_maintenance_report
 
   - name: write_maintenance_report_mv

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_n_modelled
 flowgroup: catastrophe_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: catastrophe_dim
+      table: catastrophe_fct
     target: v_catastrophe_silver
     description: "Load catastrophe from silver for modelling"
 

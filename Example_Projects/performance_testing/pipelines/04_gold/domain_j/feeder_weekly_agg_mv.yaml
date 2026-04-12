@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: feeder_weekly_agg_mv
 actions:
   - name: feeder_weekly_agg_load

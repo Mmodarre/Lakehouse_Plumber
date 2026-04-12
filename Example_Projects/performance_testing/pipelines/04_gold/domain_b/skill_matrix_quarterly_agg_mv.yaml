@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: skill_matrix_quarterly_agg_mv
 actions:
   - name: skill_matrix_quarterly_agg_load

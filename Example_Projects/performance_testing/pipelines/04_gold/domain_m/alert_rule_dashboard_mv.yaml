@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: alert_rule_dashboard_mv
 actions:
   - name: alert_rule_dashboard_sql

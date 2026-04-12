@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_r_modelled
 flowgroup: bandwidth_alloc_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: bandwidth_alloc_dim
+      table: bandwidth_alloc_fct
     target: v_bandwidth_alloc_silver
     description: "Load bandwidth_alloc from silver for modelling"
 

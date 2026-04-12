@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: hazmat_weekly_agg_mv
 actions:
   - name: hazmat_weekly_agg_load

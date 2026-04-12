@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: blend_dashboard_mv
 actions:
   - name: blend_dashboard_sql

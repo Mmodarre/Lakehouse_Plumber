@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: radio_play_quarterly_agg_mv
 actions:
   - name: radio_play_quarterly_agg_load

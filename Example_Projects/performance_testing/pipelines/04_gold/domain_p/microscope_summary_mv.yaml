@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: microscope_summary_mv
 actions:
   - name: microscope_summary_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_f_gold
 flowgroup: assignment_analysis_mv
 actions:
   - name: assignment_analysis_sql

@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: customer_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: customer_dim
+      table: customer_fct
     target: v_customer_silver
     description: "Load customer from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "customer_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: order_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "order_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: product_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "product_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: supplier_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: supplier_dim
+      table: supplier_fct
     target: v_supplier_silver
     description: "Load supplier from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "supplier_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: shipment_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "shipment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: invoice_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "invoice_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: payment_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: payment_dim
+      table: payment_fct
     target: v_payment_silver
     description: "Load payment from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "payment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: refund_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "refund_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: coupon_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "coupon_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: promotion_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: promotion_dim
+      table: promotion_fct
     target: v_promotion_silver
     description: "Load promotion from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "promotion_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: warehouse_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "warehouse_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: inventory_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "inventory_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: category_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: category_dim
+      table: category_fct
     target: v_category_silver
     description: "Load category from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "category_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: brand_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "brand_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: review_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "review_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: wishlist_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: wishlist_dim
+      table: wishlist_fct
     target: v_wishlist_silver
     description: "Load wishlist from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "wishlist_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: cart_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "cart_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: address_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "address_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: contact_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: contact_dim
+      table: contact_fct
     target: v_contact_silver
     description: "Load contact from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "contact_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_a_modelled
 flowgroup: subscription_modelled
 presets:
   - default_delta_properties

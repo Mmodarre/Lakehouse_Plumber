@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_r_modelled
 flowgroup: debris_track_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: debris_track_dim
+      table: debris_track_fct
     target: v_debris_track_silver
     description: "Load debris_track from silver for modelling"
 

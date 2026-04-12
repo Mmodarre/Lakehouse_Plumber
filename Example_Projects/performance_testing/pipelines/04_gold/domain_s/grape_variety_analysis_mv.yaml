@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: grape_variety_analysis_mv
 actions:
   - name: grape_variety_analysis_sql

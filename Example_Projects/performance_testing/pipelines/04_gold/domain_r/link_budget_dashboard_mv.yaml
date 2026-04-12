@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: link_budget_dashboard_mv
 actions:
   - name: link_budget_dashboard_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_g_gold
 flowgroup: lead_paint_monthly_agg_mv
 actions:
   - name: lead_paint_monthly_agg_load

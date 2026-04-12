@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: battery_dashboard_mv
 actions:
   - name: battery_dashboard_sql

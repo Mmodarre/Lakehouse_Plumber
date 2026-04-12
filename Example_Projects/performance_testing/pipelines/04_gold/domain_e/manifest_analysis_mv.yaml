@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: manifest_analysis_mv
 actions:
   - name: manifest_analysis_sql

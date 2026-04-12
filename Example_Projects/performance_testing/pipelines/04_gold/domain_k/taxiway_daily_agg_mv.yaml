@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_k_gold
 flowgroup: taxiway_daily_agg_mv
 actions:
   - name: taxiway_daily_agg_load

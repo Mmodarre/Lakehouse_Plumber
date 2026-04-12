@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_p_gold
 flowgroup: flow_cytometry_daily_agg_mv
 actions:
   - name: flow_cytometry_daily_agg_load

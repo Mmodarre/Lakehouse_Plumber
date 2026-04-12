@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: machine_modelled
 presets:
   - default_delta_properties
@@ -10,7 +10,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: machine_dim
+      table: machine_fct
     target: v_machine_silver
     description: "Load machine from silver for modelling"
 
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "machine_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: assembly_modelled
 presets:
   - default_delta_properties
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "assembly_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: quality_check_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "quality_check_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: raw_material_modelled
 presets:
   - default_delta_properties
@@ -124,7 +124,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: raw_material_dim
+      table: raw_material_fct
     target: v_raw_material_silver
     description: "Load raw_material from silver for modelling"
 
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "raw_material_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: work_cell_modelled
 presets:
   - default_delta_properties
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "work_cell_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: shift_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "shift_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: operator_modelled
 presets:
   - default_delta_properties
@@ -238,7 +238,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: operator_dim
+      table: operator_fct
     target: v_operator_silver
     description: "Load operator from silver for modelling"
 
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "operator_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: defect_modelled
 presets:
   - default_delta_properties
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "defect_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: batch_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "batch_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: bom_modelled
 presets:
   - default_delta_properties
@@ -352,7 +352,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: bom_dim
+      table: bom_fct
     target: v_bom_silver
     description: "Load bom from silver for modelling"
 
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "bom_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: routing_modelled
 presets:
   - default_delta_properties
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "routing_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: downtime_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "downtime_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: changeover_modelled
 presets:
   - default_delta_properties
@@ -466,7 +466,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: changeover_dim
+      table: changeover_fct
     target: v_changeover_silver
     description: "Load changeover from silver for modelling"
 
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "changeover_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: yield_rate_modelled
 presets:
   - default_delta_properties
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "yield_rate_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: scrap_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "scrap_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: tooling_modelled
 presets:
   - default_delta_properties
@@ -580,7 +580,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: tooling_dim
+      table: tooling_fct
     target: v_tooling_silver
     description: "Load tooling from silver for modelling"
 
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "tooling_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: fixture_modelled
 presets:
   - default_delta_properties
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "fixture_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: calibration_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "calibration_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: specification_modelled
 presets:
   - default_delta_properties
@@ -694,7 +694,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: specification_dim
+      table: specification_fct
     target: v_specification_silver
     description: "Load specification from silver for modelling"
 
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "specification_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_i_modelled
 flowgroup: tolerance_modelled
 presets:
   - default_delta_properties

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_s_gold
 flowgroup: critic_score_daily_agg_mv
 actions:
   - name: critic_score_daily_agg_load

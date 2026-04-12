@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: cost_center_summary_mv
 actions:
   - name: cost_center_summary_sql

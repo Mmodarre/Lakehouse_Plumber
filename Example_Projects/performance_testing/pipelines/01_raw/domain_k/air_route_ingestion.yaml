@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_k_raw
 flowgroup: air_route_ingestion
 presets:
   - default_delta_properties

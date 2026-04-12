@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: match_summary_mv
 actions:
   - name: match_summary_sql
@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.match_dim
+        FROM {catalog}.{silver_schema}.match_fct
     target: v_match_summary
 
   - name: write_match_summary_mv

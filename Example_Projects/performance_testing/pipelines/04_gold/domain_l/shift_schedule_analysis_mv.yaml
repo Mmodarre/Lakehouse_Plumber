@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: shift_schedule_analysis_mv
 actions:
   - name: shift_schedule_analysis_sql

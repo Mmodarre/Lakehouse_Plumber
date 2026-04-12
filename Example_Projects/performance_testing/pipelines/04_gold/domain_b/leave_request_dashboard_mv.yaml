@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_b_gold
 flowgroup: leave_request_dashboard_mv
 actions:
   - name: leave_request_dashboard_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_l_gold
 flowgroup: wait_time_daily_agg_mv
 actions:
   - name: wait_time_daily_agg_load
@@ -10,7 +10,7 @@ actions:
           date_trunc('day', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.wait_time_dim
+        FROM {catalog}.{silver_schema}.wait_time_fct
         GROUP BY 1
     target: v_wait_time_daily_agg
 

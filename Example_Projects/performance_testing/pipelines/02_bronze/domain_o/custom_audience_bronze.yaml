@@ -1,4 +1,4 @@
-pipeline: perf_bronze
+pipeline: domain_o_bronze
 flowgroup: custom_audience_bronze
 presets:
   - default_delta_properties

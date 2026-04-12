@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: tariff_plan_analysis_mv
 actions:
   - name: tariff_plan_analysis_sql

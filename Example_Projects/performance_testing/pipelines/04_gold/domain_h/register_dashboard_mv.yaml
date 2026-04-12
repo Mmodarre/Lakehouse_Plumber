@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_h_gold
 flowgroup: register_dashboard_mv
 actions:
   - name: register_dashboard_sql

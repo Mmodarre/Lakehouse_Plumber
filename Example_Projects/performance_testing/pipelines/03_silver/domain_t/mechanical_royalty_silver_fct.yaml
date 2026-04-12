@@ -1,4 +1,4 @@
-pipeline: perf_silver
+pipeline: domain_t_silver
 flowgroup: mechanical_royalty_silver_fct
 presets:
   - default_delta_properties

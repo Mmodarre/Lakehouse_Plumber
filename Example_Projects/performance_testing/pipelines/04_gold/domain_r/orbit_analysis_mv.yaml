@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_r_gold
 flowgroup: orbit_analysis_mv
 actions:
   - name: orbit_analysis_sql

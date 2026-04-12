@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_m_gold
 flowgroup: threshold_summary_mv
 actions:
   - name: threshold_summary_sql

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: var_decision_daily_agg_mv
 actions:
   - name: var_decision_daily_agg_load

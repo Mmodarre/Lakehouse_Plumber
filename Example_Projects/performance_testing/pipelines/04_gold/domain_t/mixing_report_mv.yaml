@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: mixing_report_mv
 actions:
   - name: mixing_report_sql

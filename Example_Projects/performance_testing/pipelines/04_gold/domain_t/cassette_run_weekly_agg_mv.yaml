@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_t_gold
 flowgroup: cassette_run_weekly_agg_mv
 actions:
   - name: cassette_run_weekly_agg_load

@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_j_gold
 flowgroup: demand_dashboard_mv
 actions:
   - name: demand_dashboard_sql

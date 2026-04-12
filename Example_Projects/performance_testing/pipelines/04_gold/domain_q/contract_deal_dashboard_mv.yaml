@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_q_gold
 flowgroup: contract_deal_dashboard_mv
 actions:
   - name: contract_deal_dashboard_sql

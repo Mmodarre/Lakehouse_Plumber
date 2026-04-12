@@ -1,4 +1,4 @@
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: nursing_note_modelled
 presets:
   - default_delta_properties
@@ -36,7 +36,7 @@ actions:
       schema: "{modelled_schema}"
       table: "nursing_note_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: radiology_modelled
 presets:
   - default_delta_properties
@@ -48,7 +48,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: radiology_dim
+      table: radiology_fct
     target: v_radiology_silver
     description: "Load radiology from silver for modelling"
 
@@ -74,7 +74,7 @@ actions:
       schema: "{modelled_schema}"
       table: "radiology_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: pathology_modelled
 presets:
   - default_delta_properties
@@ -112,7 +112,7 @@ actions:
       schema: "{modelled_schema}"
       table: "pathology_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: pharmacy_modelled
 presets:
   - default_delta_properties
@@ -150,7 +150,7 @@ actions:
       schema: "{modelled_schema}"
       table: "pharmacy_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: blood_bank_modelled
 presets:
   - default_delta_properties
@@ -162,7 +162,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: blood_bank_dim
+      table: blood_bank_fct
     target: v_blood_bank_silver
     description: "Load blood_bank from silver for modelling"
 
@@ -188,7 +188,7 @@ actions:
       schema: "{modelled_schema}"
       table: "blood_bank_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: surgery_modelled
 presets:
   - default_delta_properties
@@ -226,7 +226,7 @@ actions:
       schema: "{modelled_schema}"
       table: "surgery_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: anesthesia_modelled
 presets:
   - default_delta_properties
@@ -264,7 +264,7 @@ actions:
       schema: "{modelled_schema}"
       table: "anesthesia_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: recovery_modelled
 presets:
   - default_delta_properties
@@ -276,7 +276,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: recovery_dim
+      table: recovery_fct
     target: v_recovery_silver
     description: "Load recovery from silver for modelling"
 
@@ -302,7 +302,7 @@ actions:
       schema: "{modelled_schema}"
       table: "recovery_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: rehab_modelled
 presets:
   - default_delta_properties
@@ -340,7 +340,7 @@ actions:
       schema: "{modelled_schema}"
       table: "rehab_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: outpatient_modelled
 presets:
   - default_delta_properties
@@ -378,7 +378,7 @@ actions:
       schema: "{modelled_schema}"
       table: "outpatient_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: emergency_modelled
 presets:
   - default_delta_properties
@@ -390,7 +390,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: emergency_dim
+      table: emergency_fct
     target: v_emergency_silver
     description: "Load emergency from silver for modelling"
 
@@ -416,7 +416,7 @@ actions:
       schema: "{modelled_schema}"
       table: "emergency_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: triage_modelled
 presets:
   - default_delta_properties
@@ -454,7 +454,7 @@ actions:
       schema: "{modelled_schema}"
       table: "triage_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: bed_assignment_modelled
 presets:
   - default_delta_properties
@@ -492,7 +492,7 @@ actions:
       schema: "{modelled_schema}"
       table: "bed_assignment_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: diet_plan_modelled
 presets:
   - default_delta_properties
@@ -504,7 +504,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: diet_plan_dim
+      table: diet_plan_fct
     target: v_diet_plan_silver
     description: "Load diet_plan from silver for modelling"
 
@@ -530,7 +530,7 @@ actions:
       schema: "{modelled_schema}"
       table: "diet_plan_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: consent_form_modelled
 presets:
   - default_delta_properties
@@ -568,7 +568,7 @@ actions:
       schema: "{modelled_schema}"
       table: "consent_form_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: care_plan_modelled
 presets:
   - default_delta_properties
@@ -606,7 +606,7 @@ actions:
       schema: "{modelled_schema}"
       table: "care_plan_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: case_manager_modelled
 presets:
   - default_delta_properties
@@ -618,7 +618,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: case_manager_dim
+      table: case_manager_fct
     target: v_case_manager_silver
     description: "Load case_manager from silver for modelling"
 
@@ -644,7 +644,7 @@ actions:
       schema: "{modelled_schema}"
       table: "case_manager_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: home_care_modelled
 presets:
   - default_delta_properties
@@ -682,7 +682,7 @@ actions:
       schema: "{modelled_schema}"
       table: "home_care_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: telemedicine_modelled
 presets:
   - default_delta_properties
@@ -720,7 +720,7 @@ actions:
       schema: "{modelled_schema}"
       table: "telemedicine_modelled"
 ---
-pipeline: perf_modelled
+pipeline: domain_d_modelled
 flowgroup: wearable_data_modelled
 presets:
   - default_delta_properties
@@ -732,7 +732,7 @@ actions:
       type: delta
       catalog: "{catalog}"
       schema: "{silver_schema}"
-      table: wearable_data_dim
+      table: wearable_data_fct
     target: v_wearable_data_silver
     description: "Load wearable_data from silver for modelling"
 

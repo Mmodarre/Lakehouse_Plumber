@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_c_gold
 flowgroup: asset_report_mv
 actions:
   - name: asset_report_sql

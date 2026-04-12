@@ -1,4 +1,4 @@
-pipeline: perf_raw
+pipeline: domain_l_raw
 flowgroup: table_seat_ingestion
 presets:
   - default_delta_properties

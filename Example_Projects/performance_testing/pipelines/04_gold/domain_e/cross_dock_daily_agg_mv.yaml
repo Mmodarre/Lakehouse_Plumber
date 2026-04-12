@@ -1,4 +1,4 @@
-pipeline: perf_gold
+pipeline: domain_e_gold
 flowgroup: cross_dock_daily_agg_mv
 actions:
   - name: cross_dock_daily_agg_load
