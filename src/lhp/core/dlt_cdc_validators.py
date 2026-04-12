@@ -382,6 +382,14 @@ class SnapshotCdcConfigValidator:
                 if not source_function.get("function"):
                     errors.append(f"{prefix}: source_function must have 'function'")
 
+                # Validate parameters if provided
+                params = source_function.get("parameters")
+                if params is not None:
+                    if not isinstance(params, dict):
+                        errors.append(
+                            f"{prefix}: source_function 'parameters' must be a dictionary"
+                        )
+
         return errors
 
     def _validate_keys_configuration(

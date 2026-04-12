@@ -631,6 +631,11 @@
                                 "function": {
                                     "type": "string",
                                     "description": "Function name"
+                                },
+                                "parameters": {
+                                    "type": "object",
+                                    "description": "Keyword arguments to bind via functools.partial. Function must use * separator for keyword-only args.",
+                                    "additionalProperties": true
                                 }
                             }
                         },

@@ -3,7 +3,7 @@
 import ast
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
@@ -17,6 +17,17 @@ from ...utils.external_file_loader import (
 from ...utils.schema_parser import SchemaParser
 
 logger = logging.getLogger(__name__)
+
+# Allowed types for source_function parameter values
+_ALLOWED_PARAM_TYPES = (str, int, float, bool, list, dict, type(None))
+
+
+class SourceFunctionResult(NamedTuple):
+    """Result of processing a source_function configuration."""
+
+    code: str
+    name: str
+    parameters: Optional[Dict[str, Any]] = None
 
 
 class StreamingTableWriteGenerator(BaseActionGenerator):
@@ -137,11 +148,13 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
 
         # Process source function code for snapshot_cdc mode
         source_function_code = None
-        source_function_name = None
+        source_expression = None
         if mode == "snapshot_cdc" and snapshot_cdc_config.get("source_function"):
-            source_function_code, source_function_name = self._process_source_function(
+            result = self._process_source_function(
                 snapshot_cdc_config["source_function"], context
             )
+            source_function_code = result.code
+            source_expression = self._build_source_expression(result)
 
         # Process data quality expectations
         expectations = context.get("expectations", [])
@@ -258,7 +271,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "cdc_config": cdc_config,
             "snapshot_cdc_config": snapshot_cdc_config,
             "source_function_code": source_function_code,
-            "source_function_name": source_function_name,
+            "source_expression": source_expression,
             "expect_all": expect_all,
             "expect_all_or_drop": expect_all_or_drop,
             "expect_all_or_fail": expect_all_or_fail,
@@ -293,22 +306,47 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             )
             return []
 
+    def _build_source_expression(self, result: SourceFunctionResult) -> str:
+        """Build the source= expression for snapshot CDC.
+
+        Returns a bare function name when no parameters, or a partial()
+        expression with keyword arguments when parameters are present.
+        """
+        if not result.parameters:
+            return result.name
+
+        param_parts = [f"{k}={repr(v)}" for k, v in result.parameters.items()]
+        params_str = ",\n        ".join(param_parts)
+        self.add_import("from functools import partial")
+        return f"partial(\n        {result.name},\n        {params_str}\n    )"
+
+    @staticmethod
+    def _find_function_node(
+        tree: ast.Module, function_name: str
+    ) -> "ast.FunctionDef | None":
+        """Find a top-level FunctionDef by name in the AST."""
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name == function_name:
+                return node
+        return None
+
     def _process_source_function(
-        self, source_function_config: Dict[str, str], context: Dict[str, Any] = None
-    ) -> Tuple[str, str]:
-        """Process source_function configuration and return function code and function name.
+        self, source_function_config: Dict[str, Any], context: Dict[str, Any] = None
+    ) -> SourceFunctionResult:
+        """Process source_function configuration and return function code, name, and parameters.
 
         Args:
-            source_function_config: Dict with 'file' and 'function' keys
+            source_function_config: Dict with 'file', 'function', and optional 'parameters' keys
             context: Generation context containing substitution_manager and other data
 
         Returns:
-            Tuple of (function_code, function_name)
+            SourceFunctionResult with code, name, and optional parameters
         """
         from pathlib import Path
 
         file_name = source_function_config.get("file")
         function_name = source_function_config.get("function")
+        parameters = source_function_config.get("parameters")
 
         if not file_name or not function_name:
             raise LHPError(
@@ -402,12 +440,15 @@ snapshot_cdc_config:
         with open(function_file_path, "r", encoding="utf-8") as f:
             source_code = f.read()
 
-        # Apply substitutions to the source code if substitution_manager is available
+        # Apply substitutions to the source code and parameters
         if context and "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
             source_code = substitution_mgr._process_string(source_code)
 
-            # Track secret references if they exist
+            if parameters:
+                parameters = substitution_mgr.substitute_yaml(parameters)
+
+            # Single collection point after ALL substitutions
             secret_refs = substitution_mgr.get_secret_references()
             if (
                 "secret_references" in context
@@ -441,8 +482,17 @@ def my_snapshot_function(latest_version: Optional[int]) -> Optional[Tuple[DataFr
                 context={"File": file_name, "Syntax Error": str(e)},
             )
 
+        # Find the function node once for both validation and extraction
+        func_node = self._find_function_node(tree, function_name)
+
+        # Validate parameters against function signature if provided
+        if parameters:
+            self._validate_function_parameters(func_node, function_name, parameters)
+
         # Extract the specific function
-        function_code = self._extract_function_code(source_code, tree, function_name)
+        function_code = self._extract_function_code(
+            source_code, tree, function_name, func_node
+        )
 
         if not function_code:
             raise LHPError(
@@ -461,10 +511,10 @@ def my_snapshot_function(latest_version: Optional[int]) -> Optional[Tuple[DataFr
 def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
     \"\"\"
     Your snapshot processing logic here.
-    
+
     Args:
         latest_version: Most recent version processed, or None for first run
-        
+
     Returns:
         Tuple of (DataFrame, version_number) or None if no more data
     \"\"\"
@@ -472,16 +522,96 @@ def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, 
         # First run logic
         df = spark.read.table("your_snapshot_table")
         return (df, 1)
-    
+
     # Subsequent runs logic
     return None  # No more snapshots""",
                 context={"File": file_name, "Expected Function": function_name},
             )
 
-        return function_code, function_name
+        return SourceFunctionResult(function_code, function_name, parameters or None)
+
+    def _validate_function_parameters(
+        self,
+        func_node: "ast.FunctionDef | None",
+        function_name: str,
+        parameters: Dict[str, Any],
+    ) -> None:
+        """Validate that parameters match the function's keyword-only arguments.
+
+        Skips name validation if the function accepts **kwargs.
+
+        Args:
+            func_node: The AST node for the function, or None if not found
+            function_name: Name of the target function (for error messages)
+            parameters: Parameter dict from YAML config
+
+        Raises:
+            LHPError: If parameter names don't match keyword-only args,
+                      or if parameter values have unsupported types
+        """
+        # Type guard: validate parameter values
+        for key, value in parameters.items():
+            if not isinstance(value, _ALLOWED_PARAM_TYPES):
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="005",
+                    title="Unsupported parameter type in source_function",
+                    details=(
+                        f"Parameter '{key}' has type '{type(value).__name__}', "
+                        f"which is not supported."
+                    ),
+                    suggestions=[
+                        "Supported types: str, int, float, bool, list, dict, None",
+                        f"Convert '{key}' to one of the supported types",
+                    ],
+                )
+
+        if func_node is None:
+            # Function not found — skip name validation,
+            # _extract_function_code will raise its own error
+            return
+
+        # If function accepts **kwargs, skip name validation
+        if func_node.args.kwarg:
+            logger.debug(
+                f"Function '{function_name}' accepts **kwargs, "
+                f"skipping parameter name validation"
+            )
+            return
+
+        # Collect keyword-only argument names
+        kw_only_names = {arg.arg for arg in func_node.args.kwonlyargs}
+
+        # Check for unknown parameter names
+        unknown = set(parameters.keys()) - kw_only_names
+        if unknown:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="006",
+                title="Unknown parameters for source_function",
+                details=(
+                    f"Parameters {sorted(unknown)} are not keyword-only arguments "
+                    f"of function '{function_name}'."
+                ),
+                suggestions=[
+                    (
+                        f"Available keyword-only arguments: {sorted(kw_only_names)}"
+                        if kw_only_names
+                        else f"Function '{function_name}' has no keyword-only arguments. "
+                        f"Add a '*' separator before the parameters you want to bind."
+                    ),
+                    "Ensure parameter names in YAML match the function signature",
+                    f"Example function signature: def {function_name}("
+                    f"latest_version, *, {', '.join(sorted(parameters.keys()))})",
+                ],
+            )
 
     def _extract_function_code(
-        self, source_code: str, tree: ast.Module, function_name: str
+        self,
+        source_code: str,
+        tree: ast.Module,
+        function_name: str,
+        func_node: "ast.FunctionDef | None" = None,
     ) -> str:
         """Extract function code and its dependencies from the AST.
 
@@ -489,6 +619,7 @@ def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, 
             source_code: Original source code
             tree: Parsed AST
             function_name: Name of function to extract
+            func_node: Pre-found FunctionDef node (avoids redundant traversal)
 
         Returns:
             Complete function code with imports and dependencies
@@ -503,19 +634,18 @@ def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, 
                 import_line = source_lines[node.lineno - 1].strip()
                 imports.append(import_line)
 
-        # Find the function definition
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == function_name:
-                # Extract the function lines
-                start_line = node.lineno - 1
-                end_line = (
-                    node.end_lineno
-                    if hasattr(node, "end_lineno")
-                    else len(source_lines)
-                )
+        # Use pre-found node or fall back to search
+        if func_node is None:
+            func_node = self._find_function_node(tree, function_name)
 
-                function_lines = source_lines[start_line:end_line]
-                break
+        if func_node is not None:
+            start_line = func_node.lineno - 1
+            end_line = (
+                func_node.end_lineno
+                if hasattr(func_node, "end_lineno")
+                else len(source_lines)
+            )
+            function_lines = source_lines[start_line:end_line]
 
         if not function_lines:
             return ""
