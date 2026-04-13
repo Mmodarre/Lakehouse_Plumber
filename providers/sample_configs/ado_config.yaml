@@ -3,9 +3,9 @@
 # ==============================================================================
 # Used by: ado_test_reporter.py (config mapping) and ado_test_reporter_inline.py
 #
-# Substitution placeholders (e.g., {ado_org}) resolve at `lhp generate` time
-# once the framework fix ships. Until then, hardcode values or use config
-# overrides.
+# Substitution placeholders (e.g., {ado_org}) resolve at `lhp generate` time.
+# Secret references (${secret:...}) do NOT work in copied provider files —
+# the provider calls dbutils.secrets.get() directly instead (see _get_pat()).
 #
 # PAT is read from Databricks secrets — NEVER hardcode it here.
 # ==============================================================================

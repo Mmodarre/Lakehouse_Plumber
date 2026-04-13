@@ -213,10 +213,22 @@ Provider files and config YAML files support LHP substitution tokens:
 - `{catalog}`, `{audit_schema}`, `{ado_org}`, etc.
 - These resolve at `lhp generate` time
 
-**Note:** Substitution support in provider files is a separate framework enhancement.
-Until that fix ships, hardcode environment-specific values or use config overrides.
-The provider files are written with substitution placeholders so they will work
-automatically once the framework fix lands.
+**Secret references (`${secret:scope/key}`) do NOT work in provider files.**
+The `SecretCodeGenerator` that converts `${secret:...}` placeholders into
+`dbutils.secrets.get()` calls only runs on generated flowgroup code, not on
+separately-copied files like providers. This is the same limitation that applies
+to custom Python transform files.
+
+To access secrets in a provider, call `dbutils` directly:
+
+```python
+from pyspark.dbutils import DBUtils
+dbutils = DBUtils(spark)
+pat = dbutils.secrets.get(scope="my_scope", key="my_key")
+```
+
+The ADO providers already do this — see `_get_pat()` in either ADO provider for
+the reference pattern.
 
 ## dry_run
 
