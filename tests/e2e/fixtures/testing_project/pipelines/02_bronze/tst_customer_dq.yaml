@@ -1,0 +1,32 @@
+# Test actions for customer data quality with test_id for external reporting
+pipeline: acmi_edw_bronze
+flowgroup: tst_customer_dq
+#job_name: j_two
+
+actions:
+  - name: tst_customer_pk_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_customer_bronze_DQE
+    target: tst_customer_pk_uniqueness
+    columns: [customer_id]
+    on_violation: warn
+    test_id: "SIT-G01"
+
+  - name: tst_customer_completeness
+    type: test
+    test_type: completeness
+    source: v_customer_bronze_DQE
+    required_columns: [customer_id, name, nation_id]
+    on_violation: warn
+    test_id: "SIT-G02"
+
+  - name: tst_customer_balance_range
+    type: test
+    test_type: range
+    source: v_customer_bronze_DQE
+    column: account_balance
+    min_value: -1000
+    max_value: 10000
+    on_violation: warn
+    # No test_id — deliberately excluded from reporting

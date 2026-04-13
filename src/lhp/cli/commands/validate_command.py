@@ -21,7 +21,11 @@ class ValidateCommand(BaseCommand):
     """
 
     def execute(
-        self, env: str = "dev", pipeline: Optional[str] = None, verbose: bool = False
+        self,
+        env: str = "dev",
+        pipeline: Optional[str] = None,
+        verbose: bool = False,
+        include_tests: bool = False,
     ) -> None:
         """
         Execute the validate command.
@@ -30,6 +34,7 @@ class ValidateCommand(BaseCommand):
             env: Environment to validate against
             pipeline: Specific pipeline to validate (optional)
             verbose: Enable verbose output
+            include_tests: Include test reporting validation
         """
         self.setup_from_context()
         project_root = self.ensure_project_root()
@@ -51,8 +56,8 @@ class ValidateCommand(BaseCommand):
         # Initialize orchestrator
         orchestrator = ActionOrchestrator(project_root)
 
-        # Determine which pipelines to validate
-        pipelines_to_validate = self._determine_pipelines_to_validate(
+        # Determine which pipelines to validate (also returns discovered flowgroups)
+        pipelines_to_validate, all_flowgroups = self._determine_pipelines_to_validate(
             pipeline, orchestrator
         )
 
@@ -60,6 +65,12 @@ class ValidateCommand(BaseCommand):
         total_errors, total_warnings = self._validate_all_pipelines(
             pipelines_to_validate, env, orchestrator
         )
+
+        # Validate test reporting configuration (reuses already-discovered flowgroups)
+        tr_errors = self._validate_test_reporting(
+            orchestrator, all_flowgroups, pipelines_to_validate, include_tests
+        )
+        total_errors += len(tr_errors)
 
         # Display summary
         self._display_validation_summary(
@@ -72,14 +83,18 @@ class ValidateCommand(BaseCommand):
 
     def _determine_pipelines_to_validate(
         self, pipeline: Optional[str], orchestrator: ActionOrchestrator
-    ) -> List[str]:
-        """Determine which pipelines to validate based on user input."""
+    ) -> Tuple[List[str], list]:
+        """Determine which pipelines to validate based on user input.
+
+        Returns:
+            Tuple of (pipeline names to validate, all discovered flowgroups)
+        """
         from ...utils.error_formatter import ErrorCategory, LHPConfigError
 
+        all_flowgroups = orchestrator.discover_all_flowgroups()
+
         if pipeline:
-            # Check if specific pipeline exists
             logger.debug(f"Validating specific pipeline: {pipeline}")
-            all_flowgroups = orchestrator.discover_all_flowgroups()
             pipeline_fields = {fg.pipeline for fg in all_flowgroups}
 
             if pipeline not in pipeline_fields:
@@ -99,10 +114,8 @@ class ValidateCommand(BaseCommand):
                     suggestions=suggestions,
                     context={"Pipeline": pipeline},
                 )
-            return [pipeline]
+            return [pipeline], all_flowgroups
         else:
-            # Discover all pipeline fields from flowgroups
-            all_flowgroups = orchestrator.discover_all_flowgroups()
             if not all_flowgroups:
                 raise LHPConfigError(
                     category=ErrorCategory.CONFIG,
@@ -117,7 +130,7 @@ class ValidateCommand(BaseCommand):
                 )
 
             pipeline_fields = {fg.pipeline for fg in all_flowgroups}
-            return sorted(pipeline_fields)
+            return sorted(pipeline_fields), all_flowgroups
 
     def _validate_all_pipelines(
         self,
@@ -198,6 +211,57 @@ class ValidateCommand(BaseCommand):
 
             if not self.verbose:
                 click.echo("   Use --verbose flag to see detailed messages")
+
+    def _validate_test_reporting(
+        self,
+        orchestrator: ActionOrchestrator,
+        all_flowgroups: list,
+        pipelines_to_validate: List[str],
+        include_tests: bool,
+    ) -> List[str]:
+        """Validate test reporting configuration if present.
+
+        Args:
+            orchestrator: Action orchestrator instance
+            all_flowgroups: Pre-discovered flowgroups (avoids redundant discovery)
+            pipelines_to_validate: Pipeline names being validated
+            include_tests: Whether to perform extended test-level validation
+
+        Returns:
+            List of error messages
+        """
+        project_config = orchestrator.project_config
+        if not project_config or not project_config.test_reporting:
+            return []
+
+        from ...core.services.test_reporting_hook_generator import (
+            TestReportingHookGenerator,
+        )
+
+        click.echo("\n🔧 Validating test reporting configuration")
+
+        processed_flowgroups = None
+        if include_tests:
+            pipeline_set = set(pipelines_to_validate)
+            processed_flowgroups = [
+                fg for fg in all_flowgroups if fg.pipeline in pipeline_set
+            ]
+
+        generator = TestReportingHookGenerator(
+            project_config, orchestrator.project_root
+        )
+        errors = generator.validate(
+            processed_flowgroups=processed_flowgroups,
+            include_tests=include_tests,
+        )
+
+        if errors:
+            for err in errors:
+                click.echo(f"   ❌ {err}")
+        else:
+            click.echo("   ✅ Test reporting configuration is valid")
+
+        return errors
 
     def _display_validation_summary(
         self, env: str, pipelines_validated: int, total_errors: int, total_warnings: int

@@ -101,3 +101,8 @@ operational_metadata:
 ## [monitoring_enable_job_monitoring]
 #monitoring:
 #  enable_job_monitoring: true
+
+## Test result reporting to external systems
+test_reporting:
+  module_path: py_functions/test_reporting_publisher.py
+  function_name: publish_results

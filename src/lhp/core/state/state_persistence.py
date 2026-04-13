@@ -2,13 +2,13 @@
 
 import json
 import logging
+from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
-from dataclasses import asdict
 
 # Import state models from separate module
-from ..state_models import DependencyInfo, GlobalDependencies, FileState, ProjectState
+from ..state_models import DependencyInfo, FileState, GlobalDependencies, ProjectState
 
 
 class StatePersistence:
@@ -64,6 +64,8 @@ class StatePersistence:
                             file_state["file_dependencies"] = None
                         if "file_composite_checksum" not in file_state:
                             file_state["file_composite_checksum"] = ""
+                        if "artifact_type" not in file_state:
+                            file_state["artifact_type"] = None
 
                         # Convert file_dependencies from dict to DependencyInfo objects
                         if file_state["file_dependencies"]:

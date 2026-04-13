@@ -1,7 +1,7 @@
 """State management data models for LakehousePlumber."""
 
 from dataclasses import dataclass
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -43,6 +43,9 @@ class FileState:
     file_composite_checksum: str = ""
     used_substitution_keys: Optional[List[str]] = (
         None  # Substitution keys used during generation
+    )
+    artifact_type: Optional[str] = (
+        None  # None = flowgroup output; set for pipeline artifacts
     )
 
 

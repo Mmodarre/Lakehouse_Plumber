@@ -851,7 +851,10 @@ class ActionOrchestrator:
                         None,
                     )
                     if flowgroup_for_aux and flowgroup_for_aux._auxiliary_files:
-                        for aux_name, aux_content in flowgroup_for_aux._auxiliary_files.items():
+                        for (
+                            aux_name,
+                            aux_content,
+                        ) in flowgroup_for_aux._auxiliary_files.items():
                             aux_file = pipeline_output_dir / aux_name
                             smart_writer.write_if_changed(aux_file, aux_content)
                             self.logger.info(f"Generated auxiliary: {aux_file}")
@@ -936,7 +939,10 @@ class ActionOrchestrator:
 
                         # Write auxiliary files (e.g. Python load placeholder)
                         if processed_flowgroup._auxiliary_files:
-                            for aux_name, aux_content in processed_flowgroup._auxiliary_files.items():
+                            for (
+                                aux_name,
+                                aux_content,
+                            ) in processed_flowgroup._auxiliary_files.items():
                                 aux_file = pipeline_output_dir / aux_name
                                 smart_writer.write_if_changed(aux_file, aux_content)
                                 self.logger.info(f"Generated auxiliary: {aux_file}")
@@ -955,6 +961,19 @@ class ActionOrchestrator:
                     raise
 
         # 6. Finalize
+        # Generate test reporting hook (if configured + test actions with test_id)
+        if pipeline_output_dir:
+            self._generate_test_reporting_hook(
+                processed_flowgroups,
+                pipeline_field,
+                env,
+                pipeline_output_dir,
+                smart_writer,
+                generated_files,
+                state_manager,
+                include_tests,
+            )
+
         if state_manager:
             with perf_timer("state_save"):
                 state_manager.save()
@@ -1010,6 +1029,81 @@ class ActionOrchestrator:
             Path to the source YAML file, or None if not found
         """
         return self.discoverer.find_source_yaml_for_flowgroup(flowgroup)
+
+    def _generate_test_reporting_hook(
+        self,
+        processed_flowgroups: List[FlowGroup],
+        pipeline_field: str,
+        env: str,
+        pipeline_output_dir: Path,
+        smart_writer: SmartFileWriter,
+        generated_files: Dict[str, str],
+        state_manager: Optional[Any],
+        include_tests: bool,
+    ) -> None:
+        """Generate test reporting event hook if configured.
+
+        Guards:
+        - include_tests must be True (hook references test tables)
+        - project_config.test_reporting must be present
+
+        Args:
+            processed_flowgroups: Already-processed flowgroups for this pipeline
+            pipeline_field: Pipeline name
+            env: Environment name
+            pipeline_output_dir: Output directory for this pipeline
+            smart_writer: SmartFileWriter instance
+            generated_files: Dict to update with generated content
+            state_manager: Optional state manager
+            include_tests: Whether test generation is enabled
+        """
+        if not include_tests:
+            return
+
+        if not self.project_config or not self.project_config.test_reporting:
+            return
+
+        from .services.test_reporting_hook_generator import (
+            HOOK_FILENAME,
+            TestReportingHookGenerator,
+        )
+
+        generator = TestReportingHookGenerator(self.project_config, self.project_root)
+
+        content = generator.generate(
+            processed_flowgroups=processed_flowgroups,
+            pipeline_name=pipeline_field,
+            output_dir=pipeline_output_dir,
+            smart_writer=smart_writer,
+        )
+
+        if content:
+            generated_files[HOOK_FILENAME] = content
+
+            if state_manager:
+                config = self.project_config.test_reporting
+                provider_stem = Path(config.module_path).stem
+
+                state_manager.track_pipeline_artifact(
+                    pipeline_output_dir / HOOK_FILENAME,
+                    env,
+                    pipeline_field,
+                    "test_reporting_hook",
+                )
+                state_manager.track_pipeline_artifact(
+                    pipeline_output_dir
+                    / "test_reporting_providers"
+                    / f"{provider_stem}.py",
+                    env,
+                    pipeline_field,
+                    "test_reporting_provider",
+                )
+                state_manager.track_pipeline_artifact(
+                    pipeline_output_dir / "test_reporting_providers" / "__init__.py",
+                    env,
+                    pipeline_field,
+                    "test_reporting_init",
+                )
 
     def process_flowgroup(
         self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager

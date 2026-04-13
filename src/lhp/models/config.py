@@ -4,7 +4,9 @@ from typing import Any, Dict, List, Optional, Union
 
 # Suppress Pydantic warning about 'schema' field shadowing BaseModel.schema() class method.
 # This is deliberate: 'schema' is a UC namespace field, not related to Pydantic's schema().
-warnings.filterwarnings("ignore", message=r".*Field name \"schema\".*shadows an attribute.*")
+warnings.filterwarnings(
+    "ignore", message=r".*Field name \"schema\".*shadows an attribute.*"
+)
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
@@ -152,6 +154,16 @@ class MonitoringConfig(BaseModel):
     enable_job_monitoring: bool = False
 
 
+class TestReportingConfig(BaseModel):
+    """Configuration for test result reporting to external systems."""
+
+    __test__ = False  # Tell pytest this is not a test class
+
+    module_path: str
+    function_name: str
+    config_file: Optional[str] = None
+
+
 class ProjectConfig(BaseModel):
     """Project-level configuration loaded from lhp.yaml."""
 
@@ -165,6 +177,7 @@ class ProjectConfig(BaseModel):
     event_log: Optional[EventLogConfig] = None
     monitoring: Optional[MonitoringConfig] = None
     required_lhp_version: Optional[str] = None
+    test_reporting: Optional[TestReportingConfig] = None
 
 
 class WriteTarget(BaseModel):
@@ -176,7 +189,9 @@ class WriteTarget(BaseModel):
 
     # Streaming table and materialized view fields
     catalog: Optional[str] = None
-    schema: Optional[str] = None  # UC namespace schema (not DDL — use table_schema for DDL)
+    schema: Optional[str] = (
+        None  # UC namespace schema (not DDL — use table_schema for DDL)
+    )
     database: Optional[str] = None  # REMOVE_AT_V1.0.0: deprecated, use catalog + schema
     table: Optional[str] = None
     create_table: bool = (
@@ -283,6 +298,12 @@ class Action(BaseModel):
     lookup_columns: Optional[List[str]] = None  # Lookup columns
     lookup_result_columns: Optional[List[str]] = None  # Expected result columns
     expectations: Optional[List[Dict[str, Any]]] = None  # Custom expectations
+    test_id: Optional[str] = None  # External test management ID for reporting
+
+    @property
+    def resolved_test_target(self) -> str:
+        """Canonical target name for test actions: explicit target or tmp_test_{name}."""
+        return self.target or f"tmp_test_{self.name}"
 
     def model_post_init(self, __context: Any) -> None:
         """Post-initialization processing - normalize all path fields for cross-platform compatibility."""

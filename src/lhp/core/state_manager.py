@@ -144,6 +144,25 @@ class StateManager:
             used_substitution_keys,
         )
 
+    def track_pipeline_artifact(
+        self,
+        generated_path: Path,
+        environment: str,
+        pipeline: str,
+        artifact_type: str,
+    ) -> None:
+        """Track a pipeline-level artifact in the state.
+
+        Args:
+            generated_path: Path to the generated artifact file
+            environment: Environment name
+            pipeline: Pipeline name
+            artifact_type: Identifier for the artifact kind
+        """
+        self.tracker.track_pipeline_artifact(
+            self._state, generated_path, environment, pipeline, artifact_type
+        )
+
     def remove_generated_file(self, generated_path: Path, environment: str) -> bool:
         """
         Remove a generated file from state tracking with proper validation and logging.
@@ -241,7 +260,9 @@ class StateManager:
         """
         include_patterns = self.get_include_patterns()
         return self.cleaner.find_orphaned_files(
-            self._state, environment, include_patterns,
+            self._state,
+            environment,
+            include_patterns,
             active_flowgroups=active_flowgroups,
         )
 
