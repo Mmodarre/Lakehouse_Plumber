@@ -972,6 +972,7 @@ class ActionOrchestrator:
                 generated_files,
                 state_manager,
                 include_tests,
+                substitution_mgr=substitution_mgr,
             )
 
         if state_manager:
@@ -1040,6 +1041,7 @@ class ActionOrchestrator:
         generated_files: Dict[str, str],
         state_manager: Optional[Any],
         include_tests: bool,
+        substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
     ) -> None:
         """Generate test reporting event hook if configured.
 
@@ -1075,6 +1077,7 @@ class ActionOrchestrator:
             pipeline_name=pipeline_field,
             output_dir=pipeline_output_dir,
             smart_writer=smart_writer,
+            substitution_mgr=substitution_mgr,
         )
 
         if content:

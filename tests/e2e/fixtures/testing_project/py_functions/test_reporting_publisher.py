@@ -4,6 +4,8 @@ Implements the provider function contract for test reporting.
 In production this would call an external API (e.g., Azure DevOps).
 """
 
+TARGET_CATALOG = "{catalog}"
+
 
 def publish_results(results, config, context, spark):
     """Publish DQ test results to external system.

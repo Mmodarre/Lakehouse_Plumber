@@ -14,6 +14,7 @@ from lhp.models.config import (
     TestReportingConfig,
 )
 from lhp.utils.smart_file_writer import SmartFileWriter
+from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 def _make_project_config(
@@ -352,6 +353,76 @@ class TestTestReportingHookGenerator:
             smart_writer=writer,
         )
         assert "from test_reporting_providers.my_ado_publisher import go" in content
+
+    def test_copy_provider_module_applies_substitutions(self, tmp_path):
+        """Provider module tokens are resolved when substitution_mgr is provided."""
+        provider = tmp_path / "src" / "pub.py"
+        provider.parent.mkdir(parents=True)
+        provider.write_text(
+            'TARGET_CATALOG = "{catalog}"\n'
+            'TARGET_ENV = "{environment}"\n'
+            "def pub(r, c, ctx, s): pass\n"
+        )
+
+        tr = TestReportingConfig(module_path="src/pub.py", function_name="pub")
+        config = _make_project_config(test_reporting=tr)
+        gen = TestReportingHookGenerator(config, tmp_path)
+
+        fg = _make_flowgroup(
+            actions=[_make_test_action("tst_1", test_id="T-1")]
+        )
+
+        substitution_mgr = EnhancedSubstitutionManager()
+        substitution_mgr.mappings.update(
+            {"catalog": "my_catalog", "environment": "staging"}
+        )
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        writer = SmartFileWriter()
+        gen.generate(
+            processed_flowgroups=[fg],
+            pipeline_name="p1",
+            output_dir=output_dir,
+            smart_writer=writer,
+            substitution_mgr=substitution_mgr,
+        )
+
+        copied = (output_dir / "test_reporting_providers" / "pub.py").read_text()
+        assert "my_catalog" in copied
+        assert "staging" in copied
+        assert "{catalog}" not in copied
+        assert "{environment}" not in copied
+
+    def test_generate_without_substitution_mgr_still_works(self, tmp_path):
+        """Backward compat: generate() without substitution_mgr copies verbatim."""
+        provider = tmp_path / "src" / "pub.py"
+        provider.parent.mkdir(parents=True)
+        provider.write_text(
+            'TARGET = "{catalog}"\n' "def pub(r, c, ctx, s): pass\n"
+        )
+
+        tr = TestReportingConfig(module_path="src/pub.py", function_name="pub")
+        config = _make_project_config(test_reporting=tr)
+        gen = TestReportingHookGenerator(config, tmp_path)
+
+        fg = _make_flowgroup(
+            actions=[_make_test_action("tst_1", test_id="T-1")]
+        )
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        writer = SmartFileWriter()
+        gen.generate(
+            processed_flowgroups=[fg],
+            pipeline_name="p1",
+            output_dir=output_dir,
+            smart_writer=writer,
+        )
+
+        copied = (output_dir / "test_reporting_providers" / "pub.py").read_text()
+        # Token remains unresolved — no substitution manager
+        assert "{catalog}" in copied
 
 
 @pytest.mark.unit

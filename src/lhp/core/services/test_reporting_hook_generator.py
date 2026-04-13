@@ -15,6 +15,7 @@ from ...models.config import ActionType, FlowGroup, ProjectConfig
 from ...utils.error_formatter import ErrorCategory, LHPError
 from ...utils.formatter import CodeFormatter
 from ...utils.smart_file_writer import SmartFileWriter, build_lhp_source_header
+from ...utils.substitution import EnhancedSubstitutionManager
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ class TestReportingHookGenerator:
         pipeline_name: str,
         output_dir: Path,
         smart_writer: SmartFileWriter,
+        substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
     ) -> Optional[str]:
         """Generate the test reporting hook file for a pipeline.
 
@@ -61,6 +63,7 @@ class TestReportingHookGenerator:
             pipeline_name: Pipeline name (used in hook header and context)
             output_dir: Pipeline output directory
             smart_writer: SmartFileWriter instance
+            substitution_mgr: Optional substitution manager for token resolution
 
         Returns:
             Rendered hook content, or None if hook should not be generated
@@ -78,7 +81,7 @@ class TestReportingHookGenerator:
             return None
 
         provider_config = self._load_provider_config()
-        self._copy_provider_module(output_dir, smart_writer)
+        self._copy_provider_module(output_dir, smart_writer, substitution_mgr)
 
         config = self.test_reporting_config
         provider_stem = Path(config.module_path).stem
@@ -210,7 +213,10 @@ class TestReportingHookGenerator:
         return data if isinstance(data, dict) else {}
 
     def _copy_provider_module(
-        self, output_dir: Path, smart_writer: SmartFileWriter
+        self,
+        output_dir: Path,
+        smart_writer: SmartFileWriter,
+        substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
     ) -> None:
         """Copy provider Python module to test_reporting_providers/ directory."""
         config = self.test_reporting_config
@@ -236,6 +242,11 @@ class TestReportingHookGenerator:
         dest_file = providers_dir / f"{module_stem}.py"
 
         original_content = source_file.read_text()
+
+        # Apply substitutions if available
+        if substitution_mgr:
+            original_content = substitution_mgr._process_string(original_content)
+
         full_content = build_lhp_source_header(config.module_path) + original_content
         smart_writer.write_if_changed(dest_file, full_content)
 
