@@ -60,25 +60,25 @@ def _get_pat(config, spark):
     """
     scope = config["ado"]["pat_secret_scope"]
     key = config["ado"]["pat_secret_key"]
+    logger.debug(f"Retrieving PAT from Databricks secret scope '{scope}'")
     try:
         from pyspark.dbutils import DBUtils
 
         dbutils = DBUtils(spark)
         pat = dbutils.secrets.get(scope=scope, key=key)
-        if pat:
-            logger.debug(f"PAT loaded from Databricks secret scope '{scope}'")
-            return pat
     except Exception as e:
         raise RuntimeError(
             f"Failed to retrieve ADO PAT from Databricks secrets "
             f"(scope='{scope}', key='{key}'): {e}"
         ) from e
 
-    raise RuntimeError(
-        f"ADO PAT is empty in Databricks secrets (scope='{scope}', key='{key}'). "
-        f"Ensure the secret is set via: "
-        f"dbutils.secrets.put(scope='{scope}', key='{key}', string_value='<PAT>')"
-    )
+    if not pat:
+        raise RuntimeError(
+            f"ADO PAT is empty in Databricks secrets (scope='{scope}', key='{key}'). "
+            f"Ensure the secret is set via: "
+            f"dbutils.secrets.put(scope='{scope}', key='{key}', string_value='<PAT>')"
+        )
+    return pat
 
 
 def _build_headers(pat):
