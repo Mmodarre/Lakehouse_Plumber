@@ -79,7 +79,7 @@ class JobGenerator:
         # Create a custom template renderer with different settings for YAML formatting
         from jinja2 import Environment, FileSystemLoader
 
-        self.jinja_env = Environment(
+        self.jinja_env = Environment(  # nosec B701 — generates YAML, not HTML
             loader=FileSystemLoader(template_dir),
             trim_blocks=False,
             lstrip_blocks=False,

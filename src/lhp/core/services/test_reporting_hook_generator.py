@@ -37,7 +37,7 @@ class TestReportingHookGenerator:
     def __init__(self, project_config: ProjectConfig, project_root: Path) -> None:
         self.project_config = project_config
         self.project_root = project_root
-        self._jinja_env = Environment(
+        self._jinja_env = Environment(  # nosec B701 — generates Python, not HTML
             loader=FileSystemLoader(str(_TEMPLATES_DIR)),
             keep_trailing_newline=True,
         )
