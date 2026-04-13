@@ -380,11 +380,11 @@ class TestTC12ConfigFileEmbedding:
         )
 
         assert content is not None
-        # repr() of a dict uses single quotes for string keys/values
-        # e.g. {'plan_id': 42, 'org': 'acme'}
-        assert "'plan_id'" in content
+        # repr() embeds the dict, then Black normalizes to double quotes
+        # e.g. {"plan_id": 42, "org": "acme"}
+        assert '"plan_id"' in content
         assert "42" in content
-        assert "'acme'" in content
+        assert '"acme"' in content
 
 
 # ============================================================================
