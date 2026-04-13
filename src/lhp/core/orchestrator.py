@@ -1065,7 +1065,7 @@ class ActionOrchestrator:
         if not self.project_config or not self.project_config.test_reporting:
             return
 
-        from .services.test_reporting_hook_generator import (
+        from .services.tst_reporting_hook_generator import (
             HOOK_FILENAME,
             TestReportingHookGenerator,
         )

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 
 from lhp.core.config_field_validator import ConfigFieldValidator
 from lhp.core.project_config_loader import ProjectConfigLoader
-from lhp.core.services.test_reporting_hook_generator import (
+from lhp.core.services.tst_reporting_hook_generator import (
     HOOK_FILENAME,
     TestReportingHookGenerator,
 )

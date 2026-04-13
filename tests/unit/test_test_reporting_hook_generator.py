@@ -2,7 +2,7 @@
 
 import pytest
 
-from lhp.core.services.test_reporting_hook_generator import (
+from lhp.core.services.tst_reporting_hook_generator import (
     HOOK_FILENAME,
     TestReportingHookGenerator,
 )

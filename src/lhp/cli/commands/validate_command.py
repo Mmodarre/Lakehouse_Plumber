@@ -234,7 +234,7 @@ class ValidateCommand(BaseCommand):
         if not project_config or not project_config.test_reporting:
             return []
 
-        from ...core.services.test_reporting_hook_generator import (
+        from ...core.services.tst_reporting_hook_generator import (
             TestReportingHookGenerator,
         )
 
