@@ -9,45 +9,173 @@ flowgroups:
       table_name: appointment_raw
       landing_folder: appointment
       schema_file: nation_schema
+    actions:
+      - name: tst_appointment_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_appointment_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-appointment-R01"
+      
+      - name: tst_appointment_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_appointment_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-appointment-R02"
 
   - flowgroup: hospital_ingestion
     template_parameters:
       table_name: hospital_raw
       landing_folder: hospital
       schema_file: lineitem_schema
+    actions:
+      - name: tst_hospital_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_hospital_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-hospital-R01"
+      
+      - name: tst_hospital_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_hospital_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-hospital-R02"
 
   - flowgroup: immunization_ingestion
     template_parameters:
       table_name: immunization_raw
       landing_folder: immunization
       schema_file: customer_schema
+    actions:
+      - name: tst_immunization_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_immunization_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-immunization-R01"
+      
+      - name: tst_immunization_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_immunization_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-immunization-R02"
 
   - flowgroup: admission_ingestion
     template_parameters:
       table_name: admission_raw
       landing_folder: admission
       schema_file: orders_schema
+    actions:
+      - name: tst_admission_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_admission_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-admission-R01"
+      
+      - name: tst_admission_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_admission_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-admission-R02"
 
   - flowgroup: pharmacy_ingestion
     template_parameters:
       table_name: pharmacy_raw
       landing_folder: pharmacy
       schema_file: nation_schema
+    actions:
+      - name: tst_pharmacy_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_pharmacy_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-pharmacy-R01"
+      
+      - name: tst_pharmacy_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_pharmacy_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-pharmacy-R02"
 
   - flowgroup: outpatient_ingestion
     template_parameters:
       table_name: outpatient_raw
       landing_folder: outpatient
       schema_file: lineitem_schema
+    actions:
+      - name: tst_outpatient_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_outpatient_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-outpatient-R01"
+      
+      - name: tst_outpatient_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_outpatient_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-outpatient-R02"
 
   - flowgroup: bed_assignment_ingestion
     template_parameters:
       table_name: bed_assignment_raw
       landing_folder: bed_assignment
       schema_file: part_schema
+    actions:
+      - name: tst_bed_assignment_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_bed_assignment_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-bed_assignment-R01"
+      
+      - name: tst_bed_assignment_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_bed_assignment_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-bed_assignment-R02"
 
   - flowgroup: telemedicine_ingestion
     template_parameters:
       table_name: telemedicine_raw
       landing_folder: telemedicine
       schema_file: orders_schema
+    actions:
+      - name: tst_telemedicine_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_telemedicine_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-telemedicine-R01"
+      
+      - name: tst_telemedicine_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_telemedicine_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-telemedicine-R02"

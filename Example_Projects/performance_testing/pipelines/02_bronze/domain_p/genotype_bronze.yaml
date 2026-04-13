@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "genotype"
+
+  - name: tst_genotype_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_genotype_bronze_cleaned
+    required_columns: [genotype_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-genotype-B01"
+
+  - name: tst_genotype_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_genotype_bronze_cleaned
+    columns: [genotype_key]
+    on_violation: warn
+    test_id: "PERF-genotype-B02"

@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "tooling_dashboard_mv"
+
+  - name: tst_tooling_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_tooling_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-tooling-G01"
+
+  - name: tst_tooling_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tooling_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-tooling-G02"

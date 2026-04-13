@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "podcast_feature"
+
+  - name: tst_podcast_feature_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_podcast_feature_bronze_cleaned
+    required_columns: [podcast_feature_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-podcast_feature-B01"
+
+  - name: tst_podcast_feature_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_podcast_feature_bronze_cleaned
+    columns: [podcast_feature_key]
+    on_violation: warn
+    test_id: "PERF-podcast_feature-B02"

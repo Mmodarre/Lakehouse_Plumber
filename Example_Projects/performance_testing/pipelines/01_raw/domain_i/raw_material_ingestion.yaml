@@ -7,3 +7,19 @@ template_parameters:
   table_name: raw_material_raw
   landing_folder: raw_material
   schema_file: orders_schema
+actions:
+  - name: tst_raw_material_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_raw_material_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-raw_material-R01"
+
+  - name: tst_raw_material_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_raw_material_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-raw_material-R02"

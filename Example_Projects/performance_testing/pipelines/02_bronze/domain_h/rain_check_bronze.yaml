@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "rain_check"
+
+  - name: tst_rain_check_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_rain_check_bronze_cleaned
+    required_columns: [rain_check_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-rain_check-B01"
+
+  - name: tst_rain_check_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_rain_check_bronze_cleaned
+    columns: [rain_check_key]
+    on_violation: warn
+    test_id: "PERF-rain_check-B02"

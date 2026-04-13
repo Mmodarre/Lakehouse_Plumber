@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "luxury_tax_raw"
+
+  - name: tst_luxury_tax_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_luxury_tax_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-luxury_tax-R01"
+
+  - name: tst_luxury_tax_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_luxury_tax_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-luxury_tax-R02"

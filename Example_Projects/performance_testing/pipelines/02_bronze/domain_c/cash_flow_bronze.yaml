@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "cash_flow"
+
+  - name: tst_cash_flow_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_cash_flow_bronze_cleaned
+    required_columns: [cash_flow_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cash_flow-B01"
+
+  - name: tst_cash_flow_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cash_flow_bronze_cleaned
+    columns: [cash_flow_key]
+    on_violation: warn
+    test_id: "PERF-cash_flow-B02"

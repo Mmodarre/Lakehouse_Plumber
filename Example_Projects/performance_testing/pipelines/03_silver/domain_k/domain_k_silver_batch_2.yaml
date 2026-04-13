@@ -30,6 +30,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_taxiway_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_taxiway_bronze
+    required_columns: [taxiway_key]
+    on_violation: warn
+    test_id: "PERF-taxiway-S01"
+
+  - name: tst_taxiway_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_taxiway_bronze
+    columns: [taxiway_key]
+    on_violation: warn
+    test_id: "PERF-taxiway-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: apron_silver_fct
@@ -63,6 +79,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_apron_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_apron_bronze
+    required_columns: [apron_key]
+    on_violation: warn
+    test_id: "PERF-apron-S01"
+
+  - name: tst_apron_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_apron_bronze
+    columns: [apron_key]
+    on_violation: warn
+    test_id: "PERF-apron-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: control_tower_silver_dim
@@ -96,6 +128,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_control_tower_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_control_tower_bronze
+    required_columns: [control_tower_key]
+    on_violation: warn
+    test_id: "PERF-control_tower-S01"
+
+  - name: tst_control_tower_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_control_tower_bronze
+    columns: [control_tower_key]
+    on_violation: warn
+    test_id: "PERF-control_tower-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: radar_silver_dim
@@ -129,6 +177,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_radar_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_radar_bronze
+    required_columns: [radar_key]
+    on_violation: warn
+    test_id: "PERF-radar-S01"
+
+  - name: tst_radar_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_radar_bronze
+    columns: [radar_key]
+    on_violation: warn
+    test_id: "PERF-radar-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: waypoint_silver_fct
@@ -162,6 +226,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_waypoint_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_waypoint_bronze
+    required_columns: [waypoint_key]
+    on_violation: warn
+    test_id: "PERF-waypoint-S01"
+
+  - name: tst_waypoint_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_waypoint_bronze
+    columns: [waypoint_key]
+    on_violation: warn
+    test_id: "PERF-waypoint-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: airspace_silver_dim
@@ -195,6 +275,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_airspace_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_airspace_bronze
+    required_columns: [airspace_key]
+    on_violation: warn
+    test_id: "PERF-airspace-S01"
+
+  - name: tst_airspace_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_airspace_bronze
+    columns: [airspace_key]
+    on_violation: warn
+    test_id: "PERF-airspace-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: slot_time_silver_dim
@@ -228,6 +324,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_slot_time_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_slot_time_bronze
+    required_columns: [slot_time_key]
+    on_violation: warn
+    test_id: "PERF-slot_time-S01"
+
+  - name: tst_slot_time_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_slot_time_bronze
+    columns: [slot_time_key]
+    on_violation: warn
+    test_id: "PERF-slot_time-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: ground_handling_silver_fct
@@ -261,6 +373,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_ground_handling_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_ground_handling_bronze
+    required_columns: [ground_handling_key]
+    on_violation: warn
+    test_id: "PERF-ground_handling-S01"
+
+  - name: tst_ground_handling_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ground_handling_bronze
+    columns: [ground_handling_key]
+    on_violation: warn
+    test_id: "PERF-ground_handling-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: catering_silver_dim
@@ -294,6 +422,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_catering_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_catering_bronze
+    required_columns: [catering_key]
+    on_violation: warn
+    test_id: "PERF-catering-S01"
+
+  - name: tst_catering_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_catering_bronze
+    columns: [catering_key]
+    on_violation: warn
+    test_id: "PERF-catering-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: cargo_hold_silver_dim
@@ -327,6 +471,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_cargo_hold_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_cargo_hold_bronze
+    required_columns: [cargo_hold_key]
+    on_violation: warn
+    test_id: "PERF-cargo_hold-S01"
+
+  - name: tst_cargo_hold_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cargo_hold_bronze
+    columns: [cargo_hold_key]
+    on_violation: warn
+    test_id: "PERF-cargo_hold-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: duty_free_silver_fct
@@ -360,6 +520,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_duty_free_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_duty_free_bronze
+    required_columns: [duty_free_key]
+    on_violation: warn
+    test_id: "PERF-duty_free-S01"
+
+  - name: tst_duty_free_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_duty_free_bronze
+    columns: [duty_free_key]
+    on_violation: warn
+    test_id: "PERF-duty_free-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: immigration_silver_dim
@@ -393,6 +569,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_immigration_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_immigration_bronze
+    required_columns: [immigration_key]
+    on_violation: warn
+    test_id: "PERF-immigration-S01"
+
+  - name: tst_immigration_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_immigration_bronze
+    columns: [immigration_key]
+    on_violation: warn
+    test_id: "PERF-immigration-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: customs_check_silver_dim
@@ -426,6 +618,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_customs_check_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_customs_check_bronze
+    required_columns: [customs_check_key]
+    on_violation: warn
+    test_id: "PERF-customs_check-S01"
+
+  - name: tst_customs_check_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_customs_check_bronze
+    columns: [customs_check_key]
+    on_violation: warn
+    test_id: "PERF-customs_check-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: visa_silver_fct
@@ -459,6 +667,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_visa_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_visa_bronze
+    required_columns: [visa_key]
+    on_violation: warn
+    test_id: "PERF-visa-S01"
+
+  - name: tst_visa_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_visa_bronze
+    columns: [visa_key]
+    on_violation: warn
+    test_id: "PERF-visa-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: transit_silver_dim
@@ -492,6 +716,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_transit_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_transit_bronze
+    required_columns: [transit_key]
+    on_violation: warn
+    test_id: "PERF-transit-S01"
+
+  - name: tst_transit_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transit_bronze
+    columns: [transit_key]
+    on_violation: warn
+    test_id: "PERF-transit-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: codeshare_silver_dim
@@ -525,6 +765,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_codeshare_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_codeshare_bronze
+    required_columns: [codeshare_key]
+    on_violation: warn
+    test_id: "PERF-codeshare-S01"
+
+  - name: tst_codeshare_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_codeshare_bronze
+    columns: [codeshare_key]
+    on_violation: warn
+    test_id: "PERF-codeshare-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: interline_silver_fct
@@ -558,6 +814,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_interline_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_interline_bronze
+    required_columns: [interline_key]
+    on_violation: warn
+    test_id: "PERF-interline-S01"
+
+  - name: tst_interline_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_interline_bronze
+    columns: [interline_key]
+    on_violation: warn
+    test_id: "PERF-interline-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: frequent_flyer_silver_dim
@@ -591,6 +863,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_frequent_flyer_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_frequent_flyer_bronze
+    required_columns: [frequent_flyer_key]
+    on_violation: warn
+    test_id: "PERF-frequent_flyer-S01"
+
+  - name: tst_frequent_flyer_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_frequent_flyer_bronze
+    columns: [frequent_flyer_key]
+    on_violation: warn
+    test_id: "PERF-frequent_flyer-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: upgrade_silver_dim
@@ -624,6 +912,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_upgrade_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_upgrade_bronze
+    required_columns: [upgrade_key]
+    on_violation: warn
+    test_id: "PERF-upgrade-S01"
+
+  - name: tst_upgrade_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_upgrade_bronze
+    columns: [upgrade_key]
+    on_violation: warn
+    test_id: "PERF-upgrade-S02"
 ---
 pipeline: domain_k_silver
 flowgroup: standby_silver_fct
@@ -657,3 +961,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_standby_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_standby_bronze
+    required_columns: [standby_key]
+    on_violation: warn
+    test_id: "PERF-standby-S01"
+
+  - name: tst_standby_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_standby_bronze
+    columns: [standby_key]
+    on_violation: warn
+    test_id: "PERF-standby-S02"

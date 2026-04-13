@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "setback_weekly_agg_mv"
+
+  - name: tst_setback_weekly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_setback_weekly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-setback-G01"
+
+  - name: tst_setback_weekly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_setback_weekly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-setback-G02"

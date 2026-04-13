@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "merchandise"
+
+  - name: tst_merchandise_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_merchandise_bronze_cleaned
+    required_columns: [merchandise_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-merchandise-B01"
+
+  - name: tst_merchandise_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_merchandise_bronze_cleaned
+    columns: [merchandise_key]
+    on_violation: warn
+    test_id: "PERF-merchandise-B02"

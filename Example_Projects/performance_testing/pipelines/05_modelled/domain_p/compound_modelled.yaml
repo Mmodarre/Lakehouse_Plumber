@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "compound_modelled"
+
+  - name: tst_compound_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_compound_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-compound-M01"
+
+  - name: tst_compound_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_compound_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-compound-M02"

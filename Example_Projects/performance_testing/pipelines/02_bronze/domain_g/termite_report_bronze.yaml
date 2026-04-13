@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "termite_report"
+
+  - name: tst_termite_report_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_termite_report_bronze_cleaned
+    required_columns: [termite_report_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-termite_report-B01"
+
+  - name: tst_termite_report_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_termite_report_bronze_cleaned
+    columns: [termite_report_key]
+    on_violation: warn
+    test_id: "PERF-termite_report-B02"

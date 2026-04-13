@@ -30,3 +30,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_doppler_shift_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_doppler_shift_bronze
+    required_columns: [doppler_shift_key]
+    on_violation: warn
+    test_id: "PERF-doppler_shift-S01"
+
+  - name: tst_doppler_shift_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_doppler_shift_bronze
+    columns: [doppler_shift_key]
+    on_violation: warn
+    test_id: "PERF-doppler_shift-S02"

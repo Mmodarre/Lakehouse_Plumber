@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "humidity_log"
+
+  - name: tst_humidity_log_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_humidity_log_bronze_cleaned
+    required_columns: [humidity_log_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-humidity_log-B01"
+
+  - name: tst_humidity_log_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_humidity_log_bronze_cleaned
+    columns: [humidity_log_key]
+    on_violation: warn
+    test_id: "PERF-humidity_log-B02"

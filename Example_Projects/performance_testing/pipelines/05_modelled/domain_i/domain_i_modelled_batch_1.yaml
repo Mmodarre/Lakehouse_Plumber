@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "machine_modelled"
+
+  - name: tst_machine_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_machine_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-machine-M01"
+
+  - name: tst_machine_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_machine_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-machine-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: assembly_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "assembly_modelled"
+
+  - name: tst_assembly_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_assembly_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-assembly-M01"
+
+  - name: tst_assembly_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_assembly_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-assembly-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: quality_check_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "quality_check_modelled"
+
+  - name: tst_quality_check_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_quality_check_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-quality_check-M01"
+
+  - name: tst_quality_check_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_quality_check_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-quality_check-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: raw_material_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "raw_material_modelled"
+
+  - name: tst_raw_material_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_raw_material_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-raw_material-M01"
+
+  - name: tst_raw_material_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_raw_material_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-raw_material-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: work_cell_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "work_cell_modelled"
+
+  - name: tst_work_cell_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_work_cell_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-work_cell-M01"
+
+  - name: tst_work_cell_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_work_cell_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-work_cell-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: shift_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "shift_modelled"
+
+  - name: tst_shift_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_shift_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-shift-M01"
+
+  - name: tst_shift_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_shift_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-shift-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: operator_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "operator_modelled"
+
+  - name: tst_operator_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_operator_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-operator-M01"
+
+  - name: tst_operator_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_operator_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-operator-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: defect_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "defect_modelled"
+
+  - name: tst_defect_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_defect_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-defect-M01"
+
+  - name: tst_defect_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_defect_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-defect-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: batch_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "batch_modelled"
+
+  - name: tst_batch_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_batch_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-batch-M01"
+
+  - name: tst_batch_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_batch_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-batch-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: bom_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "bom_modelled"
+
+  - name: tst_bom_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_bom_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-bom-M01"
+
+  - name: tst_bom_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bom_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-bom-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: routing_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "routing_modelled"
+
+  - name: tst_routing_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_routing_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-routing-M01"
+
+  - name: tst_routing_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_routing_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-routing-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: downtime_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "downtime_modelled"
+
+  - name: tst_downtime_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_downtime_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-downtime-M01"
+
+  - name: tst_downtime_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_downtime_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-downtime-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: changeover_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "changeover_modelled"
+
+  - name: tst_changeover_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_changeover_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-changeover-M01"
+
+  - name: tst_changeover_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_changeover_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-changeover-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: yield_rate_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "yield_rate_modelled"
+
+  - name: tst_yield_rate_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_yield_rate_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-yield_rate-M01"
+
+  - name: tst_yield_rate_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_yield_rate_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-yield_rate-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: scrap_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "scrap_modelled"
+
+  - name: tst_scrap_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_scrap_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-scrap-M01"
+
+  - name: tst_scrap_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_scrap_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-scrap-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: tooling_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tooling_modelled"
+
+  - name: tst_tooling_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tooling_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tooling-M01"
+
+  - name: tst_tooling_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tooling_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tooling-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: fixture_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "fixture_modelled"
+
+  - name: tst_fixture_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_fixture_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-fixture-M01"
+
+  - name: tst_fixture_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fixture_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-fixture-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: calibration_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "calibration_modelled"
+
+  - name: tst_calibration_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_calibration_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-calibration-M01"
+
+  - name: tst_calibration_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_calibration_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-calibration-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: specification_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "specification_modelled"
+
+  - name: tst_specification_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_specification_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-specification-M01"
+
+  - name: tst_specification_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_specification_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-specification-M02"
 ---
 pipeline: domain_i_modelled
 flowgroup: tolerance_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tolerance_modelled"
+
+  - name: tst_tolerance_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tolerance_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tolerance-M01"
+
+  - name: tst_tolerance_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tolerance_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tolerance-M02"

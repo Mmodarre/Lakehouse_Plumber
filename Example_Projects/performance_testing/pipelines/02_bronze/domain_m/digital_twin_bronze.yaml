@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "digital_twin"
+
+  - name: tst_digital_twin_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_digital_twin_bronze_cleaned
+    required_columns: [digital_twin_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-digital_twin-B01"
+
+  - name: tst_digital_twin_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_digital_twin_bronze_cleaned
+    columns: [digital_twin_key]
+    on_violation: warn
+    test_id: "PERF-digital_twin-B02"

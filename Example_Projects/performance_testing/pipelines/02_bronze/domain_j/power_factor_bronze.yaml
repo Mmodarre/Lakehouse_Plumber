@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "power_factor"
+
+  - name: tst_power_factor_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_power_factor_bronze_cleaned
+    required_columns: [power_factor_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-power_factor-B01"
+
+  - name: tst_power_factor_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_power_factor_bronze_cleaned
+    columns: [power_factor_key]
+    on_violation: warn
+    test_id: "PERF-power_factor-B02"

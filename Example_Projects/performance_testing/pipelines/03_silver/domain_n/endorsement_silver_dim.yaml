@@ -30,3 +30,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_endorsement_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_endorsement_bronze
+    required_columns: [endorsement_key]
+    on_violation: warn
+    test_id: "PERF-endorsement-S01"
+
+  - name: tst_endorsement_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_endorsement_bronze
+    columns: [endorsement_key]
+    on_violation: warn
+    test_id: "PERF-endorsement-S02"

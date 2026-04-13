@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: creative
   source_table: creative_raw
+actions:
+  - name: tst_creative_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_creative_cleansed
+    required_columns: [creative_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-creative-B01"
+
+  - name: tst_creative_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_creative_cleansed
+    columns: [creative_key]
+    on_violation: warn
+    test_id: "PERF-creative-B02"

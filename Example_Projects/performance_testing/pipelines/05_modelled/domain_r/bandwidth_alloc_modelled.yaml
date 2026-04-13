@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "bandwidth_alloc_modelled"
+
+  - name: tst_bandwidth_alloc_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_bandwidth_alloc_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-bandwidth_alloc-M01"
+
+  - name: tst_bandwidth_alloc_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bandwidth_alloc_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-bandwidth_alloc-M02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: uplink
   source_table: uplink_raw
+actions:
+  - name: tst_uplink_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_uplink_cleansed
+    required_columns: [uplink_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-uplink-B01"
+
+  - name: tst_uplink_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_uplink_cleansed
+    columns: [uplink_key]
+    on_violation: warn
+    test_id: "PERF-uplink-B02"

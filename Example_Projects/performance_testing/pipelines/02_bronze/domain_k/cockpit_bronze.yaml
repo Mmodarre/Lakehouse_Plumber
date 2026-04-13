@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: cockpit
   source_table: cockpit_raw
+actions:
+  - name: tst_cockpit_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_cockpit_cleansed
+    required_columns: [cockpit_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cockpit-B01"
+
+  - name: tst_cockpit_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cockpit_cleansed
+    columns: [cockpit_key]
+    on_violation: warn
+    test_id: "PERF-cockpit-B02"

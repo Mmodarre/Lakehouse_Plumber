@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "rule_engine_raw"
+
+  - name: tst_rule_engine_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_rule_engine_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-rule_engine-R01"
+
+  - name: tst_rule_engine_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_rule_engine_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-rule_engine-R02"

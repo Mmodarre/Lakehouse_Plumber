@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "attitude_control"
+
+  - name: tst_attitude_control_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_attitude_control_bronze_cleaned
+    required_columns: [attitude_control_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-attitude_control-B01"
+
+  - name: tst_attitude_control_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_attitude_control_bronze_cleaned
+    columns: [attitude_control_key]
+    on_violation: warn
+    test_id: "PERF-attitude_control-B02"

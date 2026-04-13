@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "exclusion_analysis_mv"
+
+  - name: tst_exclusion_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_exclusion_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-exclusion-G01"
+
+  - name: tst_exclusion_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_exclusion_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-exclusion-G02"

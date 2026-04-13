@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "patient_raw"
+
+  - name: tst_patient_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_patient_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-patient-R01"
+
+  - name: tst_patient_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_patient_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-patient-R02"

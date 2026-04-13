@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: firmware
   source_table: firmware_raw
+actions:
+  - name: tst_firmware_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_firmware_cleansed
+    required_columns: [firmware_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-firmware-B01"
+
+  - name: tst_firmware_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_firmware_cleansed
+    columns: [firmware_key]
+    on_violation: warn
+    test_id: "PERF-firmware-B02"

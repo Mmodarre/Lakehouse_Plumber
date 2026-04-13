@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "patio"
+
+  - name: tst_patio_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_patio_bronze_cleaned
+    required_columns: [patio_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-patio-B01"
+
+  - name: tst_patio_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_patio_bronze_cleaned
+    columns: [patio_key]
+    on_violation: warn
+    test_id: "PERF-patio-B02"

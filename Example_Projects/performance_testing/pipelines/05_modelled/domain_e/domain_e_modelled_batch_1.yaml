@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "vehicle_modelled"
+
+  - name: tst_vehicle_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_vehicle_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-vehicle-M01"
+
+  - name: tst_vehicle_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_vehicle_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-vehicle-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: driver_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "driver_modelled"
+
+  - name: tst_driver_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_driver_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-driver-M01"
+
+  - name: tst_driver_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_driver_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-driver-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: route_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "route_modelled"
+
+  - name: tst_route_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_route_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-route-M01"
+
+  - name: tst_route_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_route_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-route-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: delivery_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "delivery_modelled"
+
+  - name: tst_delivery_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_delivery_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-delivery-M01"
+
+  - name: tst_delivery_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_delivery_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-delivery-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: tracking_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tracking_modelled"
+
+  - name: tst_tracking_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tracking_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tracking-M01"
+
+  - name: tst_tracking_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tracking_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tracking-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: fuel_log_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "fuel_log_modelled"
+
+  - name: tst_fuel_log_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_fuel_log_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-fuel_log-M01"
+
+  - name: tst_fuel_log_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fuel_log_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-fuel_log-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: maintenance_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "maintenance_modelled"
+
+  - name: tst_maintenance_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_maintenance_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-maintenance-M01"
+
+  - name: tst_maintenance_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_maintenance_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-maintenance-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: inspection_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "inspection_modelled"
+
+  - name: tst_inspection_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_inspection_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-inspection-M01"
+
+  - name: tst_inspection_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_inspection_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-inspection-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: toll_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "toll_modelled"
+
+  - name: tst_toll_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_toll_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-toll-M01"
+
+  - name: tst_toll_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_toll_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-toll-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: parking_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "parking_modelled"
+
+  - name: tst_parking_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_parking_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-parking-M01"
+
+  - name: tst_parking_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_parking_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-parking-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: fleet_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "fleet_modelled"
+
+  - name: tst_fleet_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_fleet_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-fleet-M01"
+
+  - name: tst_fleet_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fleet_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-fleet-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: dispatch_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "dispatch_modelled"
+
+  - name: tst_dispatch_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_dispatch_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-dispatch-M01"
+
+  - name: tst_dispatch_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dispatch_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-dispatch-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: cargo_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "cargo_modelled"
+
+  - name: tst_cargo_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_cargo_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-cargo-M01"
+
+  - name: tst_cargo_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cargo_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-cargo-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: manifest_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "manifest_modelled"
+
+  - name: tst_manifest_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_manifest_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-manifest-M01"
+
+  - name: tst_manifest_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_manifest_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-manifest-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: consignment_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "consignment_modelled"
+
+  - name: tst_consignment_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_consignment_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-consignment-M01"
+
+  - name: tst_consignment_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_consignment_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-consignment-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: hub_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "hub_modelled"
+
+  - name: tst_hub_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_hub_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-hub-M01"
+
+  - name: tst_hub_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_hub_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-hub-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: depot_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "depot_modelled"
+
+  - name: tst_depot_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_depot_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-depot-M01"
+
+  - name: tst_depot_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_depot_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-depot-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: zone_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "zone_modelled"
+
+  - name: tst_zone_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_zone_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-zone-M01"
+
+  - name: tst_zone_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_zone_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-zone-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: tariff_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tariff_modelled"
+
+  - name: tst_tariff_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tariff_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tariff-M01"
+
+  - name: tst_tariff_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tariff_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tariff-M02"
 ---
 pipeline: domain_e_modelled
 flowgroup: carrier_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "carrier_modelled"
+
+  - name: tst_carrier_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_carrier_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-carrier-M01"
+
+  - name: tst_carrier_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_carrier_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-carrier-M02"

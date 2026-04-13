@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "campaign_raw"
+
+  - name: tst_campaign_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_campaign_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-campaign-R01"
+
+  - name: tst_campaign_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_campaign_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-campaign-R02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: centrifuge
   source_table: centrifuge_raw
+actions:
+  - name: tst_centrifuge_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_centrifuge_cleansed
+    required_columns: [centrifuge_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-centrifuge-B01"
+
+  - name: tst_centrifuge_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_centrifuge_cleansed
+    columns: [centrifuge_key]
+    on_violation: warn
+    test_id: "PERF-centrifuge-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "hangar"
+
+  - name: tst_hangar_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_hangar_bronze_cleaned
+    required_columns: [hangar_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-hangar-B01"
+
+  - name: tst_hangar_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_hangar_bronze_cleaned
+    columns: [hangar_key]
+    on_violation: warn
+    test_id: "PERF-hangar-B02"

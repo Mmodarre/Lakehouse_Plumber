@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "assembly_analysis_mv"
+
+  - name: tst_assembly_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_assembly_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-assembly-G01"
+
+  - name: tst_assembly_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_assembly_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-assembly-G02"

@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "pre_order"
+
+  - name: tst_pre_order_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_pre_order_bronze_cleaned
+    required_columns: [pre_order_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-pre_order-B01"
+
+  - name: tst_pre_order_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pre_order_bronze_cleaned
+    columns: [pre_order_key]
+    on_violation: warn
+    test_id: "PERF-pre_order-B02"

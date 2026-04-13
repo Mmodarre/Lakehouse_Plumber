@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "portion_control"
+
+  - name: tst_portion_control_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_portion_control_bronze_cleaned
+    required_columns: [portion_control_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-portion_control-B01"
+
+  - name: tst_portion_control_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_portion_control_bronze_cleaned
+    columns: [portion_control_key]
+    on_violation: warn
+    test_id: "PERF-portion_control-B02"

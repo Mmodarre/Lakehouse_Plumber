@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "liability_summary_mv"
+
+  - name: tst_liability_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_liability_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-liability-G01"
+
+  - name: tst_liability_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_liability_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-liability-G02"

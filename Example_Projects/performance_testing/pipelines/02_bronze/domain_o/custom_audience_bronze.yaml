@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "custom_audience"
+
+  - name: tst_custom_audience_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_custom_audience_bronze_cleaned
+    required_columns: [custom_audience_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-custom_audience-B01"
+
+  - name: tst_custom_audience_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_custom_audience_bronze_cleaned
+    columns: [custom_audience_key]
+    on_violation: warn
+    test_id: "PERF-custom_audience-B02"

@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "checkout_lane_raw"
+
+  - name: tst_checkout_lane_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_checkout_lane_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-checkout_lane-R01"
+
+  - name: tst_checkout_lane_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_checkout_lane_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-checkout_lane-R02"

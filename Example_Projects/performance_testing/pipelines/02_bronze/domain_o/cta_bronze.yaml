@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "cta"
+
+  - name: tst_cta_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_cta_bronze_cleaned
+    required_columns: [cta_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cta-B01"
+
+  - name: tst_cta_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cta_bronze_cleaned
+    columns: [cta_key]
+    on_violation: warn
+    test_id: "PERF-cta-B02"

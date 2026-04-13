@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "appellation"
+
+  - name: tst_appellation_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_appellation_bronze_cleaned
+    required_columns: [appellation_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-appellation-B01"
+
+  - name: tst_appellation_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_appellation_bronze_cleaned
+    columns: [appellation_key]
+    on_violation: warn
+    test_id: "PERF-appellation-B02"

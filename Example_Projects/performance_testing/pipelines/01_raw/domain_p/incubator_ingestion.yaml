@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "incubator_raw"
+
+  - name: tst_incubator_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_incubator_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-incubator-R01"
+
+  - name: tst_incubator_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_incubator_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-incubator-R02"

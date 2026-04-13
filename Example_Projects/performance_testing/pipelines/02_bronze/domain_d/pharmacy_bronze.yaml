@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "pharmacy"
+
+  - name: tst_pharmacy_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_pharmacy_bronze_cleaned
+    required_columns: [pharmacy_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-pharmacy-B01"
+
+  - name: tst_pharmacy_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pharmacy_bronze_cleaned
+    columns: [pharmacy_key]
+    on_violation: warn
+    test_id: "PERF-pharmacy-B02"

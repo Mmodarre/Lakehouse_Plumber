@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "proof_of_delivery_weekly_agg_mv"
+
+  - name: tst_proof_of_delivery_weekly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_proof_of_delivery_weekly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-proof_of_delivery-G01"
+
+  - name: tst_proof_of_delivery_weekly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_proof_of_delivery_weekly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-proof_of_delivery-G02"

@@ -30,3 +30,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_fitness_test_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_fitness_test_bronze
+    required_columns: [fitness_test_key]
+    on_violation: warn
+    test_id: "PERF-fitness_test-S01"
+
+  - name: tst_fitness_test_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fitness_test_bronze
+    columns: [fitness_test_key]
+    on_violation: warn
+    test_id: "PERF-fitness_test-S02"

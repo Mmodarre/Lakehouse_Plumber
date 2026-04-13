@@ -7,3 +7,19 @@ template_parameters:
   table_name: endorsement_raw
   landing_folder: endorsement
   schema_file: lineitem_schema
+actions:
+  - name: tst_endorsement_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_endorsement_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-endorsement-R01"
+
+  - name: tst_endorsement_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_endorsement_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-endorsement-R02"

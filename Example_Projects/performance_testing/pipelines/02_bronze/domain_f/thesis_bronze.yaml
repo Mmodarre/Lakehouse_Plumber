@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "thesis"
+
+  - name: tst_thesis_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_thesis_bronze_cleaned
+    required_columns: [thesis_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-thesis-B01"
+
+  - name: tst_thesis_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_thesis_bronze_cleaned
+    columns: [thesis_key]
+    on_violation: warn
+    test_id: "PERF-thesis-B02"

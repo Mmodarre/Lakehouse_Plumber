@@ -7,3 +7,19 @@ template_parameters:
   table_name: pcr_run_raw
   landing_folder: pcr_run
   schema_file: orders_schema
+actions:
+  - name: tst_pcr_run_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_pcr_run_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-pcr_run-R01"
+
+  - name: tst_pcr_run_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pcr_run_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-pcr_run-R02"

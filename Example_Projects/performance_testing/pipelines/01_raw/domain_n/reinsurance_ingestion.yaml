@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "reinsurance_raw"
+
+  - name: tst_reinsurance_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_reinsurance_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-reinsurance-R01"
+
+  - name: tst_reinsurance_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reinsurance_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-reinsurance-R02"

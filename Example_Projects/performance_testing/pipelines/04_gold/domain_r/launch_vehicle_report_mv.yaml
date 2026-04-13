@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "launch_vehicle_report_mv"
+
+  - name: tst_launch_vehicle_report_completeness
+    type: test
+    test_type: completeness
+    source: v_launch_vehicle_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-launch_vehicle-G01"
+
+  - name: tst_launch_vehicle_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_launch_vehicle_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-launch_vehicle-G02"

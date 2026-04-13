@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "schema_registry"
+
+  - name: tst_schema_registry_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_schema_registry_bronze_cleaned
+    required_columns: [schema_registry_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-schema_registry-B01"
+
+  - name: tst_schema_registry_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_schema_registry_bronze_cleaned
+    columns: [schema_registry_key]
+    on_violation: warn
+    test_id: "PERF-schema_registry-B02"

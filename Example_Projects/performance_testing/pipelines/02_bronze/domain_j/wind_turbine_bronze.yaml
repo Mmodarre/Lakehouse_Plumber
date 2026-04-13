@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: wind_turbine
   source_table: wind_turbine_raw
+actions:
+  - name: tst_wind_turbine_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_wind_turbine_cleansed
+    required_columns: [wind_turbine_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-wind_turbine-B01"
+
+  - name: tst_wind_turbine_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wind_turbine_cleansed
+    columns: [wind_turbine_key]
+    on_violation: warn
+    test_id: "PERF-wind_turbine-B02"

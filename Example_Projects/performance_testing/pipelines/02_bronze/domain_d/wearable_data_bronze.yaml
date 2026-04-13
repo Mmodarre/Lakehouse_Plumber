@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "wearable_data"
+
+  - name: tst_wearable_data_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_wearable_data_bronze_cleaned
+    required_columns: [wearable_data_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-wearable_data-B01"
+
+  - name: tst_wearable_data_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wearable_data_bronze_cleaned
+    columns: [wearable_data_key]
+    on_violation: warn
+    test_id: "PERF-wearable_data-B02"

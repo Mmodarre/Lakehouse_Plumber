@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "crawl_error_weekly_agg_mv"
+
+  - name: tst_crawl_error_weekly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_crawl_error_weekly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-crawl_error-G01"
+
+  - name: tst_crawl_error_weekly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_crawl_error_weekly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-crawl_error-G02"

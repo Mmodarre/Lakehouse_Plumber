@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "curtailment"
+
+  - name: tst_curtailment_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_curtailment_bronze_cleaned
+    required_columns: [curtailment_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-curtailment-B01"
+
+  - name: tst_curtailment_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_curtailment_bronze_cleaned
+    columns: [curtailment_key]
+    on_violation: warn
+    test_id: "PERF-curtailment-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "replay"
+
+  - name: tst_replay_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_replay_bronze_cleaned
+    required_columns: [replay_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-replay-B01"
+
+  - name: tst_replay_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_replay_bronze_cleaned
+    columns: [replay_key]
+    on_violation: warn
+    test_id: "PERF-replay-B02"

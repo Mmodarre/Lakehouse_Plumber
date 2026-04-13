@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "policyholder"
+
+  - name: tst_policyholder_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_policyholder_bronze_cleaned
+    required_columns: [policyholder_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-policyholder-B01"
+
+  - name: tst_policyholder_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_policyholder_bronze_cleaned
+    columns: [policyholder_key]
+    on_violation: warn
+    test_id: "PERF-policyholder-B02"

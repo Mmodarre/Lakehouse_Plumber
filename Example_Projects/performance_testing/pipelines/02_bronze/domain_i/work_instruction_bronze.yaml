@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "work_instruction"
+
+  - name: tst_work_instruction_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_work_instruction_bronze_cleaned
+    required_columns: [work_instruction_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-work_instruction-B01"
+
+  - name: tst_work_instruction_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_work_instruction_bronze_cleaned
+    columns: [work_instruction_key]
+    on_violation: warn
+    test_id: "PERF-work_instruction-B02"

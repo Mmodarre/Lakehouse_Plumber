@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "inventory_raw"
+
+  - name: tst_inventory_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_inventory_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-inventory-R01"
+
+  - name: tst_inventory_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_inventory_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-inventory-R02"

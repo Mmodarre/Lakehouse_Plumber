@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "referee_summary_mv"
+
+  - name: tst_referee_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_referee_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-referee-G01"
+
+  - name: tst_referee_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_referee_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-referee-G02"

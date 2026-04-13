@@ -7,3 +7,19 @@ template_parameters:
   table_name: link_budget_raw
   landing_folder: link_budget
   schema_file: partsupp_schema
+actions:
+  - name: tst_link_budget_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_link_budget_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-link_budget-R01"
+
+  - name: tst_link_budget_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_link_budget_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-link_budget-R02"

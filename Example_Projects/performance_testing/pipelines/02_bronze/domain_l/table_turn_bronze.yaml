@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "table_turn"
+
+  - name: tst_table_turn_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_table_turn_bronze_cleaned
+    required_columns: [table_turn_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-table_turn-B01"
+
+  - name: tst_table_turn_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_table_turn_bronze_cleaned
+    columns: [table_turn_key]
+    on_violation: warn
+    test_id: "PERF-table_turn-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "org_chart"
+
+  - name: tst_org_chart_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_org_chart_bronze_cleaned
+    required_columns: [org_chart_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-org_chart-B01"
+
+  - name: tst_org_chart_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_org_chart_bronze_cleaned
+    columns: [org_chart_key]
+    on_violation: warn
+    test_id: "PERF-org_chart-B02"

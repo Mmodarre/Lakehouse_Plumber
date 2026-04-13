@@ -9,45 +9,173 @@ flowgroups:
       table_name: product_raw
       landing_folder: product
       schema_file: nation_schema
+    actions:
+      - name: tst_product_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_product_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-product-R01"
+      
+      - name: tst_product_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_product_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-product-R02"
 
   - flowgroup: coupon_ingestion
     template_parameters:
       table_name: coupon_raw
       landing_folder: coupon
       schema_file: lineitem_schema
+    actions:
+      - name: tst_coupon_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_coupon_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-coupon-R01"
+      
+      - name: tst_coupon_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_coupon_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-coupon-R02"
 
   - flowgroup: review_ingestion
     template_parameters:
       table_name: review_raw
       landing_folder: review
       schema_file: customer_schema
+    actions:
+      - name: tst_review_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_review_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-review-R01"
+      
+      - name: tst_review_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_review_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-review-R02"
 
   - flowgroup: address_ingestion
     template_parameters:
       table_name: address_raw
       landing_folder: address
       schema_file: orders_schema
+    actions:
+      - name: tst_address_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_address_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-address-R01"
+      
+      - name: tst_address_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_address_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-address-R02"
 
   - flowgroup: price_rule_ingestion
     template_parameters:
       table_name: price_rule_raw
       landing_folder: price_rule
       schema_file: nation_schema
+    actions:
+      - name: tst_price_rule_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_price_rule_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-price_rule-R01"
+      
+      - name: tst_price_rule_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_price_rule_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-price_rule-R02"
 
   - flowgroup: catalog_entry_ingestion
     template_parameters:
       table_name: catalog_entry_raw
       landing_folder: catalog_entry
       schema_file: lineitem_schema
+    actions:
+      - name: tst_catalog_entry_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_catalog_entry_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-catalog_entry-R01"
+      
+      - name: tst_catalog_entry_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_catalog_entry_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-catalog_entry-R02"
 
   - flowgroup: bundle_offer_ingestion
     template_parameters:
       table_name: bundle_offer_raw
       landing_folder: bundle_offer
       schema_file: part_schema
+    actions:
+      - name: tst_bundle_offer_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_bundle_offer_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-bundle_offer-R01"
+      
+      - name: tst_bundle_offer_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_bundle_offer_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-bundle_offer-R02"
 
   - flowgroup: pick_list_ingestion
     template_parameters:
       table_name: pick_list_raw
       landing_folder: pick_list
       schema_file: orders_schema
+    actions:
+      - name: tst_pick_list_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_pick_list_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-pick_list-R01"
+      
+      - name: tst_pick_list_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_pick_list_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-pick_list-R02"

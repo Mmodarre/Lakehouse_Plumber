@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "domain_authority_modelled"
+
+  - name: tst_domain_authority_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_domain_authority_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-domain_authority-M01"
+
+  - name: tst_domain_authority_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_domain_authority_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-domain_authority-M02"

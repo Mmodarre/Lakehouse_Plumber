@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "contact"
+
+  - name: tst_contact_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_contact_bronze_cleaned
+    required_columns: [contact_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-contact-B01"
+
+  - name: tst_contact_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_contact_bronze_cleaned
+    columns: [contact_key]
+    on_violation: warn
+    test_id: "PERF-contact-B02"

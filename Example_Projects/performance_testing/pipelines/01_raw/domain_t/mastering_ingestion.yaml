@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "mastering_raw"
+
+  - name: tst_mastering_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_mastering_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-mastering-R01"
+
+  - name: tst_mastering_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mastering_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-mastering-R02"

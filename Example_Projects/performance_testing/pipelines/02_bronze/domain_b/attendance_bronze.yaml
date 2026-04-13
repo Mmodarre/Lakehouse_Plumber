@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "attendance"
+
+  - name: tst_attendance_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_attendance_bronze_cleaned
+    required_columns: [attendance_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-attendance-B01"
+
+  - name: tst_attendance_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_attendance_bronze_cleaned
+    columns: [attendance_key]
+    on_violation: warn
+    test_id: "PERF-attendance-B02"

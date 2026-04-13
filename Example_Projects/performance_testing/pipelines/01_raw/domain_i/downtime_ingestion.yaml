@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "downtime_raw"
+
+  - name: tst_downtime_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_downtime_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-downtime-R01"
+
+  - name: tst_downtime_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_downtime_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-downtime-R02"

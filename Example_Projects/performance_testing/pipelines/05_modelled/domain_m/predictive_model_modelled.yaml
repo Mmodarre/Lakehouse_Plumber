@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "predictive_model_modelled"
+
+  - name: tst_predictive_model_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_predictive_model_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-predictive_model-M01"
+
+  - name: tst_predictive_model_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_predictive_model_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-predictive_model-M02"

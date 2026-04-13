@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "fuel_tank"
+
+  - name: tst_fuel_tank_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_fuel_tank_bronze_cleaned
+    required_columns: [fuel_tank_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-fuel_tank-B01"
+
+  - name: tst_fuel_tank_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fuel_tank_bronze_cleaned
+    columns: [fuel_tank_key]
+    on_violation: warn
+    test_id: "PERF-fuel_tank-B02"

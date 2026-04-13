@@ -30,3 +30,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_application_form_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_application_form_bronze
+    required_columns: [application_form_key]
+    on_violation: warn
+    test_id: "PERF-application_form-S01"
+
+  - name: tst_application_form_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_application_form_bronze
+    columns: [application_form_key]
+    on_violation: warn
+    test_id: "PERF-application_form-S02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "subdivision"
+
+  - name: tst_subdivision_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_subdivision_bronze_cleaned
+    required_columns: [subdivision_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-subdivision-B01"
+
+  - name: tst_subdivision_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_subdivision_bronze_cleaned
+    columns: [subdivision_key]
+    on_violation: warn
+    test_id: "PERF-subdivision-B02"

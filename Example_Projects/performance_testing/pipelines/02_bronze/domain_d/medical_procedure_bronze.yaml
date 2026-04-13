@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "medical_procedure"
+
+  - name: tst_medical_procedure_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_medical_procedure_bronze_cleaned
+    required_columns: [medical_procedure_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-medical_procedure-B01"
+
+  - name: tst_medical_procedure_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_medical_procedure_bronze_cleaned
+    columns: [medical_procedure_key]
+    on_violation: warn
+    test_id: "PERF-medical_procedure-B02"

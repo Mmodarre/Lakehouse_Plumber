@@ -9,45 +9,173 @@ flowgroups:
       table_name: prescription_raw
       landing_folder: prescription
       schema_file: orders_schema
+    actions:
+      - name: tst_prescription_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_prescription_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-prescription-R01"
+      
+      - name: tst_prescription_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_prescription_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-prescription-R02"
 
   - flowgroup: ward_ingestion
     template_parameters:
       table_name: ward_raw
       landing_folder: ward
       schema_file: nation_schema
+    actions:
+      - name: tst_ward_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_ward_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-ward-R01"
+      
+      - name: tst_ward_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_ward_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-ward-R02"
 
   - flowgroup: medication_ingestion
     template_parameters:
       table_name: medication_raw
       landing_folder: medication
       schema_file: partsupp_schema
+    actions:
+      - name: tst_medication_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_medication_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-medication-R01"
+      
+      - name: tst_medication_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_medication_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-medication-R02"
 
   - flowgroup: medical_procedure_ingestion
     template_parameters:
       table_name: medical_procedure_raw
       landing_folder: medical_procedure
       schema_file: part_schema
+    actions:
+      - name: tst_medical_procedure_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_medical_procedure_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-medical_procedure-R01"
+      
+      - name: tst_medical_procedure_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_medical_procedure_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-medical_procedure-R02"
 
   - flowgroup: blood_bank_ingestion
     template_parameters:
       table_name: blood_bank_raw
       landing_folder: blood_bank
       schema_file: orders_schema
+    actions:
+      - name: tst_blood_bank_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_blood_bank_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-blood_bank-R01"
+      
+      - name: tst_blood_bank_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_blood_bank_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-blood_bank-R02"
 
   - flowgroup: recovery_ingestion
     template_parameters:
       table_name: recovery_raw
       landing_folder: recovery
       schema_file: product_schema
+    actions:
+      - name: tst_recovery_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_recovery_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-recovery-R01"
+      
+      - name: tst_recovery_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_recovery_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-recovery-R02"
 
   - flowgroup: diet_plan_ingestion
     template_parameters:
       table_name: diet_plan_raw
       landing_folder: diet_plan
       schema_file: partsupp_schema
+    actions:
+      - name: tst_diet_plan_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_diet_plan_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-diet_plan-R01"
+      
+      - name: tst_diet_plan_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_diet_plan_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-diet_plan-R02"
 
   - flowgroup: wearable_data_ingestion
     template_parameters:
       table_name: wearable_data_raw
       landing_folder: wearable_data
       schema_file: part_schema
+    actions:
+      - name: tst_wearable_data_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_wearable_data_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-wearable_data-R01"
+      
+      - name: tst_wearable_data_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_wearable_data_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-wearable_data-R02"

@@ -9,45 +9,173 @@ flowgroups:
       table_name: budget_raw
       landing_folder: budget
       schema_file: part_schema
+    actions:
+      - name: tst_budget_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_budget_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-budget-R01"
+      
+      - name: tst_budget_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_budget_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-budget-R02"
 
   - flowgroup: audit_ingestion
     template_parameters:
       table_name: audit_raw
       landing_folder: audit
       schema_file: customer_schema
+    actions:
+      - name: tst_audit_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_audit_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-audit-R01"
+      
+      - name: tst_audit_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_audit_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-audit-R02"
 
   - flowgroup: equity_ingestion
     template_parameters:
       table_name: equity_raw
       landing_folder: equity
       schema_file: product_schema
+    actions:
+      - name: tst_equity_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_equity_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-equity-R01"
+      
+      - name: tst_equity_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_equity_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-equity-R02"
 
   - flowgroup: exchange_rate_ingestion
     template_parameters:
       table_name: exchange_rate_raw
       landing_folder: exchange_rate
       schema_file: partsupp_schema
+    actions:
+      - name: tst_exchange_rate_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_exchange_rate_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-exchange_rate-R01"
+      
+      - name: tst_exchange_rate_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_exchange_rate_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-exchange_rate-R02"
 
   - flowgroup: debit_note_ingestion
     template_parameters:
       table_name: debit_note_raw
       landing_folder: debit_note
       schema_file: lineitem_schema
+    actions:
+      - name: tst_debit_note_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_debit_note_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-debit_note-R01"
+      
+      - name: tst_debit_note_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_debit_note_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-debit_note-R02"
 
   - flowgroup: income_statement_ingestion
     template_parameters:
       table_name: income_statement_raw
       landing_folder: income_statement
       schema_file: customer_schema
+    actions:
+      - name: tst_income_statement_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_income_statement_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-income_statement-R01"
+      
+      - name: tst_income_statement_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_income_statement_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-income_statement-R02"
 
   - flowgroup: intercompany_ingestion
     template_parameters:
       table_name: intercompany_raw
       landing_folder: intercompany
       schema_file: product_schema
+    actions:
+      - name: tst_intercompany_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_intercompany_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-intercompany-R01"
+      
+      - name: tst_intercompany_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_intercompany_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-intercompany-R02"
 
   - flowgroup: tax_filing_ingestion
     template_parameters:
       table_name: tax_filing_raw
       landing_folder: tax_filing
       schema_file: nation_schema
+    actions:
+      - name: tst_tax_filing_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_tax_filing_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tax_filing-R01"
+      
+      - name: tst_tax_filing_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_tax_filing_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tax_filing-R02"

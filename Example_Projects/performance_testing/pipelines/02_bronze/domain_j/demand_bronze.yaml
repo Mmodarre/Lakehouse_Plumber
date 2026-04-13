@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: demand
   source_table: demand_raw
+actions:
+  - name: tst_demand_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_demand_cleansed
+    required_columns: [demand_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-demand-B01"
+
+  - name: tst_demand_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_demand_cleansed
+    columns: [demand_key]
+    on_violation: warn
+    test_id: "PERF-demand-B02"

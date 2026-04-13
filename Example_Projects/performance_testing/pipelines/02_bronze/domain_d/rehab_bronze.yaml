@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "rehab"
+
+  - name: tst_rehab_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_rehab_bronze_cleaned
+    required_columns: [rehab_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-rehab-B01"
+
+  - name: tst_rehab_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_rehab_bronze_cleaned
+    columns: [rehab_key]
+    on_violation: warn
+    test_id: "PERF-rehab-B02"

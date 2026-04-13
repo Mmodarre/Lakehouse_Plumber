@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "certification_analysis_mv"
+
+  - name: tst_certification_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_certification_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-certification-G01"
+
+  - name: tst_certification_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_certification_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-certification-G02"

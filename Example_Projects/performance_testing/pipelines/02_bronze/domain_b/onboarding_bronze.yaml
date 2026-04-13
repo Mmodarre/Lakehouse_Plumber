@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "onboarding"
+
+  - name: tst_onboarding_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_onboarding_bronze_cleaned
+    required_columns: [onboarding_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-onboarding-B01"
+
+  - name: tst_onboarding_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_onboarding_bronze_cleaned
+    columns: [onboarding_key]
+    on_violation: warn
+    test_id: "PERF-onboarding-B02"

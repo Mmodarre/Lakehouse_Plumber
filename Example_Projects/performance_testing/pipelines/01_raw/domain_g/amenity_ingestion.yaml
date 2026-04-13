@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "amenity_raw"
+
+  - name: tst_amenity_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_amenity_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-amenity-R01"
+
+  - name: tst_amenity_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_amenity_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-amenity-R02"

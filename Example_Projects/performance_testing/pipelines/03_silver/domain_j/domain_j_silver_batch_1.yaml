@@ -30,6 +30,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_meter_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_meter_bronze
+    required_columns: [meter_key]
+    on_violation: warn
+    test_id: "PERF-meter-S01"
+
+  - name: tst_meter_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_meter_bronze
+    columns: [meter_key]
+    on_violation: warn
+    test_id: "PERF-meter-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: reading_silver_dim
@@ -63,6 +79,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_reading_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_reading_bronze
+    required_columns: [reading_key]
+    on_violation: warn
+    test_id: "PERF-reading-S01"
+
+  - name: tst_reading_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reading_bronze
+    columns: [reading_key]
+    on_violation: warn
+    test_id: "PERF-reading-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: grid_silver_dim
@@ -96,6 +128,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_grid_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_grid_bronze
+    required_columns: [grid_key]
+    on_violation: warn
+    test_id: "PERF-grid-S01"
+
+  - name: tst_grid_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_grid_bronze
+    columns: [grid_key]
+    on_violation: warn
+    test_id: "PERF-grid-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: transformer_silver_fct
@@ -129,6 +177,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_transformer_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_transformer_bronze
+    required_columns: [transformer_key]
+    on_violation: warn
+    test_id: "PERF-transformer-S01"
+
+  - name: tst_transformer_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transformer_bronze
+    columns: [transformer_key]
+    on_violation: warn
+    test_id: "PERF-transformer-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: substation_silver_dim
@@ -162,6 +226,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_substation_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_substation_bronze
+    required_columns: [substation_key]
+    on_violation: warn
+    test_id: "PERF-substation-S01"
+
+  - name: tst_substation_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_substation_bronze
+    columns: [substation_key]
+    on_violation: warn
+    test_id: "PERF-substation-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: outage_silver_dim
@@ -195,6 +275,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_outage_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_outage_bronze
+    required_columns: [outage_key]
+    on_violation: warn
+    test_id: "PERF-outage-S01"
+
+  - name: tst_outage_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_outage_bronze
+    columns: [outage_key]
+    on_violation: warn
+    test_id: "PERF-outage-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: load_profile_silver_fct
@@ -228,6 +324,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_load_profile_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_load_profile_bronze
+    required_columns: [load_profile_key]
+    on_violation: warn
+    test_id: "PERF-load_profile-S01"
+
+  - name: tst_load_profile_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_load_profile_bronze
+    columns: [load_profile_key]
+    on_violation: warn
+    test_id: "PERF-load_profile-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: demand_silver_dim
@@ -261,6 +373,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_demand_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_demand_bronze
+    required_columns: [demand_key]
+    on_violation: warn
+    test_id: "PERF-demand-S01"
+
+  - name: tst_demand_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_demand_bronze
+    columns: [demand_key]
+    on_violation: warn
+    test_id: "PERF-demand-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: generation_silver_dim
@@ -294,6 +422,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_generation_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_generation_bronze
+    required_columns: [generation_key]
+    on_violation: warn
+    test_id: "PERF-generation-S01"
+
+  - name: tst_generation_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_generation_bronze
+    columns: [generation_key]
+    on_violation: warn
+    test_id: "PERF-generation-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: solar_panel_silver_fct
@@ -327,6 +471,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_solar_panel_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_solar_panel_bronze
+    required_columns: [solar_panel_key]
+    on_violation: warn
+    test_id: "PERF-solar_panel-S01"
+
+  - name: tst_solar_panel_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_solar_panel_bronze
+    columns: [solar_panel_key]
+    on_violation: warn
+    test_id: "PERF-solar_panel-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: wind_turbine_silver_dim
@@ -360,6 +520,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_wind_turbine_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_wind_turbine_bronze
+    required_columns: [wind_turbine_key]
+    on_violation: warn
+    test_id: "PERF-wind_turbine-S01"
+
+  - name: tst_wind_turbine_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wind_turbine_bronze
+    columns: [wind_turbine_key]
+    on_violation: warn
+    test_id: "PERF-wind_turbine-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: battery_silver_dim
@@ -393,6 +569,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_battery_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_battery_bronze
+    required_columns: [battery_key]
+    on_violation: warn
+    test_id: "PERF-battery-S01"
+
+  - name: tst_battery_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_battery_bronze
+    columns: [battery_key]
+    on_violation: warn
+    test_id: "PERF-battery-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: inverter_silver_fct
@@ -426,6 +618,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_inverter_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_inverter_bronze
+    required_columns: [inverter_key]
+    on_violation: warn
+    test_id: "PERF-inverter-S01"
+
+  - name: tst_inverter_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_inverter_bronze
+    columns: [inverter_key]
+    on_violation: warn
+    test_id: "PERF-inverter-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: tariff_plan_silver_dim
@@ -459,6 +667,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_tariff_plan_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_tariff_plan_bronze
+    required_columns: [tariff_plan_key]
+    on_violation: warn
+    test_id: "PERF-tariff_plan-S01"
+
+  - name: tst_tariff_plan_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tariff_plan_bronze
+    columns: [tariff_plan_key]
+    on_violation: warn
+    test_id: "PERF-tariff_plan-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: billing_cycle_silver_dim
@@ -492,6 +716,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_billing_cycle_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_billing_cycle_bronze
+    required_columns: [billing_cycle_key]
+    on_violation: warn
+    test_id: "PERF-billing_cycle-S01"
+
+  - name: tst_billing_cycle_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_billing_cycle_bronze
+    columns: [billing_cycle_key]
+    on_violation: warn
+    test_id: "PERF-billing_cycle-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: peak_usage_silver_fct
@@ -525,6 +765,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_peak_usage_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_peak_usage_bronze
+    required_columns: [peak_usage_key]
+    on_violation: warn
+    test_id: "PERF-peak_usage-S01"
+
+  - name: tst_peak_usage_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_peak_usage_bronze
+    columns: [peak_usage_key]
+    on_violation: warn
+    test_id: "PERF-peak_usage-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: off_peak_silver_dim
@@ -558,6 +814,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_off_peak_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_off_peak_bronze
+    required_columns: [off_peak_key]
+    on_violation: warn
+    test_id: "PERF-off_peak-S01"
+
+  - name: tst_off_peak_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_off_peak_bronze
+    columns: [off_peak_key]
+    on_violation: warn
+    test_id: "PERF-off_peak-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: net_metering_silver_dim
@@ -591,6 +863,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_net_metering_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_net_metering_bronze
+    required_columns: [net_metering_key]
+    on_violation: warn
+    test_id: "PERF-net_metering-S01"
+
+  - name: tst_net_metering_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_net_metering_bronze
+    columns: [net_metering_key]
+    on_violation: warn
+    test_id: "PERF-net_metering-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: power_factor_silver_fct
@@ -624,6 +912,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_power_factor_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_power_factor_bronze
+    required_columns: [power_factor_key]
+    on_violation: warn
+    test_id: "PERF-power_factor-S01"
+
+  - name: tst_power_factor_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_power_factor_bronze
+    columns: [power_factor_key]
+    on_violation: warn
+    test_id: "PERF-power_factor-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: voltage_silver_dim
@@ -657,3 +961,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_voltage_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_voltage_bronze
+    required_columns: [voltage_key]
+    on_violation: warn
+    test_id: "PERF-voltage-S01"
+
+  - name: tst_voltage_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_voltage_bronze
+    columns: [voltage_key]
+    on_violation: warn
+    test_id: "PERF-voltage-S02"

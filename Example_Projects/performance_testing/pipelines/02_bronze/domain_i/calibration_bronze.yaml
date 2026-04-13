@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "calibration"
+
+  - name: tst_calibration_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_calibration_bronze_cleaned
+    required_columns: [calibration_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-calibration-B01"
+
+  - name: tst_calibration_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_calibration_bronze_cleaned
+    columns: [calibration_key]
+    on_violation: warn
+    test_id: "PERF-calibration-B02"

@@ -7,3 +7,19 @@ template_parameters:
   table_name: salvage_raw
   landing_folder: salvage
   schema_file: product_schema
+actions:
+  - name: tst_salvage_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_salvage_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-salvage-R01"
+
+  - name: tst_salvage_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_salvage_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-salvage-R02"

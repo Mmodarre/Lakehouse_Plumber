@@ -30,3 +30,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_device_group_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_device_group_bronze
+    required_columns: [device_group_key]
+    on_violation: warn
+    test_id: "PERF-device_group-S01"
+
+  - name: tst_device_group_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_device_group_bronze
+    columns: [device_group_key]
+    on_violation: warn
+    test_id: "PERF-device_group-S02"

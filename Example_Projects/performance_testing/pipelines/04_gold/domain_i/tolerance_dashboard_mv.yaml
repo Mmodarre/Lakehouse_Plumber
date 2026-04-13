@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "tolerance_dashboard_mv"
+
+  - name: tst_tolerance_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_tolerance_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-tolerance-G01"
+
+  - name: tst_tolerance_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tolerance_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-tolerance-G02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: health_inspection
   source_table: health_inspection_raw
+actions:
+  - name: tst_health_inspection_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_health_inspection_cleansed
+    required_columns: [health_inspection_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-health_inspection-B01"
+
+  - name: tst_health_inspection_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_health_inspection_cleansed
+    columns: [health_inspection_key]
+    on_violation: warn
+    test_id: "PERF-health_inspection-B02"

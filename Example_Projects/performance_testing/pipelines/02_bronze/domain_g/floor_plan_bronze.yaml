@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "floor_plan"
+
+  - name: tst_floor_plan_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_floor_plan_bronze_cleaned
+    required_columns: [floor_plan_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-floor_plan-B01"
+
+  - name: tst_floor_plan_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_floor_plan_bronze_cleaned
+    columns: [floor_plan_key]
+    on_violation: warn
+    test_id: "PERF-floor_plan-B02"

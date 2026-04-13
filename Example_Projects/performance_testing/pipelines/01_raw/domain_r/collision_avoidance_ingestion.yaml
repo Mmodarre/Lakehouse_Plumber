@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "collision_avoidance_raw"
+
+  - name: tst_collision_avoidance_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_collision_avoidance_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-collision_avoidance-R01"
+
+  - name: tst_collision_avoidance_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_collision_avoidance_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-collision_avoidance-R02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "co_op"
+
+  - name: tst_co_op_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_co_op_bronze_cleaned
+    required_columns: [co_op_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-co_op-B01"
+
+  - name: tst_co_op_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_co_op_bronze_cleaned
+    columns: [co_op_key]
+    on_violation: warn
+    test_id: "PERF-co_op-B02"

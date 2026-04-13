@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "curriculum_report_mv"
+
+  - name: tst_curriculum_report_completeness
+    type: test
+    test_type: completeness
+    source: v_curriculum_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-curriculum-G01"
+
+  - name: tst_curriculum_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_curriculum_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-curriculum-G02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "dead_letter"
+
+  - name: tst_dead_letter_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_dead_letter_bronze_cleaned
+    required_columns: [dead_letter_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-dead_letter-B01"
+
+  - name: tst_dead_letter_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dead_letter_bronze_cleaned
+    columns: [dead_letter_key]
+    on_violation: warn
+    test_id: "PERF-dead_letter-B02"

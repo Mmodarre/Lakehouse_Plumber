@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "penalty"
+
+  - name: tst_penalty_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_penalty_bronze_cleaned
+    required_columns: [penalty_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-penalty-B01"
+
+  - name: tst_penalty_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_penalty_bronze_cleaned
+    columns: [penalty_key]
+    on_violation: warn
+    test_id: "PERF-penalty-B02"

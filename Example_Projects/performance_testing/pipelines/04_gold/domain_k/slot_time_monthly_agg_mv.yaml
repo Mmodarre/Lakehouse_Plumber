@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "slot_time_monthly_agg_mv"
+
+  - name: tst_slot_time_monthly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_slot_time_monthly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-slot_time-G01"
+
+  - name: tst_slot_time_monthly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_slot_time_monthly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-slot_time-G02"

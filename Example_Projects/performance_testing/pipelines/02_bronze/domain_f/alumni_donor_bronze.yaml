@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "alumni_donor"
+
+  - name: tst_alumni_donor_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_alumni_donor_bronze_cleaned
+    required_columns: [alumni_donor_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-alumni_donor-B01"
+
+  - name: tst_alumni_donor_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_alumni_donor_bronze_cleaned
+    columns: [alumni_donor_key]
+    on_violation: warn
+    test_id: "PERF-alumni_donor-B02"

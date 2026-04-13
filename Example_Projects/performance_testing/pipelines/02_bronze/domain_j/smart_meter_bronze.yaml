@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "smart_meter"
+
+  - name: tst_smart_meter_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_smart_meter_bronze_cleaned
+    required_columns: [smart_meter_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-smart_meter-B01"
+
+  - name: tst_smart_meter_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_smart_meter_bronze_cleaned
+    columns: [smart_meter_key]
+    on_violation: warn
+    test_id: "PERF-smart_meter-B02"

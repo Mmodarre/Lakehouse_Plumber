@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "trailer_daily_agg_mv"
+
+  - name: tst_trailer_daily_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_trailer_daily_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-trailer-G01"
+
+  - name: tst_trailer_daily_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_trailer_daily_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-trailer-G02"

@@ -7,3 +7,19 @@ template_parameters:
   table_name: smart_meter_raw
   landing_folder: smart_meter
   schema_file: lineitem_schema
+actions:
+  - name: tst_smart_meter_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_smart_meter_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-smart_meter-R01"
+
+  - name: tst_smart_meter_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_smart_meter_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-smart_meter-R02"

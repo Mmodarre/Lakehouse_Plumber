@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "packaging"
+
+  - name: tst_packaging_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_packaging_bronze_cleaned
+    required_columns: [packaging_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-packaging-B01"
+
+  - name: tst_packaging_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_packaging_bronze_cleaned
+    columns: [packaging_key]
+    on_violation: warn
+    test_id: "PERF-packaging-B02"

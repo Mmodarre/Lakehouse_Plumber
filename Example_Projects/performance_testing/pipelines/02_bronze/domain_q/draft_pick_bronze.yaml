@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "draft_pick"
+
+  - name: tst_draft_pick_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_draft_pick_bronze_cleaned
+    required_columns: [draft_pick_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-draft_pick-B01"
+
+  - name: tst_draft_pick_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_draft_pick_bronze_cleaned
+    columns: [draft_pick_key]
+    on_violation: warn
+    test_id: "PERF-draft_pick-B02"

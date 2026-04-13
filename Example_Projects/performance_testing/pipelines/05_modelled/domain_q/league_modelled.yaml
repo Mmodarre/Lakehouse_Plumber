@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "league_modelled"
+
+  - name: tst_league_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_league_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-league-M01"
+
+  - name: tst_league_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_league_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-league-M02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: anomaly
   source_table: anomaly_raw
+actions:
+  - name: tst_anomaly_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_anomaly_cleansed
+    required_columns: [anomaly_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-anomaly-B01"
+
+  - name: tst_anomaly_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_anomaly_cleansed
+    columns: [anomaly_key]
+    on_violation: warn
+    test_id: "PERF-anomaly-B02"

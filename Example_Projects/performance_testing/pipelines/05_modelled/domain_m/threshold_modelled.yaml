@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "threshold_modelled"
+
+  - name: tst_threshold_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_threshold_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-threshold-M01"
+
+  - name: tst_threshold_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_threshold_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-threshold-M02"

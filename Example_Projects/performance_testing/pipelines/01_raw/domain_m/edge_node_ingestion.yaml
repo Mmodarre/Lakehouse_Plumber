@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "edge_node_raw"
+
+  - name: tst_edge_node_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_edge_node_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-edge_node-R01"
+
+  - name: tst_edge_node_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_edge_node_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-edge_node-R02"

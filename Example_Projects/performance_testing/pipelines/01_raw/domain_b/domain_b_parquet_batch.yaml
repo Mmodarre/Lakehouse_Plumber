@@ -9,45 +9,173 @@ flowgroups:
       table_name: task_raw
       landing_folder: task
       schema_file: orders_schema
+    actions:
+      - name: tst_task_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_task_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-task-R01"
+      
+      - name: tst_task_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_task_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-task-R02"
 
   - flowgroup: certification_ingestion
     template_parameters:
       table_name: certification_raw
       landing_folder: certification
       schema_file: nation_schema
+    actions:
+      - name: tst_certification_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_certification_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-certification-R01"
+      
+      - name: tst_certification_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_certification_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-certification-R02"
 
   - flowgroup: feedback_ingestion
     template_parameters:
       table_name: feedback_raw
       landing_folder: feedback
       schema_file: partsupp_schema
+    actions:
+      - name: tst_feedback_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_feedback_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-feedback-R01"
+      
+      - name: tst_feedback_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_feedback_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-feedback-R02"
 
   - flowgroup: offboarding_ingestion
     template_parameters:
       table_name: offboarding_raw
       landing_folder: offboarding
       schema_file: part_schema
+    actions:
+      - name: tst_offboarding_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_offboarding_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-offboarding-R01"
+      
+      - name: tst_offboarding_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_offboarding_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-offboarding-R02"
 
   - flowgroup: badge_ingestion
     template_parameters:
       table_name: badge_raw
       landing_folder: badge
       schema_file: orders_schema
+    actions:
+      - name: tst_badge_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_badge_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-badge-R01"
+      
+      - name: tst_badge_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_badge_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-badge-R02"
 
   - flowgroup: org_chart_ingestion
     template_parameters:
       table_name: org_chart_raw
       landing_folder: org_chart
       schema_file: product_schema
+    actions:
+      - name: tst_org_chart_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_org_chart_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-org_chart-R01"
+      
+      - name: tst_org_chart_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_org_chart_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-org_chart-R02"
 
   - flowgroup: alumni_ingestion
     template_parameters:
       table_name: alumni_raw
       landing_folder: alumni
       schema_file: partsupp_schema
+    actions:
+      - name: tst_alumni_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_alumni_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-alumni-R01"
+      
+      - name: tst_alumni_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_alumni_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-alumni-R02"
 
   - flowgroup: labor_cost_ingestion
     template_parameters:
       table_name: labor_cost_raw
       landing_folder: labor_cost
       schema_file: part_schema
+    actions:
+      - name: tst_labor_cost_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_labor_cost_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-labor_cost-R01"
+      
+      - name: tst_labor_cost_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_labor_cost_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-labor_cost-R02"

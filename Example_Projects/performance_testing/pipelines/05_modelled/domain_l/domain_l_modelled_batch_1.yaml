@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "restaurant_modelled"
+
+  - name: tst_restaurant_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_restaurant_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-restaurant-M01"
+
+  - name: tst_restaurant_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_restaurant_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-restaurant-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: menu_item_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "menu_item_modelled"
+
+  - name: tst_menu_item_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_menu_item_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-menu_item-M01"
+
+  - name: tst_menu_item_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_menu_item_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-menu_item-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: table_seat_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "table_seat_modelled"
+
+  - name: tst_table_seat_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_table_seat_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-table_seat-M01"
+
+  - name: tst_table_seat_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_table_seat_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-table_seat-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: reservation_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "reservation_modelled"
+
+  - name: tst_reservation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_reservation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-reservation-M01"
+
+  - name: tst_reservation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reservation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-reservation-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: chef_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "chef_modelled"
+
+  - name: tst_chef_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_chef_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-chef-M01"
+
+  - name: tst_chef_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_chef_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-chef-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: waiter_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "waiter_modelled"
+
+  - name: tst_waiter_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_waiter_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-waiter-M01"
+
+  - name: tst_waiter_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_waiter_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-waiter-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: kitchen_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "kitchen_modelled"
+
+  - name: tst_kitchen_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_kitchen_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-kitchen-M01"
+
+  - name: tst_kitchen_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_kitchen_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-kitchen-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: food_order_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "food_order_modelled"
+
+  - name: tst_food_order_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_food_order_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-food_order-M01"
+
+  - name: tst_food_order_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_food_order_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-food_order-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: ingredient_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "ingredient_modelled"
+
+  - name: tst_ingredient_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_ingredient_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-ingredient-M01"
+
+  - name: tst_ingredient_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ingredient_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-ingredient-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: recipe_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "recipe_modelled"
+
+  - name: tst_recipe_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_recipe_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-recipe-M01"
+
+  - name: tst_recipe_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_recipe_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-recipe-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: supplier_contract_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "supplier_contract_modelled"
+
+  - name: tst_supplier_contract_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_supplier_contract_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-supplier_contract-M01"
+
+  - name: tst_supplier_contract_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_supplier_contract_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-supplier_contract-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: health_inspection_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "health_inspection_modelled"
+
+  - name: tst_health_inspection_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_health_inspection_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-health_inspection-M01"
+
+  - name: tst_health_inspection_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_health_inspection_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-health_inspection-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: tip_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tip_modelled"
+
+  - name: tst_tip_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tip_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tip-M01"
+
+  - name: tst_tip_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tip_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tip-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: shift_schedule_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "shift_schedule_modelled"
+
+  - name: tst_shift_schedule_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_shift_schedule_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-shift_schedule-M01"
+
+  - name: tst_shift_schedule_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_shift_schedule_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-shift_schedule-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: pantry_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "pantry_modelled"
+
+  - name: tst_pantry_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_pantry_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-pantry-M01"
+
+  - name: tst_pantry_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pantry_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-pantry-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: dish_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "dish_modelled"
+
+  - name: tst_dish_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_dish_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-dish-M01"
+
+  - name: tst_dish_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dish_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-dish-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: beverage_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "beverage_modelled"
+
+  - name: tst_beverage_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_beverage_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-beverage-M01"
+
+  - name: tst_beverage_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_beverage_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-beverage-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: appetizer_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "appetizer_modelled"
+
+  - name: tst_appetizer_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_appetizer_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-appetizer-M01"
+
+  - name: tst_appetizer_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_appetizer_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-appetizer-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: dessert_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "dessert_modelled"
+
+  - name: tst_dessert_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_dessert_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-dessert-M01"
+
+  - name: tst_dessert_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dessert_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-dessert-M02"
 ---
 pipeline: domain_l_modelled
 flowgroup: special_menu_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "special_menu_modelled"
+
+  - name: tst_special_menu_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_special_menu_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-special_menu-M01"
+
+  - name: tst_special_menu_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_special_menu_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-special_menu-M02"

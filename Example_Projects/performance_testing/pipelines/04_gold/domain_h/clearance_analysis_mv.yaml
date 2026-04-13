@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "clearance_analysis_mv"
+
+  - name: tst_clearance_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_clearance_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-clearance-G01"
+
+  - name: tst_clearance_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_clearance_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-clearance-G02"

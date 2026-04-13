@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "iot_device_raw"
+
+  - name: tst_iot_device_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_iot_device_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-iot_device-R01"
+
+  - name: tst_iot_device_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_iot_device_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-iot_device-R02"

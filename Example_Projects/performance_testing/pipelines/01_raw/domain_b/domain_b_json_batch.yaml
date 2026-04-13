@@ -9,45 +9,173 @@ flowgroups:
       table_name: project_raw
       landing_folder: project
       schema_file: nation_schema
+    actions:
+      - name: tst_project_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_project_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-project-R01"
+      
+      - name: tst_project_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_project_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-project-R02"
 
   - flowgroup: training_ingestion
     template_parameters:
       table_name: training_raw
       landing_folder: training
       schema_file: lineitem_schema
+    actions:
+      - name: tst_training_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_training_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-training-R01"
+      
+      - name: tst_training_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_training_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-training-R02"
 
   - flowgroup: candidate_ingestion
     template_parameters:
       table_name: candidate_raw
       landing_folder: candidate
       schema_file: customer_schema
+    actions:
+      - name: tst_candidate_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_candidate_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-candidate-R01"
+      
+      - name: tst_candidate_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_candidate_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-candidate-R02"
 
   - flowgroup: onboarding_ingestion
     template_parameters:
       table_name: onboarding_raw
       landing_folder: onboarding
       schema_file: orders_schema
+    actions:
+      - name: tst_onboarding_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_onboarding_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-onboarding-R01"
+      
+      - name: tst_onboarding_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_onboarding_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-onboarding-R02"
 
   - flowgroup: attendance_ingestion
     template_parameters:
       table_name: attendance_raw
       landing_folder: attendance
       schema_file: nation_schema
+    actions:
+      - name: tst_attendance_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_attendance_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-attendance-R01"
+      
+      - name: tst_attendance_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_attendance_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-attendance-R02"
 
   - flowgroup: requisition_ingestion
     template_parameters:
       table_name: requisition_raw
       landing_folder: requisition
       schema_file: lineitem_schema
+    actions:
+      - name: tst_requisition_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_requisition_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-requisition-R01"
+      
+      - name: tst_requisition_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_requisition_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-requisition-R02"
 
   - flowgroup: exit_interview_ingestion
     template_parameters:
       table_name: exit_interview_raw
       landing_folder: exit_interview
       schema_file: part_schema
+    actions:
+      - name: tst_exit_interview_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_exit_interview_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-exit_interview-R01"
+      
+      - name: tst_exit_interview_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_exit_interview_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-exit_interview-R02"
 
   - flowgroup: workforce_plan_ingestion
     template_parameters:
       table_name: workforce_plan_raw
       landing_folder: workforce_plan
       schema_file: orders_schema
+    actions:
+      - name: tst_workforce_plan_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_workforce_plan_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-workforce_plan-R01"
+      
+      - name: tst_workforce_plan_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_workforce_plan_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-workforce_plan-R02"

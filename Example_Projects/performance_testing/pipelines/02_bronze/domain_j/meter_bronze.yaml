@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: meter
   source_table: meter_raw
+actions:
+  - name: tst_meter_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_meter_cleansed
+    required_columns: [meter_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-meter-B01"
+
+  - name: tst_meter_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_meter_cleansed
+    columns: [meter_key]
+    on_violation: warn
+    test_id: "PERF-meter-B02"

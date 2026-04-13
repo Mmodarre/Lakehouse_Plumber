@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "auction_lot_modelled"
+
+  - name: tst_auction_lot_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_auction_lot_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-auction_lot-M01"
+
+  - name: tst_auction_lot_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_auction_lot_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-auction_lot-M02"

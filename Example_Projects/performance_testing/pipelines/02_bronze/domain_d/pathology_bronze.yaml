@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "pathology"
+
+  - name: tst_pathology_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_pathology_bronze_cleaned
+    required_columns: [pathology_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-pathology-B01"
+
+  - name: tst_pathology_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pathology_bronze_cleaned
+    columns: [pathology_key]
+    on_violation: warn
+    test_id: "PERF-pathology-B02"

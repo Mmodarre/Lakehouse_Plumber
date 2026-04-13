@@ -7,3 +7,19 @@ template_parameters:
   table_name: ground_station_raw
   landing_folder: ground_station
   schema_file: nation_schema
+actions:
+  - name: tst_ground_station_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_ground_station_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ground_station-R01"
+
+  - name: tst_ground_station_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ground_station_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ground_station-R02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: billing_cycle
   source_table: billing_cycle_raw
+actions:
+  - name: tst_billing_cycle_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_billing_cycle_cleansed
+    required_columns: [billing_cycle_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-billing_cycle-B01"
+
+  - name: tst_billing_cycle_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_billing_cycle_cleansed
+    columns: [billing_cycle_key]
+    on_violation: warn
+    test_id: "PERF-billing_cycle-B02"

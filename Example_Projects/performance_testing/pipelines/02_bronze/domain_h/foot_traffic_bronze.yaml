@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "foot_traffic"
+
+  - name: tst_foot_traffic_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_foot_traffic_bronze_cleaned
+    required_columns: [foot_traffic_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-foot_traffic-B01"
+
+  - name: tst_foot_traffic_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_foot_traffic_bronze_cleaned
+    columns: [foot_traffic_key]
+    on_violation: warn
+    test_id: "PERF-foot_traffic-B02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: launch_vehicle
   source_table: launch_vehicle_raw
+actions:
+  - name: tst_launch_vehicle_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_launch_vehicle_cleansed
+    required_columns: [launch_vehicle_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-launch_vehicle-B01"
+
+  - name: tst_launch_vehicle_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_launch_vehicle_cleansed
+    columns: [launch_vehicle_key]
+    on_violation: warn
+    test_id: "PERF-launch_vehicle-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "time_series"
+
+  - name: tst_time_series_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_time_series_bronze_cleaned
+    required_columns: [time_series_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-time_series-B01"
+
+  - name: tst_time_series_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_time_series_bronze_cleaned
+    columns: [time_series_key]
+    on_violation: warn
+    test_id: "PERF-time_series-B02"

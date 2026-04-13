@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "meter_modelled"
+
+  - name: tst_meter_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_meter_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-meter-M01"
+
+  - name: tst_meter_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_meter_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-meter-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: reading_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "reading_modelled"
+
+  - name: tst_reading_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_reading_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-reading-M01"
+
+  - name: tst_reading_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reading_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-reading-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: grid_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "grid_modelled"
+
+  - name: tst_grid_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_grid_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-grid-M01"
+
+  - name: tst_grid_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_grid_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-grid-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: transformer_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "transformer_modelled"
+
+  - name: tst_transformer_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_transformer_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-transformer-M01"
+
+  - name: tst_transformer_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transformer_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-transformer-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: substation_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "substation_modelled"
+
+  - name: tst_substation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_substation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-substation-M01"
+
+  - name: tst_substation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_substation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-substation-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: outage_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "outage_modelled"
+
+  - name: tst_outage_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_outage_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-outage-M01"
+
+  - name: tst_outage_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_outage_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-outage-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: load_profile_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "load_profile_modelled"
+
+  - name: tst_load_profile_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_load_profile_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-load_profile-M01"
+
+  - name: tst_load_profile_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_load_profile_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-load_profile-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: demand_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "demand_modelled"
+
+  - name: tst_demand_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_demand_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-demand-M01"
+
+  - name: tst_demand_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_demand_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-demand-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: generation_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "generation_modelled"
+
+  - name: tst_generation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_generation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-generation-M01"
+
+  - name: tst_generation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_generation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-generation-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: solar_panel_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "solar_panel_modelled"
+
+  - name: tst_solar_panel_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_solar_panel_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-solar_panel-M01"
+
+  - name: tst_solar_panel_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_solar_panel_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-solar_panel-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: wind_turbine_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "wind_turbine_modelled"
+
+  - name: tst_wind_turbine_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_wind_turbine_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-wind_turbine-M01"
+
+  - name: tst_wind_turbine_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wind_turbine_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-wind_turbine-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: battery_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "battery_modelled"
+
+  - name: tst_battery_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_battery_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-battery-M01"
+
+  - name: tst_battery_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_battery_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-battery-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: inverter_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "inverter_modelled"
+
+  - name: tst_inverter_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_inverter_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-inverter-M01"
+
+  - name: tst_inverter_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_inverter_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-inverter-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: tariff_plan_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tariff_plan_modelled"
+
+  - name: tst_tariff_plan_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tariff_plan_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tariff_plan-M01"
+
+  - name: tst_tariff_plan_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tariff_plan_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tariff_plan-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: billing_cycle_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "billing_cycle_modelled"
+
+  - name: tst_billing_cycle_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_billing_cycle_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-billing_cycle-M01"
+
+  - name: tst_billing_cycle_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_billing_cycle_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-billing_cycle-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: peak_usage_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "peak_usage_modelled"
+
+  - name: tst_peak_usage_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_peak_usage_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-peak_usage-M01"
+
+  - name: tst_peak_usage_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_peak_usage_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-peak_usage-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: off_peak_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "off_peak_modelled"
+
+  - name: tst_off_peak_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_off_peak_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-off_peak-M01"
+
+  - name: tst_off_peak_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_off_peak_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-off_peak-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: net_metering_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "net_metering_modelled"
+
+  - name: tst_net_metering_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_net_metering_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-net_metering-M01"
+
+  - name: tst_net_metering_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_net_metering_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-net_metering-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: power_factor_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "power_factor_modelled"
+
+  - name: tst_power_factor_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_power_factor_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-power_factor-M01"
+
+  - name: tst_power_factor_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_power_factor_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-power_factor-M02"
 ---
 pipeline: domain_j_modelled
 flowgroup: voltage_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "voltage_modelled"
+
+  - name: tst_voltage_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_voltage_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-voltage-M01"
+
+  - name: tst_voltage_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_voltage_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-voltage-M02"

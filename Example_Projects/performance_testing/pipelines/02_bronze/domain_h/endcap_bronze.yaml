@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "endcap"
+
+  - name: tst_endcap_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_endcap_bronze_cleaned
+    required_columns: [endcap_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-endcap-B01"
+
+  - name: tst_endcap_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_endcap_bronze_cleaned
+    columns: [endcap_key]
+    on_violation: warn
+    test_id: "PERF-endcap-B02"

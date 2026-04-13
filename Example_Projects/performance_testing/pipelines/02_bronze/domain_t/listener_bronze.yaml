@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: listener
   source_table: listener_raw
+actions:
+  - name: tst_listener_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_listener_cleansed
+    required_columns: [listener_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-listener-B01"
+
+  - name: tst_listener_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_listener_cleansed
+    columns: [listener_key]
+    on_violation: warn
+    test_id: "PERF-listener-B02"

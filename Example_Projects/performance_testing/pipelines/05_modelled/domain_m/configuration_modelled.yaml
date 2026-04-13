@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "configuration_modelled"
+
+  - name: tst_configuration_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_configuration_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-configuration-M01"
+
+  - name: tst_configuration_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_configuration_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-configuration-M02"

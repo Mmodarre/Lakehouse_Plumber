@@ -8,78 +8,334 @@ flowgroups:
     template_parameters:
       entity_name: property
       source_table: property_raw
+    actions:
+      - name: tst_property_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_property_cleansed
+        required_columns: [property_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-property-B01"
+      
+      - name: tst_property_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_property_cleansed
+        columns: [property_key]
+        on_violation: warn
+        test_id: "PERF-property-B02"
 
   - flowgroup: tenant_bronze
     template_parameters:
       entity_name: tenant
       source_table: tenant_raw
+    actions:
+      - name: tst_tenant_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_tenant_cleansed
+        required_columns: [tenant_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-tenant-B01"
+      
+      - name: tst_tenant_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_tenant_cleansed
+        columns: [tenant_key]
+        on_violation: warn
+        test_id: "PERF-tenant-B02"
 
   - flowgroup: lease_bronze
     template_parameters:
       entity_name: lease
       source_table: lease_raw
+    actions:
+      - name: tst_lease_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_lease_cleansed
+        required_columns: [lease_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-lease-B01"
+      
+      - name: tst_lease_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_lease_cleansed
+        columns: [lease_key]
+        on_violation: warn
+        test_id: "PERF-lease-B02"
 
   - flowgroup: landlord_bronze
     template_parameters:
       entity_name: landlord
       source_table: landlord_raw
+    actions:
+      - name: tst_landlord_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_landlord_cleansed
+        required_columns: [landlord_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-landlord-B01"
+      
+      - name: tst_landlord_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_landlord_cleansed
+        columns: [landlord_key]
+        on_violation: warn
+        test_id: "PERF-landlord-B02"
 
   - flowgroup: unit_bronze
     template_parameters:
       entity_name: unit
       source_table: unit_raw
+    actions:
+      - name: tst_unit_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_unit_cleansed
+        required_columns: [unit_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-unit-B01"
+      
+      - name: tst_unit_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_unit_cleansed
+        columns: [unit_key]
+        on_violation: warn
+        test_id: "PERF-unit-B02"
 
   - flowgroup: building_bronze
     template_parameters:
       entity_name: building
       source_table: building_raw
+    actions:
+      - name: tst_building_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_building_cleansed
+        required_columns: [building_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-building-B01"
+      
+      - name: tst_building_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_building_cleansed
+        columns: [building_key]
+        on_violation: warn
+        test_id: "PERF-building-B02"
 
   - flowgroup: amenity_bronze
     template_parameters:
       entity_name: amenity
       source_table: amenity_raw
+    actions:
+      - name: tst_amenity_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_amenity_cleansed
+        required_columns: [amenity_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-amenity-B01"
+      
+      - name: tst_amenity_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_amenity_cleansed
+        columns: [amenity_key]
+        on_violation: warn
+        test_id: "PERF-amenity-B02"
 
   - flowgroup: work_order_bronze
     template_parameters:
       entity_name: work_order
       source_table: work_order_raw
+    actions:
+      - name: tst_work_order_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_work_order_cleansed
+        required_columns: [work_order_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-work_order-B01"
+      
+      - name: tst_work_order_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_work_order_cleansed
+        columns: [work_order_key]
+        on_violation: warn
+        test_id: "PERF-work_order-B02"
 
   - flowgroup: rent_payment_bronze
     template_parameters:
       entity_name: rent_payment
       source_table: rent_payment_raw
+    actions:
+      - name: tst_rent_payment_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_rent_payment_cleansed
+        required_columns: [rent_payment_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-rent_payment-B01"
+      
+      - name: tst_rent_payment_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_rent_payment_cleansed
+        columns: [rent_payment_key]
+        on_violation: warn
+        test_id: "PERF-rent_payment-B02"
 
   - flowgroup: eviction_bronze
     template_parameters:
       entity_name: eviction
       source_table: eviction_raw
+    actions:
+      - name: tst_eviction_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_eviction_cleansed
+        required_columns: [eviction_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-eviction-B01"
+      
+      - name: tst_eviction_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_eviction_cleansed
+        columns: [eviction_key]
+        on_violation: warn
+        test_id: "PERF-eviction-B02"
 
   - flowgroup: listing_bronze
     template_parameters:
       entity_name: listing
       source_table: listing_raw
+    actions:
+      - name: tst_listing_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_listing_cleansed
+        required_columns: [listing_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-listing-B01"
+      
+      - name: tst_listing_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_listing_cleansed
+        columns: [listing_key]
+        on_violation: warn
+        test_id: "PERF-listing-B02"
 
   - flowgroup: showing_bronze
     template_parameters:
       entity_name: showing
       source_table: showing_raw
+    actions:
+      - name: tst_showing_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_showing_cleansed
+        required_columns: [showing_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-showing-B01"
+      
+      - name: tst_showing_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_showing_cleansed
+        columns: [showing_key]
+        on_violation: warn
+        test_id: "PERF-showing-B02"
 
   - flowgroup: appraisal_bronze
     template_parameters:
       entity_name: appraisal
       source_table: appraisal_raw
+    actions:
+      - name: tst_appraisal_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_appraisal_cleansed
+        required_columns: [appraisal_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-appraisal-B01"
+      
+      - name: tst_appraisal_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_appraisal_cleansed
+        columns: [appraisal_key]
+        on_violation: warn
+        test_id: "PERF-appraisal-B02"
 
   - flowgroup: mortgage_bronze
     template_parameters:
       entity_name: mortgage
       source_table: mortgage_raw
+    actions:
+      - name: tst_mortgage_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_mortgage_cleansed
+        required_columns: [mortgage_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-mortgage-B01"
+      
+      - name: tst_mortgage_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_mortgage_cleansed
+        columns: [mortgage_key]
+        on_violation: warn
+        test_id: "PERF-mortgage-B02"
 
   - flowgroup: escrow_bronze
     template_parameters:
       entity_name: escrow
       source_table: escrow_raw
+    actions:
+      - name: tst_escrow_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_escrow_cleansed
+        required_columns: [escrow_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-escrow-B01"
+      
+      - name: tst_escrow_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_escrow_cleansed
+        columns: [escrow_key]
+        on_violation: warn
+        test_id: "PERF-escrow-B02"
 
   - flowgroup: closing_bronze
     template_parameters:
       entity_name: closing
       source_table: closing_raw
+    actions:
+      - name: tst_closing_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_closing_cleansed
+        required_columns: [closing_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-closing-B01"
+      
+      - name: tst_closing_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_closing_cleansed
+        columns: [closing_key]
+        on_violation: warn
+        test_id: "PERF-closing-B02"

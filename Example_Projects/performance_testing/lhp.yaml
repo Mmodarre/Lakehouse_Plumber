@@ -68,6 +68,10 @@ required_lhp_version: ">=0.5.0,<0.8.0"
   # - "01_raw/**"
   # - "02_bronze/**"
 
+test_reporting:
+  module_path: py_functions/test_reporting_publisher.py
+  function_name: publish_results
+
 operational_metadata:
   columns:
     _source_file_path:

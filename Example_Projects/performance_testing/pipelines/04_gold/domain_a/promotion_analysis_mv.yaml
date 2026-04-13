@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "promotion_analysis_mv"
+
+  - name: tst_promotion_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_promotion_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-promotion-G01"
+
+  - name: tst_promotion_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_promotion_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-promotion-G02"

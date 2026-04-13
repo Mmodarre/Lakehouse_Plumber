@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "release_date"
+
+  - name: tst_release_date_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_release_date_bronze_cleaned
+    required_columns: [release_date_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-release_date-B01"
+
+  - name: tst_release_date_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_release_date_bronze_cleaned
+    columns: [release_date_key]
+    on_violation: warn
+    test_id: "PERF-release_date-B02"

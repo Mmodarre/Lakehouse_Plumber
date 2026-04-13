@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "cycle_time"
+
+  - name: tst_cycle_time_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_cycle_time_bronze_cleaned
+    required_columns: [cycle_time_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cycle_time-B01"
+
+  - name: tst_cycle_time_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cycle_time_bronze_cleaned
+    columns: [cycle_time_key]
+    on_violation: warn
+    test_id: "PERF-cycle_time-B02"

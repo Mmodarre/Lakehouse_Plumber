@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "edge_node_analysis_mv"
+
+  - name: tst_edge_node_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_edge_node_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-edge_node-G01"
+
+  - name: tst_edge_node_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_edge_node_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-edge_node-G02"

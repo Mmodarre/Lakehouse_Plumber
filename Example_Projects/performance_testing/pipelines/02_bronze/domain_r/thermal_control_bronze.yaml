@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "thermal_control"
+
+  - name: tst_thermal_control_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_thermal_control_bronze_cleaned
+    required_columns: [thermal_control_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-thermal_control-B01"
+
+  - name: tst_thermal_control_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_thermal_control_bronze_cleaned
+    columns: [thermal_control_key]
+    on_violation: warn
+    test_id: "PERF-thermal_control-B02"

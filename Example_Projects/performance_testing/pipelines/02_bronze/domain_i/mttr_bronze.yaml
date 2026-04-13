@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "mttr"
+
+  - name: tst_mttr_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_mttr_bronze_cleaned
+    required_columns: [mttr_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-mttr-B01"
+
+  - name: tst_mttr_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mttr_bronze_cleaned
+    columns: [mttr_key]
+    on_violation: warn
+    test_id: "PERF-mttr-B02"

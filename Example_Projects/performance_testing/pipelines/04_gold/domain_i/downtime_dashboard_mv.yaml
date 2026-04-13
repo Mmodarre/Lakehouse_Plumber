@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "downtime_dashboard_mv"
+
+  - name: tst_downtime_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_downtime_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-downtime-G01"
+
+  - name: tst_downtime_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_downtime_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-downtime-G02"

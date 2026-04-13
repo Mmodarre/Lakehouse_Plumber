@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "publishing_deal"
+
+  - name: tst_publishing_deal_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_publishing_deal_bronze_cleaned
+    required_columns: [publishing_deal_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-publishing_deal-B01"
+
+  - name: tst_publishing_deal_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_publishing_deal_bronze_cleaned
+    columns: [publishing_deal_key]
+    on_violation: warn
+    test_id: "PERF-publishing_deal-B02"

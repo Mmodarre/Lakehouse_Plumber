@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "phenotype"
+
+  - name: tst_phenotype_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_phenotype_bronze_cleaned
+    required_columns: [phenotype_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-phenotype-B01"
+
+  - name: tst_phenotype_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_phenotype_bronze_cleaned
+    columns: [phenotype_key]
+    on_violation: warn
+    test_id: "PERF-phenotype-B02"

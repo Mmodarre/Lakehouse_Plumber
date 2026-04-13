@@ -7,3 +7,19 @@ template_parameters:
   table_name: alert_rule_raw
   landing_folder: alert_rule
   schema_file: customer_schema
+actions:
+  - name: tst_alert_rule_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_alert_rule_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-alert_rule-R01"
+
+  - name: tst_alert_rule_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_alert_rule_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-alert_rule-R02"

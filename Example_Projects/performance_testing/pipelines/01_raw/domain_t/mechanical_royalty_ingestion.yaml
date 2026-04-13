@@ -7,3 +7,19 @@ template_parameters:
   table_name: mechanical_royalty_raw
   landing_folder: mechanical_royalty
   schema_file: orders_schema
+actions:
+  - name: tst_mechanical_royalty_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_mechanical_royalty_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-mechanical_royalty-R01"
+
+  - name: tst_mechanical_royalty_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mechanical_royalty_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-mechanical_royalty-R02"

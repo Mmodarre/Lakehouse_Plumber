@@ -7,3 +7,19 @@ template_parameters:
   table_name: quality_check_raw
   landing_folder: quality_check
   schema_file: nation_schema
+actions:
+  - name: tst_quality_check_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_quality_check_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-quality_check-R01"
+
+  - name: tst_quality_check_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_quality_check_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-quality_check-R02"

@@ -7,3 +7,19 @@ template_parameters:
   table_name: tolerance_raw
   landing_folder: tolerance
   schema_file: partsupp_schema
+actions:
+  - name: tst_tolerance_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_tolerance_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-tolerance-R01"
+
+  - name: tst_tolerance_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tolerance_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-tolerance-R02"

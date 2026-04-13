@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "walk_in"
+
+  - name: tst_walk_in_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_walk_in_bronze_cleaned
+    required_columns: [walk_in_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-walk_in-B01"
+
+  - name: tst_walk_in_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_walk_in_bronze_cleaned
+    columns: [walk_in_key]
+    on_violation: warn
+    test_id: "PERF-walk_in-B02"

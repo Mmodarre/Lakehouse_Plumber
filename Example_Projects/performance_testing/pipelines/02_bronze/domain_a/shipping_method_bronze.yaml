@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "shipping_method"
+
+  - name: tst_shipping_method_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_shipping_method_bronze_cleaned
+    required_columns: [shipping_method_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-shipping_method-B01"
+
+  - name: tst_shipping_method_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_shipping_method_bronze_cleaned
+    columns: [shipping_method_key]
+    on_violation: warn
+    test_id: "PERF-shipping_method-B02"

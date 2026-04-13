@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "hoa"
+
+  - name: tst_hoa_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_hoa_bronze_cleaned
+    required_columns: [hoa_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-hoa-B01"
+
+  - name: tst_hoa_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_hoa_bronze_cleaned
+    columns: [hoa_key]
+    on_violation: warn
+    test_id: "PERF-hoa-B02"

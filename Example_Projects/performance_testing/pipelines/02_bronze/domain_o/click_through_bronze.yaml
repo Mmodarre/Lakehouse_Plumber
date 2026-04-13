@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "click_through"
+
+  - name: tst_click_through_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_click_through_bronze_cleaned
+    required_columns: [click_through_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-click_through-B01"
+
+  - name: tst_click_through_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_click_through_bronze_cleaned
+    columns: [click_through_key]
+    on_violation: warn
+    test_id: "PERF-click_through-B02"

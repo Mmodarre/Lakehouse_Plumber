@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "medical_procedure_report_mv"
+
+  - name: tst_medical_procedure_report_completeness
+    type: test
+    test_type: completeness
+    source: v_medical_procedure_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-medical_procedure-G01"
+
+  - name: tst_medical_procedure_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_medical_procedure_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-medical_procedure-G02"

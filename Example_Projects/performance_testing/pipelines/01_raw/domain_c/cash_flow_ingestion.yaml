@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "cash_flow_raw"
+
+  - name: tst_cash_flow_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_cash_flow_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cash_flow-R01"
+
+  - name: tst_cash_flow_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cash_flow_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cash_flow-R02"

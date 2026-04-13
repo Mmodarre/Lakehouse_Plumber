@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "dessert_report_mv"
+
+  - name: tst_dessert_report_completeness
+    type: test
+    test_type: completeness
+    source: v_dessert_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-dessert-G01"
+
+  - name: tst_dessert_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dessert_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-dessert-G02"

@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "employee_summary_mv"
+
+  - name: tst_employee_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_employee_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-employee-G01"
+
+  - name: tst_employee_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_employee_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-employee-G02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: outage
   source_table: outage_raw
+actions:
+  - name: tst_outage_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_outage_cleansed
+    required_columns: [outage_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-outage-B01"
+
+  - name: tst_outage_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_outage_cleansed
+    columns: [outage_key]
+    on_violation: warn
+    test_id: "PERF-outage-B02"

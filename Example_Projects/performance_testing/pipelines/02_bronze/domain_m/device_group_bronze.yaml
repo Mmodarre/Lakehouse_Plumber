@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: device_group
   source_table: device_group_raw
+actions:
+  - name: tst_device_group_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_device_group_cleansed
+    required_columns: [device_group_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-device_group-B01"
+
+  - name: tst_device_group_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_device_group_cleansed
+    columns: [device_group_key]
+    on_violation: warn
+    test_id: "PERF-device_group-B02"

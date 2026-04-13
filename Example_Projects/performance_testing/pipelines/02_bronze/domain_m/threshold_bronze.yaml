@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: threshold
   source_table: threshold_raw
+actions:
+  - name: tst_threshold_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_threshold_cleansed
+    required_columns: [threshold_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-threshold-B01"
+
+  - name: tst_threshold_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_threshold_cleansed
+    columns: [threshold_key]
+    on_violation: warn
+    test_id: "PERF-threshold-B02"

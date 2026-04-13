@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "retail_partner"
+
+  - name: tst_retail_partner_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_retail_partner_bronze_cleaned
+    required_columns: [retail_partner_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-retail_partner-B01"
+
+  - name: tst_retail_partner_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_retail_partner_bronze_cleaned
+    columns: [retail_partner_key]
+    on_violation: warn
+    test_id: "PERF-retail_partner-B02"

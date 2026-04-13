@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "endless_aisle_quarterly_agg_mv"
+
+  - name: tst_endless_aisle_quarterly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_endless_aisle_quarterly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-endless_aisle-G01"
+
+  - name: tst_endless_aisle_quarterly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_endless_aisle_quarterly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-endless_aisle-G02"

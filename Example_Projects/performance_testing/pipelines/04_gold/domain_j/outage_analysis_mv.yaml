@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "outage_analysis_mv"
+
+  - name: tst_outage_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_outage_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-outage-G01"
+
+  - name: tst_outage_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_outage_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-outage-G02"

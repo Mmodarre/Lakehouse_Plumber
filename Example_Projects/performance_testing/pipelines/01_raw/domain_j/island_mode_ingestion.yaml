@@ -7,3 +7,19 @@ template_parameters:
   table_name: island_mode_raw
   landing_folder: island_mode
   schema_file: nation_schema
+actions:
+  - name: tst_island_mode_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_island_mode_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-island_mode-R01"
+
+  - name: tst_island_mode_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_island_mode_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-island_mode-R02"

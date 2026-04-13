@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "coding_scheme"
+
+  - name: tst_coding_scheme_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_coding_scheme_bronze_cleaned
+    required_columns: [coding_scheme_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-coding_scheme-B01"
+
+  - name: tst_coding_scheme_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_coding_scheme_bronze_cleaned
+    columns: [coding_scheme_key]
+    on_violation: warn
+    test_id: "PERF-coding_scheme-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "influencer_promo"
+
+  - name: tst_influencer_promo_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_influencer_promo_bronze_cleaned
+    required_columns: [influencer_promo_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-influencer_promo-B01"
+
+  - name: tst_influencer_promo_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_influencer_promo_bronze_cleaned
+    columns: [influencer_promo_key]
+    on_violation: warn
+    test_id: "PERF-influencer_promo-B02"

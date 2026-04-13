@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "actuary_raw"
+
+  - name: tst_actuary_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_actuary_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-actuary-R01"
+
+  - name: tst_actuary_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_actuary_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-actuary-R02"

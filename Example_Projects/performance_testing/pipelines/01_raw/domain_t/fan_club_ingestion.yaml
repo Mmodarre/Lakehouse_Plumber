@@ -7,3 +7,19 @@ template_parameters:
   table_name: fan_club_raw
   landing_folder: fan_club
   schema_file: partsupp_schema
+actions:
+  - name: tst_fan_club_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_fan_club_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-fan_club-R01"
+
+  - name: tst_fan_club_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fan_club_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-fan_club-R02"

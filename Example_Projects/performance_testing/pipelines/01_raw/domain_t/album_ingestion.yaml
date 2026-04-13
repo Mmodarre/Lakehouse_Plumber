@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "album_raw"
+
+  - name: tst_album_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_album_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-album-R01"
+
+  - name: tst_album_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_album_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-album-R02"

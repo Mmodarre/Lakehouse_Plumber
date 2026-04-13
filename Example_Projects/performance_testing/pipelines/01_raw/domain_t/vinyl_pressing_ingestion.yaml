@@ -7,3 +7,19 @@ template_parameters:
   table_name: vinyl_pressing_raw
   landing_folder: vinyl_pressing
   schema_file: product_schema
+actions:
+  - name: tst_vinyl_pressing_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_vinyl_pressing_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-vinyl_pressing-R01"
+
+  - name: tst_vinyl_pressing_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_vinyl_pressing_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-vinyl_pressing-R02"

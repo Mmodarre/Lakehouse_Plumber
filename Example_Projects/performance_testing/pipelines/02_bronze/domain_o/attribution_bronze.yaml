@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: attribution
   source_table: attribution_raw
+actions:
+  - name: tst_attribution_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_attribution_cleansed
+    required_columns: [attribution_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-attribution-B01"
+
+  - name: tst_attribution_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_attribution_cleansed
+    columns: [attribution_key]
+    on_violation: warn
+    test_id: "PERF-attribution-B02"

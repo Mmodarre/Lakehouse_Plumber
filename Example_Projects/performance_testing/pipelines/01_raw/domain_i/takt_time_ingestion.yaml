@@ -7,3 +7,19 @@ template_parameters:
   table_name: takt_time_raw
   landing_folder: takt_time
   schema_file: product_schema
+actions:
+  - name: tst_takt_time_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_takt_time_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-takt_time-R01"
+
+  - name: tst_takt_time_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_takt_time_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-takt_time-R02"

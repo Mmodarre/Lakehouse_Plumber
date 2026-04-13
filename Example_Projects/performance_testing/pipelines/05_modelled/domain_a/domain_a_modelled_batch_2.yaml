@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "return_request_modelled"
+
+  - name: tst_return_request_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_return_request_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-return_request-M01"
+
+  - name: tst_return_request_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_return_request_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-return_request-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: gift_wrap_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "gift_wrap_modelled"
+
+  - name: tst_gift_wrap_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_gift_wrap_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-gift_wrap-M01"
+
+  - name: tst_gift_wrap_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_gift_wrap_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-gift_wrap-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: loyalty_point_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "loyalty_point_modelled"
+
+  - name: tst_loyalty_point_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_loyalty_point_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-loyalty_point-M01"
+
+  - name: tst_loyalty_point_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_loyalty_point_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-loyalty_point-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: price_rule_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "price_rule_modelled"
+
+  - name: tst_price_rule_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_price_rule_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-price_rule-M01"
+
+  - name: tst_price_rule_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_price_rule_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-price_rule-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: tax_rate_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tax_rate_modelled"
+
+  - name: tst_tax_rate_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tax_rate_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tax_rate-M01"
+
+  - name: tst_tax_rate_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tax_rate_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tax_rate-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: shipping_method_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "shipping_method_modelled"
+
+  - name: tst_shipping_method_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_shipping_method_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-shipping_method-M01"
+
+  - name: tst_shipping_method_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_shipping_method_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-shipping_method-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: packaging_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "packaging_modelled"
+
+  - name: tst_packaging_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_packaging_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-packaging-M01"
+
+  - name: tst_packaging_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_packaging_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-packaging-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: barcode_item_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "barcode_item_modelled"
+
+  - name: tst_barcode_item_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_barcode_item_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-barcode_item-M01"
+
+  - name: tst_barcode_item_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_barcode_item_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-barcode_item-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: sku_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "sku_modelled"
+
+  - name: tst_sku_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_sku_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-sku-M01"
+
+  - name: tst_sku_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_sku_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-sku-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: catalog_entry_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "catalog_entry_modelled"
+
+  - name: tst_catalog_entry_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_catalog_entry_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-catalog_entry-M01"
+
+  - name: tst_catalog_entry_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_catalog_entry_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-catalog_entry-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: product_image_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "product_image_modelled"
+
+  - name: tst_product_image_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_product_image_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-product_image-M01"
+
+  - name: tst_product_image_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_product_image_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-product_image-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: variant_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "variant_modelled"
+
+  - name: tst_variant_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_variant_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-variant-M01"
+
+  - name: tst_variant_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_variant_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-variant-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: bundle_offer_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "bundle_offer_modelled"
+
+  - name: tst_bundle_offer_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_bundle_offer_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-bundle_offer-M01"
+
+  - name: tst_bundle_offer_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bundle_offer_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-bundle_offer-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: flash_sale_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "flash_sale_modelled"
+
+  - name: tst_flash_sale_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_flash_sale_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-flash_sale-M01"
+
+  - name: tst_flash_sale_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_flash_sale_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-flash_sale-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: pre_order_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "pre_order_modelled"
+
+  - name: tst_pre_order_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_pre_order_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-pre_order-M01"
+
+  - name: tst_pre_order_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pre_order_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-pre_order-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: backorder_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "backorder_modelled"
+
+  - name: tst_backorder_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_backorder_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-backorder-M01"
+
+  - name: tst_backorder_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_backorder_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-backorder-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: dropship_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "dropship_modelled"
+
+  - name: tst_dropship_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_dropship_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-dropship-M01"
+
+  - name: tst_dropship_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dropship_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-dropship-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: fulfillment_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "fulfillment_modelled"
+
+  - name: tst_fulfillment_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_fulfillment_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-fulfillment-M01"
+
+  - name: tst_fulfillment_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fulfillment_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-fulfillment-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: pick_list_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "pick_list_modelled"
+
+  - name: tst_pick_list_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_pick_list_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-pick_list-M01"
+
+  - name: tst_pick_list_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pick_list_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-pick_list-M02"
 ---
 pipeline: domain_a_modelled
 flowgroup: packing_slip_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "packing_slip_modelled"
+
+  - name: tst_packing_slip_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_packing_slip_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-packing_slip-M01"
+
+  - name: tst_packing_slip_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_packing_slip_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-packing_slip-M02"

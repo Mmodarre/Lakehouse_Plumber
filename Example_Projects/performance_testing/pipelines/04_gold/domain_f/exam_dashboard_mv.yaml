@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "exam_dashboard_mv"
+
+  - name: tst_exam_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_exam_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-exam-G01"
+
+  - name: tst_exam_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_exam_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-exam-G02"

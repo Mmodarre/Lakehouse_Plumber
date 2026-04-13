@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "barcode_item"
+
+  - name: tst_barcode_item_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_barcode_item_bronze_cleaned
+    required_columns: [barcode_item_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-barcode_item-B01"
+
+  - name: tst_barcode_item_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_barcode_item_bronze_cleaned
+    columns: [barcode_item_key]
+    on_violation: warn
+    test_id: "PERF-barcode_item-B02"

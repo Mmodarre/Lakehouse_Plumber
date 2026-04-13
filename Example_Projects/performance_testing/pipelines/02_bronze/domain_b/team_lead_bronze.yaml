@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "team_lead"
+
+  - name: tst_team_lead_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_team_lead_bronze_cleaned
+    required_columns: [team_lead_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-team_lead-B01"
+
+  - name: tst_team_lead_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_team_lead_bronze_cleaned
+    columns: [team_lead_key]
+    on_violation: warn
+    test_id: "PERF-team_lead-B02"

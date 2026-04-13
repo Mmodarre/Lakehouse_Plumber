@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "payment_raw"
+
+  - name: tst_payment_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_payment_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-payment-R01"
+
+  - name: tst_payment_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_payment_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-payment-R02"

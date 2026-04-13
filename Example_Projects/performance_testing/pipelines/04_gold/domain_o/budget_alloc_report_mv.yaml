@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "budget_alloc_report_mv"
+
+  - name: tst_budget_alloc_report_completeness
+    type: test
+    test_type: completeness
+    source: v_budget_alloc_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-budget_alloc-G01"
+
+  - name: tst_budget_alloc_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_budget_alloc_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-budget_alloc-G02"

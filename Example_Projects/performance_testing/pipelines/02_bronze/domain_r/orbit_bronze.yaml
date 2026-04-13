@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: orbit
   source_table: orbit_raw
+actions:
+  - name: tst_orbit_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_orbit_cleansed
+    required_columns: [orbit_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-orbit-B01"
+
+  - name: tst_orbit_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_orbit_cleansed
+    columns: [orbit_key]
+    on_violation: warn
+    test_id: "PERF-orbit-B02"

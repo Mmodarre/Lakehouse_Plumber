@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "league_dashboard_mv"
+
+  - name: tst_league_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_league_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-league-G01"
+
+  - name: tst_league_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_league_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-league-G02"

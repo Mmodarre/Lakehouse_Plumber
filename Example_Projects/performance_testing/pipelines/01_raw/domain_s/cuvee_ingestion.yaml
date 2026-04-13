@@ -7,3 +7,19 @@ template_parameters:
   table_name: cuvee_raw
   landing_folder: cuvee
   schema_file: partsupp_schema
+actions:
+  - name: tst_cuvee_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_cuvee_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cuvee-R01"
+
+  - name: tst_cuvee_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cuvee_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cuvee-R02"

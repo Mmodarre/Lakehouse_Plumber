@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "venue_dashboard_mv"
+
+  - name: tst_venue_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_venue_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-venue-G01"
+
+  - name: tst_venue_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_venue_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-venue-G02"

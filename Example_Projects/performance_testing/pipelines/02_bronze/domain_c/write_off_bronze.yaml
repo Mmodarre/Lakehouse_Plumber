@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "write_off"
+
+  - name: tst_write_off_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_write_off_bronze_cleaned
+    required_columns: [write_off_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-write_off-B01"
+
+  - name: tst_write_off_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_write_off_bronze_cleaned
+    columns: [write_off_key]
+    on_violation: warn
+    test_id: "PERF-write_off-B02"

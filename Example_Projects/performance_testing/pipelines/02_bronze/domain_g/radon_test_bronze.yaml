@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "radon_test"
+
+  - name: tst_radon_test_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_radon_test_bronze_cleaned
+    required_columns: [radon_test_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-radon_test-B01"
+
+  - name: tst_radon_test_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_radon_test_bronze_cleaned
+    columns: [radon_test_key]
+    on_violation: warn
+    test_id: "PERF-radon_test-B02"

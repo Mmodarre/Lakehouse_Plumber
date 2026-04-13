@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "air_route"
+
+  - name: tst_air_route_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_air_route_bronze_cleaned
+    required_columns: [air_route_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-air_route-B01"
+
+  - name: tst_air_route_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_air_route_bronze_cleaned
+    columns: [air_route_key]
+    on_violation: warn
+    test_id: "PERF-air_route-B02"

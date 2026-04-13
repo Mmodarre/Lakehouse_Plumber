@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: work_cell
   source_table: work_cell_raw
+actions:
+  - name: tst_work_cell_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_work_cell_cleansed
+    required_columns: [work_cell_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-work_cell-B01"
+
+  - name: tst_work_cell_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_work_cell_cleansed
+    columns: [work_cell_key]
+    on_violation: warn
+    test_id: "PERF-work_cell-B02"

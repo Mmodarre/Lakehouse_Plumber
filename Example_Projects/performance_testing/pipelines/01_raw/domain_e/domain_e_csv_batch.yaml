@@ -9,45 +9,173 @@ flowgroups:
       table_name: tracking_raw
       landing_folder: tracking
       schema_file: part_schema
+    actions:
+      - name: tst_tracking_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_tracking_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tracking-R01"
+      
+      - name: tst_tracking_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_tracking_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tracking-R02"
 
   - flowgroup: inspection_ingestion
     template_parameters:
       table_name: inspection_raw
       landing_folder: inspection
       schema_file: customer_schema
+    actions:
+      - name: tst_inspection_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_inspection_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-inspection-R01"
+      
+      - name: tst_inspection_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_inspection_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-inspection-R02"
 
   - flowgroup: manifest_ingestion
     template_parameters:
       table_name: manifest_raw
       landing_folder: manifest
       schema_file: product_schema
+    actions:
+      - name: tst_manifest_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_manifest_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-manifest-R01"
+      
+      - name: tst_manifest_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_manifest_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-manifest-R02"
 
   - flowgroup: carrier_ingestion
     template_parameters:
       table_name: carrier_raw
       landing_folder: carrier
       schema_file: partsupp_schema
+    actions:
+      - name: tst_carrier_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_carrier_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-carrier-R01"
+      
+      - name: tst_carrier_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_carrier_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-carrier-R02"
 
   - flowgroup: weight_ticket_ingestion
     template_parameters:
       table_name: weight_ticket_raw
       landing_folder: weight_ticket
       schema_file: lineitem_schema
+    actions:
+      - name: tst_weight_ticket_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_weight_ticket_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-weight_ticket-R01"
+      
+      - name: tst_weight_ticket_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_weight_ticket_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-weight_ticket-R02"
 
   - flowgroup: cross_dock_ingestion
     template_parameters:
       table_name: cross_dock_raw
       landing_folder: cross_dock
       schema_file: customer_schema
+    actions:
+      - name: tst_cross_dock_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_cross_dock_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-cross_dock-R01"
+      
+      - name: tst_cross_dock_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_cross_dock_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-cross_dock-R02"
 
   - flowgroup: driver_score_ingestion
     template_parameters:
       table_name: driver_score_raw
       landing_folder: driver_score
       schema_file: product_schema
+    actions:
+      - name: tst_driver_score_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_driver_score_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-driver_score-R01"
+      
+      - name: tst_driver_score_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_driver_score_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-driver_score-R02"
 
   - flowgroup: hazmat_ingestion
     template_parameters:
       table_name: hazmat_raw
       landing_folder: hazmat
       schema_file: nation_schema
+    actions:
+      - name: tst_hazmat_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_hazmat_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-hazmat-R01"
+      
+      - name: tst_hazmat_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_hazmat_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-hazmat-R02"
