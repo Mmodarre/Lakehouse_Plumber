@@ -201,7 +201,7 @@ arguments
       operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time","_record_hash"]
       source:
          type: cloudfiles
-         path: "{landing_volume}/{{ landing_folder }}/*.csv"
+         path: "${landing_volume}/{{ landing_folder }}/*.csv"
          format: csv
          options:
          cloudFiles.format: csv
@@ -221,7 +221,7 @@ arguments
       source: v_{{ table_name }}_cloudfiles
       write_target:
          type: streaming_table
-         database: "{catalog}.{raw_schema}"
+         database: "${catalog}.${raw_schema}"
          table: "{{ table_name }}"
          description: "Write {{ table_name }} to raw layer" 
 

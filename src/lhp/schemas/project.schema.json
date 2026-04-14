@@ -159,7 +159,7 @@
                 },
                 "pipeline_name": {
                     "type": "string",
-                    "description": "Name of the monitoring pipeline (default: {project_name}_event_log_monitoring)"
+                    "description": "Name of the monitoring pipeline (default: ${project_name}_event_log_monitoring)"
                 },
                 "catalog": {
                     "type": "string",

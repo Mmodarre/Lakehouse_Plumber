@@ -21,7 +21,7 @@ LHP templates use **Jinja2** as their rendering engine. When LHP processes a tem
      ├─ 1. Local variables (%{var}) resolved first
      ├─ 2. Template expansion (Jinja2 renders {{ }} and {% %} blocks)
      ├─ 3. Presets applied (template-level, then flowgroup-level)
-     ├─ 4. Environment tokens ({token} / ${token}) resolved
+     ├─ 4. Environment tokens (${token}) resolved
      └─ 5. Validation
 
 .. seealso::
@@ -56,7 +56,7 @@ The simplest dynamic feature is parameter substitution using ``{{ parameter_name
        type: load
        source:
          type: cloudfiles
-         path: "{landing_path}/{{ landing_folder }}/"
+         path: "${landing_path}/{{ landing_folder }}/"
        target: vw_{{ table_name }}_raw
 
 .. code-block:: yaml
@@ -71,7 +71,7 @@ The simplest dynamic feature is parameter substitution using ``{{ parameter_name
 
 **Result:** LHP generates actions with ``load_customer_csv``, paths pointing to ``customer_data/``, and target ``vw_customer_raw``.
 
-Notice how ``{{ template_param }}`` and ``{env_token}`` coexist in the same string — template parameters are resolved first (step 2), environment tokens later (step 4).
+Notice how ``{{ template_param }}`` and ``${env_token}`` coexist in the same string — template parameters are resolved first (step 2), environment tokens later (step 4).
 
 
 Conditional Logic with ``{% if %}``
@@ -240,7 +240,7 @@ Iterating Over a List
        readMode: batch
        write_target:
          type: materialized_view
-         database: "{catalog}.{silver_schema}"
+         database: "${catalog}.${silver_schema}"
          table: "fct_{{ source_system }}_{{ table_name }}_snapshot"
          sql: |
            SELECT
@@ -250,7 +250,7 @@ Iterating Over a List
              MAX(CASE WHEN __end_at IS NULL THEN last_update_dttm END) as last_update_dttm{% if additional_columns %},
              {% for col in additional_columns %}MAX(CASE WHEN __end_at IS NULL THEN {{ col }} END) as {{ col }}{% if not loop.last %},
              {% endif %}{% endfor %}{% endif %}
-           FROM {catalog}.{silver_schema}.fct_{{ source_system }}_{{ table_name }}_hist
+           FROM ${catalog}.${silver_schema}.fct_{{ source_system }}_{{ table_name }}_hist
            GROUP BY {% for col in group_by_columns %}{{ col }}{% if not loop.last %}, {% endif %}{% endfor %}
 
 **Flowgroup invocation:**
@@ -288,12 +288,12 @@ Iterating Over a List
      MAX(CASE WHEN __end_at IS NULL THEN currency END) as currency,
      MAX(CASE WHEN __end_at IS NULL THEN order_date END) as order_date,
      MAX(CASE WHEN __end_at IS NULL THEN expected_date END) as expected_date
-   FROM {catalog}.{silver_schema}.fct_sap_prch_ord_hdr_hist
+   FROM ${catalog}.${silver_schema}.fct_sap_prch_ord_hdr_hist
    GROUP BY po_id
 
 .. note::
 
-   Environment tokens like ``{catalog}`` and ``{silver_schema}`` remain as-is after template
+   Environment tokens like ``${catalog}`` and ``${silver_schema}`` remain as-is after template
    rendering — they are resolved in step 4 of the pipeline, after Jinja2 has finished.
 
 The ``loop`` Variable
@@ -480,7 +480,7 @@ This means you can pass dicts and lists as template parameters using native YAML
        type: write
        write_target:
          type: streaming_table
-         database: "{catalog}.{schema}"
+         database: "${catalog}.${schema}"
          table: "{{ table_name }}"
          table_properties: "{{ table_properties }}"
          cluster_columns: "{{ cluster_columns }}"
@@ -510,7 +510,7 @@ LHP has four substitution systems that are processed in strict order. Understand
 
    1. %{local_var}        → Flowgroup-scoped variables (regex, before templates)
    2. {{ template_param }} → Jinja2 template parameters (during template expansion)
-   3. {token} / ${token}   → Environment tokens from substitutions/<env>.yaml
+   3. ${token}              → Environment tokens from substitutions/<env>.yaml
    4. ${secret:scope/key}  → Secret references → dbutils.secrets.get()
 
 For detailed examples of mixing substitution types — including local variables feeding into
@@ -550,7 +550,7 @@ Templates can define multiple actions that form a complete processing pipeline:
        operational_metadata: ["_processing_timestamp"]
        source:
          type: delta
-         database: "{catalog}.{raw_schema}"
+         database: "${catalog}.${raw_schema}"
          table: "{{ raw_table_name }}"
        target: vw_{{ raw_table_name }}
        description: "Load {{ raw_table_name }} from raw schema"
@@ -582,7 +582,7 @@ Templates can define multiple actions that form a complete processing pipeline:
        source: vw_{{ bronze_table_name }}_cleaned
        write_target:
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: "{{ bronze_table_name }}"
          table_properties:
            quality: "bronze"
@@ -610,7 +610,7 @@ Templates can declare their own presets, and flowgroups can add more on top:
        type: load
        source:
          type: cloudfiles
-         path: "{landing_path}/{{ table_name }}/"
+         path: "${landing_path}/{{ table_name }}/"
        target: vw_{{ table_name }}_raw
 
 .. code-block:: yaml
@@ -813,7 +813,7 @@ Template Parameters vs Environment Tokens
 Keep the separation clear:
 
 - Use ``{{ template_param }}`` for values that **vary per flowgroup** (table names, column lists, flags)
-- Use ``{env_token}`` / ``${env_token}`` for values that **vary per environment** (catalog names, schema names, paths)
+- Use ``${env_token}`` for values that **vary per environment** (catalog names, schema names, paths)
 - Use ``%{local_var}`` for computed values **within a single flowgroup** (derived names, path segments)
 
 .. code-block:: yaml
@@ -822,7 +822,7 @@ Keep the separation clear:
    actions:
      - name: write_{{ table_name }}     # table_name varies per flowgroup
        write_target:
-         database: "{catalog}.{schema}" # catalog/schema vary per environment
+         database: "${catalog}.${schema}" # catalog/schema vary per environment
          table: "{{ table_name }}"
 
 Testing Templates
@@ -884,7 +884,7 @@ Quick Reference
      - Template actions
      - ``template_parameters:`` in flowgroup
    * - 3rd
-     - ``{token}`` / ``${token}``
+     - ``${token}``
      - All flowgroups in environment
      - ``substitutions/<env>.yaml``
    * - 4th

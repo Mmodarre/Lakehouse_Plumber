@@ -98,9 +98,9 @@ project_defaults:
 # # Catalog/Schema Configuration (optional - uses LHP substitution tokens)
 # # When defined: Values are directly embedded in bundle resource file
 # # When omitted: Uses databricks.yml variables (extracted from Python files)
-# # Supports: LHP tokens like "{catalog}" or literal values like "my_catalog"
-# catalog: "{catalog}"                # From substitutions/{env}.yaml
-# schema: "{raw_schema}"              # Environment-specific schema
+# # Supports: LHP tokens like "${catalog}" or literal values like "my_catalog"
+# catalog: "${catalog}"                # From substitutions/{env}.yaml
+# schema: "${raw_schema}"              # Environment-specific schema
 # 
 # serverless: false
 # edition: PRO
@@ -184,8 +184,8 @@ project_defaults:
 # pipeline: bronze_load
 # 
 # # Catalog/Schema: Token-based (environment-specific)
-# catalog: "{catalog}"
-# schema: "{bronze_schema}"
+# catalog: "${catalog}"
+# schema: "${bronze_schema}"
 # 
 # serverless: true
 # continuous: true
@@ -212,8 +212,8 @@ project_defaults:
 # pipeline: silver_transformations
 # 
 # # Catalog/Schema: Environment-specific
-# catalog: "{catalog}"
-# schema: "{silver_schema}"
+# catalog: "${catalog}"
+# schema: "${silver_schema}"
 # 
 # serverless: true
 # continuous: false
@@ -254,7 +254,7 @@ project_defaults:
 # # Literal catalog: Fixed value across all environments  
 # # Token schema: Varies by environment (dev/staging/prod)
 # catalog: "analytics_prod"           # Literal - always analytics_prod
-# schema: "{gold_schema}"              # Token - from substitutions file
+# schema: "${gold_schema}"              # Token - from substitutions file
 # 
 # serverless: true
 # continuous: false
@@ -321,18 +321,18 @@ project_defaults:
 # pipeline: production_ingestion
 # 
 # # Catalog/schema with tokens
-# catalog: "{catalog}"
-# schema: "{raw_schema}"
+# catalog: "${catalog}"
+# schema: "${raw_schema}"
 # serverless: false
 # 
 # # Environment-specific node types and policies
 # clusters:
 #   - label: default
-#     node_type_id: "{pipeline_node_type}"    # ← Dev: smaller, Prod: larger
+#     node_type_id: "${pipeline_node_type}"    # ← Dev: smaller, Prod: larger
 #     # Or use instance pools with tokens:
-#     # instance_pool_id: "{pipeline_pool_id}"  # ← Different pools per env
-#     # driver_instance_pool_id: "{driver_pool_id}"
-#     policy_id: "{pipeline_policy_id}"        # ← Different policies per env
+#     # instance_pool_id: "${pipeline_pool_id}"  # ← Different pools per env
+#     # driver_instance_pool_id: "${driver_pool_id}"
+#     policy_id: "${pipeline_policy_id}"        # ← Different policies per env
 #     autoscale:
 #       min_workers: 2
 #       max_workers: 10
@@ -340,23 +340,23 @@ project_defaults:
 # # Environment-specific notification emails
 # notifications:
 #   - email_recipients:
-#       - "{ops_team_email}"                   # ← Resolves to dev-ops@ or ops@
-#       - "{data_eng_email}"                   # ← Resolves to team email per env
+#       - "${ops_team_email}"                   # ← Resolves to dev-ops@ or ops@
+#       - "${data_eng_email}"                   # ← Resolves to team email per env
 #     alerts:
 #       - on-update-failure
 #       - on-update-fatal-failure
 # 
 # # Dynamic tagging based on environment
 # tags:
-#   environment: "{environment_name}"          # ← development, staging, production
-#   cost_center: "{cost_center_code}"          # ← Different codes per env
+#   environment: "${environment_name}"          # ← development, staging, production
+#   cost_center: "${cost_center_code}"          # ← Different codes per env
 #   team: data-engineering                     # ← Literal value
 # 
 # # Event logging with tokens
 # event_log:
 #   name: pipeline_events
 #   schema: _meta
-#   catalog: "{event_log_catalog}"             # ← dev_meta, prod_meta, etc.
+#   catalog: "${event_log_catalog}"             # ← dev_meta, prod_meta, etc.
 #
 # Corresponding substitutions/dev.yaml:
 #   dev:
@@ -397,7 +397,7 @@ project_defaults:
 # Catalog/Schema Configuration:
 #   - Define catalog and schema at pipeline level to override default behavior
 #   - Must define BOTH catalog AND schema (defining only one raises an error)
-#   - Supports LHP substitution tokens: "{catalog}", "{schema}", etc.
+#   - Supports LHP substitution tokens: "${catalog}", "${schema}", etc.
 #   - Supports literal values: "my_catalog", "my_schema"
 #   - Values are resolved from substitutions/{env}.yaml files
 #   - When defined: Values embedded directly in bundle resource file

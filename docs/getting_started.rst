@@ -83,7 +83,7 @@ You can either:
 1. **Rename the example template**: ``mv substitutions/dev.yaml.tmpl substitutions/dev.yaml``
 2. **Create a new file** following the same structure as the example template
 
-Edit the file to configure tokens such as ``{catalog}`` or ``${secret:scope/key}`` 
+Edit the file to configure tokens such as ``${catalog}`` or ``${secret:scope/key}`` 
 that will be replaced during code generation.
 
 .. tip::
@@ -108,7 +108,7 @@ Create a new pipeline configuration in the ``pipelines/`` folder.
       • **Loads** (lines 5-11) customer data from the Databricks samples catalog using Delta streaming
       • **Transforms** (lines 13-27) the raw data by renaming columns and standardizing field names  
       • **Writes** (lines 29-35) the processed data to a bronze layer streaming table
-      • **Leverages substitutions** like ``{catalog}`` and ``{bronze_schema}`` for environment flexibility from ``dev.yaml`` file
+      • **Leverages substitutions** like ``${catalog}`` and ``${bronze_schema}`` for environment flexibility from ``dev.yaml`` file
       • **Implements medallion architecture** by writing to the bronze schema for downstream processing
       • **Enables streaming** with ``readMode: stream`` for incremental read from Delta Change Data Feed (CDF)
 
@@ -161,7 +161,7 @@ Create a new pipeline configuration in the ``pipelines/`` folder.
         source: v_customer_sample_cleaned   # Input view from previous action
         write_target:
            type: streaming_table            # Output as streaming table
-           database: "{catalog}.{bronze_schema}"  # Target database.schema with substitutions
+           database: "${catalog}.${bronze_schema}"  # Target database.schema with substitutions
            table: "tpch_sample_customer"    # Final table name
         description: "Write customer sample table to bronze schema"
 

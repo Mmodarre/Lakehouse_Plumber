@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import threading
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
@@ -67,6 +68,7 @@ class EnhancedSubstitutionManager:
         self._thread_local = (
             threading.local()
         )  # Per-thread storage for current flowgroup
+        self._deprecated_syntax_warned = False
 
         # Add reserved tokens
         self._add_reserved_tokens()
@@ -307,6 +309,19 @@ class EnhancedSubstitutionManager:
 
         # Apply patterns - dollar pattern first to avoid conflicts
         text = self.DOLLAR_TOKEN_PATTERN.sub(dollar_replacer, text)
+
+        # Warn once about deprecated {token} syntax
+        if not self._deprecated_syntax_warned and self.DEFAULT_TOKEN_PATTERN.search(
+            text
+        ):
+            warnings.warn(
+                "The bare {token} substitution syntax is deprecated and will be "
+                "removed in v1.0. Use ${token} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self._deprecated_syntax_warned = True
+
         text = self.DEFAULT_TOKEN_PATTERN.sub(default_replacer, text)
         return text
 

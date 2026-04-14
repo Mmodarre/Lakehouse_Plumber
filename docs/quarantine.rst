@@ -151,7 +151,7 @@ Quick Start
        readMode: stream
        source:
          type: delta
-         database: "{catalog}.{raw_schema}"
+         database: "${catalog}.${raw_schema}"
          table: orders_raw
        target: v_orders_raw
        description: "Load orders from raw schema"
@@ -166,8 +166,8 @@ Quick Start
        description: "Apply quarantine data quality checks to orders"
        mode: quarantine
        quarantine:
-         dlq_table: "{catalog}.{bronze_schema}.universal_dlq"
-         source_table: "{catalog}.{bronze_schema}.orders"
+         dlq_table: "${catalog}.${bronze_schema}.universal_dlq"
+         source_table: "${catalog}.${bronze_schema}.orders"
 
      - name: write_orders_bronze
        type: write
@@ -175,7 +175,7 @@ Quick Start
        write_target:
          create_table: true
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: "orders_quarantined"
 
 **2. Expectations file**
@@ -221,12 +221,12 @@ Configuration Reference
 
 ``quarantine.dlq_table``
    **(required)** Fully qualified name of the pre-created DLQ table
-   (e.g. ``{catalog}.{schema}.universal_dlq``).
+   (e.g. ``${catalog}.${schema}.universal_dlq``).
 
 ``quarantine.source_table``
    **(required)** Fully qualified name of the logical source table. Used to tag rows in the DLQ
    (``_dlq_source_table`` column) and to filter the CDF stream during recycling. Typically this
-   is the target of the downstream write action (e.g. ``{catalog}.{bronze_schema}.orders``).
+   is the target of the downstream write action (e.g. ``${catalog}.${bronze_schema}.orders``).
 
 **Validation rules:**
 
@@ -237,7 +237,7 @@ Configuration Reference
 - ``warn`` and ``fail`` expectations produce a validation warning (coerced to ``drop``).
 
 .. important::
-   Substitution tokens (``{catalog}``, ``${secret:scope/key}``, etc.) are fully supported in
+   Substitution tokens (``${catalog}``, ``${secret:scope/key}``, etc.) are fully supported in
    ``dlq_table`` and ``source_table`` values. They are resolved during code generation, so the
    generated Python contains the environment-specific values.
 
@@ -599,8 +599,7 @@ receive fresh metadata values.
 
 The ``dlq_table`` and ``source_table`` fields support all substitution syntaxes:
 
-- Environment tokens: ``{catalog}.{schema}.universal_dlq``
-- Dollar-brace tokens: ``${catalog}.${schema}.universal_dlq``
+- Environment tokens: ``${catalog}.${schema}.universal_dlq``
 - Secret references: ``${secret:scope/key}`` (if needed)
 
 **Presets**
@@ -615,7 +614,7 @@ You can define quarantine configuration in a preset and override per-flowgroup:
    transform_type: data_quality
    mode: quarantine
    quarantine:
-     dlq_table: "{catalog}.{bronze_schema}.universal_dlq"
+     dlq_table: "${catalog}.${bronze_schema}.universal_dlq"
 
 Individual flowgroups then only need to set ``source_table`` (which is typically unique per
 flowgroup):
@@ -623,7 +622,7 @@ flowgroup):
 .. code-block:: yaml
 
    quarantine:
-     source_table: "{catalog}.{bronze_schema}.orders"
+     source_table: "${catalog}.${bronze_schema}.orders"
 
 .. seealso::
    - :doc:`operational_metadata` — configuring audit columns.

@@ -65,7 +65,7 @@ operational_metadata:
 ## without requiring -pc flag or pipeline_config.yaml
 # event_log:
 #   enabled: true
-#   catalog: "{event_log_catalog}"
+#   catalog: "${event_log_catalog}"
 #   schema: _meta
 #   name_prefix: ""
 #   name_suffix: "_event_log"
@@ -81,7 +81,7 @@ operational_metadata:
 ##
 ## Custom configuration example:
 # monitoring:
-#   pipeline_name: "my_custom_monitor"     # Default: {project_name}_event_log_monitoring
+#   pipeline_name: "my_custom_monitor"     # Default: ${project_name}_event_log_monitoring
 #   catalog: "analytics_catalog"           # Default: inherits from event_log.catalog
 #   schema: "_monitoring"                  # Default: inherits from event_log.schema
 #   streaming_table: "unified_event_log"   # Default: all_pipelines_event_log

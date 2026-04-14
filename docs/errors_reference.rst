@@ -149,7 +149,7 @@ or its field values have incorrect types.
 
    # lhp.yaml
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_suffix: "_event_log"
 
@@ -181,7 +181,7 @@ required fields (``catalog`` and/or ``schema``).
 
    # lhp.yaml
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_suffix: "_event_log"
 
@@ -251,7 +251,7 @@ section. This error code covers three monitoring validation scenarios:
 
    # lhp.yaml
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_suffix: "_event_log"
 

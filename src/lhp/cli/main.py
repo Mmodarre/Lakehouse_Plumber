@@ -2,6 +2,7 @@
 
 import logging
 import sys
+import warnings
 from pathlib import Path
 from typing import List, Optional
 
@@ -91,6 +92,8 @@ def configure_logging(verbose: bool, project_root: Optional[Path] = None):
         )
         file_handler.setFormatter(file_formatter)
         root_logger.addHandler(file_handler)
+
+    warnings.filterwarnings("default", category=DeprecationWarning, module=r"lhp\.")
 
     return str(log_file_path) if log_file_path else None
 

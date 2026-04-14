@@ -189,7 +189,7 @@ Here's a production pattern combining local variables with environment substitut
        readMode: stream
        source:
          type: delta
-         database: "{catalog}.{raw_schema}"  # Environment token
+         database: "${catalog}.${raw_schema}"  # Environment token
          table: "%{source_table}"            # Local variable
        target: "v_%{entity}_raw"
        description: "Load %{entity} table from raw schema"
@@ -207,11 +207,11 @@ Here's a production pattern combining local variables with environment substitut
        source: "v_%{entity}_validated"
        write_target:
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"  # Environment token
+         database: "${catalog}.${bronze_schema}"  # Environment token
          table: "%{target_table}"               # Local variable
          schema_hints_path: "schemas/%{schema_file}"
 
-**Notice:** Local variables (``%{entity}``) and environment tokens (``{catalog}``) work together seamlessly.
+**Notice:** Local variables (``%{entity}``) and environment tokens (``${catalog}``) work together seamlessly.
 
 See :doc:`templates_reference` for complete documentation on local variables, including:
 

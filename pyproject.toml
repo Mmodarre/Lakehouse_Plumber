@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.8.1"
+version = "0.8.2"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -89,6 +89,7 @@ addopts = [
     "--strict-config",
 ]
 testpaths = ["tests"]
+norecursedirs = ["tests/baselines"]
 pythonpath = ["src"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

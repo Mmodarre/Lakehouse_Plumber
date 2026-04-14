@@ -87,7 +87,7 @@ Get centralized pipeline monitoring in three steps:
    version: "1.0"
 
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_suffix: "_event_log"
 
@@ -95,7 +95,7 @@ Get centralized pipeline monitoring in three steps:
 
 .. tip::
    ``monitoring: {}`` enables the monitoring pipeline with sensible defaults: the pipeline
-   is named ``{project_name}_event_log_monitoring``, uses the same catalog/schema as
+   is named ``${project_name}_event_log_monitoring``, uses the same catalog/schema as
    ``event_log``, and creates a default ``events_summary`` materialized view that
    summarizes pipeline run status, duration, and row metrics.
 
@@ -172,7 +172,7 @@ Configuration Reference
      - Suffix appended to the generated event log table name.
 
 .. note::
-   All ``event_log`` fields support LHP token substitution. Tokens like ``{catalog}``
+   All ``event_log`` fields support LHP token substitution. Tokens like ``${catalog}``
    are resolved from your ``substitutions/{env}.yaml`` files, just like all other
    configuration fields.
 
@@ -302,7 +302,7 @@ Configuration Reference
      - Enable/disable the monitoring pipeline.
    * - ``pipeline_name``
      - string
-     - ``{project_name}_event_log_monitoring``
+     - ``${project_name}_event_log_monitoring``
      - Custom name for the monitoring pipeline.
    * - ``catalog``
      - string
@@ -334,7 +334,7 @@ The simplest monitoring configuration uses an empty mapping, which enables all d
    :caption: lhp.yaml
 
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_suffix: "_event_log"
 
@@ -342,7 +342,7 @@ The simplest monitoring configuration uses an empty mapping, which enables all d
 
 This creates:
 
-* Pipeline named ``{project_name}_event_log_monitoring``
+* Pipeline named ``${project_name}_event_log_monitoring``
 * Streaming table ``all_pipelines_event_log`` in the same catalog/schema as event_log
 * Default ``events_summary`` materialized view (pipeline run summary with status, duration, and row metrics)
 
@@ -371,7 +371,7 @@ in ``event_log``. You can override either or both:
    :caption: lhp.yaml
 
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_suffix: "_event_log"
 
@@ -416,7 +416,7 @@ Key aspects:
 * Uses ``stream()`` wrappers for streaming reads from each event log table
 * Adds ``_source_pipeline`` literal column for traceability
 * Pipeline names are sorted alphabetically for deterministic output
-* Substitution tokens in catalog/schema (e.g., ``{catalog}``) are resolved at generation time
+* Substitution tokens in catalog/schema (e.g., ``${catalog}``) are resolved at generation time
 
 Streaming Table
 ~~~~~~~~~~~~~~~
@@ -556,7 +556,7 @@ The default SQL joins three CTEs from the event log:
      - BIGINT
      - Total records dropped by data quality expectations
 
-The ``{streaming_table}`` placeholder in the SQL template is replaced with the
+The ``${streaming_table}`` placeholder in the SQL template is replaced with the
 fully-qualified streaming table name (e.g.,
 ``acme_edw_dev._meta.all_pipelines_event_log``) at generation time.
 
@@ -870,7 +870,7 @@ The simplest possible monitoring configuration:
    version: "1.0"
 
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_suffix: "_event_log"
 
@@ -880,7 +880,7 @@ This gives you:
 
 * Event log injection on all pipelines
 * A monitoring pipeline named ``my_project_event_log_monitoring``
-* Streaming table ``all_pipelines_event_log`` in ``{catalog}._meta``
+* Streaming table ``all_pipelines_event_log`` in ``${catalog}._meta``
 * Default ``events_summary`` materialized view
 
 Full Customization
@@ -895,7 +895,7 @@ A fully customized monitoring setup:
    version: "1.0"
 
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_prefix: ""
      name_suffix: "_event_log"
@@ -926,7 +926,7 @@ to opt individual pipelines out:
    :caption: lhp.yaml — event log enabled for all by default
 
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_suffix: "_event_log"
 
@@ -955,8 +955,8 @@ Use LHP substitution tokens for environment-aware monitoring:
    :caption: lhp.yaml
 
    event_log:
-     catalog: "{catalog}"
-     schema: "{monitoring_schema}"
+     catalog: "${catalog}"
+     schema: "${monitoring_schema}"
      name_suffix: "_event_log"
 
    monitoring: {}
