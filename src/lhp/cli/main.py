@@ -311,7 +311,7 @@ def generate(
     "--include-tests",
     is_flag=True,
     default=False,
-    help="Include test reporting validation",
+    help="Include test actions in validation (matches generate behavior)",
 )
 @cli_error_boundary("Pipeline validation")
 def validate(env, pipeline, verbose, include_tests):

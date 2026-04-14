@@ -1,4 +1,4 @@
-"""Tests that validation always processes test actions regardless of generation flag."""
+"""Tests that ConfigValidator validates test actions when present in the flowgroup."""
 
 import pytest
 from pathlib import Path
@@ -27,8 +27,8 @@ class TestValidationIncludeTests:
         if self.test_dir.exists():
             shutil.rmtree(self.test_dir)
     
-    def test_validation_always_processes_test_actions(self):
-        """Test that validation always validates test actions regardless of generation behavior."""
+    def test_config_validator_processes_test_actions_when_present(self):
+        """Test that ConfigValidator validates test actions when present in the flowgroup."""
         # Create flowgroup with test action that has a validation error
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
@@ -62,8 +62,8 @@ class TestValidationIncludeTests:
         assert len(errors) > 0
         assert any("invalid_type" in error for error in errors)
     
-    def test_validation_processes_test_only_flowgroup(self):
-        """Test that validation processes test-only flowgroups even if generation would skip them."""
+    def test_config_validator_validates_test_only_flowgroup(self):
+        """Test that ConfigValidator validates test-only flowgroups."""
         # Create test-only flowgroup with validation error
         flowgroup = FlowGroup(
             pipeline="test_only_pipeline",

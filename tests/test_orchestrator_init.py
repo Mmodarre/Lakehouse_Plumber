@@ -1706,7 +1706,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
 
         # Should delegate to processor service with correct arguments
         orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
 
     def test_process_flowgroup_fails_propagates_exception(
@@ -1731,7 +1731,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
 
         # Should still call processor service
         orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
 
     def test_generate_flowgroup_code_succeeds_returns_generated_code(
@@ -1846,7 +1846,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
 
         # Should still delegate to services with None as parameter
         orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, None
+            mock_flowgroup, None, include_tests=True
         )
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup, None, None, None, None, None, False, None
@@ -2032,7 +2032,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
 
         # Should have attempted to call both services despite failures
         orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
@@ -2076,7 +2076,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
 
             # Services should still be called successfully
             orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(
-                mock_flowgroup, mock_substitution_mgr
+                mock_flowgroup, mock_substitution_mgr, include_tests=True
             )
             orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
                 mock_flowgroup,
@@ -2321,7 +2321,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # But generator fails due to dependency conflict
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             processed_flowgroup,
@@ -2390,7 +2390,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Verify proper data flow: original -> processor -> generator
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            original_flowgroup, mock_substitution_mgr
+            original_flowgroup, mock_substitution_mgr, include_tests=True
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             transformed_flowgroup,
@@ -2500,7 +2500,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Verify parameter passing
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup,

@@ -749,7 +749,7 @@ class ActionOrchestrator:
         else:
             # Sequential processing
             processed_flowgroups = self._process_flowgroups_batch(
-                flowgroups, substitution_mgr
+                flowgroups, substitution_mgr, include_tests=include_tests
             )
 
         # 4. Validate table creation rules
@@ -988,34 +988,6 @@ class ActionOrchestrator:
         self.logger.info(f"Pipeline generation complete: {pipeline_field}")
         return generated_files
 
-    def _find_source_yaml(
-        self, pipeline_dir: Path, flowgroup_name: str
-    ) -> Optional[Path]:
-        """Find the source YAML file for a given flowgroup name.
-
-        Supports multi-document (---) and flowgroups array syntax.
-
-        Args:
-            pipeline_dir: Directory containing flowgroup YAML files
-            flowgroup_name: Name of the flowgroup to find
-
-        Returns:
-            Path to the source YAML file, or None if not found
-        """
-        # Search both .yaml and .yml extensions
-        for extension in ["*.yaml", "*.yml"]:
-            for yaml_file in pipeline_dir.rglob(extension):
-                try:
-                    # Use parse_flowgroups_from_file to support multi-flowgroup files
-                    flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
-                    for flowgroup in flowgroups:
-                        if flowgroup.flowgroup == flowgroup_name:
-                            return yaml_file
-                except Exception as e:
-                    self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
-
-        return None
-
     def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
         """Find the source YAML file for a given flowgroup.
 
@@ -1109,7 +1081,10 @@ class ActionOrchestrator:
                 )
 
     def process_flowgroup(
-        self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager
+        self,
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+        include_tests: bool = True,
     ) -> FlowGroup:
         """
         Process flowgroup: expand templates, apply presets, apply substitutions.
@@ -1117,6 +1092,8 @@ class ActionOrchestrator:
         Args:
             flowgroup: FlowGroup to process
             substitution_mgr: Substitution manager for the environment
+            include_tests: If False, filter out test actions before processing.
+                Defaults to True for backward compatibility.
 
         Returns:
             Processed flowgroup
@@ -1129,7 +1106,9 @@ class ActionOrchestrator:
             substitution_mgr.set_tracking_context(flowgroup.flowgroup)
 
         try:
-            processed = self.processor.process_flowgroup(flowgroup, substitution_mgr)
+            processed = self.processor.process_flowgroup(
+                flowgroup, substitution_mgr, include_tests=include_tests
+            )
             return processed
         finally:
             # Clear tracking context - guard against None substitution_mgr
@@ -1373,7 +1352,10 @@ class ActionOrchestrator:
             return []
 
     def _process_flowgroups_batch(
-        self, flowgroups: List[FlowGroup], substitution_mgr: EnhancedSubstitutionManager
+        self,
+        flowgroups: List[FlowGroup],
+        substitution_mgr: EnhancedSubstitutionManager,
+        include_tests: bool = True,
     ) -> List[FlowGroup]:
         """Process all flowgroups in a batch.
 
@@ -1383,6 +1365,7 @@ class ActionOrchestrator:
         Args:
             flowgroups: List of flowgroups to process
             substitution_mgr: Substitution manager for the environment
+            include_tests: If False, filter out test actions before processing.
 
         Returns:
             List of processed flowgroups
@@ -1398,7 +1381,9 @@ class ActionOrchestrator:
                     f"process_flowgroup [{flowgroup.flowgroup}]",
                     category="process_flowgroup",
                 ):
-                    processed_fg = self.process_flowgroup(flowgroup, substitution_mgr)
+                    processed_fg = self.process_flowgroup(
+                        flowgroup, substitution_mgr, include_tests=include_tests
+                    )
                 # Propagate private attributes that don't survive model_dump/reconstruct
                 if flowgroup._auxiliary_files:
                     processed_fg._auxiliary_files = flowgroup._auxiliary_files
@@ -1525,7 +1510,9 @@ class ActionOrchestrator:
                     f"process_flowgroup [{fg.flowgroup}]",
                     category="process_flowgroup",
                 ):
-                    processed = self.process_flowgroup(fg, substitution_mgr)
+                    processed = self.process_flowgroup(
+                        fg, substitution_mgr, include_tests=include_tests
+                    )
                 # Propagate private attributes that don't survive model_dump/reconstruct
                 if fg._auxiliary_files:
                     processed._auxiliary_files = fg._auxiliary_files
@@ -1682,13 +1669,15 @@ class ActionOrchestrator:
         return extract_source_views_from_action(source)
 
     def validate_pipeline_by_field(
-        self, pipeline_field: str, env: str
+        self, pipeline_field: str, env: str, include_tests: bool = True
     ) -> Tuple[List[str], List[str]]:
         """Validate pipeline configuration using pipeline field without generating code.
 
         Args:
             pipeline_field: The pipeline field value to validate
             env: Environment to validate for
+            include_tests: If False, filter out test actions before processing.
+                Defaults to True for backward compatibility.
 
         Returns:
             Tuple of (errors, warnings)
@@ -1713,7 +1702,9 @@ class ActionOrchestrator:
 
             for flowgroup in flowgroups:
                 try:
-                    self.process_flowgroup(flowgroup, substitution_mgr)
+                    self.process_flowgroup(
+                        flowgroup, substitution_mgr, include_tests=include_tests
+                    )
                     # Validation happens in _process_flowgroup
                     # Note: Success validation does not generate warnings
 

@@ -40,6 +40,7 @@ class PipelineValidationRequest:
     pipeline_identifier: str
     environment: str
     verbose: bool = False
+    include_tests: bool = True
 
 
 @dataclass
@@ -294,7 +295,9 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         """Coordinate pipeline validation use case."""
         try:
             errors, warnings = self.orchestrator.validate_pipeline_by_field(
-                pipeline_field=request.pipeline_identifier, env=request.environment
+                pipeline_field=request.pipeline_identifier,
+                env=request.environment,
+                include_tests=request.include_tests,
             )
 
             return ValidationResponse(
