@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: harvest
   source_table: harvest_raw
+actions:
+  - name: tst_harvest_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_harvest_cleansed
+    required_columns: [harvest_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-harvest-B01"
+
+  - name: tst_harvest_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_harvest_cleansed
+    columns: [harvest_key]
+    on_violation: warn
+    test_id: "PERF-harvest-B02"

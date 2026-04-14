@@ -30,3 +30,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_mutation_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_mutation_bronze
+    required_columns: [mutation_key]
+    on_violation: warn
+    test_id: "PERF-mutation-S01"
+
+  - name: tst_mutation_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mutation_bronze
+    columns: [mutation_key]
+    on_violation: warn
+    test_id: "PERF-mutation-S02"

@@ -9,14 +9,18 @@ Test actions let you validate data pipelines using Databricks Lakeflow Declarati
 
 .. note::
    **CLI Flag Required**: Test actions are skipped by default during code generation for faster builds. Use the ``--include-tests`` flag to generate test code:
-   
+
    .. code-block:: bash
-   
+
       # Skip tests (default) - faster builds
       lhp generate -e dev
-      
+
       # Include tests - for development and testing
       lhp generate -e dev --include-tests
+
+.. seealso::
+   **Publishing Test Results** — To publish DQ test results to external systems
+   like Azure DevOps or a Delta audit table, see :doc:`test_reporting`.
 
 Test Types Overview
 -------------------------------------------
@@ -315,7 +319,19 @@ Common fields across test actions:
 - **source**: Source table/view; for ``row_count`` use a list of two sources
 - **target**: Optional table name; defaults to ``tmp_test_<name>``
 - **description**: Optional documentation
-- **on_violation**: ``fail`` (default) or ``warn``
+- **on_violation**: ``fail`` or ``warn``
+
+  .. important::
+     **Choosing fail vs warn:**
+
+     * **Without test reporting** — use ``fail``. This is the only way to get immediate
+       visibility: the pipeline stops on a failed expectation, surfacing the issue.
+     * **With test reporting** — use ``warn``. When ``on_violation: fail`` triggers,
+       the pipeline aborts the flow *before* recording DQ metrics to the event log,
+       so the reporting hook **never receives results** for failed expectations. Using
+       ``warn`` ensures all outcomes (pass and fail) flow through to your provider.
+
+     See :doc:`test_reporting` for the full test result reporting setup.
 
 Type-specific fields:
 
@@ -333,7 +349,8 @@ Type-specific fields:
 Test Actions Best Practices
 -------------------------------------------
 
-- Prefer ``on_violation: fail`` for hard constraints; use ``warn`` for observability
+- **Without** :doc:`test reporting <test_reporting>`: use ``on_violation: fail`` for hard-stop visibility on failures
+- **With** :doc:`test reporting <test_reporting>`: use ``on_violation: warn`` so all results reach the reporting provider (``fail`` aborts the flow before metrics are recorded)
 - Scope uniqueness to active/current records in SCD Type 2 dimensions using ``filter``
 - Keep SQL minimal – expectations should express the rule; queries should project only required columns
 - Group expectations by severity to get consolidated reporting in DLT UI

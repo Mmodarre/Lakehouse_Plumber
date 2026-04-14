@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "iot_device_modelled"
+
+  - name: tst_iot_device_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_iot_device_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-iot_device-M01"
+
+  - name: tst_iot_device_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_iot_device_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-iot_device-M02"

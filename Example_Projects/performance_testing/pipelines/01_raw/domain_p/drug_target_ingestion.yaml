@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "drug_target_raw"
+
+  - name: tst_drug_target_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_drug_target_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-drug_target-R01"
+
+  - name: tst_drug_target_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_drug_target_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-drug_target-R02"

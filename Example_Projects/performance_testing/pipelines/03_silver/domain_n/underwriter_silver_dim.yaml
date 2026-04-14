@@ -30,3 +30,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_underwriter_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_underwriter_bronze
+    required_columns: [underwriter_key]
+    on_violation: warn
+    test_id: "PERF-underwriter-S01"
+
+  - name: tst_underwriter_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_underwriter_bronze
+    columns: [underwriter_key]
+    on_violation: warn
+    test_id: "PERF-underwriter-S02"

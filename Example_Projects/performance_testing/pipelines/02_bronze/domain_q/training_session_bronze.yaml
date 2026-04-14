@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "training_session"
+
+  - name: tst_training_session_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_training_session_bronze_cleaned
+    required_columns: [training_session_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-training_session-B01"
+
+  - name: tst_training_session_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_training_session_bronze_cleaned
+    columns: [training_session_key]
+    on_violation: warn
+    test_id: "PERF-training_session-B02"

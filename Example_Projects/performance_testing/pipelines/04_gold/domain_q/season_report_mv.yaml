@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "season_report_mv"
+
+  - name: tst_season_report_completeness
+    type: test
+    test_type: completeness
+    source: v_season_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-season-G01"
+
+  - name: tst_season_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_season_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-season-G02"

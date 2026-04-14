@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "roof_cert_quarterly_agg_mv"
+
+  - name: tst_roof_cert_quarterly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_roof_cert_quarterly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-roof_cert-G01"
+
+  - name: tst_roof_cert_quarterly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_roof_cert_quarterly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-roof_cert-G02"

@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "property_modelled"
+
+  - name: tst_property_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_property_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-property-M01"
+
+  - name: tst_property_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_property_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-property-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: tenant_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tenant_modelled"
+
+  - name: tst_tenant_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tenant_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tenant-M01"
+
+  - name: tst_tenant_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tenant_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tenant-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: lease_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "lease_modelled"
+
+  - name: tst_lease_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_lease_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-lease-M01"
+
+  - name: tst_lease_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lease_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-lease-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: landlord_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "landlord_modelled"
+
+  - name: tst_landlord_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_landlord_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-landlord-M01"
+
+  - name: tst_landlord_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_landlord_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-landlord-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: unit_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "unit_modelled"
+
+  - name: tst_unit_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_unit_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-unit-M01"
+
+  - name: tst_unit_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_unit_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-unit-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: building_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "building_modelled"
+
+  - name: tst_building_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_building_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-building-M01"
+
+  - name: tst_building_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_building_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-building-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: amenity_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "amenity_modelled"
+
+  - name: tst_amenity_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_amenity_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-amenity-M01"
+
+  - name: tst_amenity_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_amenity_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-amenity-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: work_order_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "work_order_modelled"
+
+  - name: tst_work_order_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_work_order_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-work_order-M01"
+
+  - name: tst_work_order_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_work_order_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-work_order-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: rent_payment_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "rent_payment_modelled"
+
+  - name: tst_rent_payment_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_rent_payment_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-rent_payment-M01"
+
+  - name: tst_rent_payment_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_rent_payment_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-rent_payment-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: eviction_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "eviction_modelled"
+
+  - name: tst_eviction_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_eviction_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-eviction-M01"
+
+  - name: tst_eviction_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_eviction_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-eviction-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: listing_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "listing_modelled"
+
+  - name: tst_listing_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_listing_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-listing-M01"
+
+  - name: tst_listing_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_listing_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-listing-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: showing_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "showing_modelled"
+
+  - name: tst_showing_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_showing_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-showing-M01"
+
+  - name: tst_showing_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_showing_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-showing-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: appraisal_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "appraisal_modelled"
+
+  - name: tst_appraisal_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_appraisal_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-appraisal-M01"
+
+  - name: tst_appraisal_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_appraisal_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-appraisal-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: mortgage_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "mortgage_modelled"
+
+  - name: tst_mortgage_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_mortgage_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-mortgage-M01"
+
+  - name: tst_mortgage_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mortgage_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-mortgage-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: escrow_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "escrow_modelled"
+
+  - name: tst_escrow_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_escrow_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-escrow-M01"
+
+  - name: tst_escrow_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_escrow_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-escrow-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: closing_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "closing_modelled"
+
+  - name: tst_closing_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_closing_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-closing-M01"
+
+  - name: tst_closing_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_closing_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-closing-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: deed_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "deed_modelled"
+
+  - name: tst_deed_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_deed_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-deed-M01"
+
+  - name: tst_deed_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_deed_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-deed-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: survey_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "survey_modelled"
+
+  - name: tst_survey_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_survey_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-survey-M01"
+
+  - name: tst_survey_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_survey_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-survey-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: zoning_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "zoning_modelled"
+
+  - name: tst_zoning_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_zoning_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-zoning-M01"
+
+  - name: tst_zoning_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_zoning_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-zoning-M02"
 ---
 pipeline: domain_g_modelled
 flowgroup: permit_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "permit_modelled"
+
+  - name: tst_permit_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_permit_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-permit-M01"
+
+  - name: tst_permit_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_permit_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-permit-M02"

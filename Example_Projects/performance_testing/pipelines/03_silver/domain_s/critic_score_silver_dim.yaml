@@ -30,3 +30,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_critic_score_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_critic_score_bronze
+    required_columns: [critic_score_key]
+    on_violation: warn
+    test_id: "PERF-critic_score-S01"
+
+  - name: tst_critic_score_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_critic_score_bronze
+    columns: [critic_score_key]
+    on_violation: warn
+    test_id: "PERF-critic_score-S02"

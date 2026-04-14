@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "footprint_analysis_mv"
+
+  - name: tst_footprint_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_footprint_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-footprint-G01"
+
+  - name: tst_footprint_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_footprint_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-footprint-G02"

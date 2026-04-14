@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "gel_electrophoresis"
+
+  - name: tst_gel_electrophoresis_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_gel_electrophoresis_bronze_cleaned
+    required_columns: [gel_electrophoresis_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-gel_electrophoresis-B01"
+
+  - name: tst_gel_electrophoresis_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_gel_electrophoresis_bronze_cleaned
+    columns: [gel_electrophoresis_key]
+    on_violation: warn
+    test_id: "PERF-gel_electrophoresis-B02"

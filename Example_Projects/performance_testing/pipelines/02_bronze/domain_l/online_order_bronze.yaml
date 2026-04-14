@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "online_order"
+
+  - name: tst_online_order_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_online_order_bronze_cleaned
+    required_columns: [online_order_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-online_order-B01"
+
+  - name: tst_online_order_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_online_order_bronze_cleaned
+    columns: [online_order_key]
+    on_violation: warn
+    test_id: "PERF-online_order-B02"

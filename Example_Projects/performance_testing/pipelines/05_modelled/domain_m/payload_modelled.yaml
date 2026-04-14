@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "payload_modelled"
+
+  - name: tst_payload_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_payload_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-payload-M01"
+
+  - name: tst_payload_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_payload_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-payload-M02"

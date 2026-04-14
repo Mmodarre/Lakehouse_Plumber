@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "performance_report_mv"
+
+  - name: tst_performance_report_completeness
+    type: test
+    test_type: completeness
+    source: v_performance_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-performance-G01"
+
+  - name: tst_performance_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_performance_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-performance-G02"

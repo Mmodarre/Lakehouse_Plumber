@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "credit_note"
+
+  - name: tst_credit_note_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_credit_note_bronze_cleaned
+    required_columns: [credit_note_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-credit_note-B01"
+
+  - name: tst_credit_note_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_credit_note_bronze_cleaned
+    columns: [credit_note_key]
+    on_violation: warn
+    test_id: "PERF-credit_note-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "recovery"
+
+  - name: tst_recovery_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_recovery_bronze_cleaned
+    required_columns: [recovery_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-recovery-B01"
+
+  - name: tst_recovery_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_recovery_bronze_cleaned
+    columns: [recovery_key]
+    on_violation: warn
+    test_id: "PERF-recovery-B02"

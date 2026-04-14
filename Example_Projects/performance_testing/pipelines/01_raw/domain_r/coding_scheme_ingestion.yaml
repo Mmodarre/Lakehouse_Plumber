@@ -7,3 +7,19 @@ template_parameters:
   table_name: coding_scheme_raw
   landing_folder: coding_scheme
   schema_file: product_schema
+actions:
+  - name: tst_coding_scheme_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_coding_scheme_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-coding_scheme-R01"
+
+  - name: tst_coding_scheme_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_coding_scheme_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-coding_scheme-R02"

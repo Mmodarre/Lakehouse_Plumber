@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "waste_log"
+
+  - name: tst_waste_log_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_waste_log_bronze_cleaned
+    required_columns: [waste_log_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-waste_log-B01"
+
+  - name: tst_waste_log_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_waste_log_bronze_cleaned
+    columns: [waste_log_key]
+    on_violation: warn
+    test_id: "PERF-waste_log-B02"

@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "nutritional_info"
+
+  - name: tst_nutritional_info_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_nutritional_info_bronze_cleaned
+    required_columns: [nutritional_info_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-nutritional_info-B01"
+
+  - name: tst_nutritional_info_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_nutritional_info_bronze_cleaned
+    columns: [nutritional_info_key]
+    on_violation: warn
+    test_id: "PERF-nutritional_info-B02"

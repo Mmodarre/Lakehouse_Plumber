@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "dropship"
+
+  - name: tst_dropship_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_dropship_bronze_cleaned
+    required_columns: [dropship_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-dropship-B01"
+
+  - name: tst_dropship_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dropship_bronze_cleaned
+    columns: [dropship_key]
+    on_violation: warn
+    test_id: "PERF-dropship-B02"

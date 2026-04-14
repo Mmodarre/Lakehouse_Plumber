@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "radiation_dose"
+
+  - name: tst_radiation_dose_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_radiation_dose_bronze_cleaned
+    required_columns: [radiation_dose_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-radiation_dose-B01"
+
+  - name: tst_radiation_dose_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_radiation_dose_bronze_cleaned
+    columns: [radiation_dose_key]
+    on_violation: warn
+    test_id: "PERF-radiation_dose-B02"

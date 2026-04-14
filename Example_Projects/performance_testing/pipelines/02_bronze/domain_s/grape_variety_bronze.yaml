@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: grape_variety
   source_table: grape_variety_raw
+actions:
+  - name: tst_grape_variety_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_grape_variety_cleansed
+    required_columns: [grape_variety_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-grape_variety-B01"
+
+  - name: tst_grape_variety_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_grape_variety_cleansed
+    columns: [grape_variety_key]
+    on_violation: warn
+    test_id: "PERF-grape_variety-B02"

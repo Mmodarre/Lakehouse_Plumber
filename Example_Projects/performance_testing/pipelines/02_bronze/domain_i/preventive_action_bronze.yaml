@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "preventive_action"
+
+  - name: tst_preventive_action_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_preventive_action_bronze_cleaned
+    required_columns: [preventive_action_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-preventive_action-B01"
+
+  - name: tst_preventive_action_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_preventive_action_bronze_cleaned
+    columns: [preventive_action_key]
+    on_violation: warn
+    test_id: "PERF-preventive_action-B02"

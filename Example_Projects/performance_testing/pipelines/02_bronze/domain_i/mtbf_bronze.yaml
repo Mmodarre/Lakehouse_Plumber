@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "mtbf"
+
+  - name: tst_mtbf_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_mtbf_bronze_cleaned
+    required_columns: [mtbf_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-mtbf-B01"
+
+  - name: tst_mtbf_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mtbf_bronze_cleaned
+    columns: [mtbf_key]
+    on_violation: warn
+    test_id: "PERF-mtbf-B02"

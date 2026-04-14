@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: recipe
   source_table: recipe_raw
+actions:
+  - name: tst_recipe_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_recipe_cleansed
+    required_columns: [recipe_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-recipe-B01"
+
+  - name: tst_recipe_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_recipe_cleansed
+    columns: [recipe_key]
+    on_violation: warn
+    test_id: "PERF-recipe-B02"

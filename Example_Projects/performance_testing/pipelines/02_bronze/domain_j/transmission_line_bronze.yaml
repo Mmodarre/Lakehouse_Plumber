@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "transmission_line"
+
+  - name: tst_transmission_line_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_transmission_line_bronze_cleaned
+    required_columns: [transmission_line_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-transmission_line-B01"
+
+  - name: tst_transmission_line_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transmission_line_bronze_cleaned
+    columns: [transmission_line_key]
+    on_violation: warn
+    test_id: "PERF-transmission_line-B02"

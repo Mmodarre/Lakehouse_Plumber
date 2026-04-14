@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "shrinkage_raw"
+
+  - name: tst_shrinkage_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_shrinkage_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-shrinkage-R01"
+
+  - name: tst_shrinkage_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_shrinkage_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-shrinkage-R02"

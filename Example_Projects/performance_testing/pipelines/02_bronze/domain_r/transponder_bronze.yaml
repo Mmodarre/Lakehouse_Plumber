@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: transponder
   source_table: transponder_raw
+actions:
+  - name: tst_transponder_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_transponder_cleansed
+    required_columns: [transponder_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-transponder-B01"
+
+  - name: tst_transponder_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transponder_cleansed
+    columns: [transponder_key]
+    on_violation: warn
+    test_id: "PERF-transponder-B02"

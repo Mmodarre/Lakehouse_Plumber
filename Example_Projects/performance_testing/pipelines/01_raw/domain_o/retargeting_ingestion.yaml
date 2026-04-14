@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "retargeting_raw"
+
+  - name: tst_retargeting_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_retargeting_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-retargeting-R01"
+
+  - name: tst_retargeting_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_retargeting_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-retargeting-R02"

@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "ranging_raw"
+
+  - name: tst_ranging_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_ranging_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ranging-R01"
+
+  - name: tst_ranging_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ranging_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ranging-R02"

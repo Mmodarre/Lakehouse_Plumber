@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "grape_variety_analysis_mv"
+
+  - name: tst_grape_variety_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_grape_variety_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-grape_variety-G01"
+
+  - name: tst_grape_variety_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_grape_variety_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-grape_variety-G02"

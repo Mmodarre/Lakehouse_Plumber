@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "retention_policy_modelled"
+
+  - name: tst_retention_policy_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_retention_policy_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-retention_policy-M01"
+
+  - name: tst_retention_policy_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_retention_policy_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-retention_policy-M02"

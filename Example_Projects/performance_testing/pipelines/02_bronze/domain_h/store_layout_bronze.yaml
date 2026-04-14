@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "store_layout"
+
+  - name: tst_store_layout_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_store_layout_bronze_cleaned
+    required_columns: [store_layout_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-store_layout-B01"
+
+  - name: tst_store_layout_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_store_layout_bronze_cleaned
+    columns: [store_layout_key]
+    on_violation: warn
+    test_id: "PERF-store_layout-B02"

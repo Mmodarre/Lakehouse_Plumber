@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: data_stream
   source_table: data_stream_raw
+actions:
+  - name: tst_data_stream_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_data_stream_cleansed
+    required_columns: [data_stream_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-data_stream-B01"
+
+  - name: tst_data_stream_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_data_stream_cleansed
+    columns: [data_stream_key]
+    on_violation: warn
+    test_id: "PERF-data_stream-B02"

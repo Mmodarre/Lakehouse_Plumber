@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "mystery_shopper"
+
+  - name: tst_mystery_shopper_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_mystery_shopper_bronze_cleaned
+    required_columns: [mystery_shopper_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-mystery_shopper-B01"
+
+  - name: tst_mystery_shopper_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mystery_shopper_bronze_cleaned
+    columns: [mystery_shopper_key]
+    on_violation: warn
+    test_id: "PERF-mystery_shopper-B02"

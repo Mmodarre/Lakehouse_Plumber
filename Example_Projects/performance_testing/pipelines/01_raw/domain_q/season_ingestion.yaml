@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "season_raw"
+
+  - name: tst_season_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_season_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-season-R01"
+
+  - name: tst_season_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_season_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-season-R02"

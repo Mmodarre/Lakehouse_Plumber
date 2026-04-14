@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "premium_raw"
+
+  - name: tst_premium_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_premium_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-premium-R01"
+
+  - name: tst_premium_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_premium_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-premium-R02"

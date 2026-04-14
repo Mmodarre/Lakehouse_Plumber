@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "blood_bank"
+
+  - name: tst_blood_bank_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_blood_bank_bronze_cleaned
+    required_columns: [blood_bank_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-blood_bank-B01"
+
+  - name: tst_blood_bank_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_blood_bank_bronze_cleaned
+    columns: [blood_bank_key]
+    on_violation: warn
+    test_id: "PERF-blood_bank-B02"

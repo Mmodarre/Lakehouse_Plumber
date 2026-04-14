@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "grape_variety_raw"
+
+  - name: tst_grape_variety_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_grape_variety_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-grape_variety-R01"
+
+  - name: tst_grape_variety_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_grape_variety_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-grape_variety-R02"

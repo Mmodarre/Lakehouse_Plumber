@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "racking"
+
+  - name: tst_racking_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_racking_bronze_cleaned
+    required_columns: [racking_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-racking-B01"
+
+  - name: tst_racking_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_racking_bronze_cleaned
+    columns: [racking_key]
+    on_violation: warn
+    test_id: "PERF-racking-B02"

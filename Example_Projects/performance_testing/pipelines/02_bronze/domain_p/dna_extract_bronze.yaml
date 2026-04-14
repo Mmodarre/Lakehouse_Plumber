@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "dna_extract"
+
+  - name: tst_dna_extract_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_dna_extract_bronze_cleaned
+    required_columns: [dna_extract_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-dna_extract-B01"
+
+  - name: tst_dna_extract_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dna_extract_bronze_cleaned
+    columns: [dna_extract_key]
+    on_violation: warn
+    test_id: "PERF-dna_extract-B02"

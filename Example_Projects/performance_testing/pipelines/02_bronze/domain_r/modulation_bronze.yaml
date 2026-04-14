@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "modulation"
+
+  - name: tst_modulation_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_modulation_bronze_cleaned
+    required_columns: [modulation_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-modulation-B01"
+
+  - name: tst_modulation_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_modulation_bronze_cleaned
+    columns: [modulation_key]
+    on_violation: warn
+    test_id: "PERF-modulation-B02"

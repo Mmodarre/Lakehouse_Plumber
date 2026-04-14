@@ -243,6 +243,22 @@ template_parameters:
   table_name: ENTITY_raw
   landing_folder: ENTITY
   schema_file: SCHEMA_NAME
+actions:
+  - name: tst_ENTITY_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_ENTITY_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ENTITY-R01"
+
+  - name: tst_ENTITY_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ENTITY_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ENTITY-R02"
 """
 
 # --- RAW LAYER: direct CloudFiles (no template) ---
@@ -277,6 +293,22 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "ENTITY_raw"
+
+  - name: tst_ENTITY_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_ENTITY_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ENTITY-R01"
+
+  - name: tst_ENTITY_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ENTITY_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ENTITY-R02"
 """
 
 # --- BRONZE LAYER: template-based ---
@@ -288,6 +320,22 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: ENTITY
   source_table: ENTITY_raw
+actions:
+  - name: tst_ENTITY_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_ENTITY_cleansed
+    required_columns: [ENTITY_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-ENTITY-B01"
+
+  - name: tst_ENTITY_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ENTITY_cleansed
+    columns: [ENTITY_key]
+    on_violation: warn
+    test_id: "PERF-ENTITY-B02"
 """
 
 # --- BRONZE LAYER: direct multi-action ---
@@ -339,6 +387,22 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "ENTITY"
+
+  - name: tst_ENTITY_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_ENTITY_bronze_cleaned
+    required_columns: [ENTITY_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-ENTITY-B01"
+
+  - name: tst_ENTITY_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ENTITY_bronze_cleaned
+    columns: [ENTITY_key]
+    on_violation: warn
+    test_id: "PERF-ENTITY-B02"
 """
 
 # --- BRONZE LAYER: direct with migration (7 actions) ---
@@ -427,6 +491,22 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "ENTITY"
+
+  - name: tst_ENTITY_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_ENTITY_bronze_cleaned
+    required_columns: [ENTITY_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-ENTITY-B01"
+
+  - name: tst_ENTITY_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ENTITY_bronze_cleaned
+    columns: [ENTITY_key]
+    on_violation: warn
+    test_id: "PERF-ENTITY-B02"
 """
 
 # --- SILVER LAYER: direct CDC ---
@@ -462,6 +542,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_ENTITY_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_ENTITY_bronze
+    required_columns: [ENTITY_key]
+    on_violation: warn
+    test_id: "PERF-ENTITY-S01"
+
+  - name: tst_ENTITY_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ENTITY_bronze
+    columns: [ENTITY_key]
+    on_violation: warn
+    test_id: "PERF-ENTITY-S02"
 """
 
 # --- GOLD LAYER: direct MV ---
@@ -487,6 +583,22 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "ENTITY_MVTYPE_mv"
+
+  - name: tst_ENTITY_MVTYPE_completeness
+    type: test
+    test_type: completeness
+    source: v_ENTITY_MVTYPE
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-ENTITY-G01"
+
+  - name: tst_ENTITY_MVTYPE_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ENTITY_MVTYPE
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-ENTITY-G02"
 """
 
 # --- GOLD LAYER: direct aggregation MV ---
@@ -514,6 +626,22 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "ENTITY_AGGTYPE_agg_mv"
+
+  - name: tst_ENTITY_AGGTYPE_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_ENTITY_AGGTYPE_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-ENTITY-G01"
+
+  - name: tst_ENTITY_AGGTYPE_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ENTITY_AGGTYPE_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-ENTITY-G02"
 """
 
 # --- MODELLED LAYER: direct load + transform + write ---
@@ -554,6 +682,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "ENTITY_modelled"
+
+  - name: tst_ENTITY_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_ENTITY_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-ENTITY-M01"
+
+  - name: tst_ENTITY_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ENTITY_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-ENTITY-M02"
 """
 
 
@@ -703,6 +847,23 @@ def main():
                             "landing_folder": entity,
                             "schema_file": schema,
                         },
+                        "actions": (
+                            f"- name: tst_{entity}_raw_completeness\n"
+                            f"  type: test\n"
+                            f"  test_type: completeness\n"
+                            f"  source: v_{entity}_raw_cloudfiles\n"
+                            f"  required_columns: [_processing_timestamp]\n"
+                            f"  on_violation: warn\n"
+                            f'  test_id: "PERF-{entity}-R01"\n'
+                            f"\n"
+                            f"- name: tst_{entity}_raw_uniqueness\n"
+                            f"  type: test\n"
+                            f"  test_type: uniqueness\n"
+                            f"  source: v_{entity}_raw_cloudfiles\n"
+                            f"  columns: [_processing_timestamp]\n"
+                            f"  on_violation: warn\n"
+                            f'  test_id: "PERF-{entity}-R02"'
+                        ),
                     })
                 else:
                     # Individual file
@@ -757,6 +918,23 @@ def main():
                             "entity_name": entity,
                             "source_table": f"{entity}_raw",
                         },
+                        "actions": (
+                            f"- name: tst_{entity}_bronze_completeness\n"
+                            f"  type: test\n"
+                            f"  test_type: completeness\n"
+                            f"  source: v_{entity}_cleansed\n"
+                            f"  required_columns: [{entity}_key, _etl_timestamp]\n"
+                            f"  on_violation: warn\n"
+                            f'  test_id: "PERF-{entity}-B01"\n'
+                            f"\n"
+                            f"- name: tst_{entity}_bronze_uniqueness\n"
+                            f"  type: test\n"
+                            f"  test_type: uniqueness\n"
+                            f"  source: v_{entity}_cleansed\n"
+                            f"  columns: [{entity}_key]\n"
+                            f"  on_violation: warn\n"
+                            f'  test_id: "PERF-{entity}-B02"'
+                        ),
                     })
                 else:
                     content = BRONZE_TMPL_BASED.replace("ENTITY", entity).replace("PIPELINE", pip_bronze)

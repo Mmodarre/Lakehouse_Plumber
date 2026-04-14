@@ -9,45 +9,173 @@ flowgroups:
       table_name: journal_raw
       landing_folder: journal
       schema_file: orders_schema
+    actions:
+      - name: tst_journal_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_journal_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-journal-R01"
+      
+      - name: tst_journal_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_journal_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-journal-R02"
 
   - flowgroup: regulation_ingestion
     template_parameters:
       table_name: regulation_raw
       landing_folder: regulation
       schema_file: nation_schema
+    actions:
+      - name: tst_regulation_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_regulation_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-regulation-R01"
+      
+      - name: tst_regulation_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_regulation_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-regulation-R02"
 
   - flowgroup: liability_ingestion
     template_parameters:
       table_name: liability_raw
       landing_folder: liability
       schema_file: partsupp_schema
+    actions:
+      - name: tst_liability_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_liability_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-liability-R01"
+      
+      - name: tst_liability_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_liability_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-liability-R02"
 
   - flowgroup: currency_ingestion
     template_parameters:
       table_name: currency_raw
       landing_folder: currency
       schema_file: part_schema
+    actions:
+      - name: tst_currency_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_currency_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-currency-R01"
+      
+      - name: tst_currency_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_currency_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-currency-R02"
 
   - flowgroup: reconciliation_ingestion
     template_parameters:
       table_name: reconciliation_raw
       landing_folder: reconciliation
       schema_file: orders_schema
+    actions:
+      - name: tst_reconciliation_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_reconciliation_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-reconciliation-R01"
+      
+      - name: tst_reconciliation_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_reconciliation_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-reconciliation-R02"
 
   - flowgroup: balance_sheet_ingestion
     template_parameters:
       table_name: balance_sheet_raw
       landing_folder: balance_sheet
       schema_file: product_schema
+    actions:
+      - name: tst_balance_sheet_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_balance_sheet_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-balance_sheet-R01"
+      
+      - name: tst_balance_sheet_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_balance_sheet_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-balance_sheet-R02"
 
   - flowgroup: provision_ingestion
     template_parameters:
       table_name: provision_raw
       landing_folder: provision
       schema_file: partsupp_schema
+    actions:
+      - name: tst_provision_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_provision_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-provision-R01"
+      
+      - name: tst_provision_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_provision_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-provision-R02"
 
   - flowgroup: vat_return_ingestion
     template_parameters:
       table_name: vat_return_raw
       landing_folder: vat_return
       schema_file: part_schema
+    actions:
+      - name: tst_vat_return_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_vat_return_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-vat_return-R01"
+      
+      - name: tst_vat_return_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_vat_return_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-vat_return-R02"

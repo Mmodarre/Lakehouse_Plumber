@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "crawl_error"
+
+  - name: tst_crawl_error_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_crawl_error_bronze_cleaned
+    required_columns: [crawl_error_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-crawl_error-B01"
+
+  - name: tst_crawl_error_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_crawl_error_bronze_cleaned
+    columns: [crawl_error_key]
+    on_violation: warn
+    test_id: "PERF-crawl_error-B02"

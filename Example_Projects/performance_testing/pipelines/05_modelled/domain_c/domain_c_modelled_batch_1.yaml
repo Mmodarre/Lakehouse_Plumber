@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "transaction_modelled"
+
+  - name: tst_transaction_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_transaction_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-transaction-M01"
+
+  - name: tst_transaction_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transaction_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-transaction-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: account_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "account_modelled"
+
+  - name: tst_account_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_account_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-account-M01"
+
+  - name: tst_account_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_account_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-account-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: ledger_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "ledger_modelled"
+
+  - name: tst_ledger_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_ledger_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-ledger-M01"
+
+  - name: tst_ledger_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ledger_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-ledger-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: journal_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "journal_modelled"
+
+  - name: tst_journal_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_journal_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-journal-M01"
+
+  - name: tst_journal_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_journal_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-journal-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: budget_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "budget_modelled"
+
+  - name: tst_budget_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_budget_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-budget-M01"
+
+  - name: tst_budget_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_budget_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-budget-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: forecast_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "forecast_modelled"
+
+  - name: tst_forecast_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_forecast_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-forecast-M01"
+
+  - name: tst_forecast_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_forecast_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-forecast-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: tax_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tax_modelled"
+
+  - name: tst_tax_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tax_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tax-M01"
+
+  - name: tst_tax_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tax_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tax-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: audit_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "audit_modelled"
+
+  - name: tst_audit_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_audit_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-audit-M01"
+
+  - name: tst_audit_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_audit_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-audit-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: compliance_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "compliance_modelled"
+
+  - name: tst_compliance_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_compliance_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-compliance-M01"
+
+  - name: tst_compliance_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_compliance_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-compliance-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: regulation_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "regulation_modelled"
+
+  - name: tst_regulation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_regulation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-regulation-M01"
+
+  - name: tst_regulation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_regulation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-regulation-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: asset_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "asset_modelled"
+
+  - name: tst_asset_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_asset_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-asset-M01"
+
+  - name: tst_asset_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_asset_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-asset-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: depreciation_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "depreciation_modelled"
+
+  - name: tst_depreciation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_depreciation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-depreciation-M01"
+
+  - name: tst_depreciation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_depreciation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-depreciation-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: liability_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "liability_modelled"
+
+  - name: tst_liability_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_liability_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-liability-M01"
+
+  - name: tst_liability_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_liability_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-liability-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: equity_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "equity_modelled"
+
+  - name: tst_equity_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_equity_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-equity-M01"
+
+  - name: tst_equity_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_equity_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-equity-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: revenue_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "revenue_modelled"
+
+  - name: tst_revenue_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_revenue_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-revenue-M01"
+
+  - name: tst_revenue_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_revenue_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-revenue-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: expense_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "expense_modelled"
+
+  - name: tst_expense_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_expense_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-expense-M01"
+
+  - name: tst_expense_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_expense_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-expense-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: cost_center_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "cost_center_modelled"
+
+  - name: tst_cost_center_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_cost_center_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-cost_center-M01"
+
+  - name: tst_cost_center_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cost_center_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-cost_center-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: profit_center_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "profit_center_modelled"
+
+  - name: tst_profit_center_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_profit_center_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-profit_center-M01"
+
+  - name: tst_profit_center_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_profit_center_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-profit_center-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: currency_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "currency_modelled"
+
+  - name: tst_currency_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_currency_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-currency-M01"
+
+  - name: tst_currency_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_currency_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-currency-M02"
 ---
 pipeline: domain_c_modelled
 flowgroup: exchange_rate_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "exchange_rate_modelled"
+
+  - name: tst_exchange_rate_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_exchange_rate_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-exchange_rate-M01"
+
+  - name: tst_exchange_rate_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_exchange_rate_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-exchange_rate-M02"

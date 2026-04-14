@@ -7,3 +7,19 @@ template_parameters:
   table_name: referee_raw
   landing_folder: referee
   schema_file: part_schema
+actions:
+  - name: tst_referee_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_referee_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-referee-R01"
+
+  - name: tst_referee_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_referee_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-referee-R02"

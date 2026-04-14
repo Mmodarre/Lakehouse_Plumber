@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "actuator_raw"
+
+  - name: tst_actuator_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_actuator_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-actuator-R01"
+
+  - name: tst_actuator_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_actuator_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-actuator-R02"

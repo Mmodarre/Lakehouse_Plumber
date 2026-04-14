@@ -142,6 +142,65 @@ class DependencyTracker:
             f"Tracked generated file: {rel_generated} from {rel_source} with {len(file_dependencies)} dependencies"
         )
 
+    def track_pipeline_artifact(
+        self,
+        state: ProjectState,
+        generated_path: Path,
+        environment: str,
+        pipeline: str,
+        artifact_type: str,
+    ) -> None:
+        """Track a pipeline-level artifact (not tied to a single flowgroup).
+
+        Simpler than track_generated_file — no dependency resolution or
+        substitution key tracking. Uses ``lhp.yaml`` as source and a reserved
+        sentinel flowgroup so it never collides with user flowgroups.
+
+        Args:
+            state: ProjectState to update
+            generated_path: Path to the generated artifact file
+            environment: Environment name
+            pipeline: Pipeline name
+            artifact_type: Identifier for the artifact kind (e.g. "test_reporting_hook")
+        """
+        try:
+            rel_generated = generated_path.relative_to(self.project_root)
+        except ValueError:
+            rel_generated = str(generated_path)
+
+        resolved_path = (
+            self.project_root / generated_path
+            if not generated_path.is_absolute()
+            else generated_path
+        )
+        checksum = self.calculate_checksum(resolved_path)
+
+        source_yaml_path = self.project_root / "lhp.yaml"
+        source_checksum = self.calculate_checksum(source_yaml_path)
+
+        file_state = FileState(
+            source_yaml="lhp.yaml",
+            generated_path=Path(str(rel_generated)).as_posix(),
+            checksum=checksum,
+            source_yaml_checksum=source_checksum,
+            timestamp=datetime.now().isoformat(),
+            environment=environment,
+            pipeline=pipeline,
+            flowgroup="__test_reporting__",
+            artifact_type=artifact_type,
+        )
+
+        if environment not in state.environments:
+            state.environments[environment] = {}
+
+        state.environments[environment][
+            Path(str(rel_generated)).as_posix()
+        ] = file_state
+
+        self.logger.debug(
+            f"Tracked pipeline artifact: {rel_generated} (type={artifact_type})"
+        )
+
     def update_global_dependencies(self, state: ProjectState, environment: str) -> None:
         """
         Update global dependencies for an environment.

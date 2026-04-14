@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "segment_report"
+
+  - name: tst_segment_report_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_segment_report_bronze_cleaned
+    required_columns: [segment_report_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-segment_report-B01"
+
+  - name: tst_segment_report_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_segment_report_bronze_cleaned
+    columns: [segment_report_key]
+    on_violation: warn
+    test_id: "PERF-segment_report-B02"

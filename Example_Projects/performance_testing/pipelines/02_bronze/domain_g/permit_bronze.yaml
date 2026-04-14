@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "permit"
+
+  - name: tst_permit_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_permit_bronze_cleaned
+    required_columns: [permit_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-permit-B01"
+
+  - name: tst_permit_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_permit_bronze_cleaned
+    columns: [permit_key]
+    on_violation: warn
+    test_id: "PERF-permit-B02"

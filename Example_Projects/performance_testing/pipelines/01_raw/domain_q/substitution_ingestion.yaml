@@ -7,3 +7,19 @@ template_parameters:
   table_name: substitution_raw
   landing_folder: substitution
   schema_file: customer_schema
+actions:
+  - name: tst_substitution_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_substitution_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-substitution-R01"
+
+  - name: tst_substitution_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_substitution_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-substitution-R02"

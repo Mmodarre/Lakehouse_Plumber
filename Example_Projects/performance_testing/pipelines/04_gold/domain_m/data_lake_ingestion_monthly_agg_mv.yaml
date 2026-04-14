@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "data_lake_ingestion_monthly_agg_mv"
+
+  - name: tst_data_lake_ingestion_monthly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_data_lake_ingestion_monthly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-data_lake_ingestion-G01"
+
+  - name: tst_data_lake_ingestion_monthly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_data_lake_ingestion_monthly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-data_lake_ingestion-G02"

@@ -15,6 +15,7 @@ from ..models.config import (
     ProjectOperationalMetadataConfig,
     MetadataColumnConfig,
     MetadataPresetConfig,
+    TestReportingConfig,
 )
 from ..utils.error_formatter import LHPError, ErrorCategory
 
@@ -129,6 +130,13 @@ class ProjectConfigLoader:
                 config_data["monitoring"], event_log_config
             )
 
+        # Parse test_reporting configuration
+        test_reporting_config = None
+        if "test_reporting" in config_data:
+            test_reporting_config = self._parse_test_reporting_config(
+                config_data["test_reporting"]
+            )
+
         # Create project config
         project_config = ProjectConfig(
             name=config_data.get("name", "unnamed_project"),
@@ -141,6 +149,7 @@ class ProjectConfigLoader:
             event_log=event_log_config,
             monitoring=monitoring_config,
             required_lhp_version=config_data.get("required_lhp_version"),
+            test_reporting=test_reporting_config,
         )
 
         return project_config
@@ -367,7 +376,9 @@ class ProjectConfigLoader:
                     "streaming_table", "all_pipelines_event_log"
                 ),
                 materialized_views=mv_configs,
-                enable_job_monitoring=monitoring_data.get("enable_job_monitoring", False),
+                enable_job_monitoring=monitoring_data.get(
+                    "enable_job_monitoring", False
+                ),
             )
         except Exception as e:
             raise LHPError(
@@ -383,6 +394,70 @@ class ProjectConfigLoader:
 
         self._validate_monitoring_config(config, event_log_config)
         return config
+
+    def _parse_test_reporting_config(
+        self, test_reporting_data: Any
+    ) -> TestReportingConfig:
+        """Parse test_reporting configuration from lhp.yaml.
+
+        Args:
+            test_reporting_data: Raw test_reporting data from YAML
+
+        Returns:
+            Parsed TestReportingConfig
+
+        Raises:
+            LHPError: If test_reporting configuration is invalid
+        """
+        if not isinstance(test_reporting_data, dict):
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="009",
+                title="Invalid test_reporting configuration",
+                details=f"test_reporting must be a mapping, got {type(test_reporting_data).__name__}",
+                suggestions=[
+                    "Define test_reporting as a YAML mapping with keys: module_path, function_name",
+                    "Example: test_reporting:\n  module_path: src/my_publisher.py\n  function_name: publish_results",
+                ],
+            )
+
+        # Validate required fields
+        missing = []
+        if "module_path" not in test_reporting_data:
+            missing.append("module_path")
+        if "function_name" not in test_reporting_data:
+            missing.append("function_name")
+
+        if missing:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="009",
+                title="Incomplete test_reporting configuration",
+                details=f"test_reporting is missing required fields: {', '.join(missing)}",
+                suggestions=[
+                    "Add the missing fields to test_reporting in lhp.yaml",
+                    "Required: module_path (path to provider Python file), function_name (callable name)",
+                    "Example: test_reporting:\n  module_path: src/my_publisher.py\n  function_name: publish_results",
+                ],
+            )
+
+        try:
+            return TestReportingConfig(
+                module_path=test_reporting_data["module_path"],
+                function_name=test_reporting_data["function_name"],
+                config_file=test_reporting_data.get("config_file"),
+            )
+        except Exception as e:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="009",
+                title="Error parsing test_reporting configuration",
+                details=f"Failed to parse test_reporting configuration: {e}",
+                suggestions=[
+                    "Check test_reporting field types: module_path (string), function_name (string)",
+                    "config_file is optional and must be a string path",
+                ],
+            )
 
     def _validate_monitoring_config(
         self,

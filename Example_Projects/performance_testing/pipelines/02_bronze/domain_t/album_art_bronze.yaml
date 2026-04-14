@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "album_art"
+
+  - name: tst_album_art_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_album_art_bronze_cleaned
+    required_columns: [album_art_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-album_art-B01"
+
+  - name: tst_album_art_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_album_art_bronze_cleaned
+    columns: [album_art_key]
+    on_violation: warn
+    test_id: "PERF-album_art-B02"

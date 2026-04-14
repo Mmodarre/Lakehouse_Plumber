@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "vat_return"
+
+  - name: tst_vat_return_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_vat_return_bronze_cleaned
+    required_columns: [vat_return_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-vat_return-B01"
+
+  - name: tst_vat_return_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_vat_return_bronze_cleaned
+    columns: [vat_return_key]
+    on_violation: warn
+    test_id: "PERF-vat_return-B02"

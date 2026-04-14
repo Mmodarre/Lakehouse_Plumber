@@ -9,45 +9,173 @@ flowgroups:
       table_name: shipment_raw
       landing_folder: shipment
       schema_file: part_schema
+    actions:
+      - name: tst_shipment_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_shipment_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-shipment-R01"
+      
+      - name: tst_shipment_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_shipment_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-shipment-R02"
 
   - flowgroup: refund_ingestion
     template_parameters:
       table_name: refund_raw
       landing_folder: refund
       schema_file: customer_schema
+    actions:
+      - name: tst_refund_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_refund_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-refund-R01"
+      
+      - name: tst_refund_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_refund_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-refund-R02"
 
   - flowgroup: brand_ingestion
     template_parameters:
       table_name: brand_raw
       landing_folder: brand
       schema_file: product_schema
+    actions:
+      - name: tst_brand_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_brand_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-brand-R01"
+      
+      - name: tst_brand_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_brand_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-brand-R02"
 
   - flowgroup: subscription_ingestion
     template_parameters:
       table_name: subscription_raw
       landing_folder: subscription
       schema_file: partsupp_schema
+    actions:
+      - name: tst_subscription_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_subscription_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-subscription-R01"
+      
+      - name: tst_subscription_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_subscription_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-subscription-R02"
 
   - flowgroup: loyalty_point_ingestion
     template_parameters:
       table_name: loyalty_point_raw
       landing_folder: loyalty_point
       schema_file: lineitem_schema
+    actions:
+      - name: tst_loyalty_point_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_loyalty_point_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-loyalty_point-R01"
+      
+      - name: tst_loyalty_point_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_loyalty_point_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-loyalty_point-R02"
 
   - flowgroup: sku_ingestion
     template_parameters:
       table_name: sku_raw
       landing_folder: sku
       schema_file: customer_schema
+    actions:
+      - name: tst_sku_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_sku_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-sku-R01"
+      
+      - name: tst_sku_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_sku_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-sku-R02"
 
   - flowgroup: pre_order_ingestion
     template_parameters:
       table_name: pre_order_raw
       landing_folder: pre_order
       schema_file: product_schema
+    actions:
+      - name: tst_pre_order_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_pre_order_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-pre_order-R01"
+      
+      - name: tst_pre_order_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_pre_order_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-pre_order-R02"
 
   - flowgroup: fulfillment_ingestion
     template_parameters:
       table_name: fulfillment_raw
       landing_folder: fulfillment
       schema_file: nation_schema
+    actions:
+      - name: tst_fulfillment_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_fulfillment_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-fulfillment-R01"
+      
+      - name: tst_fulfillment_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_fulfillment_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-fulfillment-R02"

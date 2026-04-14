@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "slot_time"
+
+  - name: tst_slot_time_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_slot_time_bronze_cleaned
+    required_columns: [slot_time_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-slot_time-B01"
+
+  - name: tst_slot_time_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_slot_time_bronze_cleaned
+    columns: [slot_time_key]
+    on_violation: warn
+    test_id: "PERF-slot_time-B02"

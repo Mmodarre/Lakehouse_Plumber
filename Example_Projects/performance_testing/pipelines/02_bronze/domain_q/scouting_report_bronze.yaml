@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "scouting_report"
+
+  - name: tst_scouting_report_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_scouting_report_bronze_cleaned
+    required_columns: [scouting_report_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-scouting_report-B01"
+
+  - name: tst_scouting_report_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_scouting_report_bronze_cleaned
+    columns: [scouting_report_key]
+    on_violation: warn
+    test_id: "PERF-scouting_report-B02"

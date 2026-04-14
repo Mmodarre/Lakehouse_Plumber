@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "ppap"
+
+  - name: tst_ppap_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_ppap_bronze_cleaned
+    required_columns: [ppap_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-ppap-B01"
+
+  - name: tst_ppap_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ppap_bronze_cleaned
+    columns: [ppap_key]
+    on_violation: warn
+    test_id: "PERF-ppap-B02"

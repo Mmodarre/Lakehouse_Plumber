@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "playlist_modelled"
+
+  - name: tst_playlist_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_playlist_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-playlist-M01"
+
+  - name: tst_playlist_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_playlist_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-playlist-M02"

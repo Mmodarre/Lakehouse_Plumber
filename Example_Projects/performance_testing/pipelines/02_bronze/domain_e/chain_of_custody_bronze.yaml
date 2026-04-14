@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "chain_of_custody"
+
+  - name: tst_chain_of_custody_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_chain_of_custody_bronze_cleaned
+    required_columns: [chain_of_custody_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-chain_of_custody-B01"
+
+  - name: tst_chain_of_custody_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_chain_of_custody_bronze_cleaned
+    columns: [chain_of_custody_key]
+    on_violation: warn
+    test_id: "PERF-chain_of_custody-B02"

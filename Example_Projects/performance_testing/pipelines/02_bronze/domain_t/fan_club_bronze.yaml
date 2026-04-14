@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "fan_club"
+
+  - name: tst_fan_club_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_fan_club_bronze_cleaned
+    required_columns: [fan_club_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-fan_club-B01"
+
+  - name: tst_fan_club_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fan_club_bronze_cleaned
+    columns: [fan_club_key]
+    on_violation: warn
+    test_id: "PERF-fan_club-B02"

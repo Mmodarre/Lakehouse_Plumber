@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "solar_panel_analysis_mv"
+
+  - name: tst_solar_panel_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_solar_panel_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-solar_panel-G01"
+
+  - name: tst_solar_panel_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_solar_panel_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-solar_panel-G02"

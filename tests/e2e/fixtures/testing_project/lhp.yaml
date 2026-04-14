@@ -4,7 +4,7 @@ version: "1.0"
 description: "acme Delta Lakehouse Project - TPC-H"
 author: "Mehdi Modarressi"
 created_date: "2025-07-11"
-required_lhp_version: ">=0.5.0,<=0.8.0"
+required_lhp_version: ">=0.5.0,<=0.8.9"
 
 # include:
 #   - "01_raw_ingestion/**"
@@ -101,3 +101,8 @@ operational_metadata:
 ## [monitoring_enable_job_monitoring]
 #monitoring:
 #  enable_job_monitoring: true
+
+## Test result reporting to external systems
+test_reporting:
+  module_path: py_functions/test_reporting_publisher.py
+  function_name: publish_results

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "consolidation"
+
+  - name: tst_consolidation_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_consolidation_bronze_cleaned
+    required_columns: [consolidation_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-consolidation-B01"
+
+  - name: tst_consolidation_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_consolidation_bronze_cleaned
+    columns: [consolidation_key]
+    on_violation: warn
+    test_id: "PERF-consolidation-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "cost_center"
+
+  - name: tst_cost_center_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_cost_center_bronze_cleaned
+    required_columns: [cost_center_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cost_center-B01"
+
+  - name: tst_cost_center_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cost_center_bronze_cleaned
+    columns: [cost_center_key]
+    on_violation: warn
+    test_id: "PERF-cost_center-B02"

@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "ground_station_modelled"
+
+  - name: tst_ground_station_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_ground_station_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-ground_station-M01"
+
+  - name: tst_ground_station_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ground_station_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-ground_station-M02"

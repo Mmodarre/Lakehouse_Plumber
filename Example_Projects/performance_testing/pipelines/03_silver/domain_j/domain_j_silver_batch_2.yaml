@@ -30,6 +30,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_frequency_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_frequency_bronze
+    required_columns: [frequency_key]
+    on_violation: warn
+    test_id: "PERF-frequency-S01"
+
+  - name: tst_frequency_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_frequency_bronze
+    columns: [frequency_key]
+    on_violation: warn
+    test_id: "PERF-frequency-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: reactive_power_silver_fct
@@ -63,6 +79,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_reactive_power_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_reactive_power_bronze
+    required_columns: [reactive_power_key]
+    on_violation: warn
+    test_id: "PERF-reactive_power-S01"
+
+  - name: tst_reactive_power_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reactive_power_bronze
+    columns: [reactive_power_key]
+    on_violation: warn
+    test_id: "PERF-reactive_power-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: capacitor_bank_silver_dim
@@ -96,6 +128,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_capacitor_bank_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_capacitor_bank_bronze
+    required_columns: [capacitor_bank_key]
+    on_violation: warn
+    test_id: "PERF-capacitor_bank-S01"
+
+  - name: tst_capacitor_bank_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_capacitor_bank_bronze
+    columns: [capacitor_bank_key]
+    on_violation: warn
+    test_id: "PERF-capacitor_bank-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: relay_silver_dim
@@ -129,6 +177,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_relay_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_relay_bronze
+    required_columns: [relay_key]
+    on_violation: warn
+    test_id: "PERF-relay-S01"
+
+  - name: tst_relay_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_relay_bronze
+    columns: [relay_key]
+    on_violation: warn
+    test_id: "PERF-relay-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: circuit_breaker_silver_fct
@@ -162,6 +226,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_circuit_breaker_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_circuit_breaker_bronze
+    required_columns: [circuit_breaker_key]
+    on_violation: warn
+    test_id: "PERF-circuit_breaker-S01"
+
+  - name: tst_circuit_breaker_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_circuit_breaker_bronze
+    columns: [circuit_breaker_key]
+    on_violation: warn
+    test_id: "PERF-circuit_breaker-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: feeder_silver_dim
@@ -195,6 +275,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_feeder_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_feeder_bronze
+    required_columns: [feeder_key]
+    on_violation: warn
+    test_id: "PERF-feeder-S01"
+
+  - name: tst_feeder_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_feeder_bronze
+    columns: [feeder_key]
+    on_violation: warn
+    test_id: "PERF-feeder-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: distribution_line_silver_dim
@@ -228,6 +324,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_distribution_line_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_distribution_line_bronze
+    required_columns: [distribution_line_key]
+    on_violation: warn
+    test_id: "PERF-distribution_line-S01"
+
+  - name: tst_distribution_line_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_distribution_line_bronze
+    columns: [distribution_line_key]
+    on_violation: warn
+    test_id: "PERF-distribution_line-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: transmission_line_silver_fct
@@ -261,6 +373,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_transmission_line_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_transmission_line_bronze
+    required_columns: [transmission_line_key]
+    on_violation: warn
+    test_id: "PERF-transmission_line-S01"
+
+  - name: tst_transmission_line_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transmission_line_bronze
+    columns: [transmission_line_key]
+    on_violation: warn
+    test_id: "PERF-transmission_line-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: voltage_regulator_silver_dim
@@ -294,6 +422,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_voltage_regulator_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_voltage_regulator_bronze
+    required_columns: [voltage_regulator_key]
+    on_violation: warn
+    test_id: "PERF-voltage_regulator-S01"
+
+  - name: tst_voltage_regulator_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_voltage_regulator_bronze
+    columns: [voltage_regulator_key]
+    on_violation: warn
+    test_id: "PERF-voltage_regulator-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: smart_meter_silver_dim
@@ -327,6 +471,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_smart_meter_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_smart_meter_bronze
+    required_columns: [smart_meter_key]
+    on_violation: warn
+    test_id: "PERF-smart_meter-S01"
+
+  - name: tst_smart_meter_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_smart_meter_bronze
+    columns: [smart_meter_key]
+    on_violation: warn
+    test_id: "PERF-smart_meter-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: demand_response_silver_fct
@@ -360,6 +520,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_demand_response_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_demand_response_bronze
+    required_columns: [demand_response_key]
+    on_violation: warn
+    test_id: "PERF-demand_response-S01"
+
+  - name: tst_demand_response_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_demand_response_bronze
+    columns: [demand_response_key]
+    on_violation: warn
+    test_id: "PERF-demand_response-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: curtailment_silver_dim
@@ -393,6 +569,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_curtailment_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_curtailment_bronze
+    required_columns: [curtailment_key]
+    on_violation: warn
+    test_id: "PERF-curtailment-S01"
+
+  - name: tst_curtailment_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_curtailment_bronze
+    columns: [curtailment_key]
+    on_violation: warn
+    test_id: "PERF-curtailment-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: interconnection_silver_dim
@@ -426,6 +618,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_interconnection_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_interconnection_bronze
+    required_columns: [interconnection_key]
+    on_violation: warn
+    test_id: "PERF-interconnection-S01"
+
+  - name: tst_interconnection_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_interconnection_bronze
+    columns: [interconnection_key]
+    on_violation: warn
+    test_id: "PERF-interconnection-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: wheeling_silver_fct
@@ -459,6 +667,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_wheeling_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_wheeling_bronze
+    required_columns: [wheeling_key]
+    on_violation: warn
+    test_id: "PERF-wheeling-S01"
+
+  - name: tst_wheeling_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wheeling_bronze
+    columns: [wheeling_key]
+    on_violation: warn
+    test_id: "PERF-wheeling-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: ancillary_service_silver_dim
@@ -492,6 +716,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_ancillary_service_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_ancillary_service_bronze
+    required_columns: [ancillary_service_key]
+    on_violation: warn
+    test_id: "PERF-ancillary_service-S01"
+
+  - name: tst_ancillary_service_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ancillary_service_bronze
+    columns: [ancillary_service_key]
+    on_violation: warn
+    test_id: "PERF-ancillary_service-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: spinning_reserve_silver_dim
@@ -525,6 +765,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_spinning_reserve_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_spinning_reserve_bronze
+    required_columns: [spinning_reserve_key]
+    on_violation: warn
+    test_id: "PERF-spinning_reserve-S01"
+
+  - name: tst_spinning_reserve_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_spinning_reserve_bronze
+    columns: [spinning_reserve_key]
+    on_violation: warn
+    test_id: "PERF-spinning_reserve-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: black_start_silver_fct
@@ -558,6 +814,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_black_start_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_black_start_bronze
+    required_columns: [black_start_key]
+    on_violation: warn
+    test_id: "PERF-black_start-S01"
+
+  - name: tst_black_start_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_black_start_bronze
+    columns: [black_start_key]
+    on_violation: warn
+    test_id: "PERF-black_start-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: island_mode_silver_dim
@@ -591,6 +863,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_island_mode_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_island_mode_bronze
+    required_columns: [island_mode_key]
+    on_violation: warn
+    test_id: "PERF-island_mode-S01"
+
+  - name: tst_island_mode_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_island_mode_bronze
+    columns: [island_mode_key]
+    on_violation: warn
+    test_id: "PERF-island_mode-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: microgrid_silver_dim
@@ -624,6 +912,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_microgrid_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_microgrid_bronze
+    required_columns: [microgrid_key]
+    on_violation: warn
+    test_id: "PERF-microgrid-S01"
+
+  - name: tst_microgrid_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_microgrid_bronze
+    columns: [microgrid_key]
+    on_violation: warn
+    test_id: "PERF-microgrid-S02"
 ---
 pipeline: domain_j_silver
 flowgroup: virtual_power_plant_silver_fct
@@ -657,3 +961,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_virtual_power_plant_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_virtual_power_plant_bronze
+    required_columns: [virtual_power_plant_key]
+    on_violation: warn
+    test_id: "PERF-virtual_power_plant-S01"
+
+  - name: tst_virtual_power_plant_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_virtual_power_plant_bronze
+    columns: [virtual_power_plant_key]
+    on_violation: warn
+    test_id: "PERF-virtual_power_plant-S02"

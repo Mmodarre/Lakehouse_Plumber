@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "employee_modelled"
+
+  - name: tst_employee_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_employee_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-employee-M01"
+
+  - name: tst_employee_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_employee_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-employee-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: department_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "department_modelled"
+
+  - name: tst_department_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_department_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-department-M01"
+
+  - name: tst_department_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_department_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-department-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: project_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "project_modelled"
+
+  - name: tst_project_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_project_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-project-M01"
+
+  - name: tst_project_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_project_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-project-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: task_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "task_modelled"
+
+  - name: tst_task_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_task_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-task-M01"
+
+  - name: tst_task_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_task_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-task-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: timesheet_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "timesheet_modelled"
+
+  - name: tst_timesheet_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_timesheet_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-timesheet-M01"
+
+  - name: tst_timesheet_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_timesheet_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-timesheet-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: salary_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "salary_modelled"
+
+  - name: tst_salary_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_salary_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-salary-M01"
+
+  - name: tst_salary_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_salary_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-salary-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: benefit_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "benefit_modelled"
+
+  - name: tst_benefit_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_benefit_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-benefit-M01"
+
+  - name: tst_benefit_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_benefit_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-benefit-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: leave_request_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "leave_request_modelled"
+
+  - name: tst_leave_request_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_leave_request_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-leave_request-M01"
+
+  - name: tst_leave_request_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_leave_request_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-leave_request-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: training_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "training_modelled"
+
+  - name: tst_training_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_training_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-training-M01"
+
+  - name: tst_training_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_training_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-training-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: certification_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "certification_modelled"
+
+  - name: tst_certification_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_certification_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-certification-M01"
+
+  - name: tst_certification_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_certification_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-certification-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: performance_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "performance_modelled"
+
+  - name: tst_performance_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_performance_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-performance-M01"
+
+  - name: tst_performance_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_performance_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-performance-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: goal_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "goal_modelled"
+
+  - name: tst_goal_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_goal_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-goal-M01"
+
+  - name: tst_goal_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_goal_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-goal-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: feedback_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "feedback_modelled"
+
+  - name: tst_feedback_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_feedback_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-feedback-M01"
+
+  - name: tst_feedback_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_feedback_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-feedback-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: interview_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "interview_modelled"
+
+  - name: tst_interview_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_interview_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-interview-M01"
+
+  - name: tst_interview_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_interview_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-interview-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: candidate_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "candidate_modelled"
+
+  - name: tst_candidate_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_candidate_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-candidate-M01"
+
+  - name: tst_candidate_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_candidate_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-candidate-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: job_posting_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "job_posting_modelled"
+
+  - name: tst_job_posting_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_job_posting_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-job_posting-M01"
+
+  - name: tst_job_posting_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_job_posting_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-job_posting-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: offer_letter_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "offer_letter_modelled"
+
+  - name: tst_offer_letter_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_offer_letter_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-offer_letter-M01"
+
+  - name: tst_offer_letter_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_offer_letter_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-offer_letter-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: onboarding_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "onboarding_modelled"
+
+  - name: tst_onboarding_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_onboarding_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-onboarding-M01"
+
+  - name: tst_onboarding_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_onboarding_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-onboarding-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: offboarding_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "offboarding_modelled"
+
+  - name: tst_offboarding_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_offboarding_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-offboarding-M01"
+
+  - name: tst_offboarding_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_offboarding_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-offboarding-M02"
 ---
 pipeline: domain_b_modelled
 flowgroup: payroll_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "payroll_modelled"
+
+  - name: tst_payroll_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_payroll_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-payroll-M01"
+
+  - name: tst_payroll_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_payroll_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-payroll-M02"

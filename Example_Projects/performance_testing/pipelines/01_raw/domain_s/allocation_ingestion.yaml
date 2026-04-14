@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "allocation_raw"
+
+  - name: tst_allocation_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_allocation_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-allocation-R01"
+
+  - name: tst_allocation_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_allocation_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-allocation-R02"

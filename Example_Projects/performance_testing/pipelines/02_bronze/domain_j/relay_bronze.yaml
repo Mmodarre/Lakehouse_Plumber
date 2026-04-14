@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "relay"
+
+  - name: tst_relay_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_relay_bronze_cleaned
+    required_columns: [relay_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-relay-B01"
+
+  - name: tst_relay_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_relay_bronze_cleaned
+    columns: [relay_key]
+    on_violation: warn
+    test_id: "PERF-relay-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "proof_of_delivery"
+
+  - name: tst_proof_of_delivery_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_proof_of_delivery_bronze_cleaned
+    required_columns: [proof_of_delivery_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-proof_of_delivery-B01"
+
+  - name: tst_proof_of_delivery_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_proof_of_delivery_bronze_cleaned
+    columns: [proof_of_delivery_key]
+    on_violation: warn
+    test_id: "PERF-proof_of_delivery-B02"

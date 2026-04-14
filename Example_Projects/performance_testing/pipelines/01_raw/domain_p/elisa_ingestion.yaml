@@ -7,3 +7,19 @@ template_parameters:
   table_name: elisa_raw
   landing_folder: elisa
   schema_file: product_schema
+actions:
+  - name: tst_elisa_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_elisa_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-elisa-R01"
+
+  - name: tst_elisa_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_elisa_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-elisa-R02"

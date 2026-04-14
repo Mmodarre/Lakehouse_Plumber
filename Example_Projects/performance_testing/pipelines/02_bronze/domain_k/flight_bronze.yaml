@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: flight
   source_table: flight_raw
+actions:
+  - name: tst_flight_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_flight_cleansed
+    required_columns: [flight_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-flight-B01"
+
+  - name: tst_flight_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_flight_cleansed
+    columns: [flight_key]
+    on_violation: warn
+    test_id: "PERF-flight-B02"

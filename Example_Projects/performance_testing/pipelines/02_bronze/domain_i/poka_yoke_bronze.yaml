@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "poka_yoke"
+
+  - name: tst_poka_yoke_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_poka_yoke_bronze_cleaned
+    required_columns: [poka_yoke_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-poka_yoke-B01"
+
+  - name: tst_poka_yoke_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_poka_yoke_bronze_cleaned
+    columns: [poka_yoke_key]
+    on_violation: warn
+    test_id: "PERF-poka_yoke-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "luxury_tax"
+
+  - name: tst_luxury_tax_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_luxury_tax_bronze_cleaned
+    required_columns: [luxury_tax_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-luxury_tax-B01"
+
+  - name: tst_luxury_tax_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_luxury_tax_bronze_cleaned
+    columns: [luxury_tax_key]
+    on_violation: warn
+    test_id: "PERF-luxury_tax-B02"

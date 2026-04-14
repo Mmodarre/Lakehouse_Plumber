@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "hashtag"
+
+  - name: tst_hashtag_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_hashtag_bronze_cleaned
+    required_columns: [hashtag_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-hashtag-B01"
+
+  - name: tst_hashtag_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_hashtag_bronze_cleaned
+    columns: [hashtag_key]
+    on_violation: warn
+    test_id: "PERF-hashtag-B02"

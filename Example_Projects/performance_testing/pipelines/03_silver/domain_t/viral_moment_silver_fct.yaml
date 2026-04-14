@@ -30,3 +30,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_viral_moment_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_viral_moment_bronze
+    required_columns: [viral_moment_key]
+    on_violation: warn
+    test_id: "PERF-viral_moment-S01"
+
+  - name: tst_viral_moment_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_viral_moment_bronze
+    columns: [viral_moment_key]
+    on_violation: warn
+    test_id: "PERF-viral_moment-S02"

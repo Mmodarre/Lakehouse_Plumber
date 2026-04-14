@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "actuary"
+
+  - name: tst_actuary_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_actuary_bronze_cleaned
+    required_columns: [actuary_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-actuary-B01"
+
+  - name: tst_actuary_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_actuary_bronze_cleaned
+    columns: [actuary_key]
+    on_violation: warn
+    test_id: "PERF-actuary-B02"

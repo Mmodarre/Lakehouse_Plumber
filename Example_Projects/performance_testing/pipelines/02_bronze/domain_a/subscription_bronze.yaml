@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "subscription"
+
+  - name: tst_subscription_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_subscription_bronze_cleaned
+    required_columns: [subscription_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-subscription-B01"
+
+  - name: tst_subscription_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_subscription_bronze_cleaned
+    columns: [subscription_key]
+    on_violation: warn
+    test_id: "PERF-subscription-B02"

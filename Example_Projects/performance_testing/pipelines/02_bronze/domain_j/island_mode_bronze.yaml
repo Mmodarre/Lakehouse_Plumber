@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "island_mode"
+
+  - name: tst_island_mode_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_island_mode_bronze_cleaned
+    required_columns: [island_mode_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-island_mode-B01"
+
+  - name: tst_island_mode_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_island_mode_bronze_cleaned
+    columns: [island_mode_key]
+    on_violation: warn
+    test_id: "PERF-island_mode-B02"

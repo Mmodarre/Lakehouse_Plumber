@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "unsubscribe"
+
+  - name: tst_unsubscribe_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_unsubscribe_bronze_cleaned
+    required_columns: [unsubscribe_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-unsubscribe-B01"
+
+  - name: tst_unsubscribe_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_unsubscribe_bronze_cleaned
+    columns: [unsubscribe_key]
+    on_violation: warn
+    test_id: "PERF-unsubscribe-B02"

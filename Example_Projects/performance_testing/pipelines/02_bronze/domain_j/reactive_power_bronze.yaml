@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "reactive_power"
+
+  - name: tst_reactive_power_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_reactive_power_bronze_cleaned
+    required_columns: [reactive_power_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-reactive_power-B01"
+
+  - name: tst_reactive_power_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reactive_power_bronze_cleaned
+    columns: [reactive_power_key]
+    on_violation: warn
+    test_id: "PERF-reactive_power-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "debit_note"
+
+  - name: tst_debit_note_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_debit_note_bronze_cleaned
+    required_columns: [debit_note_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-debit_note-B01"
+
+  - name: tst_debit_note_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_debit_note_bronze_cleaned
+    columns: [debit_note_key]
+    on_violation: warn
+    test_id: "PERF-debit_note-B02"

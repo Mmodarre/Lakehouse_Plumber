@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "thesis_modelled"
+
+  - name: tst_thesis_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_thesis_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-thesis-M01"
+
+  - name: tst_thesis_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_thesis_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-thesis-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: dissertation_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "dissertation_modelled"
+
+  - name: tst_dissertation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_dissertation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-dissertation-M01"
+
+  - name: tst_dissertation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dissertation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-dissertation-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: research_grant_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "research_grant_modelled"
+
+  - name: tst_research_grant_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_research_grant_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-research_grant-M01"
+
+  - name: tst_research_grant_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_research_grant_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-research_grant-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: lab_session_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "lab_session_modelled"
+
+  - name: tst_lab_session_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_lab_session_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-lab_session-M01"
+
+  - name: tst_lab_session_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lab_session_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-lab_session-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: fieldwork_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "fieldwork_modelled"
+
+  - name: tst_fieldwork_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_fieldwork_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-fieldwork-M01"
+
+  - name: tst_fieldwork_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fieldwork_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-fieldwork-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: study_group_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "study_group_modelled"
+
+  - name: tst_study_group_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_study_group_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-study_group-M01"
+
+  - name: tst_study_group_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_study_group_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-study_group-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: tutoring_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "tutoring_modelled"
+
+  - name: tst_tutoring_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tutoring_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tutoring-M01"
+
+  - name: tst_tutoring_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tutoring_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tutoring-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: plagiarism_check_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "plagiarism_check_modelled"
+
+  - name: tst_plagiarism_check_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_plagiarism_check_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-plagiarism_check-M01"
+
+  - name: tst_plagiarism_check_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_plagiarism_check_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-plagiarism_check-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: accreditation_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "accreditation_modelled"
+
+  - name: tst_accreditation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_accreditation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-accreditation-M01"
+
+  - name: tst_accreditation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_accreditation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-accreditation-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: alumni_donor_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "alumni_donor_modelled"
+
+  - name: tst_alumni_donor_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_alumni_donor_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-alumni_donor-M01"
+
+  - name: tst_alumni_donor_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_alumni_donor_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-alumni_donor-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: career_fair_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "career_fair_modelled"
+
+  - name: tst_career_fair_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_career_fair_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-career_fair-M01"
+
+  - name: tst_career_fair_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_career_fair_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-career_fair-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: internship_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "internship_modelled"
+
+  - name: tst_internship_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_internship_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-internship-M01"
+
+  - name: tst_internship_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_internship_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-internship-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: co_op_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "co_op_modelled"
+
+  - name: tst_co_op_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_co_op_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-co_op-M01"
+
+  - name: tst_co_op_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_co_op_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-co_op-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: exchange_program_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "exchange_program_modelled"
+
+  - name: tst_exchange_program_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_exchange_program_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-exchange_program-M01"
+
+  - name: tst_exchange_program_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_exchange_program_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-exchange_program-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: dormitory_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "dormitory_modelled"
+
+  - name: tst_dormitory_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_dormitory_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-dormitory-M01"
+
+  - name: tst_dormitory_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dormitory_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-dormitory-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: meal_plan_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "meal_plan_modelled"
+
+  - name: tst_meal_plan_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_meal_plan_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-meal_plan-M01"
+
+  - name: tst_meal_plan_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_meal_plan_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-meal_plan-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: student_club_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "student_club_modelled"
+
+  - name: tst_student_club_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_student_club_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-student_club-M01"
+
+  - name: tst_student_club_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_student_club_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-student_club-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: athletics_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "athletics_modelled"
+
+  - name: tst_athletics_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_athletics_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-athletics-M01"
+
+  - name: tst_athletics_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_athletics_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-athletics-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: financial_aid_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "financial_aid_modelled"
+
+  - name: tst_financial_aid_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_financial_aid_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-financial_aid-M01"
+
+  - name: tst_financial_aid_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_financial_aid_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-financial_aid-M02"
 ---
 pipeline: domain_f_modelled
 flowgroup: work_study_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "work_study_modelled"
+
+  - name: tst_work_study_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_work_study_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-work_study-M01"
+
+  - name: tst_work_study_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_work_study_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-work_study-M02"

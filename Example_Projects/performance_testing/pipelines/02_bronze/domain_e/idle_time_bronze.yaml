@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "idle_time"
+
+  - name: tst_idle_time_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_idle_time_bronze_cleaned
+    required_columns: [idle_time_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-idle_time-B01"
+
+  - name: tst_idle_time_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_idle_time_bronze_cleaned
+    columns: [idle_time_key]
+    on_violation: warn
+    test_id: "PERF-idle_time-B02"

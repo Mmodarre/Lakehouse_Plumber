@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "takt_time"
+
+  - name: tst_takt_time_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_takt_time_bronze_cleaned
+    required_columns: [takt_time_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-takt_time-B01"
+
+  - name: tst_takt_time_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_takt_time_bronze_cleaned
+    columns: [takt_time_key]
+    on_violation: warn
+    test_id: "PERF-takt_time-B02"

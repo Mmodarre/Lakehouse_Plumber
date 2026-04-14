@@ -172,6 +172,7 @@ class ConfigFieldValidator:
             "lookup_columns",
             "lookup_result_columns",
             "expectations",
+            "test_id",
         }
 
     def validate_load_source(

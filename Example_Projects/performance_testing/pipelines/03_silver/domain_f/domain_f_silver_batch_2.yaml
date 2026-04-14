@@ -30,6 +30,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_thesis_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_thesis_bronze
+    required_columns: [thesis_key]
+    on_violation: warn
+    test_id: "PERF-thesis-S01"
+
+  - name: tst_thesis_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_thesis_bronze
+    columns: [thesis_key]
+    on_violation: warn
+    test_id: "PERF-thesis-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: dissertation_silver_fct
@@ -63,6 +79,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_dissertation_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_dissertation_bronze
+    required_columns: [dissertation_key]
+    on_violation: warn
+    test_id: "PERF-dissertation-S01"
+
+  - name: tst_dissertation_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dissertation_bronze
+    columns: [dissertation_key]
+    on_violation: warn
+    test_id: "PERF-dissertation-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: research_grant_silver_dim
@@ -96,6 +128,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_research_grant_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_research_grant_bronze
+    required_columns: [research_grant_key]
+    on_violation: warn
+    test_id: "PERF-research_grant-S01"
+
+  - name: tst_research_grant_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_research_grant_bronze
+    columns: [research_grant_key]
+    on_violation: warn
+    test_id: "PERF-research_grant-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: lab_session_silver_dim
@@ -129,6 +177,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_lab_session_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_lab_session_bronze
+    required_columns: [lab_session_key]
+    on_violation: warn
+    test_id: "PERF-lab_session-S01"
+
+  - name: tst_lab_session_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lab_session_bronze
+    columns: [lab_session_key]
+    on_violation: warn
+    test_id: "PERF-lab_session-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: fieldwork_silver_fct
@@ -162,6 +226,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_fieldwork_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_fieldwork_bronze
+    required_columns: [fieldwork_key]
+    on_violation: warn
+    test_id: "PERF-fieldwork-S01"
+
+  - name: tst_fieldwork_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fieldwork_bronze
+    columns: [fieldwork_key]
+    on_violation: warn
+    test_id: "PERF-fieldwork-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: study_group_silver_dim
@@ -195,6 +275,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_study_group_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_study_group_bronze
+    required_columns: [study_group_key]
+    on_violation: warn
+    test_id: "PERF-study_group-S01"
+
+  - name: tst_study_group_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_study_group_bronze
+    columns: [study_group_key]
+    on_violation: warn
+    test_id: "PERF-study_group-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: tutoring_silver_dim
@@ -228,6 +324,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_tutoring_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_tutoring_bronze
+    required_columns: [tutoring_key]
+    on_violation: warn
+    test_id: "PERF-tutoring-S01"
+
+  - name: tst_tutoring_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tutoring_bronze
+    columns: [tutoring_key]
+    on_violation: warn
+    test_id: "PERF-tutoring-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: plagiarism_check_silver_fct
@@ -261,6 +373,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_plagiarism_check_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_plagiarism_check_bronze
+    required_columns: [plagiarism_check_key]
+    on_violation: warn
+    test_id: "PERF-plagiarism_check-S01"
+
+  - name: tst_plagiarism_check_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_plagiarism_check_bronze
+    columns: [plagiarism_check_key]
+    on_violation: warn
+    test_id: "PERF-plagiarism_check-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: accreditation_silver_dim
@@ -294,6 +422,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_accreditation_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_accreditation_bronze
+    required_columns: [accreditation_key]
+    on_violation: warn
+    test_id: "PERF-accreditation-S01"
+
+  - name: tst_accreditation_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_accreditation_bronze
+    columns: [accreditation_key]
+    on_violation: warn
+    test_id: "PERF-accreditation-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: alumni_donor_silver_dim
@@ -327,6 +471,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_alumni_donor_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_alumni_donor_bronze
+    required_columns: [alumni_donor_key]
+    on_violation: warn
+    test_id: "PERF-alumni_donor-S01"
+
+  - name: tst_alumni_donor_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_alumni_donor_bronze
+    columns: [alumni_donor_key]
+    on_violation: warn
+    test_id: "PERF-alumni_donor-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: career_fair_silver_fct
@@ -360,6 +520,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_career_fair_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_career_fair_bronze
+    required_columns: [career_fair_key]
+    on_violation: warn
+    test_id: "PERF-career_fair-S01"
+
+  - name: tst_career_fair_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_career_fair_bronze
+    columns: [career_fair_key]
+    on_violation: warn
+    test_id: "PERF-career_fair-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: internship_silver_dim
@@ -393,6 +569,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_internship_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_internship_bronze
+    required_columns: [internship_key]
+    on_violation: warn
+    test_id: "PERF-internship-S01"
+
+  - name: tst_internship_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_internship_bronze
+    columns: [internship_key]
+    on_violation: warn
+    test_id: "PERF-internship-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: co_op_silver_dim
@@ -426,6 +618,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_co_op_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_co_op_bronze
+    required_columns: [co_op_key]
+    on_violation: warn
+    test_id: "PERF-co_op-S01"
+
+  - name: tst_co_op_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_co_op_bronze
+    columns: [co_op_key]
+    on_violation: warn
+    test_id: "PERF-co_op-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: exchange_program_silver_fct
@@ -459,6 +667,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_exchange_program_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_exchange_program_bronze
+    required_columns: [exchange_program_key]
+    on_violation: warn
+    test_id: "PERF-exchange_program-S01"
+
+  - name: tst_exchange_program_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_exchange_program_bronze
+    columns: [exchange_program_key]
+    on_violation: warn
+    test_id: "PERF-exchange_program-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: dormitory_silver_dim
@@ -492,6 +716,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_dormitory_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_dormitory_bronze
+    required_columns: [dormitory_key]
+    on_violation: warn
+    test_id: "PERF-dormitory-S01"
+
+  - name: tst_dormitory_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dormitory_bronze
+    columns: [dormitory_key]
+    on_violation: warn
+    test_id: "PERF-dormitory-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: meal_plan_silver_dim
@@ -525,6 +765,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_meal_plan_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_meal_plan_bronze
+    required_columns: [meal_plan_key]
+    on_violation: warn
+    test_id: "PERF-meal_plan-S01"
+
+  - name: tst_meal_plan_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_meal_plan_bronze
+    columns: [meal_plan_key]
+    on_violation: warn
+    test_id: "PERF-meal_plan-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: student_club_silver_fct
@@ -558,6 +814,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_student_club_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_student_club_bronze
+    required_columns: [student_club_key]
+    on_violation: warn
+    test_id: "PERF-student_club-S01"
+
+  - name: tst_student_club_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_student_club_bronze
+    columns: [student_club_key]
+    on_violation: warn
+    test_id: "PERF-student_club-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: athletics_silver_dim
@@ -591,6 +863,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_athletics_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_athletics_bronze
+    required_columns: [athletics_key]
+    on_violation: warn
+    test_id: "PERF-athletics-S01"
+
+  - name: tst_athletics_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_athletics_bronze
+    columns: [athletics_key]
+    on_violation: warn
+    test_id: "PERF-athletics-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: financial_aid_silver_dim
@@ -624,6 +912,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_financial_aid_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_financial_aid_bronze
+    required_columns: [financial_aid_key]
+    on_violation: warn
+    test_id: "PERF-financial_aid-S01"
+
+  - name: tst_financial_aid_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_financial_aid_bronze
+    columns: [financial_aid_key]
+    on_violation: warn
+    test_id: "PERF-financial_aid-S02"
 ---
 pipeline: domain_f_silver
 flowgroup: work_study_silver_fct
@@ -657,3 +961,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_work_study_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_work_study_bronze
+    required_columns: [work_study_key]
+    on_violation: warn
+    test_id: "PERF-work_study-S01"
+
+  - name: tst_work_study_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_work_study_bronze
+    columns: [work_study_key]
+    on_violation: warn
+    test_id: "PERF-work_study-S02"

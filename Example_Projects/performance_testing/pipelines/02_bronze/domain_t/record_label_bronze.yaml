@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: record_label
   source_table: record_label_raw
+actions:
+  - name: tst_record_label_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_record_label_cleansed
+    required_columns: [record_label_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-record_label-B01"
+
+  - name: tst_record_label_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_record_label_cleansed
+    columns: [record_label_key]
+    on_violation: warn
+    test_id: "PERF-record_label-B02"

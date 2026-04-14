@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "currency"
+
+  - name: tst_currency_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_currency_bronze_cleaned
+    required_columns: [currency_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-currency-B01"
+
+  - name: tst_currency_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_currency_bronze_cleaned
+    columns: [currency_key]
+    on_violation: warn
+    test_id: "PERF-currency-B02"

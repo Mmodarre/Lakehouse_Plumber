@@ -30,6 +30,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_property_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_property_bronze
+    required_columns: [property_key]
+    on_violation: warn
+    test_id: "PERF-property-S01"
+
+  - name: tst_property_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_property_bronze
+    columns: [property_key]
+    on_violation: warn
+    test_id: "PERF-property-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: tenant_silver_dim
@@ -63,6 +79,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_tenant_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_tenant_bronze
+    required_columns: [tenant_key]
+    on_violation: warn
+    test_id: "PERF-tenant-S01"
+
+  - name: tst_tenant_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tenant_bronze
+    columns: [tenant_key]
+    on_violation: warn
+    test_id: "PERF-tenant-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: lease_silver_dim
@@ -96,6 +128,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_lease_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_lease_bronze
+    required_columns: [lease_key]
+    on_violation: warn
+    test_id: "PERF-lease-S01"
+
+  - name: tst_lease_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lease_bronze
+    columns: [lease_key]
+    on_violation: warn
+    test_id: "PERF-lease-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: landlord_silver_fct
@@ -129,6 +177,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_landlord_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_landlord_bronze
+    required_columns: [landlord_key]
+    on_violation: warn
+    test_id: "PERF-landlord-S01"
+
+  - name: tst_landlord_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_landlord_bronze
+    columns: [landlord_key]
+    on_violation: warn
+    test_id: "PERF-landlord-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: unit_silver_dim
@@ -162,6 +226,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_unit_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_unit_bronze
+    required_columns: [unit_key]
+    on_violation: warn
+    test_id: "PERF-unit-S01"
+
+  - name: tst_unit_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_unit_bronze
+    columns: [unit_key]
+    on_violation: warn
+    test_id: "PERF-unit-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: building_silver_dim
@@ -195,6 +275,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_building_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_building_bronze
+    required_columns: [building_key]
+    on_violation: warn
+    test_id: "PERF-building-S01"
+
+  - name: tst_building_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_building_bronze
+    columns: [building_key]
+    on_violation: warn
+    test_id: "PERF-building-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: amenity_silver_fct
@@ -228,6 +324,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_amenity_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_amenity_bronze
+    required_columns: [amenity_key]
+    on_violation: warn
+    test_id: "PERF-amenity-S01"
+
+  - name: tst_amenity_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_amenity_bronze
+    columns: [amenity_key]
+    on_violation: warn
+    test_id: "PERF-amenity-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: work_order_silver_dim
@@ -261,6 +373,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_work_order_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_work_order_bronze
+    required_columns: [work_order_key]
+    on_violation: warn
+    test_id: "PERF-work_order-S01"
+
+  - name: tst_work_order_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_work_order_bronze
+    columns: [work_order_key]
+    on_violation: warn
+    test_id: "PERF-work_order-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: rent_payment_silver_dim
@@ -294,6 +422,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_rent_payment_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_rent_payment_bronze
+    required_columns: [rent_payment_key]
+    on_violation: warn
+    test_id: "PERF-rent_payment-S01"
+
+  - name: tst_rent_payment_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_rent_payment_bronze
+    columns: [rent_payment_key]
+    on_violation: warn
+    test_id: "PERF-rent_payment-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: eviction_silver_fct
@@ -327,6 +471,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_eviction_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_eviction_bronze
+    required_columns: [eviction_key]
+    on_violation: warn
+    test_id: "PERF-eviction-S01"
+
+  - name: tst_eviction_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_eviction_bronze
+    columns: [eviction_key]
+    on_violation: warn
+    test_id: "PERF-eviction-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: listing_silver_dim
@@ -360,6 +520,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_listing_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_listing_bronze
+    required_columns: [listing_key]
+    on_violation: warn
+    test_id: "PERF-listing-S01"
+
+  - name: tst_listing_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_listing_bronze
+    columns: [listing_key]
+    on_violation: warn
+    test_id: "PERF-listing-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: showing_silver_dim
@@ -393,6 +569,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_showing_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_showing_bronze
+    required_columns: [showing_key]
+    on_violation: warn
+    test_id: "PERF-showing-S01"
+
+  - name: tst_showing_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_showing_bronze
+    columns: [showing_key]
+    on_violation: warn
+    test_id: "PERF-showing-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: appraisal_silver_fct
@@ -426,6 +618,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_appraisal_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_appraisal_bronze
+    required_columns: [appraisal_key]
+    on_violation: warn
+    test_id: "PERF-appraisal-S01"
+
+  - name: tst_appraisal_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_appraisal_bronze
+    columns: [appraisal_key]
+    on_violation: warn
+    test_id: "PERF-appraisal-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: mortgage_silver_dim
@@ -459,6 +667,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_mortgage_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_mortgage_bronze
+    required_columns: [mortgage_key]
+    on_violation: warn
+    test_id: "PERF-mortgage-S01"
+
+  - name: tst_mortgage_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mortgage_bronze
+    columns: [mortgage_key]
+    on_violation: warn
+    test_id: "PERF-mortgage-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: escrow_silver_dim
@@ -492,6 +716,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_escrow_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_escrow_bronze
+    required_columns: [escrow_key]
+    on_violation: warn
+    test_id: "PERF-escrow-S01"
+
+  - name: tst_escrow_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_escrow_bronze
+    columns: [escrow_key]
+    on_violation: warn
+    test_id: "PERF-escrow-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: closing_silver_fct
@@ -525,6 +765,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_closing_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_closing_bronze
+    required_columns: [closing_key]
+    on_violation: warn
+    test_id: "PERF-closing-S01"
+
+  - name: tst_closing_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_closing_bronze
+    columns: [closing_key]
+    on_violation: warn
+    test_id: "PERF-closing-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: deed_silver_dim
@@ -558,6 +814,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_deed_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_deed_bronze
+    required_columns: [deed_key]
+    on_violation: warn
+    test_id: "PERF-deed-S01"
+
+  - name: tst_deed_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_deed_bronze
+    columns: [deed_key]
+    on_violation: warn
+    test_id: "PERF-deed-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: survey_silver_dim
@@ -591,6 +863,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_survey_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_survey_bronze
+    required_columns: [survey_key]
+    on_violation: warn
+    test_id: "PERF-survey-S01"
+
+  - name: tst_survey_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_survey_bronze
+    columns: [survey_key]
+    on_violation: warn
+    test_id: "PERF-survey-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: zoning_silver_fct
@@ -624,6 +912,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_zoning_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_zoning_bronze
+    required_columns: [zoning_key]
+    on_violation: warn
+    test_id: "PERF-zoning-S01"
+
+  - name: tst_zoning_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_zoning_bronze
+    columns: [zoning_key]
+    on_violation: warn
+    test_id: "PERF-zoning-S02"
 ---
 pipeline: domain_g_silver
 flowgroup: permit_silver_dim
@@ -657,3 +961,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_permit_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_permit_bronze
+    required_columns: [permit_key]
+    on_violation: warn
+    test_id: "PERF-permit-S01"
+
+  - name: tst_permit_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_permit_bronze
+    columns: [permit_key]
+    on_violation: warn
+    test_id: "PERF-permit-S02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: conversion
   source_table: conversion_raw
+actions:
+  - name: tst_conversion_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_conversion_cleansed
+    required_columns: [conversion_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-conversion-B01"
+
+  - name: tst_conversion_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_conversion_cleansed
+    columns: [conversion_key]
+    on_violation: warn
+    test_id: "PERF-conversion-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "self_checkout"
+
+  - name: tst_self_checkout_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_self_checkout_bronze_cleaned
+    required_columns: [self_checkout_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-self_checkout-B01"
+
+  - name: tst_self_checkout_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_self_checkout_bronze_cleaned
+    columns: [self_checkout_key]
+    on_violation: warn
+    test_id: "PERF-self_checkout-B02"

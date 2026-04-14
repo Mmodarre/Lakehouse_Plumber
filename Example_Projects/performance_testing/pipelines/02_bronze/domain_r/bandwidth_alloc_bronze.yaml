@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "bandwidth_alloc"
+
+  - name: tst_bandwidth_alloc_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_bandwidth_alloc_bronze_cleaned
+    required_columns: [bandwidth_alloc_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-bandwidth_alloc-B01"
+
+  - name: tst_bandwidth_alloc_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bandwidth_alloc_bronze_cleaned
+    columns: [bandwidth_alloc_key]
+    on_violation: warn
+    test_id: "PERF-bandwidth_alloc-B02"

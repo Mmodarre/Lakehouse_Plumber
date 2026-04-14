@@ -7,3 +7,19 @@ template_parameters:
   table_name: data_catalog_raw
   landing_folder: data_catalog
   schema_file: part_schema
+actions:
+  - name: tst_data_catalog_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_data_catalog_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-data_catalog-R01"
+
+  - name: tst_data_catalog_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_data_catalog_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-data_catalog-R02"

@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "network_node"
+
+  - name: tst_network_node_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_network_node_bronze_cleaned
+    required_columns: [network_node_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-network_node-B01"
+
+  - name: tst_network_node_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_network_node_bronze_cleaned
+    columns: [network_node_key]
+    on_violation: warn
+    test_id: "PERF-network_node-B02"

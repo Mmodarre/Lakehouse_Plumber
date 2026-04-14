@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "encryption_key_modelled"
+
+  - name: tst_encryption_key_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_encryption_key_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-encryption_key-M01"
+
+  - name: tst_encryption_key_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_encryption_key_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-encryption_key-M02"

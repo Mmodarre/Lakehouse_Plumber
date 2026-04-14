@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: cabin
   source_table: cabin_raw
+actions:
+  - name: tst_cabin_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_cabin_cleansed
+    required_columns: [cabin_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cabin-B01"
+
+  - name: tst_cabin_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cabin_cleansed
+    columns: [cabin_key]
+    on_violation: warn
+    test_id: "PERF-cabin-B02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: booking
   source_table: booking_raw
+actions:
+  - name: tst_booking_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_booking_cleansed
+    required_columns: [booking_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-booking-B01"
+
+  - name: tst_booking_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_booking_cleansed
+    columns: [booking_key]
+    on_violation: warn
+    test_id: "PERF-booking-B02"

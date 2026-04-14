@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "consent_form"
+
+  - name: tst_consent_form_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_consent_form_bronze_cleaned
+    required_columns: [consent_form_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-consent_form-B01"
+
+  - name: tst_consent_form_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_consent_form_bronze_cleaned
+    columns: [consent_form_key]
+    on_violation: warn
+    test_id: "PERF-consent_form-B02"

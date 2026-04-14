@@ -7,3 +7,19 @@ template_parameters:
   table_name: host_stand_raw
   landing_folder: host_stand
   schema_file: nation_schema
+actions:
+  - name: tst_host_stand_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_host_stand_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-host_stand-R01"
+
+  - name: tst_host_stand_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_host_stand_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-host_stand-R02"

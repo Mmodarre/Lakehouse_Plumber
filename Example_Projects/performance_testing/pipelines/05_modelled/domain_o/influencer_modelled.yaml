@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "influencer_modelled"
+
+  - name: tst_influencer_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_influencer_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-influencer-M01"
+
+  - name: tst_influencer_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_influencer_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-influencer-M02"

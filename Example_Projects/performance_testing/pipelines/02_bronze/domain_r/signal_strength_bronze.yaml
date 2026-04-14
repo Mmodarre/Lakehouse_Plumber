@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "signal_strength"
+
+  - name: tst_signal_strength_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_signal_strength_bronze_cleaned
+    required_columns: [signal_strength_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-signal_strength-B01"
+
+  - name: tst_signal_strength_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_signal_strength_bronze_cleaned
+    columns: [signal_strength_key]
+    on_violation: warn
+    test_id: "PERF-signal_strength-B02"

@@ -9,45 +9,173 @@ flowgroups:
       table_name: ledger_raw
       landing_folder: ledger
       schema_file: nation_schema
+    actions:
+      - name: tst_ledger_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_ledger_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-ledger-R01"
+      
+      - name: tst_ledger_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_ledger_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-ledger-R02"
 
   - flowgroup: compliance_ingestion
     template_parameters:
       table_name: compliance_raw
       landing_folder: compliance
       schema_file: lineitem_schema
+    actions:
+      - name: tst_compliance_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_compliance_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-compliance-R01"
+      
+      - name: tst_compliance_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_compliance_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-compliance-R02"
 
   - flowgroup: revenue_ingestion
     template_parameters:
       table_name: revenue_raw
       landing_folder: revenue
       schema_file: customer_schema
+    actions:
+      - name: tst_revenue_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_revenue_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-revenue-R01"
+      
+      - name: tst_revenue_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_revenue_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-revenue-R02"
 
   - flowgroup: profit_center_ingestion
     template_parameters:
       table_name: profit_center_raw
       landing_folder: profit_center
       schema_file: orders_schema
+    actions:
+      - name: tst_profit_center_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_profit_center_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-profit_center-R01"
+      
+      - name: tst_profit_center_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_profit_center_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-profit_center-R02"
 
   - flowgroup: bank_statement_ingestion
     template_parameters:
       table_name: bank_statement_raw
       landing_folder: bank_statement
       schema_file: nation_schema
+    actions:
+      - name: tst_bank_statement_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_bank_statement_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-bank_statement-R01"
+      
+      - name: tst_bank_statement_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_bank_statement_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-bank_statement-R02"
 
   - flowgroup: variance_ingestion
     template_parameters:
       table_name: variance_raw
       landing_folder: variance
       schema_file: lineitem_schema
+    actions:
+      - name: tst_variance_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_variance_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-variance-R01"
+      
+      - name: tst_variance_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_variance_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-variance-R02"
 
   - flowgroup: write_off_ingestion
     template_parameters:
       table_name: write_off_raw
       landing_folder: write_off
       schema_file: part_schema
+    actions:
+      - name: tst_write_off_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_write_off_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-write_off-R01"
+      
+      - name: tst_write_off_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_write_off_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-write_off-R02"
 
   - flowgroup: withholding_ingestion
     template_parameters:
       table_name: withholding_raw
       landing_folder: withholding
       schema_file: orders_schema
+    actions:
+      - name: tst_withholding_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_withholding_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-withholding-R01"
+      
+      - name: tst_withholding_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_withholding_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-withholding-R02"

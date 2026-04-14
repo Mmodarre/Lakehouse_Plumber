@@ -7,3 +7,19 @@ template_parameters:
   table_name: signal_strength_raw
   landing_folder: signal_strength
   schema_file: part_schema
+actions:
+  - name: tst_signal_strength_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_signal_strength_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-signal_strength-R01"
+
+  - name: tst_signal_strength_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_signal_strength_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-signal_strength-R02"

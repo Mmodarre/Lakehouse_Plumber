@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "checkout_lane"
+
+  - name: tst_checkout_lane_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_checkout_lane_bronze_cleaned
+    required_columns: [checkout_lane_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-checkout_lane-B01"
+
+  - name: tst_checkout_lane_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_checkout_lane_bronze_cleaned
+    columns: [checkout_lane_key]
+    on_violation: warn
+    test_id: "PERF-checkout_lane-B02"

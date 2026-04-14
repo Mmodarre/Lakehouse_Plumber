@@ -30,6 +30,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_restaurant_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_restaurant_bronze
+    required_columns: [restaurant_key]
+    on_violation: warn
+    test_id: "PERF-restaurant-S01"
+
+  - name: tst_restaurant_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_restaurant_bronze
+    columns: [restaurant_key]
+    on_violation: warn
+    test_id: "PERF-restaurant-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: menu_item_silver_dim
@@ -63,6 +79,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_menu_item_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_menu_item_bronze
+    required_columns: [menu_item_key]
+    on_violation: warn
+    test_id: "PERF-menu_item-S01"
+
+  - name: tst_menu_item_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_menu_item_bronze
+    columns: [menu_item_key]
+    on_violation: warn
+    test_id: "PERF-menu_item-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: table_seat_silver_dim
@@ -96,6 +128,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_table_seat_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_table_seat_bronze
+    required_columns: [table_seat_key]
+    on_violation: warn
+    test_id: "PERF-table_seat-S01"
+
+  - name: tst_table_seat_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_table_seat_bronze
+    columns: [table_seat_key]
+    on_violation: warn
+    test_id: "PERF-table_seat-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: reservation_silver_fct
@@ -129,6 +177,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_reservation_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_reservation_bronze
+    required_columns: [reservation_key]
+    on_violation: warn
+    test_id: "PERF-reservation-S01"
+
+  - name: tst_reservation_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reservation_bronze
+    columns: [reservation_key]
+    on_violation: warn
+    test_id: "PERF-reservation-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: chef_silver_dim
@@ -162,6 +226,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_chef_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_chef_bronze
+    required_columns: [chef_key]
+    on_violation: warn
+    test_id: "PERF-chef-S01"
+
+  - name: tst_chef_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_chef_bronze
+    columns: [chef_key]
+    on_violation: warn
+    test_id: "PERF-chef-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: waiter_silver_dim
@@ -195,6 +275,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_waiter_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_waiter_bronze
+    required_columns: [waiter_key]
+    on_violation: warn
+    test_id: "PERF-waiter-S01"
+
+  - name: tst_waiter_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_waiter_bronze
+    columns: [waiter_key]
+    on_violation: warn
+    test_id: "PERF-waiter-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: kitchen_silver_fct
@@ -228,6 +324,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_kitchen_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_kitchen_bronze
+    required_columns: [kitchen_key]
+    on_violation: warn
+    test_id: "PERF-kitchen-S01"
+
+  - name: tst_kitchen_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_kitchen_bronze
+    columns: [kitchen_key]
+    on_violation: warn
+    test_id: "PERF-kitchen-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: food_order_silver_dim
@@ -261,6 +373,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_food_order_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_food_order_bronze
+    required_columns: [food_order_key]
+    on_violation: warn
+    test_id: "PERF-food_order-S01"
+
+  - name: tst_food_order_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_food_order_bronze
+    columns: [food_order_key]
+    on_violation: warn
+    test_id: "PERF-food_order-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: ingredient_silver_dim
@@ -294,6 +422,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_ingredient_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_ingredient_bronze
+    required_columns: [ingredient_key]
+    on_violation: warn
+    test_id: "PERF-ingredient-S01"
+
+  - name: tst_ingredient_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ingredient_bronze
+    columns: [ingredient_key]
+    on_violation: warn
+    test_id: "PERF-ingredient-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: recipe_silver_fct
@@ -327,6 +471,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_recipe_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_recipe_bronze
+    required_columns: [recipe_key]
+    on_violation: warn
+    test_id: "PERF-recipe-S01"
+
+  - name: tst_recipe_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_recipe_bronze
+    columns: [recipe_key]
+    on_violation: warn
+    test_id: "PERF-recipe-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: supplier_contract_silver_dim
@@ -360,6 +520,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_supplier_contract_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_supplier_contract_bronze
+    required_columns: [supplier_contract_key]
+    on_violation: warn
+    test_id: "PERF-supplier_contract-S01"
+
+  - name: tst_supplier_contract_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_supplier_contract_bronze
+    columns: [supplier_contract_key]
+    on_violation: warn
+    test_id: "PERF-supplier_contract-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: health_inspection_silver_dim
@@ -393,6 +569,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_health_inspection_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_health_inspection_bronze
+    required_columns: [health_inspection_key]
+    on_violation: warn
+    test_id: "PERF-health_inspection-S01"
+
+  - name: tst_health_inspection_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_health_inspection_bronze
+    columns: [health_inspection_key]
+    on_violation: warn
+    test_id: "PERF-health_inspection-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: tip_silver_fct
@@ -426,6 +618,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_tip_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_tip_bronze
+    required_columns: [tip_key]
+    on_violation: warn
+    test_id: "PERF-tip-S01"
+
+  - name: tst_tip_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tip_bronze
+    columns: [tip_key]
+    on_violation: warn
+    test_id: "PERF-tip-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: shift_schedule_silver_dim
@@ -459,6 +667,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_shift_schedule_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_shift_schedule_bronze
+    required_columns: [shift_schedule_key]
+    on_violation: warn
+    test_id: "PERF-shift_schedule-S01"
+
+  - name: tst_shift_schedule_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_shift_schedule_bronze
+    columns: [shift_schedule_key]
+    on_violation: warn
+    test_id: "PERF-shift_schedule-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: pantry_silver_dim
@@ -492,6 +716,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_pantry_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_pantry_bronze
+    required_columns: [pantry_key]
+    on_violation: warn
+    test_id: "PERF-pantry-S01"
+
+  - name: tst_pantry_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pantry_bronze
+    columns: [pantry_key]
+    on_violation: warn
+    test_id: "PERF-pantry-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: dish_silver_fct
@@ -525,6 +765,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_dish_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_dish_bronze
+    required_columns: [dish_key]
+    on_violation: warn
+    test_id: "PERF-dish-S01"
+
+  - name: tst_dish_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dish_bronze
+    columns: [dish_key]
+    on_violation: warn
+    test_id: "PERF-dish-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: beverage_silver_dim
@@ -558,6 +814,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_beverage_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_beverage_bronze
+    required_columns: [beverage_key]
+    on_violation: warn
+    test_id: "PERF-beverage-S01"
+
+  - name: tst_beverage_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_beverage_bronze
+    columns: [beverage_key]
+    on_violation: warn
+    test_id: "PERF-beverage-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: appetizer_silver_dim
@@ -591,6 +863,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_appetizer_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_appetizer_bronze
+    required_columns: [appetizer_key]
+    on_violation: warn
+    test_id: "PERF-appetizer-S01"
+
+  - name: tst_appetizer_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_appetizer_bronze
+    columns: [appetizer_key]
+    on_violation: warn
+    test_id: "PERF-appetizer-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: dessert_silver_fct
@@ -624,6 +912,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_dessert_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_dessert_bronze
+    required_columns: [dessert_key]
+    on_violation: warn
+    test_id: "PERF-dessert-S01"
+
+  - name: tst_dessert_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dessert_bronze
+    columns: [dessert_key]
+    on_violation: warn
+    test_id: "PERF-dessert-S02"
 ---
 pipeline: domain_l_silver
 flowgroup: special_menu_silver_dim
@@ -657,3 +961,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_special_menu_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_special_menu_bronze
+    required_columns: [special_menu_key]
+    on_violation: warn
+    test_id: "PERF-special_menu-S01"
+
+  - name: tst_special_menu_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_special_menu_bronze
+    columns: [special_menu_key]
+    on_violation: warn
+    test_id: "PERF-special_menu-S02"

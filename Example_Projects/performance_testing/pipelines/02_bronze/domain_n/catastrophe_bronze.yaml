@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "catastrophe"
+
+  - name: tst_catastrophe_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_catastrophe_bronze_cleaned
+    required_columns: [catastrophe_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-catastrophe-B01"
+
+  - name: tst_catastrophe_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_catastrophe_bronze_cleaned
+    columns: [catastrophe_key]
+    on_violation: warn
+    test_id: "PERF-catastrophe-B02"

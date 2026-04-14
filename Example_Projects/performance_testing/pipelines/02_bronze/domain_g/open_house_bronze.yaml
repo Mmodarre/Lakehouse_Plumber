@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "open_house"
+
+  - name: tst_open_house_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_open_house_bronze_cleaned
+    required_columns: [open_house_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-open_house-B01"
+
+  - name: tst_open_house_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_open_house_bronze_cleaned
+    columns: [open_house_key]
+    on_violation: warn
+    test_id: "PERF-open_house-B02"

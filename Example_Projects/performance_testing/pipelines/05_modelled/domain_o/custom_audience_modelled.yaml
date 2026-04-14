@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "custom_audience_modelled"
+
+  - name: tst_custom_audience_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_custom_audience_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-custom_audience-M01"
+
+  - name: tst_custom_audience_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_custom_audience_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-custom_audience-M02"

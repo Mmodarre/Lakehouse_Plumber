@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "free_agent"
+
+  - name: tst_free_agent_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_free_agent_bronze_cleaned
+    required_columns: [free_agent_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-free_agent-B01"
+
+  - name: tst_free_agent_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_free_agent_bronze_cleaned
+    columns: [free_agent_key]
+    on_violation: warn
+    test_id: "PERF-free_agent-B02"

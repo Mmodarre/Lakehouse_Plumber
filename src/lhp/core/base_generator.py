@@ -31,7 +31,7 @@ class BaseActionGenerator(ABC):
         # Template setup
         pkg_dir = Path(__file__).parent.parent
         template_dir = pkg_dir / "templates"
-        self.env = Environment(
+        self.env = Environment(  # nosec B701 — generates Python, not HTML
             loader=FileSystemLoader(template_dir),
             trim_blocks=True,
             lstrip_blocks=True,

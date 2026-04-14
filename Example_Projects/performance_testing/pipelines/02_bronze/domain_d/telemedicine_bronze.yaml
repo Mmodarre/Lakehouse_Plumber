@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "telemedicine"
+
+  - name: tst_telemedicine_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_telemedicine_bronze_cleaned
+    required_columns: [telemedicine_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-telemedicine-B01"
+
+  - name: tst_telemedicine_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_telemedicine_bronze_cleaned
+    columns: [telemedicine_key]
+    on_violation: warn
+    test_id: "PERF-telemedicine-B02"

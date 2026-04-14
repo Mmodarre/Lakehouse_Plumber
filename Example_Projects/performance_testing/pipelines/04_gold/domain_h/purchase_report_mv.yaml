@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "purchase_report_mv"
+
+  - name: tst_purchase_report_completeness
+    type: test
+    test_type: completeness
+    source: v_purchase_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-purchase-G01"
+
+  - name: tst_purchase_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_purchase_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-purchase-G02"

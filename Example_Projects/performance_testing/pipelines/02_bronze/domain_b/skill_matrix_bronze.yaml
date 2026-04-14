@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "skill_matrix"
+
+  - name: tst_skill_matrix_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_skill_matrix_bronze_cleaned
+    required_columns: [skill_matrix_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-skill_matrix-B01"
+
+  - name: tst_skill_matrix_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_skill_matrix_bronze_cleaned
+    columns: [skill_matrix_key]
+    on_violation: warn
+    test_id: "PERF-skill_matrix-B02"

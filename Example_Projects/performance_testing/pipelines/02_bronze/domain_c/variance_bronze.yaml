@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "variance"
+
+  - name: tst_variance_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_variance_bronze_cleaned
+    required_columns: [variance_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-variance-B01"
+
+  - name: tst_variance_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_variance_bronze_cleaned
+    columns: [variance_key]
+    on_violation: warn
+    test_id: "PERF-variance-B02"

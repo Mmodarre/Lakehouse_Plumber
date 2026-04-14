@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: substitution
   source_table: substitution_raw
+actions:
+  - name: tst_substitution_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_substitution_cleansed
+    required_columns: [substitution_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-substitution-B01"
+
+  - name: tst_substitution_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_substitution_cleansed
+    columns: [substitution_key]
+    on_violation: warn
+    test_id: "PERF-substitution-B02"

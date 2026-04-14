@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "retargeting"
+
+  - name: tst_retargeting_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_retargeting_bronze_cleaned
+    required_columns: [retargeting_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-retargeting-B01"
+
+  - name: tst_retargeting_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_retargeting_bronze_cleaned
+    columns: [retargeting_key]
+    on_violation: warn
+    test_id: "PERF-retargeting-B02"

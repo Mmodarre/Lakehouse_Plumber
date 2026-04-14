@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "outpatient"
+
+  - name: tst_outpatient_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_outpatient_bronze_cleaned
+    required_columns: [outpatient_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-outpatient-B01"
+
+  - name: tst_outpatient_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_outpatient_bronze_cleaned
+    columns: [outpatient_key]
+    on_violation: warn
+    test_id: "PERF-outpatient-B02"

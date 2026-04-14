@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "research_grant"
+
+  - name: tst_research_grant_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_research_grant_bronze_cleaned
+    required_columns: [research_grant_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-research_grant-B01"
+
+  - name: tst_research_grant_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_research_grant_bronze_cleaned
+    columns: [research_grant_key]
+    on_violation: warn
+    test_id: "PERF-research_grant-B02"

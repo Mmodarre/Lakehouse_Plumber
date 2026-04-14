@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: beneficiary
   source_table: beneficiary_raw
+actions:
+  - name: tst_beneficiary_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_beneficiary_cleansed
+    required_columns: [beneficiary_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-beneficiary-B01"
+
+  - name: tst_beneficiary_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_beneficiary_cleansed
+    columns: [beneficiary_key]
+    on_violation: warn
+    test_id: "PERF-beneficiary-B02"

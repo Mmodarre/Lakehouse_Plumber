@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "work_study"
+
+  - name: tst_work_study_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_work_study_bronze_cleaned
+    required_columns: [work_study_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-work_study-B01"
+
+  - name: tst_work_study_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_work_study_bronze_cleaned
+    columns: [work_study_key]
+    on_violation: warn
+    test_id: "PERF-work_study-B02"

@@ -7,3 +7,19 @@ template_parameters:
   table_name: terminal_raw
   landing_folder: terminal
   schema_file: customer_schema
+actions:
+  - name: tst_terminal_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_terminal_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-terminal-R01"
+
+  - name: tst_terminal_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_terminal_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-terminal-R02"

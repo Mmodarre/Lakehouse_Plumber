@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "debris_track"
+
+  - name: tst_debris_track_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_debris_track_bronze_cleaned
+    required_columns: [debris_track_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-debris_track-B01"
+
+  - name: tst_debris_track_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_debris_track_bronze_cleaned
+    columns: [debris_track_key]
+    on_violation: warn
+    test_id: "PERF-debris_track-B02"

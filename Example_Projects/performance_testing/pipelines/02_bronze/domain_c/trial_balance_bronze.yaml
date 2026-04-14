@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "trial_balance"
+
+  - name: tst_trial_balance_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_trial_balance_bronze_cleaned
+    required_columns: [trial_balance_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-trial_balance-B01"
+
+  - name: tst_trial_balance_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_trial_balance_bronze_cleaned
+    columns: [trial_balance_key]
+    on_violation: warn
+    test_id: "PERF-trial_balance-B02"

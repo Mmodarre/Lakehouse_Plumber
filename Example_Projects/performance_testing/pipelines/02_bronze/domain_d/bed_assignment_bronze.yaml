@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "bed_assignment"
+
+  - name: tst_bed_assignment_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_bed_assignment_bronze_cleaned
+    required_columns: [bed_assignment_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-bed_assignment-B01"
+
+  - name: tst_bed_assignment_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bed_assignment_bronze_cleaned
+    columns: [bed_assignment_key]
+    on_violation: warn
+    test_id: "PERF-bed_assignment-B02"

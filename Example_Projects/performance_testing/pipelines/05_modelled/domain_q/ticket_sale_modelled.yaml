@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "ticket_sale_modelled"
+
+  - name: tst_ticket_sale_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_ticket_sale_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-ticket_sale-M01"
+
+  - name: tst_ticket_sale_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ticket_sale_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-ticket_sale-M02"

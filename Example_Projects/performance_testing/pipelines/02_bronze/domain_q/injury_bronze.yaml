@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: injury
   source_table: injury_raw
+actions:
+  - name: tst_injury_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_injury_cleansed
+    required_columns: [injury_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-injury-B01"
+
+  - name: tst_injury_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_injury_cleansed
+    columns: [injury_key]
+    on_violation: warn
+    test_id: "PERF-injury-B02"

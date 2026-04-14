@@ -1447,6 +1447,9 @@ LHP's 9 test action types (``row_count``, ``uniqueness``, ``referential_integrit
 ``custom_expectations``) generate SQL-based validation views. Use ``--include-tests`` flag
 to generate them. Always run these in staging before production deployment.
 
+To publish test results to external systems like Azure DevOps or a Delta audit table,
+see :doc:`actions/test_reporting`.
+
 .. seealso::
    :doc:`actions/test_actions` for the full test action specification.
 

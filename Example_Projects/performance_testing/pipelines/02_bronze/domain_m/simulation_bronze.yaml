@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "simulation"
+
+  - name: tst_simulation_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_simulation_bronze_cleaned
+    required_columns: [simulation_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-simulation-B01"
+
+  - name: tst_simulation_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_simulation_bronze_cleaned
+    columns: [simulation_key]
+    on_violation: warn
+    test_id: "PERF-simulation-B02"

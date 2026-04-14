@@ -7,3 +7,19 @@ template_parameters:
   table_name: scrap_raw
   landing_folder: scrap
   schema_file: customer_schema
+actions:
+  - name: tst_scrap_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_scrap_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-scrap-R01"
+
+  - name: tst_scrap_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_scrap_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-scrap-R02"

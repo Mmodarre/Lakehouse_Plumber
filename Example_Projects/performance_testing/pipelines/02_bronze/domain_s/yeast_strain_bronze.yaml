@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "yeast_strain"
+
+  - name: tst_yeast_strain_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_yeast_strain_bronze_cleaned
+    required_columns: [yeast_strain_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-yeast_strain-B01"
+
+  - name: tst_yeast_strain_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_yeast_strain_bronze_cleaned
+    columns: [yeast_strain_key]
+    on_violation: warn
+    test_id: "PERF-yeast_strain-B02"

@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "petri_dish_modelled"
+
+  - name: tst_petri_dish_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_petri_dish_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-petri_dish-M01"
+
+  - name: tst_petri_dish_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_petri_dish_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-petri_dish-M02"

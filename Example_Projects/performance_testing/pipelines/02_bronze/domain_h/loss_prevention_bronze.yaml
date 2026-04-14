@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "loss_prevention"
+
+  - name: tst_loss_prevention_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_loss_prevention_bronze_cleaned
+    required_columns: [loss_prevention_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-loss_prevention-B01"
+
+  - name: tst_loss_prevention_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_loss_prevention_bronze_cleaned
+    columns: [loss_prevention_key]
+    on_violation: warn
+    test_id: "PERF-loss_prevention-B02"

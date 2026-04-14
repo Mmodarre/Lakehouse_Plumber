@@ -35,7 +35,7 @@ class TemplateRenderer:
             template_dir: Directory containing template files
         """
         self.template_dir = template_dir
-        self.env = Environment(
+        self.env = Environment(  # nosec B701 — generates Python, not HTML
             loader=FileSystemLoader(template_dir), trim_blocks=True, lstrip_blocks=True
         )
 

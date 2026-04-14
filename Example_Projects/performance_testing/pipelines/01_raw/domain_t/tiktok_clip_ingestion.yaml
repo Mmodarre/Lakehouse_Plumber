@@ -7,3 +7,19 @@ template_parameters:
   table_name: tiktok_clip_raw
   landing_folder: tiktok_clip
   schema_file: orders_schema
+actions:
+  - name: tst_tiktok_clip_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_tiktok_clip_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-tiktok_clip-R01"
+
+  - name: tst_tiktok_clip_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tiktok_clip_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-tiktok_clip-R02"

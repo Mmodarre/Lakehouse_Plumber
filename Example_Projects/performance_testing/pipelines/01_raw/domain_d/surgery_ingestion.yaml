@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "surgery_raw"
+
+  - name: tst_surgery_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_surgery_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-surgery-R01"
+
+  - name: tst_surgery_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_surgery_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-surgery-R02"

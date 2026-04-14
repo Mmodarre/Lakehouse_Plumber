@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "telemetry_frame_raw"
+
+  - name: tst_telemetry_frame_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_telemetry_frame_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-telemetry_frame-R01"
+
+  - name: tst_telemetry_frame_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_telemetry_frame_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-telemetry_frame-R02"

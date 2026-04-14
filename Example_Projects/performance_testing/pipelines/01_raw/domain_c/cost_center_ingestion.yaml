@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "cost_center_raw"
+
+  - name: tst_cost_center_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_cost_center_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cost_center-R01"
+
+  - name: tst_cost_center_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cost_center_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cost_center-R02"

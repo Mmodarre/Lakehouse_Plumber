@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "catalog_entry"
+
+  - name: tst_catalog_entry_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_catalog_entry_bronze_cleaned
+    required_columns: [catalog_entry_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-catalog_entry-B01"
+
+  - name: tst_catalog_entry_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_catalog_entry_bronze_cleaned
+    columns: [catalog_entry_key]
+    on_violation: warn
+    test_id: "PERF-catalog_entry-B02"

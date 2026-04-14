@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "retention_policy"
+
+  - name: tst_retention_policy_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_retention_policy_bronze_cleaned
+    required_columns: [retention_policy_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-retention_policy-B01"
+
+  - name: tst_retention_policy_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_retention_policy_bronze_cleaned
+    columns: [retention_policy_key]
+    on_violation: warn
+    test_id: "PERF-retention_policy-B02"

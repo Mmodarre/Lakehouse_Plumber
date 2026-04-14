@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "load_plan"
+
+  - name: tst_load_plan_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_load_plan_bronze_cleaned
+    required_columns: [load_plan_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-load_plan-B01"
+
+  - name: tst_load_plan_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_load_plan_bronze_cleaned
+    columns: [load_plan_key]
+    on_violation: warn
+    test_id: "PERF-load_plan-B02"

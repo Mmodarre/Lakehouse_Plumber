@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: chef
   source_table: chef_raw
+actions:
+  - name: tst_chef_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_chef_cleansed
+    required_columns: [chef_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-chef-B01"
+
+  - name: tst_chef_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_chef_cleansed
+    columns: [chef_key]
+    on_violation: warn
+    test_id: "PERF-chef-B02"

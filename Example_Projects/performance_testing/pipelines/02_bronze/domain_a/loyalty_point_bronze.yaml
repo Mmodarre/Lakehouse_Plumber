@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "loyalty_point"
+
+  - name: tst_loyalty_point_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_loyalty_point_bronze_cleaned
+    required_columns: [loyalty_point_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-loyalty_point-B01"
+
+  - name: tst_loyalty_point_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_loyalty_point_bronze_cleaned
+    columns: [loyalty_point_key]
+    on_violation: warn
+    test_id: "PERF-loyalty_point-B02"

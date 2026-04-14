@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "specification"
+
+  - name: tst_specification_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_specification_bronze_cleaned
+    required_columns: [specification_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-specification-B01"
+
+  - name: tst_specification_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_specification_bronze_cleaned
+    columns: [specification_key]
+    on_violation: warn
+    test_id: "PERF-specification-B02"

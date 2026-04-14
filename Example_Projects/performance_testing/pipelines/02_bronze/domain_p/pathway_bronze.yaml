@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "pathway"
+
+  - name: tst_pathway_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_pathway_bronze_cleaned
+    required_columns: [pathway_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-pathway-B01"
+
+  - name: tst_pathway_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pathway_bronze_cleaned
+    columns: [pathway_key]
+    on_violation: warn
+    test_id: "PERF-pathway-B02"

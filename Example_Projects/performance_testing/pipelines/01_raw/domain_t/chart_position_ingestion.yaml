@@ -7,3 +7,19 @@ template_parameters:
   table_name: chart_position_raw
   landing_folder: chart_position
   schema_file: product_schema
+actions:
+  - name: tst_chart_position_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_chart_position_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-chart_position-R01"
+
+  - name: tst_chart_position_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_chart_position_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-chart_position-R02"

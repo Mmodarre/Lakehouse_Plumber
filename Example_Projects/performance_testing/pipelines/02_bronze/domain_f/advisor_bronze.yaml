@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "advisor"
+
+  - name: tst_advisor_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_advisor_bronze_cleaned
+    required_columns: [advisor_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-advisor-B01"
+
+  - name: tst_advisor_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_advisor_bronze_cleaned
+    columns: [advisor_key]
+    on_violation: warn
+    test_id: "PERF-advisor-B02"

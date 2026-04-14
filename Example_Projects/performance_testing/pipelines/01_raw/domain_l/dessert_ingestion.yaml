@@ -7,3 +7,19 @@ template_parameters:
   table_name: dessert_raw
   landing_folder: dessert
   schema_file: part_schema
+actions:
+  - name: tst_dessert_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_dessert_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-dessert-R01"
+
+  - name: tst_dessert_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dessert_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-dessert-R02"

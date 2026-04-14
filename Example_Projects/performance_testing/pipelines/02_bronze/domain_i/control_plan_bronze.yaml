@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "control_plan"
+
+  - name: tst_control_plan_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_control_plan_bronze_cleaned
+    required_columns: [control_plan_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-control_plan-B01"
+
+  - name: tst_control_plan_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_control_plan_bronze_cleaned
+    columns: [control_plan_key]
+    on_violation: warn
+    test_id: "PERF-control_plan-B02"

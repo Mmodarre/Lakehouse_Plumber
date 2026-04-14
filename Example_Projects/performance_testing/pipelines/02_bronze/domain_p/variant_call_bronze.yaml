@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "variant_call"
+
+  - name: tst_variant_call_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_variant_call_bronze_cleaned
+    required_columns: [variant_call_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-variant_call-B01"
+
+  - name: tst_variant_call_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_variant_call_bronze_cleaned
+    columns: [variant_call_key]
+    on_violation: warn
+    test_id: "PERF-variant_call-B02"

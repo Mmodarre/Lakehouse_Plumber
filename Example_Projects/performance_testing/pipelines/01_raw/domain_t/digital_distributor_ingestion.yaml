@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "digital_distributor_raw"
+
+  - name: tst_digital_distributor_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_digital_distributor_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-digital_distributor-R01"
+
+  - name: tst_digital_distributor_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_digital_distributor_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-digital_distributor-R02"

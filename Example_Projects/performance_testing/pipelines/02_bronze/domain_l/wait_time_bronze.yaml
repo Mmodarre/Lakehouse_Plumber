@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "wait_time"
+
+  - name: tst_wait_time_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_wait_time_bronze_cleaned
+    required_columns: [wait_time_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-wait_time-B01"
+
+  - name: tst_wait_time_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wait_time_bronze_cleaned
+    columns: [wait_time_key]
+    on_violation: warn
+    test_id: "PERF-wait_time-B02"

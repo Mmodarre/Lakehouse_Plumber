@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "investigation_modelled"
+
+  - name: tst_investigation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_investigation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-investigation-M01"
+
+  - name: tst_investigation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_investigation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-investigation-M02"

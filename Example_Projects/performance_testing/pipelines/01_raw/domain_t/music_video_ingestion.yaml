@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "music_video_raw"
+
+  - name: tst_music_video_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_music_video_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-music_video-R01"
+
+  - name: tst_music_video_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_music_video_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-music_video-R02"

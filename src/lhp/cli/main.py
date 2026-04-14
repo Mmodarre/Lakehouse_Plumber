@@ -304,12 +304,18 @@ def generate(
 @click.option("--env", "-e", default="dev", help="Environment")
 @click.option("--pipeline", "-p", help="Specific pipeline to validate")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.option(
+    "--include-tests",
+    is_flag=True,
+    default=False,
+    help="Include test reporting validation",
+)
 @cli_error_boundary("Pipeline validation")
-def validate(env, pipeline, verbose):
+def validate(env, pipeline, verbose, include_tests):
     """Validate pipeline configurations"""
     from .commands.validate_command import ValidateCommand
 
-    ValidateCommand().execute(env, pipeline, verbose)
+    ValidateCommand().execute(env, pipeline, verbose, include_tests)
 
 
 @cli.command()

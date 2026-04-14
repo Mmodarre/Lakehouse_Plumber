@@ -8,78 +8,334 @@ flowgroups:
     template_parameters:
       entity_name: vehicle
       source_table: vehicle_raw
+    actions:
+      - name: tst_vehicle_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_vehicle_cleansed
+        required_columns: [vehicle_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-vehicle-B01"
+      
+      - name: tst_vehicle_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_vehicle_cleansed
+        columns: [vehicle_key]
+        on_violation: warn
+        test_id: "PERF-vehicle-B02"
 
   - flowgroup: driver_bronze
     template_parameters:
       entity_name: driver
       source_table: driver_raw
+    actions:
+      - name: tst_driver_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_driver_cleansed
+        required_columns: [driver_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-driver-B01"
+      
+      - name: tst_driver_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_driver_cleansed
+        columns: [driver_key]
+        on_violation: warn
+        test_id: "PERF-driver-B02"
 
   - flowgroup: route_bronze
     template_parameters:
       entity_name: route
       source_table: route_raw
+    actions:
+      - name: tst_route_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_route_cleansed
+        required_columns: [route_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-route-B01"
+      
+      - name: tst_route_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_route_cleansed
+        columns: [route_key]
+        on_violation: warn
+        test_id: "PERF-route-B02"
 
   - flowgroup: delivery_bronze
     template_parameters:
       entity_name: delivery
       source_table: delivery_raw
+    actions:
+      - name: tst_delivery_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_delivery_cleansed
+        required_columns: [delivery_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-delivery-B01"
+      
+      - name: tst_delivery_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_delivery_cleansed
+        columns: [delivery_key]
+        on_violation: warn
+        test_id: "PERF-delivery-B02"
 
   - flowgroup: tracking_bronze
     template_parameters:
       entity_name: tracking
       source_table: tracking_raw
+    actions:
+      - name: tst_tracking_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_tracking_cleansed
+        required_columns: [tracking_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-tracking-B01"
+      
+      - name: tst_tracking_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_tracking_cleansed
+        columns: [tracking_key]
+        on_violation: warn
+        test_id: "PERF-tracking-B02"
 
   - flowgroup: fuel_log_bronze
     template_parameters:
       entity_name: fuel_log
       source_table: fuel_log_raw
+    actions:
+      - name: tst_fuel_log_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_fuel_log_cleansed
+        required_columns: [fuel_log_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-fuel_log-B01"
+      
+      - name: tst_fuel_log_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_fuel_log_cleansed
+        columns: [fuel_log_key]
+        on_violation: warn
+        test_id: "PERF-fuel_log-B02"
 
   - flowgroup: maintenance_bronze
     template_parameters:
       entity_name: maintenance
       source_table: maintenance_raw
+    actions:
+      - name: tst_maintenance_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_maintenance_cleansed
+        required_columns: [maintenance_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-maintenance-B01"
+      
+      - name: tst_maintenance_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_maintenance_cleansed
+        columns: [maintenance_key]
+        on_violation: warn
+        test_id: "PERF-maintenance-B02"
 
   - flowgroup: inspection_bronze
     template_parameters:
       entity_name: inspection
       source_table: inspection_raw
+    actions:
+      - name: tst_inspection_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_inspection_cleansed
+        required_columns: [inspection_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-inspection-B01"
+      
+      - name: tst_inspection_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_inspection_cleansed
+        columns: [inspection_key]
+        on_violation: warn
+        test_id: "PERF-inspection-B02"
 
   - flowgroup: toll_bronze
     template_parameters:
       entity_name: toll
       source_table: toll_raw
+    actions:
+      - name: tst_toll_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_toll_cleansed
+        required_columns: [toll_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-toll-B01"
+      
+      - name: tst_toll_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_toll_cleansed
+        columns: [toll_key]
+        on_violation: warn
+        test_id: "PERF-toll-B02"
 
   - flowgroup: parking_bronze
     template_parameters:
       entity_name: parking
       source_table: parking_raw
+    actions:
+      - name: tst_parking_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_parking_cleansed
+        required_columns: [parking_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-parking-B01"
+      
+      - name: tst_parking_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_parking_cleansed
+        columns: [parking_key]
+        on_violation: warn
+        test_id: "PERF-parking-B02"
 
   - flowgroup: fleet_bronze
     template_parameters:
       entity_name: fleet
       source_table: fleet_raw
+    actions:
+      - name: tst_fleet_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_fleet_cleansed
+        required_columns: [fleet_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-fleet-B01"
+      
+      - name: tst_fleet_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_fleet_cleansed
+        columns: [fleet_key]
+        on_violation: warn
+        test_id: "PERF-fleet-B02"
 
   - flowgroup: dispatch_bronze
     template_parameters:
       entity_name: dispatch
       source_table: dispatch_raw
+    actions:
+      - name: tst_dispatch_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_dispatch_cleansed
+        required_columns: [dispatch_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-dispatch-B01"
+      
+      - name: tst_dispatch_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_dispatch_cleansed
+        columns: [dispatch_key]
+        on_violation: warn
+        test_id: "PERF-dispatch-B02"
 
   - flowgroup: cargo_bronze
     template_parameters:
       entity_name: cargo
       source_table: cargo_raw
+    actions:
+      - name: tst_cargo_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_cargo_cleansed
+        required_columns: [cargo_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-cargo-B01"
+      
+      - name: tst_cargo_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_cargo_cleansed
+        columns: [cargo_key]
+        on_violation: warn
+        test_id: "PERF-cargo-B02"
 
   - flowgroup: manifest_bronze
     template_parameters:
       entity_name: manifest
       source_table: manifest_raw
+    actions:
+      - name: tst_manifest_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_manifest_cleansed
+        required_columns: [manifest_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-manifest-B01"
+      
+      - name: tst_manifest_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_manifest_cleansed
+        columns: [manifest_key]
+        on_violation: warn
+        test_id: "PERF-manifest-B02"
 
   - flowgroup: consignment_bronze
     template_parameters:
       entity_name: consignment
       source_table: consignment_raw
+    actions:
+      - name: tst_consignment_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_consignment_cleansed
+        required_columns: [consignment_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-consignment-B01"
+      
+      - name: tst_consignment_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_consignment_cleansed
+        columns: [consignment_key]
+        on_violation: warn
+        test_id: "PERF-consignment-B02"
 
   - flowgroup: hub_bronze
     template_parameters:
       entity_name: hub
       source_table: hub_raw
+    actions:
+      - name: tst_hub_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_hub_cleansed
+        required_columns: [hub_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-hub-B01"
+      
+      - name: tst_hub_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_hub_cleansed
+        columns: [hub_key]
+        on_violation: warn
+        test_id: "PERF-hub-B02"

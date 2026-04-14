@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: dish
   source_table: dish_raw
+actions:
+  - name: tst_dish_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_dish_cleansed
+    required_columns: [dish_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-dish-B01"
+
+  - name: tst_dish_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dish_cleansed
+    columns: [dish_key]
+    on_violation: warn
+    test_id: "PERF-dish-B02"

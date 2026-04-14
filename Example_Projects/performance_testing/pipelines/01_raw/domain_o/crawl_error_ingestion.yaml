@@ -7,3 +7,19 @@ template_parameters:
   table_name: crawl_error_raw
   landing_folder: crawl_error
   schema_file: partsupp_schema
+actions:
+  - name: tst_crawl_error_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_crawl_error_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-crawl_error-R01"
+
+  - name: tst_crawl_error_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_crawl_error_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-crawl_error-R02"

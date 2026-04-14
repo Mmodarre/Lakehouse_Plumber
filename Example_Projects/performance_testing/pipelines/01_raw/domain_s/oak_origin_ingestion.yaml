@@ -7,3 +7,19 @@ template_parameters:
   table_name: oak_origin_raw
   landing_folder: oak_origin
   schema_file: orders_schema
+actions:
+  - name: tst_oak_origin_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_oak_origin_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-oak_origin-R01"
+
+  - name: tst_oak_origin_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_oak_origin_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-oak_origin-R02"

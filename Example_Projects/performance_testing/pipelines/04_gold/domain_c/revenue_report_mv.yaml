@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "revenue_report_mv"
+
+  - name: tst_revenue_report_completeness
+    type: test
+    test_type: completeness
+    source: v_revenue_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-revenue-G01"
+
+  - name: tst_revenue_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_revenue_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-revenue-G02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "meal_plan"
+
+  - name: tst_meal_plan_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_meal_plan_bronze_cleaned
+    required_columns: [meal_plan_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-meal_plan-B01"
+
+  - name: tst_meal_plan_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_meal_plan_bronze_cleaned
+    columns: [meal_plan_key]
+    on_violation: warn
+    test_id: "PERF-meal_plan-B02"

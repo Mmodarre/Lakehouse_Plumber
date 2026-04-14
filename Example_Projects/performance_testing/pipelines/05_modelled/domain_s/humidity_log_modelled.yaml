@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "humidity_log_modelled"
+
+  - name: tst_humidity_log_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_humidity_log_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-humidity_log-M01"
+
+  - name: tst_humidity_log_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_humidity_log_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-humidity_log-M02"

@@ -30,6 +30,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_customer_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_customer_bronze
+    required_columns: [customer_key]
+    on_violation: warn
+    test_id: "PERF-customer-S01"
+
+  - name: tst_customer_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_customer_bronze
+    columns: [customer_key]
+    on_violation: warn
+    test_id: "PERF-customer-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: order_silver_dim
@@ -63,6 +79,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_order_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_order_bronze
+    required_columns: [order_key]
+    on_violation: warn
+    test_id: "PERF-order-S01"
+
+  - name: tst_order_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_order_bronze
+    columns: [order_key]
+    on_violation: warn
+    test_id: "PERF-order-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: product_silver_dim
@@ -96,6 +128,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_product_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_product_bronze
+    required_columns: [product_key]
+    on_violation: warn
+    test_id: "PERF-product-S01"
+
+  - name: tst_product_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_product_bronze
+    columns: [product_key]
+    on_violation: warn
+    test_id: "PERF-product-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: supplier_silver_fct
@@ -129,6 +177,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_supplier_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_supplier_bronze
+    required_columns: [supplier_key]
+    on_violation: warn
+    test_id: "PERF-supplier-S01"
+
+  - name: tst_supplier_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_supplier_bronze
+    columns: [supplier_key]
+    on_violation: warn
+    test_id: "PERF-supplier-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: shipment_silver_dim
@@ -162,6 +226,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_shipment_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_shipment_bronze
+    required_columns: [shipment_key]
+    on_violation: warn
+    test_id: "PERF-shipment-S01"
+
+  - name: tst_shipment_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_shipment_bronze
+    columns: [shipment_key]
+    on_violation: warn
+    test_id: "PERF-shipment-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: invoice_silver_dim
@@ -195,6 +275,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_invoice_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_invoice_bronze
+    required_columns: [invoice_key]
+    on_violation: warn
+    test_id: "PERF-invoice-S01"
+
+  - name: tst_invoice_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_invoice_bronze
+    columns: [invoice_key]
+    on_violation: warn
+    test_id: "PERF-invoice-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: payment_silver_fct
@@ -228,6 +324,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_payment_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_payment_bronze
+    required_columns: [payment_key]
+    on_violation: warn
+    test_id: "PERF-payment-S01"
+
+  - name: tst_payment_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_payment_bronze
+    columns: [payment_key]
+    on_violation: warn
+    test_id: "PERF-payment-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: refund_silver_dim
@@ -261,6 +373,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_refund_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_refund_bronze
+    required_columns: [refund_key]
+    on_violation: warn
+    test_id: "PERF-refund-S01"
+
+  - name: tst_refund_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_refund_bronze
+    columns: [refund_key]
+    on_violation: warn
+    test_id: "PERF-refund-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: coupon_silver_dim
@@ -294,6 +422,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_coupon_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_coupon_bronze
+    required_columns: [coupon_key]
+    on_violation: warn
+    test_id: "PERF-coupon-S01"
+
+  - name: tst_coupon_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_coupon_bronze
+    columns: [coupon_key]
+    on_violation: warn
+    test_id: "PERF-coupon-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: promotion_silver_fct
@@ -327,6 +471,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_promotion_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_promotion_bronze
+    required_columns: [promotion_key]
+    on_violation: warn
+    test_id: "PERF-promotion-S01"
+
+  - name: tst_promotion_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_promotion_bronze
+    columns: [promotion_key]
+    on_violation: warn
+    test_id: "PERF-promotion-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: warehouse_silver_dim
@@ -360,6 +520,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_warehouse_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_warehouse_bronze
+    required_columns: [warehouse_key]
+    on_violation: warn
+    test_id: "PERF-warehouse-S01"
+
+  - name: tst_warehouse_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_warehouse_bronze
+    columns: [warehouse_key]
+    on_violation: warn
+    test_id: "PERF-warehouse-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: inventory_silver_dim
@@ -393,6 +569,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_inventory_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_inventory_bronze
+    required_columns: [inventory_key]
+    on_violation: warn
+    test_id: "PERF-inventory-S01"
+
+  - name: tst_inventory_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_inventory_bronze
+    columns: [inventory_key]
+    on_violation: warn
+    test_id: "PERF-inventory-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: category_silver_fct
@@ -426,6 +618,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_category_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_category_bronze
+    required_columns: [category_key]
+    on_violation: warn
+    test_id: "PERF-category-S01"
+
+  - name: tst_category_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_category_bronze
+    columns: [category_key]
+    on_violation: warn
+    test_id: "PERF-category-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: brand_silver_dim
@@ -459,6 +667,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_brand_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_brand_bronze
+    required_columns: [brand_key]
+    on_violation: warn
+    test_id: "PERF-brand-S01"
+
+  - name: tst_brand_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_brand_bronze
+    columns: [brand_key]
+    on_violation: warn
+    test_id: "PERF-brand-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: review_silver_dim
@@ -492,6 +716,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_review_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_review_bronze
+    required_columns: [review_key]
+    on_violation: warn
+    test_id: "PERF-review-S01"
+
+  - name: tst_review_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_review_bronze
+    columns: [review_key]
+    on_violation: warn
+    test_id: "PERF-review-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: wishlist_silver_fct
@@ -525,6 +765,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_wishlist_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_wishlist_bronze
+    required_columns: [wishlist_key]
+    on_violation: warn
+    test_id: "PERF-wishlist-S01"
+
+  - name: tst_wishlist_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wishlist_bronze
+    columns: [wishlist_key]
+    on_violation: warn
+    test_id: "PERF-wishlist-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: cart_silver_dim
@@ -558,6 +814,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_cart_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_cart_bronze
+    required_columns: [cart_key]
+    on_violation: warn
+    test_id: "PERF-cart-S01"
+
+  - name: tst_cart_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cart_bronze
+    columns: [cart_key]
+    on_violation: warn
+    test_id: "PERF-cart-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: address_silver_dim
@@ -591,6 +863,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_address_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_address_bronze
+    required_columns: [address_key]
+    on_violation: warn
+    test_id: "PERF-address-S01"
+
+  - name: tst_address_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_address_bronze
+    columns: [address_key]
+    on_violation: warn
+    test_id: "PERF-address-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: contact_silver_fct
@@ -624,6 +912,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_contact_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_contact_bronze
+    required_columns: [contact_key]
+    on_violation: warn
+    test_id: "PERF-contact-S01"
+
+  - name: tst_contact_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_contact_bronze
+    columns: [contact_key]
+    on_violation: warn
+    test_id: "PERF-contact-S02"
 ---
 pipeline: domain_a_silver
 flowgroup: subscription_silver_dim
@@ -657,3 +961,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_subscription_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_subscription_bronze
+    required_columns: [subscription_key]
+    on_violation: warn
+    test_id: "PERF-subscription-S01"
+
+  - name: tst_subscription_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_subscription_bronze
+    columns: [subscription_key]
+    on_violation: warn
+    test_id: "PERF-subscription-S02"

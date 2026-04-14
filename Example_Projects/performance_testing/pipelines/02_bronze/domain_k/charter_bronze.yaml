@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "charter"
+
+  - name: tst_charter_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_charter_bronze_cleaned
+    required_columns: [charter_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-charter-B01"
+
+  - name: tst_charter_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_charter_bronze_cleaned
+    columns: [charter_key]
+    on_violation: warn
+    test_id: "PERF-charter-B02"

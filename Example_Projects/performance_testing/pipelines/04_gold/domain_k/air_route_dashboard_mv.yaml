@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "air_route_dashboard_mv"
+
+  - name: tst_air_route_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_air_route_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-air_route-G01"
+
+  - name: tst_air_route_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_air_route_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-air_route-G02"

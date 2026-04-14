@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "doppler_shift"
+
+  - name: tst_doppler_shift_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_doppler_shift_bronze_cleaned
+    required_columns: [doppler_shift_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-doppler_shift-B01"
+
+  - name: tst_doppler_shift_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_doppler_shift_bronze_cleaned
+    columns: [doppler_shift_key]
+    on_violation: warn
+    test_id: "PERF-doppler_shift-B02"

@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "succession_plan"
+
+  - name: tst_succession_plan_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_succession_plan_bronze_cleaned
+    required_columns: [succession_plan_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-succession_plan-B01"
+
+  - name: tst_succession_plan_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_succession_plan_bronze_cleaned
+    columns: [succession_plan_key]
+    on_violation: warn
+    test_id: "PERF-succession_plan-B02"

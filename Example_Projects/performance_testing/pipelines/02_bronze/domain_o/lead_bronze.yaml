@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: lead
   source_table: lead_raw
+actions:
+  - name: tst_lead_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_lead_cleansed
+    required_columns: [lead_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-lead-B01"
+
+  - name: tst_lead_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lead_cleansed
+    columns: [lead_key]
+    on_violation: warn
+    test_id: "PERF-lead-B02"

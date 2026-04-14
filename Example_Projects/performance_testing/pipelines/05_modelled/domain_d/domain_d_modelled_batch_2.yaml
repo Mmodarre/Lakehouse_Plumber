@@ -35,6 +35,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "nursing_note_modelled"
+
+  - name: tst_nursing_note_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_nursing_note_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-nursing_note-M01"
+
+  - name: tst_nursing_note_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_nursing_note_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-nursing_note-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: radiology_modelled
@@ -73,6 +89,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "radiology_modelled"
+
+  - name: tst_radiology_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_radiology_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-radiology-M01"
+
+  - name: tst_radiology_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_radiology_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-radiology-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: pathology_modelled
@@ -111,6 +143,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "pathology_modelled"
+
+  - name: tst_pathology_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_pathology_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-pathology-M01"
+
+  - name: tst_pathology_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pathology_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-pathology-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: pharmacy_modelled
@@ -149,6 +197,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "pharmacy_modelled"
+
+  - name: tst_pharmacy_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_pharmacy_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-pharmacy-M01"
+
+  - name: tst_pharmacy_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pharmacy_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-pharmacy-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: blood_bank_modelled
@@ -187,6 +251,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "blood_bank_modelled"
+
+  - name: tst_blood_bank_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_blood_bank_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-blood_bank-M01"
+
+  - name: tst_blood_bank_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_blood_bank_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-blood_bank-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: surgery_modelled
@@ -225,6 +305,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "surgery_modelled"
+
+  - name: tst_surgery_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_surgery_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-surgery-M01"
+
+  - name: tst_surgery_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_surgery_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-surgery-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: anesthesia_modelled
@@ -263,6 +359,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "anesthesia_modelled"
+
+  - name: tst_anesthesia_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_anesthesia_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-anesthesia-M01"
+
+  - name: tst_anesthesia_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_anesthesia_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-anesthesia-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: recovery_modelled
@@ -301,6 +413,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "recovery_modelled"
+
+  - name: tst_recovery_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_recovery_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-recovery-M01"
+
+  - name: tst_recovery_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_recovery_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-recovery-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: rehab_modelled
@@ -339,6 +467,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "rehab_modelled"
+
+  - name: tst_rehab_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_rehab_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-rehab-M01"
+
+  - name: tst_rehab_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_rehab_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-rehab-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: outpatient_modelled
@@ -377,6 +521,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "outpatient_modelled"
+
+  - name: tst_outpatient_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_outpatient_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-outpatient-M01"
+
+  - name: tst_outpatient_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_outpatient_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-outpatient-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: emergency_modelled
@@ -415,6 +575,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "emergency_modelled"
+
+  - name: tst_emergency_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_emergency_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-emergency-M01"
+
+  - name: tst_emergency_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_emergency_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-emergency-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: triage_modelled
@@ -453,6 +629,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "triage_modelled"
+
+  - name: tst_triage_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_triage_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-triage-M01"
+
+  - name: tst_triage_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_triage_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-triage-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: bed_assignment_modelled
@@ -491,6 +683,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "bed_assignment_modelled"
+
+  - name: tst_bed_assignment_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_bed_assignment_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-bed_assignment-M01"
+
+  - name: tst_bed_assignment_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bed_assignment_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-bed_assignment-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: diet_plan_modelled
@@ -529,6 +737,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "diet_plan_modelled"
+
+  - name: tst_diet_plan_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_diet_plan_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-diet_plan-M01"
+
+  - name: tst_diet_plan_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_diet_plan_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-diet_plan-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: consent_form_modelled
@@ -567,6 +791,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "consent_form_modelled"
+
+  - name: tst_consent_form_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_consent_form_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-consent_form-M01"
+
+  - name: tst_consent_form_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_consent_form_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-consent_form-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: care_plan_modelled
@@ -605,6 +845,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "care_plan_modelled"
+
+  - name: tst_care_plan_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_care_plan_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-care_plan-M01"
+
+  - name: tst_care_plan_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_care_plan_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-care_plan-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: case_manager_modelled
@@ -643,6 +899,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "case_manager_modelled"
+
+  - name: tst_case_manager_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_case_manager_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-case_manager-M01"
+
+  - name: tst_case_manager_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_case_manager_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-case_manager-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: home_care_modelled
@@ -681,6 +953,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "home_care_modelled"
+
+  - name: tst_home_care_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_home_care_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-home_care-M01"
+
+  - name: tst_home_care_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_home_care_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-home_care-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: telemedicine_modelled
@@ -719,6 +1007,22 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "telemedicine_modelled"
+
+  - name: tst_telemedicine_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_telemedicine_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-telemedicine-M01"
+
+  - name: tst_telemedicine_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_telemedicine_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-telemedicine-M02"
 ---
 pipeline: domain_d_modelled
 flowgroup: wearable_data_modelled
@@ -757,3 +1061,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "wearable_data_modelled"
+
+  - name: tst_wearable_data_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_wearable_data_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-wearable_data-M01"
+
+  - name: tst_wearable_data_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wearable_data_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-wearable_data-M02"

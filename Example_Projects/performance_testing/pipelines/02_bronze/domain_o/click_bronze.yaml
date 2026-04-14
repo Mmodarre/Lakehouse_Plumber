@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: click
   source_table: click_raw
+actions:
+  - name: tst_click_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_click_cleansed
+    required_columns: [click_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-click-B01"
+
+  - name: tst_click_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_click_cleansed
+    columns: [click_key]
+    on_violation: warn
+    test_id: "PERF-click-B02"

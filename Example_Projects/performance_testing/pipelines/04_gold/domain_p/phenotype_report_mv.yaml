@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "phenotype_report_mv"
+
+  - name: tst_phenotype_report_completeness
+    type: test
+    test_type: completeness
+    source: v_phenotype_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-phenotype-G01"
+
+  - name: tst_phenotype_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_phenotype_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-phenotype-G02"

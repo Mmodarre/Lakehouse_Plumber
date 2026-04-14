@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "setback"
+
+  - name: tst_setback_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_setback_bronze_cleaned
+    required_columns: [setback_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-setback-B01"
+
+  - name: tst_setback_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_setback_bronze_cleaned
+    columns: [setback_key]
+    on_violation: warn
+    test_id: "PERF-setback-B02"

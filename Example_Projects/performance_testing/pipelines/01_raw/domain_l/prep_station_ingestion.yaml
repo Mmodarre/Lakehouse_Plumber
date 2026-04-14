@@ -29,3 +29,19 @@ actions:
       catalog: "{catalog}"
       schema: "{raw_schema}"
       table: "prep_station_raw"
+
+  - name: tst_prep_station_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_prep_station_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-prep_station-R01"
+
+  - name: tst_prep_station_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_prep_station_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-prep_station-R02"

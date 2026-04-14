@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "spam_report"
+
+  - name: tst_spam_report_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_spam_report_bronze_cleaned
+    required_columns: [spam_report_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-spam_report-B01"
+
+  - name: tst_spam_report_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_spam_report_bronze_cleaned
+    columns: [spam_report_key]
+    on_violation: warn
+    test_id: "PERF-spam_report-B02"

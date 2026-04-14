@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "aisle_dashboard_mv"
+
+  - name: tst_aisle_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_aisle_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-aisle-G01"
+
+  - name: tst_aisle_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_aisle_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-aisle-G02"

@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: iot_device
   source_table: iot_device_raw
+actions:
+  - name: tst_iot_device_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_iot_device_cleansed
+    required_columns: [iot_device_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-iot_device-B01"
+
+  - name: tst_iot_device_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_iot_device_cleansed
+    columns: [iot_device_key]
+    on_violation: warn
+    test_id: "PERF-iot_device-B02"

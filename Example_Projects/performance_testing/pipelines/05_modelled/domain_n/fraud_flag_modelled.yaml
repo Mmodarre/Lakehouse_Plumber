@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "fraud_flag_modelled"
+
+  - name: tst_fraud_flag_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_fraud_flag_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-fraud_flag-M01"
+
+  - name: tst_fraud_flag_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fraud_flag_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-fraud_flag-M02"

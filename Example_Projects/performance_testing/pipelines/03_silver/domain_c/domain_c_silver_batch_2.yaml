@@ -30,6 +30,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_invoice_line_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_invoice_line_bronze
+    required_columns: [invoice_line_key]
+    on_violation: warn
+    test_id: "PERF-invoice_line-S01"
+
+  - name: tst_invoice_line_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_invoice_line_bronze
+    columns: [invoice_line_key]
+    on_violation: warn
+    test_id: "PERF-invoice_line-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: credit_note_silver_fct
@@ -63,6 +79,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_credit_note_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_credit_note_bronze
+    required_columns: [credit_note_key]
+    on_violation: warn
+    test_id: "PERF-credit_note-S01"
+
+  - name: tst_credit_note_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_credit_note_bronze
+    columns: [credit_note_key]
+    on_violation: warn
+    test_id: "PERF-credit_note-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: debit_note_silver_dim
@@ -96,6 +128,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_debit_note_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_debit_note_bronze
+    required_columns: [debit_note_key]
+    on_violation: warn
+    test_id: "PERF-debit_note-S01"
+
+  - name: tst_debit_note_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_debit_note_bronze
+    columns: [debit_note_key]
+    on_violation: warn
+    test_id: "PERF-debit_note-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: bank_statement_silver_dim
@@ -129,6 +177,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_bank_statement_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_bank_statement_bronze
+    required_columns: [bank_statement_key]
+    on_violation: warn
+    test_id: "PERF-bank_statement-S01"
+
+  - name: tst_bank_statement_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bank_statement_bronze
+    columns: [bank_statement_key]
+    on_violation: warn
+    test_id: "PERF-bank_statement-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: reconciliation_silver_fct
@@ -162,6 +226,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_reconciliation_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_reconciliation_bronze
+    required_columns: [reconciliation_key]
+    on_violation: warn
+    test_id: "PERF-reconciliation-S01"
+
+  - name: tst_reconciliation_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reconciliation_bronze
+    columns: [reconciliation_key]
+    on_violation: warn
+    test_id: "PERF-reconciliation-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: cash_flow_silver_dim
@@ -195,6 +275,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_cash_flow_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_cash_flow_bronze
+    required_columns: [cash_flow_key]
+    on_violation: warn
+    test_id: "PERF-cash_flow-S01"
+
+  - name: tst_cash_flow_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cash_flow_bronze
+    columns: [cash_flow_key]
+    on_violation: warn
+    test_id: "PERF-cash_flow-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: trial_balance_silver_dim
@@ -228,6 +324,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_trial_balance_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_trial_balance_bronze
+    required_columns: [trial_balance_key]
+    on_violation: warn
+    test_id: "PERF-trial_balance-S01"
+
+  - name: tst_trial_balance_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_trial_balance_bronze
+    columns: [trial_balance_key]
+    on_violation: warn
+    test_id: "PERF-trial_balance-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: balance_sheet_silver_fct
@@ -261,6 +373,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_balance_sheet_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_balance_sheet_bronze
+    required_columns: [balance_sheet_key]
+    on_violation: warn
+    test_id: "PERF-balance_sheet-S01"
+
+  - name: tst_balance_sheet_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_balance_sheet_bronze
+    columns: [balance_sheet_key]
+    on_violation: warn
+    test_id: "PERF-balance_sheet-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: income_statement_silver_dim
@@ -294,6 +422,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_income_statement_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_income_statement_bronze
+    required_columns: [income_statement_key]
+    on_violation: warn
+    test_id: "PERF-income_statement-S01"
+
+  - name: tst_income_statement_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_income_statement_bronze
+    columns: [income_statement_key]
+    on_violation: warn
+    test_id: "PERF-income_statement-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: variance_silver_dim
@@ -327,6 +471,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_variance_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_variance_bronze
+    required_columns: [variance_key]
+    on_violation: warn
+    test_id: "PERF-variance-S01"
+
+  - name: tst_variance_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_variance_bronze
+    columns: [variance_key]
+    on_violation: warn
+    test_id: "PERF-variance-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: accrual_silver_fct
@@ -360,6 +520,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_accrual_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_accrual_bronze
+    required_columns: [accrual_key]
+    on_violation: warn
+    test_id: "PERF-accrual-S01"
+
+  - name: tst_accrual_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_accrual_bronze
+    columns: [accrual_key]
+    on_violation: warn
+    test_id: "PERF-accrual-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: prepayment_silver_dim
@@ -393,6 +569,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_prepayment_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_prepayment_bronze
+    required_columns: [prepayment_key]
+    on_violation: warn
+    test_id: "PERF-prepayment-S01"
+
+  - name: tst_prepayment_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_prepayment_bronze
+    columns: [prepayment_key]
+    on_violation: warn
+    test_id: "PERF-prepayment-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: write_off_silver_dim
@@ -426,6 +618,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_write_off_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_write_off_bronze
+    required_columns: [write_off_key]
+    on_violation: warn
+    test_id: "PERF-write_off-S01"
+
+  - name: tst_write_off_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_write_off_bronze
+    columns: [write_off_key]
+    on_violation: warn
+    test_id: "PERF-write_off-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: provision_silver_fct
@@ -459,6 +667,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_provision_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_provision_bronze
+    required_columns: [provision_key]
+    on_violation: warn
+    test_id: "PERF-provision-S01"
+
+  - name: tst_provision_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_provision_bronze
+    columns: [provision_key]
+    on_violation: warn
+    test_id: "PERF-provision-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: intercompany_silver_dim
@@ -492,6 +716,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_intercompany_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_intercompany_bronze
+    required_columns: [intercompany_key]
+    on_violation: warn
+    test_id: "PERF-intercompany-S01"
+
+  - name: tst_intercompany_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_intercompany_bronze
+    columns: [intercompany_key]
+    on_violation: warn
+    test_id: "PERF-intercompany-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: consolidation_silver_dim
@@ -525,6 +765,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_consolidation_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_consolidation_bronze
+    required_columns: [consolidation_key]
+    on_violation: warn
+    test_id: "PERF-consolidation-S01"
+
+  - name: tst_consolidation_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_consolidation_bronze
+    columns: [consolidation_key]
+    on_violation: warn
+    test_id: "PERF-consolidation-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: segment_report_silver_fct
@@ -558,6 +814,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_segment_report_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_segment_report_bronze
+    required_columns: [segment_report_key]
+    on_violation: warn
+    test_id: "PERF-segment_report-S01"
+
+  - name: tst_segment_report_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_segment_report_bronze
+    columns: [segment_report_key]
+    on_violation: warn
+    test_id: "PERF-segment_report-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: tax_filing_silver_dim
@@ -591,6 +863,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_tax_filing_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_tax_filing_bronze
+    required_columns: [tax_filing_key]
+    on_violation: warn
+    test_id: "PERF-tax_filing-S01"
+
+  - name: tst_tax_filing_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tax_filing_bronze
+    columns: [tax_filing_key]
+    on_violation: warn
+    test_id: "PERF-tax_filing-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: withholding_silver_dim
@@ -624,6 +912,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_withholding_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_withholding_bronze
+    required_columns: [withholding_key]
+    on_violation: warn
+    test_id: "PERF-withholding-S01"
+
+  - name: tst_withholding_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_withholding_bronze
+    columns: [withholding_key]
+    on_violation: warn
+    test_id: "PERF-withholding-S02"
 ---
 pipeline: domain_c_silver
 flowgroup: vat_return_silver_fct
@@ -657,3 +961,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_vat_return_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_vat_return_bronze
+    required_columns: [vat_return_key]
+    on_violation: warn
+    test_id: "PERF-vat_return-S01"
+
+  - name: tst_vat_return_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_vat_return_bronze
+    columns: [vat_return_key]
+    on_violation: warn
+    test_id: "PERF-vat_return-S02"

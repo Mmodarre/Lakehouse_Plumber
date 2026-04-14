@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "sync_license_quarterly_agg_mv"
+
+  - name: tst_sync_license_quarterly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_sync_license_quarterly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-sync_license-G01"
+
+  - name: tst_sync_license_quarterly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_sync_license_quarterly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-sync_license-G02"

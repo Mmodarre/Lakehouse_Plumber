@@ -46,3 +46,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "fixture"
+
+  - name: tst_fixture_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_fixture_bronze_cleaned
+    required_columns: [fixture_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-fixture-B01"
+
+  - name: tst_fixture_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fixture_bronze_cleaned
+    columns: [fixture_key]
+    on_violation: warn
+    test_id: "PERF-fixture-B02"

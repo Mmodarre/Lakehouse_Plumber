@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: actuator
   source_table: actuator_raw
+actions:
+  - name: tst_actuator_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_actuator_cleansed
+    required_columns: [actuator_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-actuator-B01"
+
+  - name: tst_actuator_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_actuator_cleansed
+    columns: [actuator_key]
+    on_violation: warn
+    test_id: "PERF-actuator-B02"

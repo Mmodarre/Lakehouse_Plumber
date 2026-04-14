@@ -20,3 +20,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "boarding_pass_dashboard_mv"
+
+  - name: tst_boarding_pass_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_boarding_pass_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-boarding_pass-G01"
+
+  - name: tst_boarding_pass_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_boarding_pass_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-boarding_pass-G02"

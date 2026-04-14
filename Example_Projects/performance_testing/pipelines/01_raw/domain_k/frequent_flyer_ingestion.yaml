@@ -7,3 +7,19 @@ template_parameters:
   table_name: frequent_flyer_raw
   landing_folder: frequent_flyer
   schema_file: nation_schema
+actions:
+  - name: tst_frequent_flyer_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_frequent_flyer_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-frequent_flyer-R01"
+
+  - name: tst_frequent_flyer_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_frequent_flyer_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-frequent_flyer-R02"

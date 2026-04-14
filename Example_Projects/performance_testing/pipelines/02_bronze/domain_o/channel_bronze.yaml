@@ -6,3 +6,19 @@ use_template: bronze_cleanse_template
 template_parameters:
   entity_name: channel
   source_table: channel_raw
+actions:
+  - name: tst_channel_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_channel_cleansed
+    required_columns: [channel_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-channel-B01"
+
+  - name: tst_channel_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_channel_cleansed
+    columns: [channel_key]
+    on_violation: warn
+    test_id: "PERF-channel-B02"

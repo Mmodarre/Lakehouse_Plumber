@@ -30,6 +30,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_patient_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_patient_bronze
+    required_columns: [patient_key]
+    on_violation: warn
+    test_id: "PERF-patient-S01"
+
+  - name: tst_patient_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_patient_bronze
+    columns: [patient_key]
+    on_violation: warn
+    test_id: "PERF-patient-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: doctor_silver_dim
@@ -63,6 +79,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_doctor_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_doctor_bronze
+    required_columns: [doctor_key]
+    on_violation: warn
+    test_id: "PERF-doctor-S01"
+
+  - name: tst_doctor_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_doctor_bronze
+    columns: [doctor_key]
+    on_violation: warn
+    test_id: "PERF-doctor-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: appointment_silver_dim
@@ -96,6 +128,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_appointment_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_appointment_bronze
+    required_columns: [appointment_key]
+    on_violation: warn
+    test_id: "PERF-appointment-S01"
+
+  - name: tst_appointment_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_appointment_bronze
+    columns: [appointment_key]
+    on_violation: warn
+    test_id: "PERF-appointment-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: prescription_silver_fct
@@ -129,6 +177,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_prescription_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_prescription_bronze
+    required_columns: [prescription_key]
+    on_violation: warn
+    test_id: "PERF-prescription-S01"
+
+  - name: tst_prescription_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_prescription_bronze
+    columns: [prescription_key]
+    on_violation: warn
+    test_id: "PERF-prescription-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: diagnosis_silver_dim
@@ -162,6 +226,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_diagnosis_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_diagnosis_bronze
+    required_columns: [diagnosis_key]
+    on_violation: warn
+    test_id: "PERF-diagnosis-S01"
+
+  - name: tst_diagnosis_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_diagnosis_bronze
+    columns: [diagnosis_key]
+    on_violation: warn
+    test_id: "PERF-diagnosis-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: treatment_silver_dim
@@ -195,6 +275,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_treatment_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_treatment_bronze
+    required_columns: [treatment_key]
+    on_violation: warn
+    test_id: "PERF-treatment-S01"
+
+  - name: tst_treatment_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_treatment_bronze
+    columns: [treatment_key]
+    on_violation: warn
+    test_id: "PERF-treatment-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: insurance_silver_fct
@@ -228,6 +324,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_insurance_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_insurance_bronze
+    required_columns: [insurance_key]
+    on_violation: warn
+    test_id: "PERF-insurance-S01"
+
+  - name: tst_insurance_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_insurance_bronze
+    columns: [insurance_key]
+    on_violation: warn
+    test_id: "PERF-insurance-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: claim_silver_dim
@@ -261,6 +373,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_claim_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_claim_bronze
+    required_columns: [claim_key]
+    on_violation: warn
+    test_id: "PERF-claim-S01"
+
+  - name: tst_claim_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_claim_bronze
+    columns: [claim_key]
+    on_violation: warn
+    test_id: "PERF-claim-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: hospital_silver_dim
@@ -294,6 +422,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_hospital_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_hospital_bronze
+    required_columns: [hospital_key]
+    on_violation: warn
+    test_id: "PERF-hospital-S01"
+
+  - name: tst_hospital_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_hospital_bronze
+    columns: [hospital_key]
+    on_violation: warn
+    test_id: "PERF-hospital-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: ward_silver_fct
@@ -327,6 +471,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_ward_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_ward_bronze
+    required_columns: [ward_key]
+    on_violation: warn
+    test_id: "PERF-ward-S01"
+
+  - name: tst_ward_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ward_bronze
+    columns: [ward_key]
+    on_violation: warn
+    test_id: "PERF-ward-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: lab_test_silver_dim
@@ -360,6 +520,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_lab_test_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_lab_test_bronze
+    required_columns: [lab_test_key]
+    on_violation: warn
+    test_id: "PERF-lab_test-S01"
+
+  - name: tst_lab_test_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lab_test_bronze
+    columns: [lab_test_key]
+    on_violation: warn
+    test_id: "PERF-lab_test-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: lab_result_silver_dim
@@ -393,6 +569,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_lab_result_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_lab_result_bronze
+    required_columns: [lab_result_key]
+    on_violation: warn
+    test_id: "PERF-lab_result-S01"
+
+  - name: tst_lab_result_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lab_result_bronze
+    columns: [lab_result_key]
+    on_violation: warn
+    test_id: "PERF-lab_result-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: medication_silver_fct
@@ -426,6 +618,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_medication_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_medication_bronze
+    required_columns: [medication_key]
+    on_violation: warn
+    test_id: "PERF-medication-S01"
+
+  - name: tst_medication_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_medication_bronze
+    columns: [medication_key]
+    on_violation: warn
+    test_id: "PERF-medication-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: allergy_silver_dim
@@ -459,6 +667,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_allergy_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_allergy_bronze
+    required_columns: [allergy_key]
+    on_violation: warn
+    test_id: "PERF-allergy-S01"
+
+  - name: tst_allergy_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_allergy_bronze
+    columns: [allergy_key]
+    on_violation: warn
+    test_id: "PERF-allergy-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: immunization_silver_dim
@@ -492,6 +716,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_immunization_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_immunization_bronze
+    required_columns: [immunization_key]
+    on_violation: warn
+    test_id: "PERF-immunization-S01"
+
+  - name: tst_immunization_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_immunization_bronze
+    columns: [immunization_key]
+    on_violation: warn
+    test_id: "PERF-immunization-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: referral_silver_fct
@@ -525,6 +765,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_referral_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_referral_bronze
+    required_columns: [referral_key]
+    on_violation: warn
+    test_id: "PERF-referral-S01"
+
+  - name: tst_referral_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_referral_bronze
+    columns: [referral_key]
+    on_violation: warn
+    test_id: "PERF-referral-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: discharge_silver_dim
@@ -558,6 +814,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_discharge_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_discharge_bronze
+    required_columns: [discharge_key]
+    on_violation: warn
+    test_id: "PERF-discharge-S01"
+
+  - name: tst_discharge_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_discharge_bronze
+    columns: [discharge_key]
+    on_violation: warn
+    test_id: "PERF-discharge-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: admission_silver_dim
@@ -591,6 +863,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_admission_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_admission_bronze
+    required_columns: [admission_key]
+    on_violation: warn
+    test_id: "PERF-admission-S01"
+
+  - name: tst_admission_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_admission_bronze
+    columns: [admission_key]
+    on_violation: warn
+    test_id: "PERF-admission-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: medical_procedure_silver_fct
@@ -624,6 +912,22 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_medical_procedure_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_medical_procedure_bronze
+    required_columns: [medical_procedure_key]
+    on_violation: warn
+    test_id: "PERF-medical_procedure-S01"
+
+  - name: tst_medical_procedure_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_medical_procedure_bronze
+    columns: [medical_procedure_key]
+    on_violation: warn
+    test_id: "PERF-medical_procedure-S02"
 ---
 pipeline: domain_d_silver
 flowgroup: vital_sign_silver_dim
@@ -657,3 +961,19 @@ actions:
         scd_type: 2
         ignore_null_updates: true
         track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_vital_sign_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_vital_sign_bronze
+    required_columns: [vital_sign_key]
+    on_violation: warn
+    test_id: "PERF-vital_sign-S01"
+
+  - name: tst_vital_sign_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_vital_sign_bronze
+    columns: [vital_sign_key]
+    on_violation: warn
+    test_id: "PERF-vital_sign-S02"

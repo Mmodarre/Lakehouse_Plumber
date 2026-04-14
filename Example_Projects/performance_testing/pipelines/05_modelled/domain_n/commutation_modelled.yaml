@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "commutation_modelled"
+
+  - name: tst_commutation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_commutation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-commutation-M01"
+
+  - name: tst_commutation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_commutation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-commutation-M02"

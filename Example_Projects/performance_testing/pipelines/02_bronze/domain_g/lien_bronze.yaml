@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "lien"
+
+  - name: tst_lien_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_lien_bronze_cleaned
+    required_columns: [lien_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-lien-B01"
+
+  - name: tst_lien_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lien_bronze_cleaned
+    columns: [lien_key]
+    on_violation: warn
+    test_id: "PERF-lien-B02"

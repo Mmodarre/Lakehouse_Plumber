@@ -22,3 +22,19 @@ actions:
       catalog: "{catalog}"
       schema: "{gold_schema}"
       table: "spc_chart_weekly_agg_mv"
+
+  - name: tst_spc_chart_weekly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_spc_chart_weekly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-spc_chart-G01"
+
+  - name: tst_spc_chart_weekly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_spc_chart_weekly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-spc_chart-G02"

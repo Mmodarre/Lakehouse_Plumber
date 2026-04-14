@@ -7,3 +7,19 @@ template_parameters:
   table_name: substation_raw
   landing_folder: substation
   schema_file: part_schema
+actions:
+  - name: tst_substation_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_substation_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-substation-R01"
+
+  - name: tst_substation_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_substation_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-substation-R02"

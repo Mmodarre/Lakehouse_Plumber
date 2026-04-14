@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "viral_moment"
+
+  - name: tst_viral_moment_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_viral_moment_bronze_cleaned
+    required_columns: [viral_moment_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-viral_moment-B01"
+
+  - name: tst_viral_moment_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_viral_moment_bronze_cleaned
+    columns: [viral_moment_key]
+    on_violation: warn
+    test_id: "PERF-viral_moment-B02"

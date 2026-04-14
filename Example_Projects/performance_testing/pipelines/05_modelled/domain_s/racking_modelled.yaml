@@ -35,3 +35,19 @@ actions:
       catalog: "{catalog}"
       schema: "{modelled_schema}"
       table: "racking_modelled"
+
+  - name: tst_racking_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_racking_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-racking-M01"
+
+  - name: tst_racking_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_racking_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-racking-M02"

@@ -83,3 +83,19 @@ actions:
       catalog: "{catalog}"
       schema: "{bronze_schema}"
       table: "earnest_money"
+
+  - name: tst_earnest_money_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_earnest_money_bronze_cleaned
+    required_columns: [earnest_money_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-earnest_money-B01"
+
+  - name: tst_earnest_money_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_earnest_money_bronze_cleaned
+    columns: [earnest_money_key]
+    on_violation: warn
+    test_id: "PERF-earnest_money-B02"

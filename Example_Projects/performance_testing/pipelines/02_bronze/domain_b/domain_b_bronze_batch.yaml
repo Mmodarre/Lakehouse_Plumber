@@ -8,78 +8,334 @@ flowgroups:
     template_parameters:
       entity_name: employee
       source_table: employee_raw
+    actions:
+      - name: tst_employee_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_employee_cleansed
+        required_columns: [employee_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-employee-B01"
+      
+      - name: tst_employee_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_employee_cleansed
+        columns: [employee_key]
+        on_violation: warn
+        test_id: "PERF-employee-B02"
 
   - flowgroup: department_bronze
     template_parameters:
       entity_name: department
       source_table: department_raw
+    actions:
+      - name: tst_department_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_department_cleansed
+        required_columns: [department_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-department-B01"
+      
+      - name: tst_department_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_department_cleansed
+        columns: [department_key]
+        on_violation: warn
+        test_id: "PERF-department-B02"
 
   - flowgroup: project_bronze
     template_parameters:
       entity_name: project
       source_table: project_raw
+    actions:
+      - name: tst_project_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_project_cleansed
+        required_columns: [project_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-project-B01"
+      
+      - name: tst_project_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_project_cleansed
+        columns: [project_key]
+        on_violation: warn
+        test_id: "PERF-project-B02"
 
   - flowgroup: task_bronze
     template_parameters:
       entity_name: task
       source_table: task_raw
+    actions:
+      - name: tst_task_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_task_cleansed
+        required_columns: [task_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-task-B01"
+      
+      - name: tst_task_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_task_cleansed
+        columns: [task_key]
+        on_violation: warn
+        test_id: "PERF-task-B02"
 
   - flowgroup: timesheet_bronze
     template_parameters:
       entity_name: timesheet
       source_table: timesheet_raw
+    actions:
+      - name: tst_timesheet_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_timesheet_cleansed
+        required_columns: [timesheet_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-timesheet-B01"
+      
+      - name: tst_timesheet_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_timesheet_cleansed
+        columns: [timesheet_key]
+        on_violation: warn
+        test_id: "PERF-timesheet-B02"
 
   - flowgroup: salary_bronze
     template_parameters:
       entity_name: salary
       source_table: salary_raw
+    actions:
+      - name: tst_salary_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_salary_cleansed
+        required_columns: [salary_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-salary-B01"
+      
+      - name: tst_salary_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_salary_cleansed
+        columns: [salary_key]
+        on_violation: warn
+        test_id: "PERF-salary-B02"
 
   - flowgroup: benefit_bronze
     template_parameters:
       entity_name: benefit
       source_table: benefit_raw
+    actions:
+      - name: tst_benefit_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_benefit_cleansed
+        required_columns: [benefit_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-benefit-B01"
+      
+      - name: tst_benefit_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_benefit_cleansed
+        columns: [benefit_key]
+        on_violation: warn
+        test_id: "PERF-benefit-B02"
 
   - flowgroup: leave_request_bronze
     template_parameters:
       entity_name: leave_request
       source_table: leave_request_raw
+    actions:
+      - name: tst_leave_request_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_leave_request_cleansed
+        required_columns: [leave_request_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-leave_request-B01"
+      
+      - name: tst_leave_request_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_leave_request_cleansed
+        columns: [leave_request_key]
+        on_violation: warn
+        test_id: "PERF-leave_request-B02"
 
   - flowgroup: training_bronze
     template_parameters:
       entity_name: training
       source_table: training_raw
+    actions:
+      - name: tst_training_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_training_cleansed
+        required_columns: [training_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-training-B01"
+      
+      - name: tst_training_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_training_cleansed
+        columns: [training_key]
+        on_violation: warn
+        test_id: "PERF-training-B02"
 
   - flowgroup: certification_bronze
     template_parameters:
       entity_name: certification
       source_table: certification_raw
+    actions:
+      - name: tst_certification_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_certification_cleansed
+        required_columns: [certification_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-certification-B01"
+      
+      - name: tst_certification_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_certification_cleansed
+        columns: [certification_key]
+        on_violation: warn
+        test_id: "PERF-certification-B02"
 
   - flowgroup: performance_bronze
     template_parameters:
       entity_name: performance
       source_table: performance_raw
+    actions:
+      - name: tst_performance_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_performance_cleansed
+        required_columns: [performance_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-performance-B01"
+      
+      - name: tst_performance_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_performance_cleansed
+        columns: [performance_key]
+        on_violation: warn
+        test_id: "PERF-performance-B02"
 
   - flowgroup: goal_bronze
     template_parameters:
       entity_name: goal
       source_table: goal_raw
+    actions:
+      - name: tst_goal_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_goal_cleansed
+        required_columns: [goal_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-goal-B01"
+      
+      - name: tst_goal_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_goal_cleansed
+        columns: [goal_key]
+        on_violation: warn
+        test_id: "PERF-goal-B02"
 
   - flowgroup: feedback_bronze
     template_parameters:
       entity_name: feedback
       source_table: feedback_raw
+    actions:
+      - name: tst_feedback_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_feedback_cleansed
+        required_columns: [feedback_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-feedback-B01"
+      
+      - name: tst_feedback_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_feedback_cleansed
+        columns: [feedback_key]
+        on_violation: warn
+        test_id: "PERF-feedback-B02"
 
   - flowgroup: interview_bronze
     template_parameters:
       entity_name: interview
       source_table: interview_raw
+    actions:
+      - name: tst_interview_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_interview_cleansed
+        required_columns: [interview_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-interview-B01"
+      
+      - name: tst_interview_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_interview_cleansed
+        columns: [interview_key]
+        on_violation: warn
+        test_id: "PERF-interview-B02"
 
   - flowgroup: candidate_bronze
     template_parameters:
       entity_name: candidate
       source_table: candidate_raw
+    actions:
+      - name: tst_candidate_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_candidate_cleansed
+        required_columns: [candidate_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-candidate-B01"
+      
+      - name: tst_candidate_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_candidate_cleansed
+        columns: [candidate_key]
+        on_violation: warn
+        test_id: "PERF-candidate-B02"
 
   - flowgroup: job_posting_bronze
     template_parameters:
       entity_name: job_posting
       source_table: job_posting_raw
+    actions:
+      - name: tst_job_posting_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_job_posting_cleansed
+        required_columns: [job_posting_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-job_posting-B01"
+      
+      - name: tst_job_posting_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_job_posting_cleansed
+        columns: [job_posting_key]
+        on_violation: warn
+        test_id: "PERF-job_posting-B02"

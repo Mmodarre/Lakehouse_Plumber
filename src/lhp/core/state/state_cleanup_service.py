@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import List, Set, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 # Import state models from separate module
 from ..state_models import FileState, ProjectState
@@ -25,6 +25,43 @@ class StateCleanupService:
         """
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
+
+    def _is_artifact_orphaned(self, file_state: FileState) -> bool:
+        """Check whether a pipeline artifact's config section still exists.
+
+        For ``test_reporting_*`` artifacts, loads ``lhp.yaml`` and checks
+        whether the ``test_reporting`` key is present.  On parse error the
+        safe default is *not orphaned* (avoid accidental deletion).
+
+        Args:
+            file_state: FileState with a non-None artifact_type
+
+        Returns:
+            True if the artifact should be considered orphaned
+        """
+        artifact_type = file_state.artifact_type or ""
+        if artifact_type.startswith("test_reporting"):
+            lhp_yaml = self.project_root / "lhp.yaml"
+            if not lhp_yaml.exists():
+                return True
+            try:
+                from ...utils.yaml_loader import load_yaml_file
+
+                data = load_yaml_file(
+                    lhp_yaml,
+                    allow_empty=True,
+                    error_context="orphan check for test_reporting artifact",
+                )
+                if isinstance(data, dict) and "test_reporting" in data:
+                    return False
+                return True
+            except Exception:
+                self.logger.debug(
+                    f"Could not parse lhp.yaml for artifact orphan check; "
+                    f"assuming not orphaned: {file_state.generated_path}"
+                )
+                return False
+        return False
 
     def find_orphaned_files(
         self,
@@ -59,6 +96,11 @@ class StateCleanupService:
         if active_flowgroups is not None:
             # Fast path: use pre-built active set (discovery already respects include patterns)
             for file_state in env_files.values():
+                if getattr(file_state, "artifact_type", None):
+                    if self._is_artifact_orphaned(file_state):
+                        orphaned_files.append(file_state)
+                    continue
+
                 source_path = self.project_root / file_state.source_yaml
 
                 if not source_path.exists():
@@ -105,6 +147,11 @@ class StateCleanupService:
                     return True
 
             for file_state in env_files.values():
+                if getattr(file_state, "artifact_type", None):
+                    if self._is_artifact_orphaned(file_state):
+                        orphaned_files.append(file_state)
+                    continue
+
                 source_path = self.project_root / file_state.source_yaml
 
                 if not source_path.exists():
