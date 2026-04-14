@@ -4,6 +4,7 @@ import pytest
 from pathlib import Path
 import tempfile
 import shutil
+from unittest.mock import MagicMock, patch
 from lhp.core.validator import ConfigValidator
 from lhp.models.config import FlowGroup, Action, ActionType
 
@@ -154,6 +155,60 @@ class TestValidationIncludeTests:
         
         # Validation should accept filter field
         errors = self.validator.validate_flowgroup(flowgroup)
-        
+
         # Should have no validation errors
         assert len(errors) == 0, f"Filter field should be valid: {errors}"
+
+
+class TestValidatePassesPreDiscoveredFlowgroups:
+    """Test that validate command passes pre_discovered_all_flowgroups through."""
+
+    def test_validate_pipeline_by_field_receives_pre_discovered(self):
+        """validate_pipeline_by_field receives pre_discovered_all_flowgroups from _validate_all_pipelines."""
+        from lhp.cli.commands.validate_command import ValidateCommand
+
+        cmd = ValidateCommand.__new__(ValidateCommand)
+        cmd.verbose = False
+        cmd.log_file = None
+
+        mock_orchestrator = MagicMock()
+        mock_orchestrator.validate_pipeline_by_field.return_value = ([], [])
+
+        all_flowgroups = [
+            FlowGroup(pipeline="p1", flowgroup="fg1"),
+            FlowGroup(pipeline="p2", flowgroup="fg2"),
+        ]
+
+        cmd._validate_all_pipelines(
+            ["p1", "p2"],
+            "dev",
+            mock_orchestrator,
+            include_tests=True,
+            all_flowgroups=all_flowgroups,
+        )
+
+        # Each call should pass the pre-discovered list
+        assert mock_orchestrator.validate_pipeline_by_field.call_count == 2
+        for call in mock_orchestrator.validate_pipeline_by_field.call_args_list:
+            assert call.kwargs["pre_discovered_all_flowgroups"] is all_flowgroups
+
+    def test_validate_pipeline_by_field_default_none_without_pre_discovered(self):
+        """Without all_flowgroups, pre_discovered_all_flowgroups defaults to None."""
+        from lhp.cli.commands.validate_command import ValidateCommand
+
+        cmd = ValidateCommand.__new__(ValidateCommand)
+        cmd.verbose = False
+        cmd.log_file = None
+
+        mock_orchestrator = MagicMock()
+        mock_orchestrator.validate_pipeline_by_field.return_value = ([], [])
+
+        cmd._validate_all_pipelines(
+            ["p1"],
+            "dev",
+            mock_orchestrator,
+            include_tests=True,
+        )
+
+        call_kwargs = mock_orchestrator.validate_pipeline_by_field.call_args.kwargs
+        assert call_kwargs["pre_discovered_all_flowgroups"] is None

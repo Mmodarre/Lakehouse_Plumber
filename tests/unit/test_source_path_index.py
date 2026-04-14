@@ -187,6 +187,64 @@ class TestFindSourceYamlIndex:
                 mock_discover.assert_called_once()
 
 
+class TestEagerIndexPopulation:
+    """Tests that discover_all_flowgroups eagerly populates the source path index."""
+
+    def test_discover_all_flowgroups_populates_index(self):
+        """discover_all_flowgroups populates index; subsequent find_source_yaml is O(1)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pipelines = root / "pipelines" / "p1"
+            pipelines.mkdir(parents=True)
+
+            (pipelines / "alpha.yaml").write_text(
+                "pipeline: p1\nflowgroup: fg1\n"
+            )
+            (pipelines / "beta.yaml").write_text(
+                "pipeline: p1\nflowgroup: fg2\n"
+            )
+
+            discoverer = FlowgroupDiscoverer(root)
+
+            # Index should not exist yet
+            assert discoverer._source_path_index is None
+
+            # discover_all_flowgroups should populate the index as a side-effect
+            flowgroups = discoverer.discover_all_flowgroups()
+            assert len(flowgroups) == 2
+            assert discoverer._source_path_index is not None
+            assert len(discoverer._source_path_index) == 2
+
+            # Verify find_source_yaml does NOT trigger another scan
+            with patch.object(
+                discoverer, "discover_all_flowgroups_with_paths"
+            ) as mock_discover:
+                result = discoverer.find_source_yaml_for_flowgroup(
+                    _make_flowgroup("p1", "fg1")
+                )
+                mock_discover.assert_not_called()
+            assert result is not None
+
+    def test_discover_all_flowgroups_index_not_overwritten(self):
+        """Second discover_all_flowgroups call does not overwrite the existing index."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pipelines = root / "pipelines" / "p1"
+            pipelines.mkdir(parents=True)
+
+            (pipelines / "fg.yaml").write_text(
+                "pipeline: p1\nflowgroup: fg1\n"
+            )
+
+            discoverer = FlowgroupDiscoverer(root)
+            discoverer.discover_all_flowgroups()
+            first_index = discoverer._source_path_index
+
+            # Call again — should keep the same index object
+            discoverer.discover_all_flowgroups()
+            assert discoverer._source_path_index is first_index
+
+
 class TestGetIncludePatternsNoReload:
     """Test that get_include_patterns uses cached config without reloading."""
 

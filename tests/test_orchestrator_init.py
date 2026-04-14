@@ -1594,7 +1594,7 @@ class TestActionOrchestratorValidationWithoutGeneration:
 
             # Should call discover_flowgroups_by_pipeline_field
             orchestrator_validation.discover_flowgroups_by_pipeline_field.assert_called_once_with(
-                pipeline_field
+                pipeline_field, pre_discovered_all_flowgroups=None
             )
 
     def test_validate_pipeline_by_field_method_delegation(
@@ -1619,7 +1619,9 @@ class TestActionOrchestratorValidationWithoutGeneration:
             )
 
             # Assert - method should delegate correctly
-            mock_discover.assert_called_once_with(pipeline_field)
+            mock_discover.assert_called_once_with(
+                pipeline_field, pre_discovered_all_flowgroups=None
+            )
 
             # Should return appropriate error for no flowgroups
             assert len(errors) == 1
@@ -2172,7 +2174,9 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Should handle empty string gracefully
             assert len(errors) == 1
             assert "No flowgroups found for pipeline field:" in errors[0]
-            mock_discover.assert_called_once_with("")
+            mock_discover.assert_called_once_with(
+                "", pre_discovered_all_flowgroups=None
+            )
 
         # Test None pipeline field - should raise exception or handle gracefully
         with patch.object(
@@ -2202,7 +2206,9 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Should handle whitespace-only string
             assert len(errors) == 1
             assert "No flowgroups found for pipeline field:    " in errors[0]
-            mock_discover_whitespace.assert_called_once_with("   ")
+            mock_discover_whitespace.assert_called_once_with(
+                "   ", pre_discovered_all_flowgroups=None
+            )
 
     def test_edge_case_service_returns_none_or_empty_results(
         self, orchestrator_error_handling, mock_flowgroup

@@ -63,7 +63,11 @@ class ValidateCommand(BaseCommand):
 
         # Validate all pipelines
         total_errors, total_warnings = self._validate_all_pipelines(
-            pipelines_to_validate, env, orchestrator, include_tests=include_tests
+            pipelines_to_validate,
+            env,
+            orchestrator,
+            include_tests=include_tests,
+            all_flowgroups=all_flowgroups,
         )
 
         # Validate test reporting configuration (reuses already-discovered flowgroups)
@@ -138,6 +142,7 @@ class ValidateCommand(BaseCommand):
         env: str,
         orchestrator: ActionOrchestrator,
         include_tests: bool = True,
+        all_flowgroups: Optional[list] = None,
     ) -> Tuple[int, int]:
         """
         Validate all specified pipelines.
@@ -147,6 +152,7 @@ class ValidateCommand(BaseCommand):
             env: Environment name
             orchestrator: Action orchestrator instance
             include_tests: If False, skip test actions during validation.
+            all_flowgroups: Pre-discovered flowgroups to avoid redundant scans.
 
         Returns:
             Tuple of (total_errors, total_warnings)
@@ -161,7 +167,10 @@ class ValidateCommand(BaseCommand):
             try:
                 # Validate pipeline using orchestrator by field
                 errors, warnings = orchestrator.validate_pipeline_by_field(
-                    pipeline_name, env, include_tests=include_tests
+                    pipeline_name,
+                    env,
+                    include_tests=include_tests,
+                    pre_discovered_all_flowgroups=all_flowgroups,
                 )
 
                 pipeline_errors = len(errors)

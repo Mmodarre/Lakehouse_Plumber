@@ -589,18 +589,26 @@ class ActionOrchestrator:
         return builder.build_flowgroup(pipeline_names)
 
     def discover_flowgroups_by_pipeline_field(
-        self, pipeline_field: str
+        self,
+        pipeline_field: str,
+        pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> List[FlowGroup]:
         """Discover all flowgroups with a specific pipeline field across all directories.
 
         Args:
             pipeline_field: The pipeline field value to search for
+            pre_discovered_all_flowgroups: If provided, filter from this list
+                instead of running a new discovery scan.
 
         Returns:
             List of flowgroups with the specified pipeline field
         """
-        with perf_timer(f"discover_by_pipeline_field [{pipeline_field}]"):
-            all_flowgroups = self.discover_all_flowgroups()
+        if pre_discovered_all_flowgroups is not None:
+            all_flowgroups = pre_discovered_all_flowgroups
+        else:
+            with perf_timer(f"discover_by_pipeline_field [{pipeline_field}]"):
+                all_flowgroups = self.discover_all_flowgroups()
+
         matching_flowgroups = []
 
         for flowgroup in all_flowgroups:
@@ -872,13 +880,9 @@ class ActionOrchestrator:
 
                 try:
                     fg_name = processed_flowgroup.flowgroup
-                    with perf_timer(
-                        f"find_source_yaml [{fg_name}]",
-                        category="find_source_yaml",
-                    ):
-                        source_yaml = self._find_source_yaml_for_flowgroup(
-                            processed_flowgroup
-                        )
+                    source_yaml = self._find_source_yaml_for_flowgroup(
+                        processed_flowgroup
+                    )
 
                     with perf_timer(
                         f"generate_code [{fg_name}]",
@@ -1516,11 +1520,7 @@ class ActionOrchestrator:
                 # Propagate private attributes that don't survive model_dump/reconstruct
                 if fg._auxiliary_files:
                     processed._auxiliary_files = fg._auxiliary_files
-                with perf_timer(
-                    f"find_source_yaml [{fg.flowgroup}]",
-                    category="find_source_yaml",
-                ):
-                    source_yaml = self._find_source_yaml_for_flowgroup(fg)
+                source_yaml = self._find_source_yaml_for_flowgroup(fg)
 
                 # Generate code with shared Python file copier
                 with perf_timer(
@@ -1669,7 +1669,11 @@ class ActionOrchestrator:
         return extract_source_views_from_action(source)
 
     def validate_pipeline_by_field(
-        self, pipeline_field: str, env: str, include_tests: bool = True
+        self,
+        pipeline_field: str,
+        env: str,
+        include_tests: bool = True,
+        pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> Tuple[List[str], List[str]]:
         """Validate pipeline configuration using pipeline field without generating code.
 
@@ -1678,6 +1682,8 @@ class ActionOrchestrator:
             env: Environment to validate for
             include_tests: If False, filter out test actions before processing.
                 Defaults to True for backward compatibility.
+            pre_discovered_all_flowgroups: If provided, filter from this list
+                instead of running a new discovery scan per pipeline.
 
         Returns:
             Tuple of (errors, warnings)
@@ -1687,7 +1693,10 @@ class ActionOrchestrator:
 
         try:
             # Discover flowgroups by pipeline field
-            flowgroups = self.discover_flowgroups_by_pipeline_field(pipeline_field)
+            flowgroups = self.discover_flowgroups_by_pipeline_field(
+                pipeline_field,
+                pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+            )
 
             if not flowgroups:
                 errors.append(
