@@ -1,0 +1,10 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 3%    # allow up to 2% drop from base, but never below 80%
+    patch:
+      default:
+        target: 80%      # new/changed lines must be at least 80% covered
+        threshold: 5%    # tolerate up to 5% below target before failing
