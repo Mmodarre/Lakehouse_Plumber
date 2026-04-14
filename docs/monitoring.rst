@@ -996,5 +996,6 @@ Related Documentation
 
 * :doc:`databricks_bundles` — Bundle integration, pipeline configuration, and resource generation
 * :doc:`concepts` — Understanding pipelines, flowgroups, and project configuration
+* :doc:`actions/test_reporting` — publish DQ test results to external systems
 * :doc:`errors_reference` — Complete error code reference
 * :doc:`cli` — Command-line reference

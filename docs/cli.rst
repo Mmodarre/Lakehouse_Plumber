@@ -177,3 +177,8 @@ By default, Lakehouse Plumber skips test actions during code generation for fast
 
 .. note::
    Test actions generate temporary DLT tables that persist test results for inspection and debugging while being automatically cleaned up when the pipeline completes.
+
+.. tip::
+   When ``test_reporting`` is configured in ``lhp.yaml``, the ``--include-tests``
+   flag also generates a test reporting event hook that publishes DQ results to
+   external systems. See :doc:`actions/test_reporting`.

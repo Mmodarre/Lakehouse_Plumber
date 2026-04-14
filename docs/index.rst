@@ -103,6 +103,7 @@ Features at a Glance
 
 * **Operational Metadata** — custom audit columns and metadata.
 * **Pipeline Monitoring** — centralized event log aggregation and analysis (see :doc:`monitoring`).
+* **Test Result Reporting** — publish DQ expectation results to Azure DevOps, Delta tables, or custom systems (see :doc:`actions/test_reporting`).
 * **Dependency Analysis** — automatic dependency detection and orchestration job generation (see :doc:`dependency_analysis`).
 * **Smart State Management** — regenerate only what changed; cleanup orphaned code.
 
@@ -136,6 +137,7 @@ Next Steps
 
 * :doc:`databricks_bundles` – integrate with Databricks Asset Bundles for production deployments.
 * :doc:`monitoring` – centralized event log monitoring and analysis across all pipelines.
+* :doc:`actions/test_reporting` – publish test results to external systems.
 * :doc:`dependency_analysis` – pipeline dependency analysis and orchestration job generation.
 * :doc:`cicd_reference` – CI/CD patterns, deployment strategies, and DataOps best practices.
 
@@ -177,6 +179,7 @@ Next Steps
 
    databricks_bundles
    monitoring
+   actions/test_reporting
    dependency_analysis
    cicd_reference
 
