@@ -35,7 +35,7 @@ class TestTestActionErrorHandling:
         
         # Should handle gracefully and generate code that references source
         code = generator.generate(action=action)
-        assert 'test_table' in code or 'None' in code  # Should handle missing SQL
+        assert 'test_table' in code
     
     def test_missing_expectations_in_custom(self):
         """Test error when custom_expectations test is missing expectations."""
@@ -51,7 +51,8 @@ class TestTestActionErrorHandling:
         code = generator.generate(action=action)
         # Should generate valid code even without expectations
         assert 'def tmp_test_' in code
-        assert 'spark' in code or 'return' in code
+        assert 'spark' in code
+        assert 'return' in code
     
     def test_invalid_source_type_for_row_count(self):
         """Test error when row_count has invalid source type."""
@@ -116,7 +117,7 @@ class TestTestActionErrorHandling:
         )
         code = generator.generate(action=action)
         assert '>=' in code
-        assert '<=' not in code or 'None' not in code
+        assert '<=' not in code
         
         # Test with only max_value
         action = Action(
@@ -130,7 +131,7 @@ class TestTestActionErrorHandling:
         )
         code = generator.generate(action=action)
         assert '<=' in code
-        assert '>=' not in code or 'None' not in code
+        assert '>=' not in code
     
     def test_invalid_on_violation_value(self):
         """Test handling of invalid on_violation values."""
@@ -162,7 +163,7 @@ class TestTestActionErrorHandling:
         for action in incomplete_actions:
             code = generator.generate(action=action)
             # Should always generate valid Python code
-            assert 'def tmp_test_' in code or 'def test' in action.name
+            assert 'def tmp_test_' in code
             assert 'return' in code
             # Should not have syntax errors (basic check)
             assert code.count('(') == code.count(')')
@@ -197,7 +198,7 @@ class TestTestActionErrorHandling:
         
         code = generator.generate(action=action)
         # Should handle long names, possibly truncating
-        assert 'def tmp_test_' in code or 'def ' in code
+        assert 'def tmp_test_' in code
     
     def test_special_characters_in_names(self):
         """Test handling of special characters in table/column names."""

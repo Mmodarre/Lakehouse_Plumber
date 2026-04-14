@@ -2074,5 +2074,136 @@ class TestDQEParserQuarantine:
         assert "a" in result and "b" in result and "c" in result
 
 
+@pytest.mark.unit
+class TestSQLTransformGoldenOutput:
+    """Golden output test for SQL transform generator."""
+
+    def test_basic_sql_transform_golden(self, golden):
+        generator = SQLTransformGenerator()
+        action = Action(
+            name="transform_customers",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SQL,
+            source=["v_customers"],
+            target="v_customers_clean",
+            sql="SELECT * FROM v_customers WHERE email IS NOT NULL",
+        )
+        code = generator.generate(action, {})
+        golden(code, "transform_sql")
+
+
+@pytest.mark.unit
+class TestDataQualityTransformGoldenOutput:
+    """Golden output test for data quality transform generator."""
+
+    def test_basic_data_quality_golden(self, golden, tmp_path):
+        generator = DataQualityTransformGenerator()
+
+        # Create expectations file
+        expectations_file = tmp_path / "expectations.yaml"
+        expectations = {
+            "email IS NOT NULL": {"action": "warn", "name": "email_not_null"},
+            "age >= 18": {"action": "drop", "name": "age_check"},
+            "id IS NOT NULL": {"action": "fail", "name": "id_not_null"},
+        }
+        expectations_file.write_text(yaml.dump(expectations))
+
+        action = Action(
+            name="validate_customers",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.DATA_QUALITY,
+            source="v_customers_clean",
+            target="v_customers_validated",
+            readMode="stream",
+            expectations_file=str(expectations_file),
+        )
+        code = generator.generate(action, {"spec_dir": tmp_path})
+        golden(code, "transform_data_quality")
+
+
+@pytest.mark.unit
+class TestPythonTransformGoldenOutput:
+    """Golden output test for Python transform generator."""
+
+    def test_basic_python_transform_golden(self, golden, tmp_path):
+        generator = PythonTransformGenerator()
+
+        # Create source Python file
+        transformations_dir = tmp_path / "transformations"
+        transformations_dir.mkdir()
+        (transformations_dir / "enrich.py").write_text(
+            "def enrich(df, spark, parameters):\n"
+            "    return df.withColumn('enriched', True)\n"
+        )
+
+        action = Action(
+            name="enrich_customers",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.PYTHON,
+            target="v_customers_enriched",
+            source="v_customers_validated",
+            module_path="transformations/enrich.py",
+            function_name="enrich",
+            parameters={"enrichment_type": "full"},
+        )
+        code = generator.generate(
+            action,
+            {
+                "spec_dir": tmp_path,
+                "flowgroup": FlowGroup(
+                    pipeline="test_pipeline",
+                    flowgroup="test_flowgroup",
+                    actions=[],
+                ),
+            },
+        )
+        golden(code, "transform_python")
+
+
+@pytest.mark.unit
+class TestTempTableTransformGoldenOutput:
+    """Golden output test for temp table transform generator."""
+
+    def test_basic_temp_table_golden(self, golden):
+        generator = TempTableTransformGenerator()
+        action = Action(
+            name="staging_customers",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.TEMP_TABLE,
+            target="customers_staging",
+            source="v_customers_enriched",
+        )
+        code = generator.generate(action, {})
+        golden(code, "transform_temp_table")
+
+
+@pytest.mark.unit
+class TestSchemaTransformGoldenOutput:
+    """Golden output test for schema transform generator."""
+
+    def test_basic_schema_transform_golden(self, golden):
+        generator = SchemaTransformGenerator()
+        action = Action(
+            name="standardize_customer_schema",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source="v_customer_raw",
+            target="v_customer_standardized",
+            schema_inline="""
+c_custkey -> customer_id: BIGINT
+c_name -> customer_name
+c_address -> address
+c_phone -> phone_number
+account_balance: DECIMAL(18,2)
+phone_number: STRING
+            """,
+            enforcement="strict",
+            readMode="batch",
+            description="Standardize customer schema and data types",
+        )
+        code = generator.generate(action, {})
+        golden(code, "transform_schema")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

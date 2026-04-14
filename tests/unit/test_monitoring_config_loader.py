@@ -75,18 +75,18 @@ class TestParseMonitoringConfig:
 
     def test_empty_materialized_views_list(self, loader):
         event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")
-        config = loader._parse_monitoring_config(
-            {"materialized_views": []}, event_log
-        )
+        config = loader._parse_monitoring_config({"materialized_views": []}, event_log)
         assert config.materialized_views == []
 
     def test_substitution_tokens_preserved(self, loader):
-        event_log = EventLogConfig(enabled=True, catalog="{catalog}", schema="{schema}")
-        config = loader._parse_monitoring_config(
-            {"catalog": "{catalog}", "schema": "{schema}"}, event_log
+        event_log = EventLogConfig(
+            enabled=True, catalog="${catalog}", schema="${schema}"
         )
-        assert config.catalog == "{catalog}"
-        assert config.schema_ == "{schema}"
+        config = loader._parse_monitoring_config(
+            {"catalog": "${catalog}", "schema": "${schema}"}, event_log
+        )
+        assert config.catalog == "${catalog}"
+        assert config.schema_ == "${schema}"
 
     def test_invalid_type_raises_error(self, loader):
         event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")

@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 
 from lhp.core.orchestrator import ActionOrchestrator
+from lhp.models.config import FlowGroup
 from lhp.utils.error_formatter import LHPError, ErrorCategory
 
 
@@ -393,7 +394,7 @@ class TestActionOrchestratorVersionEnforcement:
         )
 
         with (
-            patch("lhp.utils.version.get_version") as mock_get_version,
+            patch("lhp.core.orchestrator.get_version") as mock_get_version,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
 
@@ -418,7 +419,7 @@ class TestActionOrchestratorVersionEnforcement:
         """Test actual version parsing fails with LHPError code 008."""
         # Arrange
         with (
-            patch("lhp.utils.version.get_version") as mock_get_version,
+            patch("lhp.core.orchestrator.get_version") as mock_get_version,
             patch("packaging.version.Version") as mock_version_class,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
@@ -450,7 +451,6 @@ class TestActionOrchestratorVersionEnforcement:
         orchestrator_with_version_requirement._enforce_version_requirements()
 
         # Assert - no exception should be raised, and method should complete successfully
-        assert True  # Test passes if no exception is raised
 
     def test_specifier_set_exception_wraps_in_error_code_008(
         self, orchestrator_with_version_requirement
@@ -458,7 +458,7 @@ class TestActionOrchestratorVersionEnforcement:
         """Test SpecifierSet creation throws exception wraps in LHPError code 008."""
         # Arrange
         with (
-            patch("lhp.utils.version.get_version") as mock_get_version,
+            patch("lhp.core.orchestrator.get_version") as mock_get_version,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
 
@@ -489,7 +489,6 @@ class TestActionOrchestratorVersionEnforcement:
         orchestrator_with_version_requirement._enforce_version_requirements()
 
         # Assert - no exception should be raised
-        assert True  # Test passes if no exception is raised
 
 
 class TestActionOrchestratorFlowgroupDiscovery:
@@ -669,7 +668,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
             if "invalid.yaml" in str(yaml_path):
                 raise Exception("YAML parsing failed")
             else:
-                mock_fg = Mock()
+                mock_fg = Mock(spec=FlowGroup)
                 mock_fg.flowgroup = "valid_flowgroup"
                 mock_fg.actions = []  # Strategy code expects actions attribute
                 return [mock_fg]  # Return list of flowgroups
@@ -1692,7 +1691,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     ):
         """Test FlowgroupProcessor succeeds returns processed flowgroup."""
         # Arrange
-        processed_flowgroup = Mock()
+        processed_flowgroup = Mock(spec=FlowGroup)
         orchestrator_processing.mock_processor.process_flowgroup.return_value = (
             processed_flowgroup
         )
@@ -1824,7 +1823,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     ):
         """Test substitution_mgr is None still delegates to services."""
         # Arrange
-        processed_flowgroup = Mock()
+        processed_flowgroup = Mock(spec=FlowGroup)
         generated_code = "# Generated code without substitution\n"
 
         # Test both methods with None substitution manager
@@ -2047,7 +2046,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
         from lhp.utils.substitution import EnhancedSubstitutionManager
 
         mock_substitution_mgr = Mock(spec=EnhancedSubstitutionManager)
-        processed_flowgroup = Mock()
+        processed_flowgroup = Mock(spec=FlowGroup)
         generated_code = "# Generated code\n"
 
         orchestrator_error_handling.mock_processor.process_flowgroup.return_value = (
@@ -2127,7 +2126,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
 
         # Test 3: Invalid substitution manager type for generate_flowgroup_code
         invalid_substitution_mgr = "not_a_substitution_manager"
-        mock_flowgroup = Mock()
+        mock_flowgroup = Mock(spec=FlowGroup)
 
         with pytest.raises(
             TypeError, match="Service validation: Invalid substitution manager type"

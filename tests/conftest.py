@@ -9,6 +9,43 @@ from unittest.mock import patch
 import sys
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--update-baselines",
+        action="store_true",
+        default=False,
+        help="Update golden test baseline files with current generator output",
+    )
+
+
+@pytest.fixture
+def golden(request):
+    """Fixture for golden output test comparison.
+
+    Usage: golden(actual_code, "load_cloudfiles")
+    Run with --update-baselines to regenerate baseline files.
+    """
+    baseline_dir = Path(__file__).parent / "baselines"
+    update = request.config.getoption("--update-baselines")
+
+    def check(actual: str, name: str):
+        path = baseline_dir / f"{name}.py"
+        if update:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(actual)
+        else:
+            assert path.exists(), (
+                f"Baseline {path} missing — run: pytest --update-baselines -k golden"
+            )
+            expected = path.read_text()
+            assert actual == expected, (
+                f"Output differs from baseline {path}. "
+                f"Run --update-baselines if change is intentional."
+            )
+
+    return check
+
+
 def force_close_all_log_handlers():
     """Force close all logging handlers to release file locks on Windows."""
     root_logger = logging.getLogger()

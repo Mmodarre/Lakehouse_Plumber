@@ -3,11 +3,12 @@
 import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, patch
 
 from lhp.core.services.generation_planning_service import GenerationPlanningService, GenerationPlan
-from lhp.core.services.flowgroup_discoverer import FlowgroupDiscoverer  
+from lhp.core.services.flowgroup_discoverer import FlowgroupDiscoverer
 from lhp.core.state_manager import StateManager
+from lhp.core.state_models import FileState
 from lhp.models.config import FlowGroup, Action, ActionType
 
 
@@ -132,44 +133,35 @@ class TestGenerationPlanningService:
     
     def test_analyze_generation_context_staleness_with_test_actions(self):
         """Test generation context staleness detection for flowgroups with test actions."""
+        from lhp.core.strategies import SmartGenerationStrategy
+
         # Create flowgroup with test actions
         test_action = Action(name="test_action", type=ActionType.TEST, test_type="uniqueness")
         test_flowgroup = FlowGroup(
-            pipeline="test_pipeline", 
+            pipeline="test_pipeline",
             flowgroup="test_fg",
             actions=[test_action]
         )
-        
+
         # Mock state manager and tracked files
         mock_state_manager = Mock(spec=StateManager)
-        mock_file_state = Mock()
+        mock_file_state = Mock(spec=FileState)
         mock_file_state.source_yaml = "pipelines/test.yaml"
         mock_file_state.file_composite_checksum = "old_checksum"
-        
+
         mock_state_manager.get_generated_files.return_value = {
             "generated/dev/test_pipeline/test_fg.py": mock_file_state
         }
-        
-        # Mock the composite checksum checking
-        self.planning_service._would_composite_checksum_change = Mock(return_value=True)
-        
-        # Test context staleness detection
-        context_stale = self.planning_service.analyze_generation_context_staleness(
-            [test_flowgroup], "dev", False, mock_state_manager
-        )
-        
-        # TODO: CRITICAL BUG DISCOVERED - Context staleness detection not working!
-        # This is the same bug we found in test_empty_content_cleanup_removes_existing_file
-        # The context staleness detection should identify flowgroups with context changes
-        # but it's returning an empty set instead of detecting the include_tests change
-        
-        # Verify detection - TEMPORARILY DISABLED due to context staleness bug
-        # assert "test_fg" in context_stale  # Should detect context staleness but doesn't
-        # assert len(context_stale) == 1     # Should find 1 stale flowgroup but finds 0
-        
-        # For now, just verify the method doesn't crash and returns a set
-        assert isinstance(context_stale, set)
-        print(f"BUG: Context staleness detection returned {len(context_stale)} flowgroups, expected 1")
+
+        # Patch at the class level — analyze_generation_context_staleness creates a
+        # new SmartGenerationStrategy() internally, so instance-level mocking has no effect
+        with patch.object(SmartGenerationStrategy, '_would_composite_checksum_change', return_value=True):
+            context_stale = self.planning_service.analyze_generation_context_staleness(
+                [test_flowgroup], "dev", False, mock_state_manager
+            )
+
+        assert "test_fg" in context_stale
+        assert len(context_stale) == 1
     
     def test_analyze_generation_context_staleness_no_test_actions(self):
         """Test generation context staleness detection for flowgroups without test actions."""

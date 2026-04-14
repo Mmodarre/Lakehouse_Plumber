@@ -419,8 +419,8 @@ actions:
             files1 = state_manager1.get_generated_files("dev")
             files2 = state_manager2.get_generated_files("dev")
             
-            assert len(files1) >= 0
-            assert len(files2) >= 0
+            assert len(files1) == 1
+            assert isinstance(files2, dict)
     
     def test_invalid_environment_names(self):
         """Test handling of invalid environment names."""
@@ -491,4 +491,4 @@ actions:
             
             # Test staleness detection with many files
             stale_files = state_manager.find_stale_files("dev")
-            assert len(stale_files) >= 0  # Should not crash 
+            assert len(stale_files) == 0

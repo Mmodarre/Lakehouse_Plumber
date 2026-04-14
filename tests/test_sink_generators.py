@@ -976,13 +976,13 @@ class MyCustomDataSink:
                 }
             }
         )
-        
+
         self.generator.generate(action, {})
-        
+
         imports = self.generator.get_import_manager().get_consolidated_imports()
         assert "from pyspark import pipelines as dp" in imports
         assert "from pyspark.sql import functions as F" in imports
-    
+
     def test_custom_sink_code_forwarding(self):
         """Test that custom sink code is forwarded from sub-generator."""
         temp_dir = Path(tempfile.mkdtemp())
@@ -1024,7 +1024,110 @@ class MyCustomDataSink:
             assert "MyCustomDataSink" in self.generator.custom_sink_code
             assert hasattr(self.generator, "sink_file_path")
             assert self.generator.sink_file_path == "sinks/my_sink.py"
-        
+
         finally:
             shutil.rmtree(temp_dir)
 
+
+# ============================================================================
+# Golden Output Tests
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestSinkDispatcherGoldenOutput:
+    """Golden output test for sink write dispatcher."""
+
+    def test_sink_dispatcher_golden(self, golden):
+        generator = SinkWriteGenerator()
+        action = Action(
+            name="write_delta_sink",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "sink",
+                "sink_type": "delta",
+                "sink_name": "delta_sink",
+                "options": {
+                    "tableName": "catalog.schema.table",
+                },
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "sink_dispatcher")
+
+
+@pytest.mark.unit
+class TestDeltaSinkGoldenOutput:
+    """Golden output test for Delta sink write generator."""
+
+    def test_delta_sink_golden(self, golden):
+        generator = DeltaSinkWriteGenerator()
+        action = Action(
+            name="write_delta_sink",
+            type=ActionType.WRITE,
+            source="v_customers",
+            write_target={
+                "type": "sink",
+                "sink_type": "delta",
+                "sink_name": "delta_sink",
+                "options": {
+                    "tableName": "catalog.schema.table",
+                },
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "sink_delta")
+
+
+@pytest.mark.unit
+class TestKafkaSinkGoldenOutput:
+    """Golden output test for Kafka sink write generator."""
+
+    def test_kafka_sink_golden(self, golden):
+        generator = KafkaSinkWriteGenerator()
+        action = Action(
+            name="write_kafka_sink",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "sink",
+                "sink_type": "kafka",
+                "sink_name": "kafka_sink",
+                "bootstrap_servers": "localhost:9092",
+                "topic": "test_topic",
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "sink_kafka")
+
+
+@pytest.mark.unit
+class TestCustomSinkGoldenOutput:
+    """Golden output test for custom sink write generator."""
+
+    def test_custom_sink_golden(self, golden, tmp_path):
+        sink_file = tmp_path / "my_sink.py"
+        sink_file.write_text(
+            "class MyCustomDataSink:\n"
+            "    @classmethod\n"
+            "    def name(cls):\n"
+            '        return "my_custom_format"\n'
+        )
+
+        generator = CustomSinkWriteGenerator()
+        action = Action(
+            name="write_custom_sink",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "sink",
+                "sink_type": "custom",
+                "sink_name": "custom_sink",
+                "module_path": "my_sink.py",
+                "custom_sink_class": "MyCustomDataSink",
+            },
+        )
+        context = {"spec_dir": tmp_path}
+        code = generator.generate(action, context)
+        golden(code, "sink_custom")

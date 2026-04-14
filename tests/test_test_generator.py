@@ -122,3 +122,21 @@ class TestTestActionGenerator:
         assert expectations[0]['name'] == 'row_count_match'
         assert 'expression' in expectations[0]
         assert expectations[0]['on_violation'] == 'fail'
+
+
+@pytest.mark.unit
+class TestTestActionGoldenOutput:
+    """Golden output test for test action generator."""
+
+    __test__ = True  # This IS a test class (override the name-based heuristic)
+
+    def test_basic_test_action_golden(self, golden):
+        generator = TestActionGenerator()
+        action = Action(
+            name="test_row_count",
+            type=ActionType.TEST,
+            test_type="row_count",
+            source=["v_source", "v_target"],
+        )
+        code = generator.generate(action=action, context={})
+        golden(code, "test_action")

@@ -522,3 +522,29 @@ class TestSinkWriteGeneratorDispatcher:
         """Test that foreachbatch is registered in dispatcher."""
         assert "foreachbatch" in self.generator.generators
 
+
+# ============================================================================
+# Golden Output Tests
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestForEachBatchSinkGoldenOutput:
+    """Golden output test for ForEachBatch sink write generator."""
+
+    def test_foreachbatch_sink_golden(self, golden):
+        generator = ForEachBatchSinkWriteGenerator()
+        action = Action(
+            name="write_foreachbatch_sink",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "sink",
+                "sink_type": "foreachbatch",
+                "sink_name": "my_batch_sink",
+                "batch_handler": "df.write.format('delta').mode('append').saveAsTable('target_table')",
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "sink_foreachbatch")
+

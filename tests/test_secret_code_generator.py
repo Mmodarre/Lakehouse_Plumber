@@ -654,71 +654,47 @@ class TestSecretCodeGeneratorSyntaxValidation:
         input_code = 'spark.read.option("url", f"jdbc://{dbutils.secrets.get(scope=\'dev_secrets\', key=\'host\')}:5432/mydb")'
         
         # This should compile without syntax errors
-        try:
-            compile(input_code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code has syntax error: {e}")
+        compile(input_code, '<string>', 'exec')
 
     def test_generated_code_compiles_entire_secret(self):
         """Test that generated code with entire string as secret compiles."""
         # Create a complete Python statement for compilation
         input_code = 'spark.read.option("password", dbutils.secrets.get(scope=\'dev_secrets\', key=\'password\'))'
-        
+
         # This should compile without syntax errors
-        try:
-            compile(input_code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code has syntax error: {e}")
+        compile(input_code, '<string>', 'exec')
 
     def test_generated_code_compiles_complex_case(self):
         """Test that generated code with complex quotes compiles."""
         # Create a complete Python statement for compilation
         input_code = 'spark.read.option("query", f"SELECT * FROM \\"public\\".\\"users\\" WHERE host=\\"{dbutils.secrets.get(scope=\'dev_secrets\', key=\'host\')}\\"")'
-        
+
         # This should compile without syntax errors
-        try:
-            compile(input_code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code has syntax error: {e}")
+        compile(input_code, '<string>', 'exec')
 
     def test_generated_code_compiles_multiple_secrets(self):
         """Test that generated code with multiple secrets compiles."""
         # Create a complete Python statement for compilation
         input_code = 'spark.read.option("url", f"jdbc://{dbutils.secrets.get(scope=\'dev_secrets\', key=\'host\')}:{dbutils.secrets.get(scope=\'dev_secrets\', key=\'port\')}/mydb")'
-        
+
         # This should compile without syntax errors
-        try:
-            compile(input_code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code has syntax error: {e}")
+        compile(input_code, '<string>', 'exec')
 
     def test_generated_code_compiles_complex_jdbc_url(self):
         """Test that generated code with complex JDBC URL compiles."""
         # Create a complete Python statement for compilation
         input_code = 'spark.read.option("url", f"jdbc:postgresql://{dbutils.secrets.get(scope=\'db_secrets\', key=\'host\')}:{dbutils.secrets.get(scope=\'db_secrets\', key=\'port\')}/{dbutils.secrets.get(scope=\'db_secrets\', key=\'database\')}?user={dbutils.secrets.get(scope=\'db_secrets\', key=\'username\')}&password={dbutils.secrets.get(scope=\'db_secrets\', key=\'password\')}&ssl=true")'
-        
+
         # This should compile without syntax errors
-        try:
-            compile(input_code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code has syntax error: {e}")
+        compile(input_code, '<string>', 'exec')
 
     def test_generated_code_compiles_intelligent_quotes(self):
         """Test that generated code with intelligent quote selection compiles."""
         # Create a complete Python statement for compilation
         input_code = 'spark.read.option(\'query\', f"SELECT * FROM \\"users\\" WHERE id={dbutils.secrets.get(scope=\'dev_secrets\', key=\'user_id\')}")'
-        
+
         # This should compile without syntax errors
-        try:
-            compile(input_code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code has syntax error: {e}")
+        compile(input_code, '<string>', 'exec')
 
 
 if __name__ == "__main__":
