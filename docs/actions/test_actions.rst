@@ -8,15 +8,19 @@ Test Actions (Data Quality Unit Tests)
 Test actions let you validate data pipelines using Databricks Lakeflow Declarative Pipelines expectations. They generate lightweight DLT temporary tables that read from existing tables/views and attach expectations that either fail the pipeline or warn on violations.
 
 .. note::
-   **CLI Flag Required**: Test actions are skipped by default during code generation for faster builds. Use the ``--include-tests`` flag to generate test code:
+   **CLI Flag Required**: By default, both ``lhp generate`` and ``lhp validate`` skip test actions
+   during pipeline processing. Use ``--include-tests`` to include test action
+   validation and code generation:
 
    .. code-block:: bash
 
       # Skip tests (default) - faster builds
       lhp generate -e dev
+      lhp validate -e dev
 
       # Include tests - for development and testing
       lhp generate -e dev --include-tests
+      lhp validate -e dev --include-tests
 
 .. seealso::
    **Publishing Test Results** — To publish DQ test results to external systems

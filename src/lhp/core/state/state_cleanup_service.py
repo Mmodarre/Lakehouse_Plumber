@@ -26,21 +26,33 @@ class StateCleanupService:
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
 
-    def _is_artifact_orphaned(self, file_state: FileState) -> bool:
+    def _is_artifact_orphaned(
+        self,
+        file_state: FileState,
+        include_tests: Optional[bool] = None,
+    ) -> bool:
         """Check whether a pipeline artifact's config section still exists.
 
-        For ``test_reporting_*`` artifacts, loads ``lhp.yaml`` and checks
-        whether the ``test_reporting`` key is present.  On parse error the
-        safe default is *not orphaned* (avoid accidental deletion).
+        For ``test_reporting_*`` artifacts:
+        - If ``include_tests`` is ``False``, the current run has opted out of
+          tests, so the artifact is orphaned regardless of ``lhp.yaml``.
+        - Otherwise (``True`` / ``None`` for legacy callers or ``lhp state``
+          introspection), fall back to ``lhp.yaml`` inspection: orphaned iff
+          the ``test_reporting`` key is absent. On parse error the safe
+          default is *not orphaned* (avoid accidental deletion).
 
         Args:
             file_state: FileState with a non-None artifact_type
+            include_tests: Current run's ``--include-tests`` flag; ``None``
+                for callers that have no such context (e.g. ``lhp state``).
 
         Returns:
             True if the artifact should be considered orphaned
         """
         artifact_type = file_state.artifact_type or ""
         if artifact_type.startswith("test_reporting"):
+            if include_tests is False:
+                return True
             lhp_yaml = self.project_root / "lhp.yaml"
             if not lhp_yaml.exists():
                 return True
@@ -69,6 +81,7 @@ class StateCleanupService:
         environment: str,
         include_patterns: Optional[List[str]] = None,
         active_flowgroups: Optional[Set[Tuple[str, str]]] = None,
+        include_tests: Optional[bool] = None,
     ) -> List[FileState]:
         """
         Find generated files whose source YAML files no longer exist or don't match include patterns.
@@ -86,6 +99,9 @@ class StateCleanupService:
             environment: Environment name
             include_patterns: Optional include patterns for filtering
             active_flowgroups: Optional set of (pipeline, flowgroup) tuples from discovery
+            include_tests: Current run's ``--include-tests`` flag; forwarded to
+                ``_is_artifact_orphaned`` so a ``False`` run reaps stale
+                test_reporting_* artifacts left over from a prior tests-on run.
 
         Returns:
             List of orphaned FileState objects
@@ -97,7 +113,9 @@ class StateCleanupService:
             # Fast path: use pre-built active set (discovery already respects include patterns)
             for file_state in env_files.values():
                 if getattr(file_state, "artifact_type", None):
-                    if self._is_artifact_orphaned(file_state):
+                    if self._is_artifact_orphaned(
+                        file_state, include_tests=include_tests
+                    ):
                         orphaned_files.append(file_state)
                     continue
 
@@ -148,7 +166,9 @@ class StateCleanupService:
 
             for file_state in env_files.values():
                 if getattr(file_state, "artifact_type", None):
-                    if self._is_artifact_orphaned(file_state):
+                    if self._is_artifact_orphaned(
+                        file_state, include_tests=include_tests
+                    ):
                         orphaned_files.append(file_state)
                     continue
 
@@ -213,6 +233,8 @@ class StateCleanupService:
         environment: str,
         include_patterns: Optional[List[str]] = None,
         dry_run: bool = False,
+        active_flowgroups: Optional[Set[Tuple[str, str]]] = None,
+        include_tests: Optional[bool] = None,
     ) -> List[str]:
         """
         Remove generated files whose source YAML files no longer exist.
@@ -222,11 +244,21 @@ class StateCleanupService:
             environment: Environment name
             include_patterns: Optional include patterns for filtering
             dry_run: If True, only return what would be deleted without actually deleting
+            active_flowgroups: Optional set of (pipeline, flowgroup) tuples from discovery;
+                when provided, enables the fast-path orphan check (no YAML reparsing)
+            include_tests: Current run's ``--include-tests`` flag; when ``False``
+                causes ``test_reporting_*`` artifacts to be reaped.
 
         Returns:
             List of file paths that were (or would be) deleted
         """
-        orphaned_files = self.find_orphaned_files(state, environment, include_patterns)
+        orphaned_files = self.find_orphaned_files(
+            state,
+            environment,
+            include_patterns,
+            active_flowgroups=active_flowgroups,
+            include_tests=include_tests,
+        )
         deleted_files = []
 
         for file_state in orphaned_files:

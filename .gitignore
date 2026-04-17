@@ -96,3 +96,8 @@ PERFORMANCE_ANALYSIS.md
 Example_Projects/performance_testing/generated/
 Example_Projects/performance_testing/.lhp_state.json
 Example_Projects/performance_testing/PERF_PROBLEM_STATEMENT.md
+Example_Projects/performance_testing/resources
+Example_Projects/performance_testing/
+
+Example_Projects/performance_testing/monitoring/
+.claude/

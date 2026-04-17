@@ -86,7 +86,7 @@ SQL transform actions execute SQL queries to transform data between views. They 
 .. note:: **File Substitution Support**
    
    Substitution variables work in both inline SQL and external SQL files (``sql_path``). 
-   The same ``{token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
+   The same ``${token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
    Files are processed for substitutions before query execution.
 
 .. Warning::
@@ -148,9 +148,9 @@ SQL transform actions execute SQL queries to transform data between views. They 
               WHEN account_balance > 1000 THEN 'Medium Value'
               ELSE 'Standard'
             END as customer_tier
-          FROM {catalog}.{bronze_schema}.customer c
-          LEFT JOIN {catalog}.{bronze_schema}.nation n ON c.nation_id = n.nation_id
-          LEFT JOIN {catalog}.{bronze_schema}.region r ON n.region_id = r.region_id
+          FROM ${catalog}.${bronze_schema}.customer c
+          LEFT JOIN ${catalog}.${bronze_schema}.nation n ON c.nation_id = n.nation_id
+          LEFT JOIN ${catalog}.${bronze_schema}.region r ON n.region_id = r.region_id
       """)
 
 python
@@ -325,7 +325,7 @@ Python transform actions call custom Python functions to apply complex transform
 Lakehouse Plumber automatically handles Python function deployment:
 
 1. **Automatic File Copying**: Your Python functions are copied to ``generated/pipeline_name/custom_python_functions/`` during generation
-2. **Substitution Processing**: Files are processed for ``{token}`` and ``${secret:scope/key}`` substitutions before copying
+2. **Substitution Processing**: Files are processed for ``${token}`` and ``${secret:scope/key}`` substitutions before copying
 3. **Import Management**: Imports are automatically generated as ``from custom_python_functions.module_name import function_name``
 4. **Warning Headers**: Copied files include prominent warnings not to edit them directly
 5. **State Tracking**: All copied files are tracked and cleaned up when source YAML is removed
@@ -335,7 +335,7 @@ Lakehouse Plumber automatically handles Python function deployment:
    
    Python transform files support the same substitution syntax as YAML:
    
-   - **Environment tokens**: ``{catalog}``, ``{schema}``, ``{environment}``
+   - **Environment tokens**: ``${catalog}``, ``${schema}``, ``${environment}``
    - **Secret references**: ``${secret:scope/key}`` or ``${secret:key}``
    
    Substitutions are applied before the file is copied and imported.

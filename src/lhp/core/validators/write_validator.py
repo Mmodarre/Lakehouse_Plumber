@@ -148,10 +148,20 @@ class WriteActionValidator(BaseActionValidator):
                 errors.append(
                     f"{prefix}: Streaming table must have 'source' to read from"
                 )
-            # Validate source is string or list
             elif not isinstance(action.source, (str, list)):
                 errors.append(
                     f"{prefix}: Streaming table source must be a string or list of view names"
+                )
+            elif (
+                mode == "cdc"
+                and isinstance(action.source, list)
+                and len(action.source) > 1
+            ):
+                errors.append(
+                    f"{prefix}: CDC mode does not support multiple source views "
+                    f"in a single action. Define one write action per source, "
+                    f"each with compatible cdc_config, targeting the same "
+                    f"catalog.schema.table."
                 )
 
         return errors

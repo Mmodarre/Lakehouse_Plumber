@@ -17,8 +17,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: customer
     target: v_customer_raw
     description: "Load customer table from raw schema" 
@@ -59,8 +59,8 @@ actions:
     source: v_customer_bronze_DQE
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "customer"
       table_properties:
         tag_name1: tag_value1

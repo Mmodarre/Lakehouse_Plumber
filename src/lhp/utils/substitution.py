@@ -11,6 +11,8 @@ from .error_formatter import ErrorCategory, LHPConfigError, LHPError, LHPValidat
 
 logger = logging.getLogger(__name__)
 
+_DEPRECATED_BARE_TOKEN_WARNED = False
+
 
 class SecretReference:
     """Represents a secret reference with scope and key."""
@@ -307,6 +309,18 @@ class EnhancedSubstitutionManager:
 
         # Apply patterns - dollar pattern first to avoid conflicts
         text = self.DOLLAR_TOKEN_PATTERN.sub(dollar_replacer, text)
+
+        # Warn once per process about deprecated {token} syntax
+        global _DEPRECATED_BARE_TOKEN_WARNED
+        if not _DEPRECATED_BARE_TOKEN_WARNED and self.DEFAULT_TOKEN_PATTERN.search(
+            text
+        ):
+            logger.warning(
+                "The bare {token} substitution syntax is deprecated and will be "
+                "removed in v1.0. Use ${token} instead."
+            )
+            _DEPRECATED_BARE_TOKEN_WARNED = True
+
         text = self.DEFAULT_TOKEN_PATTERN.sub(default_replacer, text)
         return text
 

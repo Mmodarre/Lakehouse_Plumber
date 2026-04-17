@@ -37,10 +37,11 @@ dp.create_streaming_table(
     table_properties={"delta.enableRowTracking": "true"},
 )
 
-# CDC mode using auto_cdc
+# CDC flow: f_customer_silver
 dp.create_auto_cdc_flow(
     target="acme_edw_dev.edw_silver.customer_dim",
     source="v_customer_bronze",
+    name="f_customer_silver",
     keys=["customer_id"],
     sequence_by="last_modified_dt",
     stored_as_scd_type=2,

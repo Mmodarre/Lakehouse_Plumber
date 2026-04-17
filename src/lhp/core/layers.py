@@ -2,8 +2,8 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Sequence, TYPE_CHECKING
-from dataclasses import dataclass
+from typing import Dict, List, Any, Optional, Sequence, Set, Tuple, TYPE_CHECKING
+from dataclasses import dataclass, field
 import logging
 
 from ..utils.performance_timer import perf_timer
@@ -40,6 +40,7 @@ class PipelineValidationRequest:
     pipeline_identifier: str
     environment: str
     verbose: bool = False
+    include_tests: bool = True
 
 
 @dataclass
@@ -102,6 +103,11 @@ class AnalysisResponse:
     total_stale_files: int
     total_up_to_date_files: int
     error_message: Optional[str] = None
+
+    # Env-wide generation-context change flag + human-readable diff (e.g.
+    # "include_tests: False -> True"). When True, all pipelines regenerate.
+    context_changed: bool = False
+    context_changes: List[str] = field(default_factory=list)
 
     def has_work_to_do(self) -> bool:
         """Check if any generation work needs to be done."""
@@ -171,7 +177,12 @@ class DataLayer(ABC):
         pass
 
     @abstractmethod
-    def cleanup_orphaned_files(self, env: str, dry_run: bool = False) -> List[str]:
+    def cleanup_orphaned_files(
+        self,
+        env: str,
+        dry_run: bool = False,
+        active_flowgroups: Optional[Set[Tuple[str, str]]] = None,
+    ) -> List[str]:
         """Clean up orphaned files from persistence."""
         pass
 
@@ -294,7 +305,9 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         """Coordinate pipeline validation use case."""
         try:
             errors, warnings = self.orchestrator.validate_pipeline_by_field(
-                pipeline_field=request.pipeline_identifier, env=request.environment
+                pipeline_field=request.pipeline_identifier,
+                env=request.environment,
+                include_tests=request.include_tests,
             )
 
             return ValidationResponse(
@@ -341,6 +354,8 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 total_new_files=analysis.total_new_files,
                 total_stale_files=analysis.total_stale_files,
                 total_up_to_date_files=analysis.total_up_to_date_files,
+                context_changed=analysis.context_changed,
+                context_changes=list(analysis.context_changes),
             )
 
         except Exception as e:

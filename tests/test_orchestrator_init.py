@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 
 from lhp.core.orchestrator import ActionOrchestrator
+from lhp.models.config import FlowGroup
 from lhp.utils.error_formatter import LHPError, ErrorCategory
 
 
@@ -393,7 +394,7 @@ class TestActionOrchestratorVersionEnforcement:
         )
 
         with (
-            patch("lhp.utils.version.get_version") as mock_get_version,
+            patch("lhp.core.orchestrator.get_version") as mock_get_version,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
 
@@ -418,7 +419,7 @@ class TestActionOrchestratorVersionEnforcement:
         """Test actual version parsing fails with LHPError code 008."""
         # Arrange
         with (
-            patch("lhp.utils.version.get_version") as mock_get_version,
+            patch("lhp.core.orchestrator.get_version") as mock_get_version,
             patch("packaging.version.Version") as mock_version_class,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
@@ -450,7 +451,6 @@ class TestActionOrchestratorVersionEnforcement:
         orchestrator_with_version_requirement._enforce_version_requirements()
 
         # Assert - no exception should be raised, and method should complete successfully
-        assert True  # Test passes if no exception is raised
 
     def test_specifier_set_exception_wraps_in_error_code_008(
         self, orchestrator_with_version_requirement
@@ -458,7 +458,7 @@ class TestActionOrchestratorVersionEnforcement:
         """Test SpecifierSet creation throws exception wraps in LHPError code 008."""
         # Arrange
         with (
-            patch("lhp.utils.version.get_version") as mock_get_version,
+            patch("lhp.core.orchestrator.get_version") as mock_get_version,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
 
@@ -489,7 +489,6 @@ class TestActionOrchestratorVersionEnforcement:
         orchestrator_with_version_requirement._enforce_version_requirements()
 
         # Assert - no exception should be raised
-        assert True  # Test passes if no exception is raised
 
 
 class TestActionOrchestratorFlowgroupDiscovery:
@@ -655,13 +654,24 @@ class TestActionOrchestratorFlowgroupDiscovery:
             []
         )
 
-        # Mock state manager with new files that cause parsing errors
+        # Mock state manager with new files that cause parsing errors.
+        # _apply_smart_generation_filtering now pulls per-pipeline info via the
+        # env-wide get_all_files_needing_generation (reused through StalenessCache).
         mock_state_manager = Mock()
+        # Stored context matches current run so the context gate does NOT fire —
+        # this test is exercising YAML parse-error recovery, not context handling.
+        mock_state_manager.state.last_generation_context = {
+            "dev": {"include_tests": "False"}
+        }
         generation_info = {
             "new": [Path("/path/to/invalid.yaml"), Path("/path/to/valid.yaml")],
             "stale": [],
+            "up_to_date": [],
         }
         mock_state_manager.get_files_needing_generation.return_value = generation_info
+        mock_state_manager.get_all_files_needing_generation.return_value = {
+            pipeline_field: generation_info
+        }
 
         # Mock YAML parser to fail on first file, succeed on second
         # Note: parse_flowgroups_from_file returns a LIST of flowgroups
@@ -669,7 +679,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
             if "invalid.yaml" in str(yaml_path):
                 raise Exception("YAML parsing failed")
             else:
-                mock_fg = Mock()
+                mock_fg = Mock(spec=FlowGroup)
                 mock_fg.flowgroup = "valid_flowgroup"
                 mock_fg.actions = []  # Strategy code expects actions attribute
                 return [mock_fg]  # Return list of flowgroups
@@ -1595,7 +1605,7 @@ class TestActionOrchestratorValidationWithoutGeneration:
 
             # Should call discover_flowgroups_by_pipeline_field
             orchestrator_validation.discover_flowgroups_by_pipeline_field.assert_called_once_with(
-                pipeline_field
+                pipeline_field, pre_discovered_all_flowgroups=None
             )
 
     def test_validate_pipeline_by_field_method_delegation(
@@ -1620,7 +1630,9 @@ class TestActionOrchestratorValidationWithoutGeneration:
             )
 
             # Assert - method should delegate correctly
-            mock_discover.assert_called_once_with(pipeline_field)
+            mock_discover.assert_called_once_with(
+                pipeline_field, pre_discovered_all_flowgroups=None
+            )
 
             # Should return appropriate error for no flowgroups
             assert len(errors) == 1
@@ -1692,7 +1704,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     ):
         """Test FlowgroupProcessor succeeds returns processed flowgroup."""
         # Arrange
-        processed_flowgroup = Mock()
+        processed_flowgroup = Mock(spec=FlowGroup)
         orchestrator_processing.mock_processor.process_flowgroup.return_value = (
             processed_flowgroup
         )
@@ -1707,7 +1719,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
 
         # Should delegate to processor service with correct arguments
         orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
 
     def test_process_flowgroup_fails_propagates_exception(
@@ -1732,7 +1744,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
 
         # Should still call processor service
         orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
 
     def test_generate_flowgroup_code_succeeds_returns_generated_code(
@@ -1824,7 +1836,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     ):
         """Test substitution_mgr is None still delegates to services."""
         # Arrange
-        processed_flowgroup = Mock()
+        processed_flowgroup = Mock(spec=FlowGroup)
         generated_code = "# Generated code without substitution\n"
 
         # Test both methods with None substitution manager
@@ -1847,7 +1859,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
 
         # Should still delegate to services with None as parameter
         orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, None
+            mock_flowgroup, None, include_tests=True
         )
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup, None, None, None, None, None, False, None
@@ -2033,7 +2045,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
 
         # Should have attempted to call both services despite failures
         orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
@@ -2047,7 +2059,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
         from lhp.utils.substitution import EnhancedSubstitutionManager
 
         mock_substitution_mgr = Mock(spec=EnhancedSubstitutionManager)
-        processed_flowgroup = Mock()
+        processed_flowgroup = Mock(spec=FlowGroup)
         generated_code = "# Generated code\n"
 
         orchestrator_error_handling.mock_processor.process_flowgroup.return_value = (
@@ -2077,7 +2089,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
 
             # Services should still be called successfully
             orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(
-                mock_flowgroup, mock_substitution_mgr
+                mock_flowgroup, mock_substitution_mgr, include_tests=True
             )
             orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
                 mock_flowgroup,
@@ -2127,7 +2139,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
 
         # Test 3: Invalid substitution manager type for generate_flowgroup_code
         invalid_substitution_mgr = "not_a_substitution_manager"
-        mock_flowgroup = Mock()
+        mock_flowgroup = Mock(spec=FlowGroup)
 
         with pytest.raises(
             TypeError, match="Service validation: Invalid substitution manager type"
@@ -2173,7 +2185,9 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Should handle empty string gracefully
             assert len(errors) == 1
             assert "No flowgroups found for pipeline field:" in errors[0]
-            mock_discover.assert_called_once_with("")
+            mock_discover.assert_called_once_with(
+                "", pre_discovered_all_flowgroups=None
+            )
 
         # Test None pipeline field - should raise exception or handle gracefully
         with patch.object(
@@ -2203,7 +2217,9 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Should handle whitespace-only string
             assert len(errors) == 1
             assert "No flowgroups found for pipeline field:    " in errors[0]
-            mock_discover_whitespace.assert_called_once_with("   ")
+            mock_discover_whitespace.assert_called_once_with(
+                "   ", pre_discovered_all_flowgroups=None
+            )
 
     def test_edge_case_service_returns_none_or_empty_results(
         self, orchestrator_error_handling, mock_flowgroup
@@ -2322,7 +2338,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # But generator fails due to dependency conflict
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             processed_flowgroup,
@@ -2391,7 +2407,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Verify proper data flow: original -> processor -> generator
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            original_flowgroup, mock_substitution_mgr
+            original_flowgroup, mock_substitution_mgr, include_tests=True
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             transformed_flowgroup,
@@ -2501,7 +2517,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Verify parameter passing
         orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr
+            mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup,

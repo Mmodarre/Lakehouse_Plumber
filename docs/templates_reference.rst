@@ -366,7 +366,7 @@ A basic template for standardized CSV ingestion with schema hints:
          - "_processing_timestamp"
        source:
          type: cloudfiles
-         path: "{landing_volume}/{{ landing_folder }}/*.csv"
+         path: "${landing_volume}/{{ landing_folder }}/*.csv"
          format: csv
          options:
            cloudFiles.format: csv
@@ -385,7 +385,7 @@ A basic template for standardized CSV ingestion with schema hints:
        source: "v_{{ table_name }}_cloudfiles"
        write_target:
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: "{{ table_name }}"
          cluster_columns: "{{ cluster_columns }}"
          table_properties: "{{ table_properties }}"
@@ -564,7 +564,7 @@ A more advanced template supporting multiple file formats with format-specific c
        source: "{% if enable_dqe %}v_{{ table_name }}_validated{% else %}v_{{ table_name }}_raw{% endif %}"
        write_target:
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: "{{ table_name }}"
          partition_columns: "{{ partition_columns }}"
          table_properties:
@@ -676,7 +676,7 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
        readMode: stream
        source:
          type: delta
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: "{{ source_table }}"
          options:
            readChangeFeed: "true"
@@ -688,7 +688,7 @@ A template for implementing Change Data Capture with Slowly Changing Dimensions:
        source: "v_{{ table_name }}_changes"
        write_target:
          type: streaming_table
-         database: "{catalog}.{silver_schema}"
+         database: "${catalog}.${silver_schema}"
          table: "dim_{{ table_name }}"
          mode: cdc
          cdc_config:
@@ -735,7 +735,7 @@ In addition to template parameters, both template definitions and flowgroup YAML
 Substitution Types
 ~~~~~~~~~~~~~~~~~~
 
-Templates interact with four substitution syntaxes: local variables (``%{var}``), environment tokens (``{token}``/``${token}``), secret references (``${secret:scope/key}``), and template parameters (``{{ param }}``). Each is resolved at a different stage of the processing pipeline.
+Templates interact with four substitution syntaxes: local variables (``%{var}``), environment tokens (``${token}``), secret references (``${secret:scope/key}``), and template parameters (``{{ param }}``). Each is resolved at a different stage of the processing pipeline.
 
 .. seealso::
    For the complete substitution reference — syntax details, processing order, file substitution support, and examples — see :doc:`substitutions`.
@@ -768,7 +768,7 @@ Local variables allow you to define reusable values within a single flowgroup, r
        type: load
        source:
          type: delta
-         database: "{catalog}.{raw_schema}"  # Environment tokens still work!
+         database: "${catalog}.${raw_schema}"  # Environment tokens still work!
          table: "%{source_table}"
        target: "v_%{entity}_raw"
        description: "Load %{entity} table from raw schema"
@@ -785,7 +785,7 @@ Local variables allow you to define reusable values within a single flowgroup, r
        source: "v_%{entity}_cleaned"
        write_target:
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: "%{target_table}"
 
 **Key Features:**
@@ -870,8 +870,8 @@ Templates can include environment and secret substitutions alongside template pa
        source:
          type: jdbc
          # Environment substitution - resolved from substitutions/{env}.yaml
-         url: "{jdbc_url}"
-         driver: "{jdbc_driver}"
+         url: "${jdbc_url}"
+         driver: "${jdbc_driver}"
          # Secret substitutions - resolved to dbutils.secrets.get() calls
          user: "${secret:database_secrets/username}"
          password: "${secret:database_secrets/password}"
@@ -888,13 +888,13 @@ Templates can include environment and secret substitutions alongside template pa
        write_target:
          type: streaming_table
          # Environment substitutions for database targeting
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: "{{ table_name }}"
          table_properties:
            # Mixed substitutions and template parameters
-           source.database: "{source_database}"
+           source.database: "${source_database}"
            source.table: "{{ table_name }}"
-           ingestion.environment: "{environment}"
+           ingestion.environment: "${environment}"
        description: "Write {{ table_name }} to bronze layer"
 
 **Example substitutions/dev.yaml:**
@@ -990,7 +990,7 @@ FlowGroups can also use environment and secret substitutions directly without te
          function_name: "fetch_events"
          parameters:
            # Environment substitution
-           api_endpoint: "{events_api_endpoint}"
+           api_endpoint: "${events_api_endpoint}"
            # Secret substitution
            api_key: "${secret:api_secrets/events_api_key}"
            # Direct value
@@ -1004,13 +1004,13 @@ FlowGroups can also use environment and secret substitutions directly without te
        write_target:
          type: streaming_table
          # Environment substitutions
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: user_events
          table_properties:
            # Mix of environment substitutions and direct values
-           source.api: "{events_api_endpoint}"
+           source.api: "${events_api_endpoint}"
            ingestion.frequency: "hourly"
-           environment: "{environment}"
+           environment: "${environment}"
        description: "Write events to bronze layer"
 
 Multi-Environment Examples
@@ -1082,7 +1082,7 @@ Templates can conditionally use secrets based on environment:
        type: load
        source:
          type: cloudfiles
-         path: "{data_path}/{{ table_name }}/*.parquet"
+         path: "${data_path}/{{ table_name }}/*.parquet"
          {% if environment == "prod" %}
          # Only use encryption in production
          reader_options:
@@ -1101,11 +1101,11 @@ Use substitutions for flexible database targeting:
    write_target:
      type: streaming_table
      # Dynamic catalog and schema based on environment and data classification
-     database: "{catalog}.{bronze_schema}_{data_classification}"
+     database: "${catalog}.${bronze_schema}_${data_classification}"
      table: "{{ table_name }}"
      table_properties:
-       data.classification: "{data_classification}"
-       governance.retention: "{retention_policy}"
+       data.classification: "${data_classification}"
+       governance.retention: "${retention_policy}"
 
 **Secret Scope Aliases**
 
@@ -1132,7 +1132,7 @@ Use scope aliases for flexible secret management:
 
    source:
      type: jdbc
-     url: "{jdbc_url}"
+     url: "${jdbc_url}"
      # Uses mapped scope from substitutions
      user: "${secret:databases/readonly_user}"
      password: "${secret:databases/readonly_password}"
@@ -1152,9 +1152,9 @@ Best Practices for Substitutions
    * - **Template Parameters** ``{{ }}``
      - Values that change per template usage within the same environment
      - ``{{ table_name }}``, ``{{ file_format }}``
-   * - **Environment** ``{token}``
+   * - **Environment** ``${token}``
      - Values that change between dev/staging/prod but stay consistent within an environment
-     - ``{catalog}``, ``{bronze_schema}``
+     - ``${catalog}``, ``${bronze_schema}``
    * - **Secret References** ``${secret:}``
      - Sensitive data like passwords, API keys, connection strings
      - ``${secret:db/password}``, ``${secret:apis/key}``

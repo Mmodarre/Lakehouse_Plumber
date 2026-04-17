@@ -65,23 +65,28 @@ operational_metadata:
 
 ## Monitoring pipeline — aggregates all pipeline event logs
 ## [monitoring_default]
-#monitoring: {}
+#monitoring:
+#  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 
 ## [monitoring_custom_pipeline_name]
 #monitoring:
 #  pipeline_name: "my_custom_monitor"
+#  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 
 ## [monitoring_catalog_schema_override]
 #monitoring:
 #  catalog: "analytics_cat"
 #  schema: "_analytics"
+#  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 
 ## [monitoring_custom_streaming_table]
 #monitoring:
 #  streaming_table: "unified_event_log"
+#  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 
 ## [monitoring_custom_mvs]
 #monitoring:
+#  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 #  materialized_views:
 #    - name: "error_events"
 #      sql: "SELECT * FROM all_pipelines_event_log WHERE event_type = 'error'"
@@ -90,16 +95,19 @@ operational_metadata:
 
 ## [monitoring_no_mvs]
 #monitoring:
+#  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 #  materialized_views: []
 
 ## [monitoring_mv_sql_path]
 #monitoring:
+#  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 #  materialized_views:
 #    - name: "custom_analysis"
 #      sql_path: "sql/monitoring_custom_analysis.sql"
 
 ## [monitoring_enable_job_monitoring]
 #monitoring:
+#  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 #  enable_job_monitoring: true
 
 ## Test result reporting to external systems

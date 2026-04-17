@@ -138,9 +138,12 @@ class MonitoringMaterializedViewConfig(BaseModel):
 class MonitoringConfig(BaseModel):
     """Project-level monitoring pipeline configuration.
 
-    Controls automatic creation of a synthetic monitoring pipeline that UNIONs
-    all pipeline event log tables into a single streaming table with optional
-    materialized views for analysis.
+    Generates two artifacts:
+    1. A standalone notebook that runs N independent streaming queries (one per
+       pipeline event log) appending into a user-created Delta table.
+    2. A DLT pipeline with materialized views only, reading from that Delta table.
+
+    A Databricks Workflow job chains: notebook_task (union) → pipeline_task (MVs).
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -149,7 +152,9 @@ class MonitoringConfig(BaseModel):
     pipeline_name: Optional[str] = None  # default: {project_name}_event_log_monitoring
     catalog: Optional[str] = None  # default: event_log.catalog
     schema_: Optional[str] = Field(None, alias="schema")  # default: event_log.schema
-    streaming_table: str = "all_pipelines_event_log"
+    streaming_table: str = "all_pipelines_event_log"  # user-created Delta table
+    checkpoint_path: str = ""  # streaming checkpoint base path (required when enabled)
+    max_concurrent_streams: int = 10  # ThreadPoolExecutor max_workers
     materialized_views: Optional[List[MonitoringMaterializedViewConfig]] = None
     enable_job_monitoring: bool = False
 
@@ -360,6 +365,7 @@ class FlowGroup(BaseModel):
     )
     _synthetic: bool = PrivateAttr(default=False)
     _auxiliary_files: Dict[str, str] = PrivateAttr(default_factory=dict)
+    _has_original_test_actions: bool = PrivateAttr(default=False)
 
 
 class Template(BaseModel):

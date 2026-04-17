@@ -3,9 +3,9 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
-from ...models.config import ActionType, FlowGroup
+from ...models.config import FlowGroup
 from ..state_manager import StateManager
 from ..strategies import (
     GenerationContext,
@@ -168,15 +168,6 @@ class GenerationPlanningService:
         env: str,
     ) -> GenerationPlan:
         """Convert strategy filter result to GenerationPlan."""
-        # Extract metadata for generation context changes
-        generation_context_changes = {}
-        if filter_result.metadata.get("include_tests_context_applied"):
-            for flowgroup in filter_result.flowgroups_to_generate:
-                if any(action.type == ActionType.TEST for action in flowgroup.actions):
-                    generation_context_changes[flowgroup.flowgroup] = (
-                        "include_tests parameter changed"
-                    )
-
         # Get detailed staleness info if available
         detailed_staleness_info = {}
         if state_manager:
@@ -189,7 +180,7 @@ class GenerationPlanningService:
             flowgroups_to_generate=filter_result.flowgroups_to_generate,
             flowgroups_to_skip=filter_result.flowgroups_to_skip,
             generation_mode=filter_result.strategy_name,
-            generation_context_changes=generation_context_changes,
+            generation_context_changes={},
             staleness_summary=filter_result.metadata.get(
                 "staleness_summary",
                 {
@@ -201,43 +192,6 @@ class GenerationPlanningService:
             performance_info=filter_result.get_performance_info(),
             detailed_staleness_info=detailed_staleness_info,
         )
-
-    def analyze_generation_context_staleness(
-        self,
-        flowgroups: List[FlowGroup],
-        env: str,
-        include_tests: bool,
-        state_manager: StateManager,
-    ) -> Set[str]:
-        """
-        Analyze staleness due to generation parameter changes.
-
-        This method provides backward compatibility for direct calls from orchestrator
-        while strategies handle this logic internally.
-
-        Args:
-            flowgroups: List of flowgroups to analyze
-            env: Environment name
-            include_tests: Current include_tests parameter
-            state_manager: State manager instance
-
-        Returns:
-            Set of flowgroup names that are stale due to context changes
-        """
-        # Create temporary context for strategy
-        context = GenerationContext(
-            env=env,
-            pipeline_identifier="",  # Not needed for this analysis
-            include_tests=include_tests,
-            state_manager=state_manager,
-            project_root=self.project_root,
-        )
-
-        # Use smart strategy to check context staleness
-        from ..strategies import SmartGenerationStrategy
-
-        strategy = SmartGenerationStrategy()
-        return strategy._check_generation_context_staleness(flowgroups, context)
 
     def _discover_flowgroups_for_identifier(
         self, pipeline_identifier: str

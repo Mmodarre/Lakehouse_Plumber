@@ -97,49 +97,29 @@ class FlowgroupDiscoverer:
         """
         Discover all flowgroups across all directories in the project.
 
+        Delegates to discover_all_flowgroups_with_paths() so a single
+        filesystem scan serves both discovery and source-path indexing.
+
         Returns:
             List of all discovered flowgroups
         """
         with perf_timer("discover_all_flowgroups [discoverer]"):
-            flowgroups = []
-            pipelines_dir = self.project_root / "pipelines"
+            pairs = self.discover_all_flowgroups_with_paths()
 
-            if not pipelines_dir.exists():
-                return flowgroups
+            # Eagerly populate source path index from data we already have.
+            # Thread safety note: all CLI flows (generate, validate) call
+            # discover_all_flowgroups() once from the main thread before any
+            # worker threads start. Workers only call find_source_yaml_for_flowgroup
+            # (which has its own double-checked locking). Concurrent calls to
+            # discover_all_flowgroups() cannot happen in practice.
+            if self._source_path_index is None:
+                with self._index_lock:
+                    if self._source_path_index is None:
+                        self._source_path_index = (
+                            self._build_source_path_index_from_pairs(pairs)
+                        )
 
-            # Get include patterns from project configuration
-            include_patterns = self.get_include_patterns()
-
-            if include_patterns:
-                # Use include filtering
-                from ...utils.file_pattern_matcher import discover_files_with_patterns
-
-                yaml_files = discover_files_with_patterns(pipelines_dir, include_patterns)
-            else:
-                # No include patterns, discover all YAML files (backwards compatibility)
-                yaml_files = []
-                yaml_files.extend(pipelines_dir.rglob("*.yaml"))
-                yaml_files.extend(pipelines_dir.rglob("*.yml"))
-
-            skipped_files = []
-            for yaml_file in yaml_files:
-                try:
-                    # Use parse_flowgroups_from_file() to support multi-flowgroup files
-                    file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
-                    flowgroups.extend(file_flowgroups)
-                    self.logger.debug(
-                        f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
-                    )
-                except Exception as e:
-                    self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
-                    skipped_files.append(yaml_file.name)
-
-            if skipped_files:
-                self.logger.warning(
-                    f"Skipped {len(skipped_files)} file(s) due to parse errors: {skipped_files}"
-                )
-
-            return flowgroups
+            return [fg for fg, _ in pairs]
 
     def discover_flowgroups_by_pipeline_field(
         self, pipeline_field: str
@@ -279,20 +259,34 @@ class FlowgroupDiscoverer:
 
         return flowgroups_with_paths
 
-    def _build_source_path_index(self) -> Dict[Tuple[str, str], Path]:
+    def _build_source_path_index_from_pairs(
+        self, pairs: List[Tuple[FlowGroup, Path]]
+    ) -> Dict[Tuple[str, str], Path]:
         """Build a mapping from (pipeline, flowgroup_name) to source YAML path.
 
-        Performs a single pass over all YAML files using
-        discover_all_flowgroups_with_paths(). First-found entry wins,
-        consistent with the original linear-scan behavior.
+        First-found entry wins, consistent with the original linear-scan behavior.
+
+        Args:
+            pairs: List of (flowgroup, yaml_file_path) tuples
         """
         index: Dict[Tuple[str, str], Path] = {}
-        for fg, yaml_path in self.discover_all_flowgroups_with_paths():
+        for fg, yaml_path in pairs:
             key = (fg.pipeline, fg.flowgroup)
             if key not in index:
                 index[key] = yaml_path
         self.logger.debug(f"Built source path index with {len(index)} entries")
         return index
+
+    def _build_source_path_index(self) -> Dict[Tuple[str, str], Path]:
+        """Build source path index via full discovery scan (lazy fallback).
+
+        Called when find_source_yaml_for_flowgroup is invoked without a prior
+        discover_all_flowgroups() call (e.g., DependencyAnalyzer's own
+        discoverer instance). Delegates to _build_source_path_index_from_pairs.
+        """
+        return self._build_source_path_index_from_pairs(
+            self.discover_all_flowgroups_with_paths()
+        )
 
     def find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
         """Find the source YAML file for a given flowgroup.
@@ -309,11 +303,11 @@ class FlowgroupDiscoverer:
         Returns:
             Path to the source YAML file, or None if not found
         """
-        with perf_timer(f"find_source_yaml_for_flowgroup [{flowgroup.flowgroup}]"):
-            if self._source_path_index is None:
-                with self._index_lock:
-                    if self._source_path_index is None:
+        if self._source_path_index is None:
+            with self._index_lock:
+                if self._source_path_index is None:
+                    with perf_timer("build_source_path_index [fallback]"):
                         self._source_path_index = self._build_source_path_index()
-            return self._source_path_index.get(
-                (flowgroup.pipeline, flowgroup.flowgroup)
-            )
+        return self._source_path_index.get(
+            (flowgroup.pipeline, flowgroup.flowgroup)
+        )

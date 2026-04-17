@@ -127,12 +127,7 @@ class TestLoadGenerators:
         assert '"__SECRET_' in code or "'__SECRET_" in code
         
         # Most importantly, verify the generated code is syntactically valid
-        try:
-            compile(code, '<string>', 'exec')
-            # If compilation succeeds, the code is valid
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with secrets is not valid Python syntax: {e}")
+        compile(code, '<string>', 'exec')
     
     def test_jdbc_url_with_quotes_escaped(self):
         """Test JDBC generator with URLs containing quotes."""
@@ -159,11 +154,7 @@ class TestLoadGenerators:
         assert '\\"true\\"' in code or 'encrypt=\\"true\\"' in code
         
         # Verify generated code is syntactically valid
-        try:
-            compile(code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated JDBC code with quotes is not valid Python syntax: {e}")
+        compile(code, '<string>', 'exec')
     
     def test_jdbc_values_with_backslashes_escaped(self):
         """Test JDBC generator with values containing backslashes."""
@@ -191,15 +182,8 @@ class TestLoadGenerators:
         # Verify no SyntaxWarning
         import warnings
         warnings.simplefilter('error', SyntaxWarning)
-        try:
-            compile(code, '<string>', 'exec')
-            assert True
-        except SyntaxWarning as e:
-            pytest.fail(f"Generated code has invalid escape sequences: {e}")
-        except SyntaxError as e:
-            pytest.fail(f"Generated code is not valid Python syntax: {e}")
-        finally:
-            warnings.simplefilter('default', SyntaxWarning)
+        compile(code, '<string>', 'exec')
+        warnings.simplefilter('default', SyntaxWarning)
     
     def test_jdbc_complex_url_with_parameters(self):
         """Test JDBC generator with complex URL containing multiple parameters."""
@@ -223,11 +207,7 @@ class TestLoadGenerators:
         code = generator.generate(action, {})
         
         # Verify valid Python syntax
-        try:
-            compile(code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with complex JDBC URL is not valid Python syntax: {e}")
+        compile(code, '<string>', 'exec')
     
     def test_jdbc_table_name_with_special_chars(self):
         """Test JDBC generator with table name containing special characters."""
@@ -254,11 +234,7 @@ class TestLoadGenerators:
         assert '\\"schema\\"' in code and '\\"table_name\\"' in code
         
         # Verify valid Python
-        try:
-            compile(code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with quoted table name is not valid Python syntax: {e}")
+        compile(code, '<string>', 'exec')
     
     def test_python_generator(self):
         """Test Python load generator."""
@@ -950,6 +926,117 @@ def test_generator_imports():
     # Load generator
     load_gen = CloudFilesLoadGenerator()
     assert "from pyspark import pipelines as dp" in load_gen.imports
+
+
+# ============================================================================
+# Golden Output Tests
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestCloudFilesGoldenOutput:
+    """Golden output test for CloudFiles load generator."""
+
+    def test_cloudfiles_golden(self, golden):
+        generator = CloudFilesLoadGenerator()
+        action = Action(
+            name="load_raw_files",
+            type=ActionType.LOAD,
+            target="v_raw_files",
+            source={
+                "type": "cloudfiles",
+                "path": "/mnt/data/raw",
+                "format": "json",
+                "readMode": "stream",
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_cloudfiles")
+
+
+@pytest.mark.unit
+class TestDeltaGoldenOutput:
+    """Golden output test for Delta load generator."""
+
+    def test_delta_golden(self, golden):
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_customers",
+            type=ActionType.LOAD,
+            target="v_customers",
+            source={
+                "type": "delta",
+                "catalog": "main",
+                "schema": "bronze",
+                "table": "customers",
+            },
+            readMode="stream",
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_delta")
+
+
+@pytest.mark.unit
+class TestSQLGoldenOutput:
+    """Golden output test for SQL load generator."""
+
+    def test_sql_golden(self, golden):
+        generator = SQLLoadGenerator()
+        action = Action(
+            name="load_metrics",
+            type=ActionType.LOAD,
+            target="v_metrics",
+            source="SELECT * FROM metrics WHERE date > current_date() - 7",
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_sql")
+
+
+@pytest.mark.unit
+class TestJDBCGoldenOutput:
+    """Golden output test for JDBC load generator."""
+
+    def test_jdbc_golden(self, golden):
+        generator = JDBCLoadGenerator()
+        action = Action(
+            name="load_external",
+            type=ActionType.LOAD,
+            target="v_external_data",
+            source={
+                "type": "jdbc",
+                "url": "jdbc:postgresql://host:5432/mydb",
+                "user": "admin",
+                "password": "pass123",
+                "driver": "org.postgresql.Driver",
+                "table": "external_table",
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_jdbc")
+
+
+@pytest.mark.unit
+class TestPythonGoldenOutput:
+    """Golden output test for Python load generator."""
+
+    def test_python_golden(self, golden):
+        generator = PythonLoadGenerator()
+        action = Action(
+            name="load_custom",
+            type=ActionType.LOAD,
+            target="v_custom_data",
+            source={
+                "type": "python",
+                "module_path": "custom_loaders",
+                "function_name": "load_custom_data",
+                "parameters": {
+                    "start_date": "2024-01-01",
+                    "batch_size": 1000,
+                },
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_python")
 
 
 if __name__ == "__main__":

@@ -242,7 +242,6 @@ class PythonTransformGenerator(BaseActionGenerator):
                         environment=context.get("environment", "unknown"),
                         pipeline=flowgroup.pipeline,
                         flowgroup=flowgroup.flowgroup,
-                        generation_context="",
                     )
                     logger.debug(
                         f"Tracked additional file: {init_file} for Python transform"
@@ -255,7 +254,6 @@ class PythonTransformGenerator(BaseActionGenerator):
                         environment=context.get("environment", "unknown"),
                         pipeline=flowgroup.pipeline,
                         flowgroup=flowgroup.flowgroup,
-                        generation_context="",
                     )
                     logger.debug(
                         f"Tracked additional file: {dest_file} for Python transform"
@@ -281,7 +279,6 @@ class PythonTransformGenerator(BaseActionGenerator):
                     environment=context.get("environment", "unknown"),
                     pipeline=flowgroup.pipeline,
                     flowgroup=flowgroup.flowgroup,
-                    generation_context="",
                 )
                 logger.debug(
                     f"Tracked additional file: {init_file} for Python transform"
@@ -294,7 +291,6 @@ class PythonTransformGenerator(BaseActionGenerator):
                     environment=context.get("environment", "unknown"),
                     pipeline=flowgroup.pipeline,
                     flowgroup=flowgroup.flowgroup,
-                    generation_context="",
                 )
                 logger.debug(
                     f"Tracked additional file: {dest_file} for Python transform"

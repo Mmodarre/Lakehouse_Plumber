@@ -422,14 +422,14 @@ You can define ``catalog`` and ``schema`` in pipeline config to control where ea
    ---
    pipeline:
      - bronze_load
-   catalog: "{catalog}"          # Token from substitutions/dev.yaml
-   schema: "{bronze_schema}"     # Token from substitutions/dev.yaml
+   catalog: "${catalog}"          # Token from substitutions/dev.yaml
+   schema: "${bronze_schema}"     # Token from substitutions/dev.yaml
    
    ---
    pipeline:
      - gold_analytics
    catalog: "analytics_prod"     # Literal value (same across environments)
-   schema: "{gold_schema}"       # Token (varies by environment)
+   schema: "${gold_schema}"       # Token (varies by environment)
 
 .. important::
    Both ``catalog`` AND ``schema`` must be defined together (partial definition raises an error).
@@ -452,8 +452,8 @@ substitution tokens so values resolve per-environment from your ``substitutions/
    :caption: config/pipeline_config.yaml
 
    project_defaults:
-     catalog: "{catalog}"
-     schema: "{schema}"
+     catalog: "${catalog}"
+     schema: "${schema}"
 
 This covers all pipelines. Pipelines that need a different schema can override with a
 per-pipeline section:
@@ -462,8 +462,8 @@ per-pipeline section:
 
    ---
    pipeline: my_special_pipeline
-   catalog: "{catalog}"
-   schema: "{special_schema}"
+   catalog: "${catalog}"
+   schema: "${special_schema}"
 
 .. deprecated:: 0.7.8
    In previous versions, LHP auto-detected catalog/schema values from generated Python files
@@ -483,13 +483,13 @@ All fields in ``pipeline_config.yaml`` support LHP token substitution, not just 
      - production_ingestion
    clusters:
      - label: default
-       node_type_id: "{pipeline_node_type}"    # Token for sizing
-       policy_id: "{pipeline_policy_id}"       # Token for policy
+       node_type_id: "${pipeline_node_type}"    # Token for sizing
+       policy_id: "${pipeline_policy_id}"       # Token for policy
    notifications:
      - email_recipients:
-         - "{ops_team_email}"                  # Token for email
+         - "${ops_team_email}"                  # Token for email
    tags:
-     environment: "{environment_name}"         # Token for env tag
+     environment: "${environment_name}"         # Token for env tag
 
 This enables complete environment-specific configuration from your ``substitutions/{env}.yaml`` files.
 
@@ -507,8 +507,8 @@ as-is to the generated bundle resource.
 
    ---
    pipeline: my_pipeline
-   catalog: "{catalog}"
-   schema: "{schema}"
+   catalog: "${catalog}"
+   schema: "${schema}"
    serverless: true
    environment:
      dependencies:
@@ -527,7 +527,7 @@ as-is to the generated bundle resource.
 
 .. note::
    The ``environment`` section supports LHP token substitution just like all other
-   pipeline config fields. For example, you can use ``"msal=={msal_version}"`` and
+   pipeline config fields. For example, you can use ``"msal==${msal_version}"`` and
    define ``msal_version`` in your ``substitutions/{env}.yaml`` files.
 
 Pipeline Configuration Entries
@@ -545,8 +545,8 @@ entry in the generated bundle resource.
 
    ---
    pipeline: my_pipeline
-   catalog: "{catalog}"
-   schema: "{schema}"
+   catalog: "${catalog}"
+   schema: "${schema}"
    serverless: true
    configuration:
      "pipelines.incompatibleViewCheck.enabled": "false"
@@ -564,7 +564,7 @@ entry in the generated bundle resource.
 
 .. note::
    The ``configuration`` section supports LHP token substitution just like all other
-   pipeline config fields. For example, you can use ``"{min_file_size}"`` and
+   pipeline config fields. For example, you can use ``"${min_file_size}"`` and
    define ``min_file_size`` in your ``substitutions/{env}.yaml`` files.
 
 .. warning::

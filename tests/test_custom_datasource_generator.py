@@ -245,11 +245,7 @@ class TestDataSource(DataSource):
         assert '\\"secret123\\"' in result or 'token=\\"secret123\\"' in result
         
         # Verify it's valid Python by compiling
-        try:
-            compile(result, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with quotes is not valid Python syntax: {e}")
+        compile(result, '<string>', 'exec')
 
     def test_values_with_backslashes_escaped(self, tmp_path):
         """Test that option values containing backslashes are properly escaped."""
@@ -293,15 +289,8 @@ class TestDataSource(DataSource):
         # Verify no SyntaxWarning
         import warnings
         warnings.simplefilter('error', SyntaxWarning)
-        try:
-            compile(result, '<string>', 'exec')
-            assert True
-        except SyntaxWarning as e:
-            pytest.fail(f"Generated code has invalid escape sequences: {e}")
-        except SyntaxError as e:
-            pytest.fail(f"Generated code is not valid Python syntax: {e}")
-        finally:
-            warnings.simplefilter('default', SyntaxWarning)
+        compile(result, '<string>', 'exec')
+        warnings.simplefilter('default', SyntaxWarning)
 
     def test_json_config_with_quotes(self, tmp_path):
         """Test JSON configuration strings with quotes."""
@@ -340,8 +329,65 @@ class APIDataSource(DataSource):
         result = generator.generate(action, context)
 
         # Verify valid Python (quotes should be escaped)
-        try:
-            compile(result, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with JSON config is not valid Python syntax: {e}") 
+        compile(result, '<string>', 'exec')
+
+
+# ============================================================================
+# Golden Output Tests
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestCustomDataSourceGoldenOutput:
+    """Golden output test for CustomDataSource load generator."""
+
+    def test_custom_datasource_golden(self, golden, tmp_path):
+        custom_source_file = tmp_path / "test_source.py"
+        custom_source_file.write_text(
+            'from pyspark.sql.datasource import DataSource, DataSourceReader\n'
+            'from pyspark.sql.types import StructType\n'
+            '\n'
+            'class TestDataSource(DataSource):\n'
+            '    @classmethod\n'
+            '    def name(cls):\n'
+            '        return "test_datasource"\n'
+            '\n'
+            '    def schema(self):\n'
+            '        return "id int, name string"\n'
+            '\n'
+            '    def reader(self, schema: StructType):\n'
+            '        return TestDataSourceReader(schema, self.options)\n'
+            '\n'
+            'class TestDataSourceReader(DataSourceReader):\n'
+            '    def __init__(self, schema, options):\n'
+            '        self.schema = schema\n'
+            '        self.options = options\n'
+            '\n'
+            '    def read(self, partition):\n'
+            '        yield (1, "test")\n'
+            '\n'
+            'spark.dataSource.register(TestDataSource)\n'
+        )
+
+        action = Action(
+            name="test_load",
+            type=ActionType.LOAD,
+            target="v_test_data",
+            readMode="stream",
+        )
+        action.source = {
+            "type": "custom_datasource",
+            "module_path": str(custom_source_file.relative_to(tmp_path)),
+            "custom_datasource_class": "TestDataSource",
+        }
+
+        generator = CustomDataSourceLoadGenerator()
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": None,
+            "preset_config": {},
+            "project_config": None,
+        }
+
+        code = generator.generate(action, context)
+        golden(code, "load_custom_datasource") 

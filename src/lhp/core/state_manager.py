@@ -64,6 +64,9 @@ class StateManager:
         # Load existing state through persistence service
         self._state = self.persistence.load_state()
 
+        # Optional staleness cache (populated via set_staleness_cache)
+        self._staleness_cache = None
+
         self.logger.info(
             f"Initialized StateManager with service-based architecture: {project_root}"
         )
@@ -83,6 +86,14 @@ class StateManager:
         self.analyzer.set_checksum_cache(cache)
         # Distribute to top-level tracker
         self.tracker.set_checksum_cache(cache)
+
+    def set_staleness_cache(self, cache) -> None:
+        """Inject a shared StalenessCache so save() can invalidate it.
+
+        Args:
+            cache: StalenessCache instance (or None to unbind).
+        """
+        self._staleness_cache = cache
 
     # ============================================================================
     # PUBLIC API PROPERTIES (Facade Pattern)
@@ -118,7 +129,6 @@ class StateManager:
         environment: str,
         pipeline: str,
         flowgroup: str,
-        generation_context: str = "",
         used_substitution_keys: Optional[List[str]] = None,
     ) -> None:
         """
@@ -130,7 +140,6 @@ class StateManager:
             environment: Environment name
             pipeline: Pipeline name
             flowgroup: FlowGroup name
-            generation_context: Optional context string for parameter-sensitive hashing
             used_substitution_keys: Optional list of substitution keys used during generation
         """
         self.tracker.track_generated_file(
@@ -140,7 +149,6 @@ class StateManager:
             environment,
             pipeline,
             flowgroup,
-            generation_context,
             used_substitution_keys,
         )
 
@@ -247,6 +255,7 @@ class StateManager:
         self,
         environment: str,
         active_flowgroups: Optional[Set[Tuple[str, str]]] = None,
+        include_tests: Optional[bool] = None,
     ) -> List[FileState]:
         """
         Find generated files whose source YAML files no longer exist or don't match include patterns.
@@ -254,6 +263,8 @@ class StateManager:
         Args:
             environment: Environment name
             active_flowgroups: Optional set of (pipeline, flowgroup) tuples for fast-path lookup
+            include_tests: Current run's ``--include-tests`` flag; ``False``
+                reaps stale ``test_reporting_*`` artifacts from a prior tests-on run.
 
         Returns:
             List of orphaned FileState objects
@@ -264,6 +275,7 @@ class StateManager:
             environment,
             include_patterns,
             active_flowgroups=active_flowgroups,
+            include_tests=include_tests,
         )
 
     def find_stale_files(self, environment: str) -> List[FileState]:
@@ -284,7 +296,6 @@ class StateManager:
         self,
         environment: str,
         pipeline: str = None,
-        generation_context: Optional[Dict] = None,
     ) -> Dict[str, List]:
         """
         Get all files that need generation (new, stale, or untracked).
@@ -292,14 +303,13 @@ class StateManager:
         Args:
             environment: Environment name
             pipeline: Optional pipeline name to filter by
-            generation_context: Optional generation context for parameter-sensitive staleness
 
         Returns:
             Dictionary with 'new', 'stale', and 'up_to_date' lists
         """
         include_patterns = self.get_include_patterns()
         return self.analyzer.get_files_needing_generation(
-            self._state, environment, include_patterns, pipeline, generation_context
+            self._state, environment, include_patterns, pipeline
         )
 
     def get_all_files_needing_generation(
@@ -324,7 +334,11 @@ class StateManager:
         )
 
     def cleanup_orphaned_files(
-        self, environment: str, dry_run: bool = False
+        self,
+        environment: str,
+        dry_run: bool = False,
+        active_flowgroups: Optional[Set[Tuple[str, str]]] = None,
+        include_tests: Optional[bool] = None,
     ) -> List[str]:
         """
         Remove generated files whose source YAML files no longer exist.
@@ -332,13 +346,22 @@ class StateManager:
         Args:
             environment: Environment name
             dry_run: If True, only return what would be deleted without actually deleting
+            active_flowgroups: Optional set of (pipeline, flowgroup) tuples from discovery;
+                when provided, enables the fast-path orphan check (no YAML reparsing)
+            include_tests: Current run's ``--include-tests`` flag; ``False``
+                reaps stale ``test_reporting_*`` artifacts from a prior tests-on run.
 
         Returns:
             List of file paths that were (or would be) deleted
         """
         include_patterns = self.get_include_patterns()
         deleted_files = self.cleaner.cleanup_orphaned_files(
-            self._state, environment, include_patterns, dry_run
+            self._state,
+            environment,
+            include_patterns,
+            dry_run,
+            active_flowgroups=active_flowgroups,
+            include_tests=include_tests,
         )
 
         # Save state if files were actually deleted
@@ -363,6 +386,23 @@ class StateManager:
     def save(self) -> None:
         """Save the current state to file."""
         self.persistence.save_state(self._state)
+        if self._staleness_cache is not None:
+            self._staleness_cache.invalidate()
+
+    def record_generation_context(self, env: str, include_tests: bool) -> None:
+        """Record the generation flags in effect for ``env`` on the in-memory state.
+
+        This is env-scoped (not per-file) and should be called by the CLI
+        once per env AFTER all pipelines have generated successfully. We
+        only persist when the subsequent ``save()`` runs — so a partial
+        failure mid-pipeline leaves the prior context intact, which is the
+        correct behaviour for the next run's context-change gate.
+
+        Args:
+            env: Environment name.
+            include_tests: Whether test actions were included in generation.
+        """
+        self._state.last_generation_context[env] = {"include_tests": str(include_tests)}
 
     def save_state(self) -> None:
         """Save the current state to file. Alias for save() for backward compatibility."""
@@ -569,12 +609,10 @@ class StateManager:
         self, file_path: Path, metadata: Dict[str, Any]
     ) -> None:
         """Track generated file in persistent state using metadata dict."""
-        # Extract metadata for tracking
         source_yaml = metadata.get("source_yaml")
         environment = metadata.get("environment")
         pipeline = metadata.get("pipeline")
         flowgroup = metadata.get("flowgroup")
-        generation_context = metadata.get("generation_context", "")
 
         if all([source_yaml, environment, pipeline, flowgroup]):
             self.track_generated_file(
@@ -583,5 +621,4 @@ class StateManager:
                 environment=environment,
                 pipeline=pipeline,
                 flowgroup=flowgroup,
-                generation_context=generation_context,
             )

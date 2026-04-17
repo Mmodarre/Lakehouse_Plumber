@@ -16,6 +16,7 @@ from .validators.base_validator import ValidationError
 logger = logging.getLogger(__name__)
 
 from .validators import (
+    CdcFanInCompatibilityValidator,
     LoadActionValidator,
     TableCreationValidator,
     TestActionValidator,
@@ -55,6 +56,7 @@ class ConfigValidator:
             self.action_registry, self.field_validator
         )
         self.table_creation_validator = TableCreationValidator()
+        self.cdc_fanin_validator = CdcFanInCompatibilityValidator()
 
     def validate_flowgroup(self, flowgroup: FlowGroup) -> List[ValidationError]:
         """Validate flowgroups and actions.
@@ -227,6 +229,24 @@ class ConfigValidator:
             List of validation error messages
         """
         return self.table_creation_validator.validate(flowgroups)
+
+    def validate_cdc_fanin_compatibility(
+        self, flowgroups: List[FlowGroup]
+    ) -> List[str]:
+        """Validate compatibility across CDC actions sharing a target.
+
+        Delegates to CdcFanInCompatibilityValidator. Mismatches on shared
+        fields surface as ``LHPConfigError`` (raised from the delegate);
+        mode-mixing between CDC and non-CDC contributors returns plain error
+        strings in the result list.
+
+        Args:
+            flowgroups: List of all flowgroups in the pipeline
+
+        Returns:
+            List of validation error messages
+        """
+        return self.cdc_fanin_validator.validate(flowgroups)
 
     def validate_duplicate_pipeline_flowgroup(
         self, flowgroups: List[FlowGroup]

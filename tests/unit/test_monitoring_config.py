@@ -100,10 +100,10 @@ class TestMonitoringConfig:
         assert config.materialized_views == []
 
     def test_substitution_tokens_preserved(self):
-        """Substitution tokens like {catalog} should pass through the model."""
-        config = MonitoringConfig(catalog="{catalog}", schema="{schema}")
-        assert config.catalog == "{catalog}"
-        assert config.schema_ == "{schema}"
+        """Substitution tokens like ${catalog} should pass through the model."""
+        config = MonitoringConfig(catalog="${catalog}", schema="${schema}")
+        assert config.catalog == "${catalog}"
+        assert config.schema_ == "${schema}"
 
 
 @pytest.mark.unit
@@ -125,9 +125,7 @@ class TestProjectConfigWithMonitoring:
     def test_project_config_with_event_log_and_monitoring(self):
         config = ProjectConfig(
             name="test_project",
-            event_log=EventLogConfig(
-                enabled=True, catalog="cat", schema="_meta"
-            ),
+            event_log=EventLogConfig(enabled=True, catalog="cat", schema="_meta"),
             monitoring=MonitoringConfig(enabled=True),
         )
         assert config.event_log is not None

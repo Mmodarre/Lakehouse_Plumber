@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict
 
-from ...models.config import FlowGroup
+from ...models.config import ActionType, FlowGroup
 from ...utils.error_formatter import LHPError, LHPValidationError
 from ...utils.local_variables import LocalVariableResolver
 from ...utils.performance_timer import perf_timer
@@ -41,7 +41,10 @@ class FlowgroupProcessor:
         self.logger = logging.getLogger(__name__)
 
     def process_flowgroup(
-        self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager
+        self,
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+        include_tests: bool = True,
     ) -> FlowGroup:
         """
         Process flowgroup: expand templates, apply presets, apply substitutions.
@@ -53,6 +56,8 @@ class FlowgroupProcessor:
         Args:
             flowgroup: FlowGroup to process
             substitution_mgr: Substitution manager for the environment
+            include_tests: If False, filter out test actions before processing.
+                Defaults to True for backward compatibility.
 
         Returns:
             Processed flowgroup
@@ -93,6 +98,28 @@ class FlowgroupProcessor:
                 # Add template actions to existing actions
                 flowgroup.actions.extend(template_actions)
 
+        # Record whether this flowgroup originally had test actions (before filtering)
+        flowgroup._has_original_test_actions = any(
+            a.type == ActionType.TEST for a in flowgroup.actions
+        )
+
+        # Filter test actions when include_tests=False
+        # Placed after template expansion so template-generated test actions are also caught
+        tests_were_filtered = False
+        if not include_tests:
+            pre_filter_count = len(flowgroup.actions)
+            flowgroup.actions = [
+                a for a in flowgroup.actions if a.type != ActionType.TEST
+            ]
+            filtered_count = pre_filter_count - len(flowgroup.actions)
+            if filtered_count > 0:
+                tests_were_filtered = True
+                self.logger.debug(
+                    f"Filtered {filtered_count} test action(s), "
+                    f"{len(flowgroup.actions)} remaining"
+                )
+
+        if flowgroup.use_template:
             # Step 1.5: Apply template-level presets to template-generated actions
             if template and template.presets:
                 with perf_timer(f"template_presets [{fg}]"):
@@ -156,34 +183,39 @@ class FlowgroupProcessor:
 
         processed_flowgroup = FlowGroup(**substituted_dict)
 
-        self.logger.debug(
-            f"Validating processed flowgroup '{processed_flowgroup.flowgroup}'"
-        )
         # Step 4: Validate individual flowgroup
-        with perf_timer(f"fg_validation [{fg}]"):
-            try:
-                errors = self.config_validator.validate_flowgroup(processed_flowgroup)
-                if errors:
-                    from ...utils.error_formatter import ErrorCategory
-
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="007",
-                        title="FlowGroup validation failed",
-                        details="\n\n".join(str(e) for e in errors),
-                        suggestions=[
-                            "Check flowgroup configuration for the errors listed above",
-                            "Run 'lhp validate' for detailed diagnostics",
-                        ],
-                        context={
-                            "Pipeline": processed_flowgroup.pipeline,
-                            "FlowGroup": processed_flowgroup.flowgroup,
-                            "Error Count": len(errors),
-                        },
+        # Skip validation only when test filtering caused zero actions
+        # (genuinely empty flowgroups from YAML should still fail validation)
+        if processed_flowgroup.actions or not tests_were_filtered:
+            self.logger.debug(
+                f"Validating processed flowgroup '{processed_flowgroup.flowgroup}'"
+            )
+            with perf_timer(f"fg_validation [{fg}]"):
+                try:
+                    errors = self.config_validator.validate_flowgroup(
+                        processed_flowgroup
                     )
-            except LHPError:
-                # Re-raise LHPError as-is (it's already well-formatted)
-                raise
+                    if errors:
+                        from ...utils.error_formatter import ErrorCategory
+
+                        raise LHPValidationError(
+                            category=ErrorCategory.VALIDATION,
+                            code_number="007",
+                            title="FlowGroup validation failed",
+                            details="\n\n".join(str(e) for e in errors),
+                            suggestions=[
+                                "Check flowgroup configuration for the errors listed above",
+                                "Run 'lhp validate' for detailed diagnostics",
+                            ],
+                            context={
+                                "Pipeline": processed_flowgroup.pipeline,
+                                "FlowGroup": processed_flowgroup.flowgroup,
+                                "Error Count": len(errors),
+                            },
+                        )
+                except LHPError:
+                    # Re-raise LHPError as-is (it's already well-formatted)
+                    raise
 
         # Step 5: Validate secret references
         with perf_timer(f"secret_validation [{fg}]"):

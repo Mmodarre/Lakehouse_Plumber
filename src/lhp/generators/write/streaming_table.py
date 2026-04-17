@@ -73,13 +73,11 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         schema = target_config.get("schema")
         table = target_config.get("table")
 
-        # For CDC modes, always create the table since CDC flows need dedicated tables
-        if mode in ["cdc", "snapshot_cdc"]:
+        # Snapshot CDC still requires a dedicated table; other modes honor the flag.
+        if mode == "snapshot_cdc":
             create_table = True
         else:
-            create_table = target_config.get(
-                "create_table", True
-            )  # Default to True for standard mode
+            create_table = target_config.get("create_table", True)
 
         # Build full table name (normalizer guarantees catalog/schema are present)
         full_table_name = f"{catalog}.{schema}.{table}" if catalog and schema else table
@@ -173,6 +171,9 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         metadata_columns = {}
         flowgroup = context.get("flowgroup")
 
+        # Per-flow CDC config for the single-action path (empty for non-CDC).
+        flow_cdc_config = self._build_flow_cdc_config(mode, cdc_config)
+
         # Check if this is a combined action with individual metadata
         if hasattr(action, "_action_metadata") and action._action_metadata:
             # Use new action metadata structure for individual append flows
@@ -197,6 +198,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                         "flow_name": flow_name_item,
                         "description": action.description
                         or f"Append flow to {full_table_name}",
+                        "flow_cdc_config": flow_cdc_config,
                     }
                 )
         else:
@@ -226,6 +228,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                             "flow_name": flow_name,
                             "description": action.description
                             or f"Append flow to {full_table_name} from {source_view}",
+                            "flow_cdc_config": flow_cdc_config,
                         }
                     )
                     flow_names.append(flow_name)
@@ -241,6 +244,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                         "flow_name": flow_name,
                         "description": action.description
                         or f"Append flow to {full_table_name}",
+                        "flow_cdc_config": flow_cdc_config,
                     }
                 )
                 flow_names.append(flow_name)
@@ -285,6 +289,24 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         }
 
         return self.render_template("write/streaming_table.py.j2", template_context)
+
+    def _build_flow_cdc_config(
+        self, mode: str, cdc_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Build the per-flow CDC config dict for a single CDC action.
+
+        Returns an empty dict for non-CDC modes so the template can safely
+        index into it without branching on mode.
+        """
+        if mode != "cdc":
+            return {}
+        return {
+            "ignore_null_updates": cdc_config.get("ignore_null_updates"),
+            "apply_as_deletes": cdc_config.get("apply_as_deletes"),
+            "apply_as_truncates": cdc_config.get("apply_as_truncates"),
+            "column_list": cdc_config.get("column_list"),
+            "except_column_list": cdc_config.get("except_column_list"),
+        }
 
     def _extract_source_views(self, source) -> List[str]:
         """Extract source views as a list from action source."""

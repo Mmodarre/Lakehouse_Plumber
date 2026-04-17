@@ -67,7 +67,7 @@ Configuration
        source: v_logs_us
        write_target:
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: unified_logs
          create_table: true
        description: "Write US region logs to unified table"
@@ -78,7 +78,7 @@ Configuration
        source: v_logs_eu
        write_target:
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: unified_logs
          create_table: false
        description: "Append EU region logs to unified table"
@@ -209,7 +209,7 @@ environment:
    :caption: flowgroup YAML
 
    source:
-     path: "{log_path_pattern}"
+     path: "${log_path_pattern}"
 
 .. warning::
    **Caveats for complex glob patterns:**
@@ -263,7 +263,7 @@ full SQL regex power.
        source: v_filtered_data
        write_target:
          type: streaming_table
-         database: "{catalog}.{bronze_schema}"
+         database: "${catalog}.${bronze_schema}"
          table: my_table
        description: "Write filtered data to bronze layer"
 

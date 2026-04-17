@@ -76,7 +76,7 @@ class SQLParser:
         # Pattern for FROM clauses
         # Matches: FROM table, FROM schema.table, FROM {catalog}.{schema}.table
         # Also handles aliases: FROM table AS alias, FROM table alias
-        from_pattern = r"\bFROM\s+((?:(?:\{[^}]+\}|\w+)(?:\.(?:\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?"
+        from_pattern = r"\bFROM\s+((?:(?:\$?\{[^}]+\}|\w+)(?:\.(?:\$?\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?"
 
         for match in re.finditer(from_pattern, sql_content, re.IGNORECASE):
             table_ref = match.group(1).strip()
@@ -111,7 +111,7 @@ class SQLParser:
 
                     # Extract table reference, remove alias
                     table_match = re.match(
-                        r"((?:(?:\{[^}]+\}|\w+)(?:\.(?:\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?",
+                        r"((?:(?:\$?\{[^}]+\}|\w+)(?:\.(?:\$?\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?",
                         part.strip(),
                     )
                     if table_match:
@@ -131,7 +131,7 @@ class SQLParser:
             cte_names = set()
 
         # Pattern for all types of JOIN clauses
-        join_pattern = r"\b(?:INNER\s+|LEFT\s+|RIGHT\s+|FULL\s+|CROSS\s+)?JOIN\s+((?:(?:\{[^}]+\}|\w+)(?:\.(?:\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?"
+        join_pattern = r"\b(?:INNER\s+|LEFT\s+|RIGHT\s+|FULL\s+|CROSS\s+)?JOIN\s+((?:(?:\$?\{[^}]+\}|\w+)(?:\.(?:\$?\{[^}]+\}|\w+))*))(?:\s+(?:AS\s+)?\w+)?"
 
         for match in re.finditer(join_pattern, sql_content, re.IGNORECASE):
             table_ref = match.group(1).strip()
@@ -197,7 +197,7 @@ class SQLParser:
 
         # Pattern for function-wrapped table references
         # Matches: stream(table), live(table), snapshot(table)
-        function_pattern = r"\b(?:stream|STREAM|live|LIVE|snapshot|SNAPSHOT)\s*\(\s*((?:\{[^}]+\}\.)?(?:\{[^}]+\}\.)?(?:\{[^}]+\}|\w+(?:\.\w+)*))\s*\)"
+        function_pattern = r"\b(?:stream|STREAM|live|LIVE|snapshot|SNAPSHOT)\s*\(\s*((?:\$?\{[^}]+\}\.)?(?:\$?\{[^}]+\}\.)?(?:\$?\{[^}]+\}|\w+(?:\.\w+)*))\s*\)"
 
         for match in re.finditer(function_pattern, sql_content):
             table_ref = match.group(1).strip()

@@ -1361,5 +1361,48 @@ def test_write_generator_imports():
     assert "from pyspark.sql import DataFrame" in mv_gen.imports
 
 
+@pytest.mark.unit
+class TestStreamingTableGoldenOutput:
+    """Golden output test for streaming table write generator."""
+
+    def test_basic_streaming_table_golden(self, golden):
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_customers",
+            type=ActionType.WRITE,
+            source="v_customers_final",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "write_streaming_table")
+
+
+@pytest.mark.unit
+class TestMaterializedViewGoldenOutput:
+    """Golden output test for materialized view write generator."""
+
+    def test_basic_materialized_view_golden(self, golden):
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="write_summary",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
+                "table": "customer_summary",
+                "sql": "SELECT region, COUNT(*) as customer_count FROM silver.customers GROUP BY region",
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "write_materialized_view")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

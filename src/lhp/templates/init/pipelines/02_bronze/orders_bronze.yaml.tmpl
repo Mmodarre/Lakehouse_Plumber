@@ -14,8 +14,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: orders
     target: v_orders_raw
     description: "Load orders table from raw schema" 
@@ -49,7 +49,7 @@ actions:
     source: v_orders_bronze_cleaned
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "orders"
         

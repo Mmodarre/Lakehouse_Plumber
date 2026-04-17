@@ -103,9 +103,7 @@ class GenerateCommand(BaseCommand):
             application_facade.orchestrator.validate_duplicate_pipeline_flowgroup_combinations(
                 all_flowgroups
             )
-            pipelines_to_generate = self._get_pipeline_names(
-                pipeline, all_flowgroups
-            )
+            pipelines_to_generate = self._get_pipeline_names(pipeline, all_flowgroups)
 
         if not pipelines_to_generate:
             from ...utils.error_formatter import ErrorCategory, LHPConfigError
@@ -124,25 +122,30 @@ class GenerateCommand(BaseCommand):
 
         logger.debug(f"Pipelines discovered for generation: {pipelines_to_generate}")
 
-        # 6. Create per-run checksum cache (shared across analysis + generation)
+        # 6. Bind per-run caches (shared across analysis + generation)
         checksum_cache = ChecksumCache()
         if application_facade.state_manager:
             application_facade.state_manager.set_checksum_cache(checksum_cache)
+            application_facade.state_manager.set_staleness_cache(
+                application_facade.orchestrator.dependencies.staleness_cache
+            )
 
         # 7. Handle cleanup operations (coordinate)
         if force and not no_cleanup:
             with perf_timer("Cleanup operations", phase=True):
-                self._wipe_generated_directory(
-                    application_facade, output_dir, dry_run
-                )
+                self._wipe_generated_directory(application_facade, output_dir, dry_run)
         elif not no_cleanup:
             with perf_timer("Cleanup operations", phase=True):
                 active_flowgroups = {
                     (fg.pipeline, fg.flowgroup) for fg in all_flowgroups
                 }
                 self._handle_cleanup_operations(
-                    application_facade, env, output_dir, dry_run,
+                    application_facade,
+                    env,
+                    output_dir,
+                    dry_run,
                     active_flowgroups=active_flowgroups,
+                    include_tests=include_tests,
                 )
 
         # 8. Analyze generation requirements (show context changes)
@@ -163,9 +166,7 @@ class GenerateCommand(BaseCommand):
 
         for pipeline_identifier in pipelines_to_generate:
             logger.debug(f"Starting generation for pipeline: {pipeline_identifier}")
-            with perf_timer(
-                f"Pipeline generation [{pipeline_identifier}]", phase=True
-            ):
+            with perf_timer(f"Pipeline generation [{pipeline_identifier}]", phase=True):
                 response = self._execute_pipeline_generation(
                     application_facade,
                     pipeline_identifier,
@@ -185,6 +186,24 @@ class GenerateCommand(BaseCommand):
             if response.is_successful():
                 total_files += response.files_written
                 all_generated_files.update(response.generated_files)
+
+        # 9.5. Finalize monitoring artifacts (after all pipelines generated)
+        if not dry_run:
+            with perf_timer("Monitoring artifacts", phase=True):
+                application_facade.orchestrator.finalize_monitoring_artifacts(
+                    env, output_dir
+                )
+
+        # 9.6. Record the generation context (e.g. include_tests) we just
+        # generated with. This is env-scoped and is only persisted on full
+        # success — a mid-loop failure would have already raised above, so
+        # reaching this point means all pipelines completed. The next run's
+        # context-change gate compares against this record.
+        if not dry_run and application_facade.state_manager and pipelines_to_generate:
+            application_facade.state_manager.record_generation_context(
+                env, include_tests
+            )
+            application_facade.state_manager.save()
 
         # 10. Handle bundle operations (coordinate)
         if not no_bundle:
@@ -221,9 +240,7 @@ class GenerateCommand(BaseCommand):
             project_root, pipeline_config_path=pipeline_config_path
         )
         state_manager = (
-            StateManager(
-                project_root, yaml_parser=orchestrator.cached_yaml_parser
-            )
+            StateManager(project_root, yaml_parser=orchestrator.cached_yaml_parser)
             if not no_cleanup
             else None
         )
@@ -308,7 +325,13 @@ class GenerateCommand(BaseCommand):
             else:
                 click.echo("✅ Analysis: All pipelines are up-to-date")
 
-            if response.include_tests_context_applied:
+            if response.context_changed:
+                click.echo(
+                    "🧪 Generation context changed — regenerating all pipelines:"
+                )
+                for change in response.context_changes:
+                    click.echo(f"   • {change}")
+            elif response.include_tests_context_applied:
                 click.echo(
                     "🧪 Generation context changes detected (include_tests parameter)"
                 )
@@ -410,12 +433,15 @@ class GenerateCommand(BaseCommand):
         output_dir: Path,
         dry_run: bool,
         active_flowgroups: Optional[set] = None,
+        include_tests: bool = False,
     ) -> None:
         """Handle cleanup operations - coordinate with application layer."""
         if application_facade.state_manager:
             click.echo("🧹 Checking for orphaned files in environment: " + env)
             orphaned_files = application_facade.state_manager.find_orphaned_files(
-                env, active_flowgroups=active_flowgroups
+                env,
+                active_flowgroups=active_flowgroups,
+                include_tests=include_tests,
             )
 
             if orphaned_files:
@@ -425,7 +451,10 @@ class GenerateCommand(BaseCommand):
                     click.echo(f"Cleaning up {len(orphaned_files)} orphaned file(s)")
                     deleted_files = (
                         application_facade.state_manager.cleanup_orphaned_files(
-                            env, dry_run=False
+                            env,
+                            dry_run=False,
+                            active_flowgroups=active_flowgroups,
+                            include_tests=include_tests,
                         )
                     )
                     for deleted_file in deleted_files:

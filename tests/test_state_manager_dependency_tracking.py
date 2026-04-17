@@ -87,15 +87,13 @@ class TestDependencyTrackingDataStructures:
             flowgroup="customer_bronze",
             file_dependencies={
                 "presets/bronze_layer.yaml": preset_dep,
-                "templates/standard_ingestion.yaml": template_dep
+                "templates/standard_ingestion.yaml": template_dep,
             },
-            file_composite_checksum="composite123"
         )
-        
+
         assert file_state.file_dependencies is not None
         assert len(file_state.file_dependencies) == 2
         assert "presets/bronze_layer.yaml" in file_state.file_dependencies
-        assert file_state.file_composite_checksum == "composite123"
 
     def test_enhanced_project_state_creation(self):
         """Test ProjectState with global dependencies."""
@@ -168,8 +166,7 @@ class TestBasicStateManagementWithDependencies:
                                     "type": "preset",
                                     "last_modified": "2023-01-01T00:00:00"
                                 }
-                            },
-                            "file_composite_checksum": "composite123"
+                            }
                         }
                     }
                 }

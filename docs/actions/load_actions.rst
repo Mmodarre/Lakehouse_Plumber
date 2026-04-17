@@ -42,7 +42,7 @@ cloudFiles
       operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time"]
       source:
         type: cloudfiles
-        path: "{landing_volume}/{{ landing_folder }}/*.csv"
+        path: "${landing_volume}/{{ landing_folder }}/*.csv"
         format: csv
         options:
           cloudFiles.format: csv
@@ -237,7 +237,7 @@ delta
 -------------------------------------------
 
 .. deprecated:: 0.7.8
-   The ``database`` field (e.g., ``database: "{catalog}.{schema}"``) is deprecated
+   The ``database`` field (e.g., ``database: "${catalog}.${schema}"``) is deprecated
    for delta sources. Use explicit ``catalog`` and ``schema`` fields instead. The old
    format is auto-converted with a deprecation warning. Removal in v1.0.0.
 
@@ -250,8 +250,8 @@ delta
       readMode: stream
       source:
         type: delta
-        catalog: "{catalog}"
-        schema: "{raw_schema}"
+        catalog: "${catalog}"
+        schema: "${raw_schema}"
         table: customer
       target: v_customer_raw
       description: "Load customer table from raw schema" 
@@ -286,7 +286,7 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
       readMode: stream
       source:
         type: delta
-        catalog: "{catalog}"
+        catalog: "${catalog}"
         schema: "bronze"
         table: orders
         options:
@@ -341,7 +341,7 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
       readMode: batch
       source:
         type: delta
-        catalog: "{catalog}"
+        catalog: "${catalog}"
         schema: "bronze"
         table: orders
         options:
@@ -406,7 +406,7 @@ overwhelm downstream consumers. Mitigation strategies:
       readMode: batch
       source:
         type: delta
-        catalog: "{catalog}"
+        catalog: "${catalog}"
         schema: "silver"
         table: customers
         options:
@@ -736,8 +736,8 @@ SQL load actions support both **inline SQL** and **external SQL files**.
             c_mktsegment,
             COUNT(*) as order_count,
             SUM(o_totalprice) as total_spent
-          FROM {catalog}.{raw_schema}.customer c
-          LEFT JOIN {catalog}.{raw_schema}.orders o 
+          FROM ${catalog}.${raw_schema}.customer c
+          LEFT JOIN ${catalog}.${raw_schema}.orders o 
             ON c.c_custkey = o.o_custkey
           GROUP BY c_custkey, c_name, c_mktsegment
       target: v_customer_summary
@@ -775,12 +775,12 @@ SQL load actions support both **inline SQL** and **external SQL files**.
 
 .. Important::
   SQL load actions allow you to create complex views from multiple tables using standard SQL.
-  Use substitution variables like ``{catalog}`` and ``{schema}`` for environment-specific values.
+  Use substitution variables like ``${catalog}`` and ``${schema}`` for environment-specific values.
 
 .. note:: **File Substitution Support**
    
    Substitution variables work in both inline SQL and external SQL files (``sql_path``). 
-   The same ``{token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
+   The same ``${token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
    Files are processed for substitutions before query execution.
   
 .. note::
@@ -829,7 +829,7 @@ SQL load actions support both **inline SQL** and **external SQL files**.
             total_orders,
             avg_order_value,
             last_order_date
-          FROM {catalog}.{silver_schema}.customer_analytics
+          FROM ${catalog}.${silver_schema}.customer_analytics
           WHERE last_order_date >= current_date() - INTERVAL 90 DAYS
       """)
 
@@ -1073,15 +1073,15 @@ Python load actions call custom Python functions that return DataFrames. This al
   Common practice is to create an ``extractors/`` or ``functions/`` folder alongside your pipeline YAML files.
 
 .. note::
-  **Parameter Substitution**: The ``parameters`` dictionary supports both ``${token}`` 
-  (preferred) and ``{token}`` (legacy) substitution for environment-specific values:
-  
+  **Parameter Substitution**: The ``parameters`` dictionary supports ``${token}``
+  substitution for environment-specific values:
+
   .. code-block:: yaml
-  
+
      parameters:
-       catalog: "${catalog}"                # Preferred syntax
-       table_name: "${schema}.users"        # Preferred syntax
-       api_endpoint: "{api_url}"            # Legacy (still works)
+       catalog: "${catalog}"
+       table_name: "${schema}.users"
+       api_endpoint: "${api_url}"
        batch_size: 1000                     # No substitution needed
   
   All tokens are replaced with values from ``substitutions/{env}.yaml`` at generation time.
@@ -1237,7 +1237,7 @@ Custom data source load actions use PySpark's DataSource API to implement specia
    
    Custom DataSource Python files support substitution variables:
    
-   - **Environment tokens**: ``{catalog}``, ``{api_endpoint}``, ``{environment}``
+   - **Environment tokens**: ``${catalog}``, ``${api_endpoint}``, ``${environment}``
    - **Secret references**: ``${secret:scope/key}`` for API keys and credentials
    
    Substitutions are applied before the class is embedded in the generated code.

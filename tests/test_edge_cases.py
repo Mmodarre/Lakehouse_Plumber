@@ -155,26 +155,28 @@ template_parameters:
             assert len(dependencies) == 0
     
     def test_corrupted_state_file_handling(self):
-        """Test handling of corrupted state files."""
+        """Corrupted JSON should surface as an LHPFileError, not be silently reset."""
+        from lhp.utils.error_formatter import LHPFileError
+
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             state_manager = StateManager(project_root)
-            
-            # Create corrupted state file
+
             state_file = project_root / ".lhp_state.json"
             state_file.write_text("invalid json content")
-            
-            # Should handle gracefully and start with empty state
-            state_manager.load_state()
-            assert len(state_manager.get_generated_files("dev")) == 0
-    
+
+            with pytest.raises(LHPFileError) as exc_info:
+                state_manager.load_state()
+            assert "Malformed state file" in str(exc_info.value)
+
     def test_state_file_with_missing_fields(self):
-        """Test handling of state files with missing fields."""
+        """Schema-invalid state should surface as an LHPFileError."""
+        from lhp.utils.error_formatter import LHPFileError
+
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             state_manager = StateManager(project_root)
-            
-            # Create state file with missing required fields
+
             state_file = project_root / ".lhp_state.json"
             state_data = {
                 "environments": {
@@ -189,13 +191,10 @@ template_parameters:
                 }
             }
             state_file.write_text(json.dumps(state_data))
-            
-            # Should handle gracefully and migrate/fix the state
-            state_manager.load_state()
-            # Should not crash
-            files = state_manager.get_generated_files("dev")
-            # May have empty state or migrated state
-            assert isinstance(files, dict)
+
+            with pytest.raises(LHPFileError) as exc_info:
+                state_manager.load_state()
+            assert "Malformed state file" in str(exc_info.value)
     
     def test_permission_denied_file_access(self):
         """Test handling of permission denied when accessing files."""
@@ -419,8 +418,8 @@ actions:
             files1 = state_manager1.get_generated_files("dev")
             files2 = state_manager2.get_generated_files("dev")
             
-            assert len(files1) >= 0
-            assert len(files2) >= 0
+            assert len(files1) == 1
+            assert isinstance(files2, dict)
     
     def test_invalid_environment_names(self):
         """Test handling of invalid environment names."""
@@ -491,4 +490,4 @@ actions:
             
             # Test staleness detection with many files
             stale_files = state_manager.find_stale_files("dev")
-            assert len(stale_files) >= 0  # Should not crash 
+            assert len(stale_files) == 0

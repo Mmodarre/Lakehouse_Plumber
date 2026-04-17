@@ -163,9 +163,9 @@ class TableCreationValidator:
             if write_type == "materialized_view":
                 return True
 
-            # CDC modes always create their own tables
+            # Snapshot CDC always creates its own table (dp.create_auto_cdc_from_snapshot_flow)
             mode = action.write_target.get("mode", "standard")
-            if mode in ["cdc", "snapshot_cdc"]:
+            if mode == "snapshot_cdc":
                 return True
             return action.write_target.get("create_table", True)
         else:
@@ -173,8 +173,8 @@ class TableCreationValidator:
             if action.write_target.type == WriteTargetType.MATERIALIZED_VIEW:
                 return True
 
-            # CDC modes always create their own tables
+            # Snapshot CDC always creates its own table
             mode = getattr(action.write_target, "mode", "standard")
-            if mode in ["cdc", "snapshot_cdc"]:
+            if mode == "snapshot_cdc":
                 return True
             return action.write_target.create_table

@@ -487,19 +487,19 @@ class TestStateCommandEdgeCases:
             assert "Not in a LakehousePlumber project directory" in result.output
     
     def test_corrupted_state_file(self, runner, sample_project):
-        """Test handling of corrupted state file."""
-        # Create corrupted state file
+        """Corrupted state should surface a user-facing error, not be silently discarded."""
         (sample_project / ".lhp_state.json").write_text("invalid json {")
-        
+
         with runner.isolated_filesystem():
             import os
             os.chdir(str(sample_project))
-            
-            # Should handle gracefully and show no files
+
             result = runner.invoke(cli, ['state'])
-            
-            assert result.exit_code == 0
-            assert "📭 No tracked files found" in result.output
+
+            # Prior behaviour silently reset to an empty state; post-migration
+            # we refuse to clobber a user's file and instead point them at it.
+            assert result.exit_code != 0
+            assert "Malformed state file" in result.output or "Incompatible state file" in result.output
     
     def test_permission_error_cleanup(self, runner, project_with_state):
         """Test cleanup when file deletion fails due to permissions."""

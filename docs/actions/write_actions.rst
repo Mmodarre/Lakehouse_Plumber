@@ -19,7 +19,7 @@ streaming_table
 Streaming table write actions create or append to Delta streaming tables. They support three modes: **standard** (append flows), **cdc** (change data capture), and **snapshot_cdc** (snapshot-based CDC).
 
 .. deprecated:: 0.7.8
-   The ``database`` field (e.g., ``database: "{catalog}.{schema}"``) is deprecated.
+   The ``database`` field (e.g., ``database: "${catalog}.${schema}"``) is deprecated.
    Use explicit ``catalog`` and ``schema`` fields instead. The old format is
    auto-converted with a deprecation warning. Removal in v1.0.0.
 
@@ -34,8 +34,8 @@ Append Streaming Table Write
       source: v_customer_cleansed
       write_target:
         type: streaming_table
-        catalog: "{catalog}"
-        schema: "{bronze_schema}"
+        catalog: "${catalog}"
+        schema: "${bronze_schema}"
         table: customer
         create_table: true
         table_properties:
@@ -167,8 +167,8 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
       source: v_customer_changes
       write_target:
         type: streaming_table
-        catalog: "{catalog}"
-        schema: "{silver_schema}"
+        catalog: "${catalog}"
+        schema: "${silver_schema}"
         table: dim_customer
         mode: "cdc"
         table_properties:
@@ -201,10 +201,11 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
       row_filter="ROW FILTER catalog.schema.customer_region_filter ON (region)"
   )
 
-  # CDC mode using auto_cdc
+  # CDC flow: f_customer_scd
   dp.create_auto_cdc_flow(
       target="catalog.silver.dim_customer",
       source="v_customer_changes",
+      name="f_customer_scd",
       keys=["customer_id"],
       sequence_by="_commit_timestamp",
       stored_as_scd_type=2,
@@ -214,6 +215,69 @@ CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD 
 
 .. seealso::
   - For more information on ``create_auto_cdc_flow`` see the `Databricks CDC documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-apply-changes-from-snapshot>`_
+
+**Multi-CDC fan-in**
+
+Multiple CDC write actions that target the same ``catalog.schema.table`` combine into a single ``create_streaming_table()`` plus one ``create_auto_cdc_flow()`` call per contributor. This is the CDC counterpart to standard-mode append-flow fan-in.
+
+Requirements:
+
+- Exactly one contributing action must own the table (default ``create_table: true``); all others must set ``create_table: false``.
+- All contributors must agree on the following shared fields (table-level and CDC-key semantics):
+
+  - ``cdc_config``: ``keys``, ``sequence_by``, ``stored_as_scd_type`` / ``scd_type``, ``track_history_column_list``, ``track_history_except_column_list``
+  - ``write_target``: ``partition_columns``, ``cluster_columns``, ``table_properties``, ``spark_conf``, ``table_schema``, ``comment``, ``path``, ``row_filter``, ``temporary``
+
+- The following fields are **per-flow** and may differ across contributors:
+
+  - ``source`` (must be a single view — see note below)
+  - ``once`` (use ``true`` for one-time historical backfills)
+  - ``cdc_config``: ``ignore_null_updates``, ``apply_as_deletes``, ``apply_as_truncates``, ``column_list``, ``except_column_list``
+
+.. note::
+  In CDC mode each write action accepts a **single** source view. Multiple source views in one action (``source: [v1, v2]``) is rejected with a clear error. To fan in multiple sources to the same CDC target, declare one write action per source, all targeting the same ``catalog.schema.table``.
+
+Cross-flowgroup fan-in is supported: the creator and contributors may live in different flowgroups (and thus different generated ``.py`` files). The generator emits ``create_streaming_table()`` only in the creator's file; each contributor's file emits only its own ``create_auto_cdc_flow()`` call.
+
+.. code-block:: yaml
+
+  # Flowgroup A: the table creator (streaming CDC)
+  actions:
+    - name: write_customer_silver
+      type: write
+      source: v_customer_bronze
+      write_target:
+        type: streaming_table
+        catalog: "${catalog}"
+        schema: "${silver_schema}"
+        table: dim_customer
+        mode: "cdc"
+        create_table: true        # ← Exactly ONE action owns table creation
+        cdc_config:
+          keys: ["customer_id"]
+          sequence_by: "last_modified_dt"
+          scd_type: 2
+
+  # Flowgroup B: one-time historical backfill contributing to the same target
+  actions:
+    - name: write_customer_silver_backfill
+      type: write
+      source: v_customer_bronze_backfill
+      once: true                   # ← Per-flow: one-time backfill
+      readMode: batch
+      write_target:
+        type: streaming_table
+        catalog: "${catalog}"
+        schema: "${silver_schema}"
+        table: dim_customer         # ← Same target as the creator
+        mode: "cdc"
+        create_table: false         # ← Non-creator CDC contributor
+        cdc_config:
+          keys: ["customer_id"]     # ← Must match the creator
+          sequence_by: "last_modified_dt"
+          scd_type: 2
+
+If any shared field disagrees across contributors, ``lhp validate`` / ``lhp generate`` fails with ``LHPConfigError`` listing the offending field, the conflicting actions, and a remediation example. CDC and non-CDC actions may not share the same target — mode-mixing is rejected.
 
 **Snapshot CDC**
 
@@ -235,8 +299,8 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
       type: write
       write_target:
         type: streaming_table
-        catalog: "{catalog}"
-        schema: "{silver_schema}"
+        catalog: "${catalog}"
+        schema: "${silver_schema}"
         table: dim_customer_simple
         mode: "snapshot_cdc"
         snapshot_cdc_config:
@@ -260,8 +324,8 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
       type: write
       write_target:
         type: streaming_table
-        catalog: "{catalog}"
-        schema: "{silver_schema}"
+        catalog: "${catalog}"
+        schema: "${silver_schema}"
         table: "part_dim"
         mode: "snapshot_cdc"
         snapshot_cdc_config:
@@ -282,8 +346,8 @@ Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `cre
       type: write
       write_target:
         type: streaming_table
-        catalog: "{catalog}"
-        schema: "{silver_schema}"
+        catalog: "${catalog}"
+        schema: "${silver_schema}"
         table: dim_product
         mode: "snapshot_cdc"
         snapshot_cdc_config:
@@ -305,8 +369,8 @@ This makes the function reusable and testable outside LHP — no substitution to
       type: write
       write_target:
         type: streaming_table
-        catalog: "{catalog}"
-        schema: "{silver_schema}"
+        catalog: "${catalog}"
+        schema: "${silver_schema}"
         table: "supplier_dim"
         mode: "snapshot_cdc"
         snapshot_cdc_config:
@@ -314,8 +378,8 @@ This makes the function reusable and testable outside LHP — no substitution to
             file: "py_functions/supplier_snapshot_func.py"
             function: "next_supplier_snapshot"
             parameters:
-              catalog: "{catalog}"
-              schema: "{bronze_schema}"
+              catalog: "${catalog}"
+              schema: "${bronze_schema}"
               table: "supplier"
           keys: ["supplier_id"]
           stored_as_scd_type: 2
@@ -549,7 +613,7 @@ Create file `py_functions/part_snapshot_func.py`:
   - Can use either `track_history_column_list` OR `track_history_except_column_list` (mutually exclusive)
   - When using `source_function`, the Python function is embedded directly into the generated DLT code
   - Function file paths are relative to the YAML file location
-  - **Substitution support**: Python functions support ``{token}`` and ``${secret:scope/key}`` substitutions
+  - **Substitution support**: Python functions support ``${token}`` and ``${secret:scope/key}`` substitutions
   - **Parameters support**: Use ``parameters`` inside ``source_function`` to bind keyword arguments via ``functools.partial``. The function must use a ``*`` separator for keyword-only args. Substitution tokens in parameter values are resolved before binding.
   
   **⚠️ Source Field Redundancy**: When using ``source_function`` in snapshot CDC configuration, do NOT include a ``source`` field at the action level. The ``source`` field becomes redundant and may cause false dependency errors. The ``source_function`` provides the data source internally.
@@ -597,8 +661,8 @@ for pre-computed analytics tables based on the output of a query.
       source: v_customer_aggregated
       write_target:
         type: materialized_view
-        catalog: "{catalog}"
-        schema: "{gold_schema}"
+        catalog: "${catalog}"
+        schema: "${gold_schema}"
         table: customer_summary
         table_properties:
           delta.autoOptimize.optimizeWrite: "true"
@@ -618,8 +682,8 @@ for pre-computed analytics tables based on the output of a query.
       type: write
       write_target:
         type: materialized_view
-        catalog: "{catalog}"
-        schema: "{gold_schema}"
+        catalog: "${catalog}"
+        schema: "${gold_schema}"
         table: daily_sales_summary
         sql: |
           SELECT 
@@ -629,7 +693,7 @@ for pre-computed analytics tables based on the output of a query.
             COUNT(*) as transaction_count,
             SUM(amount) as total_sales,
             AVG(amount) as avg_transaction_amount
-          FROM {catalog}.{silver_schema}.sales_transactions
+          FROM ${catalog}.${silver_schema}.sales_transactions
           WHERE DATE(transaction_date) >= CURRENT_DATE - INTERVAL 90 DAYS
           GROUP BY region, product_category, DATE(transaction_date)
         table_properties:
@@ -648,8 +712,8 @@ for pre-computed analytics tables based on the output of a query.
       type: write
       write_target:
         type: materialized_view
-        catalog: "{catalog}"
-        schema: "{gold_schema}"
+        catalog: "${catalog}"
+        schema: "${gold_schema}"
         table: daily_sales_summary
         sql_path: "sql/gold/daily_sales_summary.sql"
         table_properties:
@@ -686,7 +750,7 @@ for pre-computed analytics tables based on the output of a query.
   2. **Inline SQL** (Option 2): Define SQL directly in YAML using ``sql``
   3. **External SQL file** (Option 3): Reference external SQL file using ``sql_path``
   
-  External SQL files support substitution variables (``{tokens}`` and ``${secret:scope/key}``) 
+  External SQL files support substitution variables (``${tokens}`` and ``${secret:scope/key}``) 
   and can be organized in subdirectories (e.g., ``"sql/gold/aggregations/sales_summary.sql"``).
 
 **table_schema Format Options**

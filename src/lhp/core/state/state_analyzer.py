@@ -94,6 +94,11 @@ class StateAnalyzer:
 
         # Check individual files for staleness
         for file_state in env_files.values():
+            # Skip pipeline artifacts (e.g. test_reporting hooks) — they use lhp.yaml
+            # as source_yaml which is not a flowgroup file and can't be dependency-resolved
+            if getattr(file_state, "artifact_type", None):
+                continue
+
             source_path = self.project_root / file_state.source_yaml
 
             if not source_path.exists():
@@ -261,7 +266,6 @@ class StateAnalyzer:
         environment: str,
         include_patterns: Optional[List[str]] = None,
         pipeline: Optional[str] = None,
-        generation_context: Optional[Dict] = None,
     ) -> Dict[str, List]:
         """
         Get all files that need generation (new, stale, or untracked).
@@ -271,7 +275,6 @@ class StateAnalyzer:
             environment: Environment name
             include_patterns: Optional include patterns for filtering
             pipeline: Optional pipeline name to filter by
-            generation_context: Optional generation context for parameter-sensitive staleness
 
         Returns:
             Dictionary with 'new', 'stale', and 'up_to_date' lists
@@ -652,6 +655,9 @@ class StateAnalyzer:
         else:
             # Check each file individually
             for file_path, file_state in env_files.items():
+                # Skip pipeline artifacts — not dependency-resolvable
+                if getattr(file_state, "artifact_type", None):
+                    continue
                 file_changes = self.get_file_dependency_changes(file_state, environment)
 
                 if file_changes:
