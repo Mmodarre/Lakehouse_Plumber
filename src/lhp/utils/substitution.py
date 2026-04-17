@@ -4,13 +4,14 @@ import logging
 import os
 import re
 import threading
-import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 from .error_formatter import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
 
 logger = logging.getLogger(__name__)
+
+_DEPRECATED_BARE_TOKEN_WARNED = False
 
 
 class SecretReference:
@@ -68,7 +69,6 @@ class EnhancedSubstitutionManager:
         self._thread_local = (
             threading.local()
         )  # Per-thread storage for current flowgroup
-        self._deprecated_syntax_warned = False
 
         # Add reserved tokens
         self._add_reserved_tokens()
@@ -310,17 +310,16 @@ class EnhancedSubstitutionManager:
         # Apply patterns - dollar pattern first to avoid conflicts
         text = self.DOLLAR_TOKEN_PATTERN.sub(dollar_replacer, text)
 
-        # Warn once about deprecated {token} syntax
-        if not self._deprecated_syntax_warned and self.DEFAULT_TOKEN_PATTERN.search(
+        # Warn once per process about deprecated {token} syntax
+        global _DEPRECATED_BARE_TOKEN_WARNED
+        if not _DEPRECATED_BARE_TOKEN_WARNED and self.DEFAULT_TOKEN_PATTERN.search(
             text
         ):
-            warnings.warn(
+            logger.warning(
                 "The bare {token} substitution syntax is deprecated and will be "
-                "removed in v1.0. Use ${token} instead.",
-                DeprecationWarning,
-                stacklevel=2,
+                "removed in v1.0. Use ${token} instead."
             )
-            self._deprecated_syntax_warned = True
+            _DEPRECATED_BARE_TOKEN_WARNED = True
 
         text = self.DEFAULT_TOKEN_PATTERN.sub(default_replacer, text)
         return text
