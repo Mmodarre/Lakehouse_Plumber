@@ -1639,12 +1639,12 @@ BP-15.4: Layer your CI validation pipeline
 
 .. _bp-16-1:
 
-BP-16.1: Commit ``.lhp_state.json`` to version control
+BP-16.1: DO NOT Commit ``.lhp_state.json`` to version control
 -------------------------------------------------------
 
 LHP's state tracking enables smart regeneration — only files whose source YAML,
 dependencies, or generation context changed are regenerated. This significantly speeds up
-``lhp generate`` for large projects.
+``lhp generate`` for large projects but must not be committed to source control
 
 .. _bp-16-2:
 

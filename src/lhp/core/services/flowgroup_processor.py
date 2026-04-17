@@ -98,6 +98,11 @@ class FlowgroupProcessor:
                 # Add template actions to existing actions
                 flowgroup.actions.extend(template_actions)
 
+        # Record whether this flowgroup originally had test actions (before filtering)
+        flowgroup._has_original_test_actions = any(
+            a.type == ActionType.TEST for a in flowgroup.actions
+        )
+
         # Filter test actions when include_tests=False
         # Placed after template expansion so template-generated test actions are also caught
         tests_were_filtered = False

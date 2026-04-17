@@ -375,6 +375,10 @@ class ProjectConfigLoader:
                 streaming_table=monitoring_data.get(
                     "streaming_table", "all_pipelines_event_log"
                 ),
+                checkpoint_path=monitoring_data.get("checkpoint_path", ""),
+                max_concurrent_streams=monitoring_data.get(
+                    "max_concurrent_streams", 10
+                ),
                 materialized_views=mv_configs,
                 enable_job_monitoring=monitoring_data.get(
                     "enable_job_monitoring", False
@@ -495,6 +499,23 @@ class ProjectConfigLoader:
                     "Add an event_log section to lhp.yaml with catalog and schema",
                     "Or set 'monitoring: { enabled: false }' to disable monitoring",
                     "Example:\n  event_log:\n    catalog: my_catalog\n    schema: _meta",
+                ],
+            )
+
+        # checkpoint_path is required when monitoring is enabled
+        if not config.checkpoint_path:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="008",
+                title="Monitoring checkpoint_path is required",
+                details=(
+                    "monitoring.checkpoint_path must be set when monitoring is enabled. "
+                    "Each streaming query needs a unique checkpoint directory."
+                ),
+                suggestions=[
+                    "Add checkpoint_path to your monitoring config in lhp.yaml",
+                    "Example:\n  monitoring:\n    checkpoint_path: "
+                    "/Volumes/catalog/schema/checkpoints/event_logs",
                 ],
             )
 

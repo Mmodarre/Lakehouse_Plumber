@@ -163,6 +163,9 @@ class ActionOrchestrator:
         self.parallel_processor = ParallelFlowgroupProcessor()
         self._formatter = CodeFormatter()
 
+        # Monitoring build result (set during discover_all_flowgroups if monitoring is configured)
+        self._monitoring_result = None
+
         # Enforce version requirements if specified and enabled
         if self.enforce_version:
             self._enforce_version_requirements()
@@ -469,7 +472,11 @@ class ActionOrchestrator:
                 )
             generation_context_stale = (
                 self.planning_service.analyze_generation_context_staleness(
-                    all_flowgroups, env, include_tests, state_manager
+                    all_flowgroups,
+                    env,
+                    include_tests,
+                    state_manager,
+                    exclude_flowgroups={fs.flowgroup for fs in generation_info["stale"]},
                 )
             )
 
@@ -527,6 +534,7 @@ class ActionOrchestrator:
         Discover all flowgroups across all directories in the project.
 
         Includes synthetic monitoring flowgroup if configured.
+        Stores the full MonitoringBuildResult for later use during generation.
 
         Returns:
             List of all discovered flowgroups
@@ -534,23 +542,24 @@ class ActionOrchestrator:
         with perf_timer("discover_all_flowgroups [orchestrator]"):
             flowgroups = self.discoverer.discover_all_flowgroups()
 
-        # Append monitoring pipeline if configured
-        monitoring_fg = self._build_monitoring_flowgroup(flowgroups)
-        if monitoring_fg:
-            flowgroups.append(monitoring_fg)
+        # Build monitoring artifacts if configured
+        self._monitoring_result = self._build_monitoring(flowgroups)
+        if self._monitoring_result and self._monitoring_result.flowgroup is not None:
+            flowgroups.append(self._monitoring_result.flowgroup)
 
         return flowgroups
 
-    def _build_monitoring_flowgroup(
-        self, discovered_flowgroups: List[FlowGroup]
-    ) -> Optional[FlowGroup]:
-        """Build synthetic monitoring flowgroup if configured.
+    def _build_monitoring(self, discovered_flowgroups: List[FlowGroup]):
+        """Build monitoring pipeline artifacts if configured.
+
+        Returns the full MonitoringBuildResult (FlowGroup + notebook + eligible pipelines)
+        or None if monitoring is not applicable.
 
         Args:
             discovered_flowgroups: Already-discovered flowgroups (for pipeline names)
 
         Returns:
-            Monitoring FlowGroup or None
+            MonitoringBuildResult or None
         """
         if not self.project_config or not self.project_config.monitoring:
             return None
@@ -558,7 +567,6 @@ class ActionOrchestrator:
         from .services.monitoring_pipeline_builder import MonitoringPipelineBuilder
         from .services.pipeline_config_loader import PipelineConfigLoader
 
-        # Get pipeline config loader for opt-out detection
         # Resolve monitoring pipeline name for alias support in pipeline config
         monitoring_pipeline_name = None
         if self.project_config and self.project_config.monitoring:
@@ -586,7 +594,119 @@ class ActionOrchestrator:
             dict.fromkeys(fg.pipeline for fg in discovered_flowgroups)
         )
 
-        return builder.build_flowgroup(pipeline_names)
+        return builder.build(pipeline_names)
+
+    def finalize_monitoring_artifacts(self, env: str, output_dir: Path) -> None:
+        """Reconcile monitoring artifacts: clean stale, write current.
+
+        Called AFTER the pipeline generation loop. Handles all transitions:
+        - Monitoring added: write notebook + job
+        - Monitoring removed: clean up notebook + job
+        - Pipeline renamed: old artifacts removed, new ones written
+        - MVs added/removed: job updated (notebook-only vs full)
+
+        Args:
+            env: Environment name
+            output_dir: Base output directory (e.g. generated/dev)
+        """
+        # 1. Clean up existing monitoring artifacts (handles renames and removal)
+        self._cleanup_monitoring_artifacts(env)
+
+        if not self._monitoring_result:
+            return
+
+        # 2. Create substitution manager to resolve tokens in template context
+        substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
+        substitution_mgr = self.dependencies.create_substitution_manager(
+            substitution_file, env
+        )
+
+        # 3. Apply substitution to template context values
+        resolved_context = substitution_mgr.substitute_yaml(
+            self._monitoring_result.template_context
+        )
+
+        # 4. Render notebook with resolved context
+        from ..utils.template_renderer import TemplateRenderer
+
+        template_dir = Path(__file__).parent.parent / "templates"
+        renderer = TemplateRenderer(template_dir)
+        notebook_content = renderer.render_template(
+            "monitoring/union_event_logs.py.j2", resolved_context
+        )
+
+        # 5. Write notebook to monitoring/{env}/
+        monitoring_pipeline_name = self._monitoring_result.pipeline_name
+        smart_writer = self.dependencies.create_file_writer()
+
+        monitoring_dir = self.project_root / "monitoring" / env
+        monitoring_dir.mkdir(parents=True, exist_ok=True)
+        notebook_path = monitoring_dir / "union_event_logs.py"
+        smart_writer.write_if_changed(notebook_path, notebook_content)
+        self.logger.info(f"Generated monitoring notebook: {notebook_path}")
+
+        # 6. Generate and write monitoring job resource
+        from .services.job_generator import JobGenerator
+
+        job_name = f"{monitoring_pipeline_name}_job"
+        job_gen = JobGenerator(
+            project_root=self.project_root,
+            monitoring_job_name=job_name,
+        )
+        notebook_workspace_path = (
+            "${workspace.file_path}/monitoring/${bundle.target}/union_event_logs"
+        )
+        has_pipeline = self._monitoring_result.flowgroup is not None
+        job_resource_content = job_gen.generate_monitoring_job(
+            pipeline_name=monitoring_pipeline_name,
+            notebook_path=notebook_workspace_path,
+            job_name=job_name,
+            has_pipeline=has_pipeline,
+        )
+        resources_dir = self.project_root / "resources"
+        resources_dir.mkdir(parents=True, exist_ok=True)
+        job_resource_path = resources_dir / f"{monitoring_pipeline_name}.job.yml"
+        smart_writer.write_if_changed(job_resource_path, job_resource_content)
+        self.logger.info(f"Generated monitoring job resource: {job_resource_path}")
+
+    _MONITORING_JOB_HEADER = "# Generated by LakehousePlumber - Monitoring Job"
+
+    def _cleanup_monitoring_artifacts(self, env: str) -> None:
+        """Remove existing monitoring artifacts before writing new ones.
+
+        Identifies monitoring artifacts by:
+        - Notebook: monitoring/{env}/ directory contents
+        - Job resource: resources/*.job.yml files with monitoring header comment
+        """
+        # 1. Clean monitoring notebook directory
+        monitoring_dir = self.project_root / "monitoring" / env
+        if monitoring_dir.exists():
+            for f in monitoring_dir.iterdir():
+                if f.is_file():
+                    f.unlink()
+                    self.logger.info(f"Removed monitoring artifact: {f}")
+            # Remove empty directory
+            if not any(monitoring_dir.iterdir()):
+                monitoring_dir.rmdir()
+                self.logger.debug(f"Removed empty directory: {monitoring_dir}")
+            # Remove parent monitoring/ if also empty
+            monitoring_parent = monitoring_dir.parent
+            if monitoring_parent.exists() and not any(monitoring_parent.iterdir()):
+                monitoring_parent.rmdir()
+                self.logger.debug(f"Removed empty directory: {monitoring_parent}")
+
+        # 2. Clean monitoring job resources (identified by header comment)
+        resources_dir = self.project_root / "resources"
+        if resources_dir.exists():
+            for f in resources_dir.iterdir():
+                if f.is_file() and f.suffix == ".yml" and f.name.endswith(".job.yml"):
+                    try:
+                        first_line = f.read_text().split("\n", 1)[0]
+                        if first_line.startswith(self._MONITORING_JOB_HEADER):
+                            f.unlink()
+                            self.logger.info(f"Removed monitoring job: {f}")
+                    except OSError:
+                        pass
 
     def discover_flowgroups_by_pipeline_field(
         self,
@@ -1333,7 +1453,11 @@ class ActionOrchestrator:
         # Check for generation context changes using planning service
         generation_context_stale = (
             self.planning_service.analyze_generation_context_staleness(
-                all_flowgroups, env, include_tests, state_manager
+                all_flowgroups,
+                env,
+                include_tests,
+                state_manager,
+                exclude_flowgroups=stale_flowgroups,
             )
         )
         stale_flowgroups.update(generation_context_stale)
@@ -1391,6 +1515,7 @@ class ActionOrchestrator:
                 # Propagate private attributes that don't survive model_dump/reconstruct
                 if flowgroup._auxiliary_files:
                     processed_fg._auxiliary_files = flowgroup._auxiliary_files
+                processed_fg._has_original_test_actions = flowgroup._has_original_test_actions
                 processed.append(processed_fg)
             except Exception as e:
                 self.logger.debug(
@@ -1457,9 +1582,7 @@ class ActionOrchestrator:
             state_manager: State manager instance
             substitution_mgr: Optional substitution manager for key tracking
         """
-        has_test_actions = any(
-            action.type == ActionType.TEST for action in flowgroup.actions
-        )
+        has_test_actions = flowgroup._has_original_test_actions
         generation_context = (
             f"include_tests:{include_tests}" if has_test_actions else ""
         )
@@ -1520,6 +1643,7 @@ class ActionOrchestrator:
                 # Propagate private attributes that don't survive model_dump/reconstruct
                 if fg._auxiliary_files:
                     processed._auxiliary_files = fg._auxiliary_files
+                processed._has_original_test_actions = fg._has_original_test_actions
                 source_yaml = self._find_source_yaml_for_flowgroup(fg)
 
                 # Generate code with shared Python file copier

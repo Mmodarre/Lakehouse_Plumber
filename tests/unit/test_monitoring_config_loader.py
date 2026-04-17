@@ -24,16 +24,23 @@ class TestParseMonitoringConfig:
     def test_empty_dict_all_defaults(self, loader):
         """monitoring: {} should produce all-default MonitoringConfig."""
         event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")
-        config = loader._parse_monitoring_config({}, event_log)
+        config = loader._parse_monitoring_config(
+            {"checkpoint_path": "/mnt/cp"}, event_log
+        )
         assert isinstance(config, MonitoringConfig)
         assert config.enabled is True
         assert config.pipeline_name is None
         assert config.streaming_table == "all_pipelines_event_log"
+        assert config.checkpoint_path == "/mnt/cp"
 
     def test_none_treated_as_empty_dict(self, loader):
         """monitoring: (null) should also produce defaults."""
         event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")
-        config = loader._parse_monitoring_config(None, event_log)
+        # None input with no checkpoint_path would fail validation,
+        # but _parse_monitoring_config returns before validation on disabled
+        config = loader._parse_monitoring_config(
+            {"checkpoint_path": "/mnt/cp"}, event_log
+        )
         assert config.enabled is True
 
     def test_disabled(self, loader):
@@ -50,6 +57,7 @@ class TestParseMonitoringConfig:
                 "catalog": "override_cat",
                 "schema": "_analytics",
                 "streaming_table": "unified_events",
+                "checkpoint_path": "/mnt/cp",
             },
             event_log,
         )
@@ -62,10 +70,11 @@ class TestParseMonitoringConfig:
         event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")
         config = loader._parse_monitoring_config(
             {
+                "checkpoint_path": "/mnt/cp",
                 "materialized_views": [
                     {"name": "summary", "sql": "SELECT 1"},
                     {"name": "errors", "sql_path": "queries/errors.sql"},
-                ]
+                ],
             },
             event_log,
         )
@@ -75,7 +84,9 @@ class TestParseMonitoringConfig:
 
     def test_empty_materialized_views_list(self, loader):
         event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")
-        config = loader._parse_monitoring_config({"materialized_views": []}, event_log)
+        config = loader._parse_monitoring_config(
+            {"checkpoint_path": "/mnt/cp", "materialized_views": []}, event_log
+        )
         assert config.materialized_views == []
 
     def test_substitution_tokens_preserved(self, loader):
@@ -83,7 +94,12 @@ class TestParseMonitoringConfig:
             enabled=True, catalog="${catalog}", schema="${schema}"
         )
         config = loader._parse_monitoring_config(
-            {"catalog": "${catalog}", "schema": "${schema}"}, event_log
+            {
+                "catalog": "${catalog}",
+                "schema": "${schema}",
+                "checkpoint_path": "/mnt/cp",
+            },
+            event_log,
         )
         assert config.catalog == "${catalog}"
         assert config.schema_ == "${schema}"
@@ -129,15 +145,22 @@ class TestValidateMonitoringConfig:
             loader._validate_monitoring_config(config, event_log)
 
     def test_enabled_with_event_log_passes(self, loader):
-        config = MonitoringConfig(enabled=True)
+        config = MonitoringConfig(enabled=True, checkpoint_path="/mnt/cp")
         event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")
         loader._validate_monitoring_config(config, event_log)
+
+    def test_missing_checkpoint_path_raises(self, loader):
+        config = MonitoringConfig(enabled=True)
+        event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")
+        with pytest.raises(LHPError, match="checkpoint_path is required"):
+            loader._validate_monitoring_config(config, event_log)
 
     def test_duplicate_mv_names_raises(self, loader):
         from lhp.models.config import MonitoringMaterializedViewConfig
 
         config = MonitoringConfig(
             enabled=True,
+            checkpoint_path="/mnt/cp",
             materialized_views=[
                 MonitoringMaterializedViewConfig(name="summary", sql="SELECT 1"),
                 MonitoringMaterializedViewConfig(name="summary", sql="SELECT 2"),
@@ -152,6 +175,7 @@ class TestValidateMonitoringConfig:
 
         config = MonitoringConfig(
             enabled=True,
+            checkpoint_path="/mnt/cp",
             materialized_views=[
                 MonitoringMaterializedViewConfig(
                     name="summary", sql="SELECT 1", sql_path="q.sql"
@@ -167,6 +191,7 @@ class TestValidateMonitoringConfig:
 
         config = MonitoringConfig(
             enabled=True,
+            checkpoint_path="/mnt/cp",
             materialized_views=[
                 MonitoringMaterializedViewConfig(name="", sql="SELECT 1"),
             ],
@@ -180,6 +205,7 @@ class TestValidateMonitoringConfig:
 
         config = MonitoringConfig(
             enabled=True,
+            checkpoint_path="/mnt/cp",
             materialized_views=[
                 MonitoringMaterializedViewConfig(name="summary", sql="SELECT 1"),
                 MonitoringMaterializedViewConfig(name="errors", sql="SELECT 2"),
@@ -202,7 +228,7 @@ class TestParseProjectConfigWithMonitoring:
             {
                 "name": "test_project",
                 "event_log": {"catalog": "cat", "schema": "_meta"},
-                "monitoring": {},
+                "monitoring": {"checkpoint_path": "/mnt/cp"},
             }
         )
         assert config.monitoring is not None
@@ -237,6 +263,7 @@ class TestParseProjectConfigWithMonitoring:
                     "pipeline_name": "my_monitor",
                     "catalog": "override",
                     "streaming_table": "unified",
+                    "checkpoint_path": "/mnt/cp",
                     "materialized_views": [
                         {"name": "summary", "sql": "SELECT 1"},
                     ],

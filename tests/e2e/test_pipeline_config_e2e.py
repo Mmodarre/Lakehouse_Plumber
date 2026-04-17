@@ -1180,29 +1180,44 @@ class TestMonitoringPipelineE2E:
     # Variant definitions: (commented_text, uncommented_text)
     # ------------------------------------------------------------------
 
+    _CP = '/Volumes/${catalog}/_meta/checkpoints/event_logs'
+
     MONITORING_VARIANTS = {
         "monitoring_default": (
-            "#monitoring: {}",
-            "monitoring: {}",
+            "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"',
+            "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"',
         ),
         "monitoring_custom_pipeline_name": (
-            '#monitoring:\n#  pipeline_name: "my_custom_monitor"',
-            'monitoring:\n  pipeline_name: "my_custom_monitor"',
+            "#monitoring:\n"
+            '#  pipeline_name: "my_custom_monitor"\n'
+            '#  checkpoint_path: "' + _CP + '"',
+            "monitoring:\n"
+            '  pipeline_name: "my_custom_monitor"\n'
+            '  checkpoint_path: "' + _CP + '"',
         ),
         "monitoring_catalog_schema_override": (
             "#monitoring:\n"
             '#  catalog: "analytics_cat"\n'
-            '#  schema: "_analytics"',
+            '#  schema: "_analytics"\n'
+            '#  checkpoint_path: "' + _CP + '"',
             "monitoring:\n"
             '  catalog: "analytics_cat"\n'
-            '  schema: "_analytics"',
+            '  schema: "_analytics"\n'
+            '  checkpoint_path: "' + _CP + '"',
         ),
         "monitoring_custom_streaming_table": (
-            '#monitoring:\n#  streaming_table: "unified_event_log"',
-            'monitoring:\n  streaming_table: "unified_event_log"',
+            "#monitoring:\n"
+            '#  streaming_table: "unified_event_log"\n'
+            '#  checkpoint_path: "' + _CP + '"',
+            "monitoring:\n"
+            '  streaming_table: "unified_event_log"\n'
+            '  checkpoint_path: "' + _CP + '"',
         ),
         "monitoring_custom_mvs": (
             "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
             "#  materialized_views:\n"
             '#    - name: "error_events"\n'
             "#      sql: \"SELECT * FROM all_pipelines_event_log"
@@ -1212,6 +1227,7 @@ class TestMonitoringPipelineE2E:
             " as avg_duration FROM all_pipelines_event_log"
             ' GROUP BY _source_pipeline"',
             "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
             "  materialized_views:\n"
             '    - name: "error_events"\n'
             "      sql: \"SELECT * FROM all_pipelines_event_log"
@@ -1222,22 +1238,32 @@ class TestMonitoringPipelineE2E:
             ' GROUP BY _source_pipeline"',
         ),
         "monitoring_no_mvs": (
-            "#monitoring:\n#  materialized_views: []",
-            "monitoring:\n  materialized_views: []",
+            "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
+            "#  materialized_views: []",
+            "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
+            "  materialized_views: []",
         ),
         "monitoring_mv_sql_path": (
             "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
             "#  materialized_views:\n"
             '#    - name: "custom_analysis"\n'
             '#      sql_path: "sql/monitoring_custom_analysis.sql"',
             "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
             "  materialized_views:\n"
             '    - name: "custom_analysis"\n'
             '      sql_path: "sql/monitoring_custom_analysis.sql"',
         ),
         "monitoring_enable_job_monitoring": (
-            "#monitoring:\n#  enable_job_monitoring: true",
-            "monitoring:\n  enable_job_monitoring: true",
+            "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
+            "#  enable_job_monitoring: true",
+            "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
+            "  enable_job_monitoring: true",
         ),
     }
 

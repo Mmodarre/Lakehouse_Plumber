@@ -186,6 +186,13 @@ class GenerateCommand(BaseCommand):
                 total_files += response.files_written
                 all_generated_files.update(response.generated_files)
 
+        # 9.5. Finalize monitoring artifacts (after all pipelines generated)
+        if not dry_run:
+            with perf_timer("Monitoring artifacts", phase=True):
+                application_facade.orchestrator.finalize_monitoring_artifacts(
+                    env, output_dir
+                )
+
         # 10. Handle bundle operations (coordinate)
         if not no_bundle:
             with perf_timer("Bundle sync", phase=True):

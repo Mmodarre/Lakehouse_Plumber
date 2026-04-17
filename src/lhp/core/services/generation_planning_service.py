@@ -73,6 +73,7 @@ class GenerationPlanningService:
         self.project_root = project_root
         self.discoverer = discoverer
         self.logger = logging.getLogger(__name__)
+        self._context_staleness_cache: Dict[tuple, Set[str]] = {}
 
     def create_generation_plan(
         self,
@@ -208,6 +209,7 @@ class GenerationPlanningService:
         env: str,
         include_tests: bool,
         state_manager: StateManager,
+        exclude_flowgroups: Optional[Set[str]] = None,
     ) -> Set[str]:
         """
         Analyze staleness due to generation parameter changes.
@@ -220,10 +222,17 @@ class GenerationPlanningService:
             env: Environment name
             include_tests: Current include_tests parameter
             state_manager: State manager instance
+            exclude_flowgroups: Optional set of flowgroup names to skip (already known stale)
 
         Returns:
             Set of flowgroup names that are stale due to context changes
         """
+        # Check cache (keyed without exclude_flowgroups — first call computes full set)
+        pipeline = flowgroups[0].pipeline if flowgroups else ""
+        cache_key = (env, include_tests, pipeline)
+        if cache_key in self._context_staleness_cache:
+            return self._context_staleness_cache[cache_key]
+
         # Create temporary context for strategy
         context = GenerationContext(
             env=env,
@@ -237,7 +246,13 @@ class GenerationPlanningService:
         from ..strategies import SmartGenerationStrategy
 
         strategy = SmartGenerationStrategy()
-        return strategy._check_generation_context_staleness(flowgroups, context)
+        result = strategy._check_generation_context_staleness(
+            flowgroups, context, exclude_flowgroups=exclude_flowgroups
+        )
+
+        # Cache result
+        self._context_staleness_cache[cache_key] = result
+        return result
 
     def _discover_flowgroups_for_identifier(
         self, pipeline_identifier: str

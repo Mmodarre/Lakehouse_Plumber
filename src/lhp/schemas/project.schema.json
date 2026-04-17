@@ -150,7 +150,7 @@
         },
         "monitoring": {
             "type": "object",
-            "description": "Event log monitoring pipeline configuration. When present and enabled, LHP generates a synthetic monitoring pipeline that UNIONs all pipeline event log tables.",
+            "description": "Event log monitoring pipeline configuration. Generates a notebook with N independent streaming queries plus a SDP pipeline with materialized views. A Databricks Workflow job chains the two.",
             "properties": {
                 "enabled": {
                     "type": "boolean",
@@ -172,11 +172,21 @@
                 "streaming_table": {
                     "type": "string",
                     "default": "all_pipelines_event_log",
-                    "description": "Name of the unified streaming table"
+                    "description": "Name of the user-created Delta table that event log streams write into"
+                },
+                "checkpoint_path": {
+                    "type": "string",
+                    "description": "Base path for streaming checkpoints. Each pipeline gets a subdirectory: {checkpoint_path}/{pipeline_name}/"
+                },
+                "max_concurrent_streams": {
+                    "type": "integer",
+                    "default": 10,
+                    "minimum": 1,
+                    "description": "Maximum number of concurrent streaming queries in the union notebook (ThreadPoolExecutor max_workers)"
                 },
                 "materialized_views": {
                     "type": "array",
-                    "description": "List of materialized views to create from the unified event log",
+                    "description": "List of materialized views to create from the unified event log Delta table",
                     "items": {
                         "type": "object",
                         "required": ["name"],
@@ -195,6 +205,11 @@
                             }
                         }
                     }
+                },
+                "enable_job_monitoring": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable job monitoring via Databricks SDK (adds jobs_stats materialized view)"
                 }
             }
         }

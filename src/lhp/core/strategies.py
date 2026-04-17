@@ -89,7 +89,10 @@ class BaseGenerationStrategy:
         self.logger = logging.getLogger(__name__)
 
     def _check_generation_context_staleness(
-        self, flowgroups: List[FlowGroup], context: GenerationContext
+        self,
+        flowgroups: List[FlowGroup],
+        context: GenerationContext,
+        exclude_flowgroups: Optional[Set[str]] = None,
     ) -> Set[str]:
         """
         Check for flowgroups that are stale due to generation context changes.
@@ -102,6 +105,9 @@ class BaseGenerationStrategy:
         tracked_files = context.state_manager.get_generated_files(context.env)
 
         for flowgroup in flowgroups:
+            if exclude_flowgroups and flowgroup.flowgroup in exclude_flowgroups:
+                continue
+
             # Check if this flowgroup has test actions
             has_test_actions = any(
                 action.type == ActionType.TEST for action in flowgroup.actions

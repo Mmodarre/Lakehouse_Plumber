@@ -94,6 +94,11 @@ class StateAnalyzer:
 
         # Check individual files for staleness
         for file_state in env_files.values():
+            # Skip pipeline artifacts (e.g. test_reporting hooks) — they use lhp.yaml
+            # as source_yaml which is not a flowgroup file and can't be dependency-resolved
+            if getattr(file_state, "artifact_type", None):
+                continue
+
             source_path = self.project_root / file_state.source_yaml
 
             if not source_path.exists():
@@ -652,6 +657,9 @@ class StateAnalyzer:
         else:
             # Check each file individually
             for file_path, file_state in env_files.items():
+                # Skip pipeline artifacts — not dependency-resolvable
+                if getattr(file_state, "artifact_type", None):
+                    continue
                 file_changes = self.get_file_dependency_changes(file_state, environment)
 
                 if file_changes:
