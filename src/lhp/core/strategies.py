@@ -3,11 +3,10 @@
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Set
+from typing import Any, Dict, List, Optional, Protocol
 
-from ..models.config import ActionType, FlowGroup
+from ..models.config import FlowGroup
 from ..parsers.yaml_parser import YAMLParser
-from .state_dependency_resolver import StateDependencyResolver
 from .state_manager import StateManager
 
 
@@ -88,91 +87,6 @@ class BaseGenerationStrategy:
         self.name = name
         self.logger = logging.getLogger(__name__)
 
-    def _check_generation_context_staleness(
-        self,
-        flowgroups: List[FlowGroup],
-        context: GenerationContext,
-        exclude_flowgroups: Optional[Set[str]] = None,
-    ) -> Set[str]:
-        """
-        Check for flowgroups that are stale due to generation context changes.
-        Shared logic across strategies that need context awareness.
-        """
-        if not context.state_manager:
-            return set()
-
-        context_stale = set()
-        tracked_files = context.state_manager.get_generated_files(context.env)
-
-        for flowgroup in flowgroups:
-            if exclude_flowgroups and flowgroup.flowgroup in exclude_flowgroups:
-                continue
-
-            # Check if this flowgroup has test actions
-            has_test_actions = any(
-                action.type == ActionType.TEST for action in flowgroup.actions
-            )
-
-            if has_test_actions:
-                # Calculate what the current generation context should be
-                current_context = f"include_tests:{context.include_tests}"
-
-                # Find the tracked file for this flowgroup
-                flowgroup_file_path = f"generated/{context.env}/{flowgroup.pipeline}/{flowgroup.flowgroup}.py"
-
-                if flowgroup_file_path in tracked_files:
-                    file_state = tracked_files[flowgroup_file_path]
-
-                    # Check if composite checksum would change with current context
-                    if self._would_composite_checksum_change(
-                        file_state, current_context, context
-                    ):
-                        context_stale.add(flowgroup.flowgroup)
-                        self.logger.debug(
-                            f"Flowgroup {flowgroup.flowgroup} is stale due to generation context change"
-                        )
-
-        return context_stale
-
-    def _would_composite_checksum_change(
-        self, file_state, current_context: str, context: GenerationContext
-    ) -> bool:
-        """Check if composite checksum would change with current generation context."""
-        try:
-            # Reuse dependency resolver from state_manager's analyzer to avoid creating new instances
-            if context.state_manager and hasattr(context.state_manager, "analyzer"):
-                dependency_resolver = context.state_manager.analyzer.dependency_resolver
-            else:
-                # Fallback: create new instance if state_manager not available
-                dependency_resolver = StateDependencyResolver(context.project_root)
-
-            source_path = Path(file_state.source_yaml)
-
-            if not (context.project_root / source_path).exists():
-                return False
-
-            file_dependencies = dependency_resolver.resolve_file_dependencies(
-                source_path, context.env, file_state.pipeline, file_state.flowgroup
-            )
-
-            # Calculate current composite checksum with current generation context
-            dep_paths = [file_state.source_yaml] + list(file_dependencies.keys())
-            if current_context:
-                dep_paths.append(current_context)
-
-            current_composite_checksum = (
-                dependency_resolver.calculate_composite_checksum(dep_paths)
-            )
-
-            # Compare with stored composite checksum
-            return file_state.file_composite_checksum != current_composite_checksum
-
-        except Exception as e:
-            self.logger.warning(
-                f"Failed to check composite checksum for {file_state.generated_path}: {e}"
-            )
-            return True  # Assume changed to be safe
-
 
 class SmartGenerationStrategy(BaseGenerationStrategy):
     """Strategy for intelligent state-based generation with context awareness."""
@@ -213,17 +127,11 @@ class SmartGenerationStrategy(BaseGenerationStrategy):
         # Get flowgroups for stale files
         stale_flowgroup_names = {fs.flowgroup for fs in generation_info["stale"]}
 
-        # Check for generation context staleness
-        generation_context_stale = self._check_generation_context_staleness(
-            all_flowgroups, context
-        )
+        # Env-wide context changes (e.g. include_tests flip) are handled by
+        # the display-phase gate in ActionOrchestrator.analyze_generation_requirements
+        # — no per-flowgroup R5 composite-checksum work here.
+        flowgroups_needing_generation = new_flowgroup_names | stale_flowgroup_names
 
-        # Combine all flowgroups that need generation
-        flowgroups_needing_generation = (
-            new_flowgroup_names | stale_flowgroup_names | generation_context_stale
-        )
-
-        # Split flowgroups into generate vs skip
         flowgroups_to_generate = [
             fg for fg in all_flowgroups if fg.flowgroup in flowgroups_needing_generation
         ]
@@ -241,8 +149,6 @@ class SmartGenerationStrategy(BaseGenerationStrategy):
                 "new_count": len(generation_info["new"]),
                 "stale_count": len(generation_info["stale"]),
                 "up_to_date_count": len(generation_info["up_to_date"]),
-                "context_stale_count": len(generation_context_stale),
-                "include_tests_context_applied": bool(generation_context_stale),
             },
         )
 

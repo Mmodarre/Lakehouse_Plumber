@@ -69,8 +69,7 @@ def test_state_file_load_normalizes_windows_keys():
                                 "type": "external_file",
                                 "last_modified": "2025-01-01T00:00:00"
                             }
-                        },
-                        "file_composite_checksum": "composite123"
+                        }
                     }
                 }
             }
@@ -183,8 +182,7 @@ def test_mixed_separator_state_file_normalization():
                         "environment": "dev",
                         "pipeline": "pipeline",
                         "flowgroup": "flowgroup1",
-                        "file_dependencies": {},
-                        "file_composite_checksum": "composite123"
+                        "file_dependencies": {}
                     },
                     "generated\\dev\\file2.py": {  # Backslashes
                         "source_yaml": "pipelines\\test2.yaml",
@@ -195,8 +193,7 @@ def test_mixed_separator_state_file_normalization():
                         "environment": "dev",
                         "pipeline": "pipeline",
                         "flowgroup": "flowgroup2",
-                        "file_dependencies": {},
-                        "file_composite_checksum": "composite456"
+                        "file_dependencies": {}
                     }
                 }
             }

@@ -654,13 +654,24 @@ class TestActionOrchestratorFlowgroupDiscovery:
             []
         )
 
-        # Mock state manager with new files that cause parsing errors
+        # Mock state manager with new files that cause parsing errors.
+        # _apply_smart_generation_filtering now pulls per-pipeline info via the
+        # env-wide get_all_files_needing_generation (reused through StalenessCache).
         mock_state_manager = Mock()
+        # Stored context matches current run so the context gate does NOT fire —
+        # this test is exercising YAML parse-error recovery, not context handling.
+        mock_state_manager.state.last_generation_context = {
+            "dev": {"include_tests": "False"}
+        }
         generation_info = {
             "new": [Path("/path/to/invalid.yaml"), Path("/path/to/valid.yaml")],
             "stale": [],
+            "up_to_date": [],
         }
         mock_state_manager.get_files_needing_generation.return_value = generation_info
+        mock_state_manager.get_all_files_needing_generation.return_value = {
+            pipeline_field: generation_info
+        }
 
         # Mock YAML parser to fail on first file, succeed on second
         # Note: parse_flowgroups_from_file returns a LIST of flowgroups

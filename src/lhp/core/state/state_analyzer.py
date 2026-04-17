@@ -266,7 +266,6 @@ class StateAnalyzer:
         environment: str,
         include_patterns: Optional[List[str]] = None,
         pipeline: Optional[str] = None,
-        generation_context: Optional[Dict] = None,
     ) -> Dict[str, List]:
         """
         Get all files that need generation (new, stale, or untracked).
@@ -276,7 +275,6 @@ class StateAnalyzer:
             environment: Environment name
             include_patterns: Optional include patterns for filtering
             pipeline: Optional pipeline name to filter by
-            generation_context: Optional generation context for parameter-sensitive staleness
 
         Returns:
             Dictionary with 'new', 'stale', and 'up_to_date' lists

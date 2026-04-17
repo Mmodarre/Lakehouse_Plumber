@@ -51,7 +51,6 @@ class DependencyTracker:
         environment: str,
         pipeline: str,
         flowgroup: str,
-        generation_context: str = "",
         used_substitution_keys: Optional[List[str]] = None,
     ) -> None:
         """
@@ -64,7 +63,6 @@ class DependencyTracker:
             environment: Environment name
             pipeline: Pipeline name
             flowgroup: FlowGroup name
-            generation_context: Optional context string for parameter-sensitive hashing
             used_substitution_keys: Optional list of substitution keys used during generation
         """
         # Calculate relative paths from project root
@@ -102,15 +100,6 @@ class DependencyTracker:
             rel_source_path, environment, pipeline, flowgroup
         )
 
-        # Calculate composite checksum for all dependencies
-        dep_paths = [str(rel_source)] + list(file_dependencies.keys())
-        # Include generation context for parameter-sensitive hashing
-        if generation_context:
-            dep_paths.append(generation_context)
-        composite_checksum = self.dependency_resolver.calculate_composite_checksum(
-            dep_paths
-        )
-
         # Create file state (normalize paths for cross-platform state files)
         file_state = FileState(
             source_yaml=Path(str(rel_source)).as_posix(),
@@ -122,7 +111,6 @@ class DependencyTracker:
             pipeline=pipeline,
             flowgroup=flowgroup,
             file_dependencies=file_dependencies,
-            file_composite_checksum=composite_checksum,
             used_substitution_keys=used_substitution_keys,
         )
 

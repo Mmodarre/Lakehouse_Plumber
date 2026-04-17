@@ -7,8 +7,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from ...utils.error_formatter import ErrorCategory, LHPFileError
+
 # Import state models from separate module
 from ..state_models import DependencyInfo, FileState, GlobalDependencies, ProjectState
+
+# FileState keys from older LHP versions that are no longer part of the schema.
+# Presence of any of these in a loaded state file indicates the file was
+# written by a pre-migration LHP and cannot be read safely.
+_LEGACY_FILE_STATE_KEYS = frozenset({"file_composite_checksum", "generation_context"})
 
 
 class StatePersistence:
@@ -42,94 +49,170 @@ class StatePersistence:
 
     def load_state(self):
         """
-        Load state from file with backward compatibility.
+        Load state from file.
 
         Returns:
-            ProjectState object loaded from file, or new empty state if loading fails
+            ProjectState object loaded from file, or a fresh empty state if
+            the state file does not exist.
+
+        Raises:
+            LHPFileError: If the state file exists but cannot be loaded
+                (incompatible schema, malformed JSON, or I/O failure). We
+                intentionally do NOT silently discard a user's state — a
+                corrupted or obsolete state file should surface to the user
+                with actionable guidance rather than be clobbered on save.
         """
-        if self.state_file.exists():
-            try:
-                with open(self.state_file, "r") as f:
-                    state_data = json.load(f)
+        if not self.state_file.exists():
+            return ProjectState()
 
-                # Convert dict back to dataclass with backward compatibility
-                environments = {}
-                for env_name, env_files in state_data.get("environments", {}).items():
-                    environments[env_name] = {}
-                    for file_path, file_state in env_files.items():
-                        # Handle backward compatibility - add missing fields
-                        if "source_yaml_checksum" not in file_state:
-                            file_state["source_yaml_checksum"] = ""
-                        if "file_dependencies" not in file_state:
-                            file_state["file_dependencies"] = None
-                        if "file_composite_checksum" not in file_state:
-                            file_state["file_composite_checksum"] = ""
-                        if "artifact_type" not in file_state:
-                            file_state["artifact_type"] = None
+        try:
+            with open(self.state_file, "r") as f:
+                state_data = json.load(f)
+        except json.JSONDecodeError as e:
+            raise LHPFileError(
+                category=ErrorCategory.IO,
+                code_number="008",
+                title="Malformed state file",
+                details=(
+                    f"{self.state_file} exists but is not valid JSON "
+                    f"(at line {e.lineno}, column {e.colno}): {e.msg}"
+                ),
+                suggestions=[
+                    f"Inspect {self.state_file} for manual edits or truncation",
+                    f"If the file cannot be repaired, delete it: rm {self.state_file}",
+                    "Re-run `lhp generate` — a fresh state file will be created",
+                ],
+                context={"State File": str(self.state_file)},
+            ) from e
+        except OSError as e:
+            raise LHPFileError(
+                category=ErrorCategory.IO,
+                code_number="008",
+                title="Could not read state file",
+                details=f"I/O error reading {self.state_file}: {e}",
+                suggestions=[
+                    "Check file permissions on the project directory",
+                    f"Verify the file is accessible: {self.state_file}",
+                ],
+                context={"State File": str(self.state_file)},
+            ) from e
 
-                        # Convert file_dependencies from dict to DependencyInfo objects
-                        if file_state["file_dependencies"]:
-                            file_deps = {}
-                            for dep_path, dep_info in file_state[
-                                "file_dependencies"
-                            ].items():
-                                # Normalize dependency keys for cross-platform compatibility
-                                # Replace backslashes first (for Unix systems where \ is literal)
-                                normalized_dep_key = dep_path.replace("\\", "/")
-                                file_deps[normalized_dep_key] = DependencyInfo(
-                                    **dep_info
-                                )
-                            file_state["file_dependencies"] = file_deps
-
-                        # Normalize file path key for cross-platform compatibility
-                        # Replace backslashes first (for Unix systems where \ is literal)
-                        normalized_key = file_path.replace("\\", "/")
-                        environments[env_name][normalized_key] = FileState(**file_state)
-
-                # Handle global dependencies
-                global_dependencies = {}
-                if "global_dependencies" in state_data:
-                    for env_name, global_deps in state_data[
-                        "global_dependencies"
-                    ].items():
-                        substitution_file = None
-                        project_config = None
-
-                        if (
-                            "substitution_file" in global_deps
-                            and global_deps["substitution_file"]
-                        ):
-                            substitution_file = DependencyInfo(
-                                **global_deps["substitution_file"]
-                            )
-                        if (
-                            "project_config" in global_deps
-                            and global_deps["project_config"]
-                        ):
-                            project_config = DependencyInfo(
-                                **global_deps["project_config"]
-                            )
-
-                        global_dependencies[env_name] = GlobalDependencies(
-                            substitution_file=substitution_file,
-                            project_config=project_config,
+        try:
+            # Convert dict back to dataclasses
+            environments = {}
+            for env_name, env_files in state_data.get("environments", {}).items():
+                environments[env_name] = {}
+                for file_path, file_state in env_files.items():
+                    # Reject state files written by a pre-migration LHP. These
+                    # carry per-file keys we've since removed; deserializing
+                    # would either crash in FileState(**file_state) or silently
+                    # drop the fields. Prefer a clear, actionable error.
+                    legacy_keys = _LEGACY_FILE_STATE_KEYS & set(file_state.keys())
+                    if legacy_keys:
+                        raise LHPFileError(
+                            category=ErrorCategory.IO,
+                            code_number="008",
+                            title="Incompatible state file format",
+                            details=(
+                                f"{self.state_file} was written by an older "
+                                "version of LHP and is no longer compatible "
+                                f"(legacy keys: {sorted(legacy_keys)}). This "
+                                "can happen after upgrading LHP to a version "
+                                "that changed the state schema."
+                            ),
+                            suggestions=[
+                                f"Delete the state file: rm {self.state_file}",
+                                "Re-run `lhp generate` — a fresh state file "
+                                "will be created on the next run",
+                            ],
+                            context={"State File": str(self.state_file)},
                         )
 
-                loaded_state = ProjectState(
-                    version=state_data.get("version", "1.0"),
-                    last_updated=state_data.get("last_updated", ""),
-                    environments=environments,
-                    global_dependencies=global_dependencies,
-                )
+                    # Forward-compatible defaults for fields added across versions
+                    if "source_yaml_checksum" not in file_state:
+                        file_state["source_yaml_checksum"] = ""
+                    if "file_dependencies" not in file_state:
+                        file_state["file_dependencies"] = None
+                    if "artifact_type" not in file_state:
+                        file_state["artifact_type"] = None
 
-                self.logger.info(f"Loaded state from {self.state_file}")
-                return loaded_state
+                    # Convert file_dependencies from dict to DependencyInfo objects
+                    if file_state["file_dependencies"]:
+                        file_deps = {}
+                        for dep_path, dep_info in file_state[
+                            "file_dependencies"
+                        ].items():
+                            normalized_dep_key = dep_path.replace("\\", "/")
+                            file_deps[normalized_dep_key] = DependencyInfo(
+                                **dep_info
+                            )
+                        file_state["file_dependencies"] = file_deps
 
-            except Exception as e:
-                self.logger.warning(f"Failed to load state file {self.state_file}: {e}")
-                return ProjectState()
-        else:
-            return ProjectState()
+                    normalized_key = file_path.replace("\\", "/")
+                    environments[env_name][normalized_key] = FileState(**file_state)
+
+            # Handle global dependencies
+            global_dependencies = {}
+            if "global_dependencies" in state_data:
+                for env_name, global_deps in state_data[
+                    "global_dependencies"
+                ].items():
+                    substitution_file = None
+                    project_config = None
+
+                    if (
+                        "substitution_file" in global_deps
+                        and global_deps["substitution_file"]
+                    ):
+                        substitution_file = DependencyInfo(
+                            **global_deps["substitution_file"]
+                        )
+                    if (
+                        "project_config" in global_deps
+                        and global_deps["project_config"]
+                    ):
+                        project_config = DependencyInfo(
+                            **global_deps["project_config"]
+                        )
+
+                    global_dependencies[env_name] = GlobalDependencies(
+                        substitution_file=substitution_file,
+                        project_config=project_config,
+                    )
+
+            loaded_state = ProjectState(
+                version=state_data.get("version", "1.0"),
+                last_updated=state_data.get("last_updated", ""),
+                environments=environments,
+                global_dependencies=global_dependencies,
+                last_generation_context=state_data.get(
+                    "last_generation_context", {}
+                ),
+            )
+        except LHPFileError:
+            raise
+        except (TypeError, KeyError, AttributeError) as e:
+            # Schema violation (missing required fields, wrong types, etc.).
+            # Prefer an actionable error over silently discarding the user's
+            # state.
+            raise LHPFileError(
+                category=ErrorCategory.IO,
+                code_number="008",
+                title="Malformed state file",
+                details=(
+                    f"{self.state_file} is valid JSON but does not match the "
+                    f"expected LHP state schema: {e}"
+                ),
+                suggestions=[
+                    f"Inspect {self.state_file} for manual edits",
+                    f"If the file cannot be repaired, delete it: rm {self.state_file}",
+                    "Re-run `lhp generate` — a fresh state file will be created",
+                ],
+                context={"State File": str(self.state_file)},
+            ) from e
+
+        self.logger.info(f"Loaded state from {self.state_file}")
+        return loaded_state
 
     def save_state(self, state) -> None:
         """
@@ -152,8 +235,6 @@ class StatePersistence:
             self.logger.debug(f"Saved state to {self.state_file}")
 
         except Exception as e:
-            from ...utils.error_formatter import ErrorCategory, LHPFileError
-
             raise LHPFileError(
                 category=ErrorCategory.IO,
                 code_number="006",

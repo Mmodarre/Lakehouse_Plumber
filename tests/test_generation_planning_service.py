@@ -131,60 +131,6 @@ class TestGenerationPlanningService:
         assert len(plan.flowgroups_to_skip) == 0
         assert plan.has_work_to_do() == False
     
-    def test_analyze_generation_context_staleness_with_test_actions(self):
-        """Test generation context staleness detection for flowgroups with test actions."""
-        from lhp.core.strategies import SmartGenerationStrategy
-
-        # Create flowgroup with test actions
-        test_action = Action(name="test_action", type=ActionType.TEST, test_type="uniqueness")
-        test_flowgroup = FlowGroup(
-            pipeline="test_pipeline",
-            flowgroup="test_fg",
-            actions=[test_action]
-        )
-
-        # Mock state manager and tracked files
-        mock_state_manager = Mock(spec=StateManager)
-        mock_file_state = Mock(spec=FileState)
-        mock_file_state.source_yaml = "pipelines/test.yaml"
-        mock_file_state.file_composite_checksum = "old_checksum"
-
-        mock_state_manager.get_generated_files.return_value = {
-            "generated/dev/test_pipeline/test_fg.py": mock_file_state
-        }
-
-        # Patch at the class level — analyze_generation_context_staleness creates a
-        # new SmartGenerationStrategy() internally, so instance-level mocking has no effect
-        with patch.object(SmartGenerationStrategy, '_would_composite_checksum_change', return_value=True):
-            context_stale = self.planning_service.analyze_generation_context_staleness(
-                [test_flowgroup], "dev", False, mock_state_manager
-            )
-
-        assert "test_fg" in context_stale
-        assert len(context_stale) == 1
-    
-    def test_analyze_generation_context_staleness_no_test_actions(self):
-        """Test generation context staleness detection for flowgroups without test actions."""
-        # Create flowgroup without test actions
-        load_action = Action(name="load_action", type=ActionType.LOAD, source="table1", target="v_table1")
-        non_test_flowgroup = FlowGroup(
-            pipeline="test_pipeline",
-            flowgroup="non_test_fg", 
-            actions=[load_action]
-        )
-        
-        # Mock state manager
-        mock_state_manager = Mock(spec=StateManager)
-        mock_state_manager.get_generated_files.return_value = {}
-        
-        # Test context staleness detection
-        context_stale = self.planning_service.analyze_generation_context_staleness(
-            [non_test_flowgroup], "dev", False, mock_state_manager
-        )
-        
-        # Verify no staleness for non-test flowgroups
-        assert len(context_stale) == 0
-    
     def test_generation_plan_convenience_methods(self):
         """Test GenerationPlan convenience methods."""
         # Create test flowgroups

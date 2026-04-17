@@ -2,10 +2,11 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Protocol
+from typing import Optional, Protocol
 
 from ..utils.substitution import EnhancedSubstitutionManager
 from ..utils.smart_file_writer import SmartFileWriter
+from .state.staleness_cache import StalenessCache
 
 
 class SubstitutionFactory(Protocol):
@@ -61,6 +62,7 @@ class OrchestrationDependencies:
         self,
         substitution_factory: SubstitutionFactory = None,
         file_writer_factory: FileWriterFactory = None,
+        staleness_cache: Optional[StalenessCache] = None,
     ):
         """
         Initialize orchestration dependencies.
@@ -68,9 +70,13 @@ class OrchestrationDependencies:
         Args:
             substitution_factory: Factory for substitution managers
             file_writer_factory: Factory for file writers
+            staleness_cache: Shared per-run env-wide staleness cache. When
+                ``None``, a fresh cache is created (each orchestrator then
+                owns its own, which is fine for tests and one-shot usage).
         """
         self.substitution_factory = substitution_factory or DefaultSubstitutionFactory()
         self.file_writer_factory = file_writer_factory or DefaultFileWriterFactory()
+        self.staleness_cache = staleness_cache or StalenessCache()
 
     def create_substitution_manager(
         self, substitution_file: Path, env: str

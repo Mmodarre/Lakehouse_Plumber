@@ -3,7 +3,7 @@
 import logging
 import os
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -68,6 +68,12 @@ class GenerationAnalysis:
 
     # Detailed information (for verbose mode)
     detailed_staleness_info: Dict[str, Any]
+
+    # Env-wide generation-context change (e.g. include_tests flip).
+    # When True, all pipelines are flagged for regeneration and the
+    # display layer surfaces the specific change(s) in `context_changes`.
+    context_changed: bool = False
+    context_changes: List[str] = field(default_factory=list)
 
     def has_work_to_do(self) -> bool:
         """Check if any generation work needs to be done."""
@@ -420,6 +426,34 @@ class ActionOrchestrator:
                 detailed_staleness_info={},
             )
 
+        # Env-wide generation-context gate. When include_tests flips between
+        # runs, every pipeline needs regeneration because test actions may be
+        # added/removed. Record the comparison once per run — no per-flowgroup
+        # composite checksums required.
+        stored_ctx = state_manager.state.last_generation_context.get(env, {})
+        current_ctx = {"include_tests": str(include_tests)}
+        if stored_ctx != current_ctx:
+            context_changes = [
+                f"include_tests: {stored_ctx.get('include_tests', '<unset>')} "
+                f"-> {current_ctx['include_tests']}"
+            ]
+            pipelines_needing_generation = {
+                p: {"reason": "context_change"} for p in pipeline_names
+            }
+            return GenerationAnalysis(
+                pipelines_needing_generation=pipelines_needing_generation,
+                pipelines_up_to_date={},
+                has_global_changes=False,
+                global_changes=[],
+                include_tests_context_applied=False,
+                total_new_files=0,
+                total_stale_files=0,
+                total_up_to_date_files=0,
+                detailed_staleness_info={},
+                context_changed=True,
+                context_changes=context_changes,
+            )
+
         # Get global staleness information
         staleness_info = state_manager.get_detailed_staleness_info(env)
         has_global_changes = bool(staleness_info.get("global_changes"))
@@ -445,12 +479,13 @@ class ActionOrchestrator:
             )
 
         # Analyze all pipelines for staleness in a SINGLE pass
-        # (avoids calling find_stale_files and find_new_yaml_files per pipeline)
-        all_generation_info = state_manager.get_all_files_needing_generation(env)
-        include_tests_stale_found = False
+        # (shared with _apply_smart_generation_filtering via StalenessCache,
+        # so we scan the env only once per run instead of O(P+1) times)
+        all_generation_info = self.dependencies.staleness_cache.get(
+            env, state_manager.get_all_files_needing_generation
+        )
 
         for pipeline_name in pipeline_names:
-            # Look up pre-computed info; fall back to empty if pipeline has no state
             generation_info = all_generation_info.get(
                 pipeline_name, {"new": [], "stale": [], "up_to_date": []}
             )
@@ -459,48 +494,11 @@ class ActionOrchestrator:
             stale_count = len(generation_info["stale"])
             up_to_date_count = len(generation_info["up_to_date"])
 
-            # Check for generation context staleness using planning service
-            if pre_discovered_all_flowgroups is not None:
-                all_flowgroups = [
-                    fg
-                    for fg in pre_discovered_all_flowgroups
-                    if fg.pipeline == pipeline_name
-                ]
-            else:
-                all_flowgroups = self.discover_flowgroups_by_pipeline_field(
-                    pipeline_name
-                )
-            generation_context_stale = (
-                self.planning_service.analyze_generation_context_staleness(
-                    all_flowgroups,
-                    env,
-                    include_tests,
-                    state_manager,
-                    exclude_flowgroups={fs.flowgroup for fs in generation_info["stale"]},
-                )
-            )
-
-            # Include generation context stale flowgroups in stale count
-            if generation_context_stale:
-                include_tests_stale_found = True
-                # Add context-stale flowgroups to the stale list
-                for flowgroup_name in generation_context_stale:
-                    self.logger.debug(
-                        f"Flowgroup {flowgroup_name} marked as stale due to generation context"
-                    )
-                stale_count += len(generation_context_stale)
-
-            # Update totals
             total_new += new_count
             total_stale += stale_count
             total_up_to_date += up_to_date_count
 
-            # Determine if pipeline needs generation
             if new_count > 0 or stale_count > 0:
-                # Add generation context stale info to generation_info
-                if generation_context_stale:
-                    generation_info["context_stale"] = list(generation_context_stale)
-
                 pipelines_needing_generation[pipeline_name] = generation_info
             else:
                 pipelines_up_to_date[pipeline_name] = up_to_date_count
@@ -510,7 +508,7 @@ class ActionOrchestrator:
             pipelines_up_to_date=pipelines_up_to_date,
             has_global_changes=False,
             global_changes=[],
-            include_tests_context_applied=include_tests_stale_found,
+            include_tests_context_applied=False,
             total_new_files=total_new,
             total_stale_files=total_stale,
             total_up_to_date_files=total_up_to_date,
@@ -610,7 +608,7 @@ class ActionOrchestrator:
             output_dir: Base output directory (e.g. generated/dev)
         """
         # 1. Clean up existing monitoring artifacts (handles renames and removal)
-        self._cleanup_monitoring_artifacts(env)
+        self._cleanup_monitoring_artifacts(env, output_dir)
 
         if not self._monitoring_result:
             return
@@ -671,12 +669,13 @@ class ActionOrchestrator:
 
     _MONITORING_JOB_HEADER = "# Generated by LakehousePlumber - Monitoring Job"
 
-    def _cleanup_monitoring_artifacts(self, env: str) -> None:
+    def _cleanup_monitoring_artifacts(self, env: str, output_dir: Path) -> None:
         """Remove existing monitoring artifacts before writing new ones.
 
         Identifies monitoring artifacts by:
         - Notebook: monitoring/{env}/ directory contents
         - Job resource: resources/*.job.yml files with monitoring header comment
+        - Generated DLT code: generated/{env}/<pipeline>/ dirs with FLOWGROUP_ID = "monitoring"
         """
         # 1. Clean monitoring notebook directory
         monitoring_dir = self.project_root / "monitoring" / env
@@ -707,6 +706,30 @@ class ActionOrchestrator:
                             self.logger.info(f"Removed monitoring job: {f}")
                     except OSError:
                         pass
+
+        # 3. Clean generated DLT monitoring pipeline directories.
+        #    Only when monitoring is removed/disabled — when monitoring IS configured,
+        #    the pipeline generation loop manages the generated/ directory.
+        #    Synthetic monitoring flowgroups aren't tracked in state, so orphan
+        #    detection misses them. Identify by FLOWGROUP_ID = "monitoring" marker.
+        if not self._monitoring_result and output_dir and output_dir.exists():
+            import shutil
+
+            for pipeline_dir in output_dir.iterdir():
+                if not pipeline_dir.is_dir():
+                    continue
+                monitoring_py = pipeline_dir / "monitoring.py"
+                if not monitoring_py.exists():
+                    continue
+                try:
+                    content = monitoring_py.read_text(encoding="utf-8")
+                    if 'FLOWGROUP_ID = "monitoring"' in content:
+                        shutil.rmtree(pipeline_dir)
+                        self.logger.info(
+                            f"Removed monitoring pipeline directory: {pipeline_dir}"
+                        )
+                except OSError:
+                    pass
 
     def discover_flowgroups_by_pipeline_field(
         self,
@@ -1431,9 +1454,27 @@ class ActionOrchestrator:
         state_manager,
     ) -> List[FlowGroup]:
         """Apply smart generation filtering based on staleness detection."""
-        # Get basic staleness information
-        generation_info = state_manager.get_files_needing_generation(
-            env, pipeline_identifier
+        # Env-wide generation-context gate: if include_tests flipped since
+        # the last successful save, every flowgroup in this pipeline must
+        # regenerate. The display phase already reports this; this check
+        # guarantees the filter agrees during generation.
+        stored_ctx = state_manager.state.last_generation_context.get(env, {})
+        current_ctx = {"include_tests": str(include_tests)}
+        if stored_ctx != current_ctx:
+            self.logger.info(
+                f"Smart generation: include_tests context changed for env={env} "
+                f"(stored={stored_ctx}, current={current_ctx}); regenerating all "
+                f"flowgroups in pipeline={pipeline_identifier}"
+            )
+            return all_flowgroups
+
+        # Reuse the env-wide staleness scan from the display phase so we do
+        # not re-hash the whole tree once per pipeline.
+        all_info = self.dependencies.staleness_cache.get(
+            env, state_manager.get_all_files_needing_generation
+        )
+        generation_info = all_info.get(
+            pipeline_identifier, {"new": [], "stale": [], "up_to_date": []}
         )
 
         # Get flowgroups for new YAML files
@@ -1447,22 +1488,12 @@ class ActionOrchestrator:
             except Exception as e:
                 self.logger.warning(f"Could not parse new flowgroup {yaml_path}: {e}")
 
-        # Get flowgroups for stale files
+        # Get flowgroups for stale files. Env-wide context changes (e.g.
+        # include_tests flip) are handled by the display-phase gate, which
+        # forces force_all=True for this path — so no per-flowgroup composite
+        # checksum recomputation is required here.
         stale_flowgroups = {fs.flowgroup for fs in generation_info["stale"]}
 
-        # Check for generation context changes using planning service
-        generation_context_stale = (
-            self.planning_service.analyze_generation_context_staleness(
-                all_flowgroups,
-                env,
-                include_tests,
-                state_manager,
-                exclude_flowgroups=stale_flowgroups,
-            )
-        )
-        stale_flowgroups.update(generation_context_stale)
-
-        # Combine all flowgroups that need generation
         flowgroups_to_generate = new_flowgroups | stale_flowgroups
 
         if flowgroups_to_generate:
@@ -1578,15 +1609,11 @@ class ActionOrchestrator:
             source_yaml: Path to the source YAML
             env: Environment name
             pipeline_identifier: Pipeline name or field
-            include_tests: Whether test actions are included
+            include_tests: Whether test actions are included (recorded env-wide
+                by the CLI via ``record_generation_context``; unused here)
             state_manager: State manager instance
             substitution_mgr: Optional substitution manager for key tracking
         """
-        has_test_actions = flowgroup._has_original_test_actions
-        generation_context = (
-            f"include_tests:{include_tests}" if has_test_actions else ""
-        )
-
         # Get used substitution keys for granular tracking
         used_keys: Optional[List[str]] = None
         if substitution_mgr:
@@ -1598,7 +1625,6 @@ class ActionOrchestrator:
             environment=env,
             pipeline=pipeline_identifier,
             flowgroup=flowgroup.flowgroup,
-            generation_context=generation_context,
             used_substitution_keys=used_keys,
         )
 

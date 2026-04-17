@@ -338,7 +338,6 @@ actions:
             environment="test",
             pipeline="test_pipeline",
             flowgroup="test_only_flowgroup",
-            generation_context="include_tests:True"
         )
 
         # Verify file is tracked
