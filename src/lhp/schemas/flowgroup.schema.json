@@ -176,7 +176,7 @@
                 },
                 "type": {
                     "type": "string",
-                    "enum": ["load", "transform", "write"],
+                    "enum": ["load", "transform", "write","test"],
                     "description": "Type of action"
                 },
                 "source": {

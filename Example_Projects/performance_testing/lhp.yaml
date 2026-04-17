@@ -28,9 +28,7 @@ include:
   # - "*/domain_o/**"
   # - "*/domain_p/**"
   # - "*/domain_q/**"
-  # - "*/domain_r/**"
-  # - "*/domain_s/**"
-  # - "*/domain_t/**"
+
 
   # --- By layer (each ~400 flowgroups) ---
   # - "01_raw/**"
