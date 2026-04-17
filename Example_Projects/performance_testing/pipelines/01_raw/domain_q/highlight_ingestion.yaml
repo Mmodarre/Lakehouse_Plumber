@@ -1,0 +1,47 @@
+pipeline: domain_q_raw
+flowgroup: highlight_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_highlight_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/highlight/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_highlight_cloudfiles
+    description: "Load highlight from landing volume"
+
+  - name: write_highlight_raw
+    type: write
+    source: v_highlight_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "highlight_raw"
+
+  - name: tst_highlight_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_highlight_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-highlight-R01"
+
+  - name: tst_highlight_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_highlight_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-highlight-R02"

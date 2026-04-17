@@ -440,49 +440,37 @@ class TestGenerateCommandHelperMethods:
         assert response == mock_response
         mock_facade.generate_pipeline.assert_called_once()
     
-    def test_discover_pipelines_for_generation_specific(self, generate_command):
-        """Test discovering pipelines with specific pipeline."""
-        mock_facade = Mock()
-        
-        result = generate_command._discover_pipelines_for_generation("test_pipeline", mock_facade)
-        
-        assert result == ["test_pipeline"]
-        mock_facade.orchestrator.discover_all_flowgroups.assert_not_called()
-    
-    def test_discover_pipelines_for_generation_all(self, generate_command):
-        """Test discovering all pipelines."""
+    def test_get_pipeline_names_specific(self, generate_command):
+        """Test _get_pipeline_names with specific pipeline."""
         from lhp.models.config import FlowGroup
-        
-        mock_facade = Mock()
-        mock_facade.orchestrator.discover_all_flowgroups.return_value = [
+
+        result = GenerateCommand._get_pipeline_names("test_pipeline", [
+            FlowGroup(pipeline="other", flowgroup="fg1", actions=[]),
+        ])
+
+        assert result == ["test_pipeline"]
+
+    def test_get_pipeline_names_all(self, generate_command):
+        """Test _get_pipeline_names extracts unique pipelines from flowgroups."""
+        from lhp.models.config import FlowGroup
+
+        all_flowgroups = [
             FlowGroup(pipeline="pipeline1", flowgroup="fg1", actions=[]),
             FlowGroup(pipeline="pipeline2", flowgroup="fg2", actions=[]),
-            FlowGroup(pipeline="pipeline1", flowgroup="fg3", actions=[])
+            FlowGroup(pipeline="pipeline1", flowgroup="fg3", actions=[]),
         ]
-        
-        result = generate_command._discover_pipelines_for_generation(None, mock_facade)
-        
+
+        result = GenerateCommand._get_pipeline_names(None, all_flowgroups)
+
         assert len(result) == 2
         assert "pipeline1" in result
         assert "pipeline2" in result
-    
-    def test_discover_pipelines_for_generation_empty(self, generate_command):
-        """Test discovering pipelines when none exist."""
-        mock_facade = Mock()
-        mock_facade.orchestrator.discover_all_flowgroups.return_value = []
-        
-        with patch('click.echo'):
-            result = generate_command._discover_pipelines_for_generation(None, mock_facade)
-        
-        assert result == []
-    
-    def test_discover_pipelines_for_generation_error(self, generate_command):
-        """Test discovering pipelines when error occurs — now propagates."""
-        mock_facade = Mock()
-        mock_facade.orchestrator.discover_all_flowgroups.side_effect = Exception("Discovery error")
 
-        with pytest.raises(Exception, match="Discovery error"):
-            generate_command._discover_pipelines_for_generation(None, mock_facade)
+    def test_get_pipeline_names_empty(self, generate_command):
+        """Test _get_pipeline_names when no flowgroups exist."""
+        result = GenerateCommand._get_pipeline_names(None, [])
+
+        assert result == []
     
     def test_display_generation_analysis_force_mode(self, generate_command):
         """Test displaying generation analysis with force mode."""
@@ -677,12 +665,15 @@ class TestGenerateCommandExecute:
         """Test execute when no pipelines are found."""
         from lhp.utils.error_formatter import LHPConfigError
 
+        mock_facade_instance = Mock()
+        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = []
+        mock_facade_instance.state_manager = Mock()
+
         with patch.object(generate_command, 'setup_from_context'), \
              patch.object(generate_command, 'ensure_project_root', return_value=temp_project), \
              patch.object(generate_command, '_display_startup_message'), \
              patch.object(generate_command, 'check_substitution_file', return_value=temp_project / "substitutions" / "dev.yaml"), \
-             patch.object(generate_command, '_create_application_facade') as mock_facade, \
-             patch.object(generate_command, '_discover_pipelines_for_generation', return_value=[]), \
+             patch.object(generate_command, '_create_application_facade', return_value=mock_facade_instance), \
              patch('click.echo'):
 
             with pytest.raises(LHPConfigError, match="No flowgroups found"):
@@ -691,10 +682,10 @@ class TestGenerateCommandExecute:
     def test_execute_basic_flow(self, generate_command, temp_project):
         """Test basic execute flow."""
         from lhp.models.config import FlowGroup
-        
+
         output_dir = temp_project / "generated" / "dev"
         output_dir.mkdir(parents=True)
-        
+
         mock_response = GenerationResponse(
             success=True,
             generated_files={"test.py": "# Generated"},
@@ -703,25 +694,18 @@ class TestGenerateCommandExecute:
             output_location=output_dir,
             performance_info={}
         )
-        
-        mock_analysis_response = AnalysisResponse(
-            success=True,
-            pipelines_needing_generation={},
-            pipelines_up_to_date={},
-            has_global_changes=False,
-            global_changes=[],
-            include_tests_context_applied=False,
-            total_new_files=0,
-            total_stale_files=0,
-            total_up_to_date_files=0
-        )
-        
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
+            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
+        ]
+        mock_facade_instance.state_manager = Mock()
+
         with patch.object(generate_command, 'setup_from_context'), \
              patch.object(generate_command, 'ensure_project_root', return_value=temp_project), \
              patch.object(generate_command, '_display_startup_message'), \
              patch.object(generate_command, 'check_substitution_file', return_value=temp_project / "substitutions" / "dev.yaml"), \
-             patch.object(generate_command, '_create_application_facade') as mock_facade, \
-             patch.object(generate_command, '_discover_pipelines_for_generation', return_value=["test_pipeline"]), \
+             patch.object(generate_command, '_create_application_facade', return_value=mock_facade_instance), \
              patch.object(generate_command, '_handle_cleanup_operations'), \
              patch.object(generate_command, '_display_generation_analysis'), \
              patch.object(generate_command, '_execute_pipeline_generation', return_value=mock_response), \
@@ -729,18 +713,17 @@ class TestGenerateCommandExecute:
              patch.object(generate_command, '_handle_bundle_operations'), \
              patch.object(generate_command, '_display_completion_message'), \
              patch('click.echo'):
-            
-            mock_facade_instance = Mock()
-            mock_facade.return_value = mock_facade_instance
-            
+
             generate_command.execute("dev")
-            
+
             # Verify key methods were called
-            generate_command._discover_pipelines_for_generation.assert_called_once()
+            mock_facade_instance.orchestrator.discover_all_flowgroups.assert_called_once()
             generate_command._execute_pipeline_generation.assert_called_once()
     
     def test_execute_with_dry_run(self, generate_command, temp_project):
         """Test execute with dry-run flag."""
+        from lhp.models.config import FlowGroup
+
         mock_response = GenerationResponse(
             success=True,
             generated_files={"test.py": "# Generated"},
@@ -749,13 +732,18 @@ class TestGenerateCommandExecute:
             output_location=None,
             performance_info={"dry_run": True}
         )
-        
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
+            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
+        ]
+        mock_facade_instance.state_manager = Mock()
+
         with patch.object(generate_command, 'setup_from_context'), \
              patch.object(generate_command, 'ensure_project_root', return_value=temp_project), \
              patch.object(generate_command, '_display_startup_message'), \
              patch.object(generate_command, 'check_substitution_file', return_value=temp_project / "substitutions" / "dev.yaml"), \
-             patch.object(generate_command, '_create_application_facade') as mock_facade, \
-             patch.object(generate_command, '_discover_pipelines_for_generation', return_value=["test_pipeline"]), \
+             patch.object(generate_command, '_create_application_facade', return_value=mock_facade_instance), \
              patch.object(generate_command, '_handle_cleanup_operations'), \
              patch.object(generate_command, '_display_generation_analysis'), \
              patch.object(generate_command, '_execute_pipeline_generation', return_value=mock_response), \
@@ -763,12 +751,9 @@ class TestGenerateCommandExecute:
              patch.object(generate_command, '_handle_bundle_operations'), \
              patch.object(generate_command, '_display_completion_message'), \
              patch('click.echo'):
-            
-            mock_facade_instance = Mock()
-            mock_facade.return_value = mock_facade_instance
-            
+
             generate_command.execute("dev", dry_run=True)
-            
+
             # Verify dry_run was passed through
             call_args = generate_command._execute_pipeline_generation.call_args
             # Check both positional and keyword arguments
@@ -776,25 +761,33 @@ class TestGenerateCommandExecute:
     
     def test_execute_with_force(self, generate_command, temp_project):
         """Test execute with force flag."""
+        from lhp.models.config import FlowGroup
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
+            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
+        ]
+        mock_facade_instance.state_manager = Mock()
+
         with patch.object(generate_command, 'setup_from_context'), \
              patch.object(generate_command, 'ensure_project_root', return_value=temp_project), \
              patch.object(generate_command, '_display_startup_message'), \
              patch.object(generate_command, 'check_substitution_file', return_value=temp_project / "substitutions" / "dev.yaml"), \
-             patch.object(generate_command, '_create_application_facade') as mock_facade, \
-             patch.object(generate_command, '_discover_pipelines_for_generation', return_value=["test_pipeline"]), \
-             patch.object(generate_command, '_handle_cleanup_operations'), \
+             patch.object(generate_command, '_create_application_facade', return_value=mock_facade_instance), \
+             patch.object(generate_command, '_wipe_generated_directory') as mock_wipe, \
+             patch.object(generate_command, '_handle_cleanup_operations') as mock_cleanup, \
              patch.object(generate_command, '_display_generation_analysis') as mock_analysis, \
              patch.object(generate_command, '_execute_pipeline_generation'), \
              patch.object(generate_command, '_display_generation_response'), \
              patch.object(generate_command, '_handle_bundle_operations'), \
              patch.object(generate_command, '_display_completion_message'), \
              patch('click.echo'):
-            
-            mock_facade_instance = Mock()
-            mock_facade.return_value = mock_facade_instance
-            
+
             generate_command.execute("dev", force=True)
-            
+
+            # Force mode calls _wipe_generated_directory, not _handle_cleanup_operations
+            mock_wipe.assert_called_once()
+            mock_cleanup.assert_not_called()
             # Verify force was passed to analysis
             call_args = mock_analysis.call_args
             # force is the 5th positional argument (index 4)
@@ -802,36 +795,51 @@ class TestGenerateCommandExecute:
     
     def test_execute_with_no_cleanup(self, generate_command, temp_project):
         """Test execute with no_cleanup flag."""
+        from lhp.models.config import FlowGroup
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
+            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
+        ]
+        # no_cleanup=True means state_manager is None in real code,
+        # but since _create_application_facade is mocked, we set it explicitly
+        mock_facade_instance.state_manager = None
+
         with patch.object(generate_command, 'setup_from_context'), \
              patch.object(generate_command, 'ensure_project_root', return_value=temp_project), \
              patch.object(generate_command, '_display_startup_message'), \
              patch.object(generate_command, 'check_substitution_file', return_value=temp_project / "substitutions" / "dev.yaml"), \
-             patch.object(generate_command, '_create_application_facade') as mock_facade, \
-             patch.object(generate_command, '_discover_pipelines_for_generation', return_value=["test_pipeline"]), \
+             patch.object(generate_command, '_create_application_facade', return_value=mock_facade_instance), \
              patch.object(generate_command, '_handle_cleanup_operations') as mock_cleanup, \
+             patch.object(generate_command, '_wipe_generated_directory') as mock_wipe, \
              patch.object(generate_command, '_display_generation_analysis'), \
              patch.object(generate_command, '_execute_pipeline_generation'), \
              patch.object(generate_command, '_display_generation_response'), \
              patch.object(generate_command, '_handle_bundle_operations'), \
              patch.object(generate_command, '_display_completion_message'), \
              patch('click.echo'):
-            
-            mock_facade_instance = Mock()
-            mock_facade.return_value = mock_facade_instance
-            
+
             generate_command.execute("dev", no_cleanup=True)
-            
-            # Verify cleanup was not called
+
+            # Verify neither cleanup nor wipe was called
             mock_cleanup.assert_not_called()
+            mock_wipe.assert_not_called()
     
     def test_execute_with_no_bundle(self, generate_command, temp_project):
         """Test execute with no_bundle flag."""
+        from lhp.models.config import FlowGroup
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
+            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
+        ]
+        mock_facade_instance.state_manager = Mock()
+
         with patch.object(generate_command, 'setup_from_context'), \
              patch.object(generate_command, 'ensure_project_root', return_value=temp_project), \
              patch.object(generate_command, '_display_startup_message'), \
              patch.object(generate_command, 'check_substitution_file', return_value=temp_project / "substitutions" / "dev.yaml"), \
-             patch.object(generate_command, '_create_application_facade') as mock_facade, \
-             patch.object(generate_command, '_discover_pipelines_for_generation', return_value=["test_pipeline"]), \
+             patch.object(generate_command, '_create_application_facade', return_value=mock_facade_instance), \
              patch.object(generate_command, '_handle_cleanup_operations'), \
              patch.object(generate_command, '_display_generation_analysis'), \
              patch.object(generate_command, '_execute_pipeline_generation'), \
@@ -839,25 +847,29 @@ class TestGenerateCommandExecute:
              patch.object(generate_command, '_handle_bundle_operations') as mock_bundle, \
              patch.object(generate_command, '_display_completion_message'), \
              patch('click.echo'):
-            
-            mock_facade_instance = Mock()
-            mock_facade.return_value = mock_facade_instance
-            
+
             generate_command.execute("dev", no_bundle=True)
-            
+
             # Verify bundle operations were not called
             mock_bundle.assert_not_called()
     
     def test_execute_with_custom_output(self, generate_command, temp_project):
         """Test execute with custom output directory."""
+        from lhp.models.config import FlowGroup
+
         custom_output = temp_project / "custom_output"
-        
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
+            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
+        ]
+        mock_facade_instance.state_manager = Mock()
+
         with patch.object(generate_command, 'setup_from_context'), \
              patch.object(generate_command, 'ensure_project_root', return_value=temp_project), \
              patch.object(generate_command, '_display_startup_message'), \
              patch.object(generate_command, 'check_substitution_file', return_value=temp_project / "substitutions" / "dev.yaml"), \
-             patch.object(generate_command, '_create_application_facade') as mock_facade, \
-             patch.object(generate_command, '_discover_pipelines_for_generation', return_value=["test_pipeline"]), \
+             patch.object(generate_command, '_create_application_facade', return_value=mock_facade_instance), \
              patch.object(generate_command, '_handle_cleanup_operations'), \
              patch.object(generate_command, '_display_generation_analysis'), \
              patch.object(generate_command, '_execute_pipeline_generation') as mock_execute, \
@@ -865,12 +877,9 @@ class TestGenerateCommandExecute:
              patch.object(generate_command, '_handle_bundle_operations'), \
              patch.object(generate_command, '_display_completion_message'), \
              patch('click.echo'):
-            
-            mock_facade_instance = Mock()
-            mock_facade.return_value = mock_facade_instance
-            
+
             generate_command.execute("dev", output=str(custom_output))
-            
+
             # Verify custom output was used - check the actual call
             call_args = mock_execute.call_args
             # output_dir is the 4th positional argument (index 3)

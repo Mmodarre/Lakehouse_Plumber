@@ -1,0 +1,48 @@
+pipeline: domain_o_silver
+flowgroup: social_post_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: social_post_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: social_post
+    target: v_social_post_bronze
+    description: "Load social_post from bronze for silver layer"
+
+  - name: write_social_post_silver
+    type: write
+    source: v_social_post_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "social_post_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["social_post_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_social_post_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_social_post_bronze
+    required_columns: [social_post_key]
+    on_violation: warn
+    test_id: "PERF-social_post-S01"
+
+  - name: tst_social_post_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_social_post_bronze
+    columns: [social_post_key]
+    on_violation: warn
+    test_id: "PERF-social_post-S02"

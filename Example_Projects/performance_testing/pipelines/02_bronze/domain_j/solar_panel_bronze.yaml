@@ -1,0 +1,24 @@
+pipeline: domain_j_bronze
+flowgroup: solar_panel_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: solar_panel
+  source_table: solar_panel_raw
+actions:
+  - name: tst_solar_panel_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_solar_panel_cleansed
+    required_columns: [solar_panel_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-solar_panel-B01"
+
+  - name: tst_solar_panel_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_solar_panel_cleansed
+    columns: [solar_panel_key]
+    on_violation: warn
+    test_id: "PERF-solar_panel-B02"

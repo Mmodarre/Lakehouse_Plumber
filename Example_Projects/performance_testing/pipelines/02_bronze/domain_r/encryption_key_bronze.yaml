@@ -1,0 +1,101 @@
+pipeline: domain_r_bronze
+flowgroup: encryption_key_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: encryption_key_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: encryption_key_raw
+    target: v_encryption_key_raw
+    description: "Load encryption_key from raw schema"
+
+  - name: encryption_key_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_encryption_key_raw
+    target: v_encryption_key_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as encryption_key_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_encryption_key_raw
+
+  - name: encryption_key_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_encryption_key_bronze_cleaned
+    target: v_encryption_key_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for encryption_key bronze"
+
+  - name: write_encryption_key_bronze
+    type: write
+    source: v_encryption_key_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "encryption_key"
+
+  - name: encryption_key_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: encryption_key_migration
+    target: v_encryption_key_migration
+    description: "Load encryption_key migration data"
+
+  - name: encryption_key_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_encryption_key_migration
+    target: v_encryption_key_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as encryption_key_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_encryption_key_migration
+
+  - name: write_encryption_key_migration
+    type: write
+    source: v_encryption_key_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "encryption_key"
+
+  - name: tst_encryption_key_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_encryption_key_bronze_cleaned
+    required_columns: [encryption_key_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-encryption_key-B01"
+
+  - name: tst_encryption_key_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_encryption_key_bronze_cleaned
+    columns: [encryption_key_key]
+    on_violation: warn
+    test_id: "PERF-encryption_key-B02"

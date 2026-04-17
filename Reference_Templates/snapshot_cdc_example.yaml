@@ -115,3 +115,38 @@ flowgroups:
           comment: "Product dimension excluding audit columns from history tracking"
         
         description: "Product dimension using except column list for history tracking"
+
+      # Example 4: Snapshot CDC with parameterized source function
+      # Uses functools.partial to bind keyword arguments at generation time,
+      # making the function reusable and testable outside LHP.
+      - name: "order_snapshot_cdc_parameterized"
+        type: "write"
+        write_target:
+          type: "streaming_table"
+          mode: "snapshot_cdc"
+          catalog: "silver_catalog"
+          schema: "silver"
+          table: "dim_order"
+
+          snapshot_cdc_config:
+            source_function:
+              file: "py_functions/order_snapshot_func.py"
+              function: "next_order_snapshot"
+              # Parameters are bound via functools.partial at generation time.
+              # The function must declare these as keyword-only args (after *).
+              # Substitution tokens like {catalog} are resolved before binding.
+              parameters:
+                catalog: "{catalog}"
+                schema: "{bronze_schema}"
+                table: "orders"
+
+            keys: ["order_id"]
+            stored_as_scd_type: 2
+            track_history_column_list: ["status", "total_amount", "ship_date"]
+
+          table_properties:
+            delta.enableChangeDataFeed: "true"
+
+          comment: "Order dimension using parameterized snapshot function"
+
+        description: "Order dimension with reusable parameterized snapshot function"

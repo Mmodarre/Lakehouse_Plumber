@@ -1,0 +1,14 @@
+# Global ownership
+*                           @Mmodarre
+
+# CI/CD config — workflow changes can run arbitrary code in CI
+.github/                    @Mmodarre
+.github/workflows/          @Mmodarre
+
+# Python packaging — gates PyPI releases
+pyproject.toml              @Mmodarre
+uv.lock                     @Mmodarre
+
+# Security-sensitive config
+.github/CODEOWNERS          @Mmodarre
+.pre-commit-config.yaml     @Mmodarre

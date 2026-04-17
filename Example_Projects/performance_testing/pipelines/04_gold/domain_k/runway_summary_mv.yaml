@@ -1,0 +1,38 @@
+pipeline: domain_k_gold
+flowgroup: runway_summary_mv
+actions:
+  - name: runway_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.runway_dim
+    target: v_runway_summary
+
+  - name: write_runway_summary_mv
+    type: write
+    source: v_runway_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "runway_summary_mv"
+
+  - name: tst_runway_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_runway_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-runway-G01"
+
+  - name: tst_runway_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_runway_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-runway-G02"

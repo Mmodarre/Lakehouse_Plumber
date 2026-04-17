@@ -1,0 +1,181 @@
+pipeline: domain_a_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: supplier_ingestion
+    template_parameters:
+      table_name: supplier_raw
+      landing_folder: supplier
+      schema_file: orders_schema
+    actions:
+      - name: tst_supplier_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_supplier_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-supplier-R01"
+      
+      - name: tst_supplier_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_supplier_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-supplier-R02"
+
+  - flowgroup: promotion_ingestion
+    template_parameters:
+      table_name: promotion_raw
+      landing_folder: promotion
+      schema_file: nation_schema
+    actions:
+      - name: tst_promotion_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_promotion_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-promotion-R01"
+      
+      - name: tst_promotion_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_promotion_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-promotion-R02"
+
+  - flowgroup: category_ingestion
+    template_parameters:
+      table_name: category_raw
+      landing_folder: category
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_category_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_category_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-category-R01"
+      
+      - name: tst_category_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_category_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-category-R02"
+
+  - flowgroup: contact_ingestion
+    template_parameters:
+      table_name: contact_raw
+      landing_folder: contact
+      schema_file: part_schema
+    actions:
+      - name: tst_contact_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_contact_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-contact-R01"
+      
+      - name: tst_contact_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_contact_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-contact-R02"
+
+  - flowgroup: tax_rate_ingestion
+    template_parameters:
+      table_name: tax_rate_raw
+      landing_folder: tax_rate
+      schema_file: orders_schema
+    actions:
+      - name: tst_tax_rate_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_tax_rate_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tax_rate-R01"
+      
+      - name: tst_tax_rate_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_tax_rate_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tax_rate-R02"
+
+  - flowgroup: barcode_item_ingestion
+    template_parameters:
+      table_name: barcode_item_raw
+      landing_folder: barcode_item
+      schema_file: product_schema
+    actions:
+      - name: tst_barcode_item_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_barcode_item_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-barcode_item-R01"
+      
+      - name: tst_barcode_item_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_barcode_item_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-barcode_item-R02"
+
+  - flowgroup: flash_sale_ingestion
+    template_parameters:
+      table_name: flash_sale_raw
+      landing_folder: flash_sale
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_flash_sale_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_flash_sale_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-flash_sale-R01"
+      
+      - name: tst_flash_sale_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_flash_sale_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-flash_sale-R02"
+
+  - flowgroup: packing_slip_ingestion
+    template_parameters:
+      table_name: packing_slip_raw
+      landing_folder: packing_slip
+      schema_file: part_schema
+    actions:
+      - name: tst_packing_slip_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_packing_slip_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-packing_slip-R01"
+      
+      - name: tst_packing_slip_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_packing_slip_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-packing_slip-R02"

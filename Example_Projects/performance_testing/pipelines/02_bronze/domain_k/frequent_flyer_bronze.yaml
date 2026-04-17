@@ -1,0 +1,64 @@
+pipeline: domain_k_bronze
+flowgroup: frequent_flyer_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: frequent_flyer_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: frequent_flyer_raw
+    target: v_frequent_flyer_raw
+    description: "Load frequent_flyer from raw schema"
+
+  - name: frequent_flyer_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_frequent_flyer_raw
+    target: v_frequent_flyer_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as frequent_flyer_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_frequent_flyer_raw
+      WHERE 1=1
+
+  - name: frequent_flyer_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_frequent_flyer_bronze_cleaned
+    target: v_frequent_flyer_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to frequent_flyer"
+
+  - name: write_frequent_flyer_bronze
+    type: write
+    source: v_frequent_flyer_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "frequent_flyer"
+
+  - name: tst_frequent_flyer_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_frequent_flyer_bronze_cleaned
+    required_columns: [frequent_flyer_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-frequent_flyer-B01"
+
+  - name: tst_frequent_flyer_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_frequent_flyer_bronze_cleaned
+    columns: [frequent_flyer_key]
+    on_violation: warn
+    test_id: "PERF-frequent_flyer-B02"

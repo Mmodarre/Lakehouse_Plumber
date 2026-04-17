@@ -1,0 +1,38 @@
+pipeline: domain_k_gold
+flowgroup: baggage_report_mv
+actions:
+  - name: baggage_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.baggage_fct
+    target: v_baggage_report
+
+  - name: write_baggage_report_mv
+    type: write
+    source: v_baggage_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "baggage_report_mv"
+
+  - name: tst_baggage_report_completeness
+    type: test
+    test_type: completeness
+    source: v_baggage_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-baggage-G01"
+
+  - name: tst_baggage_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_baggage_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-baggage-G02"

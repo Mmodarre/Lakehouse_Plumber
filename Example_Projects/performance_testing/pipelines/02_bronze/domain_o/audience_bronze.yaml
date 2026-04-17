@@ -1,0 +1,24 @@
+pipeline: domain_o_bronze
+flowgroup: audience_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: audience
+  source_table: audience_raw
+actions:
+  - name: tst_audience_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_audience_cleansed
+    required_columns: [audience_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-audience-B01"
+
+  - name: tst_audience_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_audience_cleansed
+    columns: [audience_key]
+    on_violation: warn
+    test_id: "PERF-audience-B02"

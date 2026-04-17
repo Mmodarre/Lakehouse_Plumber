@@ -1,7 +1,7 @@
 """State management data models for LakehousePlumber."""
 
-from dataclasses import dataclass
-from typing import Dict, Optional, List
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -36,14 +36,10 @@ class FileState:
     pipeline: str  # Pipeline name
     flowgroup: str  # FlowGroup name
 
-    # New dependency tracking fields
-    file_dependencies: Optional[Dict[str, DependencyInfo]] = (
-        None  # File-specific dependencies
-    )
-    file_composite_checksum: str = ""
-    used_substitution_keys: Optional[List[str]] = (
-        None  # Substitution keys used during generation
-    )
+    # File-specific dependencies (presets, templates, substitution references, etc.)
+    file_dependencies: Optional[Dict[str, DependencyInfo]] = None
+    used_substitution_keys: Optional[List[str]] = None
+    artifact_type: Optional[str] = None
 
 
 @dataclass
@@ -60,6 +56,12 @@ class ProjectState:
     global_dependencies: Optional[Dict[str, GlobalDependencies]] = (
         None  # env -> GlobalDependencies
     )
+
+    # Per-env record of the generation flags in effect at the last successful
+    # save. Used to detect env-wide context changes (e.g. ``include_tests``
+    # flip) without per-file composite checksums.
+    # Shape: {env_name: {"include_tests": "True" | "False"}}
+    last_generation_context: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     def __post_init__(self):
         if self.environments is None:

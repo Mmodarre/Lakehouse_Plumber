@@ -1,0 +1,25 @@
+pipeline: domain_r_raw
+flowgroup: space_weather_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: space_weather_raw
+  landing_folder: space_weather
+  schema_file: product_schema
+actions:
+  - name: tst_space_weather_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_space_weather_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-space_weather-R01"
+
+  - name: tst_space_weather_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_space_weather_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-space_weather-R02"

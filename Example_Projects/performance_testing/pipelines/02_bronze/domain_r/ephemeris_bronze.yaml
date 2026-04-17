@@ -1,0 +1,24 @@
+pipeline: domain_r_bronze
+flowgroup: ephemeris_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: ephemeris
+  source_table: ephemeris_raw
+actions:
+  - name: tst_ephemeris_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_ephemeris_cleansed
+    required_columns: [ephemeris_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-ephemeris-B01"
+
+  - name: tst_ephemeris_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ephemeris_cleansed
+    columns: [ephemeris_key]
+    on_violation: warn
+    test_id: "PERF-ephemeris-B02"

@@ -1,0 +1,47 @@
+# ==============================================================================
+# Azure DevOps Test Plans — Provider Configuration
+# ==============================================================================
+# Used by: ado_test_reporter.py (config mapping) and ado_test_reporter_inline.py
+#
+# Substitution placeholders (e.g., {ado_org}) resolve at `lhp generate` time.
+# Secret references (${secret:...}) do NOT work in copied provider files —
+# the provider calls dbutils.secrets.get() directly instead (see _get_pat()).
+#
+# PAT is read from Databricks secrets — NEVER hardcode it here.
+# ==============================================================================
+
+ado:
+  organization: "{ado_org}"
+  project: "{ado_project}"
+  # Databricks secret scope and key where the ADO PAT is stored.
+  # Set via: dbutils.secrets.put(scope="ado_secrets", key="pat", string_value="<PAT>")
+  pat_secret_scope: "{ado_secret_scope}"
+  pat_secret_key: "pat"
+  api_version: "7.1"
+
+test_plan:
+  # ADO Test Plan and Suite IDs — find these in the ADO Test Plans UI URL.
+  plan_id: 2272966
+  suite_id: 2272981
+
+# ==============================================================================
+# Test Case Mapping (only for ado_test_reporter.py, NOT ado_test_reporter_inline.py)
+# ==============================================================================
+# Maps pipeline test_id values to ADO Test Case IDs.
+# Keys: test_id from pipeline YAML (e.g., "SIT-G01")
+# Values: ADO Test Case ID (7-digit integer from Test Plans UI)
+#
+# Results with no mapping or a zero/placeholder value are skipped with a warning.
+# ==============================================================================
+test_case_mapping:
+  "SIT-G01": 2272983    # PK NOT NULL
+  "SIT-G02": 2273173    # PK Uniqueness
+  "SIT-G03": 2273174    # Row Count Recon
+  "SIT-G04": 2273178    # Insert Detection
+  "SIT-G05": 2273184    # Update Detection
+  "SIT-G06": 2273196    # Soft Delete Detection
+  "SIT-G07": 2273197    # Source Duplicates
+  "SIT-G08": 2273198    # Schema Change
+
+# Set to true to log what would be published without calling the ADO API.
+dry_run: false

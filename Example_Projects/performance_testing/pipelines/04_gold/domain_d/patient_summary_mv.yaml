@@ -1,0 +1,38 @@
+pipeline: domain_d_gold
+flowgroup: patient_summary_mv
+actions:
+  - name: patient_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.patient_fct
+    target: v_patient_summary
+
+  - name: write_patient_summary_mv
+    type: write
+    source: v_patient_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "patient_summary_mv"
+
+  - name: tst_patient_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_patient_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-patient-G01"
+
+  - name: tst_patient_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_patient_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-patient-G02"

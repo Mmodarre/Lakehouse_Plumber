@@ -1,0 +1,101 @@
+pipeline: domain_e_bronze
+flowgroup: last_mile_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: last_mile_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: last_mile_raw
+    target: v_last_mile_raw
+    description: "Load last_mile from raw schema"
+
+  - name: last_mile_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_last_mile_raw
+    target: v_last_mile_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as last_mile_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_last_mile_raw
+
+  - name: last_mile_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_last_mile_bronze_cleaned
+    target: v_last_mile_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for last_mile bronze"
+
+  - name: write_last_mile_bronze
+    type: write
+    source: v_last_mile_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "last_mile"
+
+  - name: last_mile_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: last_mile_migration
+    target: v_last_mile_migration
+    description: "Load last_mile migration data"
+
+  - name: last_mile_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_last_mile_migration
+    target: v_last_mile_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as last_mile_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_last_mile_migration
+
+  - name: write_last_mile_migration
+    type: write
+    source: v_last_mile_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "last_mile"
+
+  - name: tst_last_mile_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_last_mile_bronze_cleaned
+    required_columns: [last_mile_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-last_mile-B01"
+
+  - name: tst_last_mile_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_last_mile_bronze_cleaned
+    columns: [last_mile_key]
+    on_violation: warn
+    test_id: "PERF-last_mile-B02"

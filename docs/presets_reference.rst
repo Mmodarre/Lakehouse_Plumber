@@ -281,7 +281,7 @@ FlowGroups can apply multiple presets in order:
        source: v_customers_raw
        write_target:
          type: streaming_table
-         database: "{catalog}.{schema}"
+         database: "${catalog}.${schema}"
          table: "customers"
 
 Preset Inheritance

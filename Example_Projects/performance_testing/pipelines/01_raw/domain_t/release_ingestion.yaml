@@ -1,0 +1,25 @@
+pipeline: domain_t_raw
+flowgroup: release_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: release_raw
+  landing_folder: release
+  schema_file: partsupp_schema
+actions:
+  - name: tst_release_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_release_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-release-R01"
+
+  - name: tst_release_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_release_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-release-R02"

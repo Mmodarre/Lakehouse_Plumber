@@ -1,0 +1,24 @@
+pipeline: domain_k_bronze
+flowgroup: itinerary_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: itinerary
+  source_table: itinerary_raw
+actions:
+  - name: tst_itinerary_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_itinerary_cleansed
+    required_columns: [itinerary_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-itinerary-B01"
+
+  - name: tst_itinerary_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_itinerary_cleansed
+    columns: [itinerary_key]
+    on_violation: warn
+    test_id: "PERF-itinerary-B02"

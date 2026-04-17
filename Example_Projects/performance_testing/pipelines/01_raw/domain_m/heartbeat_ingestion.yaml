@@ -1,0 +1,25 @@
+pipeline: domain_m_raw
+flowgroup: heartbeat_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: heartbeat_raw
+  landing_folder: heartbeat
+  schema_file: customer_schema
+actions:
+  - name: tst_heartbeat_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_heartbeat_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-heartbeat-R01"
+
+  - name: tst_heartbeat_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_heartbeat_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-heartbeat-R02"

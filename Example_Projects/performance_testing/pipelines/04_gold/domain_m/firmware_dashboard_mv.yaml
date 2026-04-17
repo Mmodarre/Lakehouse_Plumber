@@ -1,0 +1,38 @@
+pipeline: domain_m_gold
+flowgroup: firmware_dashboard_mv
+actions:
+  - name: firmware_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.firmware_fct
+    target: v_firmware_dashboard
+
+  - name: write_firmware_dashboard_mv
+    type: write
+    source: v_firmware_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "firmware_dashboard_mv"
+
+  - name: tst_firmware_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_firmware_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-firmware-G01"
+
+  - name: tst_firmware_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_firmware_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-firmware-G02"

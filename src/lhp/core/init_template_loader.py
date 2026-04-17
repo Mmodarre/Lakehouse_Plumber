@@ -59,7 +59,7 @@ class InitTemplateLoader:
 
         # Create Jinja2 environment with package template loader
         loader = PackageTemplateLoader("lhp.templates.init")
-        self.jinja_env = Environment(loader=loader)
+        self.jinja_env = Environment(loader=loader)  # nosec B701 — generates text, not HTML
 
     def load_template(self, template_path: str):
         """Load a template from package resources.

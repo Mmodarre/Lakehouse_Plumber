@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: predictive_model_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: predictive_model_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: predictive_model_dim
+    target: v_predictive_model_silver
+    description: "Load predictive_model from silver for modelling"
+
+  - name: predictive_model_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_predictive_model_silver
+    target: v_predictive_model_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_predictive_model_silver
+
+  - name: write_predictive_model_modelled
+    type: write
+    source: v_predictive_model_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "predictive_model_modelled"
+
+  - name: tst_predictive_model_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_predictive_model_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-predictive_model-M01"
+
+  - name: tst_predictive_model_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_predictive_model_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-predictive_model-M02"

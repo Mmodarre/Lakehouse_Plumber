@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: transponder_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: transponder_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: transponder_dim
+    target: v_transponder_silver
+    description: "Load transponder from silver for modelling"
+
+  - name: transponder_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_transponder_silver
+    target: v_transponder_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_transponder_silver
+
+  - name: write_transponder_modelled
+    type: write
+    source: v_transponder_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "transponder_modelled"
+
+  - name: tst_transponder_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_transponder_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-transponder-M01"
+
+  - name: tst_transponder_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transponder_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-transponder-M02"

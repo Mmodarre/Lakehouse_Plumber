@@ -1,0 +1,181 @@
+pipeline: domain_e_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: delivery_ingestion
+    template_parameters:
+      table_name: delivery_raw
+      landing_folder: delivery
+      schema_file: orders_schema
+    actions:
+      - name: tst_delivery_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_delivery_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-delivery-R01"
+      
+      - name: tst_delivery_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_delivery_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-delivery-R02"
+
+  - flowgroup: parking_ingestion
+    template_parameters:
+      table_name: parking_raw
+      landing_folder: parking
+      schema_file: nation_schema
+    actions:
+      - name: tst_parking_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_parking_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-parking-R01"
+      
+      - name: tst_parking_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_parking_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-parking-R02"
+
+  - flowgroup: cargo_ingestion
+    template_parameters:
+      table_name: cargo_raw
+      landing_folder: cargo
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_cargo_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_cargo_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-cargo-R01"
+      
+      - name: tst_cargo_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_cargo_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-cargo-R02"
+
+  - flowgroup: tariff_ingestion
+    template_parameters:
+      table_name: tariff_raw
+      landing_folder: tariff
+      schema_file: part_schema
+    actions:
+      - name: tst_tariff_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_tariff_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tariff-R01"
+      
+      - name: tst_tariff_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_tariff_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tariff-R02"
+
+  - flowgroup: bill_of_lading_ingestion
+    template_parameters:
+      table_name: bill_of_lading_raw
+      landing_folder: bill_of_lading
+      schema_file: orders_schema
+    actions:
+      - name: tst_bill_of_lading_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_bill_of_lading_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-bill_of_lading-R01"
+      
+      - name: tst_bill_of_lading_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_bill_of_lading_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-bill_of_lading-R02"
+
+  - flowgroup: return_shipment_ingestion
+    template_parameters:
+      table_name: return_shipment_raw
+      landing_folder: return_shipment
+      schema_file: product_schema
+    actions:
+      - name: tst_return_shipment_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_return_shipment_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-return_shipment-R01"
+      
+      - name: tst_return_shipment_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_return_shipment_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-return_shipment-R02"
+
+  - flowgroup: idle_time_ingestion
+    template_parameters:
+      table_name: idle_time_raw
+      landing_folder: idle_time
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_idle_time_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_idle_time_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-idle_time-R01"
+      
+      - name: tst_idle_time_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_idle_time_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-idle_time-R02"
+
+  - flowgroup: chain_of_custody_ingestion
+    template_parameters:
+      table_name: chain_of_custody_raw
+      landing_folder: chain_of_custody
+      schema_file: part_schema
+    actions:
+      - name: tst_chain_of_custody_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_chain_of_custody_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-chain_of_custody-R01"
+      
+      - name: tst_chain_of_custody_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_chain_of_custody_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-chain_of_custody-R02"

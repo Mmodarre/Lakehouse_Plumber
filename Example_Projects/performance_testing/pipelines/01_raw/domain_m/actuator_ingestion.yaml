@@ -1,0 +1,47 @@
+pipeline: domain_m_raw
+flowgroup: actuator_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_actuator_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/actuator/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_actuator_cloudfiles
+    description: "Load actuator from landing volume"
+
+  - name: write_actuator_raw
+    type: write
+    source: v_actuator_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "actuator_raw"
+
+  - name: tst_actuator_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_actuator_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-actuator-R01"
+
+  - name: tst_actuator_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_actuator_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-actuator-R02"

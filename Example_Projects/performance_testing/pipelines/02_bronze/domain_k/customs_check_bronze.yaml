@@ -1,0 +1,64 @@
+pipeline: domain_k_bronze
+flowgroup: customs_check_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: customs_check_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: customs_check_raw
+    target: v_customs_check_raw
+    description: "Load customs_check from raw schema"
+
+  - name: customs_check_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_customs_check_raw
+    target: v_customs_check_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as customs_check_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_customs_check_raw
+      WHERE 1=1
+
+  - name: customs_check_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_customs_check_bronze_cleaned
+    target: v_customs_check_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to customs_check"
+
+  - name: write_customs_check_bronze
+    type: write
+    source: v_customs_check_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "customs_check"
+
+  - name: tst_customs_check_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_customs_check_bronze_cleaned
+    required_columns: [customs_check_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-customs_check-B01"
+
+  - name: tst_customs_check_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_customs_check_bronze_cleaned
+    columns: [customs_check_key]
+    on_violation: warn
+    test_id: "PERF-customs_check-B02"

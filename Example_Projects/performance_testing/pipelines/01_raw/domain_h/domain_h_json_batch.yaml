@@ -1,0 +1,181 @@
+pipeline: domain_h_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: purchase_ingestion
+    template_parameters:
+      table_name: purchase_raw
+      landing_folder: purchase
+      schema_file: nation_schema
+    actions:
+      - name: tst_purchase_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_purchase_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-purchase-R01"
+      
+      - name: tst_purchase_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_purchase_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-purchase-R02"
+
+  - flowgroup: price_tag_ingestion
+    template_parameters:
+      table_name: price_tag_raw
+      landing_folder: price_tag
+      schema_file: lineitem_schema
+    actions:
+      - name: tst_price_tag_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_price_tag_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-price_tag-R01"
+      
+      - name: tst_price_tag_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_price_tag_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-price_tag-R02"
+
+  - flowgroup: reorder_ingestion
+    template_parameters:
+      table_name: reorder_raw
+      landing_folder: reorder
+      schema_file: customer_schema
+    actions:
+      - name: tst_reorder_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_reorder_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-reorder-R01"
+      
+      - name: tst_reorder_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_reorder_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-reorder-R02"
+
+  - flowgroup: clearance_ingestion
+    template_parameters:
+      table_name: clearance_raw
+      landing_folder: clearance
+      schema_file: orders_schema
+    actions:
+      - name: tst_clearance_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_clearance_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-clearance-R01"
+      
+      - name: tst_clearance_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_clearance_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-clearance-R02"
+
+  - flowgroup: foot_traffic_ingestion
+    template_parameters:
+      table_name: foot_traffic_raw
+      landing_folder: foot_traffic
+      schema_file: nation_schema
+    actions:
+      - name: tst_foot_traffic_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_foot_traffic_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-foot_traffic-R01"
+      
+      - name: tst_foot_traffic_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_foot_traffic_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-foot_traffic-R02"
+
+  - flowgroup: nps_score_ingestion
+    template_parameters:
+      table_name: nps_score_raw
+      landing_folder: nps_score
+      schema_file: lineitem_schema
+    actions:
+      - name: tst_nps_score_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_nps_score_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-nps_score-R01"
+      
+      - name: tst_nps_score_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_nps_score_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-nps_score-R02"
+
+  - flowgroup: self_checkout_ingestion
+    template_parameters:
+      table_name: self_checkout_raw
+      landing_folder: self_checkout
+      schema_file: part_schema
+    actions:
+      - name: tst_self_checkout_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_self_checkout_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-self_checkout-R01"
+      
+      - name: tst_self_checkout_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_self_checkout_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-self_checkout-R02"
+
+  - flowgroup: price_override_ingestion
+    template_parameters:
+      table_name: price_override_raw
+      landing_folder: price_override
+      schema_file: orders_schema
+    actions:
+      - name: tst_price_override_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_price_override_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-price_override-R01"
+      
+      - name: tst_price_override_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_price_override_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-price_override-R02"

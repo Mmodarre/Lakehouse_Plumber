@@ -1,0 +1,38 @@
+pipeline: domain_d_gold
+flowgroup: immunization_report_mv
+actions:
+  - name: immunization_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.immunization_dim
+    target: v_immunization_report
+
+  - name: write_immunization_report_mv
+    type: write
+    source: v_immunization_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "immunization_report_mv"
+
+  - name: tst_immunization_report_completeness
+    type: test
+    test_type: completeness
+    source: v_immunization_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-immunization-G01"
+
+  - name: tst_immunization_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_immunization_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-immunization-G02"

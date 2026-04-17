@@ -1,0 +1,64 @@
+pipeline: domain_r_bronze
+flowgroup: modulation_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: modulation_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: modulation_raw
+    target: v_modulation_raw
+    description: "Load modulation from raw schema"
+
+  - name: modulation_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_modulation_raw
+    target: v_modulation_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as modulation_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_modulation_raw
+      WHERE 1=1
+
+  - name: modulation_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_modulation_bronze_cleaned
+    target: v_modulation_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to modulation"
+
+  - name: write_modulation_bronze
+    type: write
+    source: v_modulation_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "modulation"
+
+  - name: tst_modulation_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_modulation_bronze_cleaned
+    required_columns: [modulation_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-modulation-B01"
+
+  - name: tst_modulation_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_modulation_bronze_cleaned
+    columns: [modulation_key]
+    on_violation: warn
+    test_id: "PERF-modulation-B02"

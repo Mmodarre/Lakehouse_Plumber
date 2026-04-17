@@ -17,36 +17,6 @@ FLOWGROUP_ID = "monitoring"
 
 
 @dp.temporary_view()
-def v_all_event_logs():
-    """SQL source: load_all_event_logs"""
-    df = spark.sql("""SELECT *, 'acmi_edw_bronze' as _source_pipeline
-FROM stream(acme_edw_dev._meta.acmi_edw_bronze_event_log)
-UNION ALL
-SELECT *, 'acmi_edw_modelled' as _source_pipeline
-FROM stream(acme_edw_dev._meta.acmi_edw_modelled_event_log)
-UNION ALL
-SELECT *, 'acmi_edw_raw' as _source_pipeline
-FROM stream(acme_edw_dev._meta.acmi_edw_raw_event_log)
-UNION ALL
-SELECT *, 'acmi_edw_silver' as _source_pipeline
-FROM stream(acme_edw_dev._meta.acmi_edw_silver_event_log)
-UNION ALL
-SELECT *, 'custom_datasource' as _source_pipeline
-FROM stream(acme_edw_dev._meta.custom_datasource_event_log)
-UNION ALL
-SELECT *, 'gold_load' as _source_pipeline
-FROM stream(acme_edw_dev._meta.gold_load_event_log)
-UNION ALL
-SELECT *, 'kafka_sample_pipeline' as _source_pipeline
-FROM stream(acme_edw_dev._meta.kafka_sample_pipeline_event_log)
-UNION ALL
-SELECT *, 'sample_python_func_pipeline' as _source_pipeline
-FROM stream(acme_edw_dev._meta.sample_python_func_pipeline_event_log)""")
-
-    return df
-
-
-@dp.temporary_view()
 def v_jobs_stats():
     """Python source: load_jobs_stats"""
     # Call the external Python function with spark and parameters
@@ -152,26 +122,5 @@ LEFT JOIN run_metrics rm
 LEFT JOIN run_config rc
   ON ri.pipeline_name = rc.pipeline_name AND ri.update_id = rc.update_id
 ORDER BY ri.run_start_time DESC""")
-
-    return df
-
-
-# Create the streaming table
-dp.create_streaming_table(
-    name="acme_edw_dev._meta.all_pipelines_event_log",
-    comment="Streaming table: all_pipelines_event_log",
-)
-
-
-# Define append flow(s)
-@dp.append_flow(
-    target="acme_edw_dev._meta.all_pipelines_event_log",
-    name="f_all_event_logs",
-    comment="Append flow to acme_edw_dev._meta.all_pipelines_event_log",
-)
-def f_all_event_logs():
-    """Append flow to acme_edw_dev._meta.all_pipelines_event_log"""
-    # Streaming flow
-    df = spark.readStream.table("v_all_event_logs")
 
     return df

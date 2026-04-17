@@ -1,0 +1,64 @@
+pipeline: domain_g_bronze
+flowgroup: open_house_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: open_house_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: open_house_raw
+    target: v_open_house_raw
+    description: "Load open_house from raw schema"
+
+  - name: open_house_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_open_house_raw
+    target: v_open_house_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as open_house_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_open_house_raw
+      WHERE 1=1
+
+  - name: open_house_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_open_house_bronze_cleaned
+    target: v_open_house_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to open_house"
+
+  - name: write_open_house_bronze
+    type: write
+    source: v_open_house_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "open_house"
+
+  - name: tst_open_house_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_open_house_bronze_cleaned
+    required_columns: [open_house_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-open_house-B01"
+
+  - name: tst_open_house_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_open_house_bronze_cleaned
+    columns: [open_house_key]
+    on_violation: warn
+    test_id: "PERF-open_house-B02"

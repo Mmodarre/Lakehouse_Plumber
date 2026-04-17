@@ -1,0 +1,47 @@
+pipeline: domain_n_raw
+flowgroup: cancellation_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_cancellation_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/cancellation/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_cancellation_cloudfiles
+    description: "Load cancellation from landing volume"
+
+  - name: write_cancellation_raw
+    type: write
+    source: v_cancellation_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "cancellation_raw"
+
+  - name: tst_cancellation_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_cancellation_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cancellation-R01"
+
+  - name: tst_cancellation_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cancellation_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cancellation-R02"

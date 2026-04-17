@@ -17,7 +17,7 @@ def test_streaming_table_with_multiple_sources():
         source=["v_orders", "v_returns", "v_cancellations"],
         write_target={
             "type": "streaming_table",
-            "database": "silver",
+            "catalog": "silver_cat", "schema": "silver_sch",
             "table": "all_events",
             "create_table": True,  # ← Add explicit table creation flag
             "partition_columns": ["event_date"],
@@ -30,11 +30,11 @@ def test_streaming_table_with_multiple_sources():
     
     # Check that create_streaming_table is used
     assert "dp.create_streaming_table(" in code
-    assert 'name="silver.all_events"' in code
+    assert 'name="silver_cat.silver_sch.all_events"' in code
     
     # Check that multiple append_flows are created for single action with multiple sources
     assert "@dp.append_flow(" in code
-    assert 'target="silver.all_events"' in code
+    assert 'target="silver_cat.silver_sch.all_events"' in code
     assert "def f_all_events_1():" in code
     assert "def f_all_events_2():" in code
     assert "def f_all_events_3():" in code
@@ -58,7 +58,7 @@ def test_streaming_table_with_backfill():
         readMode="batch",  # Explicitly set batch mode for backfill
         write_target={
             "type": "streaming_table",
-            "database": "silver",
+            "catalog": "silver_cat", "schema": "silver_sch",
             "table": "events",
             "create_table": True  # ← Add explicit table creation flag
         }
@@ -89,7 +89,7 @@ def test_streaming_table_cdc_mode():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "database": "silver",
+            "catalog": "silver_cat", "schema": "silver_sch",
             "table": "dim_customer",
             "create_table": True,  # ← Add explicit table creation flag
             "cdc_config": {
@@ -105,11 +105,11 @@ def test_streaming_table_cdc_mode():
     
     # Check that create_streaming_table is used first
     assert "dp.create_streaming_table(" in code
-    assert 'name="silver.dim_customer"' in code
+    assert 'name="silver_cat.silver_sch.dim_customer"' in code
     
     # Check that create_auto_cdc_flow is used
     assert "dp.create_auto_cdc_flow(" in code
-    assert 'target="silver.dim_customer"' in code
+    assert 'target="silver_cat.silver_sch.dim_customer"' in code
     assert 'source="v_customer_changes"' in code
     assert 'keys=["customer_id"]' in code
     assert 'stored_as_scd_type=2' in code
@@ -128,7 +128,7 @@ def test_streaming_table_single_source():
         source="v_events",
         write_target={
             "type": "streaming_table",
-            "database": "silver",
+            "catalog": "silver_cat", "schema": "silver_sch",
             "table": "events",
             "create_table": True  # ← Add explicit table creation flag
         }
@@ -157,7 +157,7 @@ def test_source_list_validation():
         source=["v_view1", "v_view2"],
         write_target={
             "type": "streaming_table",
-            "database": "silver",
+            "catalog": "silver_cat", "schema": "silver_sch",
             "table": "multi_source",
             "create_table": True  # ← Add explicit table creation flag
         }
@@ -189,7 +189,7 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
         source="v_lineitem_processed",
         write_target={
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "lineitem",
             "create_table": True
         }
@@ -203,7 +203,7 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
         readMode="batch",  # Explicit batch mode for backfill
         write_target={
             "type": "streaming_table",
-            "database": "catalog.schema", 
+            "catalog": "catalog", "schema": "schema", 
             "table": "lineitem",
             "create_table": False  # Don't create table again
         }
@@ -281,7 +281,7 @@ def test_table_creation_validation_multiple_creators():
         source="v_events_1",
         write_target={
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "events",
             "create_table": True  # ← First creator
         }
@@ -293,7 +293,7 @@ def test_table_creation_validation_multiple_creators():
         source="v_events_2",
         write_target={
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "events",
             "create_table": True  # ← Second creator (should cause error)
         }
@@ -331,7 +331,7 @@ def test_table_creation_validation_no_creators():
         source="v_events_1",
         write_target={
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "events",
             "create_table": False  # ← No creator
         }
@@ -343,7 +343,7 @@ def test_table_creation_validation_no_creators():
         source="v_events_2", 
         write_target={
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "events",
             "create_table": False  # ← No creator
         }
@@ -377,7 +377,7 @@ def test_backward_compatibility_single_action():
         readMode="batch",  # Explicit batch mode for once=True backfill
         write_target={
             "type": "streaming_table",
-            "database": "silver",
+            "catalog": "silver_cat", "schema": "silver_sch",
             "table": "events",
             "create_table": True
         }
@@ -408,7 +408,7 @@ def test_orchestrator_preserves_table_creation_logic():
         source="v_events_new",
         write_target={
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog", "schema": "schema",
             "table": "events",
             "create_table": False  # Should not be the table creator
         }
@@ -420,7 +420,7 @@ def test_orchestrator_preserves_table_creation_logic():
         source="v_events_base",
         write_target={
             "type": "streaming_table",
-            "database": "catalog.schema", 
+            "catalog": "catalog", "schema": "schema", 
             "table": "events",
             "create_table": True  # Should be the table creator
         }

@@ -1,0 +1,64 @@
+pipeline: domain_k_bronze
+flowgroup: control_tower_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: control_tower_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: control_tower_raw
+    target: v_control_tower_raw
+    description: "Load control_tower from raw schema"
+
+  - name: control_tower_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_control_tower_raw
+    target: v_control_tower_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as control_tower_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_control_tower_raw
+      WHERE 1=1
+
+  - name: control_tower_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_control_tower_bronze_cleaned
+    target: v_control_tower_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to control_tower"
+
+  - name: write_control_tower_bronze
+    type: write
+    source: v_control_tower_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "control_tower"
+
+  - name: tst_control_tower_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_control_tower_bronze_cleaned
+    required_columns: [control_tower_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-control_tower-B01"
+
+  - name: tst_control_tower_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_control_tower_bronze_cleaned
+    columns: [control_tower_key]
+    on_violation: warn
+    test_id: "PERF-control_tower-B02"

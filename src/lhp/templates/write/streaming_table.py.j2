@@ -1,8 +1,11 @@
 {% if mode == "cdc" %}
-{# 
-   CDC mode: Always create the streaming table first, then configure CDC flow
-   CDC flows require their own dedicated table
+{#
+   CDC mode: Optionally create the streaming table (honoring create_table),
+   then emit one dp.create_auto_cdc_flow per contributing action.
+   Multiple CDC actions targeting the same table combine into this loop via
+   CodeGenerator.create_combined_write_action -> action_metadata.
 #}
+{% if create_table %}
 # Create the streaming table for CDC
 dp.create_streaming_table(
     name="{{ full_table_name }}",
@@ -33,10 +36,13 @@ dp.create_streaming_table(
     {%- endif %}
 )
 
-# CDC mode using auto_cdc
+{% endif %}
+{% for flow_meta in action_metadata %}
+# CDC flow: {{ flow_meta.flow_name }}
 dp.create_auto_cdc_flow(
     target="{{ full_table_name }}",
-    source="{{ source_view }}",
+    source="{{ flow_meta.source_view }}",
+    name="{{ flow_meta.flow_name }}",
     keys={{ cdc_config['keys'] | tojson }},
     {% if cdc_config['sequence_by'] -%}
     {%- if cdc_config['sequence_by'] is string -%}
@@ -49,18 +55,20 @@ dp.create_auto_cdc_flow(
     {% if cdc_config['scd_type'] == 2 and cdc_config.get('track_history_column_list') %}track_history_column_list={{ cdc_config['track_history_column_list'] | tojson }},
     {% elif cdc_config['scd_type'] == 2 and cdc_config.get('track_history_except_column_list') %}track_history_except_column_list={{ cdc_config['track_history_except_column_list'] | tojson }},
     {% endif %}
-    {% if cdc_config['column_list'] %}column_list={{ cdc_config['column_list'] | tojson }},
+    {% if flow_meta.once %}once=True,{% endif %}
+    {% if flow_meta.flow_cdc_config['column_list'] %}column_list={{ flow_meta.flow_cdc_config['column_list'] | tojson }},
     {% endif %}
-    {% if cdc_config['except_column_list'] %}except_column_list={{ cdc_config['except_column_list'] | tojson }},
+    {% if flow_meta.flow_cdc_config['except_column_list'] %}except_column_list={{ flow_meta.flow_cdc_config['except_column_list'] | tojson }},
     {% endif %}
-    {% if cdc_config['ignore_null_updates'] is not none %}ignore_null_updates={{ 'True' if cdc_config['ignore_null_updates'] else 'False' }},
+    {% if flow_meta.flow_cdc_config['ignore_null_updates'] is not none %}ignore_null_updates={{ 'True' if flow_meta.flow_cdc_config['ignore_null_updates'] else 'False' }},
     {% endif %}
-    {% if cdc_config['apply_as_deletes'] %}apply_as_deletes="{{ cdc_config['apply_as_deletes'] }}",
+    {% if flow_meta.flow_cdc_config['apply_as_deletes'] %}apply_as_deletes="{{ flow_meta.flow_cdc_config['apply_as_deletes'] }}",
     {% endif %}
-    {% if cdc_config['apply_as_truncates'] %}apply_as_truncates="{{ cdc_config['apply_as_truncates'] }}"
+    {% if flow_meta.flow_cdc_config['apply_as_truncates'] %}apply_as_truncates="{{ flow_meta.flow_cdc_config['apply_as_truncates'] }}"
     {% endif %}
 )
 
+{% endfor %}
 {% elif mode == "snapshot_cdc" %}
 {# 
    Snapshot CDC mode: Always create the streaming table first, then configure snapshot CDC flow
@@ -104,7 +112,7 @@ dp.create_streaming_table(
 # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
 dp.create_auto_cdc_from_snapshot_flow(
     target="{{ full_table_name }}",
-    {% if source_function_name %}source={{ source_function_name }},
+    {% if source_expression %}source={{ source_expression }},
     {% else %}source="{{ snapshot_cdc_config['source'] }}",
     {% endif %}
     keys={{ snapshot_cdc_config['keys'] | tojson }},

@@ -1,0 +1,64 @@
+pipeline: domain_o_bronze
+flowgroup: pixel_event_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: pixel_event_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pixel_event_raw
+    target: v_pixel_event_raw
+    description: "Load pixel_event from raw schema"
+
+  - name: pixel_event_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_pixel_event_raw
+    target: v_pixel_event_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pixel_event_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_pixel_event_raw
+      WHERE 1=1
+
+  - name: pixel_event_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_pixel_event_bronze_cleaned
+    target: v_pixel_event_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to pixel_event"
+
+  - name: write_pixel_event_bronze
+    type: write
+    source: v_pixel_event_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pixel_event"
+
+  - name: tst_pixel_event_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_pixel_event_bronze_cleaned
+    required_columns: [pixel_event_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-pixel_event-B01"
+
+  - name: tst_pixel_event_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pixel_event_bronze_cleaned
+    columns: [pixel_event_key]
+    on_violation: warn
+    test_id: "PERF-pixel_event-B02"

@@ -1,0 +1,48 @@
+pipeline: domain_s_silver
+flowgroup: barrel_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: barrel_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: barrel
+    target: v_barrel_bronze
+    description: "Load barrel from bronze for silver layer"
+
+  - name: write_barrel_silver
+    type: write
+    source: v_barrel_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "barrel_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["barrel_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_barrel_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_barrel_bronze
+    required_columns: [barrel_key]
+    on_violation: warn
+    test_id: "PERF-barrel-S01"
+
+  - name: tst_barrel_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_barrel_bronze
+    columns: [barrel_key]
+    on_violation: warn
+    test_id: "PERF-barrel-S02"

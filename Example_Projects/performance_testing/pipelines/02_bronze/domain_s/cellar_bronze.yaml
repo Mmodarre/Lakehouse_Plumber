@@ -1,0 +1,24 @@
+pipeline: domain_s_bronze
+flowgroup: cellar_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: cellar
+  source_table: cellar_raw
+actions:
+  - name: tst_cellar_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_cellar_cleansed
+    required_columns: [cellar_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cellar-B01"
+
+  - name: tst_cellar_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cellar_cleansed
+    columns: [cellar_key]
+    on_violation: warn
+    test_id: "PERF-cellar-B02"

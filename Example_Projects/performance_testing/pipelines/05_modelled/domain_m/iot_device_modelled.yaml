@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: iot_device_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: iot_device_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: iot_device_dim
+    target: v_iot_device_silver
+    description: "Load iot_device from silver for modelling"
+
+  - name: iot_device_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_iot_device_silver
+    target: v_iot_device_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_iot_device_silver
+
+  - name: write_iot_device_modelled
+    type: write
+    source: v_iot_device_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "iot_device_modelled"
+
+  - name: tst_iot_device_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_iot_device_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-iot_device-M01"
+
+  - name: tst_iot_device_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_iot_device_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-iot_device-M02"

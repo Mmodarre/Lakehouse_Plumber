@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: antenna_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: antenna_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: antenna_fct
+    target: v_antenna_silver
+    description: "Load antenna from silver for modelling"
+
+  - name: antenna_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_antenna_silver
+    target: v_antenna_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_antenna_silver
+
+  - name: write_antenna_modelled
+    type: write
+    source: v_antenna_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "antenna_modelled"
+
+  - name: tst_antenna_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_antenna_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-antenna-M01"
+
+  - name: tst_antenna_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_antenna_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-antenna-M02"

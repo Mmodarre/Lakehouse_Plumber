@@ -1,0 +1,64 @@
+pipeline: domain_k_bronze
+flowgroup: radar_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: radar_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: radar_raw
+    target: v_radar_raw
+    description: "Load radar from raw schema"
+
+  - name: radar_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_radar_raw
+    target: v_radar_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as radar_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_radar_raw
+      WHERE 1=1
+
+  - name: radar_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_radar_bronze_cleaned
+    target: v_radar_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to radar"
+
+  - name: write_radar_bronze
+    type: write
+    source: v_radar_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "radar"
+
+  - name: tst_radar_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_radar_bronze_cleaned
+    required_columns: [radar_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-radar-B01"
+
+  - name: tst_radar_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_radar_bronze_cleaned
+    columns: [radar_key]
+    on_violation: warn
+    test_id: "PERF-radar-B02"

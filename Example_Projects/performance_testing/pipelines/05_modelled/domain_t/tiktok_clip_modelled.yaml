@@ -1,0 +1,53 @@
+pipeline: domain_t_modelled
+flowgroup: tiktok_clip_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: tiktok_clip_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: tiktok_clip_dim
+    target: v_tiktok_clip_silver
+    description: "Load tiktok_clip from silver for modelling"
+
+  - name: tiktok_clip_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tiktok_clip_silver
+    target: v_tiktok_clip_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_tiktok_clip_silver
+
+  - name: write_tiktok_clip_modelled
+    type: write
+    source: v_tiktok_clip_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "tiktok_clip_modelled"
+
+  - name: tst_tiktok_clip_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tiktok_clip_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tiktok_clip-M01"
+
+  - name: tst_tiktok_clip_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tiktok_clip_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tiktok_clip-M02"

@@ -1,0 +1,25 @@
+pipeline: domain_m_raw
+flowgroup: dead_letter_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: dead_letter_raw
+  landing_folder: dead_letter
+  schema_file: orders_schema
+actions:
+  - name: tst_dead_letter_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_dead_letter_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-dead_letter-R01"
+
+  - name: tst_dead_letter_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dead_letter_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-dead_letter-R02"

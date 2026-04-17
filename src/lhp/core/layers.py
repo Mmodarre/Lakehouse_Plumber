@@ -2,9 +2,11 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List, Any, Optional, TYPE_CHECKING
-from dataclasses import dataclass
+from typing import Dict, List, Any, Optional, Sequence, Set, Tuple, TYPE_CHECKING
+from dataclasses import dataclass, field
 import logging
+
+from ..utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
     from .services.generation_planning_service import GenerationPlan
@@ -38,6 +40,7 @@ class PipelineValidationRequest:
     pipeline_identifier: str
     environment: str
     verbose: bool = False
+    include_tests: bool = True
 
 
 @dataclass
@@ -100,6 +103,11 @@ class AnalysisResponse:
     total_stale_files: int
     total_up_to_date_files: int
     error_message: Optional[str] = None
+
+    # Env-wide generation-context change flag + human-readable diff (e.g.
+    # "include_tests: False -> True"). When True, all pipelines regenerate.
+    context_changed: bool = False
+    context_changes: List[str] = field(default_factory=list)
 
     def has_work_to_do(self) -> bool:
         """Check if any generation work needs to be done."""
@@ -169,7 +177,12 @@ class DataLayer(ABC):
         pass
 
     @abstractmethod
-    def cleanup_orphaned_files(self, env: str, dry_run: bool = False) -> List[str]:
+    def cleanup_orphaned_files(
+        self,
+        env: str,
+        dry_run: bool = False,
+        active_flowgroups: Optional[Set[Tuple[str, str]]] = None,
+    ) -> List[str]:
         """Clean up orphaned files from persistence."""
         pass
 
@@ -224,7 +237,9 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         self.logger = logging.getLogger(__name__)
 
     def generate_pipeline(
-        self, request: PipelineGenerationRequest
+        self,
+        request: PipelineGenerationRequest,
+        pre_discovered_all_flowgroups=None,
     ) -> GenerationResponse:
         """
         Coordinate pipeline generation use case.
@@ -234,15 +249,19 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         """
         try:
             # Execute generation through orchestrator
-            generated_files = self.orchestrator.generate_pipeline_by_field(
-                pipeline_field=request.pipeline_identifier,
-                env=request.environment,
-                output_dir=request.output_directory if not request.dry_run else None,
-                state_manager=self.state_manager if not request.no_cleanup else None,
-                force_all=request.force_all,
-                specific_flowgroups=request.specific_flowgroups,
-                include_tests=request.include_tests,
-            )
+            with perf_timer(
+                f"facade.generate_pipeline [{request.pipeline_identifier}]"
+            ):
+                generated_files = self.orchestrator.generate_pipeline_by_field(
+                    pipeline_field=request.pipeline_identifier,
+                    env=request.environment,
+                    output_dir=request.output_directory if not request.dry_run else None,
+                    state_manager=self.state_manager if not request.no_cleanup else None,
+                    force_all=request.force_all,
+                    specific_flowgroups=request.specific_flowgroups,
+                    include_tests=request.include_tests,
+                    pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+                )
 
             return GenerationResponse(
                 success=True,
@@ -286,7 +305,9 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         """Coordinate pipeline validation use case."""
         try:
             errors, warnings = self.orchestrator.validate_pipeline_by_field(
-                pipeline_field=request.pipeline_identifier, env=request.environment
+                pipeline_field=request.pipeline_identifier,
+                env=request.environment,
+                include_tests=request.include_tests,
             )
 
             return ValidationResponse(
@@ -306,16 +327,22 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 error_message=str(e),
             )
 
-    def analyze_staleness(self, request: StalenessAnalysisRequest) -> AnalysisResponse:
+    def analyze_staleness(
+        self,
+        request: StalenessAnalysisRequest,
+        pre_discovered_all_flowgroups=None,
+    ) -> AnalysisResponse:
         """Coordinate staleness analysis use case."""
         try:
-            analysis = self.orchestrator.analyze_generation_requirements(
-                env=request.environment,
-                pipeline_names=request.pipeline_names,
-                include_tests=request.include_tests,
-                force=request.force,
-                state_manager=self.state_manager,
-            )
+            with perf_timer("facade.analyze_staleness"):
+                analysis = self.orchestrator.analyze_generation_requirements(
+                    env=request.environment,
+                    pipeline_names=request.pipeline_names,
+                    include_tests=request.include_tests,
+                    force=request.force,
+                    state_manager=self.state_manager,
+                    pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+                )
 
             return AnalysisResponse(
                 success=True,
@@ -327,6 +354,8 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 total_new_files=analysis.total_new_files,
                 total_stale_files=analysis.total_stale_files,
                 total_up_to_date_files=analysis.total_up_to_date_files,
+                context_changed=analysis.context_changed,
+                context_changes=list(analysis.context_changes),
             )
 
         except Exception as e:

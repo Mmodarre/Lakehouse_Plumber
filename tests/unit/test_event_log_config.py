@@ -30,13 +30,13 @@ class TestEventLogConfigModel:
         """Test model accepts all custom values."""
         config = EventLogConfig(
             enabled=True,
-            catalog="{catalog}",
+            catalog="${catalog}",
             schema="_meta",
             name_prefix="prefix_",
             name_suffix="_event_log",
         )
         assert config.enabled is True
-        assert config.catalog == "{catalog}"
+        assert config.catalog == "${catalog}"
         assert config.schema_ == "_meta"
         assert config.name_prefix == "prefix_"
         assert config.name_suffix == "_event_log"
@@ -160,13 +160,13 @@ class TestProjectConfigLoaderEventLog:
         config_data = {
             "name": "test_project",
             "event_log": {
-                "catalog": "{event_log_catalog}",
-                "schema": "{event_log_schema}",
+                "catalog": "${event_log_catalog}",
+                "schema": "${event_log_schema}",
             },
         }
         result = loader._parse_project_config(config_data)
-        assert result.event_log.catalog == "{event_log_catalog}"
-        assert result.event_log.schema_ == "{event_log_schema}"
+        assert result.event_log.catalog == "${event_log_catalog}"
+        assert result.event_log.schema_ == "${event_log_schema}"
 
     def test_non_dict_event_log_raises_error(self, loader):
         """Test that non-dict event_log raises parse error."""
@@ -311,8 +311,8 @@ class TestBundleManagerEventLogInjection:
     def test_substitution_tokens_passed_through(self):
         """Test that substitution tokens in event_log values are preserved for later resolution."""
         event_log = EventLogConfig(
-            catalog="{event_log_catalog}",
-            schema="{event_log_schema}",
+            catalog="${event_log_catalog}",
+            schema="${event_log_schema}",
             name_suffix="_log",
         )
         project_config = self._make_project_config(event_log)
@@ -321,8 +321,8 @@ class TestBundleManagerEventLogInjection:
         pipeline_config = {}
         result = manager._inject_project_event_log(pipeline_config, "my_pipeline")
 
-        assert result["event_log"]["catalog"] == "{event_log_catalog}"
-        assert result["event_log"]["schema"] == "{event_log_schema}"
+        assert result["event_log"]["catalog"] == "${event_log_catalog}"
+        assert result["event_log"]["schema"] == "${event_log_schema}"
         assert result["event_log"]["name"] == "my_pipeline_log"
 
     def test_empty_prefix_suffix_defaults(self):

@@ -1,0 +1,101 @@
+pipeline: domain_a_bronze
+flowgroup: pre_order_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: pre_order_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pre_order_raw
+    target: v_pre_order_raw
+    description: "Load pre_order from raw schema"
+
+  - name: pre_order_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_pre_order_raw
+    target: v_pre_order_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pre_order_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_pre_order_raw
+
+  - name: pre_order_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_pre_order_bronze_cleaned
+    target: v_pre_order_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for pre_order bronze"
+
+  - name: write_pre_order_bronze
+    type: write
+    source: v_pre_order_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pre_order"
+
+  - name: pre_order_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pre_order_migration
+    target: v_pre_order_migration
+    description: "Load pre_order migration data"
+
+  - name: pre_order_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pre_order_migration
+    target: v_pre_order_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pre_order_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_pre_order_migration
+
+  - name: write_pre_order_migration
+    type: write
+    source: v_pre_order_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pre_order"
+
+  - name: tst_pre_order_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_pre_order_bronze_cleaned
+    required_columns: [pre_order_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-pre_order-B01"
+
+  - name: tst_pre_order_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pre_order_bronze_cleaned
+    columns: [pre_order_key]
+    on_violation: warn
+    test_id: "PERF-pre_order-B02"

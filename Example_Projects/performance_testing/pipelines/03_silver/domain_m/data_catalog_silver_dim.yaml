@@ -1,0 +1,48 @@
+pipeline: domain_m_silver
+flowgroup: data_catalog_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: data_catalog_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: data_catalog
+    target: v_data_catalog_bronze
+    description: "Load data_catalog from bronze for silver layer"
+
+  - name: write_data_catalog_silver
+    type: write
+    source: v_data_catalog_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "data_catalog_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["data_catalog_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_data_catalog_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_data_catalog_bronze
+    required_columns: [data_catalog_key]
+    on_violation: warn
+    test_id: "PERF-data_catalog-S01"
+
+  - name: tst_data_catalog_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_data_catalog_bronze
+    columns: [data_catalog_key]
+    on_violation: warn
+    test_id: "PERF-data_catalog-S02"

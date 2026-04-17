@@ -1,0 +1,25 @@
+pipeline: domain_s_raw
+flowgroup: harvest_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: harvest_raw
+  landing_folder: harvest
+  schema_file: nation_schema
+actions:
+  - name: tst_harvest_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_harvest_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-harvest-R01"
+
+  - name: tst_harvest_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_harvest_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-harvest-R02"

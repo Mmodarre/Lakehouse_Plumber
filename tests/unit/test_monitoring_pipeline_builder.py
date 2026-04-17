@@ -1,8 +1,9 @@
 """Unit tests for MonitoringPipelineBuilder."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
+
+import pytest
 
 from lhp.core.services.monitoring_pipeline_builder import (
     DEFAULT_MV_SQL,
@@ -10,6 +11,7 @@ from lhp.core.services.monitoring_pipeline_builder import (
     JOBS_STATS_MODULE_PATH,
     JOBS_STATS_TABLE_NAME,
     JOBS_STATS_VIEW_NAME,
+    MonitoringBuildResult,
     MonitoringPipelineBuilder,
 )
 from lhp.models.config import (
@@ -34,6 +36,8 @@ def _make_project_config(
     monitoring_catalog=None,
     monitoring_schema=None,
     monitoring_streaming_table="all_pipelines_event_log",
+    monitoring_checkpoint_path="/mnt/checkpoints/event_logs",
+    monitoring_max_concurrent_streams=10,
     monitoring_mvs=None,
     monitoring_enable_job_monitoring=False,
 ):
@@ -51,6 +55,8 @@ def _make_project_config(
         catalog=monitoring_catalog,
         schema=monitoring_schema,
         streaming_table=monitoring_streaming_table,
+        checkpoint_path=monitoring_checkpoint_path,
+        max_concurrent_streams=monitoring_max_concurrent_streams,
         materialized_views=monitoring_mvs,
         enable_job_monitoring=monitoring_enable_job_monitoring,
     )
@@ -142,18 +148,14 @@ class TestGetEventLogPipelineNames:
         config = _make_project_config()
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        result = builder.get_event_log_pipeline_names(
-            ["bronze", "silver", "gold"]
-        )
+        result = builder.get_event_log_pipeline_names(["bronze", "silver", "gold"])
         assert result == ["bronze", "silver", "gold"]
 
     def test_opt_out_excluded(self):
         config = _make_project_config()
         loader = _make_pipeline_config_loader(opt_outs={"silver"})
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        result = builder.get_event_log_pipeline_names(
-            ["bronze", "silver", "gold"]
-        )
+        result = builder.get_event_log_pipeline_names(["bronze", "silver", "gold"])
         assert result == ["bronze", "gold"]
 
     def test_monitoring_pipeline_excluded(self):
@@ -170,12 +172,12 @@ class TestGetEventLogPipelineNames:
     def test_custom_event_log_dict_included_with_warning(self, caplog):
         config = _make_project_config()
         loader = _make_pipeline_config_loader(
-            custom_dicts={"silver": {"name": "custom_log", "catalog": "c", "schema": "s"}}
+            custom_dicts={
+                "silver": {"name": "custom_log", "catalog": "c", "schema": "s"}
+            }
         )
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        result = builder.get_event_log_pipeline_names(
-            ["bronze", "silver", "gold"]
-        )
+        result = builder.get_event_log_pipeline_names(["bronze", "silver", "gold"])
         assert "silver" in result
         assert "custom event_log config" in caplog.text
 
@@ -202,113 +204,81 @@ class TestGetEventLogPipelineNames:
 
 
 @pytest.mark.unit
-class TestBuildUnionSql:
-    """Tests for SQL generation."""
-
-    def test_single_pipeline(self):
-        config = _make_project_config()
-        builder = MonitoringPipelineBuilder(config)
-        sql = builder.build_union_sql(["bronze"])
-        assert "stream(my_catalog._meta.bronze_event_log)" in sql
-        assert "'bronze' as _source_pipeline" in sql
-        assert "UNION ALL" not in sql
-
-    def test_multiple_pipelines(self):
-        config = _make_project_config()
-        builder = MonitoringPipelineBuilder(config)
-        sql = builder.build_union_sql(["bronze", "silver", "gold"])
-        assert sql.count("UNION ALL") == 2
-        assert "stream(my_catalog._meta.bronze_event_log)" in sql
-        assert "stream(my_catalog._meta.silver_event_log)" in sql
-        assert "stream(my_catalog._meta.gold_event_log)" in sql
-        assert "'bronze' as _source_pipeline" in sql
-        assert "'silver' as _source_pipeline" in sql
-        assert "'gold' as _source_pipeline" in sql
-
-    def test_empty_pipeline_list(self):
-        config = _make_project_config()
-        builder = MonitoringPipelineBuilder(config)
-        sql = builder.build_union_sql([])
-        assert sql == ""
-
-    def test_tokens_preserved(self):
-        """Substitution tokens should pass through to SQL."""
-        config = _make_project_config(
-            event_log_catalog="{catalog}", event_log_schema="{schema}"
-        )
-        builder = MonitoringPipelineBuilder(config)
-        sql = builder.build_union_sql(["bronze"])
-        assert "stream({catalog}.{schema}.bronze_event_log)" in sql
-
-    def test_prefix_and_suffix(self):
-        config = _make_project_config(
-            event_log_prefix="dl_", event_log_suffix="_log"
-        )
-        builder = MonitoringPipelineBuilder(config)
-        sql = builder.build_union_sql(["bronze"])
-        assert "stream(my_catalog._meta.dl_bronze_log)" in sql
-
-
-@pytest.mark.unit
-class TestBuildFlowgroup:
-    """Tests for the complete FlowGroup construction."""
+class TestBuild:
+    """Tests for the complete build() returning MonitoringBuildResult."""
 
     def test_returns_none_when_disabled(self):
         config = _make_project_config(monitoring_enabled=False)
         builder = MonitoringPipelineBuilder(config)
-        assert builder.build_flowgroup(["bronze"]) is None
+        assert builder.build(["bronze"]) is None
 
     def test_returns_none_when_no_eligible_pipelines(self, caplog):
         config = _make_project_config()
         loader = _make_pipeline_config_loader(opt_outs={"bronze", "silver"})
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        result = builder.build_flowgroup(["bronze", "silver"])
+        result = builder.build(["bronze", "silver"])
         assert result is None
         assert "no pipelines have event_log" in caplog.text
+
+    def test_returns_monitoring_build_result(self):
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze", "silver"])
+        assert isinstance(result, MonitoringBuildResult)
+        assert isinstance(result.flowgroup, FlowGroup)
+        assert isinstance(result.template_context, dict)
+        assert result.eligible_pipelines == ["bronze", "silver"]
+        assert result.pipeline_name == "test_project_event_log_monitoring"
 
     def test_synthetic_flag_set(self):
         config = _make_project_config()
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze", "silver"])
-        assert fg is not None
-        assert fg._synthetic is True
+        result = builder.build(["bronze", "silver"])
+        assert result.flowgroup._synthetic is True
 
     def test_pipeline_and_flowgroup_names(self):
         config = _make_project_config(name="acme")
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
-        assert fg.pipeline == "acme_event_log_monitoring"
-        assert fg.flowgroup == "monitoring"
+        result = builder.build(["bronze"])
+        assert result.flowgroup.pipeline == "acme_event_log_monitoring"
+        assert result.flowgroup.flowgroup == "monitoring"
 
-    def test_three_actions_with_default_mv(self):
-        """Default config: load + write + 1 default MV = 3 actions."""
+    def test_mv_only_with_default_mv(self):
+        """Default config: only 1 default MV action (no LOAD, no WRITE streaming_table)."""
         config = _make_project_config()
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze", "silver"])
-        assert len(fg.actions) == 3
+        result = builder.build(["bronze", "silver"])
+        fg = result.flowgroup
 
-        # Action 1: SQL Load
-        load = fg.actions[0]
-        assert load.type == ActionType.LOAD
-        assert load.name == "load_all_event_logs"
-        assert load.target == "v_all_event_logs"
-        assert "UNION ALL" in load.source["sql"]
-
-        # Action 2: Streaming Table Write
-        write = fg.actions[1]
-        assert write.type == ActionType.WRITE
-        assert write.readMode == "stream"
-        assert write.write_target["type"] == "streaming_table"
-        assert write.write_target["table"] == "all_pipelines_event_log"
-
-        # Action 3: Default MV
-        mv = fg.actions[2]
+        # Only 1 MV action (no SQL load, no streaming table write)
+        assert len(fg.actions) == 1
+        mv = fg.actions[0]
         assert mv.type == ActionType.WRITE
         assert mv.write_target["type"] == "materialized_view"
         assert mv.write_target["table"] == "events_summary"
+
+    def test_no_load_or_streaming_write_actions(self):
+        """Verify the old LOAD and streaming table WRITE actions are gone."""
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze"])
+        fg = result.flowgroup
+
+        load_actions = [a for a in fg.actions if a.type == ActionType.LOAD]
+        st_writes = [
+            a
+            for a in fg.actions
+            if a.type == ActionType.WRITE
+            and isinstance(a.write_target, dict)
+            and a.write_target.get("type") == "streaming_table"
+        ]
+        assert len(load_actions) == 0
+        assert len(st_writes) == 0
 
     def test_custom_mvs(self):
         """User-specified materialized views."""
@@ -319,23 +289,24 @@ class TestBuildFlowgroup:
         config = _make_project_config(monitoring_mvs=mvs)
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
+        result = builder.build(["bronze"])
 
-        # load + write + 2 MVs = 4 actions
-        assert len(fg.actions) == 4
-        assert fg.actions[2].write_target["table"] == "summary"
-        assert fg.actions[2].write_target["sql"] == "SELECT 1"
-        assert fg.actions[3].write_target["table"] == "errors"
+        # 2 custom MVs only
+        assert len(result.flowgroup.actions) == 2
+        assert result.flowgroup.actions[0].write_target["table"] == "summary"
+        assert result.flowgroup.actions[0].write_target["sql"] == "SELECT 1"
+        assert result.flowgroup.actions[1].write_target["table"] == "errors"
 
-    def test_empty_mvs_list_no_mv_actions(self):
-        """materialized_views: [] means no MVs."""
+    def test_empty_mvs_list_flowgroup_is_none(self):
+        """materialized_views: [] means no DLT FlowGroup (notebook-only)."""
         config = _make_project_config(monitoring_mvs=[])
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
+        result = builder.build(["bronze"])
 
-        # load + write only = 2 actions
-        assert len(fg.actions) == 2
+        assert result.flowgroup is None
+        assert result.pipeline_name == "test_project_event_log_monitoring"
+        assert result.template_context is not None
 
     def test_catalog_schema_override(self):
         """Monitoring-level catalog/schema override event_log defaults."""
@@ -345,28 +316,12 @@ class TestBuildFlowgroup:
         )
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
+        result = builder.build(["bronze"])
 
-        # Write action should use overridden catalog/schema
-        write = fg.actions[1]
-        assert write.write_target["database"] == "override_cat._analytics"
-
-    def test_write_action_create_table_true(self):
-        config = _make_project_config()
-        loader = _make_pipeline_config_loader()
-        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
-        write = fg.actions[1]
-        assert write.write_target["create_table"] is True
-
-    def test_load_source_is_sql_type(self):
-        config = _make_project_config()
-        loader = _make_pipeline_config_loader()
-        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
-        load = fg.actions[0]
-        assert load.source["type"] == "sql"
-        assert "sql" in load.source
+        # MV action should use overridden catalog/schema
+        mv = result.flowgroup.actions[0]
+        assert mv.write_target["catalog"] == "override_cat"
+        assert mv.write_target["schema"] == "_analytics"
 
     def test_mv_sql_path_resolution(self, tmp_path):
         """MV with sql_path should load from file."""
@@ -384,10 +339,105 @@ class TestBuildFlowgroup:
         builder = MonitoringPipelineBuilder(
             config, pipeline_config_loader=loader, project_root=tmp_path
         )
-        fg = builder.build_flowgroup(["bronze"])
+        result = builder.build(["bronze"])
 
-        mv_action = fg.actions[2]
+        mv_action = result.flowgroup.actions[0]
         assert mv_action.write_target["sql"] == "SELECT count(*) FROM tbl"
+
+    def test_eligible_pipelines_sorted(self):
+        """eligible_pipelines should be sorted."""
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["gold", "bronze", "silver"])
+        assert result.eligible_pipelines == ["bronze", "gold", "silver"]
+
+
+@pytest.mark.unit
+class TestBuildFlowgroupCompat:
+    """Tests for backward-compatible build_flowgroup() wrapper."""
+
+    def test_returns_flowgroup_directly(self):
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        fg = builder.build_flowgroup(["bronze"])
+        assert isinstance(fg, FlowGroup)
+        assert fg._synthetic is True
+
+    def test_returns_none_when_disabled(self):
+        config = _make_project_config(monitoring_enabled=False)
+        builder = MonitoringPipelineBuilder(config)
+        assert builder.build_flowgroup(["bronze"]) is None
+
+
+@pytest.mark.unit
+class TestTemplateContext:
+    """Tests for the deferred template context (rendering happens in orchestrator)."""
+
+    def test_context_contains_sources(self):
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze", "silver"])
+
+        ctx = result.template_context
+        assert "sources" in ctx
+        sources = ctx["sources"]
+        assert len(sources) == 2
+        # Sources stored as lists (not tuples) for substitution compatibility
+        assert sources[0] == ["bronze", "my_catalog._meta.bronze_event_log"]
+        assert sources[1] == ["silver", "my_catalog._meta.silver_event_log"]
+
+    def test_context_contains_target_fqn(self):
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze"])
+
+        assert result.template_context["target_fqn"] == (
+            "my_catalog._meta.all_pipelines_event_log"
+        )
+
+    def test_context_contains_checkpoint_path(self):
+        config = _make_project_config(
+            monitoring_checkpoint_path="/mnt/checkpoints/monitoring"
+        )
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze"])
+
+        assert result.template_context["checkpoint_path"] == (
+            "/mnt/checkpoints/monitoring"
+        )
+
+    def test_context_contains_max_concurrent_streams(self):
+        config = _make_project_config(monitoring_max_concurrent_streams=5)
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze"])
+
+        assert result.template_context["max_concurrent_streams"] == 5
+
+    def test_context_has_all_expected_keys(self):
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze"])
+
+        expected_keys = {"sources", "target_fqn", "checkpoint_path", "max_concurrent_streams"}
+        assert set(result.template_context.keys()) == expected_keys
+
+    def test_context_single_pipeline(self):
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze"])
+
+        sources = result.template_context["sources"]
+        assert len(sources) == 1
+        assert sources[0][0] == "bronze"
+        assert sources[0][1] == "my_catalog._meta.bronze_event_log"
 
 
 @pytest.mark.unit
@@ -417,32 +467,38 @@ class TestJobMonitoring:
         config = _make_project_config()
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze", "silver"])
-        assert fg is not None
-        # Default: load + write + default MV = 3 actions
-        assert len(fg.actions) == 3
-        # No python load actions
-        python_loads = [a for a in fg.actions if a.source and isinstance(a.source, dict) and a.source.get("type") == "python"]
+        result = builder.build(["bronze", "silver"])
+        fg = result.flowgroup
+        # Default: 1 default MV only
+        assert len(fg.actions) == 1
+        python_loads = [
+            a
+            for a in fg.actions
+            if a.source
+            and isinstance(a.source, dict)
+            and a.source.get("type") == "python"
+        ]
         assert len(python_loads) == 0
 
     def test_job_monitoring_enabled_adds_actions(self):
-        """enable_job_monitoring: true adds Python load + write actions (5 total vs 3)."""
+        """enable_job_monitoring: true adds Python load + MV write (3 total with default MV)."""
         config = _make_project_config(monitoring_enable_job_monitoring=True)
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze", "silver"])
-        assert fg is not None
-        # load + write + job_monitoring_load + job_monitoring_write + default MV = 5 actions
-        assert len(fg.actions) == 5
+        result = builder.build(["bronze", "silver"])
+        fg = result.flowgroup
+        # python_load + jobs_stats_write + default MV = 3 actions
+        assert len(fg.actions) == 3
 
     def test_job_monitoring_action_structure(self):
         """Verify python load action source dict, target view, function name."""
         config = _make_project_config(monitoring_enable_job_monitoring=True)
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
+        result = builder.build(["bronze"])
+        fg = result.flowgroup
 
-        python_load = fg.actions[2]
+        python_load = fg.actions[0]
         assert python_load.type == ActionType.LOAD
         assert python_load.name == "load_jobs_stats"
         assert python_load.source["type"] == "python"
@@ -451,7 +507,7 @@ class TestJobMonitoring:
         assert python_load.target == JOBS_STATS_VIEW_NAME
 
     def test_job_monitoring_write_uses_same_catalog_schema(self):
-        """Jobs stats write uses same catalog/schema as event log write."""
+        """Jobs stats write uses same catalog/schema as monitoring config."""
         config = _make_project_config(
             monitoring_catalog="override_cat",
             monitoring_schema="_analytics",
@@ -459,26 +515,28 @@ class TestJobMonitoring:
         )
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
+        result = builder.build(["bronze"])
+        fg = result.flowgroup
 
-        # Event log write action
-        event_log_write = fg.actions[1]
-        # Jobs stats write action
-        jobs_stats_write = fg.actions[3]
-
+        # Jobs stats write action (index 1)
+        jobs_stats_write = fg.actions[1]
         assert jobs_stats_write.type == ActionType.WRITE
         assert jobs_stats_write.write_target["type"] == "materialized_view"
         assert jobs_stats_write.write_target["table"] == JOBS_STATS_TABLE_NAME
-        assert jobs_stats_write.write_target["sql"] == f"SELECT * FROM {JOBS_STATS_VIEW_NAME}"
-        # Same catalog/schema as event log write
-        assert jobs_stats_write.write_target["database"] == event_log_write.write_target["database"]
+        assert (
+            jobs_stats_write.write_target["sql"]
+            == f"SELECT * FROM {JOBS_STATS_VIEW_NAME}"
+        )
+        assert jobs_stats_write.write_target["catalog"] == "override_cat"
+        assert jobs_stats_write.write_target["schema"] == "_analytics"
 
     def test_job_monitoring_populates_auxiliary_files(self):
         """_auxiliary_files contains package resource content when enable_job_monitoring enabled."""
         config = _make_project_config(monitoring_enable_job_monitoring=True)
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
+        result = builder.build(["bronze"])
+        fg = result.flowgroup
 
         assert JOBS_STATS_MODULE_PATH in fg._auxiliary_files
         content = fg._auxiliary_files[JOBS_STATS_MODULE_PATH]
@@ -497,6 +555,28 @@ class TestJobMonitoring:
         config = _make_project_config(monitoring_enable_job_monitoring=False)
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
-        fg = builder.build_flowgroup(["bronze"])
+        result = builder.build(["bronze"])
+        fg = result.flowgroup
 
         assert len(fg._auxiliary_files) == 0
+
+
+@pytest.mark.unit
+class TestMonitoringConfigModel:
+    """Tests for MonitoringConfig model fields."""
+
+    def test_checkpoint_path_defaults_empty(self):
+        mc = MonitoringConfig(enabled=True)
+        assert mc.checkpoint_path == ""
+
+    def test_checkpoint_path_set(self):
+        mc = MonitoringConfig(enabled=True, checkpoint_path="/mnt/cp")
+        assert mc.checkpoint_path == "/mnt/cp"
+
+    def test_max_concurrent_streams_default(self):
+        mc = MonitoringConfig(enabled=True)
+        assert mc.max_concurrent_streams == 10
+
+    def test_max_concurrent_streams_custom(self):
+        mc = MonitoringConfig(enabled=True, max_concurrent_streams=5)
+        assert mc.max_concurrent_streams == 5

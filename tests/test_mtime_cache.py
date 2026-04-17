@@ -35,15 +35,6 @@ class TestMtimeCaching:
         
         assert dep.mtime is None
     
-    def test_mtime_comparison_tolerance(self):
-        """Test mtime comparison with floating point tolerance."""
-        mtime1 = 1704110400.0
-        mtime2 = 1704110400.0005  # 0.5ms difference
-        
-        # Should be considered equal within tolerance of 1ms
-        tolerance = 0.001
-        assert abs(mtime1 - mtime2) < tolerance
-    
     def test_mtime_invalidation_on_file_change(self):
         """Test that mtime changes when file is modified."""
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:

@@ -1,0 +1,53 @@
+pipeline: domain_s_modelled
+flowgroup: grape_variety_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: grape_variety_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: grape_variety_dim
+    target: v_grape_variety_silver
+    description: "Load grape_variety from silver for modelling"
+
+  - name: grape_variety_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_grape_variety_silver
+    target: v_grape_variety_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_grape_variety_silver
+
+  - name: write_grape_variety_modelled
+    type: write
+    source: v_grape_variety_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "grape_variety_modelled"
+
+  - name: tst_grape_variety_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_grape_variety_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-grape_variety-M01"
+
+  - name: tst_grape_variety_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_grape_variety_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-grape_variety-M02"

@@ -1,0 +1,64 @@
+pipeline: domain_i_bronze
+flowgroup: control_plan_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: control_plan_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: control_plan_raw
+    target: v_control_plan_raw
+    description: "Load control_plan from raw schema"
+
+  - name: control_plan_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_control_plan_raw
+    target: v_control_plan_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as control_plan_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_control_plan_raw
+      WHERE 1=1
+
+  - name: control_plan_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_control_plan_bronze_cleaned
+    target: v_control_plan_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to control_plan"
+
+  - name: write_control_plan_bronze
+    type: write
+    source: v_control_plan_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "control_plan"
+
+  - name: tst_control_plan_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_control_plan_bronze_cleaned
+    required_columns: [control_plan_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-control_plan-B01"
+
+  - name: tst_control_plan_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_control_plan_bronze_cleaned
+    columns: [control_plan_key]
+    on_violation: warn
+    test_id: "PERF-control_plan-B02"

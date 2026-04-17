@@ -1,0 +1,64 @@
+pipeline: domain_n_bronze
+flowgroup: agent_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: agent_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: agent_raw
+    target: v_agent_raw
+    description: "Load agent from raw schema"
+
+  - name: agent_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_agent_raw
+    target: v_agent_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as agent_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_agent_raw
+      WHERE 1=1
+
+  - name: agent_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_agent_bronze_cleaned
+    target: v_agent_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to agent"
+
+  - name: write_agent_bronze
+    type: write
+    source: v_agent_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "agent"
+
+  - name: tst_agent_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_agent_bronze_cleaned
+    required_columns: [agent_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-agent-B01"
+
+  - name: tst_agent_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_agent_bronze_cleaned
+    columns: [agent_key]
+    on_violation: warn
+    test_id: "PERF-agent-B02"

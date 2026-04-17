@@ -1,0 +1,38 @@
+pipeline: domain_o_gold
+flowgroup: keyword_report_mv
+actions:
+  - name: keyword_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.keyword_dim
+    target: v_keyword_report
+
+  - name: write_keyword_report_mv
+    type: write
+    source: v_keyword_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "keyword_report_mv"
+
+  - name: tst_keyword_report_completeness
+    type: test
+    test_type: completeness
+    source: v_keyword_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-keyword-G01"
+
+  - name: tst_keyword_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_keyword_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-keyword-G02"

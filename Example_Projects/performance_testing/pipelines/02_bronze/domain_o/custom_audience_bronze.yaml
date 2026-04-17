@@ -1,0 +1,64 @@
+pipeline: domain_o_bronze
+flowgroup: custom_audience_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: custom_audience_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: custom_audience_raw
+    target: v_custom_audience_raw
+    description: "Load custom_audience from raw schema"
+
+  - name: custom_audience_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_custom_audience_raw
+    target: v_custom_audience_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as custom_audience_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_custom_audience_raw
+      WHERE 1=1
+
+  - name: custom_audience_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_custom_audience_bronze_cleaned
+    target: v_custom_audience_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to custom_audience"
+
+  - name: write_custom_audience_bronze
+    type: write
+    source: v_custom_audience_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "custom_audience"
+
+  - name: tst_custom_audience_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_custom_audience_bronze_cleaned
+    required_columns: [custom_audience_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-custom_audience-B01"
+
+  - name: tst_custom_audience_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_custom_audience_bronze_cleaned
+    columns: [custom_audience_key]
+    on_violation: warn
+    test_id: "PERF-custom_audience-B02"

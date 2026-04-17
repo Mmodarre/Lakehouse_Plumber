@@ -1,0 +1,53 @@
+pipeline: domain_t_modelled
+flowgroup: playlist_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: playlist_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: playlist_fct
+    target: v_playlist_silver
+    description: "Load playlist from silver for modelling"
+
+  - name: playlist_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_playlist_silver
+    target: v_playlist_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_playlist_silver
+
+  - name: write_playlist_modelled
+    type: write
+    source: v_playlist_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "playlist_modelled"
+
+  - name: tst_playlist_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_playlist_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-playlist-M01"
+
+  - name: tst_playlist_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_playlist_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-playlist-M02"

@@ -1,0 +1,47 @@
+pipeline: domain_j_raw
+flowgroup: reactive_power_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_reactive_power_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/reactive_power/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_reactive_power_cloudfiles
+    description: "Load reactive_power from landing volume"
+
+  - name: write_reactive_power_raw
+    type: write
+    source: v_reactive_power_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "reactive_power_raw"
+
+  - name: tst_reactive_power_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_reactive_power_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-reactive_power-R01"
+
+  - name: tst_reactive_power_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reactive_power_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-reactive_power-R02"

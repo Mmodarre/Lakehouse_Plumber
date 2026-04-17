@@ -1,0 +1,47 @@
+pipeline: domain_l_raw
+flowgroup: catering_event_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_catering_event_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/catering_event/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_catering_event_cloudfiles
+    description: "Load catering_event from landing volume"
+
+  - name: write_catering_event_raw
+    type: write
+    source: v_catering_event_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "catering_event_raw"
+
+  - name: tst_catering_event_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_catering_event_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-catering_event-R01"
+
+  - name: tst_catering_event_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_catering_event_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-catering_event-R02"

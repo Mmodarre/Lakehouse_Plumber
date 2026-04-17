@@ -1,0 +1,53 @@
+pipeline: domain_q_modelled
+flowgroup: injury_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: injury_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: injury_fct
+    target: v_injury_silver
+    description: "Load injury from silver for modelling"
+
+  - name: injury_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_injury_silver
+    target: v_injury_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_injury_silver
+
+  - name: write_injury_modelled
+    type: write
+    source: v_injury_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "injury_modelled"
+
+  - name: tst_injury_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_injury_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-injury-M01"
+
+  - name: tst_injury_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_injury_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-injury-M02"

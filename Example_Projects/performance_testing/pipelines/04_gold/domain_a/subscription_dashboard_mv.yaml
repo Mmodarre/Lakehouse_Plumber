@@ -1,0 +1,38 @@
+pipeline: domain_a_gold
+flowgroup: subscription_dashboard_mv
+actions:
+  - name: subscription_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.subscription_dim
+    target: v_subscription_dashboard
+
+  - name: write_subscription_dashboard_mv
+    type: write
+    source: v_subscription_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "subscription_dashboard_mv"
+
+  - name: tst_subscription_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_subscription_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-subscription-G01"
+
+  - name: tst_subscription_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_subscription_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-subscription-G02"

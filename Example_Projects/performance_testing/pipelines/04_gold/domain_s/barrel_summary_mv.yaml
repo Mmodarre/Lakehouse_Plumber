@@ -1,0 +1,38 @@
+pipeline: domain_s_gold
+flowgroup: barrel_summary_mv
+actions:
+  - name: barrel_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.barrel_dim
+    target: v_barrel_summary
+
+  - name: write_barrel_summary_mv
+    type: write
+    source: v_barrel_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "barrel_summary_mv"
+
+  - name: tst_barrel_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_barrel_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-barrel-G01"
+
+  - name: tst_barrel_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_barrel_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-barrel-G02"

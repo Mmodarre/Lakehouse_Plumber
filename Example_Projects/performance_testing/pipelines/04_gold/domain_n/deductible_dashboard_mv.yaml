@@ -1,0 +1,38 @@
+pipeline: domain_n_gold
+flowgroup: deductible_dashboard_mv
+actions:
+  - name: deductible_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.deductible_dim
+    target: v_deductible_dashboard
+
+  - name: write_deductible_dashboard_mv
+    type: write
+    source: v_deductible_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "deductible_dashboard_mv"
+
+  - name: tst_deductible_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_deductible_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-deductible-G01"
+
+  - name: tst_deductible_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_deductible_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-deductible-G02"

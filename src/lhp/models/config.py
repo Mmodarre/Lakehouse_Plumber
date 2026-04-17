@@ -1,6 +1,14 @@
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
-from typing import List, Dict, Any, Optional, Union
+import warnings
 from enum import Enum
+from typing import Any, Dict, List, Optional, Union
+
+# Suppress Pydantic warning about 'schema' field shadowing BaseModel.schema() class method.
+# This is deliberate: 'schema' is a UC namespace field, not related to Pydantic's schema().
+warnings.filterwarnings(
+    "ignore", message=r".*Field name \"schema\".*shadows an attribute.*"
+)
+
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 
 class ActionType(str, Enum):
@@ -50,6 +58,13 @@ class TransformType(str, Enum):
     SCHEMA = "schema"
 
 
+class DQMode(str, Enum):
+    """Data quality enforcement modes."""
+
+    DQE = "dqe"
+    QUARANTINE = "quarantine"
+
+
 class WriteTargetType(str, Enum):
     STREAMING_TABLE = "streaming_table"
     MATERIALIZED_VIEW = "materialized_view"
@@ -83,6 +98,15 @@ class OperationalMetadataSelection(BaseModel):
     exclude_columns: Optional[List[str]] = None  # Alternative syntax
 
 
+class QuarantineConfig(BaseModel):
+    """Configuration for quarantine mode in data quality transforms."""
+
+    dlq_table: str = Field(..., description="Fully qualified DLQ table name")
+    source_table: str = Field(
+        ..., description="Fully qualified source table name for DLQ tagging"
+    )
+
+
 class ProjectOperationalMetadataConfig(BaseModel):
     """Project-level operational metadata configuration (definitions only)."""
 
@@ -114,9 +138,12 @@ class MonitoringMaterializedViewConfig(BaseModel):
 class MonitoringConfig(BaseModel):
     """Project-level monitoring pipeline configuration.
 
-    Controls automatic creation of a synthetic monitoring pipeline that UNIONs
-    all pipeline event log tables into a single streaming table with optional
-    materialized views for analysis.
+    Generates two artifacts:
+    1. A standalone notebook that runs N independent streaming queries (one per
+       pipeline event log) appending into a user-created Delta table.
+    2. A DLT pipeline with materialized views only, reading from that Delta table.
+
+    A Databricks Workflow job chains: notebook_task (union) → pipeline_task (MVs).
     """
 
     model_config = ConfigDict(populate_by_name=True)
@@ -125,9 +152,21 @@ class MonitoringConfig(BaseModel):
     pipeline_name: Optional[str] = None  # default: {project_name}_event_log_monitoring
     catalog: Optional[str] = None  # default: event_log.catalog
     schema_: Optional[str] = Field(None, alias="schema")  # default: event_log.schema
-    streaming_table: str = "all_pipelines_event_log"
+    streaming_table: str = "all_pipelines_event_log"  # user-created Delta table
+    checkpoint_path: str = ""  # streaming checkpoint base path (required when enabled)
+    max_concurrent_streams: int = 10  # ThreadPoolExecutor max_workers
     materialized_views: Optional[List[MonitoringMaterializedViewConfig]] = None
     enable_job_monitoring: bool = False
+
+
+class TestReportingConfig(BaseModel):
+    """Configuration for test result reporting to external systems."""
+
+    __test__ = False  # Tell pytest this is not a test class
+
+    module_path: str
+    function_name: str
+    config_file: Optional[str] = None
 
 
 class ProjectConfig(BaseModel):
@@ -143,15 +182,22 @@ class ProjectConfig(BaseModel):
     event_log: Optional[EventLogConfig] = None
     monitoring: Optional[MonitoringConfig] = None
     required_lhp_version: Optional[str] = None
+    test_reporting: Optional[TestReportingConfig] = None
 
 
 class WriteTarget(BaseModel):
     """Write target configuration for streaming tables, materialized views, and sinks."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     type: WriteTargetType
 
     # Streaming table and materialized view fields
-    database: Optional[str] = None
+    catalog: Optional[str] = None
+    schema: Optional[str] = (
+        None  # UC namespace schema (not DDL — use table_schema for DDL)
+    )
+    database: Optional[str] = None  # REMOVE_AT_V1.0.0: deprecated, use catalog + schema
     table: Optional[str] = None
     create_table: bool = (
         True  # Default to True - optional, only set to False when needed
@@ -188,16 +234,10 @@ class WriteTarget(BaseModel):
     # Common sink options
     options: Optional[Dict[str, Any]] = None
 
-    # Backward compatibility property for 'schema' field
-    @property
-    def schema(self) -> Optional[str]:
-        """Legacy property for backward compatibility. Use table_schema instead."""
-        return self.table_schema
-
-    @schema.setter
-    def schema(self, value: Optional[str]) -> None:
-        """Legacy setter for backward compatibility. Use table_schema instead."""
-        self.table_schema = value
+    # NOTE: schema field now represents UC namespace, not DDL. Use table_schema for DDL.
+    # The legacy schema→table_schema property was removed in v0.7.8.
+    # The namespace_normalizer handles redirecting schema→table_schema when
+    # schema appears alongside database (DDL collision case).
 
 
 class Action(BaseModel):
@@ -222,6 +262,14 @@ class Action(BaseModel):
         None  # Simplified: bool or list of column names
     )
     expectations_file: Optional[str] = None  # For data quality transforms
+    mode: Optional[str] = Field(
+        None,
+        description="Data quality mode: 'dqe' (default) or 'quarantine' (DLQ recycling)",
+    )
+    quarantine: Optional[QuarantineConfig] = Field(
+        None,
+        description="Quarantine configuration (required when mode is 'quarantine')",
+    )
     # Schema transform specific fields
     schema_inline: Optional[str] = (
         None  # Inline schema definition (arrow or YAML format)
@@ -255,6 +303,12 @@ class Action(BaseModel):
     lookup_columns: Optional[List[str]] = None  # Lookup columns
     lookup_result_columns: Optional[List[str]] = None  # Expected result columns
     expectations: Optional[List[Dict[str, Any]]] = None  # Custom expectations
+    test_id: Optional[str] = None  # External test management ID for reporting
+
+    @property
+    def resolved_test_target(self) -> str:
+        """Canonical target name for test actions: explicit target or tmp_test_{name}."""
+        return self.target or f"tmp_test_{self.name}"
 
     def model_post_init(self, __context: Any) -> None:
         """Post-initialization processing - normalize all path fields for cross-platform compatibility."""
@@ -311,6 +365,7 @@ class FlowGroup(BaseModel):
     )
     _synthetic: bool = PrivateAttr(default=False)
     _auxiliary_files: Dict[str, str] = PrivateAttr(default_factory=dict)
+    _has_original_test_actions: bool = PrivateAttr(default=False)
 
 
 class Template(BaseModel):

@@ -32,7 +32,7 @@ class TemplateEngine:
         self._template_cache: Dict[str, TemplateModel] = {}
 
         # Create Jinja2 environment for parameter expansion
-        self.jinja_env = Environment()
+        self.jinja_env = Environment()  # nosec B701 — generates Python, not HTML
 
         # Discover available template files (but don't parse them yet - lazy loading)
         self._available_templates: Set[str] = set()

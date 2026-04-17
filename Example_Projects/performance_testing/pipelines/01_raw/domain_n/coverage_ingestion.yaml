@@ -1,0 +1,47 @@
+pipeline: domain_n_raw
+flowgroup: coverage_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_coverage_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/coverage/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_coverage_cloudfiles
+    description: "Load coverage from landing volume"
+
+  - name: write_coverage_raw
+    type: write
+    source: v_coverage_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "coverage_raw"
+
+  - name: tst_coverage_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_coverage_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-coverage-R01"
+
+  - name: tst_coverage_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_coverage_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-coverage-R02"

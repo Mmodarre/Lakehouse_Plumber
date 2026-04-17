@@ -1,0 +1,38 @@
+pipeline: domain_k_gold
+flowgroup: airport_dashboard_mv
+actions:
+  - name: airport_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.airport_fct
+    target: v_airport_dashboard
+
+  - name: write_airport_dashboard_mv
+    type: write
+    source: v_airport_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "airport_dashboard_mv"
+
+  - name: tst_airport_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_airport_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-airport-G01"
+
+  - name: tst_airport_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_airport_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-airport-G02"

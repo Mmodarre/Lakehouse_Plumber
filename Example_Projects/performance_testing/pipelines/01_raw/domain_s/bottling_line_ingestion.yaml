@@ -1,0 +1,25 @@
+pipeline: domain_s_raw
+flowgroup: bottling_line_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: bottling_line_raw
+  landing_folder: bottling_line
+  schema_file: orders_schema
+actions:
+  - name: tst_bottling_line_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_bottling_line_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-bottling_line-R01"
+
+  - name: tst_bottling_line_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bottling_line_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-bottling_line-R02"

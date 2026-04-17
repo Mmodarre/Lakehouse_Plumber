@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: data_lake_ingestion_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: data_lake_ingestion_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: data_lake_ingestion_fct
+    target: v_data_lake_ingestion_silver
+    description: "Load data_lake_ingestion from silver for modelling"
+
+  - name: data_lake_ingestion_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_data_lake_ingestion_silver
+    target: v_data_lake_ingestion_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_data_lake_ingestion_silver
+
+  - name: write_data_lake_ingestion_modelled
+    type: write
+    source: v_data_lake_ingestion_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "data_lake_ingestion_modelled"
+
+  - name: tst_data_lake_ingestion_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_data_lake_ingestion_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-data_lake_ingestion-M01"
+
+  - name: tst_data_lake_ingestion_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_data_lake_ingestion_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-data_lake_ingestion-M02"

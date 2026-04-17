@@ -1,0 +1,38 @@
+pipeline: domain_t_gold
+flowgroup: concert_report_mv
+actions:
+  - name: concert_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.concert_dim
+    target: v_concert_report
+
+  - name: write_concert_report_mv
+    type: write
+    source: v_concert_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "concert_report_mv"
+
+  - name: tst_concert_report_completeness
+    type: test
+    test_type: completeness
+    source: v_concert_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-concert-G01"
+
+  - name: tst_concert_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_concert_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-concert-G02"

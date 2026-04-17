@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: actuator_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: actuator_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: actuator_dim
+    target: v_actuator_silver
+    description: "Load actuator from silver for modelling"
+
+  - name: actuator_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_actuator_silver
+    target: v_actuator_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_actuator_silver
+
+  - name: write_actuator_modelled
+    type: write
+    source: v_actuator_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "actuator_modelled"
+
+  - name: tst_actuator_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_actuator_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-actuator-M01"
+
+  - name: tst_actuator_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_actuator_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-actuator-M02"

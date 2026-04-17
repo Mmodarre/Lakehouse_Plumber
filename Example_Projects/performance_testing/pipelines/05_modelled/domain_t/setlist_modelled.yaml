@@ -1,0 +1,53 @@
+pipeline: domain_t_modelled
+flowgroup: setlist_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: setlist_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: setlist_dim
+    target: v_setlist_silver
+    description: "Load setlist from silver for modelling"
+
+  - name: setlist_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_setlist_silver
+    target: v_setlist_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_setlist_silver
+
+  - name: write_setlist_modelled
+    type: write
+    source: v_setlist_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "setlist_modelled"
+
+  - name: tst_setlist_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_setlist_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-setlist-M01"
+
+  - name: tst_setlist_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_setlist_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-setlist-M02"

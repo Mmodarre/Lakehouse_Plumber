@@ -1,0 +1,101 @@
+pipeline: domain_k_bronze
+flowgroup: transit_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: transit_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: transit_raw
+    target: v_transit_raw
+    description: "Load transit from raw schema"
+
+  - name: transit_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_transit_raw
+    target: v_transit_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as transit_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_transit_raw
+
+  - name: transit_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_transit_bronze_cleaned
+    target: v_transit_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for transit bronze"
+
+  - name: write_transit_bronze
+    type: write
+    source: v_transit_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "transit"
+
+  - name: transit_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: transit_migration
+    target: v_transit_migration
+    description: "Load transit migration data"
+
+  - name: transit_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_transit_migration
+    target: v_transit_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as transit_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_transit_migration
+
+  - name: write_transit_migration
+    type: write
+    source: v_transit_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "transit"
+
+  - name: tst_transit_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_transit_bronze_cleaned
+    required_columns: [transit_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-transit-B01"
+
+  - name: tst_transit_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transit_bronze_cleaned
+    columns: [transit_key]
+    on_violation: warn
+    test_id: "PERF-transit-B02"

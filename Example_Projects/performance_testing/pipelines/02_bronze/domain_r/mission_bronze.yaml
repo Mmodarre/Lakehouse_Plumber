@@ -1,0 +1,24 @@
+pipeline: domain_r_bronze
+flowgroup: mission_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: mission
+  source_table: mission_raw
+actions:
+  - name: tst_mission_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_mission_cleansed
+    required_columns: [mission_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-mission-B01"
+
+  - name: tst_mission_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mission_cleansed
+    columns: [mission_key]
+    on_violation: warn
+    test_id: "PERF-mission-B02"

@@ -1,0 +1,64 @@
+pipeline: domain_c_bronze
+flowgroup: tax_filing_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: tax_filing_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: tax_filing_raw
+    target: v_tax_filing_raw
+    description: "Load tax_filing from raw schema"
+
+  - name: tax_filing_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_tax_filing_raw
+    target: v_tax_filing_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as tax_filing_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_tax_filing_raw
+      WHERE 1=1
+
+  - name: tax_filing_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_tax_filing_bronze_cleaned
+    target: v_tax_filing_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to tax_filing"
+
+  - name: write_tax_filing_bronze
+    type: write
+    source: v_tax_filing_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "tax_filing"
+
+  - name: tst_tax_filing_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_tax_filing_bronze_cleaned
+    required_columns: [tax_filing_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-tax_filing-B01"
+
+  - name: tst_tax_filing_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tax_filing_bronze_cleaned
+    columns: [tax_filing_key]
+    on_violation: warn
+    test_id: "PERF-tax_filing-B02"

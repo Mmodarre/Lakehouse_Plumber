@@ -1,0 +1,181 @@
+pipeline: domain_b_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: timesheet_ingestion
+    template_parameters:
+      table_name: timesheet_raw
+      landing_folder: timesheet
+      schema_file: part_schema
+    actions:
+      - name: tst_timesheet_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_timesheet_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-timesheet-R01"
+      
+      - name: tst_timesheet_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_timesheet_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-timesheet-R02"
+
+  - flowgroup: leave_request_ingestion
+    template_parameters:
+      table_name: leave_request_raw
+      landing_folder: leave_request
+      schema_file: customer_schema
+    actions:
+      - name: tst_leave_request_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_leave_request_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-leave_request-R01"
+      
+      - name: tst_leave_request_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_leave_request_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-leave_request-R02"
+
+  - flowgroup: interview_ingestion
+    template_parameters:
+      table_name: interview_raw
+      landing_folder: interview
+      schema_file: product_schema
+    actions:
+      - name: tst_interview_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_interview_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-interview-R01"
+      
+      - name: tst_interview_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_interview_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-interview-R02"
+
+  - flowgroup: payroll_ingestion
+    template_parameters:
+      table_name: payroll_raw
+      landing_folder: payroll
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_payroll_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_payroll_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-payroll-R01"
+      
+      - name: tst_payroll_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_payroll_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-payroll-R02"
+
+  - flowgroup: overtime_ingestion
+    template_parameters:
+      table_name: overtime_raw
+      landing_folder: overtime
+      schema_file: lineitem_schema
+    actions:
+      - name: tst_overtime_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_overtime_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-overtime-R01"
+      
+      - name: tst_overtime_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_overtime_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-overtime-R02"
+
+  - flowgroup: headcount_ingestion
+    template_parameters:
+      table_name: headcount_raw
+      landing_folder: headcount
+      schema_file: customer_schema
+    actions:
+      - name: tst_headcount_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_headcount_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-headcount-R01"
+      
+      - name: tst_headcount_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_headcount_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-headcount-R02"
+
+  - flowgroup: mentor_ingestion
+    template_parameters:
+      table_name: mentor_raw
+      landing_folder: mentor
+      schema_file: product_schema
+    actions:
+      - name: tst_mentor_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_mentor_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-mentor-R01"
+      
+      - name: tst_mentor_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_mentor_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-mentor-R02"
+
+  - flowgroup: succession_plan_ingestion
+    template_parameters:
+      table_name: succession_plan_raw
+      landing_folder: succession_plan
+      schema_file: nation_schema
+    actions:
+      - name: tst_succession_plan_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_succession_plan_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-succession_plan-R01"
+      
+      - name: tst_succession_plan_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_succession_plan_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-succession_plan-R02"

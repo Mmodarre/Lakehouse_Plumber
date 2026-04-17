@@ -1,0 +1,25 @@
+pipeline: domain_j_raw
+flowgroup: ancillary_service_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: ancillary_service_raw
+  landing_folder: ancillary_service
+  schema_file: product_schema
+actions:
+  - name: tst_ancillary_service_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_ancillary_service_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ancillary_service-R01"
+
+  - name: tst_ancillary_service_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ancillary_service_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ancillary_service-R02"

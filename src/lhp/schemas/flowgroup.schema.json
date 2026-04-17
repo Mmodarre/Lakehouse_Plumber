@@ -176,7 +176,7 @@
                 },
                 "type": {
                     "type": "string",
-                    "enum": ["load", "transform", "write"],
+                    "enum": ["load", "transform", "write","test"],
                     "description": "Type of action"
                 },
                 "source": {
@@ -215,7 +215,7 @@
                                 },
                                 "database": {
                                     "type": "string",
-                                    "description": "Database name"
+                                    "description": "DEPRECATED (v0.7.8): Use 'catalog' and 'schema' instead. Combined catalog.schema name, auto-converted. Removal in v1.0.0."
                                 },
                                 "table": {
                                     "type": "string",
@@ -223,7 +223,7 @@
                                 },
                                 "catalog": {
                                     "type": "string",
-                                    "description": "Catalog name"
+                                    "description": "Unity Catalog catalog name"
                                 },
                                 "sql": {
                                     "type": "string",
@@ -278,7 +278,7 @@
                                 },
                                 "schema": {
                                     "type": "string",
-                                    "description": "Schema definition (DDL or path). Note: For schema transforms, use 'schema_inline' or 'schema_file' at action level instead."
+                                    "description": "For delta sources: Unity Catalog schema name. For cloudfiles sources: Schema definition (DDL or path). For schema transforms, use 'schema_inline' or 'schema_file' at action level instead."
                                 },
                                 "schema_file": {
                                     "type": "string",
@@ -378,6 +378,27 @@
                     "type": "string",
                     "description": "Path to expectations file for data quality transforms"
                 },
+                "mode": {
+                    "type": "string",
+                    "enum": ["dqe", "quarantine"],
+                    "description": "Data quality mode: 'dqe' (default expectations decorators) or 'quarantine' (DLQ dead letter queue recycling)"
+                },
+                "quarantine": {
+                    "type": "object",
+                    "description": "Quarantine configuration for DLQ recycling (required when mode is 'quarantine')",
+                    "required": ["dlq_table", "source_table"],
+                    "properties": {
+                        "dlq_table": {
+                            "type": "string",
+                            "description": "Fully qualified name of the pre-created DLQ table (e.g. 'catalog.schema.universal_dlq')"
+                        },
+                        "source_table": {
+                            "type": "string",
+                            "description": "Fully qualified name of the source table for DLQ tagging and CDF filtering (e.g. 'catalog.schema.bronze_orders')"
+                        }
+                    },
+                    "additionalProperties": false
+                },
                 "schema_inline": {
                     "type": "string",
                     "description": "Inline schema definition for schema transforms (arrow or YAML format)"
@@ -419,9 +440,17 @@
                     "enum": ["streaming_table", "materialized_view", "sink"],
                     "description": "Type of write target"
                 },
+                "catalog": {
+                    "type": "string",
+                    "description": "Unity Catalog catalog name"
+                },
+                "schema": {
+                    "type": "string",
+                    "description": "Unity Catalog schema name"
+                },
                 "database": {
                     "type": "string",
-                    "description": "Target database name"
+                    "description": "DEPRECATED (v0.7.8): Use 'catalog' and 'schema' instead. Combined catalog.schema name, auto-converted with deprecation warning. Removal in v1.0.0."
                 },
                 "table": {
                     "type": "string",
@@ -459,10 +488,6 @@
                     "type": "object",
                     "additionalProperties": true,
                     "description": "Spark configuration"
-                },
-                "schema": {
-                    "type": "string",
-                    "description": "Table schema (legacy, use 'table_schema' instead)"
                 },
                 "table_schema": {
                     "type": "string",
@@ -606,6 +631,11 @@
                                 "function": {
                                     "type": "string",
                                     "description": "Function name"
+                                },
+                                "parameters": {
+                                    "type": "object",
+                                    "description": "Keyword arguments to bind via functools.partial. Function must use * separator for keyword-only args.",
+                                    "additionalProperties": true
                                 }
                             }
                         },

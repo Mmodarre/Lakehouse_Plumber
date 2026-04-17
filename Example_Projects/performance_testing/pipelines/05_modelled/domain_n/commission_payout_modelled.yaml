@@ -1,0 +1,53 @@
+pipeline: domain_n_modelled
+flowgroup: commission_payout_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: commission_payout_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: commission_payout_dim
+    target: v_commission_payout_silver
+    description: "Load commission_payout from silver for modelling"
+
+  - name: commission_payout_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_commission_payout_silver
+    target: v_commission_payout_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_commission_payout_silver
+
+  - name: write_commission_payout_modelled
+    type: write
+    source: v_commission_payout_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "commission_payout_modelled"
+
+  - name: tst_commission_payout_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_commission_payout_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-commission_payout-M01"
+
+  - name: tst_commission_payout_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_commission_payout_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-commission_payout-M02"

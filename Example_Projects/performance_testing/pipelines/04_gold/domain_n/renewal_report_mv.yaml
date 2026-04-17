@@ -1,0 +1,38 @@
+pipeline: domain_n_gold
+flowgroup: renewal_report_mv
+actions:
+  - name: renewal_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.renewal_dim
+    target: v_renewal_report
+
+  - name: write_renewal_report_mv
+    type: write
+    source: v_renewal_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "renewal_report_mv"
+
+  - name: tst_renewal_report_completeness
+    type: test
+    test_type: completeness
+    source: v_renewal_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-renewal-G01"
+
+  - name: tst_renewal_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_renewal_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-renewal-G02"

@@ -1,0 +1,64 @@
+pipeline: domain_q_bronze
+flowgroup: revenue_share_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: revenue_share_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: revenue_share_raw
+    target: v_revenue_share_raw
+    description: "Load revenue_share from raw schema"
+
+  - name: revenue_share_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_revenue_share_raw
+    target: v_revenue_share_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as revenue_share_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_revenue_share_raw
+      WHERE 1=1
+
+  - name: revenue_share_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_revenue_share_bronze_cleaned
+    target: v_revenue_share_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to revenue_share"
+
+  - name: write_revenue_share_bronze
+    type: write
+    source: v_revenue_share_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "revenue_share"
+
+  - name: tst_revenue_share_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_revenue_share_bronze_cleaned
+    required_columns: [revenue_share_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-revenue_share-B01"
+
+  - name: tst_revenue_share_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_revenue_share_bronze_cleaned
+    columns: [revenue_share_key]
+    on_violation: warn
+    test_id: "PERF-revenue_share-B02"

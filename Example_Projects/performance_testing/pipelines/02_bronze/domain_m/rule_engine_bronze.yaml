@@ -1,0 +1,64 @@
+pipeline: domain_m_bronze
+flowgroup: rule_engine_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: rule_engine_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: rule_engine_raw
+    target: v_rule_engine_raw
+    description: "Load rule_engine from raw schema"
+
+  - name: rule_engine_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_rule_engine_raw
+    target: v_rule_engine_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as rule_engine_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_rule_engine_raw
+      WHERE 1=1
+
+  - name: rule_engine_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_rule_engine_bronze_cleaned
+    target: v_rule_engine_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to rule_engine"
+
+  - name: write_rule_engine_bronze
+    type: write
+    source: v_rule_engine_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "rule_engine"
+
+  - name: tst_rule_engine_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_rule_engine_bronze_cleaned
+    required_columns: [rule_engine_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-rule_engine-B01"
+
+  - name: tst_rule_engine_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_rule_engine_bronze_cleaned
+    columns: [rule_engine_key]
+    on_violation: warn
+    test_id: "PERF-rule_engine-B02"

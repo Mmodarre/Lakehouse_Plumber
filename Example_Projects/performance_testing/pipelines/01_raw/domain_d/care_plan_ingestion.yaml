@@ -1,0 +1,47 @@
+pipeline: domain_d_raw
+flowgroup: care_plan_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_care_plan_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/care_plan/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_care_plan_cloudfiles
+    description: "Load care_plan from landing volume"
+
+  - name: write_care_plan_raw
+    type: write
+    source: v_care_plan_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "care_plan_raw"
+
+  - name: tst_care_plan_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_care_plan_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-care_plan-R01"
+
+  - name: tst_care_plan_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_care_plan_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-care_plan-R02"

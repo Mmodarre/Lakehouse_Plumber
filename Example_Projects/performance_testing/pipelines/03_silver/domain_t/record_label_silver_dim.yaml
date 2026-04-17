@@ -1,0 +1,48 @@
+pipeline: domain_t_silver
+flowgroup: record_label_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: record_label_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: record_label
+    target: v_record_label_bronze
+    description: "Load record_label from bronze for silver layer"
+
+  - name: write_record_label_silver
+    type: write
+    source: v_record_label_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "record_label_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["record_label_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_record_label_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_record_label_bronze
+    required_columns: [record_label_key]
+    on_violation: warn
+    test_id: "PERF-record_label-S01"
+
+  - name: tst_record_label_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_record_label_bronze
+    columns: [record_label_key]
+    on_violation: warn
+    test_id: "PERF-record_label-S02"

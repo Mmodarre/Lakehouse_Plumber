@@ -222,7 +222,7 @@ class TestDependencyResolver:
                 source="v_transformed",
                 write_target={
                     "type": "streaming_table",
-                    "database": "bronze",
+                    "catalog": "bronze_cat", "schema": "bronze_sch",
                     "table": "output",
                 },
             ),
@@ -258,7 +258,7 @@ class TestDependencyResolver:
                 source="v_raw_data",
                 write_target={
                     "type": "streaming_table",
-                    "database": "bronze",
+                    "catalog": "bronze_cat", "schema": "bronze_sch",
                     "table": "output",
                 },
             ),
@@ -396,7 +396,7 @@ class TestDependencyResolver:
                 source="v_final",
                 write_target={
                     "type": "streaming_table",
-                    "database": "silver",
+                    "catalog": "silver_cat", "schema": "silver_sch",
                     "table": "result",
                 },
             ),
@@ -444,7 +444,7 @@ class TestDependencyResolver:
                 source="v_customers",
                 write_target={
                     "type": "streaming_table",
-                    "database": "silver",
+                    "catalog": "silver_cat", "schema": "silver_sch",
                     "table": "silver_customers",
                 },
             ),
@@ -474,7 +474,7 @@ class TestDependencyResolver:
             source="v_part_bronze_snapshot",  # This is redundant for snapshot CDC with source_function
             write_target={
                 "type": "streaming_table",
-                "database": "catalog.silver_schema",
+                "catalog": "catalog", "schema": "silver_schema",
                 "table": "part_dim",
                 "mode": "snapshot_cdc",
                 "snapshot_cdc_config": {
@@ -532,7 +532,7 @@ class TestDependencyResolver:
             type=ActionType.WRITE,
             write_target={
                 "type": "streaming_table",
-                "database": "catalog.silver_schema",
+                "catalog": "catalog", "schema": "silver_schema",
                 "table": "part_dim",
                 "mode": "snapshot_cdc",
                 "snapshot_cdc_config": {
@@ -586,7 +586,7 @@ class TestDependencyResolver:
             source="v_customer_raw",  # Traditional source reference
             write_target={
                 "type": "streaming_table",
-                "database": "catalog.bronze",
+                "catalog": "catalog", "schema": "bronze",
                 "table": "customers",
             },
         )
@@ -615,7 +615,7 @@ class TestDependencyResolver:
             type=ActionType.WRITE,
             write_target={
                 "type": "streaming_table",
-                "database": "catalog.bronze",
+                "catalog": "catalog", "schema": "bronze",
                 "table": "customers",
                 "mode": "cdc",
                 "cdc_config": {"source": "v_customer_changes", "keys": ["customer_id"]},
@@ -638,7 +638,7 @@ class TestDependencyResolver:
             type=ActionType.WRITE,
             write_target={
                 "type": "streaming_table",
-                "database": "catalog.silver",
+                "catalog": "catalog", "schema": "silver",
                 "table": "customers",
                 "mode": "snapshot_cdc",
                 "snapshot_cdc_config": {
@@ -672,7 +672,7 @@ class TestDependencyResolver:
             source="v_raw_data",
             write_target={
                 "type": "streaming_table",
-                "database": "bronze",
+                "catalog": "bronze_cat", "schema": "bronze_sch",
                 "table": "normal_table",
             },
         )
@@ -682,7 +682,7 @@ class TestDependencyResolver:
             type=ActionType.WRITE,
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "silver_cat", "schema": "silver_sch",
                 "table": "snapshot_table",
                 "mode": "snapshot_cdc",
                 "snapshot_cdc_config": {
@@ -718,7 +718,7 @@ class TestDependencyResolver:
             source="v_fallback_source",  # Should fallback to this
             write_target={
                 "type": "streaming_table",
-                "database": "bronze",
+                "catalog": "bronze_cat", "schema": "bronze_sch",
                 "table": "malformed",
                 "mode": "cdc",
                 "cdc_config": {},  # Empty config, no source
@@ -756,7 +756,7 @@ class TestDependencyResolver:
                 source="staging_customer",
                 write_target={
                     "type": "streaming_table",
-                    "database": "catalog.bronze",
+                    "catalog": "catalog", "schema": "bronze",
                     "table": "customer",
                 },
             ),
@@ -808,7 +808,7 @@ class TestDependencyResolver:
                 source="staging_merged",
                 write_target={
                     "type": "streaming_table",
-                    "database": "catalog.silver",
+                    "catalog": "catalog", "schema": "silver",
                     "table": "merged_data",
                 },
             ),
@@ -868,7 +868,7 @@ class TestDependencyResolver:
                 source="final_data",
                 write_target={
                     "type": "streaming_table",
-                    "database": "catalog.silver",
+                    "catalog": "catalog", "schema": "silver",
                     "table": "customer",
                 },
             ),
@@ -894,7 +894,7 @@ class TestDependencyResolver:
                 type=ActionType.WRITE,
                 write_target={
                     "type": "materialized_view",
-                    "database": "gold",
+                    "catalog": "gold_cat", "schema": "gold_sch",
                     "table": "ecomm_summary",
                     "sql": "SELECT COUNT(*) FROM silver.orders",
                 },
@@ -915,7 +915,7 @@ class TestDependencyResolver:
                 type=ActionType.WRITE,
                 write_target={
                     "type": "materialized_view",
-                    "database": "gold",
+                    "catalog": "gold_cat", "schema": "gold_sch",
                     "table": "ecomm_summary",
                     "sql_path": "sql/gold/ecomm_summary.sql",
                 },
@@ -945,7 +945,7 @@ class TestDependencyResolver:
                 source="v_external",
                 write_target={
                     "type": "streaming_table",
-                    "database": "bronze",
+                    "catalog": "bronze_cat", "schema": "bronze_sch",
                     "table": "output",
                 },
             ),

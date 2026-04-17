@@ -1,0 +1,46 @@
+# Historical backfill for customer_dim, contributing to the same CDC target
+# as customer_silver_dim. Exercises cross-flowgroup multi-CDC fan-in:
+#   - customer_silver_dim is the table creator (create_table: true by default)
+#   - this flowgroup is a non-creator CDC contributor (create_table: false)
+#   - one-time historical load via once: true
+# All shared cdc_config fields match the creator so the compatibility
+# validator passes.
+pipeline: acmi_edw_silver
+flowgroup: customer_silver_dim_backfill
+presets:
+  - default_delta_properties
+actions:
+  - name: customer_backfill_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      database: "{catalog}.{bronze_schema}"
+      table: customer
+    target: v_customer_bronze_backfill
+    description: "Historical customer snapshot (batch, one-time)"
+
+  - name: write_customer_silver_backfill
+    type: write
+    source: v_customer_bronze_backfill
+    once: true
+    readMode: batch
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{silver_schema}"
+      table: "customer_dim"
+      mode: "cdc"
+      create_table: false
+
+      # Must agree with the creator (customer_silver_dim) on shared fields
+      cdc_config:
+        keys: ["customer_id"]
+        sequence_by: "last_modified_dt"
+        scd_type: 2
+        ignore_null_updates: false
+        track_history_except_column_list:
+          - "_source_file_path"
+          - "_processing_timestamp"
+          - "customer_key"
+          - "last_modified_dt"

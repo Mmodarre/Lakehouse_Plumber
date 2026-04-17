@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: ground_station_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: ground_station_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: ground_station_dim
+    target: v_ground_station_silver
+    description: "Load ground_station from silver for modelling"
+
+  - name: ground_station_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_ground_station_silver
+    target: v_ground_station_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_ground_station_silver
+
+  - name: write_ground_station_modelled
+    type: write
+    source: v_ground_station_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "ground_station_modelled"
+
+  - name: tst_ground_station_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_ground_station_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-ground_station-M01"
+
+  - name: tst_ground_station_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ground_station_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-ground_station-M02"

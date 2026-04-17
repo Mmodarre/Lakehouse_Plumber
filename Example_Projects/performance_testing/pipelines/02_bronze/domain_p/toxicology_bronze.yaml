@@ -1,0 +1,64 @@
+pipeline: domain_p_bronze
+flowgroup: toxicology_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: toxicology_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: toxicology_raw
+    target: v_toxicology_raw
+    description: "Load toxicology from raw schema"
+
+  - name: toxicology_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_toxicology_raw
+    target: v_toxicology_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as toxicology_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_toxicology_raw
+      WHERE 1=1
+
+  - name: toxicology_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_toxicology_bronze_cleaned
+    target: v_toxicology_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to toxicology"
+
+  - name: write_toxicology_bronze
+    type: write
+    source: v_toxicology_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "toxicology"
+
+  - name: tst_toxicology_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_toxicology_bronze_cleaned
+    required_columns: [toxicology_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-toxicology-B01"
+
+  - name: tst_toxicology_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_toxicology_bronze_cleaned
+    columns: [toxicology_key]
+    on_violation: warn
+    test_id: "PERF-toxicology-B02"

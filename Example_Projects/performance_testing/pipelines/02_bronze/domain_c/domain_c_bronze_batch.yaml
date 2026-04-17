@@ -1,0 +1,341 @@
+pipeline: domain_c_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: transaction_bronze
+    template_parameters:
+      entity_name: transaction
+      source_table: transaction_raw
+    actions:
+      - name: tst_transaction_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_transaction_cleansed
+        required_columns: [transaction_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-transaction-B01"
+      
+      - name: tst_transaction_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_transaction_cleansed
+        columns: [transaction_key]
+        on_violation: warn
+        test_id: "PERF-transaction-B02"
+
+  - flowgroup: account_bronze
+    template_parameters:
+      entity_name: account
+      source_table: account_raw
+    actions:
+      - name: tst_account_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_account_cleansed
+        required_columns: [account_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-account-B01"
+      
+      - name: tst_account_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_account_cleansed
+        columns: [account_key]
+        on_violation: warn
+        test_id: "PERF-account-B02"
+
+  - flowgroup: ledger_bronze
+    template_parameters:
+      entity_name: ledger
+      source_table: ledger_raw
+    actions:
+      - name: tst_ledger_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_ledger_cleansed
+        required_columns: [ledger_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-ledger-B01"
+      
+      - name: tst_ledger_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_ledger_cleansed
+        columns: [ledger_key]
+        on_violation: warn
+        test_id: "PERF-ledger-B02"
+
+  - flowgroup: journal_bronze
+    template_parameters:
+      entity_name: journal
+      source_table: journal_raw
+    actions:
+      - name: tst_journal_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_journal_cleansed
+        required_columns: [journal_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-journal-B01"
+      
+      - name: tst_journal_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_journal_cleansed
+        columns: [journal_key]
+        on_violation: warn
+        test_id: "PERF-journal-B02"
+
+  - flowgroup: budget_bronze
+    template_parameters:
+      entity_name: budget
+      source_table: budget_raw
+    actions:
+      - name: tst_budget_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_budget_cleansed
+        required_columns: [budget_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-budget-B01"
+      
+      - name: tst_budget_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_budget_cleansed
+        columns: [budget_key]
+        on_violation: warn
+        test_id: "PERF-budget-B02"
+
+  - flowgroup: forecast_bronze
+    template_parameters:
+      entity_name: forecast
+      source_table: forecast_raw
+    actions:
+      - name: tst_forecast_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_forecast_cleansed
+        required_columns: [forecast_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-forecast-B01"
+      
+      - name: tst_forecast_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_forecast_cleansed
+        columns: [forecast_key]
+        on_violation: warn
+        test_id: "PERF-forecast-B02"
+
+  - flowgroup: tax_bronze
+    template_parameters:
+      entity_name: tax
+      source_table: tax_raw
+    actions:
+      - name: tst_tax_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_tax_cleansed
+        required_columns: [tax_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-tax-B01"
+      
+      - name: tst_tax_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_tax_cleansed
+        columns: [tax_key]
+        on_violation: warn
+        test_id: "PERF-tax-B02"
+
+  - flowgroup: audit_bronze
+    template_parameters:
+      entity_name: audit
+      source_table: audit_raw
+    actions:
+      - name: tst_audit_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_audit_cleansed
+        required_columns: [audit_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-audit-B01"
+      
+      - name: tst_audit_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_audit_cleansed
+        columns: [audit_key]
+        on_violation: warn
+        test_id: "PERF-audit-B02"
+
+  - flowgroup: compliance_bronze
+    template_parameters:
+      entity_name: compliance
+      source_table: compliance_raw
+    actions:
+      - name: tst_compliance_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_compliance_cleansed
+        required_columns: [compliance_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-compliance-B01"
+      
+      - name: tst_compliance_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_compliance_cleansed
+        columns: [compliance_key]
+        on_violation: warn
+        test_id: "PERF-compliance-B02"
+
+  - flowgroup: regulation_bronze
+    template_parameters:
+      entity_name: regulation
+      source_table: regulation_raw
+    actions:
+      - name: tst_regulation_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_regulation_cleansed
+        required_columns: [regulation_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-regulation-B01"
+      
+      - name: tst_regulation_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_regulation_cleansed
+        columns: [regulation_key]
+        on_violation: warn
+        test_id: "PERF-regulation-B02"
+
+  - flowgroup: asset_bronze
+    template_parameters:
+      entity_name: asset
+      source_table: asset_raw
+    actions:
+      - name: tst_asset_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_asset_cleansed
+        required_columns: [asset_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-asset-B01"
+      
+      - name: tst_asset_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_asset_cleansed
+        columns: [asset_key]
+        on_violation: warn
+        test_id: "PERF-asset-B02"
+
+  - flowgroup: depreciation_bronze
+    template_parameters:
+      entity_name: depreciation
+      source_table: depreciation_raw
+    actions:
+      - name: tst_depreciation_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_depreciation_cleansed
+        required_columns: [depreciation_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-depreciation-B01"
+      
+      - name: tst_depreciation_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_depreciation_cleansed
+        columns: [depreciation_key]
+        on_violation: warn
+        test_id: "PERF-depreciation-B02"
+
+  - flowgroup: liability_bronze
+    template_parameters:
+      entity_name: liability
+      source_table: liability_raw
+    actions:
+      - name: tst_liability_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_liability_cleansed
+        required_columns: [liability_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-liability-B01"
+      
+      - name: tst_liability_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_liability_cleansed
+        columns: [liability_key]
+        on_violation: warn
+        test_id: "PERF-liability-B02"
+
+  - flowgroup: equity_bronze
+    template_parameters:
+      entity_name: equity
+      source_table: equity_raw
+    actions:
+      - name: tst_equity_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_equity_cleansed
+        required_columns: [equity_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-equity-B01"
+      
+      - name: tst_equity_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_equity_cleansed
+        columns: [equity_key]
+        on_violation: warn
+        test_id: "PERF-equity-B02"
+
+  - flowgroup: revenue_bronze
+    template_parameters:
+      entity_name: revenue
+      source_table: revenue_raw
+    actions:
+      - name: tst_revenue_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_revenue_cleansed
+        required_columns: [revenue_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-revenue-B01"
+      
+      - name: tst_revenue_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_revenue_cleansed
+        columns: [revenue_key]
+        on_violation: warn
+        test_id: "PERF-revenue-B02"
+
+  - flowgroup: expense_bronze
+    template_parameters:
+      entity_name: expense
+      source_table: expense_raw
+    actions:
+      - name: tst_expense_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_expense_cleansed
+        required_columns: [expense_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-expense-B01"
+      
+      - name: tst_expense_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_expense_cleansed
+        columns: [expense_key]
+        on_violation: warn
+        test_id: "PERF-expense-B02"

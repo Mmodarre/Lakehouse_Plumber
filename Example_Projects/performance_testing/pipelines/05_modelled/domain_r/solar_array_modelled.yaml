@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: solar_array_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: solar_array_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: solar_array_dim
+    target: v_solar_array_silver
+    description: "Load solar_array from silver for modelling"
+
+  - name: solar_array_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_solar_array_silver
+    target: v_solar_array_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_solar_array_silver
+
+  - name: write_solar_array_modelled
+    type: write
+    source: v_solar_array_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "solar_array_modelled"
+
+  - name: tst_solar_array_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_solar_array_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-solar_array-M01"
+
+  - name: tst_solar_array_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_solar_array_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-solar_array-M02"

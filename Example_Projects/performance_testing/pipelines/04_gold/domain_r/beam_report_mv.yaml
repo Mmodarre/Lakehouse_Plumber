@@ -1,0 +1,38 @@
+pipeline: domain_r_gold
+flowgroup: beam_report_mv
+actions:
+  - name: beam_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.beam_dim
+    target: v_beam_report
+
+  - name: write_beam_report_mv
+    type: write
+    source: v_beam_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "beam_report_mv"
+
+  - name: tst_beam_report_completeness
+    type: test
+    test_type: completeness
+    source: v_beam_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-beam-G01"
+
+  - name: tst_beam_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_beam_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-beam-G02"

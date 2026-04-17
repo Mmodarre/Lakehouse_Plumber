@@ -1,0 +1,53 @@
+pipeline: domain_n_modelled
+flowgroup: policy_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: policy_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: policy_fct
+    target: v_policy_silver
+    description: "Load policy from silver for modelling"
+
+  - name: policy_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_policy_silver
+    target: v_policy_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_policy_silver
+
+  - name: write_policy_modelled
+    type: write
+    source: v_policy_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "policy_modelled"
+
+  - name: tst_policy_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_policy_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-policy-M01"
+
+  - name: tst_policy_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_policy_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-policy-M02"

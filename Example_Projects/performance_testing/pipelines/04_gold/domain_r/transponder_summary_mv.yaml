@@ -1,0 +1,38 @@
+pipeline: domain_r_gold
+flowgroup: transponder_summary_mv
+actions:
+  - name: transponder_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.transponder_dim
+    target: v_transponder_summary
+
+  - name: write_transponder_summary_mv
+    type: write
+    source: v_transponder_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "transponder_summary_mv"
+
+  - name: tst_transponder_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_transponder_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-transponder-G01"
+
+  - name: tst_transponder_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transponder_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-transponder-G02"

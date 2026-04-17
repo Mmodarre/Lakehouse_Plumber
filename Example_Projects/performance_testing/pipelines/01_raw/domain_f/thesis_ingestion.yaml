@@ -1,0 +1,47 @@
+pipeline: domain_f_raw
+flowgroup: thesis_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_thesis_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/thesis/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_thesis_cloudfiles
+    description: "Load thesis from landing volume"
+
+  - name: write_thesis_raw
+    type: write
+    source: v_thesis_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "thesis_raw"
+
+  - name: tst_thesis_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_thesis_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-thesis-R01"
+
+  - name: tst_thesis_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_thesis_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-thesis-R02"

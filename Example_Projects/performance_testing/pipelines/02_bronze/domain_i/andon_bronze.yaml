@@ -1,0 +1,64 @@
+pipeline: domain_i_bronze
+flowgroup: andon_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: andon_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: andon_raw
+    target: v_andon_raw
+    description: "Load andon from raw schema"
+
+  - name: andon_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_andon_raw
+    target: v_andon_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as andon_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_andon_raw
+      WHERE 1=1
+
+  - name: andon_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_andon_bronze_cleaned
+    target: v_andon_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to andon"
+
+  - name: write_andon_bronze
+    type: write
+    source: v_andon_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "andon"
+
+  - name: tst_andon_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_andon_bronze_cleaned
+    required_columns: [andon_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-andon-B01"
+
+  - name: tst_andon_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_andon_bronze_cleaned
+    columns: [andon_key]
+    on_violation: warn
+    test_id: "PERF-andon-B02"

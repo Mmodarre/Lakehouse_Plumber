@@ -1,0 +1,38 @@
+pipeline: domain_k_gold
+flowgroup: passenger_analysis_mv
+actions:
+  - name: passenger_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.passenger_dim
+    target: v_passenger_analysis
+
+  - name: write_passenger_analysis_mv
+    type: write
+    source: v_passenger_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "passenger_analysis_mv"
+
+  - name: tst_passenger_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_passenger_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-passenger-G01"
+
+  - name: tst_passenger_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_passenger_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-passenger-G02"

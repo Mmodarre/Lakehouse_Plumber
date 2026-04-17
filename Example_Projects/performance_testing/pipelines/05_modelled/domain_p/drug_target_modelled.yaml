@@ -1,0 +1,53 @@
+pipeline: domain_p_modelled
+flowgroup: drug_target_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: drug_target_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: drug_target_dim
+    target: v_drug_target_silver
+    description: "Load drug_target from silver for modelling"
+
+  - name: drug_target_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_drug_target_silver
+    target: v_drug_target_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_drug_target_silver
+
+  - name: write_drug_target_modelled
+    type: write
+    source: v_drug_target_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "drug_target_modelled"
+
+  - name: tst_drug_target_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_drug_target_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-drug_target-M01"
+
+  - name: tst_drug_target_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_drug_target_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-drug_target-M02"

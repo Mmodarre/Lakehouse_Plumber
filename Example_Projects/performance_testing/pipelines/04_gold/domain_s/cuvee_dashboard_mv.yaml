@@ -1,0 +1,38 @@
+pipeline: domain_s_gold
+flowgroup: cuvee_dashboard_mv
+actions:
+  - name: cuvee_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.cuvee_dim
+    target: v_cuvee_dashboard
+
+  - name: write_cuvee_dashboard_mv
+    type: write
+    source: v_cuvee_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "cuvee_dashboard_mv"
+
+  - name: tst_cuvee_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_cuvee_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-cuvee-G01"
+
+  - name: tst_cuvee_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cuvee_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-cuvee-G02"

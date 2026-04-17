@@ -1,0 +1,64 @@
+pipeline: domain_s_bronze
+flowgroup: cellar_temp_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: cellar_temp_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cellar_temp_raw
+    target: v_cellar_temp_raw
+    description: "Load cellar_temp from raw schema"
+
+  - name: cellar_temp_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_cellar_temp_raw
+    target: v_cellar_temp_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cellar_temp_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_cellar_temp_raw
+      WHERE 1=1
+
+  - name: cellar_temp_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_cellar_temp_bronze_cleaned
+    target: v_cellar_temp_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to cellar_temp"
+
+  - name: write_cellar_temp_bronze
+    type: write
+    source: v_cellar_temp_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cellar_temp"
+
+  - name: tst_cellar_temp_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_cellar_temp_bronze_cleaned
+    required_columns: [cellar_temp_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cellar_temp-B01"
+
+  - name: tst_cellar_temp_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cellar_temp_bronze_cleaned
+    columns: [cellar_temp_key]
+    on_violation: warn
+    test_id: "PERF-cellar_temp-B02"

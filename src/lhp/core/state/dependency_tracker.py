@@ -27,11 +27,21 @@ class DependencyTracker:
         """
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
+        self._checksum_cache = None
 
         # Initialize dependency resolver
         from ..state_dependency_resolver import StateDependencyResolver
 
         self.dependency_resolver = StateDependencyResolver(project_root)
+
+    def set_checksum_cache(self, cache) -> None:
+        """Inject shared ChecksumCache.
+
+        Args:
+            cache: ChecksumCache instance
+        """
+        self._checksum_cache = cache
+        self.dependency_resolver.set_checksum_cache(cache)
 
     def track_generated_file(
         self,
@@ -41,7 +51,6 @@ class DependencyTracker:
         environment: str,
         pipeline: str,
         flowgroup: str,
-        generation_context: str = "",
         used_substitution_keys: Optional[List[str]] = None,
     ) -> None:
         """
@@ -54,7 +63,6 @@ class DependencyTracker:
             environment: Environment name
             pipeline: Pipeline name
             flowgroup: FlowGroup name
-            generation_context: Optional context string for parameter-sensitive hashing
             used_substitution_keys: Optional list of substitution keys used during generation
         """
         # Calculate relative paths from project root
@@ -92,15 +100,6 @@ class DependencyTracker:
             rel_source_path, environment, pipeline, flowgroup
         )
 
-        # Calculate composite checksum for all dependencies
-        dep_paths = [str(rel_source)] + list(file_dependencies.keys())
-        # Include generation context for parameter-sensitive hashing
-        if generation_context:
-            dep_paths.append(generation_context)
-        composite_checksum = self.dependency_resolver.calculate_composite_checksum(
-            dep_paths
-        )
-
         # Create file state (normalize paths for cross-platform state files)
         file_state = FileState(
             source_yaml=Path(str(rel_source)).as_posix(),
@@ -112,7 +111,6 @@ class DependencyTracker:
             pipeline=pipeline,
             flowgroup=flowgroup,
             file_dependencies=file_dependencies,
-            file_composite_checksum=composite_checksum,
             used_substitution_keys=used_substitution_keys,
         )
 
@@ -130,6 +128,65 @@ class DependencyTracker:
 
         self.logger.debug(
             f"Tracked generated file: {rel_generated} from {rel_source} with {len(file_dependencies)} dependencies"
+        )
+
+    def track_pipeline_artifact(
+        self,
+        state: ProjectState,
+        generated_path: Path,
+        environment: str,
+        pipeline: str,
+        artifact_type: str,
+    ) -> None:
+        """Track a pipeline-level artifact (not tied to a single flowgroup).
+
+        Simpler than track_generated_file — no dependency resolution or
+        substitution key tracking. Uses ``lhp.yaml`` as source and a reserved
+        sentinel flowgroup so it never collides with user flowgroups.
+
+        Args:
+            state: ProjectState to update
+            generated_path: Path to the generated artifact file
+            environment: Environment name
+            pipeline: Pipeline name
+            artifact_type: Identifier for the artifact kind (e.g. "test_reporting_hook")
+        """
+        try:
+            rel_generated = generated_path.relative_to(self.project_root)
+        except ValueError:
+            rel_generated = str(generated_path)
+
+        resolved_path = (
+            self.project_root / generated_path
+            if not generated_path.is_absolute()
+            else generated_path
+        )
+        checksum = self.calculate_checksum(resolved_path)
+
+        source_yaml_path = self.project_root / "lhp.yaml"
+        source_checksum = self.calculate_checksum(source_yaml_path)
+
+        file_state = FileState(
+            source_yaml="lhp.yaml",
+            generated_path=Path(str(rel_generated)).as_posix(),
+            checksum=checksum,
+            source_yaml_checksum=source_checksum,
+            timestamp=datetime.now().isoformat(),
+            environment=environment,
+            pipeline=pipeline,
+            flowgroup="__test_reporting__",
+            artifact_type=artifact_type,
+        )
+
+        if environment not in state.environments:
+            state.environments[environment] = {}
+
+        state.environments[environment][
+            Path(str(rel_generated)).as_posix()
+        ] = file_state
+
+        self.logger.debug(
+            f"Tracked pipeline artifact: {rel_generated} (type={artifact_type})"
         )
 
     def update_global_dependencies(self, state: ProjectState, environment: str) -> None:
@@ -223,12 +280,17 @@ class DependencyTracker:
         """
         Calculate SHA256 checksum of a file.
 
+        Uses shared ChecksumCache when available for deduplication.
+
         Args:
             file_path: Path to file for checksum calculation
 
         Returns:
             SHA256 hexdigest string, empty string if calculation fails
         """
+        if self._checksum_cache is not None:
+            return self._checksum_cache.get(file_path)
+
         sha256_hash = hashlib.sha256()
         try:
             with open(file_path, "rb") as f:

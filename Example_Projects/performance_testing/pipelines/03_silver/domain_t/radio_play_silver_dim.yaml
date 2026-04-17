@@ -1,0 +1,48 @@
+pipeline: domain_t_silver
+flowgroup: radio_play_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: radio_play_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: radio_play
+    target: v_radio_play_bronze
+    description: "Load radio_play from bronze for silver layer"
+
+  - name: write_radio_play_silver
+    type: write
+    source: v_radio_play_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "radio_play_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["radio_play_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_radio_play_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_radio_play_bronze
+    required_columns: [radio_play_key]
+    on_violation: warn
+    test_id: "PERF-radio_play-S01"
+
+  - name: tst_radio_play_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_radio_play_bronze
+    columns: [radio_play_key]
+    on_violation: warn
+    test_id: "PERF-radio_play-S02"

@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: device_group_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: device_group_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: device_group_fct
+    target: v_device_group_silver
+    description: "Load device_group from silver for modelling"
+
+  - name: device_group_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_device_group_silver
+    target: v_device_group_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_device_group_silver
+
+  - name: write_device_group_modelled
+    type: write
+    source: v_device_group_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "device_group_modelled"
+
+  - name: tst_device_group_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_device_group_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-device_group-M01"
+
+  - name: tst_device_group_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_device_group_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-device_group-M02"

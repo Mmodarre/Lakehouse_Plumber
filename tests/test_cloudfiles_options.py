@@ -120,8 +120,12 @@ class TestCloudFilesOptions:
         assert 'StructField("name", StringType(), False' in result
         assert 'StructField("amount", DecimalType(18, 2), True' in result
         assert 'StructField("created_at", TimestampType(), False' in result
-        assert "df = df.schema(test_schema)" in result
-    
+        assert ".schema(test_schema)" in result
+        assert "df = df.schema(" not in result
+        schema_pos = result.index(".schema(test_schema)")
+        load_pos = result.index(".load(")
+        assert schema_pos < load_pos
+
     def test_missing_prefix_error(self):
         """Test error when cloudFiles option is missing prefix."""
         action = Action(
@@ -327,7 +331,11 @@ class TestCloudFilesOptions:
         
         # Check schema enforcement
         assert "test_schema = StructType([" in result
-        assert "df = df.schema(test_schema)" in result
+        assert ".schema(test_schema)" in result
+        assert "df = df.schema(" not in result
+        schema_pos = result.index(".schema(test_schema)")
+        load_pos = result.index(".load(")
+        assert schema_pos < load_pos
         
         # Check all options are included with proper Python syntax
         assert '.option("cloudFiles.format", "csv")' in result
@@ -370,11 +378,7 @@ class TestCloudFilesOptions:
         assert '\\"value\\"' in result or 'field=\\"value\\"' in result
         
         # Verify it's valid Python by compiling
-        try:
-            compile(result, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with quotes is not valid Python syntax: {e}")
+        compile(result, '<string>', 'exec')
     
     def test_values_with_backslashes_escaped(self):
         """Test that values containing backslashes are properly escaped."""
@@ -403,15 +407,8 @@ class TestCloudFilesOptions:
         # Verify no SyntaxWarning by compiling with warnings as errors
         import warnings
         warnings.simplefilter('error', SyntaxWarning)
-        try:
-            compile(result, '<string>', 'exec')
-            assert True
-        except SyntaxWarning as e:
-            pytest.fail(f"Generated code has invalid escape sequences: {e}")
-        except SyntaxError as e:
-            pytest.fail(f"Generated code is not valid Python syntax: {e}")
-        finally:
-            warnings.simplefilter('default', SyntaxWarning)
+        compile(result, '<string>', 'exec')
+        warnings.simplefilter('default', SyntaxWarning)
     
     def test_values_with_quotes_and_backslashes(self):
         """Test that values with both quotes and backslashes are properly escaped."""
@@ -437,13 +434,8 @@ class TestCloudFilesOptions:
         # Verify valid Python
         import warnings
         warnings.simplefilter('error', SyntaxWarning)
-        try:
-            compile(result, '<string>', 'exec')
-            assert True
-        except (SyntaxWarning, SyntaxError) as e:
-            pytest.fail(f"Generated code is not valid Python: {e}")
-        finally:
-            warnings.simplefilter('default', SyntaxWarning)
+        compile(result, '<string>', 'exec')
+        warnings.simplefilter('default', SyntaxWarning)
     
     def test_schema_hints_from_ddl_file(self):
         """Test schema hints processing from DDL file."""

@@ -1,0 +1,64 @@
+pipeline: domain_o_bronze
+flowgroup: bounce_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: bounce_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bounce_raw
+    target: v_bounce_raw
+    description: "Load bounce from raw schema"
+
+  - name: bounce_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_bounce_raw
+    target: v_bounce_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bounce_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_bounce_raw
+      WHERE 1=1
+
+  - name: bounce_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_bounce_bronze_cleaned
+    target: v_bounce_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to bounce"
+
+  - name: write_bounce_bronze
+    type: write
+    source: v_bounce_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bounce"
+
+  - name: tst_bounce_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_bounce_bronze_cleaned
+    required_columns: [bounce_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-bounce-B01"
+
+  - name: tst_bounce_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bounce_bronze_cleaned
+    columns: [bounce_key]
+    on_violation: warn
+    test_id: "PERF-bounce-B02"

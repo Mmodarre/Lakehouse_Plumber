@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from collections import defaultdict
 
+from lhp.core.state_models import FileState
 from lhp.services.state_display_service import StateDisplayService
 from lhp.core.state_manager import StateManager
 
@@ -62,9 +63,9 @@ class TestStateDisplayService:
     def test_get_tracked_files_with_pipeline_filter(self, service, mock_state_manager):
         """Test get_tracked_files with pipeline filtering."""
         # Mock file states
-        file1 = Mock()
+        file1 = Mock(spec=FileState)
         file1.pipeline = "bronze"
-        file2 = Mock()
+        file2 = Mock(spec=FileState)
         file2.pipeline = "silver"
         
         mock_state_manager.get_generated_files.return_value = {
@@ -79,9 +80,9 @@ class TestStateDisplayService:
     
     def test_get_orphaned_files(self, service, mock_state_manager):
         """Test get_orphaned_files functionality."""
-        orphaned1 = Mock()
+        orphaned1 = Mock(spec=FileState)
         orphaned1.pipeline = "bronze"
-        orphaned2 = Mock()
+        orphaned2 = Mock(spec=FileState)
         orphaned2.pipeline = "silver"
         
         mock_state_manager.find_orphaned_files.return_value = [orphaned1, orphaned2]
@@ -93,9 +94,9 @@ class TestStateDisplayService:
     
     def test_get_stale_files(self, service, mock_state_manager):
         """Test get_stale_files functionality."""
-        stale1 = Mock()
+        stale1 = Mock(spec=FileState)
         stale1.pipeline = "bronze"
-        stale2 = Mock()
+        stale2 = Mock(spec=FileState)
         stale2.pipeline = "silver"
         
         staleness_info = {"global_changes": [], "files": {}}
@@ -145,7 +146,7 @@ class TestStateDisplayService:
     
     def test_regenerate_stale_files_dry_run(self, service, mock_state_manager):
         """Test regenerate_stale_files in dry run mode."""
-        stale_files = [Mock(), Mock()]
+        stale_files = [Mock(spec=FileState), Mock(spec=FileState)]
         
         result = service.regenerate_stale_files("dev", stale_files, dry_run=True)
         
@@ -155,11 +156,11 @@ class TestStateDisplayService:
     def test_regenerate_stale_files_success(self, mock_orchestrator_class, service, mock_state_manager):
         """Test successful regeneration of stale files."""
         # Mock stale files
-        stale1 = Mock()
+        stale1 = Mock(spec=FileState)
         stale1.pipeline = "bronze"
-        stale2 = Mock()
+        stale2 = Mock(spec=FileState)
         stale2.pipeline = "bronze"
-        stale3 = Mock()
+        stale3 = Mock(spec=FileState)
         stale3.pipeline = "silver"
         
         stale_files = [stale1, stale2, stale3]
@@ -180,7 +181,7 @@ class TestStateDisplayService:
     @patch('lhp.core.orchestrator.ActionOrchestrator')
     def test_regenerate_stale_files_error(self, mock_orchestrator_class, service, mock_state_manager):
         """Test regeneration error handling."""
-        stale1 = Mock()
+        stale1 = Mock(spec=FileState)
         stale1.pipeline = "bronze"
         
         mock_orchestrator = Mock()
@@ -218,7 +219,7 @@ class TestStateDisplayService:
         service.project_root = project_root
         
         # Mock file state
-        file_state = Mock()
+        file_state = Mock(spec=FileState)
         file_state.source_yaml = "pipelines/bronze/file.yaml"
         file_state.generated_path = "generated/bronze/file.py"
         file_state.source_yaml_checksum = "existing_checksum"
@@ -239,7 +240,7 @@ class TestStateDisplayService:
         project_root = Path("/mock/project")
         service.project_root = project_root
         
-        file_state = Mock()
+        file_state = Mock(spec=FileState)
         file_state.source_yaml = "pipelines/bronze/file.yaml"
         file_state.generated_path = "generated/bronze/file.py"
         file_state.source_yaml_checksum = "old_checksum"
@@ -257,13 +258,13 @@ class TestStateDisplayService:
     def test_calculate_summary_counts(self, service, mock_state_manager):
         """Test calculate_summary_counts functionality."""
         # Mock tracked files
-        tracked_files = {"file1.py": Mock(), "file2.py": Mock(), "file3.py": Mock()}
+        tracked_files = {"file1.py": Mock(spec=FileState), "file2.py": Mock(spec=FileState), "file3.py": Mock(spec=FileState)}
         
         # Mock orphaned files
-        orphaned_files = [Mock(), Mock()]
+        orphaned_files = [Mock(spec=FileState), Mock(spec=FileState)]
         
         # Mock stale files
-        stale_files = [Mock()]
+        stale_files = [Mock(spec=FileState)]
         
         # Mock new files
         new_files = [Path("new1.yaml"), Path("new2.yaml")]
@@ -315,7 +316,7 @@ class TestStateDisplayServiceEdgeCases:
     
     def test_calculate_file_status_missing_files(self, service):
         """Test calculate_file_status when files are missing."""
-        file_state = Mock()
+        file_state = Mock(spec=FileState)
         file_state.source_yaml = "missing/file.yaml"
         file_state.generated_path = "missing/generated.py"
         file_state.source_yaml_checksum = "checksum"

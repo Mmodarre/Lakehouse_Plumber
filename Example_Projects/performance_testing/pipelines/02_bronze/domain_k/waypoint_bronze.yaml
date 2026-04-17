@@ -1,0 +1,101 @@
+pipeline: domain_k_bronze
+flowgroup: waypoint_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: waypoint_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: waypoint_raw
+    target: v_waypoint_raw
+    description: "Load waypoint from raw schema"
+
+  - name: waypoint_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_waypoint_raw
+    target: v_waypoint_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as waypoint_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_waypoint_raw
+
+  - name: waypoint_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_waypoint_bronze_cleaned
+    target: v_waypoint_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for waypoint bronze"
+
+  - name: write_waypoint_bronze
+    type: write
+    source: v_waypoint_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "waypoint"
+
+  - name: waypoint_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: waypoint_migration
+    target: v_waypoint_migration
+    description: "Load waypoint migration data"
+
+  - name: waypoint_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_waypoint_migration
+    target: v_waypoint_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as waypoint_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_waypoint_migration
+
+  - name: write_waypoint_migration
+    type: write
+    source: v_waypoint_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "waypoint"
+
+  - name: tst_waypoint_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_waypoint_bronze_cleaned
+    required_columns: [waypoint_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-waypoint-B01"
+
+  - name: tst_waypoint_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_waypoint_bronze_cleaned
+    columns: [waypoint_key]
+    on_violation: warn
+    test_id: "PERF-waypoint-B02"

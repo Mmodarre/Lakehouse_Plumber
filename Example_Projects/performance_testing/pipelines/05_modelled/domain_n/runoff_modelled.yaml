@@ -1,0 +1,53 @@
+pipeline: domain_n_modelled
+flowgroup: runoff_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: runoff_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: runoff_fct
+    target: v_runoff_silver
+    description: "Load runoff from silver for modelling"
+
+  - name: runoff_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_runoff_silver
+    target: v_runoff_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_runoff_silver
+
+  - name: write_runoff_modelled
+    type: write
+    source: v_runoff_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "runoff_modelled"
+
+  - name: tst_runoff_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_runoff_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-runoff-M01"
+
+  - name: tst_runoff_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_runoff_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-runoff-M02"

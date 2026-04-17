@@ -1,0 +1,979 @@
+pipeline: domain_l_silver
+flowgroup: prep_station_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: prep_station_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: prep_station
+    target: v_prep_station_bronze
+    description: "Load prep_station from bronze for silver layer"
+
+  - name: write_prep_station_silver
+    type: write
+    source: v_prep_station_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "prep_station_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["prep_station_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_prep_station_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_prep_station_bronze
+    required_columns: [prep_station_key]
+    on_violation: warn
+    test_id: "PERF-prep_station-S01"
+
+  - name: tst_prep_station_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_prep_station_bronze
+    columns: [prep_station_key]
+    on_violation: warn
+    test_id: "PERF-prep_station-S02"
+---
+pipeline: domain_l_silver
+flowgroup: walk_in_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: walk_in_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: walk_in
+    target: v_walk_in_bronze
+    description: "Load walk_in from bronze for silver layer"
+
+  - name: write_walk_in_silver
+    type: write
+    source: v_walk_in_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "walk_in_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["walk_in_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_walk_in_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_walk_in_bronze
+    required_columns: [walk_in_key]
+    on_violation: warn
+    test_id: "PERF-walk_in-S01"
+
+  - name: tst_walk_in_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_walk_in_bronze
+    columns: [walk_in_key]
+    on_violation: warn
+    test_id: "PERF-walk_in-S02"
+---
+pipeline: domain_l_silver
+flowgroup: cooler_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: cooler_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: cooler
+    target: v_cooler_bronze
+    description: "Load cooler from bronze for silver layer"
+
+  - name: write_cooler_silver
+    type: write
+    source: v_cooler_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "cooler_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["cooler_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_cooler_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_cooler_bronze
+    required_columns: [cooler_key]
+    on_violation: warn
+    test_id: "PERF-cooler-S01"
+
+  - name: tst_cooler_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cooler_bronze
+    columns: [cooler_key]
+    on_violation: warn
+    test_id: "PERF-cooler-S02"
+---
+pipeline: domain_l_silver
+flowgroup: freezer_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: freezer_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: freezer
+    target: v_freezer_bronze
+    description: "Load freezer from bronze for silver layer"
+
+  - name: write_freezer_silver
+    type: write
+    source: v_freezer_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "freezer_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["freezer_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_freezer_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_freezer_bronze
+    required_columns: [freezer_key]
+    on_violation: warn
+    test_id: "PERF-freezer-S01"
+
+  - name: tst_freezer_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_freezer_bronze
+    columns: [freezer_key]
+    on_violation: warn
+    test_id: "PERF-freezer-S02"
+---
+pipeline: domain_l_silver
+flowgroup: dry_storage_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: dry_storage_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: dry_storage
+    target: v_dry_storage_bronze
+    description: "Load dry_storage from bronze for silver layer"
+
+  - name: write_dry_storage_silver
+    type: write
+    source: v_dry_storage_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "dry_storage_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["dry_storage_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_dry_storage_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_dry_storage_bronze
+    required_columns: [dry_storage_key]
+    on_violation: warn
+    test_id: "PERF-dry_storage-S01"
+
+  - name: tst_dry_storage_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dry_storage_bronze
+    columns: [dry_storage_key]
+    on_violation: warn
+    test_id: "PERF-dry_storage-S02"
+---
+pipeline: domain_l_silver
+flowgroup: portion_control_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: portion_control_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: portion_control
+    target: v_portion_control_bronze
+    description: "Load portion_control from bronze for silver layer"
+
+  - name: write_portion_control_silver
+    type: write
+    source: v_portion_control_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "portion_control_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["portion_control_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_portion_control_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_portion_control_bronze
+    required_columns: [portion_control_key]
+    on_violation: warn
+    test_id: "PERF-portion_control-S01"
+
+  - name: tst_portion_control_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_portion_control_bronze
+    columns: [portion_control_key]
+    on_violation: warn
+    test_id: "PERF-portion_control-S02"
+---
+pipeline: domain_l_silver
+flowgroup: food_cost_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: food_cost_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: food_cost
+    target: v_food_cost_bronze
+    description: "Load food_cost from bronze for silver layer"
+
+  - name: write_food_cost_silver
+    type: write
+    source: v_food_cost_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "food_cost_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["food_cost_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_food_cost_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_food_cost_bronze
+    required_columns: [food_cost_key]
+    on_violation: warn
+    test_id: "PERF-food_cost-S01"
+
+  - name: tst_food_cost_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_food_cost_bronze
+    columns: [food_cost_key]
+    on_violation: warn
+    test_id: "PERF-food_cost-S02"
+---
+pipeline: domain_l_silver
+flowgroup: waste_log_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: waste_log_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: waste_log
+    target: v_waste_log_bronze
+    description: "Load waste_log from bronze for silver layer"
+
+  - name: write_waste_log_silver
+    type: write
+    source: v_waste_log_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "waste_log_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["waste_log_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_waste_log_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_waste_log_bronze
+    required_columns: [waste_log_key]
+    on_violation: warn
+    test_id: "PERF-waste_log-S01"
+
+  - name: tst_waste_log_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_waste_log_bronze
+    columns: [waste_log_key]
+    on_violation: warn
+    test_id: "PERF-waste_log-S02"
+---
+pipeline: domain_l_silver
+flowgroup: allergen_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: allergen_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: allergen
+    target: v_allergen_bronze
+    description: "Load allergen from bronze for silver layer"
+
+  - name: write_allergen_silver
+    type: write
+    source: v_allergen_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "allergen_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["allergen_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_allergen_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_allergen_bronze
+    required_columns: [allergen_key]
+    on_violation: warn
+    test_id: "PERF-allergen-S01"
+
+  - name: tst_allergen_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_allergen_bronze
+    columns: [allergen_key]
+    on_violation: warn
+    test_id: "PERF-allergen-S02"
+---
+pipeline: domain_l_silver
+flowgroup: nutritional_info_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: nutritional_info_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: nutritional_info
+    target: v_nutritional_info_bronze
+    description: "Load nutritional_info from bronze for silver layer"
+
+  - name: write_nutritional_info_silver
+    type: write
+    source: v_nutritional_info_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "nutritional_info_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["nutritional_info_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_nutritional_info_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_nutritional_info_bronze
+    required_columns: [nutritional_info_key]
+    on_violation: warn
+    test_id: "PERF-nutritional_info-S01"
+
+  - name: tst_nutritional_info_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_nutritional_info_bronze
+    columns: [nutritional_info_key]
+    on_violation: warn
+    test_id: "PERF-nutritional_info-S02"
+---
+pipeline: domain_l_silver
+flowgroup: happy_hour_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: happy_hour_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: happy_hour
+    target: v_happy_hour_bronze
+    description: "Load happy_hour from bronze for silver layer"
+
+  - name: write_happy_hour_silver
+    type: write
+    source: v_happy_hour_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "happy_hour_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["happy_hour_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_happy_hour_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_happy_hour_bronze
+    required_columns: [happy_hour_key]
+    on_violation: warn
+    test_id: "PERF-happy_hour-S01"
+
+  - name: tst_happy_hour_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_happy_hour_bronze
+    columns: [happy_hour_key]
+    on_violation: warn
+    test_id: "PERF-happy_hour-S02"
+---
+pipeline: domain_l_silver
+flowgroup: catering_event_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: catering_event_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: catering_event
+    target: v_catering_event_bronze
+    description: "Load catering_event from bronze for silver layer"
+
+  - name: write_catering_event_silver
+    type: write
+    source: v_catering_event_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "catering_event_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["catering_event_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_catering_event_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_catering_event_bronze
+    required_columns: [catering_event_key]
+    on_violation: warn
+    test_id: "PERF-catering_event-S01"
+
+  - name: tst_catering_event_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_catering_event_bronze
+    columns: [catering_event_key]
+    on_violation: warn
+    test_id: "PERF-catering_event-S02"
+---
+pipeline: domain_l_silver
+flowgroup: takeout_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: takeout_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: takeout
+    target: v_takeout_bronze
+    description: "Load takeout from bronze for silver layer"
+
+  - name: write_takeout_silver
+    type: write
+    source: v_takeout_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "takeout_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["takeout_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_takeout_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_takeout_bronze
+    required_columns: [takeout_key]
+    on_violation: warn
+    test_id: "PERF-takeout-S01"
+
+  - name: tst_takeout_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_takeout_bronze
+    columns: [takeout_key]
+    on_violation: warn
+    test_id: "PERF-takeout-S02"
+---
+pipeline: domain_l_silver
+flowgroup: delivery_partner_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: delivery_partner_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: delivery_partner
+    target: v_delivery_partner_bronze
+    description: "Load delivery_partner from bronze for silver layer"
+
+  - name: write_delivery_partner_silver
+    type: write
+    source: v_delivery_partner_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "delivery_partner_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["delivery_partner_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_delivery_partner_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_delivery_partner_bronze
+    required_columns: [delivery_partner_key]
+    on_violation: warn
+    test_id: "PERF-delivery_partner-S01"
+
+  - name: tst_delivery_partner_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_delivery_partner_bronze
+    columns: [delivery_partner_key]
+    on_violation: warn
+    test_id: "PERF-delivery_partner-S02"
+---
+pipeline: domain_l_silver
+flowgroup: online_order_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: online_order_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: online_order
+    target: v_online_order_bronze
+    description: "Load online_order from bronze for silver layer"
+
+  - name: write_online_order_silver
+    type: write
+    source: v_online_order_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "online_order_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["online_order_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_online_order_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_online_order_bronze
+    required_columns: [online_order_key]
+    on_violation: warn
+    test_id: "PERF-online_order-S01"
+
+  - name: tst_online_order_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_online_order_bronze
+    columns: [online_order_key]
+    on_violation: warn
+    test_id: "PERF-online_order-S02"
+---
+pipeline: domain_l_silver
+flowgroup: table_turn_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: table_turn_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: table_turn
+    target: v_table_turn_bronze
+    description: "Load table_turn from bronze for silver layer"
+
+  - name: write_table_turn_silver
+    type: write
+    source: v_table_turn_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "table_turn_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["table_turn_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_table_turn_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_table_turn_bronze
+    required_columns: [table_turn_key]
+    on_violation: warn
+    test_id: "PERF-table_turn-S01"
+
+  - name: tst_table_turn_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_table_turn_bronze
+    columns: [table_turn_key]
+    on_violation: warn
+    test_id: "PERF-table_turn-S02"
+---
+pipeline: domain_l_silver
+flowgroup: wait_time_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: wait_time_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: wait_time
+    target: v_wait_time_bronze
+    description: "Load wait_time from bronze for silver layer"
+
+  - name: write_wait_time_silver
+    type: write
+    source: v_wait_time_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "wait_time_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["wait_time_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_wait_time_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_wait_time_bronze
+    required_columns: [wait_time_key]
+    on_violation: warn
+    test_id: "PERF-wait_time-S01"
+
+  - name: tst_wait_time_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wait_time_bronze
+    columns: [wait_time_key]
+    on_violation: warn
+    test_id: "PERF-wait_time-S02"
+---
+pipeline: domain_l_silver
+flowgroup: host_stand_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: host_stand_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: host_stand
+    target: v_host_stand_bronze
+    description: "Load host_stand from bronze for silver layer"
+
+  - name: write_host_stand_silver
+    type: write
+    source: v_host_stand_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "host_stand_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["host_stand_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_host_stand_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_host_stand_bronze
+    required_columns: [host_stand_key]
+    on_violation: warn
+    test_id: "PERF-host_stand-S01"
+
+  - name: tst_host_stand_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_host_stand_bronze
+    columns: [host_stand_key]
+    on_violation: warn
+    test_id: "PERF-host_stand-S02"
+---
+pipeline: domain_l_silver
+flowgroup: patio_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: patio_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: patio
+    target: v_patio_bronze
+    description: "Load patio from bronze for silver layer"
+
+  - name: write_patio_silver
+    type: write
+    source: v_patio_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "patio_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["patio_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_patio_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_patio_bronze
+    required_columns: [patio_key]
+    on_violation: warn
+    test_id: "PERF-patio-S01"
+
+  - name: tst_patio_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_patio_bronze
+    columns: [patio_key]
+    on_violation: warn
+    test_id: "PERF-patio-S02"
+---
+pipeline: domain_l_silver
+flowgroup: private_dining_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: private_dining_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: private_dining
+    target: v_private_dining_bronze
+    description: "Load private_dining from bronze for silver layer"
+
+  - name: write_private_dining_silver
+    type: write
+    source: v_private_dining_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "private_dining_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["private_dining_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_private_dining_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_private_dining_bronze
+    required_columns: [private_dining_key]
+    on_violation: warn
+    test_id: "PERF-private_dining-S01"
+
+  - name: tst_private_dining_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_private_dining_bronze
+    columns: [private_dining_key]
+    on_violation: warn
+    test_id: "PERF-private_dining-S02"

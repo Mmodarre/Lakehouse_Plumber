@@ -1,0 +1,101 @@
+pipeline: domain_h_bronze
+flowgroup: rain_check_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: rain_check_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: rain_check_raw
+    target: v_rain_check_raw
+    description: "Load rain_check from raw schema"
+
+  - name: rain_check_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_rain_check_raw
+    target: v_rain_check_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as rain_check_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_rain_check_raw
+
+  - name: rain_check_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_rain_check_bronze_cleaned
+    target: v_rain_check_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for rain_check bronze"
+
+  - name: write_rain_check_bronze
+    type: write
+    source: v_rain_check_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "rain_check"
+
+  - name: rain_check_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: rain_check_migration
+    target: v_rain_check_migration
+    description: "Load rain_check migration data"
+
+  - name: rain_check_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_rain_check_migration
+    target: v_rain_check_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as rain_check_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_rain_check_migration
+
+  - name: write_rain_check_migration
+    type: write
+    source: v_rain_check_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "rain_check"
+
+  - name: tst_rain_check_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_rain_check_bronze_cleaned
+    required_columns: [rain_check_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-rain_check-B01"
+
+  - name: tst_rain_check_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_rain_check_bronze_cleaned
+    columns: [rain_check_key]
+    on_violation: warn
+    test_id: "PERF-rain_check-B02"

@@ -1,0 +1,101 @@
+pipeline: domain_o_bronze
+flowgroup: sentiment_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: sentiment_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: sentiment_raw
+    target: v_sentiment_raw
+    description: "Load sentiment from raw schema"
+
+  - name: sentiment_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_sentiment_raw
+    target: v_sentiment_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as sentiment_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_sentiment_raw
+
+  - name: sentiment_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_sentiment_bronze_cleaned
+    target: v_sentiment_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for sentiment bronze"
+
+  - name: write_sentiment_bronze
+    type: write
+    source: v_sentiment_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "sentiment"
+
+  - name: sentiment_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: sentiment_migration
+    target: v_sentiment_migration
+    description: "Load sentiment migration data"
+
+  - name: sentiment_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_sentiment_migration
+    target: v_sentiment_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as sentiment_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_sentiment_migration
+
+  - name: write_sentiment_migration
+    type: write
+    source: v_sentiment_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "sentiment"
+
+  - name: tst_sentiment_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_sentiment_bronze_cleaned
+    required_columns: [sentiment_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-sentiment-B01"
+
+  - name: tst_sentiment_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_sentiment_bronze_cleaned
+    columns: [sentiment_key]
+    on_violation: warn
+    test_id: "PERF-sentiment-B02"

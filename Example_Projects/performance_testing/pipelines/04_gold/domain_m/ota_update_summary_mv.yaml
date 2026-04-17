@@ -1,0 +1,38 @@
+pipeline: domain_m_gold
+flowgroup: ota_update_summary_mv
+actions:
+  - name: ota_update_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.ota_update_dim
+    target: v_ota_update_summary
+
+  - name: write_ota_update_summary_mv
+    type: write
+    source: v_ota_update_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "ota_update_summary_mv"
+
+  - name: tst_ota_update_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_ota_update_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-ota_update-G01"
+
+  - name: tst_ota_update_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ota_update_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-ota_update-G02"

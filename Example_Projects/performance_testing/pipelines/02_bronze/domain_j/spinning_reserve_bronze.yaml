@@ -1,0 +1,64 @@
+pipeline: domain_j_bronze
+flowgroup: spinning_reserve_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: spinning_reserve_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: spinning_reserve_raw
+    target: v_spinning_reserve_raw
+    description: "Load spinning_reserve from raw schema"
+
+  - name: spinning_reserve_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_spinning_reserve_raw
+    target: v_spinning_reserve_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as spinning_reserve_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_spinning_reserve_raw
+      WHERE 1=1
+
+  - name: spinning_reserve_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_spinning_reserve_bronze_cleaned
+    target: v_spinning_reserve_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to spinning_reserve"
+
+  - name: write_spinning_reserve_bronze
+    type: write
+    source: v_spinning_reserve_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "spinning_reserve"
+
+  - name: tst_spinning_reserve_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_spinning_reserve_bronze_cleaned
+    required_columns: [spinning_reserve_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-spinning_reserve-B01"
+
+  - name: tst_spinning_reserve_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_spinning_reserve_bronze_cleaned
+    columns: [spinning_reserve_key]
+    on_violation: warn
+    test_id: "PERF-spinning_reserve-B02"

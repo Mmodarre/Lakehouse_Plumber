@@ -1,0 +1,53 @@
+pipeline: domain_s_modelled
+flowgroup: cuvee_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: cuvee_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: cuvee_dim
+    target: v_cuvee_silver
+    description: "Load cuvee from silver for modelling"
+
+  - name: cuvee_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cuvee_silver
+    target: v_cuvee_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_cuvee_silver
+
+  - name: write_cuvee_modelled
+    type: write
+    source: v_cuvee_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "cuvee_modelled"
+
+  - name: tst_cuvee_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_cuvee_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-cuvee-M01"
+
+  - name: tst_cuvee_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cuvee_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-cuvee-M02"

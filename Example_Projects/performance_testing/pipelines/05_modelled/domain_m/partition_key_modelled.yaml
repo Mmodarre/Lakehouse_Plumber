@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: partition_key_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: partition_key_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: partition_key_fct
+    target: v_partition_key_silver
+    description: "Load partition_key from silver for modelling"
+
+  - name: partition_key_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_partition_key_silver
+    target: v_partition_key_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_partition_key_silver
+
+  - name: write_partition_key_modelled
+    type: write
+    source: v_partition_key_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "partition_key_modelled"
+
+  - name: tst_partition_key_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_partition_key_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-partition_key-M01"
+
+  - name: tst_partition_key_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_partition_key_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-partition_key-M02"

@@ -1,0 +1,38 @@
+pipeline: domain_d_gold
+flowgroup: appointment_report_mv
+actions:
+  - name: appointment_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.appointment_dim
+    target: v_appointment_report
+
+  - name: write_appointment_report_mv
+    type: write
+    source: v_appointment_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "appointment_report_mv"
+
+  - name: tst_appointment_report_completeness
+    type: test
+    test_type: completeness
+    source: v_appointment_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-appointment-G01"
+
+  - name: tst_appointment_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_appointment_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-appointment-G02"

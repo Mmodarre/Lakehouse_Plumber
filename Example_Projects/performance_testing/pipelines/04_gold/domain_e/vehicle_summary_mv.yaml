@@ -1,0 +1,38 @@
+pipeline: domain_e_gold
+flowgroup: vehicle_summary_mv
+actions:
+  - name: vehicle_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.vehicle_fct
+    target: v_vehicle_summary
+
+  - name: write_vehicle_summary_mv
+    type: write
+    source: v_vehicle_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "vehicle_summary_mv"
+
+  - name: tst_vehicle_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_vehicle_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-vehicle-G01"
+
+  - name: tst_vehicle_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_vehicle_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-vehicle-G02"

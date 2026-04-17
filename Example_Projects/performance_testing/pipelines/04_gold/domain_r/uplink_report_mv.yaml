@@ -1,0 +1,38 @@
+pipeline: domain_r_gold
+flowgroup: uplink_report_mv
+actions:
+  - name: uplink_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.uplink_fct
+    target: v_uplink_report
+
+  - name: write_uplink_report_mv
+    type: write
+    source: v_uplink_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "uplink_report_mv"
+
+  - name: tst_uplink_report_completeness
+    type: test
+    test_type: completeness
+    source: v_uplink_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-uplink-G01"
+
+  - name: tst_uplink_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_uplink_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-uplink-G02"

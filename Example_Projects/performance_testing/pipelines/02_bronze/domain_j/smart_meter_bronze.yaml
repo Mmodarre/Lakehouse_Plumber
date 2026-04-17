@@ -1,0 +1,101 @@
+pipeline: domain_j_bronze
+flowgroup: smart_meter_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: smart_meter_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: smart_meter_raw
+    target: v_smart_meter_raw
+    description: "Load smart_meter from raw schema"
+
+  - name: smart_meter_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_smart_meter_raw
+    target: v_smart_meter_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as smart_meter_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_smart_meter_raw
+
+  - name: smart_meter_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_smart_meter_bronze_cleaned
+    target: v_smart_meter_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for smart_meter bronze"
+
+  - name: write_smart_meter_bronze
+    type: write
+    source: v_smart_meter_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "smart_meter"
+
+  - name: smart_meter_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: smart_meter_migration
+    target: v_smart_meter_migration
+    description: "Load smart_meter migration data"
+
+  - name: smart_meter_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_smart_meter_migration
+    target: v_smart_meter_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as smart_meter_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_smart_meter_migration
+
+  - name: write_smart_meter_migration
+    type: write
+    source: v_smart_meter_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "smart_meter"
+
+  - name: tst_smart_meter_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_smart_meter_bronze_cleaned
+    required_columns: [smart_meter_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-smart_meter-B01"
+
+  - name: tst_smart_meter_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_smart_meter_bronze_cleaned
+    columns: [smart_meter_key]
+    on_violation: warn
+    test_id: "PERF-smart_meter-B02"

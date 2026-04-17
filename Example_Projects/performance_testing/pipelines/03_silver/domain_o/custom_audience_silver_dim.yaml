@@ -1,0 +1,48 @@
+pipeline: domain_o_silver
+flowgroup: custom_audience_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: custom_audience_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: custom_audience
+    target: v_custom_audience_bronze
+    description: "Load custom_audience from bronze for silver layer"
+
+  - name: write_custom_audience_silver
+    type: write
+    source: v_custom_audience_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "custom_audience_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["custom_audience_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_custom_audience_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_custom_audience_bronze
+    required_columns: [custom_audience_key]
+    on_violation: warn
+    test_id: "PERF-custom_audience-S01"
+
+  - name: tst_custom_audience_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_custom_audience_bronze
+    columns: [custom_audience_key]
+    on_violation: warn
+    test_id: "PERF-custom_audience-S02"

@@ -1,0 +1,24 @@
+pipeline: domain_l_bronze
+flowgroup: shift_schedule_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: shift_schedule
+  source_table: shift_schedule_raw
+actions:
+  - name: tst_shift_schedule_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_shift_schedule_cleansed
+    required_columns: [shift_schedule_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-shift_schedule-B01"
+
+  - name: tst_shift_schedule_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_shift_schedule_cleansed
+    columns: [shift_schedule_key]
+    on_violation: warn
+    test_id: "PERF-shift_schedule-B02"

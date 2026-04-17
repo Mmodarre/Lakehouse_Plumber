@@ -1,0 +1,38 @@
+pipeline: domain_j_gold
+flowgroup: inverter_summary_mv
+actions:
+  - name: inverter_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.inverter_fct
+    target: v_inverter_summary
+
+  - name: write_inverter_summary_mv
+    type: write
+    source: v_inverter_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "inverter_summary_mv"
+
+  - name: tst_inverter_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_inverter_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-inverter-G01"
+
+  - name: tst_inverter_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_inverter_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-inverter-G02"

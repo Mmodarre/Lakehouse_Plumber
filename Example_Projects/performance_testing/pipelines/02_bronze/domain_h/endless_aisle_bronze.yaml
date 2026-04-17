@@ -1,0 +1,64 @@
+pipeline: domain_h_bronze
+flowgroup: endless_aisle_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: endless_aisle_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: endless_aisle_raw
+    target: v_endless_aisle_raw
+    description: "Load endless_aisle from raw schema"
+
+  - name: endless_aisle_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_endless_aisle_raw
+    target: v_endless_aisle_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as endless_aisle_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_endless_aisle_raw
+      WHERE 1=1
+
+  - name: endless_aisle_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_endless_aisle_bronze_cleaned
+    target: v_endless_aisle_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to endless_aisle"
+
+  - name: write_endless_aisle_bronze
+    type: write
+    source: v_endless_aisle_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "endless_aisle"
+
+  - name: tst_endless_aisle_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_endless_aisle_bronze_cleaned
+    required_columns: [endless_aisle_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-endless_aisle-B01"
+
+  - name: tst_endless_aisle_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_endless_aisle_bronze_cleaned
+    columns: [endless_aisle_key]
+    on_violation: warn
+    test_id: "PERF-endless_aisle-B02"

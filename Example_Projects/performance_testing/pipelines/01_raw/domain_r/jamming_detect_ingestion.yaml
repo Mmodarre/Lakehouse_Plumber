@@ -1,0 +1,25 @@
+pipeline: domain_r_raw
+flowgroup: jamming_detect_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: jamming_detect_raw
+  landing_folder: jamming_detect
+  schema_file: orders_schema
+actions:
+  - name: tst_jamming_detect_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_jamming_detect_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-jamming_detect-R01"
+
+  - name: tst_jamming_detect_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_jamming_detect_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-jamming_detect-R02"

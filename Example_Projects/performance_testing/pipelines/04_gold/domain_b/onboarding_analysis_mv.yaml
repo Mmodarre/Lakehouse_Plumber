@@ -1,0 +1,38 @@
+pipeline: domain_b_gold
+flowgroup: onboarding_analysis_mv
+actions:
+  - name: onboarding_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.onboarding_dim
+    target: v_onboarding_analysis
+
+  - name: write_onboarding_analysis_mv
+    type: write
+    source: v_onboarding_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "onboarding_analysis_mv"
+
+  - name: tst_onboarding_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_onboarding_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-onboarding-G01"
+
+  - name: tst_onboarding_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_onboarding_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-onboarding-G02"

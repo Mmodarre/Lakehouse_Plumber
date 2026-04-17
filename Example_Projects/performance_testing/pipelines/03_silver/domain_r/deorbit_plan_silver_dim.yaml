@@ -1,0 +1,48 @@
+pipeline: domain_r_silver
+flowgroup: deorbit_plan_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: deorbit_plan_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: deorbit_plan
+    target: v_deorbit_plan_bronze
+    description: "Load deorbit_plan from bronze for silver layer"
+
+  - name: write_deorbit_plan_silver
+    type: write
+    source: v_deorbit_plan_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "deorbit_plan_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["deorbit_plan_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_deorbit_plan_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_deorbit_plan_bronze
+    required_columns: [deorbit_plan_key]
+    on_violation: warn
+    test_id: "PERF-deorbit_plan-S01"
+
+  - name: tst_deorbit_plan_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_deorbit_plan_bronze
+    columns: [deorbit_plan_key]
+    on_violation: warn
+    test_id: "PERF-deorbit_plan-S02"

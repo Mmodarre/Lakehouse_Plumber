@@ -1,0 +1,38 @@
+pipeline: domain_j_gold
+flowgroup: off_peak_summary_mv
+actions:
+  - name: off_peak_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.off_peak_dim
+    target: v_off_peak_summary
+
+  - name: write_off_peak_summary_mv
+    type: write
+    source: v_off_peak_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "off_peak_summary_mv"
+
+  - name: tst_off_peak_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_off_peak_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-off_peak-G01"
+
+  - name: tst_off_peak_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_off_peak_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-off_peak-G02"

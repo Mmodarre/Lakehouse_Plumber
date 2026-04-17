@@ -1,0 +1,101 @@
+pipeline: domain_n_bronze
+flowgroup: retro_date_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: retro_date_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: retro_date_raw
+    target: v_retro_date_raw
+    description: "Load retro_date from raw schema"
+
+  - name: retro_date_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_retro_date_raw
+    target: v_retro_date_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as retro_date_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_retro_date_raw
+
+  - name: retro_date_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_retro_date_bronze_cleaned
+    target: v_retro_date_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for retro_date bronze"
+
+  - name: write_retro_date_bronze
+    type: write
+    source: v_retro_date_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "retro_date"
+
+  - name: retro_date_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: retro_date_migration
+    target: v_retro_date_migration
+    description: "Load retro_date migration data"
+
+  - name: retro_date_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_retro_date_migration
+    target: v_retro_date_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as retro_date_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_retro_date_migration
+
+  - name: write_retro_date_migration
+    type: write
+    source: v_retro_date_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "retro_date"
+
+  - name: tst_retro_date_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_retro_date_bronze_cleaned
+    required_columns: [retro_date_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-retro_date-B01"
+
+  - name: tst_retro_date_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_retro_date_bronze_cleaned
+    columns: [retro_date_key]
+    on_violation: warn
+    test_id: "PERF-retro_date-B02"

@@ -1,0 +1,53 @@
+pipeline: domain_n_modelled
+flowgroup: facultative_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: facultative_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: facultative_fct
+    target: v_facultative_silver
+    description: "Load facultative from silver for modelling"
+
+  - name: facultative_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_facultative_silver
+    target: v_facultative_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_facultative_silver
+
+  - name: write_facultative_modelled
+    type: write
+    source: v_facultative_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "facultative_modelled"
+
+  - name: tst_facultative_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_facultative_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-facultative-M01"
+
+  - name: tst_facultative_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_facultative_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-facultative-M02"

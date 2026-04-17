@@ -1,0 +1,181 @@
+pipeline: domain_g_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: landlord_ingestion
+    template_parameters:
+      table_name: landlord_raw
+      landing_folder: landlord
+      schema_file: orders_schema
+    actions:
+      - name: tst_landlord_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_landlord_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-landlord-R01"
+      
+      - name: tst_landlord_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_landlord_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-landlord-R02"
+
+  - flowgroup: eviction_ingestion
+    template_parameters:
+      table_name: eviction_raw
+      landing_folder: eviction
+      schema_file: nation_schema
+    actions:
+      - name: tst_eviction_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_eviction_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-eviction-R01"
+      
+      - name: tst_eviction_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_eviction_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-eviction-R02"
+
+  - flowgroup: appraisal_ingestion
+    template_parameters:
+      table_name: appraisal_raw
+      landing_folder: appraisal
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_appraisal_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_appraisal_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-appraisal-R01"
+      
+      - name: tst_appraisal_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_appraisal_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-appraisal-R02"
+
+  - flowgroup: zoning_ingestion
+    template_parameters:
+      table_name: zoning_raw
+      landing_folder: zoning
+      schema_file: part_schema
+    actions:
+      - name: tst_zoning_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_zoning_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-zoning-R01"
+      
+      - name: tst_zoning_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_zoning_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-zoning-R02"
+
+  - flowgroup: lien_ingestion
+    template_parameters:
+      table_name: lien_raw
+      landing_folder: lien
+      schema_file: orders_schema
+    actions:
+      - name: tst_lien_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_lien_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-lien-R01"
+      
+      - name: tst_lien_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_lien_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-lien-R02"
+
+  - flowgroup: subdivision_ingestion
+    template_parameters:
+      table_name: subdivision_raw
+      landing_folder: subdivision
+      schema_file: product_schema
+    actions:
+      - name: tst_subdivision_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_subdivision_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-subdivision-R01"
+      
+      - name: tst_subdivision_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_subdivision_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-subdivision-R02"
+
+  - flowgroup: counteroffer_ingestion
+    template_parameters:
+      table_name: counteroffer_raw
+      landing_folder: counteroffer
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_counteroffer_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_counteroffer_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-counteroffer-R01"
+      
+      - name: tst_counteroffer_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_counteroffer_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-counteroffer-R02"
+
+  - flowgroup: roof_cert_ingestion
+    template_parameters:
+      table_name: roof_cert_raw
+      landing_folder: roof_cert
+      schema_file: part_schema
+    actions:
+      - name: tst_roof_cert_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_roof_cert_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-roof_cert-R01"
+      
+      - name: tst_roof_cert_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_roof_cert_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-roof_cert-R02"

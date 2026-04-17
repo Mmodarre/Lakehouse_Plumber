@@ -1,0 +1,47 @@
+pipeline: domain_t_raw
+flowgroup: session_musician_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_session_musician_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/session_musician/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_session_musician_cloudfiles
+    description: "Load session_musician from landing volume"
+
+  - name: write_session_musician_raw
+    type: write
+    source: v_session_musician_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "session_musician_raw"
+
+  - name: tst_session_musician_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_session_musician_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-session_musician-R01"
+
+  - name: tst_session_musician_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_session_musician_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-session_musician-R02"

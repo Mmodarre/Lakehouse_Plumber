@@ -1,0 +1,101 @@
+pipeline: domain_s_bronze
+flowgroup: tasting_room_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: tasting_room_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: tasting_room_raw
+    target: v_tasting_room_raw
+    description: "Load tasting_room from raw schema"
+
+  - name: tasting_room_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_tasting_room_raw
+    target: v_tasting_room_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as tasting_room_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_tasting_room_raw
+
+  - name: tasting_room_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_tasting_room_bronze_cleaned
+    target: v_tasting_room_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for tasting_room bronze"
+
+  - name: write_tasting_room_bronze
+    type: write
+    source: v_tasting_room_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "tasting_room"
+
+  - name: tasting_room_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: tasting_room_migration
+    target: v_tasting_room_migration
+    description: "Load tasting_room migration data"
+
+  - name: tasting_room_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tasting_room_migration
+    target: v_tasting_room_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as tasting_room_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_tasting_room_migration
+
+  - name: write_tasting_room_migration
+    type: write
+    source: v_tasting_room_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "tasting_room"
+
+  - name: tst_tasting_room_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_tasting_room_bronze_cleaned
+    required_columns: [tasting_room_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-tasting_room-B01"
+
+  - name: tst_tasting_room_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tasting_room_bronze_cleaned
+    columns: [tasting_room_key]
+    on_violation: warn
+    test_id: "PERF-tasting_room-B02"

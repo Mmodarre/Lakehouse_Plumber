@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: space_weather_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: space_weather_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: space_weather_fct
+    target: v_space_weather_silver
+    description: "Load space_weather from silver for modelling"
+
+  - name: space_weather_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_space_weather_silver
+    target: v_space_weather_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_space_weather_silver
+
+  - name: write_space_weather_modelled
+    type: write
+    source: v_space_weather_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "space_weather_modelled"
+
+  - name: tst_space_weather_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_space_weather_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-space_weather-M01"
+
+  - name: tst_space_weather_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_space_weather_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-space_weather-M02"

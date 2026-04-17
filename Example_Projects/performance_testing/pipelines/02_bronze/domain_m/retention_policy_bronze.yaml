@@ -1,0 +1,64 @@
+pipeline: domain_m_bronze
+flowgroup: retention_policy_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: retention_policy_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: retention_policy_raw
+    target: v_retention_policy_raw
+    description: "Load retention_policy from raw schema"
+
+  - name: retention_policy_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_retention_policy_raw
+    target: v_retention_policy_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as retention_policy_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_retention_policy_raw
+      WHERE 1=1
+
+  - name: retention_policy_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_retention_policy_bronze_cleaned
+    target: v_retention_policy_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to retention_policy"
+
+  - name: write_retention_policy_bronze
+    type: write
+    source: v_retention_policy_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "retention_policy"
+
+  - name: tst_retention_policy_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_retention_policy_bronze_cleaned
+    required_columns: [retention_policy_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-retention_policy-B01"
+
+  - name: tst_retention_policy_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_retention_policy_bronze_cleaned
+    columns: [retention_policy_key]
+    on_violation: warn
+    test_id: "PERF-retention_policy-B02"

@@ -1,0 +1,101 @@
+pipeline: domain_a_bronze
+flowgroup: catalog_entry_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: catalog_entry_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: catalog_entry_raw
+    target: v_catalog_entry_raw
+    description: "Load catalog_entry from raw schema"
+
+  - name: catalog_entry_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_catalog_entry_raw
+    target: v_catalog_entry_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as catalog_entry_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_catalog_entry_raw
+
+  - name: catalog_entry_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_catalog_entry_bronze_cleaned
+    target: v_catalog_entry_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for catalog_entry bronze"
+
+  - name: write_catalog_entry_bronze
+    type: write
+    source: v_catalog_entry_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "catalog_entry"
+
+  - name: catalog_entry_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: catalog_entry_migration
+    target: v_catalog_entry_migration
+    description: "Load catalog_entry migration data"
+
+  - name: catalog_entry_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_catalog_entry_migration
+    target: v_catalog_entry_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as catalog_entry_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_catalog_entry_migration
+
+  - name: write_catalog_entry_migration
+    type: write
+    source: v_catalog_entry_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "catalog_entry"
+
+  - name: tst_catalog_entry_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_catalog_entry_bronze_cleaned
+    required_columns: [catalog_entry_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-catalog_entry-B01"
+
+  - name: tst_catalog_entry_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_catalog_entry_bronze_cleaned
+    columns: [catalog_entry_key]
+    on_violation: warn
+    test_id: "PERF-catalog_entry-B02"

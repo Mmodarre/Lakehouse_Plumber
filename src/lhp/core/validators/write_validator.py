@@ -126,12 +126,14 @@ class WriteActionValidator(BaseActionValidator):
     def _validate_table_requirements(
         self, action: Action, prefix: str, target_type: str
     ) -> List[str]:
-        """Validate common table requirements (database, table/name)."""
+        """Validate common table requirements (catalog, schema, table)."""
         errors = []
-        # Must have database and table/name
-        if not action.write_target.get("database"):
-            errors.append(f"{prefix}: {target_type} must have 'database'")
-        if not action.write_target.get("table"):
+        wt = action.write_target
+        if not wt.get("catalog"):
+            errors.append(f"{prefix}: {target_type} must have 'catalog'")
+        if not wt.get("schema"):
+            errors.append(f"{prefix}: {target_type} must have 'schema'")
+        if not wt.get("table"):
             errors.append(f"{prefix}: {target_type} must have 'table'")
         return errors
 
@@ -146,10 +148,20 @@ class WriteActionValidator(BaseActionValidator):
                 errors.append(
                     f"{prefix}: Streaming table must have 'source' to read from"
                 )
-            # Validate source is string or list
             elif not isinstance(action.source, (str, list)):
                 errors.append(
                     f"{prefix}: Streaming table source must be a string or list of view names"
+                )
+            elif (
+                mode == "cdc"
+                and isinstance(action.source, list)
+                and len(action.source) > 1
+            ):
+                errors.append(
+                    f"{prefix}: CDC mode does not support multiple source views "
+                    f"in a single action. Define one write action per source, "
+                    f"each with compatible cdc_config, targeting the same "
+                    f"catalog.schema.table."
                 )
 
         return errors
@@ -242,6 +254,15 @@ class WriteActionValidator(BaseActionValidator):
             errors.append(
                 f"{prefix}: Delta sink options cannot have both 'tableName' and 'path'. Use one or the other."
             )
+
+        # Validate tableName is a 3-part name if present
+        if has_table_name:
+            table_name_val = options["tableName"]
+            if isinstance(table_name_val, str) and table_name_val.count(".") != 2:
+                errors.append(
+                    f"{prefix}: Delta sink 'tableName' must be a 3-part name "
+                    f"(catalog.schema.table), got '{table_name_val}'"
+                )
 
         # Note: Other options are allowed and passed through silently
         # for future DLT support (e.g., checkpointLocation, mergeSchema, etc.)

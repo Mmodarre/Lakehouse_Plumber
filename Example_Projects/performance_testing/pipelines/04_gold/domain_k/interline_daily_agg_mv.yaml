@@ -1,0 +1,40 @@
+pipeline: domain_k_gold
+flowgroup: interline_daily_agg_mv
+actions:
+  - name: interline_daily_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('day', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.interline_fct
+        GROUP BY 1
+    target: v_interline_daily_agg
+
+  - name: write_interline_daily_agg_mv
+    type: write
+    source: v_interline_daily_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "interline_daily_agg_mv"
+
+  - name: tst_interline_daily_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_interline_daily_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-interline-G01"
+
+  - name: tst_interline_daily_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_interline_daily_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-interline-G02"

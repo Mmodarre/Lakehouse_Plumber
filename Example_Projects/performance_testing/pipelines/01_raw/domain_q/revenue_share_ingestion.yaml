@@ -1,0 +1,25 @@
+pipeline: domain_q_raw
+flowgroup: revenue_share_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: revenue_share_raw
+  landing_folder: revenue_share
+  schema_file: product_schema
+actions:
+  - name: tst_revenue_share_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_revenue_share_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-revenue_share-R01"
+
+  - name: tst_revenue_share_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_revenue_share_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-revenue_share-R02"

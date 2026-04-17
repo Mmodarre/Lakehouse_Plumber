@@ -1,0 +1,38 @@
+pipeline: domain_h_gold
+flowgroup: stock_count_analysis_mv
+actions:
+  - name: stock_count_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.stock_count_dim
+    target: v_stock_count_analysis
+
+  - name: write_stock_count_analysis_mv
+    type: write
+    source: v_stock_count_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "stock_count_analysis_mv"
+
+  - name: tst_stock_count_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_stock_count_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-stock_count-G01"
+
+  - name: tst_stock_count_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_stock_count_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-stock_count-G02"

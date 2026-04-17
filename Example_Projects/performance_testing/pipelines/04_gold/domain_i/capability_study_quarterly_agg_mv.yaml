@@ -1,0 +1,40 @@
+pipeline: domain_i_gold
+flowgroup: capability_study_quarterly_agg_mv
+actions:
+  - name: capability_study_quarterly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('quarter', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.capability_study_fct
+        GROUP BY 1
+    target: v_capability_study_quarterly_agg
+
+  - name: write_capability_study_quarterly_agg_mv
+    type: write
+    source: v_capability_study_quarterly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "capability_study_quarterly_agg_mv"
+
+  - name: tst_capability_study_quarterly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_capability_study_quarterly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-capability_study-G01"
+
+  - name: tst_capability_study_quarterly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_capability_study_quarterly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-capability_study-G02"

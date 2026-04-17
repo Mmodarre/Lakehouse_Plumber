@@ -1,0 +1,38 @@
+pipeline: domain_s_gold
+flowgroup: aging_report_mv
+actions:
+  - name: aging_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.aging_dim
+    target: v_aging_report
+
+  - name: write_aging_report_mv
+    type: write
+    source: v_aging_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "aging_report_mv"
+
+  - name: tst_aging_report_completeness
+    type: test
+    test_type: completeness
+    source: v_aging_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-aging-G01"
+
+  - name: tst_aging_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_aging_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-aging-G02"

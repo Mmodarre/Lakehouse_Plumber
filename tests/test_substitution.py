@@ -3,6 +3,9 @@
 import pytest
 from pathlib import Path
 import tempfile
+from unittest.mock import patch
+
+from lhp.utils.error_formatter import LHPConfigError, LHPValidationError
 from lhp.utils.substitution import SecretReference, EnhancedSubstitutionManager
 
 
@@ -121,16 +124,6 @@ class TestUnresolvedTokenValidation:
         assert "missing_token" in errors[0]
         assert "config.path" in errors[0]
     
-    def test_validation_detects_map_lookup_unresolved(self):
-        """Detect unresolved map lookup like {map[key]}."""
-        mgr = EnhancedSubstitutionManager()
-        mgr.mappings = {"existing": "value"}
-        
-        data = {"path": "s3://bucket/{raw_paths[customers]}/data"}
-        errors = mgr.validate_no_unresolved_tokens(data)
-        
-        assert len(errors) == 1
-        assert "raw_paths[customers]" in errors[0]
     
     def test_validation_ignores_dbutils_expressions(self):
         """Don't flag dbutils.secrets.get() as unresolved."""
@@ -230,6 +223,32 @@ dev:
         
         assert len(errors) > 0
         assert "a" in errors[0] or "b" in errors[0]
+
+
+class TestSubstitutionErrorPaths:
+    """Test error paths in substitution processing."""
+
+    def test_secret_without_default_scope_raises_validation_error(self):
+        """Secret reference without scope or default_scope should raise LHPValidationError."""
+        mgr = EnhancedSubstitutionManager()
+
+        with pytest.raises(LHPValidationError) as exc_info:
+            mgr._process_string("${secret:my_key}")
+
+        assert exc_info.value.code == "LHP-CFG-008"
+
+    def test_corrupted_substitution_file_raises_config_error(self):
+        """Corrupted substitution file should raise LHPConfigError with code 020."""
+        mgr = EnhancedSubstitutionManager()
+
+        with patch(
+            "lhp.utils.yaml_loader.load_yaml_file",
+            side_effect=RuntimeError("file corrupted"),
+        ):
+            with pytest.raises(LHPConfigError) as exc_info:
+                mgr._load_config_from_file(Path("/fake/substitutions.yaml"), "dev")
+
+        assert exc_info.value.code == "LHP-CFG-020"
 
 
 if __name__ == "__main__":

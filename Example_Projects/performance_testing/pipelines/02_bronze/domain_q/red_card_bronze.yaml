@@ -1,0 +1,101 @@
+pipeline: domain_q_bronze
+flowgroup: red_card_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: red_card_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: red_card_raw
+    target: v_red_card_raw
+    description: "Load red_card from raw schema"
+
+  - name: red_card_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_red_card_raw
+    target: v_red_card_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as red_card_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_red_card_raw
+
+  - name: red_card_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_red_card_bronze_cleaned
+    target: v_red_card_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for red_card bronze"
+
+  - name: write_red_card_bronze
+    type: write
+    source: v_red_card_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "red_card"
+
+  - name: red_card_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: red_card_migration
+    target: v_red_card_migration
+    description: "Load red_card migration data"
+
+  - name: red_card_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_red_card_migration
+    target: v_red_card_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as red_card_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_red_card_migration
+
+  - name: write_red_card_migration
+    type: write
+    source: v_red_card_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "red_card"
+
+  - name: tst_red_card_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_red_card_bronze_cleaned
+    required_columns: [red_card_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-red_card-B01"
+
+  - name: tst_red_card_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_red_card_bronze_cleaned
+    columns: [red_card_key]
+    on_violation: warn
+    test_id: "PERF-red_card-B02"

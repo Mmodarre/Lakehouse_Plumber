@@ -1,0 +1,48 @@
+pipeline: domain_m_silver
+flowgroup: mqtt_topic_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: mqtt_topic_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: mqtt_topic
+    target: v_mqtt_topic_bronze
+    description: "Load mqtt_topic from bronze for silver layer"
+
+  - name: write_mqtt_topic_silver
+    type: write
+    source: v_mqtt_topic_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "mqtt_topic_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["mqtt_topic_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_mqtt_topic_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_mqtt_topic_bronze
+    required_columns: [mqtt_topic_key]
+    on_violation: warn
+    test_id: "PERF-mqtt_topic-S01"
+
+  - name: tst_mqtt_topic_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mqtt_topic_bronze
+    columns: [mqtt_topic_key]
+    on_violation: warn
+    test_id: "PERF-mqtt_topic-S02"

@@ -1,0 +1,47 @@
+pipeline: domain_k_raw
+flowgroup: cabin_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_cabin_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/cabin/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_cabin_cloudfiles
+    description: "Load cabin from landing volume"
+
+  - name: write_cabin_raw
+    type: write
+    source: v_cabin_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "cabin_raw"
+
+  - name: tst_cabin_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_cabin_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cabin-R01"
+
+  - name: tst_cabin_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cabin_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-cabin-R02"

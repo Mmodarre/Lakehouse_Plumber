@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: frequency_band_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: frequency_band_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: frequency_band_dim
+    target: v_frequency_band_silver
+    description: "Load frequency_band from silver for modelling"
+
+  - name: frequency_band_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_frequency_band_silver
+    target: v_frequency_band_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_frequency_band_silver
+
+  - name: write_frequency_band_modelled
+    type: write
+    source: v_frequency_band_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "frequency_band_modelled"
+
+  - name: tst_frequency_band_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_frequency_band_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-frequency_band-M01"
+
+  - name: tst_frequency_band_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_frequency_band_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-frequency_band-M02"

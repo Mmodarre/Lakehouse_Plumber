@@ -1,0 +1,1079 @@
+pipeline: domain_l_modelled
+flowgroup: prep_station_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: prep_station_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: prep_station_dim
+    target: v_prep_station_silver
+    description: "Load prep_station from silver for modelling"
+
+  - name: prep_station_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_prep_station_silver
+    target: v_prep_station_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_prep_station_silver
+
+  - name: write_prep_station_modelled
+    type: write
+    source: v_prep_station_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "prep_station_modelled"
+
+  - name: tst_prep_station_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_prep_station_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-prep_station-M01"
+
+  - name: tst_prep_station_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_prep_station_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-prep_station-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: walk_in_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: walk_in_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: walk_in_fct
+    target: v_walk_in_silver
+    description: "Load walk_in from silver for modelling"
+
+  - name: walk_in_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_walk_in_silver
+    target: v_walk_in_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_walk_in_silver
+
+  - name: write_walk_in_modelled
+    type: write
+    source: v_walk_in_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "walk_in_modelled"
+
+  - name: tst_walk_in_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_walk_in_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-walk_in-M01"
+
+  - name: tst_walk_in_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_walk_in_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-walk_in-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: cooler_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: cooler_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: cooler_dim
+    target: v_cooler_silver
+    description: "Load cooler from silver for modelling"
+
+  - name: cooler_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cooler_silver
+    target: v_cooler_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_cooler_silver
+
+  - name: write_cooler_modelled
+    type: write
+    source: v_cooler_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "cooler_modelled"
+
+  - name: tst_cooler_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_cooler_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-cooler-M01"
+
+  - name: tst_cooler_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cooler_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-cooler-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: freezer_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: freezer_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: freezer_dim
+    target: v_freezer_silver
+    description: "Load freezer from silver for modelling"
+
+  - name: freezer_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_freezer_silver
+    target: v_freezer_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_freezer_silver
+
+  - name: write_freezer_modelled
+    type: write
+    source: v_freezer_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "freezer_modelled"
+
+  - name: tst_freezer_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_freezer_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-freezer-M01"
+
+  - name: tst_freezer_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_freezer_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-freezer-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: dry_storage_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: dry_storage_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: dry_storage_fct
+    target: v_dry_storage_silver
+    description: "Load dry_storage from silver for modelling"
+
+  - name: dry_storage_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_dry_storage_silver
+    target: v_dry_storage_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_dry_storage_silver
+
+  - name: write_dry_storage_modelled
+    type: write
+    source: v_dry_storage_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "dry_storage_modelled"
+
+  - name: tst_dry_storage_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_dry_storage_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-dry_storage-M01"
+
+  - name: tst_dry_storage_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dry_storage_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-dry_storage-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: portion_control_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: portion_control_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: portion_control_dim
+    target: v_portion_control_silver
+    description: "Load portion_control from silver for modelling"
+
+  - name: portion_control_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_portion_control_silver
+    target: v_portion_control_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_portion_control_silver
+
+  - name: write_portion_control_modelled
+    type: write
+    source: v_portion_control_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "portion_control_modelled"
+
+  - name: tst_portion_control_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_portion_control_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-portion_control-M01"
+
+  - name: tst_portion_control_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_portion_control_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-portion_control-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: food_cost_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: food_cost_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: food_cost_dim
+    target: v_food_cost_silver
+    description: "Load food_cost from silver for modelling"
+
+  - name: food_cost_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_food_cost_silver
+    target: v_food_cost_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_food_cost_silver
+
+  - name: write_food_cost_modelled
+    type: write
+    source: v_food_cost_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "food_cost_modelled"
+
+  - name: tst_food_cost_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_food_cost_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-food_cost-M01"
+
+  - name: tst_food_cost_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_food_cost_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-food_cost-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: waste_log_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: waste_log_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: waste_log_fct
+    target: v_waste_log_silver
+    description: "Load waste_log from silver for modelling"
+
+  - name: waste_log_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_waste_log_silver
+    target: v_waste_log_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_waste_log_silver
+
+  - name: write_waste_log_modelled
+    type: write
+    source: v_waste_log_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "waste_log_modelled"
+
+  - name: tst_waste_log_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_waste_log_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-waste_log-M01"
+
+  - name: tst_waste_log_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_waste_log_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-waste_log-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: allergen_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: allergen_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: allergen_dim
+    target: v_allergen_silver
+    description: "Load allergen from silver for modelling"
+
+  - name: allergen_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_allergen_silver
+    target: v_allergen_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_allergen_silver
+
+  - name: write_allergen_modelled
+    type: write
+    source: v_allergen_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "allergen_modelled"
+
+  - name: tst_allergen_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_allergen_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-allergen-M01"
+
+  - name: tst_allergen_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_allergen_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-allergen-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: nutritional_info_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: nutritional_info_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: nutritional_info_dim
+    target: v_nutritional_info_silver
+    description: "Load nutritional_info from silver for modelling"
+
+  - name: nutritional_info_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_nutritional_info_silver
+    target: v_nutritional_info_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_nutritional_info_silver
+
+  - name: write_nutritional_info_modelled
+    type: write
+    source: v_nutritional_info_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "nutritional_info_modelled"
+
+  - name: tst_nutritional_info_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_nutritional_info_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-nutritional_info-M01"
+
+  - name: tst_nutritional_info_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_nutritional_info_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-nutritional_info-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: happy_hour_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: happy_hour_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: happy_hour_fct
+    target: v_happy_hour_silver
+    description: "Load happy_hour from silver for modelling"
+
+  - name: happy_hour_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_happy_hour_silver
+    target: v_happy_hour_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_happy_hour_silver
+
+  - name: write_happy_hour_modelled
+    type: write
+    source: v_happy_hour_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "happy_hour_modelled"
+
+  - name: tst_happy_hour_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_happy_hour_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-happy_hour-M01"
+
+  - name: tst_happy_hour_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_happy_hour_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-happy_hour-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: catering_event_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: catering_event_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: catering_event_dim
+    target: v_catering_event_silver
+    description: "Load catering_event from silver for modelling"
+
+  - name: catering_event_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_catering_event_silver
+    target: v_catering_event_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_catering_event_silver
+
+  - name: write_catering_event_modelled
+    type: write
+    source: v_catering_event_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "catering_event_modelled"
+
+  - name: tst_catering_event_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_catering_event_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-catering_event-M01"
+
+  - name: tst_catering_event_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_catering_event_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-catering_event-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: takeout_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: takeout_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: takeout_dim
+    target: v_takeout_silver
+    description: "Load takeout from silver for modelling"
+
+  - name: takeout_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_takeout_silver
+    target: v_takeout_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_takeout_silver
+
+  - name: write_takeout_modelled
+    type: write
+    source: v_takeout_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "takeout_modelled"
+
+  - name: tst_takeout_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_takeout_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-takeout-M01"
+
+  - name: tst_takeout_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_takeout_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-takeout-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: delivery_partner_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: delivery_partner_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: delivery_partner_fct
+    target: v_delivery_partner_silver
+    description: "Load delivery_partner from silver for modelling"
+
+  - name: delivery_partner_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_delivery_partner_silver
+    target: v_delivery_partner_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_delivery_partner_silver
+
+  - name: write_delivery_partner_modelled
+    type: write
+    source: v_delivery_partner_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "delivery_partner_modelled"
+
+  - name: tst_delivery_partner_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_delivery_partner_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-delivery_partner-M01"
+
+  - name: tst_delivery_partner_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_delivery_partner_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-delivery_partner-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: online_order_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: online_order_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: online_order_dim
+    target: v_online_order_silver
+    description: "Load online_order from silver for modelling"
+
+  - name: online_order_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_online_order_silver
+    target: v_online_order_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_online_order_silver
+
+  - name: write_online_order_modelled
+    type: write
+    source: v_online_order_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "online_order_modelled"
+
+  - name: tst_online_order_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_online_order_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-online_order-M01"
+
+  - name: tst_online_order_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_online_order_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-online_order-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: table_turn_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: table_turn_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: table_turn_dim
+    target: v_table_turn_silver
+    description: "Load table_turn from silver for modelling"
+
+  - name: table_turn_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_table_turn_silver
+    target: v_table_turn_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_table_turn_silver
+
+  - name: write_table_turn_modelled
+    type: write
+    source: v_table_turn_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "table_turn_modelled"
+
+  - name: tst_table_turn_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_table_turn_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-table_turn-M01"
+
+  - name: tst_table_turn_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_table_turn_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-table_turn-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: wait_time_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: wait_time_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: wait_time_fct
+    target: v_wait_time_silver
+    description: "Load wait_time from silver for modelling"
+
+  - name: wait_time_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_wait_time_silver
+    target: v_wait_time_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_wait_time_silver
+
+  - name: write_wait_time_modelled
+    type: write
+    source: v_wait_time_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "wait_time_modelled"
+
+  - name: tst_wait_time_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_wait_time_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-wait_time-M01"
+
+  - name: tst_wait_time_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wait_time_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-wait_time-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: host_stand_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: host_stand_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: host_stand_dim
+    target: v_host_stand_silver
+    description: "Load host_stand from silver for modelling"
+
+  - name: host_stand_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_host_stand_silver
+    target: v_host_stand_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_host_stand_silver
+
+  - name: write_host_stand_modelled
+    type: write
+    source: v_host_stand_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "host_stand_modelled"
+
+  - name: tst_host_stand_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_host_stand_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-host_stand-M01"
+
+  - name: tst_host_stand_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_host_stand_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-host_stand-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: patio_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: patio_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: patio_dim
+    target: v_patio_silver
+    description: "Load patio from silver for modelling"
+
+  - name: patio_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_patio_silver
+    target: v_patio_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_patio_silver
+
+  - name: write_patio_modelled
+    type: write
+    source: v_patio_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "patio_modelled"
+
+  - name: tst_patio_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_patio_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-patio-M01"
+
+  - name: tst_patio_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_patio_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-patio-M02"
+---
+pipeline: domain_l_modelled
+flowgroup: private_dining_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: private_dining_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: private_dining_fct
+    target: v_private_dining_silver
+    description: "Load private_dining from silver for modelling"
+
+  - name: private_dining_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_private_dining_silver
+    target: v_private_dining_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_private_dining_silver
+
+  - name: write_private_dining_modelled
+    type: write
+    source: v_private_dining_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "private_dining_modelled"
+
+  - name: tst_private_dining_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_private_dining_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-private_dining-M01"
+
+  - name: tst_private_dining_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_private_dining_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-private_dining-M02"

@@ -1,0 +1,38 @@
+pipeline: domain_a_gold
+flowgroup: supplier_dashboard_mv
+actions:
+  - name: supplier_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.supplier_fct
+    target: v_supplier_dashboard
+
+  - name: write_supplier_dashboard_mv
+    type: write
+    source: v_supplier_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "supplier_dashboard_mv"
+
+  - name: tst_supplier_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_supplier_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-supplier-G01"
+
+  - name: tst_supplier_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_supplier_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-supplier-G02"

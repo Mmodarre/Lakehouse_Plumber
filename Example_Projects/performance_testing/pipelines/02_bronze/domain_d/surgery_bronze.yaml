@@ -1,0 +1,64 @@
+pipeline: domain_d_bronze
+flowgroup: surgery_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: surgery_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: surgery_raw
+    target: v_surgery_raw
+    description: "Load surgery from raw schema"
+
+  - name: surgery_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_surgery_raw
+    target: v_surgery_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as surgery_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_surgery_raw
+      WHERE 1=1
+
+  - name: surgery_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_surgery_bronze_cleaned
+    target: v_surgery_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to surgery"
+
+  - name: write_surgery_bronze
+    type: write
+    source: v_surgery_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "surgery"
+
+  - name: tst_surgery_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_surgery_bronze_cleaned
+    required_columns: [surgery_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-surgery-B01"
+
+  - name: tst_surgery_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_surgery_bronze_cleaned
+    columns: [surgery_key]
+    on_violation: warn
+    test_id: "PERF-surgery-B02"

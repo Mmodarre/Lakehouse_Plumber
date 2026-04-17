@@ -1,0 +1,101 @@
+pipeline: domain_t_bronze
+flowgroup: viral_moment_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: viral_moment_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: viral_moment_raw
+    target: v_viral_moment_raw
+    description: "Load viral_moment from raw schema"
+
+  - name: viral_moment_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_viral_moment_raw
+    target: v_viral_moment_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as viral_moment_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_viral_moment_raw
+
+  - name: viral_moment_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_viral_moment_bronze_cleaned
+    target: v_viral_moment_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for viral_moment bronze"
+
+  - name: write_viral_moment_bronze
+    type: write
+    source: v_viral_moment_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "viral_moment"
+
+  - name: viral_moment_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: viral_moment_migration
+    target: v_viral_moment_migration
+    description: "Load viral_moment migration data"
+
+  - name: viral_moment_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_viral_moment_migration
+    target: v_viral_moment_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as viral_moment_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_viral_moment_migration
+
+  - name: write_viral_moment_migration
+    type: write
+    source: v_viral_moment_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "viral_moment"
+
+  - name: tst_viral_moment_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_viral_moment_bronze_cleaned
+    required_columns: [viral_moment_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-viral_moment-B01"
+
+  - name: tst_viral_moment_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_viral_moment_bronze_cleaned
+    columns: [viral_moment_key]
+    on_violation: warn
+    test_id: "PERF-viral_moment-B02"

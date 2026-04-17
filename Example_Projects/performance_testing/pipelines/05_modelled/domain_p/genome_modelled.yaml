@@ -1,0 +1,53 @@
+pipeline: domain_p_modelled
+flowgroup: genome_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: genome_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: genome_fct
+    target: v_genome_silver
+    description: "Load genome from silver for modelling"
+
+  - name: genome_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_genome_silver
+    target: v_genome_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_genome_silver
+
+  - name: write_genome_modelled
+    type: write
+    source: v_genome_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "genome_modelled"
+
+  - name: tst_genome_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_genome_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-genome-M01"
+
+  - name: tst_genome_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_genome_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-genome-M02"

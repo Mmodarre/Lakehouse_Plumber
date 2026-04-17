@@ -1,0 +1,47 @@
+pipeline: domain_e_raw
+flowgroup: route_optimization_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_route_optimization_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/route_optimization/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_route_optimization_cloudfiles
+    description: "Load route_optimization from landing volume"
+
+  - name: write_route_optimization_raw
+    type: write
+    source: v_route_optimization_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "route_optimization_raw"
+
+  - name: tst_route_optimization_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_route_optimization_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-route_optimization-R01"
+
+  - name: tst_route_optimization_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_route_optimization_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-route_optimization-R02"

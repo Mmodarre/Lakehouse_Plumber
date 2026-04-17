@@ -78,10 +78,11 @@ dp.create_streaming_table(
     },
 )
 
-# CDC mode using auto_cdc
+# CDC flow: f_customer_dim_scd2
 dp.create_auto_cdc_flow(
     target="acme_edw_dev.edw_silver.dim_sfcc_cust",
     source="v_customer_standardized",
+    name="f_customer_dim_scd2",
     keys=["customer_id"],
     sequence_by="last_update_dttm",
     stored_as_scd_type=2,
@@ -92,5 +93,4 @@ dp.create_auto_cdc_flow(
         "updated_at",
         "last_update_dttm",
     ],
-    ignore_null_updates=False,
 )

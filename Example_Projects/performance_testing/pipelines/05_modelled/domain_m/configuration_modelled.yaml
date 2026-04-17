@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: configuration_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: configuration_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: configuration_dim
+    target: v_configuration_silver
+    description: "Load configuration from silver for modelling"
+
+  - name: configuration_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_configuration_silver
+    target: v_configuration_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_configuration_silver
+
+  - name: write_configuration_modelled
+    type: write
+    source: v_configuration_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "configuration_modelled"
+
+  - name: tst_configuration_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_configuration_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-configuration-M01"
+
+  - name: tst_configuration_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_configuration_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-configuration-M02"

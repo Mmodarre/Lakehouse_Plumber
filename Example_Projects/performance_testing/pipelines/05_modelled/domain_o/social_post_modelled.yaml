@@ -1,0 +1,53 @@
+pipeline: domain_o_modelled
+flowgroup: social_post_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: social_post_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: social_post_dim
+    target: v_social_post_silver
+    description: "Load social_post from silver for modelling"
+
+  - name: social_post_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_social_post_silver
+    target: v_social_post_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_social_post_silver
+
+  - name: write_social_post_modelled
+    type: write
+    source: v_social_post_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "social_post_modelled"
+
+  - name: tst_social_post_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_social_post_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-social_post-M01"
+
+  - name: tst_social_post_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_social_post_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-social_post-M02"

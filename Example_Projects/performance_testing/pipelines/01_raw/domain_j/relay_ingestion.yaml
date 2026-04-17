@@ -1,0 +1,25 @@
+pipeline: domain_j_raw
+flowgroup: relay_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: relay_raw
+  landing_folder: relay
+  schema_file: nation_schema
+actions:
+  - name: tst_relay_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_relay_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-relay-R01"
+
+  - name: tst_relay_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_relay_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-relay-R02"

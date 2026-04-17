@@ -1,0 +1,47 @@
+pipeline: domain_s_raw
+flowgroup: grape_variety_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_grape_variety_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/grape_variety/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_grape_variety_cloudfiles
+    description: "Load grape_variety from landing volume"
+
+  - name: write_grape_variety_raw
+    type: write
+    source: v_grape_variety_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "grape_variety_raw"
+
+  - name: tst_grape_variety_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_grape_variety_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-grape_variety-R01"
+
+  - name: tst_grape_variety_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_grape_variety_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-grape_variety-R02"

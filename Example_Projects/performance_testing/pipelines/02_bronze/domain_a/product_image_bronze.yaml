@@ -1,0 +1,64 @@
+pipeline: domain_a_bronze
+flowgroup: product_image_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: product_image_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: product_image_raw
+    target: v_product_image_raw
+    description: "Load product_image from raw schema"
+
+  - name: product_image_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_product_image_raw
+    target: v_product_image_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as product_image_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_product_image_raw
+      WHERE 1=1
+
+  - name: product_image_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_product_image_bronze_cleaned
+    target: v_product_image_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to product_image"
+
+  - name: write_product_image_bronze
+    type: write
+    source: v_product_image_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "product_image"
+
+  - name: tst_product_image_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_product_image_bronze_cleaned
+    required_columns: [product_image_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-product_image-B01"
+
+  - name: tst_product_image_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_product_image_bronze_cleaned
+    columns: [product_image_key]
+    on_violation: warn
+    test_id: "PERF-product_image-B02"

@@ -1,0 +1,38 @@
+pipeline: domain_a_gold
+flowgroup: coupon_summary_mv
+actions:
+  - name: coupon_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.coupon_dim
+    target: v_coupon_summary
+
+  - name: write_coupon_summary_mv
+    type: write
+    source: v_coupon_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "coupon_summary_mv"
+
+  - name: tst_coupon_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_coupon_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-coupon-G01"
+
+  - name: tst_coupon_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_coupon_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-coupon-G02"

@@ -1,0 +1,64 @@
+pipeline: domain_b_bronze
+flowgroup: workspace_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: workspace_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: workspace_raw
+    target: v_workspace_raw
+    description: "Load workspace from raw schema"
+
+  - name: workspace_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_workspace_raw
+    target: v_workspace_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as workspace_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_workspace_raw
+      WHERE 1=1
+
+  - name: workspace_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_workspace_bronze_cleaned
+    target: v_workspace_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to workspace"
+
+  - name: write_workspace_bronze
+    type: write
+    source: v_workspace_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "workspace"
+
+  - name: tst_workspace_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_workspace_bronze_cleaned
+    required_columns: [workspace_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-workspace-B01"
+
+  - name: tst_workspace_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_workspace_bronze_cleaned
+    columns: [workspace_key]
+    on_violation: warn
+    test_id: "PERF-workspace-B02"

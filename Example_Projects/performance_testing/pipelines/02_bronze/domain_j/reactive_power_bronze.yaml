@@ -1,0 +1,64 @@
+pipeline: domain_j_bronze
+flowgroup: reactive_power_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: reactive_power_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: reactive_power_raw
+    target: v_reactive_power_raw
+    description: "Load reactive_power from raw schema"
+
+  - name: reactive_power_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_reactive_power_raw
+    target: v_reactive_power_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as reactive_power_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_reactive_power_raw
+      WHERE 1=1
+
+  - name: reactive_power_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_reactive_power_bronze_cleaned
+    target: v_reactive_power_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to reactive_power"
+
+  - name: write_reactive_power_bronze
+    type: write
+    source: v_reactive_power_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "reactive_power"
+
+  - name: tst_reactive_power_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_reactive_power_bronze_cleaned
+    required_columns: [reactive_power_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-reactive_power-B01"
+
+  - name: tst_reactive_power_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reactive_power_bronze_cleaned
+    columns: [reactive_power_key]
+    on_violation: warn
+    test_id: "PERF-reactive_power-B02"

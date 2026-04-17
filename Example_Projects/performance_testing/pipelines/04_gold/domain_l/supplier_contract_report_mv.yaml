@@ -1,0 +1,38 @@
+pipeline: domain_l_gold
+flowgroup: supplier_contract_report_mv
+actions:
+  - name: supplier_contract_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.supplier_contract_dim
+    target: v_supplier_contract_report
+
+  - name: write_supplier_contract_report_mv
+    type: write
+    source: v_supplier_contract_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "supplier_contract_report_mv"
+
+  - name: tst_supplier_contract_report_completeness
+    type: test
+    test_type: completeness
+    source: v_supplier_contract_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-supplier_contract-G01"
+
+  - name: tst_supplier_contract_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_supplier_contract_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-supplier_contract-G02"

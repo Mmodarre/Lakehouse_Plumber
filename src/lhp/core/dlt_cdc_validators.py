@@ -69,13 +69,11 @@ class DltTableOptionsValidator:
         errors = []
 
         # Validate schema
-        schema = action.write_target.get("table_schema") or action.write_target.get(
-            "schema"
-        )
+        schema = action.write_target.get("table_schema")
         if schema is not None:
             if not isinstance(schema, str):
                 errors.append(
-                    f"{prefix}: 'table_schema' (or 'schema') must be a string (SQL DDL or StructType)"
+                    f"{prefix}: 'table_schema' must be a string (SQL DDL or StructType)"
                 )
 
         # Validate row_filter
@@ -384,6 +382,14 @@ class SnapshotCdcConfigValidator:
                 if not source_function.get("function"):
                     errors.append(f"{prefix}: source_function must have 'function'")
 
+                # Validate parameters if provided
+                params = source_function.get("parameters")
+                if params is not None:
+                    if not isinstance(params, dict):
+                        errors.append(
+                            f"{prefix}: source_function 'parameters' must be a dictionary"
+                        )
+
         return errors
 
     def _validate_keys_configuration(
@@ -473,9 +479,7 @@ class CdcSchemaValidator:
         if not action.write_target:
             return errors
 
-        schema = action.write_target.get("table_schema") or action.write_target.get(
-            "schema"
-        )
+        schema = action.write_target.get("table_schema")
         if not schema:
             return errors
 

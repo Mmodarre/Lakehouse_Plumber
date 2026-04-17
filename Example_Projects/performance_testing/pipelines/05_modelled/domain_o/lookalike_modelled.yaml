@@ -1,0 +1,53 @@
+pipeline: domain_o_modelled
+flowgroup: lookalike_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: lookalike_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: lookalike_fct
+    target: v_lookalike_silver
+    description: "Load lookalike from silver for modelling"
+
+  - name: lookalike_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_lookalike_silver
+    target: v_lookalike_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_lookalike_silver
+
+  - name: write_lookalike_modelled
+    type: write
+    source: v_lookalike_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "lookalike_modelled"
+
+  - name: tst_lookalike_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_lookalike_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-lookalike-M01"
+
+  - name: tst_lookalike_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lookalike_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-lookalike-M02"

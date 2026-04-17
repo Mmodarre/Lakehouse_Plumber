@@ -1,0 +1,25 @@
+pipeline: domain_k_raw
+flowgroup: boarding_pass_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: boarding_pass_raw
+  landing_folder: boarding_pass
+  schema_file: customer_schema
+actions:
+  - name: tst_boarding_pass_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_boarding_pass_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-boarding_pass-R01"
+
+  - name: tst_boarding_pass_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_boarding_pass_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-boarding_pass-R02"

@@ -1,0 +1,53 @@
+pipeline: domain_n_modelled
+flowgroup: agent_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: agent_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: agent_fct
+    target: v_agent_silver
+    description: "Load agent from silver for modelling"
+
+  - name: agent_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_agent_silver
+    target: v_agent_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_agent_silver
+
+  - name: write_agent_modelled
+    type: write
+    source: v_agent_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "agent_modelled"
+
+  - name: tst_agent_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_agent_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-agent-M01"
+
+  - name: tst_agent_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_agent_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-agent-M02"

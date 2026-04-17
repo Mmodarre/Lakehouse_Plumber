@@ -1,0 +1,1079 @@
+pipeline: domain_d_modelled
+flowgroup: nursing_note_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: nursing_note_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: nursing_note_dim
+    target: v_nursing_note_silver
+    description: "Load nursing_note from silver for modelling"
+
+  - name: nursing_note_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_nursing_note_silver
+    target: v_nursing_note_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_nursing_note_silver
+
+  - name: write_nursing_note_modelled
+    type: write
+    source: v_nursing_note_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "nursing_note_modelled"
+
+  - name: tst_nursing_note_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_nursing_note_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-nursing_note-M01"
+
+  - name: tst_nursing_note_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_nursing_note_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-nursing_note-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: radiology_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: radiology_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: radiology_fct
+    target: v_radiology_silver
+    description: "Load radiology from silver for modelling"
+
+  - name: radiology_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_radiology_silver
+    target: v_radiology_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_radiology_silver
+
+  - name: write_radiology_modelled
+    type: write
+    source: v_radiology_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "radiology_modelled"
+
+  - name: tst_radiology_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_radiology_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-radiology-M01"
+
+  - name: tst_radiology_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_radiology_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-radiology-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: pathology_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: pathology_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: pathology_dim
+    target: v_pathology_silver
+    description: "Load pathology from silver for modelling"
+
+  - name: pathology_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pathology_silver
+    target: v_pathology_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_pathology_silver
+
+  - name: write_pathology_modelled
+    type: write
+    source: v_pathology_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "pathology_modelled"
+
+  - name: tst_pathology_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_pathology_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-pathology-M01"
+
+  - name: tst_pathology_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pathology_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-pathology-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: pharmacy_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: pharmacy_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: pharmacy_dim
+    target: v_pharmacy_silver
+    description: "Load pharmacy from silver for modelling"
+
+  - name: pharmacy_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_pharmacy_silver
+    target: v_pharmacy_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_pharmacy_silver
+
+  - name: write_pharmacy_modelled
+    type: write
+    source: v_pharmacy_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "pharmacy_modelled"
+
+  - name: tst_pharmacy_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_pharmacy_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-pharmacy-M01"
+
+  - name: tst_pharmacy_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pharmacy_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-pharmacy-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: blood_bank_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: blood_bank_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: blood_bank_fct
+    target: v_blood_bank_silver
+    description: "Load blood_bank from silver for modelling"
+
+  - name: blood_bank_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_blood_bank_silver
+    target: v_blood_bank_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_blood_bank_silver
+
+  - name: write_blood_bank_modelled
+    type: write
+    source: v_blood_bank_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "blood_bank_modelled"
+
+  - name: tst_blood_bank_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_blood_bank_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-blood_bank-M01"
+
+  - name: tst_blood_bank_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_blood_bank_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-blood_bank-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: surgery_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: surgery_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: surgery_dim
+    target: v_surgery_silver
+    description: "Load surgery from silver for modelling"
+
+  - name: surgery_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_surgery_silver
+    target: v_surgery_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_surgery_silver
+
+  - name: write_surgery_modelled
+    type: write
+    source: v_surgery_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "surgery_modelled"
+
+  - name: tst_surgery_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_surgery_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-surgery-M01"
+
+  - name: tst_surgery_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_surgery_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-surgery-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: anesthesia_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: anesthesia_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: anesthesia_dim
+    target: v_anesthesia_silver
+    description: "Load anesthesia from silver for modelling"
+
+  - name: anesthesia_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_anesthesia_silver
+    target: v_anesthesia_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_anesthesia_silver
+
+  - name: write_anesthesia_modelled
+    type: write
+    source: v_anesthesia_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "anesthesia_modelled"
+
+  - name: tst_anesthesia_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_anesthesia_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-anesthesia-M01"
+
+  - name: tst_anesthesia_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_anesthesia_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-anesthesia-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: recovery_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: recovery_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: recovery_fct
+    target: v_recovery_silver
+    description: "Load recovery from silver for modelling"
+
+  - name: recovery_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_recovery_silver
+    target: v_recovery_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_recovery_silver
+
+  - name: write_recovery_modelled
+    type: write
+    source: v_recovery_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "recovery_modelled"
+
+  - name: tst_recovery_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_recovery_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-recovery-M01"
+
+  - name: tst_recovery_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_recovery_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-recovery-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: rehab_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: rehab_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: rehab_dim
+    target: v_rehab_silver
+    description: "Load rehab from silver for modelling"
+
+  - name: rehab_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_rehab_silver
+    target: v_rehab_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_rehab_silver
+
+  - name: write_rehab_modelled
+    type: write
+    source: v_rehab_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "rehab_modelled"
+
+  - name: tst_rehab_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_rehab_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-rehab-M01"
+
+  - name: tst_rehab_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_rehab_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-rehab-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: outpatient_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: outpatient_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: outpatient_dim
+    target: v_outpatient_silver
+    description: "Load outpatient from silver for modelling"
+
+  - name: outpatient_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_outpatient_silver
+    target: v_outpatient_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_outpatient_silver
+
+  - name: write_outpatient_modelled
+    type: write
+    source: v_outpatient_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "outpatient_modelled"
+
+  - name: tst_outpatient_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_outpatient_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-outpatient-M01"
+
+  - name: tst_outpatient_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_outpatient_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-outpatient-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: emergency_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: emergency_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: emergency_fct
+    target: v_emergency_silver
+    description: "Load emergency from silver for modelling"
+
+  - name: emergency_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_emergency_silver
+    target: v_emergency_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_emergency_silver
+
+  - name: write_emergency_modelled
+    type: write
+    source: v_emergency_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "emergency_modelled"
+
+  - name: tst_emergency_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_emergency_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-emergency-M01"
+
+  - name: tst_emergency_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_emergency_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-emergency-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: triage_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: triage_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: triage_dim
+    target: v_triage_silver
+    description: "Load triage from silver for modelling"
+
+  - name: triage_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_triage_silver
+    target: v_triage_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_triage_silver
+
+  - name: write_triage_modelled
+    type: write
+    source: v_triage_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "triage_modelled"
+
+  - name: tst_triage_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_triage_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-triage-M01"
+
+  - name: tst_triage_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_triage_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-triage-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: bed_assignment_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: bed_assignment_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: bed_assignment_dim
+    target: v_bed_assignment_silver
+    description: "Load bed_assignment from silver for modelling"
+
+  - name: bed_assignment_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_bed_assignment_silver
+    target: v_bed_assignment_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_bed_assignment_silver
+
+  - name: write_bed_assignment_modelled
+    type: write
+    source: v_bed_assignment_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "bed_assignment_modelled"
+
+  - name: tst_bed_assignment_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_bed_assignment_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-bed_assignment-M01"
+
+  - name: tst_bed_assignment_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bed_assignment_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-bed_assignment-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: diet_plan_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: diet_plan_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: diet_plan_fct
+    target: v_diet_plan_silver
+    description: "Load diet_plan from silver for modelling"
+
+  - name: diet_plan_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_diet_plan_silver
+    target: v_diet_plan_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_diet_plan_silver
+
+  - name: write_diet_plan_modelled
+    type: write
+    source: v_diet_plan_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "diet_plan_modelled"
+
+  - name: tst_diet_plan_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_diet_plan_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-diet_plan-M01"
+
+  - name: tst_diet_plan_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_diet_plan_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-diet_plan-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: consent_form_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: consent_form_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: consent_form_dim
+    target: v_consent_form_silver
+    description: "Load consent_form from silver for modelling"
+
+  - name: consent_form_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_consent_form_silver
+    target: v_consent_form_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_consent_form_silver
+
+  - name: write_consent_form_modelled
+    type: write
+    source: v_consent_form_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "consent_form_modelled"
+
+  - name: tst_consent_form_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_consent_form_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-consent_form-M01"
+
+  - name: tst_consent_form_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_consent_form_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-consent_form-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: care_plan_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: care_plan_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: care_plan_dim
+    target: v_care_plan_silver
+    description: "Load care_plan from silver for modelling"
+
+  - name: care_plan_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_care_plan_silver
+    target: v_care_plan_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_care_plan_silver
+
+  - name: write_care_plan_modelled
+    type: write
+    source: v_care_plan_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "care_plan_modelled"
+
+  - name: tst_care_plan_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_care_plan_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-care_plan-M01"
+
+  - name: tst_care_plan_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_care_plan_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-care_plan-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: case_manager_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: case_manager_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: case_manager_fct
+    target: v_case_manager_silver
+    description: "Load case_manager from silver for modelling"
+
+  - name: case_manager_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_case_manager_silver
+    target: v_case_manager_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_case_manager_silver
+
+  - name: write_case_manager_modelled
+    type: write
+    source: v_case_manager_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "case_manager_modelled"
+
+  - name: tst_case_manager_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_case_manager_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-case_manager-M01"
+
+  - name: tst_case_manager_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_case_manager_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-case_manager-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: home_care_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: home_care_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: home_care_dim
+    target: v_home_care_silver
+    description: "Load home_care from silver for modelling"
+
+  - name: home_care_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_home_care_silver
+    target: v_home_care_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_home_care_silver
+
+  - name: write_home_care_modelled
+    type: write
+    source: v_home_care_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "home_care_modelled"
+
+  - name: tst_home_care_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_home_care_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-home_care-M01"
+
+  - name: tst_home_care_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_home_care_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-home_care-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: telemedicine_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: telemedicine_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: telemedicine_dim
+    target: v_telemedicine_silver
+    description: "Load telemedicine from silver for modelling"
+
+  - name: telemedicine_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_telemedicine_silver
+    target: v_telemedicine_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_telemedicine_silver
+
+  - name: write_telemedicine_modelled
+    type: write
+    source: v_telemedicine_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "telemedicine_modelled"
+
+  - name: tst_telemedicine_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_telemedicine_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-telemedicine-M01"
+
+  - name: tst_telemedicine_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_telemedicine_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-telemedicine-M02"
+---
+pipeline: domain_d_modelled
+flowgroup: wearable_data_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: wearable_data_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: wearable_data_fct
+    target: v_wearable_data_silver
+    description: "Load wearable_data from silver for modelling"
+
+  - name: wearable_data_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_wearable_data_silver
+    target: v_wearable_data_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_wearable_data_silver
+
+  - name: write_wearable_data_modelled
+    type: write
+    source: v_wearable_data_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "wearable_data_modelled"
+
+  - name: tst_wearable_data_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_wearable_data_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-wearable_data-M01"
+
+  - name: tst_wearable_data_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wearable_data_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-wearable_data-M02"

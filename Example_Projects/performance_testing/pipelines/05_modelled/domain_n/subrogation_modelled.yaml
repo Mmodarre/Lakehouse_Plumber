@@ -1,0 +1,53 @@
+pipeline: domain_n_modelled
+flowgroup: subrogation_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: subrogation_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: subrogation_dim
+    target: v_subrogation_silver
+    description: "Load subrogation from silver for modelling"
+
+  - name: subrogation_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_subrogation_silver
+    target: v_subrogation_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_subrogation_silver
+
+  - name: write_subrogation_modelled
+    type: write
+    source: v_subrogation_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "subrogation_modelled"
+
+  - name: tst_subrogation_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_subrogation_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-subrogation-M01"
+
+  - name: tst_subrogation_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_subrogation_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-subrogation-M02"

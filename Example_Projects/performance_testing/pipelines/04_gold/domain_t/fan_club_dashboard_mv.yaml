@@ -1,0 +1,38 @@
+pipeline: domain_t_gold
+flowgroup: fan_club_dashboard_mv
+actions:
+  - name: fan_club_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.fan_club_dim
+    target: v_fan_club_dashboard
+
+  - name: write_fan_club_dashboard_mv
+    type: write
+    source: v_fan_club_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "fan_club_dashboard_mv"
+
+  - name: tst_fan_club_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_fan_club_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-fan_club-G01"
+
+  - name: tst_fan_club_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fan_club_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-fan_club-G02"

@@ -136,7 +136,7 @@ during generation — no ``-pc`` flag or ``pipeline_config.yaml`` required.
    version: "1.0"
 
    event_log:
-     catalog: "{catalog}"
+     catalog: "${catalog}"
      schema: _meta
      name_suffix: "_event_log"
 

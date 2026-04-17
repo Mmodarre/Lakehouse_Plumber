@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: thermal_control_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: thermal_control_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: thermal_control_fct
+    target: v_thermal_control_silver
+    description: "Load thermal_control from silver for modelling"
+
+  - name: thermal_control_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_thermal_control_silver
+    target: v_thermal_control_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_thermal_control_silver
+
+  - name: write_thermal_control_modelled
+    type: write
+    source: v_thermal_control_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "thermal_control_modelled"
+
+  - name: tst_thermal_control_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_thermal_control_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-thermal_control-M01"
+
+  - name: tst_thermal_control_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_thermal_control_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-thermal_control-M02"

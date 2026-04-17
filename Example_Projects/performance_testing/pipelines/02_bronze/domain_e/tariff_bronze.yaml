@@ -1,0 +1,64 @@
+pipeline: domain_e_bronze
+flowgroup: tariff_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: tariff_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: tariff_raw
+    target: v_tariff_raw
+    description: "Load tariff from raw schema"
+
+  - name: tariff_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_tariff_raw
+    target: v_tariff_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as tariff_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_tariff_raw
+      WHERE 1=1
+
+  - name: tariff_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_tariff_bronze_cleaned
+    target: v_tariff_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to tariff"
+
+  - name: write_tariff_bronze
+    type: write
+    source: v_tariff_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "tariff"
+
+  - name: tst_tariff_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_tariff_bronze_cleaned
+    required_columns: [tariff_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-tariff-B01"
+
+  - name: tst_tariff_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tariff_bronze_cleaned
+    columns: [tariff_key]
+    on_violation: warn
+    test_id: "PERF-tariff-B02"

@@ -1,0 +1,64 @@
+pipeline: domain_k_bronze
+flowgroup: ground_handling_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: ground_handling_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: ground_handling_raw
+    target: v_ground_handling_raw
+    description: "Load ground_handling from raw schema"
+
+  - name: ground_handling_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_ground_handling_raw
+    target: v_ground_handling_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as ground_handling_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_ground_handling_raw
+      WHERE 1=1
+
+  - name: ground_handling_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_ground_handling_bronze_cleaned
+    target: v_ground_handling_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to ground_handling"
+
+  - name: write_ground_handling_bronze
+    type: write
+    source: v_ground_handling_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "ground_handling"
+
+  - name: tst_ground_handling_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_ground_handling_bronze_cleaned
+    required_columns: [ground_handling_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-ground_handling-B01"
+
+  - name: tst_ground_handling_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ground_handling_bronze_cleaned
+    columns: [ground_handling_key]
+    on_violation: warn
+    test_id: "PERF-ground_handling-B02"

@@ -1,0 +1,64 @@
+pipeline: domain_n_bronze
+flowgroup: exposure_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: exposure_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: exposure_raw
+    target: v_exposure_raw
+    description: "Load exposure from raw schema"
+
+  - name: exposure_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_exposure_raw
+    target: v_exposure_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as exposure_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_exposure_raw
+      WHERE 1=1
+
+  - name: exposure_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_exposure_bronze_cleaned
+    target: v_exposure_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to exposure"
+
+  - name: write_exposure_bronze
+    type: write
+    source: v_exposure_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "exposure"
+
+  - name: tst_exposure_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_exposure_bronze_cleaned
+    required_columns: [exposure_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-exposure-B01"
+
+  - name: tst_exposure_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_exposure_bronze_cleaned
+    columns: [exposure_key]
+    on_violation: warn
+    test_id: "PERF-exposure-B02"

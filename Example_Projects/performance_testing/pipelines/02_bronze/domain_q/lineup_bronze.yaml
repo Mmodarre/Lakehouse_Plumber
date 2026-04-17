@@ -1,0 +1,24 @@
+pipeline: domain_q_bronze
+flowgroup: lineup_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: lineup
+  source_table: lineup_raw
+actions:
+  - name: tst_lineup_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_lineup_cleansed
+    required_columns: [lineup_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-lineup-B01"
+
+  - name: tst_lineup_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lineup_cleansed
+    columns: [lineup_key]
+    on_violation: warn
+    test_id: "PERF-lineup-B02"

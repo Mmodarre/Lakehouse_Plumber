@@ -1,0 +1,47 @@
+pipeline: domain_n_raw
+flowgroup: reinsurance_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_reinsurance_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/reinsurance/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_reinsurance_cloudfiles
+    description: "Load reinsurance from landing volume"
+
+  - name: write_reinsurance_raw
+    type: write
+    source: v_reinsurance_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "reinsurance_raw"
+
+  - name: tst_reinsurance_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_reinsurance_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-reinsurance-R01"
+
+  - name: tst_reinsurance_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reinsurance_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-reinsurance-R02"

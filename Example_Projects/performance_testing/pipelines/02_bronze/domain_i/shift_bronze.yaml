@@ -1,0 +1,24 @@
+pipeline: domain_i_bronze
+flowgroup: shift_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: shift
+  source_table: shift_raw
+actions:
+  - name: tst_shift_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_shift_cleansed
+    required_columns: [shift_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-shift-B01"
+
+  - name: tst_shift_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_shift_cleansed
+    columns: [shift_key]
+    on_violation: warn
+    test_id: "PERF-shift-B02"

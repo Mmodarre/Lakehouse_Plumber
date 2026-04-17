@@ -1,0 +1,64 @@
+pipeline: domain_o_bronze
+flowgroup: hashtag_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: hashtag_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: hashtag_raw
+    target: v_hashtag_raw
+    description: "Load hashtag from raw schema"
+
+  - name: hashtag_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_hashtag_raw
+    target: v_hashtag_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as hashtag_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_hashtag_raw
+      WHERE 1=1
+
+  - name: hashtag_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_hashtag_bronze_cleaned
+    target: v_hashtag_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to hashtag"
+
+  - name: write_hashtag_bronze
+    type: write
+    source: v_hashtag_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "hashtag"
+
+  - name: tst_hashtag_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_hashtag_bronze_cleaned
+    required_columns: [hashtag_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-hashtag-B01"
+
+  - name: tst_hashtag_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_hashtag_bronze_cleaned
+    columns: [hashtag_key]
+    on_violation: warn
+    test_id: "PERF-hashtag-B02"

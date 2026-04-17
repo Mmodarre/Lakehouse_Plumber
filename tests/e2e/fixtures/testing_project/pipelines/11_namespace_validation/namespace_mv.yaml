@@ -1,0 +1,23 @@
+pipeline: namespace_validation
+flowgroup: namespace_mv
+actions:
+  - name: ns_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          customer_id,
+          name,
+          market_segment
+        FROM {catalog}.{silver_schema}.customer_dim
+    target: v_ns_summary
+
+  - name: write_ns_mv
+    type: write
+    source: v_ns_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "namespace_validation_mv"

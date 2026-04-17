@@ -1,0 +1,24 @@
+pipeline: domain_p_bronze
+flowgroup: sample_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: sample
+  source_table: sample_raw
+actions:
+  - name: tst_sample_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_sample_cleansed
+    required_columns: [sample_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-sample-B01"
+
+  - name: tst_sample_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_sample_cleansed
+    columns: [sample_key]
+    on_violation: warn
+    test_id: "PERF-sample-B02"

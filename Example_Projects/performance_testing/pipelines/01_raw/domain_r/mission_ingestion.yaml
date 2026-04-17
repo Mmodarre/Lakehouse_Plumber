@@ -1,0 +1,47 @@
+pipeline: domain_r_raw
+flowgroup: mission_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_mission_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/mission/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_mission_cloudfiles
+    description: "Load mission from landing volume"
+
+  - name: write_mission_raw
+    type: write
+    source: v_mission_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "mission_raw"
+
+  - name: tst_mission_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_mission_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-mission-R01"
+
+  - name: tst_mission_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mission_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-mission-R02"

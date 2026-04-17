@@ -80,8 +80,10 @@ class TableCreationValidator:
                 from ...utils.error_formatter import ErrorCategory, LHPConfigError
 
                 # Build example configuration string
-                db_name = table_name.split(".")[0]
-                table_part = table_name.split(".")[1]
+                parts = table_name.split(".")
+                catalog_name = parts[0] if len(parts) >= 3 else ""
+                schema_name = parts[1] if len(parts) >= 3 else parts[0]
+                table_part = parts[2] if len(parts) >= 3 else parts[-1]
                 example_text = (
                     "Fix by updating your configuration:\n\n"
                     "# Table Creator (keeps create_table: true)\n"
@@ -90,7 +92,8 @@ class TableCreationValidator:
                     "  source: v_source_data\n"
                     "  write_target:\n"
                     "    type: streaming_table\n"
-                    f'    database: "{db_name}"\n'
+                    f'    catalog: "{catalog_name}"\n'
+                    f'    schema: "{schema_name}"\n'
                     f'    table: "{table_part}"\n'
                     "    create_table: true    # ← Only ONE action should have this\n\n"
                     "# Table Users (set create_table: false)\n"
@@ -99,7 +102,8 @@ class TableCreationValidator:
                     "  source: v_other_data\n"
                     "  write_target:\n"
                     "    type: streaming_table\n"
-                    f'    database: "{db_name}"\n'
+                    f'    catalog: "{catalog_name}"\n'
+                    f'    schema: "{schema_name}"\n'
                     f'    table: "{table_part}"\n'
                     "    create_table: false   # ← All others should have this"
                 )
@@ -135,16 +139,18 @@ class TableCreationValidator:
     ) -> Optional[str]:
         """Extract the full table name from write target configuration."""
         if isinstance(write_target, dict):
-            database = write_target.get("database")
+            catalog = write_target.get("catalog")
+            schema = write_target.get("schema")
             table = write_target.get("table") or write_target.get("name")
         else:
-            database = write_target.database
+            catalog = getattr(write_target, "catalog", None)
+            schema = getattr(write_target, "schema", None)
             table = write_target.table
 
-        if not database or not table:
+        if not catalog or not schema or not table:
             return None
 
-        return f"{database}.{table}"
+        return f"{catalog}.{schema}.{table}"
 
     def _action_creates_table(self, action: Action) -> bool:
         """Check if an action creates the table (create_table: true)."""
@@ -157,9 +163,9 @@ class TableCreationValidator:
             if write_type == "materialized_view":
                 return True
 
-            # CDC modes always create their own tables
+            # Snapshot CDC always creates its own table (dp.create_auto_cdc_from_snapshot_flow)
             mode = action.write_target.get("mode", "standard")
-            if mode in ["cdc", "snapshot_cdc"]:
+            if mode == "snapshot_cdc":
                 return True
             return action.write_target.get("create_table", True)
         else:
@@ -167,8 +173,8 @@ class TableCreationValidator:
             if action.write_target.type == WriteTargetType.MATERIALIZED_VIEW:
                 return True
 
-            # CDC modes always create their own tables
+            # Snapshot CDC always creates its own table
             mode = getattr(action.write_target, "mode", "standard")
-            if mode in ["cdc", "snapshot_cdc"]:
+            if mode == "snapshot_cdc":
                 return True
             return action.write_target.create_table

@@ -1,0 +1,25 @@
+pipeline: domain_o_raw
+flowgroup: domain_authority_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: domain_authority_raw
+  landing_folder: domain_authority
+  schema_file: part_schema
+actions:
+  - name: tst_domain_authority_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_domain_authority_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-domain_authority-R01"
+
+  - name: tst_domain_authority_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_domain_authority_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-domain_authority-R02"

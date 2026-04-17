@@ -1,0 +1,38 @@
+pipeline: domain_r_gold
+flowgroup: modulation_report_mv
+actions:
+  - name: modulation_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.modulation_fct
+    target: v_modulation_report
+
+  - name: write_modulation_report_mv
+    type: write
+    source: v_modulation_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "modulation_report_mv"
+
+  - name: tst_modulation_report_completeness
+    type: test
+    test_type: completeness
+    source: v_modulation_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-modulation-G01"
+
+  - name: tst_modulation_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_modulation_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-modulation-G02"

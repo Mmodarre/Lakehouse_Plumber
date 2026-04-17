@@ -1,0 +1,25 @@
+pipeline: domain_j_raw
+flowgroup: voltage_regulator_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: voltage_regulator_raw
+  landing_folder: voltage_regulator
+  schema_file: customer_schema
+actions:
+  - name: tst_voltage_regulator_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_voltage_regulator_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-voltage_regulator-R01"
+
+  - name: tst_voltage_regulator_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_voltage_regulator_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-voltage_regulator-R02"

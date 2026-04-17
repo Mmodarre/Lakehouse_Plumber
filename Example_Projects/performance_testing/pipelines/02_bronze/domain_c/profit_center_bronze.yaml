@@ -1,0 +1,64 @@
+pipeline: domain_c_bronze
+flowgroup: profit_center_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: profit_center_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: profit_center_raw
+    target: v_profit_center_raw
+    description: "Load profit_center from raw schema"
+
+  - name: profit_center_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_profit_center_raw
+    target: v_profit_center_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as profit_center_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_profit_center_raw
+      WHERE 1=1
+
+  - name: profit_center_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_profit_center_bronze_cleaned
+    target: v_profit_center_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to profit_center"
+
+  - name: write_profit_center_bronze
+    type: write
+    source: v_profit_center_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "profit_center"
+
+  - name: tst_profit_center_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_profit_center_bronze_cleaned
+    required_columns: [profit_center_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-profit_center-B01"
+
+  - name: tst_profit_center_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_profit_center_bronze_cleaned
+    columns: [profit_center_key]
+    on_violation: warn
+    test_id: "PERF-profit_center-B02"

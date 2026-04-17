@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: retention_policy_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: retention_policy_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: retention_policy_dim
+    target: v_retention_policy_silver
+    description: "Load retention_policy from silver for modelling"
+
+  - name: retention_policy_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_retention_policy_silver
+    target: v_retention_policy_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_retention_policy_silver
+
+  - name: write_retention_policy_modelled
+    type: write
+    source: v_retention_policy_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "retention_policy_modelled"
+
+  - name: tst_retention_policy_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_retention_policy_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-retention_policy-M01"
+
+  - name: tst_retention_policy_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_retention_policy_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-retention_policy-M02"

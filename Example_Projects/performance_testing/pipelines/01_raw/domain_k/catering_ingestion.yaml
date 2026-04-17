@@ -1,0 +1,25 @@
+pipeline: domain_k_raw
+flowgroup: catering_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: catering_raw
+  landing_folder: catering
+  schema_file: customer_schema
+actions:
+  - name: tst_catering_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_catering_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-catering-R01"
+
+  - name: tst_catering_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_catering_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-catering-R02"

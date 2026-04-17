@@ -1,0 +1,25 @@
+pipeline: domain_j_raw
+flowgroup: virtual_power_plant_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: virtual_power_plant_raw
+  landing_folder: virtual_power_plant
+  schema_file: part_schema
+actions:
+  - name: tst_virtual_power_plant_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_virtual_power_plant_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-virtual_power_plant-R01"
+
+  - name: tst_virtual_power_plant_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_virtual_power_plant_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-virtual_power_plant-R02"

@@ -1,0 +1,64 @@
+pipeline: domain_s_bronze
+flowgroup: fining_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: fining_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: fining_raw
+    target: v_fining_raw
+    description: "Load fining from raw schema"
+
+  - name: fining_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_fining_raw
+    target: v_fining_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as fining_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_fining_raw
+      WHERE 1=1
+
+  - name: fining_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_fining_bronze_cleaned
+    target: v_fining_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to fining"
+
+  - name: write_fining_bronze
+    type: write
+    source: v_fining_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "fining"
+
+  - name: tst_fining_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_fining_bronze_cleaned
+    required_columns: [fining_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-fining-B01"
+
+  - name: tst_fining_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fining_bronze_cleaned
+    columns: [fining_key]
+    on_violation: warn
+    test_id: "PERF-fining-B02"

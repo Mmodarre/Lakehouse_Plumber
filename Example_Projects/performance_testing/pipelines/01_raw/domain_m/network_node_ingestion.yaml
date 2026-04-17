@@ -1,0 +1,25 @@
+pipeline: domain_m_raw
+flowgroup: network_node_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: network_node_raw
+  landing_folder: network_node
+  schema_file: partsupp_schema
+actions:
+  - name: tst_network_node_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_network_node_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-network_node-R01"
+
+  - name: tst_network_node_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_network_node_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-network_node-R02"

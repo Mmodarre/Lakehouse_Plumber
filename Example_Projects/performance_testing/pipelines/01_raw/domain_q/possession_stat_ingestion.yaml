@@ -1,0 +1,25 @@
+pipeline: domain_q_raw
+flowgroup: possession_stat_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: possession_stat_raw
+  landing_folder: possession_stat
+  schema_file: part_schema
+actions:
+  - name: tst_possession_stat_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_possession_stat_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-possession_stat-R01"
+
+  - name: tst_possession_stat_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_possession_stat_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-possession_stat-R02"

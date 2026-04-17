@@ -1,0 +1,181 @@
+pipeline: domain_f_raw
+use_template: parquet_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: instructor_ingestion
+    template_parameters:
+      table_name: instructor_raw
+      landing_folder: instructor
+      schema_file: orders_schema
+    actions:
+      - name: tst_instructor_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_instructor_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-instructor-R01"
+      
+      - name: tst_instructor_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_instructor_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-instructor-R02"
+
+  - flowgroup: scholarship_ingestion
+    template_parameters:
+      table_name: scholarship_raw
+      landing_folder: scholarship
+      schema_file: nation_schema
+    actions:
+      - name: tst_scholarship_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_scholarship_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-scholarship-R01"
+      
+      - name: tst_scholarship_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_scholarship_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-scholarship-R02"
+
+  - flowgroup: library_book_ingestion
+    template_parameters:
+      table_name: library_book_raw
+      landing_folder: library_book
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_library_book_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_library_book_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-library_book-R01"
+      
+      - name: tst_library_book_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_library_book_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-library_book-R02"
+
+  - flowgroup: curriculum_ingestion
+    template_parameters:
+      table_name: curriculum_raw
+      landing_folder: curriculum
+      schema_file: part_schema
+    actions:
+      - name: tst_curriculum_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_curriculum_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-curriculum-R01"
+      
+      - name: tst_curriculum_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_curriculum_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-curriculum-R02"
+
+  - flowgroup: fieldwork_ingestion
+    template_parameters:
+      table_name: fieldwork_raw
+      landing_folder: fieldwork
+      schema_file: orders_schema
+    actions:
+      - name: tst_fieldwork_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_fieldwork_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-fieldwork-R01"
+      
+      - name: tst_fieldwork_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_fieldwork_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-fieldwork-R02"
+
+  - flowgroup: plagiarism_check_ingestion
+    template_parameters:
+      table_name: plagiarism_check_raw
+      landing_folder: plagiarism_check
+      schema_file: product_schema
+    actions:
+      - name: tst_plagiarism_check_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_plagiarism_check_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-plagiarism_check-R01"
+      
+      - name: tst_plagiarism_check_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_plagiarism_check_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-plagiarism_check-R02"
+
+  - flowgroup: exchange_program_ingestion
+    template_parameters:
+      table_name: exchange_program_raw
+      landing_folder: exchange_program
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_exchange_program_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_exchange_program_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-exchange_program-R01"
+      
+      - name: tst_exchange_program_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_exchange_program_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-exchange_program-R02"
+
+  - flowgroup: work_study_ingestion
+    template_parameters:
+      table_name: work_study_raw
+      landing_folder: work_study
+      schema_file: part_schema
+    actions:
+      - name: tst_work_study_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_work_study_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-work_study-R01"
+      
+      - name: tst_work_study_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_work_study_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-work_study-R02"

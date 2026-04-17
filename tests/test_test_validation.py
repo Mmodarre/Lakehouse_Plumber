@@ -18,17 +18,17 @@ class TestTestActionValidation:
             'row_count': {'source': ['source', 'target']},
             'uniqueness': {'source': 'test_table', 'columns': ['id']},
             'referential_integrity': {
-                'source': 'orders',
-                'reference': 'customers',
+                'source': 'test_cat.test_sch.orders',
+                'reference': 'test_cat.test_sch.customers',
                 'source_columns': ['customer_id'],
                 'reference_columns': ['id']
             },
             'completeness': {'source': 'test_table', 'required_columns': ['id', 'name']},
             'range': {'source': 'test_table', 'column': 'value', 'min_value': 0, 'max_value': 100},
-            'schema_match': {'source': 'table1', 'reference': 'table2'},
+            'schema_match': {'source': 'test_cat.test_sch.table1', 'reference': 'test_cat.test_sch.table2'},
             'all_lookups_found': {
-                'source': 'fact_table',
-                'lookup_table': 'dim_table',
+                'source': 'test_cat.test_sch.fact_table',
+                'lookup_table': 'test_cat.test_sch.dim_table',
                 'lookup_columns': ['id'],
                 'lookup_result_columns': ['sk']
             },
@@ -185,8 +185,8 @@ class TestTestActionValidation:
             name='test_ref',
             type=ActionType.TEST,
             test_type='referential_integrity',
-            source='orders',
-            reference='customers',
+            source='test_cat.test_sch.orders',
+            reference='test_cat.test_sch.customers',
             source_columns=['customer_id'],
             reference_columns=['id']
         )

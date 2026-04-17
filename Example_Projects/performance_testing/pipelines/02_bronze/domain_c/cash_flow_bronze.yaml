@@ -1,0 +1,64 @@
+pipeline: domain_c_bronze
+flowgroup: cash_flow_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: cash_flow_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: cash_flow_raw
+    target: v_cash_flow_raw
+    description: "Load cash_flow from raw schema"
+
+  - name: cash_flow_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_cash_flow_raw
+    target: v_cash_flow_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as cash_flow_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_cash_flow_raw
+      WHERE 1=1
+
+  - name: cash_flow_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_cash_flow_bronze_cleaned
+    target: v_cash_flow_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to cash_flow"
+
+  - name: write_cash_flow_bronze
+    type: write
+    source: v_cash_flow_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "cash_flow"
+
+  - name: tst_cash_flow_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_cash_flow_bronze_cleaned
+    required_columns: [cash_flow_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cash_flow-B01"
+
+  - name: tst_cash_flow_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cash_flow_bronze_cleaned
+    columns: [cash_flow_key]
+    on_violation: warn
+    test_id: "PERF-cash_flow-B02"

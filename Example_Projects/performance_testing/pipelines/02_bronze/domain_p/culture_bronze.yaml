@@ -1,0 +1,24 @@
+pipeline: domain_p_bronze
+flowgroup: culture_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: culture
+  source_table: culture_raw
+actions:
+  - name: tst_culture_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_culture_cleansed
+    required_columns: [culture_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-culture-B01"
+
+  - name: tst_culture_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_culture_cleansed
+    columns: [culture_key]
+    on_violation: warn
+    test_id: "PERF-culture-B02"

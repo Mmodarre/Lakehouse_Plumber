@@ -1,0 +1,64 @@
+pipeline: domain_g_bronze
+flowgroup: condo_fee_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: condo_fee_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: condo_fee_raw
+    target: v_condo_fee_raw
+    description: "Load condo_fee from raw schema"
+
+  - name: condo_fee_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_condo_fee_raw
+    target: v_condo_fee_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as condo_fee_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_condo_fee_raw
+      WHERE 1=1
+
+  - name: condo_fee_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_condo_fee_bronze_cleaned
+    target: v_condo_fee_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to condo_fee"
+
+  - name: write_condo_fee_bronze
+    type: write
+    source: v_condo_fee_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "condo_fee"
+
+  - name: tst_condo_fee_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_condo_fee_bronze_cleaned
+    required_columns: [condo_fee_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-condo_fee-B01"
+
+  - name: tst_condo_fee_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_condo_fee_bronze_cleaned
+    columns: [condo_fee_key]
+    on_violation: warn
+    test_id: "PERF-condo_fee-B02"

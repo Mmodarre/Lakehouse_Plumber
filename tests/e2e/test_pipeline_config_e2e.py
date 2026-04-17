@@ -1153,12 +1153,11 @@ class TestMonitoringPipelineE2E:
 
         self.generated_dir = self.project_root / "generated" / "dev"
         self.resources_dir = self.project_root / "resources" / "lhp"
-        self.generated_baseline_dir = (
-            self.project_root / "generated_baseline" / "dev"
-        )
-        self.resources_baseline_dir = (
-            self.project_root / "resources_baseline" / "lhp"
-        )
+        self.resources_root = self.project_root / "resources"
+        self.monitoring_dir = self.project_root / "monitoring" / "dev"
+        self.generated_baseline_dir = self.project_root / "generated_baseline" / "dev"
+        self.resources_baseline_dir = self.project_root / "resources_baseline" / "lhp"
+        self.monitoring_baseline_dir = self.project_root / "monitoring_baseline"
         self.lhp_yaml = self.project_root / "lhp.yaml"
 
         self._init_bundle_project()
@@ -1180,41 +1179,55 @@ class TestMonitoringPipelineE2E:
     # Variant definitions: (commented_text, uncommented_text)
     # ------------------------------------------------------------------
 
+    _CP = "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+
     MONITORING_VARIANTS = {
         "monitoring_default": (
-            "#monitoring: {}",
-            "monitoring: {}",
+            "#monitoring:\n" '#  checkpoint_path: "' + _CP + '"',
+            "monitoring:\n" '  checkpoint_path: "' + _CP + '"',
         ),
         "monitoring_custom_pipeline_name": (
-            '#monitoring:\n#  pipeline_name: "my_custom_monitor"',
-            'monitoring:\n  pipeline_name: "my_custom_monitor"',
+            "#monitoring:\n"
+            '#  pipeline_name: "my_custom_monitor"\n'
+            '#  checkpoint_path: "' + _CP + '"',
+            "monitoring:\n"
+            '  pipeline_name: "my_custom_monitor"\n'
+            '  checkpoint_path: "' + _CP + '"',
         ),
         "monitoring_catalog_schema_override": (
             "#monitoring:\n"
             '#  catalog: "analytics_cat"\n'
-            '#  schema: "_analytics"',
+            '#  schema: "_analytics"\n'
+            '#  checkpoint_path: "' + _CP + '"',
             "monitoring:\n"
             '  catalog: "analytics_cat"\n'
-            '  schema: "_analytics"',
+            '  schema: "_analytics"\n'
+            '  checkpoint_path: "' + _CP + '"',
         ),
         "monitoring_custom_streaming_table": (
-            '#monitoring:\n#  streaming_table: "unified_event_log"',
-            'monitoring:\n  streaming_table: "unified_event_log"',
+            "#monitoring:\n"
+            '#  streaming_table: "unified_event_log"\n'
+            '#  checkpoint_path: "' + _CP + '"',
+            "monitoring:\n"
+            '  streaming_table: "unified_event_log"\n'
+            '  checkpoint_path: "' + _CP + '"',
         ),
         "monitoring_custom_mvs": (
             "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
             "#  materialized_views:\n"
             '#    - name: "error_events"\n'
-            "#      sql: \"SELECT * FROM all_pipelines_event_log"
+            '#      sql: "SELECT * FROM all_pipelines_event_log'
             " WHERE event_type = 'error'\"\n"
             '#    - name: "pipeline_latency"\n'
             '#      sql: "SELECT _source_pipeline, avg(duration_ms)'
             " as avg_duration FROM all_pipelines_event_log"
             ' GROUP BY _source_pipeline"',
             "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
             "  materialized_views:\n"
             '    - name: "error_events"\n'
-            "      sql: \"SELECT * FROM all_pipelines_event_log"
+            '      sql: "SELECT * FROM all_pipelines_event_log'
             " WHERE event_type = 'error'\"\n"
             '    - name: "pipeline_latency"\n'
             '      sql: "SELECT _source_pipeline, avg(duration_ms)'
@@ -1222,22 +1235,32 @@ class TestMonitoringPipelineE2E:
             ' GROUP BY _source_pipeline"',
         ),
         "monitoring_no_mvs": (
-            "#monitoring:\n#  materialized_views: []",
-            "monitoring:\n  materialized_views: []",
+            "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
+            "#  materialized_views: []",
+            "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
+            "  materialized_views: []",
         ),
         "monitoring_mv_sql_path": (
             "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
             "#  materialized_views:\n"
             '#    - name: "custom_analysis"\n'
             '#      sql_path: "sql/monitoring_custom_analysis.sql"',
             "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
             "  materialized_views:\n"
             '    - name: "custom_analysis"\n'
             '      sql_path: "sql/monitoring_custom_analysis.sql"',
         ),
         "monitoring_enable_job_monitoring": (
-            "#monitoring:\n#  enable_job_monitoring: true",
-            "monitoring:\n  enable_job_monitoring: true",
+            "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
+            "#  enable_job_monitoring: true",
+            "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
+            "  enable_job_monitoring: true",
         ),
     }
 
@@ -1303,26 +1326,48 @@ class TestMonitoringPipelineE2E:
             )
         return ""
 
-    def _assert_monitoring_baseline(
+    def _assert_monitoring_py_baseline(
         self, variant, pipeline_name="acme_edw_event_log_monitoring"
     ):
-        """Hash-compare generated monitoring.py against variant baseline."""
+        """Hash-compare generated monitoring.py (DLT code) against variant baseline."""
         monitoring_py = self.generated_dir / pipeline_name / "monitoring.py"
-        assert monitoring_py.exists(), (
-            f"Monitoring pipeline file not generated: {monitoring_py}"
-        )
+        assert (
+            monitoring_py.exists()
+        ), f"Monitoring pipeline file not generated: {monitoring_py}"
 
         baseline_py = (
-            self.project_root
-            / "monitoring_baseline"
-            / variant
-            / pipeline_name
-            / "monitoring.py"
+            self.monitoring_baseline_dir / variant / pipeline_name / "monitoring.py"
         )
         assert baseline_py.exists(), f"Missing baseline: {baseline_py}"
 
         diff = self._compare_file_hashes(monitoring_py, baseline_py)
-        assert diff == "", f"Generated code mismatch:\n{diff}"
+        assert diff == "", f"Generated monitoring.py mismatch:\n{diff}"
+
+    def _assert_monitoring_notebook_baseline(self, variant):
+        """Hash-compare generated union_event_logs.py notebook against variant baseline."""
+        notebook = self.monitoring_dir / "union_event_logs.py"
+        assert notebook.exists(), f"Monitoring notebook not generated: {notebook}"
+
+        baseline_nb = self.monitoring_baseline_dir / variant / "union_event_logs.py"
+        assert baseline_nb.exists(), f"Missing notebook baseline: {baseline_nb}"
+
+        diff = self._compare_file_hashes(notebook, baseline_nb)
+        assert diff == "", f"Generated union_event_logs.py mismatch:\n{diff}"
+
+    def _assert_monitoring_job_baseline(
+        self, variant, pipeline_name="acme_edw_event_log_monitoring"
+    ):
+        """Hash-compare generated <pipeline>.job.yml against variant baseline."""
+        job_yml = self.resources_root / f"{pipeline_name}.job.yml"
+        assert job_yml.exists(), f"Monitoring job YAML not generated: {job_yml}"
+
+        baseline_job = (
+            self.monitoring_baseline_dir / variant / f"{pipeline_name}.job.yml"
+        )
+        assert baseline_job.exists(), f"Missing job baseline: {baseline_job}"
+
+        diff = self._compare_file_hashes(job_yml, baseline_job)
+        assert diff == "", f"Generated job YAML mismatch:\n{diff}"
 
     # ------------------------------------------------------------------
     # Test 1: monitoring absent — backward compatibility
@@ -1336,17 +1381,17 @@ class TestMonitoringPipelineE2E:
 
         # Monitoring pipeline directory should NOT exist
         monitoring_dir = self.generated_dir / "acme_edw_event_log_monitoring"
-        assert not monitoring_dir.exists(), (
-            f"Monitoring pipeline directory should not exist: {monitoring_dir}"
-        )
+        assert (
+            not monitoring_dir.exists()
+        ), f"Monitoring pipeline directory should not exist: {monitoring_dir}"
 
         # Monitoring resource file should NOT exist
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert not monitoring_resource.exists(), (
-            f"Monitoring resource file should not exist: {monitoring_resource}"
-        )
+        assert (
+            not monitoring_resource.exists()
+        ), f"Monitoring resource file should not exist: {monitoring_resource}"
 
     # ------------------------------------------------------------------
     # Test 2: monitoring enabled — full generation with hash baseline
@@ -1358,8 +1403,10 @@ class TestMonitoringPipelineE2E:
         exit_code, output = self._run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
-        # Hash comparison with variant baseline
-        self._assert_monitoring_baseline("default")
+        # Hash comparison for all three monitoring artifacts
+        self._assert_monitoring_py_baseline("default")
+        self._assert_monitoring_notebook_baseline("default")
+        self._assert_monitoring_job_baseline("default")
 
     # ------------------------------------------------------------------
     # Test 3: monitoring resource has no event_log
@@ -1375,27 +1422,26 @@ class TestMonitoringPipelineE2E:
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert monitoring_resource.exists(), (
-            f"Monitoring resource not generated: {monitoring_resource}"
-        )
+        assert (
+            monitoring_resource.exists()
+        ), f"Monitoring resource not generated: {monitoring_resource}"
 
         # Structural verification: no event_log in the resource
         parsed = yaml.safe_load(monitoring_resource.read_text())
         pipeline = parsed["resources"]["pipelines"][
             "acme_edw_event_log_monitoring_pipeline"
         ]
-        assert "event_log" not in pipeline, (
-            "Monitoring pipeline resource should NOT have event_log"
-        )
+        assert (
+            "event_log" not in pipeline
+        ), "Monitoring pipeline resource should NOT have event_log"
 
         # Hash comparison with resource baseline
         baseline_resource = (
-            self.resources_baseline_dir
-            / "acme_edw_event_log_monitoring.pipeline.yml"
+            self.resources_baseline_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert baseline_resource.exists(), (
-            f"Missing resource baseline: {baseline_resource}"
-        )
+        assert (
+            baseline_resource.exists()
+        ), f"Missing resource baseline: {baseline_resource}"
 
         diff = self._compare_file_hashes(monitoring_resource, baseline_resource)
         assert diff == "", f"Resource YAML mismatch:\n{diff}"
@@ -1413,28 +1459,32 @@ class TestMonitoringPipelineE2E:
 
         # Structural: directory and PIPELINE_ID
         monitoring_py = self.generated_dir / "my_custom_monitor" / "monitoring.py"
-        assert monitoring_py.exists(), (
-            f"Custom pipeline directory not created: {monitoring_py}"
-        )
+        assert (
+            monitoring_py.exists()
+        ), f"Custom pipeline directory not created: {monitoring_py}"
         content = monitoring_py.read_text()
         assert 'PIPELINE_ID = "my_custom_monitor"' in content
 
         # Default pipeline directory should NOT exist
         default_dir = self.generated_dir / "acme_edw_event_log_monitoring"
-        assert not default_dir.exists(), (
-            "Default monitoring dir should not exist with custom pipeline_name"
-        )
+        assert (
+            not default_dir.exists()
+        ), "Default monitoring dir should not exist with custom pipeline_name"
 
         # Resource YAML uses custom pipeline name
         resource_yml = self.resources_dir / "my_custom_monitor.pipeline.yml"
-        assert resource_yml.exists(), (
-            f"Custom resource YAML not generated: {resource_yml}"
-        )
+        assert (
+            resource_yml.exists()
+        ), f"Custom resource YAML not generated: {resource_yml}"
         parsed = yaml.safe_load(resource_yml.read_text())
         assert "my_custom_monitor_pipeline" in parsed["resources"]["pipelines"]
 
         # Hash comparison: Python baseline
-        self._assert_monitoring_baseline(
+        self._assert_monitoring_py_baseline(
+            "custom_pipeline_name", pipeline_name="my_custom_monitor"
+        )
+        self._assert_monitoring_notebook_baseline("custom_pipeline_name")
+        self._assert_monitoring_job_baseline(
             "custom_pipeline_name", pipeline_name="my_custom_monitor"
         )
 
@@ -1442,9 +1492,9 @@ class TestMonitoringPipelineE2E:
         baseline_resource = (
             self.resources_baseline_dir / "my_custom_monitor.pipeline.yml"
         )
-        assert baseline_resource.exists(), (
-            f"Missing resource baseline: {baseline_resource}"
-        )
+        assert (
+            baseline_resource.exists()
+        ), f"Missing resource baseline: {baseline_resource}"
         diff = self._compare_file_hashes(resource_yml, baseline_resource)
         assert diff == "", f"Resource YAML mismatch:\n{diff}"
 
@@ -1459,21 +1509,29 @@ class TestMonitoringPipelineE2E:
         exit_code, output = self._run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
-        # Structural: overridden catalog/schema in targets
+        # Structural: overridden catalog/schema in MV target references
         monitoring_py = (
-            self.generated_dir
-            / "acme_edw_event_log_monitoring"
-            / "monitoring.py"
+            self.generated_dir / "acme_edw_event_log_monitoring" / "monitoring.py"
         )
         content = monitoring_py.read_text()
         assert "analytics_cat._analytics.all_pipelines_event_log" in content
         assert "analytics_cat._analytics.events_summary" in content
+        # Event-log catalog/schema no longer appears in monitoring.py — the
+        # UNION moved to the notebook; the monitoring override only retargets
+        # the ST/MV FQNs.
+        assert "acme_edw_dev._meta" not in content
 
-        # Source UNION SQL still uses the event_log catalog/schema
-        assert "acme_edw_dev._meta." in content
+        # Notebook SOURCES still point at the event_log catalog/schema
+        notebook = self.monitoring_dir / "union_event_logs.py"
+        nb_content = notebook.read_text()
+        assert (
+            "acme_edw_dev._meta.acmi_edw_bronze_event_log" in nb_content
+        ), "Notebook sources should reference the event_log catalog/schema"
 
-        # Hash comparison
-        self._assert_monitoring_baseline("catalog_schema_override")
+        # Hash comparison for all three monitoring artifacts
+        self._assert_monitoring_py_baseline("catalog_schema_override")
+        self._assert_monitoring_notebook_baseline("catalog_schema_override")
+        self._assert_monitoring_job_baseline("catalog_schema_override")
 
     # ------------------------------------------------------------------
     # Test 6: custom streaming table name
@@ -1487,27 +1545,26 @@ class TestMonitoringPipelineE2E:
         assert exit_code == 0, f"Generation failed: {output}"
 
         # Structural: unified_event_log used everywhere instead of
-        # all_pipelines_event_log
+        # all_pipelines_event_log in monitoring.py MV targets
         monitoring_py = (
-            self.generated_dir
-            / "acme_edw_event_log_monitoring"
-            / "monitoring.py"
+            self.generated_dir / "acme_edw_event_log_monitoring" / "monitoring.py"
         )
         content = monitoring_py.read_text()
         assert "unified_event_log" in content
         assert "acme_edw_dev._meta.unified_event_log" in content
+        # Default ST name must not appear in monitoring.py — UNION is no
+        # longer here and MV target was retargeted.
+        assert "all_pipelines_event_log" not in content
 
-        # Default ST name should NOT appear in target references
-        # (it may appear in source table names like *_event_log)
-        for line in content.splitlines():
-            if "all_pipelines_event_log" in line:
-                # Only acceptable in source UNION SQL (stream() calls)
-                assert "stream(" in line, (
-                    f"'all_pipelines_event_log' found outside source SQL: {line}"
-                )
+        # Notebook TARGET_TABLE retargets to unified_event_log
+        notebook = self.monitoring_dir / "union_event_logs.py"
+        nb_content = notebook.read_text()
+        assert 'TARGET_TABLE = "acme_edw_dev._meta.unified_event_log"' in nb_content
 
-        # Hash comparison
-        self._assert_monitoring_baseline("custom_streaming_table")
+        # Hash comparison for all three monitoring artifacts
+        self._assert_monitoring_py_baseline("custom_streaming_table")
+        self._assert_monitoring_notebook_baseline("custom_streaming_table")
+        self._assert_monitoring_job_baseline("custom_streaming_table")
 
     # ------------------------------------------------------------------
     # Test 7: custom materialized views
@@ -1522,42 +1579,63 @@ class TestMonitoringPipelineE2E:
 
         # Structural: custom MVs present, default absent
         monitoring_py = (
-            self.generated_dir
-            / "acme_edw_event_log_monitoring"
-            / "monitoring.py"
+            self.generated_dir / "acme_edw_event_log_monitoring" / "monitoring.py"
         )
         content = monitoring_py.read_text()
         assert "def error_events():" in content
         assert "def pipeline_latency():" in content
         assert "events_summary" not in content
 
-        # Hash comparison
-        self._assert_monitoring_baseline("custom_mvs")
+        # Hash comparison for all three monitoring artifacts
+        self._assert_monitoring_py_baseline("custom_mvs")
+        self._assert_monitoring_notebook_baseline("custom_mvs")
+        self._assert_monitoring_job_baseline("custom_mvs")
 
     # ------------------------------------------------------------------
     # Test 8: no materialized views
     # ------------------------------------------------------------------
 
     def test_monitoring_no_mvs(self):
-        """Empty materialized_views list produces no MV section at all."""
+        """Empty materialized_views list: notebook-only — no DLT artifact."""
         self._enable_event_log()
         self._enable_monitoring_variant("monitoring_no_mvs")
         exit_code, output = self._run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
-        # Structural: streaming table and append flow present, no MVs
+        # DLT file should NOT exist — the builder returns a FlowGroup with no
+        # actions, which skips DLT code generation entirely. Ingestion lives
+        # in the union notebook.
         monitoring_py = (
-            self.generated_dir
-            / "acme_edw_event_log_monitoring"
-            / "monitoring.py"
+            self.generated_dir / "acme_edw_event_log_monitoring" / "monitoring.py"
         )
-        content = monitoring_py.read_text()
-        assert "dp.create_streaming_table(" in content
-        assert "@dp.append_flow(" in content
-        assert "@dp.materialized_view(" not in content
+        assert not monitoring_py.exists(), (
+            f"monitoring.py should not be generated with materialized_views: [], "
+            f"got {monitoring_py}"
+        )
 
-        # Hash comparison
-        self._assert_monitoring_baseline("no_mvs")
+        # Notebook is always written when monitoring is enabled
+        notebook = self.monitoring_dir / "union_event_logs.py"
+        assert notebook.exists(), f"Notebook should exist: {notebook}"
+
+        # Job YAML is always written when monitoring is enabled
+        job_yml = self.resources_root / "acme_edw_event_log_monitoring.job.yml"
+        assert job_yml.exists(), f"Job YAML should exist: {job_yml}"
+
+        # Job should contain only the union_event_logs task (no pipeline_task)
+        parsed = yaml.safe_load(job_yml.read_text())
+        jobs = parsed["resources"]["jobs"]
+        job_config = next(iter(jobs.values()))
+        tasks = job_config["tasks"]
+        assert len(tasks) == 1, (
+            f"no_mvs job should have exactly 1 task, got {len(tasks)}: "
+            f"{[t.get('task_key') for t in tasks]}"
+        )
+        assert tasks[0]["task_key"] == "union_event_logs"
+        assert "pipeline_task" not in tasks[0]
+
+        # Hash comparison — no monitoring.py baseline for this variant
+        self._assert_monitoring_notebook_baseline("no_mvs")
+        self._assert_monitoring_job_baseline("no_mvs")
 
     # ------------------------------------------------------------------
     # Test 9: MV with external sql_path
@@ -1572,9 +1650,7 @@ class TestMonitoringPipelineE2E:
 
         # Structural: custom_analysis MV with SQL from external file
         monitoring_py = (
-            self.generated_dir
-            / "acme_edw_event_log_monitoring"
-            / "monitoring.py"
+            self.generated_dir / "acme_edw_event_log_monitoring" / "monitoring.py"
         )
         content = monitoring_py.read_text()
         assert "def custom_analysis():" in content
@@ -1584,8 +1660,10 @@ class TestMonitoringPipelineE2E:
         # Default MV should not be present
         assert "events_summary" not in content
 
-        # Hash comparison
-        self._assert_monitoring_baseline("mv_sql_path")
+        # Hash comparison for all three monitoring artifacts
+        self._assert_monitoring_py_baseline("mv_sql_path")
+        self._assert_monitoring_notebook_baseline("mv_sql_path")
+        self._assert_monitoring_job_baseline("mv_sql_path")
 
     # ------------------------------------------------------------------
     # Test 10: enable_job_monitoring adds jobs stats loader
@@ -1598,30 +1676,28 @@ class TestMonitoringPipelineE2E:
         exit_code, output = self._run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
-        pipeline_dir = (
-            self.generated_dir / "acme_edw_event_log_monitoring"
-        )
+        pipeline_dir = self.generated_dir / "acme_edw_event_log_monitoring"
 
         # monitoring.py should contain python load + jobs stats write
         monitoring_py = pipeline_dir / "monitoring.py"
-        assert monitoring_py.exists(), (
-            f"Monitoring pipeline file not generated: {monitoring_py}"
-        )
+        assert (
+            monitoring_py.exists()
+        ), f"Monitoring pipeline file not generated: {monitoring_py}"
         content = monitoring_py.read_text()
         assert "v_jobs_stats" in content
         assert "jobs_stats" in content
 
         # Auxiliary file should be generated
         loader_py = pipeline_dir / "jobs_stats_loader.py"
-        assert loader_py.exists(), (
-            f"Jobs stats loader not generated: {loader_py}"
-        )
+        assert loader_py.exists(), f"Jobs stats loader not generated: {loader_py}"
         loader_content = loader_py.read_text()
         assert "def get_jobs_stats" in loader_content
         assert "WorkspaceClient" in loader_content
 
-        # Hash comparison for monitoring.py
-        self._assert_monitoring_baseline("enable_job_monitoring")
+        # Hash comparison for all three monitoring artifacts
+        self._assert_monitoring_py_baseline("enable_job_monitoring")
+        self._assert_monitoring_notebook_baseline("enable_job_monitoring")
+        self._assert_monitoring_job_baseline("enable_job_monitoring")
 
         # Verify auxiliary file matches the package resource (no baseline needed)
         from importlib.resources import files
@@ -1629,9 +1705,9 @@ class TestMonitoringPipelineE2E:
         expected = (
             files("lhp.templates.monitoring") / "jobs_stats_loader.py"
         ).read_text(encoding="utf-8")
-        assert loader_content == expected, (
-            "Generated jobs_stats_loader.py does not match package resource"
-        )
+        assert (
+            loader_content == expected
+        ), "Generated jobs_stats_loader.py does not match package resource"
 
     # ------------------------------------------------------------------
     # Test 11: monitoring pipeline picks up pipeline_config.yaml settings
@@ -1697,9 +1773,9 @@ tags:
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert monitoring_resource.exists(), (
-            f"Monitoring resource not generated: {monitoring_resource}"
-        )
+        assert (
+            monitoring_resource.exists()
+        ), f"Monitoring resource not generated: {monitoring_resource}"
 
         # Parse the generated resource YAML
         parsed = yaml.safe_load(monitoring_resource.read_text())
@@ -1708,20 +1784,16 @@ tags:
         ]
 
         # Verify pipeline_config settings flowed into the resource
-        assert pipeline["serverless"] is False, (
-            "serverless should be False from pipeline_config"
-        )
-        assert pipeline["edition"] == "ADVANCED", (
-            "edition should be ADVANCED from pipeline_config"
-        )
-        assert pipeline["photon"] is True, (
-            "photon should be True from pipeline_config"
-        )
+        assert (
+            pipeline["serverless"] is False
+        ), "serverless should be False from pipeline_config"
+        assert (
+            pipeline["edition"] == "ADVANCED"
+        ), "edition should be ADVANCED from pipeline_config"
+        assert pipeline["photon"] is True, "photon should be True from pipeline_config"
 
         # Verify cluster configuration
-        assert "clusters" in pipeline, (
-            "clusters should be present from pipeline_config"
-        )
+        assert "clusters" in pipeline, "clusters should be present from pipeline_config"
         assert len(pipeline["clusters"]) == 1
         cluster = pipeline["clusters"][0]
         assert cluster["label"] == "default"
@@ -1731,9 +1803,9 @@ tags:
         assert cluster["autoscale"]["mode"] == "ENHANCED"
 
         # Verify notifications
-        assert "notifications" in pipeline, (
-            "notifications should be present from pipeline_config"
-        )
+        assert (
+            "notifications" in pipeline
+        ), "notifications should be present from pipeline_config"
         assert len(pipeline["notifications"]) == 1
         notification = pipeline["notifications"][0]
         assert "monitoring-team@example.com" in notification["email_recipients"]
@@ -1741,17 +1813,15 @@ tags:
         assert "on-update-fatal-failure" in notification["alerts"]
 
         # Verify tags
-        assert "tags" in pipeline, (
-            "tags should be present from pipeline_config"
-        )
+        assert "tags" in pipeline, "tags should be present from pipeline_config"
         assert pipeline["tags"]["team"] == "data-platform"
         assert pipeline["tags"]["purpose"] == "monitoring"
 
         # Verify monitoring pipeline still does NOT have event_log
         # (monitoring pipeline should never self-reference its own event_log)
-        assert "event_log" not in pipeline, (
-            "Monitoring pipeline resource should NOT have event_log"
-        )
+        assert (
+            "event_log" not in pipeline
+        ), "Monitoring pipeline resource should NOT have event_log"
 
         # Verify proper YAML structure (no line concatenation)
         resource_content = monitoring_resource.read_text()
@@ -1808,9 +1878,9 @@ tags:
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert monitoring_resource.exists(), (
-            f"Monitoring resource not generated: {monitoring_resource}"
-        )
+        assert (
+            monitoring_resource.exists()
+        ), f"Monitoring resource not generated: {monitoring_resource}"
 
         # Parse and verify project_defaults were inherited
         parsed = yaml.safe_load(monitoring_resource.read_text())
@@ -1818,15 +1888,13 @@ tags:
             "acme_edw_event_log_monitoring_pipeline"
         ]
 
-        assert pipeline["serverless"] is False, (
-            "serverless should be False from project_defaults"
-        )
-        assert pipeline["edition"] == "PRO", (
-            "edition should be PRO from project_defaults"
-        )
-        assert pipeline["photon"] is True, (
-            "photon should be True from project_defaults"
-        )
+        assert (
+            pipeline["serverless"] is False
+        ), "serverless should be False from project_defaults"
+        assert (
+            pipeline["edition"] == "PRO"
+        ), "edition should be PRO from project_defaults"
+        assert pipeline["photon"] is True, "photon should be True from project_defaults"
 
     # ------------------------------------------------------------------
     # Test 12: __eventlog_monitoring alias resolves in generated bundle
@@ -1885,9 +1953,9 @@ tags:
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert monitoring_resource.exists(), (
-            f"Monitoring resource not generated: {monitoring_resource}"
-        )
+        assert (
+            monitoring_resource.exists()
+        ), f"Monitoring resource not generated: {monitoring_resource}"
 
         # Parse the generated resource YAML
         parsed = yaml.safe_load(monitoring_resource.read_text())
@@ -1896,20 +1964,16 @@ tags:
         ]
 
         # Verify alias settings flowed through to the resource
-        assert pipeline["serverless"] is False, (
-            "serverless should be False from __eventlog_monitoring alias config"
-        )
-        assert pipeline["edition"] == "ADVANCED", (
-            "edition should be ADVANCED from alias config"
-        )
-        assert pipeline["photon"] is True, (
-            "photon should be True from alias config"
-        )
+        assert (
+            pipeline["serverless"] is False
+        ), "serverless should be False from __eventlog_monitoring alias config"
+        assert (
+            pipeline["edition"] == "ADVANCED"
+        ), "edition should be ADVANCED from alias config"
+        assert pipeline["photon"] is True, "photon should be True from alias config"
 
         # Verify cluster configuration from alias
-        assert "clusters" in pipeline, (
-            "clusters should be present from alias config"
-        )
+        assert "clusters" in pipeline, "clusters should be present from alias config"
         assert len(pipeline["clusters"]) == 1
         cluster = pipeline["clusters"][0]
         assert cluster["node_type_id"] == "Standard_D4ds_v5"
@@ -1917,13 +1981,11 @@ tags:
         assert cluster["autoscale"]["max_workers"] == 3
 
         # Verify tags from alias
-        assert "tags" in pipeline, (
-            "tags should be present from alias config"
-        )
+        assert "tags" in pipeline, "tags should be present from alias config"
         assert pipeline["tags"]["purpose"] == "event_log_monitoring"
         assert pipeline["tags"]["managed_by"] == "lhp"
 
         # Verify monitoring pipeline still does NOT have event_log
-        assert "event_log" not in pipeline, (
-            "Monitoring pipeline resource should NOT have event_log"
-        )
+        assert (
+            "event_log" not in pipeline
+        ), "Monitoring pipeline resource should NOT have event_log"

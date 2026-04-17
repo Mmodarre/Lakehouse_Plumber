@@ -1,0 +1,24 @@
+pipeline: domain_i_bronze
+flowgroup: quality_check_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: quality_check
+  source_table: quality_check_raw
+actions:
+  - name: tst_quality_check_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_quality_check_cleansed
+    required_columns: [quality_check_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-quality_check-B01"
+
+  - name: tst_quality_check_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_quality_check_cleansed
+    columns: [quality_check_key]
+    on_violation: warn
+    test_id: "PERF-quality_check-B02"

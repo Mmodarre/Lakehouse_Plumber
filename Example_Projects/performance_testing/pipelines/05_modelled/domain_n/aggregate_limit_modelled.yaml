@@ -1,0 +1,53 @@
+pipeline: domain_n_modelled
+flowgroup: aggregate_limit_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: aggregate_limit_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: aggregate_limit_dim
+    target: v_aggregate_limit_silver
+    description: "Load aggregate_limit from silver for modelling"
+
+  - name: aggregate_limit_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_aggregate_limit_silver
+    target: v_aggregate_limit_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_aggregate_limit_silver
+
+  - name: write_aggregate_limit_modelled
+    type: write
+    source: v_aggregate_limit_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "aggregate_limit_modelled"
+
+  - name: tst_aggregate_limit_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_aggregate_limit_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-aggregate_limit-M01"
+
+  - name: tst_aggregate_limit_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_aggregate_limit_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-aggregate_limit-M02"

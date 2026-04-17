@@ -1,0 +1,47 @@
+pipeline: domain_d_raw
+flowgroup: treatment_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_treatment_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/treatment/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_treatment_cloudfiles
+    description: "Load treatment from landing volume"
+
+  - name: write_treatment_raw
+    type: write
+    source: v_treatment_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "treatment_raw"
+
+  - name: tst_treatment_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_treatment_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-treatment-R01"
+
+  - name: tst_treatment_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_treatment_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-treatment-R02"

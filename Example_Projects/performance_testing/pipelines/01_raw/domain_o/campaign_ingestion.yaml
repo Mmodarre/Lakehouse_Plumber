@@ -1,0 +1,47 @@
+pipeline: domain_o_raw
+flowgroup: campaign_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_campaign_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/campaign/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_campaign_cloudfiles
+    description: "Load campaign from landing volume"
+
+  - name: write_campaign_raw
+    type: write
+    source: v_campaign_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "campaign_raw"
+
+  - name: tst_campaign_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_campaign_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-campaign-R01"
+
+  - name: tst_campaign_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_campaign_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-campaign-R02"

@@ -1,0 +1,47 @@
+pipeline: domain_c_raw
+flowgroup: accrual_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_accrual_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/accrual/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_accrual_cloudfiles
+    description: "Load accrual from landing volume"
+
+  - name: write_accrual_raw
+    type: write
+    source: v_accrual_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "accrual_raw"
+
+  - name: tst_accrual_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_accrual_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-accrual-R01"
+
+  - name: tst_accrual_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_accrual_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-accrual-R02"

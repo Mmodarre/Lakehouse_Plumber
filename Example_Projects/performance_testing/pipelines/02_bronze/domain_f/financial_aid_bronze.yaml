@@ -1,0 +1,64 @@
+pipeline: domain_f_bronze
+flowgroup: financial_aid_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: financial_aid_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: financial_aid_raw
+    target: v_financial_aid_raw
+    description: "Load financial_aid from raw schema"
+
+  - name: financial_aid_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_financial_aid_raw
+    target: v_financial_aid_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as financial_aid_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_financial_aid_raw
+      WHERE 1=1
+
+  - name: financial_aid_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_financial_aid_bronze_cleaned
+    target: v_financial_aid_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to financial_aid"
+
+  - name: write_financial_aid_bronze
+    type: write
+    source: v_financial_aid_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "financial_aid"
+
+  - name: tst_financial_aid_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_financial_aid_bronze_cleaned
+    required_columns: [financial_aid_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-financial_aid-B01"
+
+  - name: tst_financial_aid_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_financial_aid_bronze_cleaned
+    columns: [financial_aid_key]
+    on_violation: warn
+    test_id: "PERF-financial_aid-B02"

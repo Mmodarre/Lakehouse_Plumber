@@ -1,0 +1,101 @@
+pipeline: domain_b_bronze
+flowgroup: labor_cost_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: labor_cost_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: labor_cost_raw
+    target: v_labor_cost_raw
+    description: "Load labor_cost from raw schema"
+
+  - name: labor_cost_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_labor_cost_raw
+    target: v_labor_cost_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as labor_cost_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_labor_cost_raw
+
+  - name: labor_cost_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_labor_cost_bronze_cleaned
+    target: v_labor_cost_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for labor_cost bronze"
+
+  - name: write_labor_cost_bronze
+    type: write
+    source: v_labor_cost_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "labor_cost"
+
+  - name: labor_cost_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: labor_cost_migration
+    target: v_labor_cost_migration
+    description: "Load labor_cost migration data"
+
+  - name: labor_cost_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_labor_cost_migration
+    target: v_labor_cost_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as labor_cost_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_labor_cost_migration
+
+  - name: write_labor_cost_migration
+    type: write
+    source: v_labor_cost_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "labor_cost"
+
+  - name: tst_labor_cost_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_labor_cost_bronze_cleaned
+    required_columns: [labor_cost_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-labor_cost-B01"
+
+  - name: tst_labor_cost_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_labor_cost_bronze_cleaned
+    columns: [labor_cost_key]
+    on_violation: warn
+    test_id: "PERF-labor_cost-B02"

@@ -1,0 +1,53 @@
+pipeline: domain_o_modelled
+flowgroup: backlink_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: backlink_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: backlink_dim
+    target: v_backlink_silver
+    description: "Load backlink from silver for modelling"
+
+  - name: backlink_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_backlink_silver
+    target: v_backlink_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_backlink_silver
+
+  - name: write_backlink_modelled
+    type: write
+    source: v_backlink_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "backlink_modelled"
+
+  - name: tst_backlink_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_backlink_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-backlink-M01"
+
+  - name: tst_backlink_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_backlink_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-backlink-M02"

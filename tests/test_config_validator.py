@@ -40,7 +40,8 @@ class TestConfigValidator:
                     source="v_clean_data",
                     write_target={
                         "type": "streaming_table",
-                        "database": "silver",
+                        "catalog": "test_cat",
+                        "schema": "silver",
                         "table": "clean_data"
                     }
                 )
@@ -96,7 +97,7 @@ class TestConfigValidator:
             actions=[
                 Action(name="load_data", type=ActionType.LOAD, target="v_data1", source={"type": "delta", "table": "t1"}),
                 Action(name="load_data", type=ActionType.LOAD, target="v_data2", source={"type": "delta", "table": "t2"}),
-                Action(name="write", type=ActionType.WRITE, source="v_data1", write_target={"type": "streaming_table", "database": "db", "table": "t"})
+                Action(name="write", type=ActionType.WRITE, source="v_data1", write_target={"type": "streaming_table", "catalog": "test_cat", "schema": "db", "table": "t"})
             ]
         )
         errors = validator.validate_flowgroup(flowgroup)
@@ -109,7 +110,7 @@ class TestConfigValidator:
             actions=[
                 Action(name="load1", type=ActionType.LOAD, target="v_data", source={"type": "delta", "table": "t1"}),
                 Action(name="load2", type=ActionType.LOAD, target="v_data", source={"type": "delta", "table": "t2"}),
-                Action(name="write", type=ActionType.WRITE, source="v_data", write_target={"type": "streaming_table", "database": "db", "table": "t"})
+                Action(name="write", type=ActionType.WRITE, source="v_data", write_target={"type": "streaming_table", "catalog": "test_cat", "schema": "db", "table": "t"})
             ]
         )
         errors = validator.validate_flowgroup(flowgroup)
@@ -356,7 +357,8 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "my_table"
             }
         )
@@ -370,11 +372,12 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table"
-                # Missing database, table
+                # Missing catalog, schema, table
             }
         )
         errors = validator.validate_action(action, 0)
-        assert any("database" in error for error in errors)
+        assert any("catalog" in error for error in errors)
+        assert any("schema" in error for error in errors)
         assert any("table" in error for error in errors)
         
         # Valid materialized view with SQL
@@ -383,7 +386,8 @@ class TestConfigValidator:
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "test_cat",
+                "schema": "gold",
                 "table": "summary",
                 "sql": "SELECT COUNT(*) FROM silver.details"
             }
@@ -447,7 +451,8 @@ class TestConfigValidator:
                     source="v_output",
                     write_target={
                         "type": "streaming_table",
-                        "database": "silver",
+                        "catalog": "test_cat",
+                "schema": "silver",
                         "table": "output"
                     }
                 )
@@ -480,7 +485,8 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "output"
             }
         )
@@ -498,7 +504,8 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "my_table",
                 "spark_conf": {
                     "spark.sql.adaptive.enabled": "true",
@@ -508,7 +515,7 @@ class TestConfigValidator:
                     "delta.autoOptimize.optimizeWrite": "true",
                     "delta.enableChangeDataFeed": "true"
                 },
-                "schema": "id BIGINT, name STRING, amount DECIMAL(18,2)",
+                "table_schema": "id BIGINT, name STRING, amount DECIMAL(18,2)",
                 "row_filter": "ROW FILTER catalog.schema.filter_fn ON (region)",
                 "temporary": True,
                 "partition_columns": ["region", "status"],
@@ -525,7 +532,8 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "my_table",
                 "spark_conf": "invalid"
             }
@@ -540,7 +548,8 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "my_table",
                 "table_properties": "invalid"
             }
@@ -548,16 +557,17 @@ class TestConfigValidator:
         errors = validator.validate_action(action, 0)
         assert any("table_properties" in error and "dictionary" in error for error in errors)
         
-        # Invalid schema (not a string)
+        # Invalid table_schema (not a string)
         action = Action(
             name="write_invalid_schema",
             type=ActionType.WRITE,
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "my_table",
-                "schema": {"invalid": "object"}
+                "table_schema": {"invalid": "object"}
             }
         )
         errors = validator.validate_action(action, 0)
@@ -570,7 +580,8 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "my_table",
                 "row_filter": 123
             }
@@ -585,7 +596,8 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "my_table",
                 "temporary": "yes"
             }
@@ -600,7 +612,8 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "my_table",
                 "partition_columns": "region"
             }
@@ -615,7 +628,8 @@ class TestConfigValidator:
             source="v_data",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "my_table",
                 "cluster_columns": "id"
             }
@@ -634,7 +648,8 @@ class TestConfigValidator:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "snapshot_cdc_config": {
                     "source": "raw.customer_snapshots",
@@ -654,7 +669,8 @@ class TestConfigValidator:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "snapshot_cdc_config": {
                     "source_function": {
@@ -678,7 +694,8 @@ class TestConfigValidator:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers"
                 # Missing snapshot_cdc_config
             }
@@ -693,7 +710,8 @@ class TestConfigValidator:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "snapshot_cdc_config": {
                     "keys": ["customer_id"]
@@ -711,7 +729,8 @@ class TestConfigValidator:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "snapshot_cdc_config": {
                     "source": "raw.table",
@@ -730,7 +749,8 @@ class TestConfigValidator:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "snapshot_cdc_config": {
                     "source": "raw.table"
@@ -748,7 +768,8 @@ class TestConfigValidator:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "snapshot_cdc_config": {
                     "source": "raw.table",
@@ -767,7 +788,8 @@ class TestConfigValidator:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "snapshot_cdc_config": {
                     "source": "raw.table",
@@ -787,7 +809,8 @@ class TestConfigValidator:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "test_cat",
+                "schema": "silver",
                 "table": "customers",
                 "snapshot_cdc_config": {
                     "source_function": {
@@ -826,7 +849,8 @@ class TestConfigValidator:
                     source="v_customers1",
                     write_target={
                         "type": "streaming_table",
-                        "database": "bronze",
+                        "catalog": "test_cat",
+                        "schema": "bronze",
                         "table": "customers1",
                         "create_table": True
                     }
@@ -854,7 +878,8 @@ class TestConfigValidator:
                     source="v_customers2",
                     write_target={
                         "type": "streaming_table",
-                        "database": "bronze",
+                        "catalog": "test_cat",
+                        "schema": "bronze",
                         "table": "customers2",
                         "create_table": True
                     }
@@ -895,7 +920,8 @@ class TestConfigValidator:
                     source="v_customers",
                     write_target={
                         "type": "streaming_table",
-                        "database": "bronze",
+                        "catalog": "test_cat",
+                        "schema": "bronze",
                         "table": "customers",
                         "create_table": True
                     }
@@ -923,7 +949,8 @@ class TestConfigValidator:
                     source="v_orders",
                     write_target={
                         "type": "streaming_table",
-                        "database": "bronze",
+                        "catalog": "test_cat",
+                        "schema": "bronze",
                         "table": "orders",
                         "create_table": True
                     }
@@ -949,7 +976,8 @@ class TestConfigValidator:
                     source="v_customers_silver",
                     write_target={
                         "type": "streaming_table",
-                        "database": "silver",
+                        "catalog": "test_cat",
+                "schema": "silver",
                         "table": "customers",
                         "create_table": True
                     }
@@ -1001,7 +1029,8 @@ class TestConfigValidator:
                         "source": "v_customers",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "bronze",
+                            "catalog": "test_cat",
+                        "schema": "bronze",
                             "table": "customers",
                             "create_table": True
                         }
@@ -1030,7 +1059,8 @@ class TestConfigValidator:
                         "source": "v_orders",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "bronze",
+                            "catalog": "test_cat",
+                        "schema": "bronze",
                             "table": "orders",
                             "create_table": True
                         }

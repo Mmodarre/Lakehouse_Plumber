@@ -1,0 +1,64 @@
+pipeline: domain_k_bronze
+flowgroup: codeshare_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: codeshare_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: codeshare_raw
+    target: v_codeshare_raw
+    description: "Load codeshare from raw schema"
+
+  - name: codeshare_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_codeshare_raw
+    target: v_codeshare_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as codeshare_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_codeshare_raw
+      WHERE 1=1
+
+  - name: codeshare_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_codeshare_bronze_cleaned
+    target: v_codeshare_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to codeshare"
+
+  - name: write_codeshare_bronze
+    type: write
+    source: v_codeshare_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "codeshare"
+
+  - name: tst_codeshare_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_codeshare_bronze_cleaned
+    required_columns: [codeshare_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-codeshare-B01"
+
+  - name: tst_codeshare_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_codeshare_bronze_cleaned
+    columns: [codeshare_key]
+    on_violation: warn
+    test_id: "PERF-codeshare-B02"

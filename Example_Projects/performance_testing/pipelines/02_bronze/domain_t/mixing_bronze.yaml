@@ -1,0 +1,24 @@
+pipeline: domain_t_bronze
+flowgroup: mixing_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: mixing
+  source_table: mixing_raw
+actions:
+  - name: tst_mixing_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_mixing_cleansed
+    required_columns: [mixing_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-mixing-B01"
+
+  - name: tst_mixing_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mixing_cleansed
+    columns: [mixing_key]
+    on_violation: warn
+    test_id: "PERF-mixing-B02"

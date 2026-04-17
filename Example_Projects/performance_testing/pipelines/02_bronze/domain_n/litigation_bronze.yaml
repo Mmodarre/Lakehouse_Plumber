@@ -1,0 +1,101 @@
+pipeline: domain_n_bronze
+flowgroup: litigation_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: litigation_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: litigation_raw
+    target: v_litigation_raw
+    description: "Load litigation from raw schema"
+
+  - name: litigation_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_litigation_raw
+    target: v_litigation_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as litigation_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_litigation_raw
+
+  - name: litigation_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_litigation_bronze_cleaned
+    target: v_litigation_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for litigation bronze"
+
+  - name: write_litigation_bronze
+    type: write
+    source: v_litigation_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "litigation"
+
+  - name: litigation_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: litigation_migration
+    target: v_litigation_migration
+    description: "Load litigation migration data"
+
+  - name: litigation_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_litigation_migration
+    target: v_litigation_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as litigation_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_litigation_migration
+
+  - name: write_litigation_migration
+    type: write
+    source: v_litigation_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "litigation"
+
+  - name: tst_litigation_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_litigation_bronze_cleaned
+    required_columns: [litigation_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-litigation-B01"
+
+  - name: tst_litigation_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_litigation_bronze_cleaned
+    columns: [litigation_key]
+    on_violation: warn
+    test_id: "PERF-litigation-B02"

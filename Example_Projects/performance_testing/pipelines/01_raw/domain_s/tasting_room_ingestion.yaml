@@ -1,0 +1,25 @@
+pipeline: domain_s_raw
+flowgroup: tasting_room_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: tasting_room_raw
+  landing_folder: tasting_room
+  schema_file: lineitem_schema
+actions:
+  - name: tst_tasting_room_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_tasting_room_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-tasting_room-R01"
+
+  - name: tst_tasting_room_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tasting_room_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-tasting_room-R02"

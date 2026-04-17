@@ -1,0 +1,38 @@
+pipeline: domain_f_gold
+flowgroup: advisor_summary_mv
+actions:
+  - name: advisor_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.advisor_dim
+    target: v_advisor_summary
+
+  - name: write_advisor_summary_mv
+    type: write
+    source: v_advisor_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "advisor_summary_mv"
+
+  - name: tst_advisor_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_advisor_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-advisor-G01"
+
+  - name: tst_advisor_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_advisor_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-advisor-G02"

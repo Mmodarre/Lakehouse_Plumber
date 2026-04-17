@@ -1,0 +1,47 @@
+pipeline: domain_l_raw
+flowgroup: happy_hour_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_happy_hour_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/happy_hour/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_happy_hour_cloudfiles
+    description: "Load happy_hour from landing volume"
+
+  - name: write_happy_hour_raw
+    type: write
+    source: v_happy_hour_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "happy_hour_raw"
+
+  - name: tst_happy_hour_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_happy_hour_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-happy_hour-R01"
+
+  - name: tst_happy_hour_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_happy_hour_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-happy_hour-R02"

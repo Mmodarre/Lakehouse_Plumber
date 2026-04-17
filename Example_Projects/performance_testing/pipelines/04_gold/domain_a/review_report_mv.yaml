@@ -1,0 +1,38 @@
+pipeline: domain_a_gold
+flowgroup: review_report_mv
+actions:
+  - name: review_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.review_dim
+    target: v_review_report
+
+  - name: write_review_report_mv
+    type: write
+    source: v_review_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "review_report_mv"
+
+  - name: tst_review_report_completeness
+    type: test
+    test_type: completeness
+    source: v_review_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-review-G01"
+
+  - name: tst_review_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_review_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-review-G02"

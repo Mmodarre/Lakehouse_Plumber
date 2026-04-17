@@ -1,0 +1,38 @@
+pipeline: domain_b_gold
+flowgroup: offer_letter_summary_mv
+actions:
+  - name: offer_letter_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.offer_letter_dim
+    target: v_offer_letter_summary
+
+  - name: write_offer_letter_summary_mv
+    type: write
+    source: v_offer_letter_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "offer_letter_summary_mv"
+
+  - name: tst_offer_letter_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_offer_letter_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-offer_letter-G01"
+
+  - name: tst_offer_letter_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_offer_letter_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-offer_letter-G02"

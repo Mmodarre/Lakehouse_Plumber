@@ -183,18 +183,18 @@ class TestEnvironmentSubstitution:
         shutil.rmtree(temp_dir)
 
     def test_substitution_in_environment_dependencies(self, temp_project):
-        """Tokens like {msal_version} in dependency values get substituted."""
+        """Tokens like ${msal_version} in dependency values get substituted."""
         config_path = temp_project / "config" / "pipeline_config.yaml"
         with open(config_path, "w") as f:
             f.write("""
 ---
 pipeline: test_pipeline
-catalog: "{catalog}"
-schema: "{schema}"
+catalog: "${catalog}"
+schema: "${schema}"
 serverless: true
 environment:
   dependencies:
-    - "msal=={msal_version}"
+    - "msal==${msal_version}"
 """)
         manager = BundleManager(
             project_root=temp_project,
@@ -229,8 +229,8 @@ project_defaults:
 
 ---
 pipeline: test_pipeline
-catalog: "{catalog}"
-schema: "{schema}"
+catalog: "${catalog}"
+schema: "${schema}"
 """)
         manager = BundleManager(
             project_root=temp_project,
@@ -265,8 +265,8 @@ project_defaults:
 
 ---
 pipeline: test_pipeline
-catalog: "{catalog}"
-schema: "{schema}"
+catalog: "${catalog}"
+schema: "${schema}"
 environment:
   dependencies:
     - "requests>=2.28.0"
@@ -541,11 +541,11 @@ class TestConfigurationSubstitution:
             f.write("""
 ---
 pipeline: test_pipeline
-catalog: "{catalog}"
-schema: "{schema}"
+catalog: "${catalog}"
+schema: "${schema}"
 serverless: true
 configuration:
-  "spark.databricks.delta.minFileSize": "{min_file_size}"
+  "spark.databricks.delta.minFileSize": "${min_file_size}"
 """)
         manager = BundleManager(
             project_root=temp_project,
@@ -581,8 +581,8 @@ project_defaults:
 
 ---
 pipeline: test_pipeline
-catalog: "{catalog}"
-schema: "{schema}"
+catalog: "${catalog}"
+schema: "${schema}"
 """)
         manager = BundleManager(
             project_root=temp_project,
@@ -620,8 +620,8 @@ project_defaults:
 
 ---
 pipeline: test_pipeline
-catalog: "{catalog}"
-schema: "{schema}"
+catalog: "${catalog}"
+schema: "${schema}"
 configuration:
   "pipelines.incompatibleViewCheck.enabled": "true"
   "spark.sql.shuffle.partitions": "200"

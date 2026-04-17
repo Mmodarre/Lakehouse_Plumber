@@ -1,0 +1,1079 @@
+pipeline: domain_b_modelled
+flowgroup: employee_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: employee_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: employee_fct
+    target: v_employee_silver
+    description: "Load employee from silver for modelling"
+
+  - name: employee_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_employee_silver
+    target: v_employee_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_employee_silver
+
+  - name: write_employee_modelled
+    type: write
+    source: v_employee_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "employee_modelled"
+
+  - name: tst_employee_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_employee_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-employee-M01"
+
+  - name: tst_employee_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_employee_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-employee-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: department_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: department_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: department_dim
+    target: v_department_silver
+    description: "Load department from silver for modelling"
+
+  - name: department_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_department_silver
+    target: v_department_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_department_silver
+
+  - name: write_department_modelled
+    type: write
+    source: v_department_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "department_modelled"
+
+  - name: tst_department_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_department_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-department-M01"
+
+  - name: tst_department_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_department_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-department-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: project_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: project_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: project_dim
+    target: v_project_silver
+    description: "Load project from silver for modelling"
+
+  - name: project_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_project_silver
+    target: v_project_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_project_silver
+
+  - name: write_project_modelled
+    type: write
+    source: v_project_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "project_modelled"
+
+  - name: tst_project_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_project_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-project-M01"
+
+  - name: tst_project_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_project_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-project-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: task_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: task_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: task_fct
+    target: v_task_silver
+    description: "Load task from silver for modelling"
+
+  - name: task_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_task_silver
+    target: v_task_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_task_silver
+
+  - name: write_task_modelled
+    type: write
+    source: v_task_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "task_modelled"
+
+  - name: tst_task_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_task_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-task-M01"
+
+  - name: tst_task_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_task_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-task-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: timesheet_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: timesheet_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: timesheet_dim
+    target: v_timesheet_silver
+    description: "Load timesheet from silver for modelling"
+
+  - name: timesheet_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_timesheet_silver
+    target: v_timesheet_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_timesheet_silver
+
+  - name: write_timesheet_modelled
+    type: write
+    source: v_timesheet_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "timesheet_modelled"
+
+  - name: tst_timesheet_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_timesheet_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-timesheet-M01"
+
+  - name: tst_timesheet_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_timesheet_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-timesheet-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: salary_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: salary_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: salary_dim
+    target: v_salary_silver
+    description: "Load salary from silver for modelling"
+
+  - name: salary_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_salary_silver
+    target: v_salary_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_salary_silver
+
+  - name: write_salary_modelled
+    type: write
+    source: v_salary_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "salary_modelled"
+
+  - name: tst_salary_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_salary_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-salary-M01"
+
+  - name: tst_salary_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_salary_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-salary-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: benefit_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: benefit_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: benefit_fct
+    target: v_benefit_silver
+    description: "Load benefit from silver for modelling"
+
+  - name: benefit_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_benefit_silver
+    target: v_benefit_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_benefit_silver
+
+  - name: write_benefit_modelled
+    type: write
+    source: v_benefit_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "benefit_modelled"
+
+  - name: tst_benefit_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_benefit_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-benefit-M01"
+
+  - name: tst_benefit_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_benefit_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-benefit-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: leave_request_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: leave_request_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: leave_request_dim
+    target: v_leave_request_silver
+    description: "Load leave_request from silver for modelling"
+
+  - name: leave_request_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_leave_request_silver
+    target: v_leave_request_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_leave_request_silver
+
+  - name: write_leave_request_modelled
+    type: write
+    source: v_leave_request_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "leave_request_modelled"
+
+  - name: tst_leave_request_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_leave_request_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-leave_request-M01"
+
+  - name: tst_leave_request_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_leave_request_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-leave_request-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: training_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: training_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: training_dim
+    target: v_training_silver
+    description: "Load training from silver for modelling"
+
+  - name: training_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_training_silver
+    target: v_training_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_training_silver
+
+  - name: write_training_modelled
+    type: write
+    source: v_training_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "training_modelled"
+
+  - name: tst_training_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_training_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-training-M01"
+
+  - name: tst_training_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_training_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-training-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: certification_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: certification_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: certification_fct
+    target: v_certification_silver
+    description: "Load certification from silver for modelling"
+
+  - name: certification_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_certification_silver
+    target: v_certification_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_certification_silver
+
+  - name: write_certification_modelled
+    type: write
+    source: v_certification_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "certification_modelled"
+
+  - name: tst_certification_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_certification_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-certification-M01"
+
+  - name: tst_certification_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_certification_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-certification-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: performance_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: performance_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: performance_dim
+    target: v_performance_silver
+    description: "Load performance from silver for modelling"
+
+  - name: performance_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_performance_silver
+    target: v_performance_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_performance_silver
+
+  - name: write_performance_modelled
+    type: write
+    source: v_performance_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "performance_modelled"
+
+  - name: tst_performance_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_performance_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-performance-M01"
+
+  - name: tst_performance_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_performance_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-performance-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: goal_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: goal_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: goal_dim
+    target: v_goal_silver
+    description: "Load goal from silver for modelling"
+
+  - name: goal_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_goal_silver
+    target: v_goal_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_goal_silver
+
+  - name: write_goal_modelled
+    type: write
+    source: v_goal_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "goal_modelled"
+
+  - name: tst_goal_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_goal_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-goal-M01"
+
+  - name: tst_goal_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_goal_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-goal-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: feedback_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: feedback_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: feedback_fct
+    target: v_feedback_silver
+    description: "Load feedback from silver for modelling"
+
+  - name: feedback_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_feedback_silver
+    target: v_feedback_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_feedback_silver
+
+  - name: write_feedback_modelled
+    type: write
+    source: v_feedback_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "feedback_modelled"
+
+  - name: tst_feedback_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_feedback_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-feedback-M01"
+
+  - name: tst_feedback_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_feedback_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-feedback-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: interview_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: interview_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: interview_dim
+    target: v_interview_silver
+    description: "Load interview from silver for modelling"
+
+  - name: interview_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_interview_silver
+    target: v_interview_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_interview_silver
+
+  - name: write_interview_modelled
+    type: write
+    source: v_interview_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "interview_modelled"
+
+  - name: tst_interview_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_interview_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-interview-M01"
+
+  - name: tst_interview_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_interview_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-interview-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: candidate_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: candidate_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: candidate_dim
+    target: v_candidate_silver
+    description: "Load candidate from silver for modelling"
+
+  - name: candidate_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_candidate_silver
+    target: v_candidate_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_candidate_silver
+
+  - name: write_candidate_modelled
+    type: write
+    source: v_candidate_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "candidate_modelled"
+
+  - name: tst_candidate_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_candidate_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-candidate-M01"
+
+  - name: tst_candidate_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_candidate_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-candidate-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: job_posting_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: job_posting_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: job_posting_fct
+    target: v_job_posting_silver
+    description: "Load job_posting from silver for modelling"
+
+  - name: job_posting_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_job_posting_silver
+    target: v_job_posting_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_job_posting_silver
+
+  - name: write_job_posting_modelled
+    type: write
+    source: v_job_posting_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "job_posting_modelled"
+
+  - name: tst_job_posting_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_job_posting_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-job_posting-M01"
+
+  - name: tst_job_posting_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_job_posting_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-job_posting-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: offer_letter_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: offer_letter_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: offer_letter_dim
+    target: v_offer_letter_silver
+    description: "Load offer_letter from silver for modelling"
+
+  - name: offer_letter_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_offer_letter_silver
+    target: v_offer_letter_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_offer_letter_silver
+
+  - name: write_offer_letter_modelled
+    type: write
+    source: v_offer_letter_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "offer_letter_modelled"
+
+  - name: tst_offer_letter_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_offer_letter_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-offer_letter-M01"
+
+  - name: tst_offer_letter_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_offer_letter_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-offer_letter-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: onboarding_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: onboarding_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: onboarding_dim
+    target: v_onboarding_silver
+    description: "Load onboarding from silver for modelling"
+
+  - name: onboarding_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_onboarding_silver
+    target: v_onboarding_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_onboarding_silver
+
+  - name: write_onboarding_modelled
+    type: write
+    source: v_onboarding_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "onboarding_modelled"
+
+  - name: tst_onboarding_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_onboarding_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-onboarding-M01"
+
+  - name: tst_onboarding_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_onboarding_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-onboarding-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: offboarding_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: offboarding_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: offboarding_fct
+    target: v_offboarding_silver
+    description: "Load offboarding from silver for modelling"
+
+  - name: offboarding_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_offboarding_silver
+    target: v_offboarding_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_offboarding_silver
+
+  - name: write_offboarding_modelled
+    type: write
+    source: v_offboarding_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "offboarding_modelled"
+
+  - name: tst_offboarding_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_offboarding_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-offboarding-M01"
+
+  - name: tst_offboarding_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_offboarding_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-offboarding-M02"
+---
+pipeline: domain_b_modelled
+flowgroup: payroll_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: payroll_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: payroll_dim
+    target: v_payroll_silver
+    description: "Load payroll from silver for modelling"
+
+  - name: payroll_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_payroll_silver
+    target: v_payroll_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_payroll_silver
+
+  - name: write_payroll_modelled
+    type: write
+    source: v_payroll_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "payroll_modelled"
+
+  - name: tst_payroll_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_payroll_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-payroll-M01"
+
+  - name: tst_payroll_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_payroll_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-payroll-M02"

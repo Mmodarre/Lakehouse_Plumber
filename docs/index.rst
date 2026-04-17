@@ -90,7 +90,7 @@ Features at a Glance
 * **Sinks** — Stream to external destinations: Delta tables, Kafka, Event Hubs, custom APIs.
 * **CDC & SCD** — change-data capture SCD type 1 and 2, and snapshot ingestion.
 * **Append Flows** — multi-source writes to a single streaming table.
-* **Data-Quality** — declarative expectations integrated into transforms.
+* **Data-Quality** — declarative expectations integrated into transforms, with optional :doc:`quarantine <quarantine>` mode for DLQ recycling.
 * **Seeding** — seed data from existing tables using Lakeflow native features.
 
 **Reusability**
@@ -103,6 +103,7 @@ Features at a Glance
 
 * **Operational Metadata** — custom audit columns and metadata.
 * **Pipeline Monitoring** — centralized event log aggregation and analysis (see :doc:`monitoring`).
+* **Test Result Reporting** — publish DQ expectation results to Azure DevOps, Delta tables, or custom systems (see :doc:`actions/test_reporting`).
 * **Dependency Analysis** — automatic dependency detection and orchestration job generation (see :doc:`dependency_analysis`).
 * **Smart State Management** — regenerate only what changed; cleanup orphaned code.
 
@@ -129,11 +130,14 @@ Next Steps
 * :doc:`dynamic_templates_guide` – conditionals, loops, and advanced Jinja2 features.
 * :doc:`presets_reference` – reusable default configurations.
 * :doc:`best_practices` – enterprise patterns for naming, structure, presets, and production readiness.
+* :doc:`pipeline_patterns` – practical patterns for multi-source ingestion, path filtering, and fan-in architectures.
+* :doc:`quarantine` – quarantine mode with DLQ recycling for data quality transforms.
 
 **Deployment & Operations**
 
 * :doc:`databricks_bundles` – integrate with Databricks Asset Bundles for production deployments.
 * :doc:`monitoring` – centralized event log monitoring and analysis across all pipelines.
+* :doc:`actions/test_reporting` – publish test results to external systems.
 * :doc:`dependency_analysis` – pipeline dependency analysis and orchestration job generation.
 * :doc:`cicd_reference` – CI/CD patterns, deployment strategies, and DataOps best practices.
 
@@ -161,6 +165,8 @@ Next Steps
    operational_metadata
    multi_flowgroup_guide
    best_practices
+   pipeline_patterns
+   quarantine
    actions/index
    templates_reference
    dynamic_templates_guide
@@ -173,6 +179,7 @@ Next Steps
 
    databricks_bundles
    monitoring
+   actions/test_reporting
    dependency_analysis
    cicd_reference
 

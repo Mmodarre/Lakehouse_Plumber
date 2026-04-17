@@ -1,0 +1,24 @@
+pipeline: domain_l_bronze
+flowgroup: food_order_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: food_order
+  source_table: food_order_raw
+actions:
+  - name: tst_food_order_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_food_order_cleansed
+    required_columns: [food_order_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-food_order-B01"
+
+  - name: tst_food_order_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_food_order_cleansed
+    columns: [food_order_key]
+    on_violation: warn
+    test_id: "PERF-food_order-B02"

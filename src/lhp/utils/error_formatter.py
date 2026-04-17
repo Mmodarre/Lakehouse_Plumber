@@ -226,6 +226,36 @@ Option 2 (Legacy - will be deprecated):
         )
 
     @staticmethod
+    def incompatible_options(
+        action_name: str,
+        option_a: str,
+        option_b: str,
+        reason: str,
+        suggestion: str,
+        example: Optional[str] = None,
+    ) -> LHPValidationError:
+        """Format incompatible Delta options errors."""
+        return LHPValidationError(
+            category=ErrorCategory.VALIDATION,
+            code_number="013",
+            title=f"Incompatible options in action '{action_name}'",
+            details=(
+                f"Options '{option_a}' and '{option_b}' cannot be used together. "
+                f"{reason}"
+            ),
+            suggestions=[
+                suggestion,
+                "See Delta Lake documentation for valid option combinations",
+            ],
+            example=example,
+            context={
+                "Action": action_name,
+                "Option A": option_a,
+                "Option B": option_b,
+            },
+        )
+
+    @staticmethod
     def missing_required_field(
         field_name: str,
         component_type: str,

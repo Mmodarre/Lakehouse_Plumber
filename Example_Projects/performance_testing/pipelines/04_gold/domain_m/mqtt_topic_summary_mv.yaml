@@ -1,0 +1,38 @@
+pipeline: domain_m_gold
+flowgroup: mqtt_topic_summary_mv
+actions:
+  - name: mqtt_topic_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.mqtt_topic_fct
+    target: v_mqtt_topic_summary
+
+  - name: write_mqtt_topic_summary_mv
+    type: write
+    source: v_mqtt_topic_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "mqtt_topic_summary_mv"
+
+  - name: tst_mqtt_topic_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_mqtt_topic_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-mqtt_topic-G01"
+
+  - name: tst_mqtt_topic_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mqtt_topic_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-mqtt_topic-G02"

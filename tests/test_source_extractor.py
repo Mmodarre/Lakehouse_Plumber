@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from lhp.models.config import Action
 from lhp.utils.source_extractor import (
     extract_action_sources,
     extract_cdc_sources,
@@ -16,7 +17,7 @@ class TestExtractActionSources:
 
     def test_string_source_returns_single_item_list(self):
         """A plain string source should return a list containing that string."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "transform"
         action.write_target = None
         action.source = "v_raw_data"
@@ -27,7 +28,7 @@ class TestExtractActionSources:
 
     def test_list_of_strings_returns_all(self):
         """A list of string sources should return all of them."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "transform"
         action.write_target = None
         action.source = ["v_customers", "v_orders", "v_products"]
@@ -38,7 +39,7 @@ class TestExtractActionSources:
 
     def test_dict_with_view_key_returns_view_name(self):
         """A dict source with a 'view' key should return the view name."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = {"mode": "append"}
         action.source = {"view": "v_clean_data"}
@@ -49,7 +50,7 @@ class TestExtractActionSources:
 
     def test_dict_with_source_key_string(self):
         """A dict source with a 'source' key (string) should return that source."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "transform"
         action.write_target = None
         action.source = {"source": "v_input_view"}
@@ -60,7 +61,7 @@ class TestExtractActionSources:
 
     def test_dict_with_source_key_list(self):
         """A dict source with a 'source' key (list) should return all sources."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "transform"
         action.write_target = None
         action.source = {"source": ["v_left", "v_right"]}
@@ -71,7 +72,7 @@ class TestExtractActionSources:
 
     def test_dict_with_sources_key_returns_all(self):
         """A dict source with a 'sources' key should return all listed sources."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "transform"
         action.write_target = None
         action.source = {"sources": ["v_dim_1", "v_dim_2", "v_fact"]}
@@ -80,16 +81,16 @@ class TestExtractActionSources:
 
         assert result == ["v_dim_1", "v_dim_2", "v_fact"]
 
-    def test_dict_with_database_and_table_returns_qualified_name(self):
-        """A dict with 'database' and 'table' keys should return 'database.table'."""
-        action = Mock()
+    def test_dict_with_catalog_schema_and_table_returns_qualified_name(self):
+        """A dict with 'catalog', 'schema', and 'table' keys should return 'catalog.schema.table'."""
+        action = Mock(spec=Action)
         action.type = "load"
         action.write_target = None
-        action.source = {"database": "bronze_catalog", "table": "raw_events"}
+        action.source = {"catalog": "bronze_catalog", "schema": "bronze", "table": "raw_events"}
 
         result = extract_action_sources(action)
 
-        assert result == ["bronze_catalog.raw_events"]
+        assert result == ["bronze_catalog.bronze.raw_events"]
 
     def test_no_source_attribute_returns_empty(self):
         """An action without a source attribute should return an empty list."""
@@ -101,7 +102,7 @@ class TestExtractActionSources:
 
     def test_none_source_returns_empty(self):
         """An action with source=None should return an empty list."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "load"
         action.write_target = None
         action.source = None
@@ -112,7 +113,7 @@ class TestExtractActionSources:
 
     def test_cdc_write_action_delegates_to_extract_cdc_sources(self):
         """A CDC write action should delegate extraction to extract_cdc_sources."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = {
             "mode": "cdc",
@@ -126,7 +127,7 @@ class TestExtractActionSources:
 
     def test_cdc_write_action_falls_back_to_action_source(self):
         """A CDC write action with no CDC-specific source falls back to action.source."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = {
             "mode": "cdc",
@@ -140,7 +141,7 @@ class TestExtractActionSources:
 
     def test_dict_source_view_takes_priority_over_other_keys(self):
         """The 'view' key in a dict source should take priority."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = {"mode": "append"}
         action.source = {"view": "v_priority", "source": "v_secondary"}
@@ -151,7 +152,7 @@ class TestExtractActionSources:
 
     def test_empty_list_source_returns_empty(self):
         """An empty list source should return an empty list."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "transform"
         action.write_target = None
         action.source = []
@@ -162,7 +163,7 @@ class TestExtractActionSources:
 
     def test_list_with_non_string_items_ignored(self):
         """Non-string items in a list source should be ignored."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "transform"
         action.write_target = None
         action.source = ["v_valid", 42, None, "v_also_valid"]
@@ -171,12 +172,12 @@ class TestExtractActionSources:
 
         assert result == ["v_valid", "v_also_valid"]
 
-    def test_dict_with_empty_database_and_table(self):
-        """A dict with empty database and table should not produce a dotted name."""
-        action = Mock()
+    def test_dict_with_empty_catalog_schema_and_table(self):
+        """A dict with empty catalog, schema, and table should not produce a dotted name."""
+        action = Mock(spec=Action)
         action.type = "load"
         action.write_target = None
-        action.source = {"database": "", "table": ""}
+        action.source = {"catalog": "", "schema": "", "table": ""}
 
         result = extract_action_sources(action)
 
@@ -184,7 +185,7 @@ class TestExtractActionSources:
 
     def test_dict_with_no_recognized_keys_returns_empty(self):
         """A dict with no recognized keys should return an empty list."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "load"
         action.write_target = None
         action.source = {"path": "/mnt/data", "format": "parquet"}
@@ -199,7 +200,7 @@ class TestIsCdcWriteAction:
 
     def test_write_action_with_cdc_mode_returns_true(self):
         """A write action with mode 'cdc' should be identified as CDC."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = {"mode": "cdc", "cdc_config": {"source": "v_src"}}
 
@@ -207,7 +208,7 @@ class TestIsCdcWriteAction:
 
     def test_write_action_with_snapshot_cdc_mode_returns_true(self):
         """A write action with mode 'snapshot_cdc' should be identified as CDC."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = {
             "mode": "snapshot_cdc",
@@ -218,7 +219,7 @@ class TestIsCdcWriteAction:
 
     def test_write_action_without_write_target_returns_false(self):
         """A write action with no write_target should not be CDC."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = None
 
@@ -226,7 +227,7 @@ class TestIsCdcWriteAction:
 
     def test_write_action_with_non_cdc_mode_returns_false(self):
         """A write action with a non-CDC mode (e.g. 'append') should not be CDC."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = {"mode": "append"}
 
@@ -234,7 +235,7 @@ class TestIsCdcWriteAction:
 
     def test_non_write_action_returns_false(self):
         """A non-write action (e.g. 'transform') should not be CDC."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "transform"
         action.write_target = {"mode": "cdc"}
 
@@ -255,7 +256,7 @@ class TestIsCdcWriteAction:
 
     def test_write_target_not_a_dict_returns_false(self):
         """A write_target that is not a dict should not be CDC."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = "not_a_dict"
 
@@ -263,7 +264,7 @@ class TestIsCdcWriteAction:
 
     def test_write_target_empty_dict_returns_false(self):
         """An empty write_target dict (no mode key) should not be CDC."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = {}
 
@@ -271,7 +272,7 @@ class TestIsCdcWriteAction:
 
     def test_write_action_mode_complete_returns_false(self):
         """A write action with mode 'complete' should not be CDC."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.type = "write"
         action.write_target = {"mode": "complete"}
 
@@ -283,7 +284,7 @@ class TestExtractCdcSources:
 
     def test_cdc_mode_with_cdc_config_source(self):
         """CDC mode with cdc_config.source should return that source."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {
             "mode": "cdc",
             "cdc_config": {"source": "v_cdc_input"},
@@ -295,7 +296,7 @@ class TestExtractCdcSources:
 
     def test_snapshot_cdc_with_source_function_returns_empty(self):
         """snapshot_cdc with source_function should return [] (self-contained)."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {
             "mode": "snapshot_cdc",
             "snapshot_cdc_config": {
@@ -309,7 +310,7 @@ class TestExtractCdcSources:
 
     def test_snapshot_cdc_with_snapshot_cdc_config_source(self):
         """snapshot_cdc with snapshot_cdc_config.source should return that source."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {
             "mode": "snapshot_cdc",
             "snapshot_cdc_config": {"source": "v_snapshot_input"},
@@ -321,7 +322,7 @@ class TestExtractCdcSources:
 
     def test_no_cdc_specific_source_returns_none(self):
         """CDC mode with no CDC-specific source should return None (fallback signal)."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {
             "mode": "cdc",
             "cdc_config": {},
@@ -333,7 +334,7 @@ class TestExtractCdcSources:
 
     def test_empty_write_target_returns_none(self):
         """An empty write_target should return None."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {}
 
         result = extract_cdc_sources(action)
@@ -342,7 +343,7 @@ class TestExtractCdcSources:
 
     def test_none_write_target_returns_none(self):
         """A None write_target should return None."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = None
 
         result = extract_cdc_sources(action)
@@ -351,7 +352,7 @@ class TestExtractCdcSources:
 
     def test_write_target_not_a_dict_returns_none(self):
         """A non-dict write_target should return None."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = "not_a_dict"
 
         result = extract_cdc_sources(action)
@@ -360,7 +361,7 @@ class TestExtractCdcSources:
 
     def test_snapshot_cdc_source_function_takes_priority_over_source(self):
         """source_function should take priority over source in snapshot_cdc_config."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {
             "mode": "snapshot_cdc",
             "snapshot_cdc_config": {
@@ -375,7 +376,7 @@ class TestExtractCdcSources:
 
     def test_cdc_mode_without_cdc_config_key_returns_none(self):
         """CDC mode without cdc_config key at all should return None."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {"mode": "cdc"}
 
         result = extract_cdc_sources(action)
@@ -384,7 +385,7 @@ class TestExtractCdcSources:
 
     def test_snapshot_cdc_without_snapshot_cdc_config_key_returns_none(self):
         """snapshot_cdc without snapshot_cdc_config key should return None."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {"mode": "snapshot_cdc"}
 
         result = extract_cdc_sources(action)
@@ -393,7 +394,7 @@ class TestExtractCdcSources:
 
     def test_cdc_config_source_is_none_returns_none(self):
         """cdc_config with source=None should return None (falsy source)."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {
             "mode": "cdc",
             "cdc_config": {"source": None},
@@ -405,7 +406,7 @@ class TestExtractCdcSources:
 
     def test_non_cdc_mode_returns_none(self):
         """A non-CDC mode (e.g. 'append') should return None."""
-        action = Mock()
+        action = Mock(spec=Action)
         action.write_target = {"mode": "append"}
 
         result = extract_cdc_sources(action)

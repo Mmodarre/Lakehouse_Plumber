@@ -1,0 +1,48 @@
+pipeline: domain_m_silver
+flowgroup: payload_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: payload_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: payload
+    target: v_payload_bronze
+    description: "Load payload from bronze for silver layer"
+
+  - name: write_payload_silver
+    type: write
+    source: v_payload_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "payload_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["payload_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_payload_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_payload_bronze
+    required_columns: [payload_key]
+    on_violation: warn
+    test_id: "PERF-payload-S01"
+
+  - name: tst_payload_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_payload_bronze
+    columns: [payload_key]
+    on_violation: warn
+    test_id: "PERF-payload-S02"

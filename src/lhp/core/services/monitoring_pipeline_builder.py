@@ -1,10 +1,15 @@
 """Builder for synthetic event log monitoring pipeline.
 
-Constructs a FlowGroup that UNIONs all pipeline event log tables into a single
-streaming table, with optional materialized views for analysis.
+Constructs two artifacts:
+1. A standalone notebook with N independent streaming queries (one per pipeline
+   event log) that append into a user-created Delta table.
+2. A DLT FlowGroup with materialized views only, reading from that Delta table.
+
+A Databricks Workflow job chains: notebook_task (union) → pipeline_task (MVs).
 """
 
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -17,20 +22,9 @@ from ...models.config import (
 )
 from ...utils.error_formatter import ErrorCategory, LHPError
 from ...utils.external_file_loader import load_external_file_text
+from ...utils.template_renderer import TemplateRenderer
 
 logger = logging.getLogger(__name__)
-
-# Default MV SQL: summarizes event counts by pipeline, event type, and hour
-# DEFAULT_MV_SQL = """\
-# SELECT
-#   _source_pipeline,
-#   event_type,
-#   date_trunc('HOUR', timestamp) AS event_hour,
-#   count(*) AS event_count,
-#   max(timestamp) AS latest_event
-# FROM {streaming_table}
-# GROUP BY _source_pipeline, event_type, date_trunc('HOUR', timestamp)\
-# """
 
 # Default MV SQL: pipeline run summary with status, duration, and row metrics
 DEFAULT_MV_SQL = """\
@@ -126,13 +120,32 @@ def _load_jobs_stats_source() -> str:
     return resource.read_text(encoding="utf-8")
 
 
-class MonitoringPipelineBuilder:
-    """Builds a synthetic FlowGroup for the event log monitoring pipeline.
+@dataclass
+class MonitoringBuildResult:
+    """Result of building the monitoring pipeline artifacts.
 
-    The monitoring pipeline:
-    1. Creates a temporary SQL view that UNIONs all pipeline event_log tables
-    2. Writes the unioned stream to a single streaming table
-    3. Creates materialized views for analysis (configurable or default)
+    Attributes:
+        flowgroup: MVs-only DLT pipeline FlowGroup, or None when no MVs.
+        template_context: Raw context dict for the notebook template
+            (rendered after substitution tokens are resolved).
+        eligible_pipelines: Pipeline names included in the monitoring notebook.
+        pipeline_name: Monitoring pipeline name (needed even when flowgroup is None).
+    """
+
+    flowgroup: Optional[FlowGroup]
+    template_context: Dict[str, Any]
+    eligible_pipelines: List[str] = field(default_factory=list)
+    pipeline_name: str = ""
+
+
+class MonitoringPipelineBuilder:
+    """Builds monitoring pipeline artifacts: a notebook + an MVs-only DLT FlowGroup.
+
+    The monitoring pipeline produces two artifacts:
+    1. A standalone notebook with N independent streaming queries (one per event log
+       source), each with its own checkpoint, using trigger(availableNow=True).
+    2. A DLT FlowGroup containing only materialized views that read from the
+       user-created Delta table populated by the notebook.
     """
 
     def __init__(
@@ -144,6 +157,10 @@ class MonitoringPipelineBuilder:
         self.project_config = project_config
         self.pipeline_config_loader = pipeline_config_loader
         self.project_root = project_root
+
+        # Template renderer for the notebook template
+        template_dir = Path(__file__).parent.parent.parent / "templates"
+        self._renderer = TemplateRenderer(template_dir)
 
     @property
     def monitoring_config(self) -> Optional[MonitoringConfig]:
@@ -167,9 +184,7 @@ class MonitoringPipelineBuilder:
             return False
         return True
 
-    def get_event_log_pipeline_names(
-        self, all_pipeline_names: List[str]
-    ) -> List[str]:
+    def get_event_log_pipeline_names(self, all_pipeline_names: List[str]) -> List[str]:
         """Filter pipelines to those that actually have event_log enabled.
 
         Replicates BundleManager._inject_project_event_log logic:
@@ -236,32 +251,6 @@ class MonitoringPipelineBuilder:
 
         return f"{catalog}.{schema}.{name}"
 
-    def build_union_sql(self, pipeline_names: List[str]) -> str:
-        """Build UNION ALL SQL with stream() wrappers.
-
-        Single pipeline: simple SELECT (no UNION).
-        Multiple pipelines: UNION ALL with _source_pipeline column.
-        Table references preserve substitution tokens for later resolution.
-
-        Args:
-            pipeline_names: Pipeline names with active event_log
-
-        Returns:
-            SQL string for the UNION ALL query
-        """
-        if not pipeline_names:
-            return ""
-
-        parts: List[str] = []
-        for name in pipeline_names:
-            table_ref = self._get_event_log_table_ref(name)
-            parts.append(
-                f"SELECT *, '{name}' as _source_pipeline\n"
-                f"FROM stream({table_ref})"
-            )
-
-        return "\nUNION ALL\n".join(parts)
-
     def _resolve_catalog_schema(self) -> tuple:
         """Resolve catalog and schema for monitoring tables.
 
@@ -284,36 +273,6 @@ class MonitoringPipelineBuilder:
 
         return catalog, schema
 
-    def _build_load_action(self, union_sql: str) -> Action:
-        """Build the SQL load action (temporary view) for the UNION ALL query."""
-        return Action(
-            name="load_all_event_logs",
-            type=ActionType.LOAD,
-            source={"type": "sql", "sql": union_sql},
-            target="v_all_event_logs",
-            description="SQL source: load_all_event_logs",
-        )
-
-    def _build_write_action(self, catalog: str, schema: str) -> Action:
-        """Build the streaming table write action."""
-        assert self.monitoring_config is not None
-
-        st_name = self.monitoring_config.streaming_table
-        database = f"{catalog}.{schema}" if catalog and schema else ""
-
-        return Action(
-            name="write_all_event_logs",
-            type=ActionType.WRITE,
-            source="v_all_event_logs",
-            readMode="stream",
-            write_target={
-                "type": "streaming_table",
-                "database": database,
-                "table": st_name,
-                "create_table": True,
-            },
-        )
-
     def _build_python_load_action(self) -> Action:
         """Build the Python load action for jobs stats."""
         return Action(
@@ -328,22 +287,19 @@ class MonitoringPipelineBuilder:
             description="Python source: load_jobs_stats",
         )
 
-    def _build_jobs_stats_write_action(
-        self, catalog: str, schema: str
-    ) -> Action:
+    def _build_jobs_stats_write_action(self, catalog: str, schema: str) -> Action:
         """Build the materialized view write action for jobs stats.
 
         Uses a materialized view (not streaming table) because the Python
         SDK source returns batch data, not a streaming DataFrame.
         """
-        database = f"{catalog}.{schema}" if catalog and schema else ""
-
         return Action(
             name="write_jobs_stats",
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": database,
+                "catalog": catalog or "",
+                "schema": schema or "",
                 "table": JOBS_STATS_TABLE_NAME,
                 "sql": f"SELECT * FROM {JOBS_STATS_VIEW_NAME}",
             },
@@ -353,14 +309,13 @@ class MonitoringPipelineBuilder:
         self, mv_name: str, sql: str, catalog: str, schema: str
     ) -> Action:
         """Build a materialized view action."""
-        database = f"{catalog}.{schema}" if catalog and schema else ""
-
         return Action(
             name=f"mv_{mv_name}",
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": database,
+                "catalog": catalog or "",
+                "schema": schema or "",
                 "table": mv_name,
                 "sql": sql,
             },
@@ -401,25 +356,48 @@ class MonitoringPipelineBuilder:
         # Neither sql nor sql_path — should not happen after validation
         return ""
 
-    def _get_default_mv_sql(self, streaming_table_fqn: str) -> str:
-        """Get default MV SQL with the streaming table name substituted."""
-        return DEFAULT_MV_SQL.format(streaming_table=streaming_table_fqn)
+    def _get_default_mv_sql(self, target_table_fqn: str) -> str:
+        """Get default MV SQL with the Delta table name substituted."""
+        return DEFAULT_MV_SQL.format(streaming_table=target_table_fqn)
 
-    def build_flowgroup(
-        self, all_pipeline_names: List[str]
-    ) -> Optional[FlowGroup]:
-        """Build complete monitoring FlowGroup. Returns None if not applicable.
+    def _render_notebook(
+        self,
+        sources: List[List[str]],
+        target_fqn: str,
+    ) -> str:
+        """Render the union event logs notebook from template.
 
-        Actions:
-        1. SQL Load -> temporary view (UNION ALL of event_log tables)
-        2. Streaming Table Write (readMode: stream, create_table: true)
-        3. Materialized View(s) - from config or default
+        Args:
+            sources: List of [pipeline_name, table_ref] pairs
+            target_fqn: Fully qualified name of the target Delta table
+
+        Returns:
+            Rendered notebook Python code
+        """
+        assert self.monitoring_config is not None
+
+        context = {
+            "sources": sources,
+            "target_fqn": target_fqn,
+            "checkpoint_path": self.monitoring_config.checkpoint_path,
+            "max_concurrent_streams": self.monitoring_config.max_concurrent_streams,
+        }
+        return self._renderer.render_template(
+            "monitoring/union_event_logs.py.j2", context
+        )
+
+    def build(self, all_pipeline_names: List[str]) -> Optional[MonitoringBuildResult]:
+        """Build complete monitoring artifacts. Returns None if not applicable.
+
+        Produces:
+        1. An MVs-only DLT FlowGroup (no streaming table, no UNION SQL load)
+        2. A rendered notebook with N independent streaming queries
 
         Args:
             all_pipeline_names: All discovered pipeline names
 
         Returns:
-            Synthetic FlowGroup or None if monitoring should not be built
+            MonitoringBuildResult or None if monitoring should not be built
         """
         if not self.should_build():
             return None
@@ -442,31 +420,19 @@ class MonitoringPipelineBuilder:
             f"for {len(eligible_pipelines)} pipeline(s): {eligible_pipelines}"
         )
 
-        # Build SQL
-        union_sql = self.build_union_sql(eligible_pipelines)
-
         # Resolve catalog/schema
         catalog, schema = self._resolve_catalog_schema()
+        target_fqn = f"{catalog}.{schema}.{self.monitoring_config.streaming_table}"
 
-        # Build actions
+        # Build actions (MVs only — no SQL load, no streaming table write)
         actions: List[Action] = []
 
-        # 1. SQL Load (temporary view)
-        actions.append(self._build_load_action(union_sql))
-
-        # 2. Streaming Table Write
-        actions.append(self._build_write_action(catalog, schema))
-
-        # 3. Python Load (optional — jobs stats via Databricks SDK)
+        # Optional: Python Load + MV Write (jobs stats via Databricks SDK)
         if self.monitoring_config.enable_job_monitoring:
             actions.append(self._build_python_load_action())
-            actions.append(
-                self._build_jobs_stats_write_action(catalog, schema)
-            )
+            actions.append(self._build_jobs_stats_write_action(catalog, schema))
 
-        # 4. Materialized Views
-        st_fqn = f"{catalog}.{schema}.{self.monitoring_config.streaming_table}"
-
+        # Materialized Views
         if self.monitoring_config.materialized_views is not None:
             # User-specified MVs (can be empty list = no MVs)
             for mv_config in self.monitoring_config.materialized_views:
@@ -477,23 +443,53 @@ class MonitoringPipelineBuilder:
                     self._build_mv_action(mv_config.name, mv_sql, catalog, schema)
                 )
         else:
-            # Default: events summary + pipeline run summary MVs
-            default_sql = self._get_default_mv_sql(st_fqn)
+            # Default: pipeline run summary MV
+            default_sql = self._get_default_mv_sql(target_fqn)
             actions.append(
-                self._build_mv_action(
-                    "events_summary", default_sql, catalog, schema
-                )
+                self._build_mv_action("events_summary", default_sql, catalog, schema)
             )
 
-        # Build FlowGroup
-        fg = FlowGroup(
-            pipeline=self.pipeline_name,
-            flowgroup="monitoring",
-            actions=actions,
+        # Build FlowGroup (None when no actions — e.g. materialized_views: [])
+        fg: Optional[FlowGroup] = None
+        if actions:
+            fg = FlowGroup(
+                pipeline=self.pipeline_name,
+                flowgroup="monitoring",
+                actions=actions,
+            )
+            fg._synthetic = True
+
+            if self.monitoring_config.enable_job_monitoring:
+                fg._auxiliary_files[JOBS_STATS_MODULE_PATH] = _load_jobs_stats_source()
+
+        # Build template context (rendering deferred until substitutions resolved)
+        # Use lists (not tuples) so SubstitutionManager._substitute_recursive handles them
+        sources = [
+            [name, self._get_event_log_table_ref(name)] for name in eligible_pipelines
+        ]
+        template_context: Dict[str, Any] = {
+            "sources": sources,
+            "target_fqn": target_fqn,
+            "checkpoint_path": self.monitoring_config.checkpoint_path,
+            "max_concurrent_streams": self.monitoring_config.max_concurrent_streams,
+        }
+
+        return MonitoringBuildResult(
+            flowgroup=fg,
+            template_context=template_context,
+            eligible_pipelines=eligible_pipelines,
+            pipeline_name=self.pipeline_name,
         )
-        fg._synthetic = True
 
-        if self.monitoring_config.enable_job_monitoring:
-            fg._auxiliary_files[JOBS_STATS_MODULE_PATH] = _load_jobs_stats_source()
+    # ---- Backward compatibility alias ----
 
-        return fg
+    def build_flowgroup(self, all_pipeline_names: List[str]) -> Optional[FlowGroup]:
+        """Backward-compatible wrapper: returns just the FlowGroup.
+
+        Prefer build() for new code — it also returns the notebook content
+        and eligible pipeline list.
+        """
+        result = self.build(all_pipeline_names)
+        if result is None:
+            return None
+        return result.flowgroup

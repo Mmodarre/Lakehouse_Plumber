@@ -1,0 +1,25 @@
+pipeline: domain_r_raw
+flowgroup: frequency_band_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: frequency_band_raw
+  landing_folder: frequency_band
+  schema_file: orders_schema
+actions:
+  - name: tst_frequency_band_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_frequency_band_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-frequency_band-R01"
+
+  - name: tst_frequency_band_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_frequency_band_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-frequency_band-R02"

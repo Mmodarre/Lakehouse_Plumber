@@ -1,0 +1,53 @@
+pipeline: domain_n_modelled
+flowgroup: reserve_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: reserve_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: reserve_dim
+    target: v_reserve_silver
+    description: "Load reserve from silver for modelling"
+
+  - name: reserve_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_reserve_silver
+    target: v_reserve_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_reserve_silver
+
+  - name: write_reserve_modelled
+    type: write
+    source: v_reserve_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "reserve_modelled"
+
+  - name: tst_reserve_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_reserve_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-reserve-M01"
+
+  - name: tst_reserve_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reserve_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-reserve-M02"

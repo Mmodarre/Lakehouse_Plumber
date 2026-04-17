@@ -1,0 +1,38 @@
+pipeline: domain_r_gold
+flowgroup: satellite_summary_mv
+actions:
+  - name: satellite_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.satellite_fct
+    target: v_satellite_summary
+
+  - name: write_satellite_summary_mv
+    type: write
+    source: v_satellite_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "satellite_summary_mv"
+
+  - name: tst_satellite_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_satellite_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-satellite-G01"
+
+  - name: tst_satellite_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_satellite_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-satellite-G02"

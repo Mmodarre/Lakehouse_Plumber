@@ -1,0 +1,25 @@
+pipeline: domain_r_raw
+flowgroup: radiation_dose_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: radiation_dose_raw
+  landing_folder: radiation_dose
+  schema_file: customer_schema
+actions:
+  - name: tst_radiation_dose_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_radiation_dose_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-radiation_dose-R01"
+
+  - name: tst_radiation_dose_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_radiation_dose_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-radiation_dose-R02"

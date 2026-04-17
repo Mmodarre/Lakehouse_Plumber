@@ -1,0 +1,47 @@
+pipeline: domain_o_raw
+flowgroup: channel_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_channel_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/channel/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_channel_cloudfiles
+    description: "Load channel from landing volume"
+
+  - name: write_channel_raw
+    type: write
+    source: v_channel_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "channel_raw"
+
+  - name: tst_channel_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_channel_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-channel-R01"
+
+  - name: tst_channel_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_channel_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-channel-R02"

@@ -1,0 +1,40 @@
+pipeline: domain_s_gold
+flowgroup: yeast_strain_quarterly_agg_mv
+actions:
+  - name: yeast_strain_quarterly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('quarter', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.yeast_strain_fct
+        GROUP BY 1
+    target: v_yeast_strain_quarterly_agg
+
+  - name: write_yeast_strain_quarterly_agg_mv
+    type: write
+    source: v_yeast_strain_quarterly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "yeast_strain_quarterly_agg_mv"
+
+  - name: tst_yeast_strain_quarterly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_yeast_strain_quarterly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-yeast_strain-G01"
+
+  - name: tst_yeast_strain_quarterly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_yeast_strain_quarterly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-yeast_strain-G02"

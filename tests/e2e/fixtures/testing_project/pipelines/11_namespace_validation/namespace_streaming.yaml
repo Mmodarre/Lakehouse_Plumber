@@ -1,0 +1,25 @@
+pipeline: namespace_validation
+flowgroup: namespace_streaming
+presets:
+  - default_delta_properties
+actions:
+  - name: ns_customer_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: customer
+    target: v_ns_customer
+    description: "Load customer from bronze (namespace format)"
+
+  - name: write_ns_streaming
+    type: write
+    source: v_ns_customer
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "namespace_validation_st"

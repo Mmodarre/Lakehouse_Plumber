@@ -1,0 +1,64 @@
+pipeline: domain_s_bronze
+flowgroup: critic_score_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: critic_score_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: critic_score_raw
+    target: v_critic_score_raw
+    description: "Load critic_score from raw schema"
+
+  - name: critic_score_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_critic_score_raw
+    target: v_critic_score_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as critic_score_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_critic_score_raw
+      WHERE 1=1
+
+  - name: critic_score_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_critic_score_bronze_cleaned
+    target: v_critic_score_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to critic_score"
+
+  - name: write_critic_score_bronze
+    type: write
+    source: v_critic_score_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "critic_score"
+
+  - name: tst_critic_score_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_critic_score_bronze_cleaned
+    required_columns: [critic_score_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-critic_score-B01"
+
+  - name: tst_critic_score_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_critic_score_bronze_cleaned
+    columns: [critic_score_key]
+    on_violation: warn
+    test_id: "PERF-critic_score-B02"

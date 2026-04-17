@@ -1,0 +1,24 @@
+pipeline: domain_q_bronze
+flowgroup: team_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: team
+  source_table: team_raw
+actions:
+  - name: tst_team_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_team_cleansed
+    required_columns: [team_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-team-B01"
+
+  - name: tst_team_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_team_cleansed
+    columns: [team_key]
+    on_violation: warn
+    test_id: "PERF-team-B02"

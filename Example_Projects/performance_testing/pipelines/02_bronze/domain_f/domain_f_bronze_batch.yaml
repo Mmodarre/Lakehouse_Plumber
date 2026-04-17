@@ -1,0 +1,341 @@
+pipeline: domain_f_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: student_bronze
+    template_parameters:
+      entity_name: student
+      source_table: student_raw
+    actions:
+      - name: tst_student_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_student_cleansed
+        required_columns: [student_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-student-B01"
+      
+      - name: tst_student_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_student_cleansed
+        columns: [student_key]
+        on_violation: warn
+        test_id: "PERF-student-B02"
+
+  - flowgroup: course_bronze
+    template_parameters:
+      entity_name: course
+      source_table: course_raw
+    actions:
+      - name: tst_course_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_course_cleansed
+        required_columns: [course_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-course-B01"
+      
+      - name: tst_course_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_course_cleansed
+        columns: [course_key]
+        on_violation: warn
+        test_id: "PERF-course-B02"
+
+  - flowgroup: enrollment_bronze
+    template_parameters:
+      entity_name: enrollment
+      source_table: enrollment_raw
+    actions:
+      - name: tst_enrollment_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_enrollment_cleansed
+        required_columns: [enrollment_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-enrollment-B01"
+      
+      - name: tst_enrollment_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_enrollment_cleansed
+        columns: [enrollment_key]
+        on_violation: warn
+        test_id: "PERF-enrollment-B02"
+
+  - flowgroup: instructor_bronze
+    template_parameters:
+      entity_name: instructor
+      source_table: instructor_raw
+    actions:
+      - name: tst_instructor_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_instructor_cleansed
+        required_columns: [instructor_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-instructor-B01"
+      
+      - name: tst_instructor_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_instructor_cleansed
+        columns: [instructor_key]
+        on_violation: warn
+        test_id: "PERF-instructor-B02"
+
+  - flowgroup: classroom_bronze
+    template_parameters:
+      entity_name: classroom
+      source_table: classroom_raw
+    actions:
+      - name: tst_classroom_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_classroom_cleansed
+        required_columns: [classroom_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-classroom-B01"
+      
+      - name: tst_classroom_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_classroom_cleansed
+        columns: [classroom_key]
+        on_violation: warn
+        test_id: "PERF-classroom-B02"
+
+  - flowgroup: assignment_bronze
+    template_parameters:
+      entity_name: assignment
+      source_table: assignment_raw
+    actions:
+      - name: tst_assignment_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_assignment_cleansed
+        required_columns: [assignment_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-assignment-B01"
+      
+      - name: tst_assignment_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_assignment_cleansed
+        columns: [assignment_key]
+        on_violation: warn
+        test_id: "PERF-assignment-B02"
+
+  - flowgroup: grade_bronze
+    template_parameters:
+      entity_name: grade
+      source_table: grade_raw
+    actions:
+      - name: tst_grade_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_grade_cleansed
+        required_columns: [grade_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-grade-B01"
+      
+      - name: tst_grade_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_grade_cleansed
+        columns: [grade_key]
+        on_violation: warn
+        test_id: "PERF-grade-B02"
+
+  - flowgroup: semester_bronze
+    template_parameters:
+      entity_name: semester
+      source_table: semester_raw
+    actions:
+      - name: tst_semester_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_semester_cleansed
+        required_columns: [semester_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-semester-B01"
+      
+      - name: tst_semester_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_semester_cleansed
+        columns: [semester_key]
+        on_violation: warn
+        test_id: "PERF-semester-B02"
+
+  - flowgroup: degree_bronze
+    template_parameters:
+      entity_name: degree
+      source_table: degree_raw
+    actions:
+      - name: tst_degree_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_degree_cleansed
+        required_columns: [degree_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-degree-B01"
+      
+      - name: tst_degree_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_degree_cleansed
+        columns: [degree_key]
+        on_violation: warn
+        test_id: "PERF-degree-B02"
+
+  - flowgroup: scholarship_bronze
+    template_parameters:
+      entity_name: scholarship
+      source_table: scholarship_raw
+    actions:
+      - name: tst_scholarship_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_scholarship_cleansed
+        required_columns: [scholarship_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-scholarship-B01"
+      
+      - name: tst_scholarship_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_scholarship_cleansed
+        columns: [scholarship_key]
+        on_violation: warn
+        test_id: "PERF-scholarship-B02"
+
+  - flowgroup: lecture_bronze
+    template_parameters:
+      entity_name: lecture
+      source_table: lecture_raw
+    actions:
+      - name: tst_lecture_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_lecture_cleansed
+        required_columns: [lecture_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-lecture-B01"
+      
+      - name: tst_lecture_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_lecture_cleansed
+        columns: [lecture_key]
+        on_violation: warn
+        test_id: "PERF-lecture-B02"
+
+  - flowgroup: exam_bronze
+    template_parameters:
+      entity_name: exam
+      source_table: exam_raw
+    actions:
+      - name: tst_exam_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_exam_cleansed
+        required_columns: [exam_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-exam-B01"
+      
+      - name: tst_exam_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_exam_cleansed
+        columns: [exam_key]
+        on_violation: warn
+        test_id: "PERF-exam-B02"
+
+  - flowgroup: library_book_bronze
+    template_parameters:
+      entity_name: library_book
+      source_table: library_book_raw
+    actions:
+      - name: tst_library_book_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_library_book_cleansed
+        required_columns: [library_book_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-library_book-B01"
+      
+      - name: tst_library_book_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_library_book_cleansed
+        columns: [library_book_key]
+        on_violation: warn
+        test_id: "PERF-library_book-B02"
+
+  - flowgroup: campus_bronze
+    template_parameters:
+      entity_name: campus
+      source_table: campus_raw
+    actions:
+      - name: tst_campus_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_campus_cleansed
+        required_columns: [campus_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-campus-B01"
+      
+      - name: tst_campus_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_campus_cleansed
+        columns: [campus_key]
+        on_violation: warn
+        test_id: "PERF-campus-B02"
+
+  - flowgroup: tuition_bronze
+    template_parameters:
+      entity_name: tuition
+      source_table: tuition_raw
+    actions:
+      - name: tst_tuition_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_tuition_cleansed
+        required_columns: [tuition_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-tuition-B01"
+      
+      - name: tst_tuition_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_tuition_cleansed
+        columns: [tuition_key]
+        on_violation: warn
+        test_id: "PERF-tuition-B02"
+
+  - flowgroup: transcript_bronze
+    template_parameters:
+      entity_name: transcript
+      source_table: transcript_raw
+    actions:
+      - name: tst_transcript_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_transcript_cleansed
+        required_columns: [transcript_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-transcript-B01"
+      
+      - name: tst_transcript_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_transcript_cleansed
+        columns: [transcript_key]
+        on_violation: warn
+        test_id: "PERF-transcript-B02"

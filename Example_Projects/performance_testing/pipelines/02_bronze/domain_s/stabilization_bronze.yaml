@@ -1,0 +1,64 @@
+pipeline: domain_s_bronze
+flowgroup: stabilization_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: stabilization_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: stabilization_raw
+    target: v_stabilization_raw
+    description: "Load stabilization from raw schema"
+
+  - name: stabilization_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_stabilization_raw
+    target: v_stabilization_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as stabilization_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_stabilization_raw
+      WHERE 1=1
+
+  - name: stabilization_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_stabilization_bronze_cleaned
+    target: v_stabilization_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to stabilization"
+
+  - name: write_stabilization_bronze
+    type: write
+    source: v_stabilization_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "stabilization"
+
+  - name: tst_stabilization_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_stabilization_bronze_cleaned
+    required_columns: [stabilization_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-stabilization-B01"
+
+  - name: tst_stabilization_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_stabilization_bronze_cleaned
+    columns: [stabilization_key]
+    on_violation: warn
+    test_id: "PERF-stabilization-B02"

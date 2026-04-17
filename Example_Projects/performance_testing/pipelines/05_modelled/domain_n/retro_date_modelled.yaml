@@ -1,0 +1,53 @@
+pipeline: domain_n_modelled
+flowgroup: retro_date_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: retro_date_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: retro_date_dim
+    target: v_retro_date_silver
+    description: "Load retro_date from silver for modelling"
+
+  - name: retro_date_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_retro_date_silver
+    target: v_retro_date_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_retro_date_silver
+
+  - name: write_retro_date_modelled
+    type: write
+    source: v_retro_date_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "retro_date_modelled"
+
+  - name: tst_retro_date_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_retro_date_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-retro_date-M01"
+
+  - name: tst_retro_date_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_retro_date_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-retro_date-M02"

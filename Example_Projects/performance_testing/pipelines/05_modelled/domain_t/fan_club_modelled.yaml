@@ -1,0 +1,53 @@
+pipeline: domain_t_modelled
+flowgroup: fan_club_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: fan_club_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: fan_club_dim
+    target: v_fan_club_silver
+    description: "Load fan_club from silver for modelling"
+
+  - name: fan_club_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_fan_club_silver
+    target: v_fan_club_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_fan_club_silver
+
+  - name: write_fan_club_modelled
+    type: write
+    source: v_fan_club_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "fan_club_modelled"
+
+  - name: tst_fan_club_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_fan_club_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-fan_club-M01"
+
+  - name: tst_fan_club_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_fan_club_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-fan_club-M02"

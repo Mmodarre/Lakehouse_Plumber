@@ -1,0 +1,64 @@
+pipeline: domain_a_bronze
+flowgroup: contact_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: contact_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: contact_raw
+    target: v_contact_raw
+    description: "Load contact from raw schema"
+
+  - name: contact_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_contact_raw
+    target: v_contact_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as contact_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_contact_raw
+      WHERE 1=1
+
+  - name: contact_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_contact_bronze_cleaned
+    target: v_contact_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to contact"
+
+  - name: write_contact_bronze
+    type: write
+    source: v_contact_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "contact"
+
+  - name: tst_contact_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_contact_bronze_cleaned
+    required_columns: [contact_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-contact-B01"
+
+  - name: tst_contact_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_contact_bronze_cleaned
+    columns: [contact_key]
+    on_violation: warn
+    test_id: "PERF-contact-B02"

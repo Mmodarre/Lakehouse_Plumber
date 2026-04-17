@@ -1,0 +1,40 @@
+pipeline: domain_c_gold
+flowgroup: bank_statement_quarterly_agg_mv
+actions:
+  - name: bank_statement_quarterly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('quarter', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.bank_statement_dim
+        GROUP BY 1
+    target: v_bank_statement_quarterly_agg
+
+  - name: write_bank_statement_quarterly_agg_mv
+    type: write
+    source: v_bank_statement_quarterly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "bank_statement_quarterly_agg_mv"
+
+  - name: tst_bank_statement_quarterly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_bank_statement_quarterly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-bank_statement-G01"
+
+  - name: tst_bank_statement_quarterly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bank_statement_quarterly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-bank_statement-G02"

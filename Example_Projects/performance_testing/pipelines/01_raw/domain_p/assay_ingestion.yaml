@@ -1,0 +1,25 @@
+pipeline: domain_p_raw
+flowgroup: assay_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: assay_raw
+  landing_folder: assay
+  schema_file: product_schema
+actions:
+  - name: tst_assay_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_assay_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-assay-R01"
+
+  - name: tst_assay_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_assay_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-assay-R02"

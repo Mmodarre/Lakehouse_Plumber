@@ -1,0 +1,64 @@
+pipeline: domain_m_bronze
+flowgroup: lineage_node_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: lineage_node_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: lineage_node_raw
+    target: v_lineage_node_raw
+    description: "Load lineage_node from raw schema"
+
+  - name: lineage_node_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_lineage_node_raw
+    target: v_lineage_node_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as lineage_node_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_lineage_node_raw
+      WHERE 1=1
+
+  - name: lineage_node_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_lineage_node_bronze_cleaned
+    target: v_lineage_node_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to lineage_node"
+
+  - name: write_lineage_node_bronze
+    type: write
+    source: v_lineage_node_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "lineage_node"
+
+  - name: tst_lineage_node_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_lineage_node_bronze_cleaned
+    required_columns: [lineage_node_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-lineage_node-B01"
+
+  - name: tst_lineage_node_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lineage_node_bronze_cleaned
+    columns: [lineage_node_key]
+    on_violation: warn
+    test_id: "PERF-lineage_node-B02"

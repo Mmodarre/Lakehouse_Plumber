@@ -50,8 +50,8 @@ External Sources
 
 External sources are data dependencies **outside** your LHP-managed pipelines:
 
-- Source system tables (e.g., ``{catalog}.{migration_schema}.customers``)
-- Legacy data sources (e.g., ``{catalog}.{old_schema}.orders``)
+- Source system tables (e.g., ``${catalog}.${migration_schema}.customers``)
+- Legacy data sources (e.g., ``${catalog}.${old_schema}.orders``)
 - Third-party data feeds
 
 .. note::
@@ -225,7 +225,7 @@ Structured data perfect for integration with other tools:
          "flowgroup_count": 14,
          "action_count": 80,
          "external_sources": [
-           "{catalog}.{migration_schema}.customers"
+           "${catalog}.${migration_schema}.customers"
          ],
          "stage": 1
        }

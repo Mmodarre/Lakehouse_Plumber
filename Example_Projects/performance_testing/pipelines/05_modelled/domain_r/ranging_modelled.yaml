@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: ranging_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: ranging_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: ranging_fct
+    target: v_ranging_silver
+    description: "Load ranging from silver for modelling"
+
+  - name: ranging_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_ranging_silver
+    target: v_ranging_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_ranging_silver
+
+  - name: write_ranging_modelled
+    type: write
+    source: v_ranging_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "ranging_modelled"
+
+  - name: tst_ranging_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_ranging_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-ranging-M01"
+
+  - name: tst_ranging_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ranging_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-ranging-M02"

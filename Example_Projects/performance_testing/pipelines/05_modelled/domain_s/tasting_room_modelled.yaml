@@ -1,0 +1,53 @@
+pipeline: domain_s_modelled
+flowgroup: tasting_room_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: tasting_room_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: tasting_room_dim
+    target: v_tasting_room_silver
+    description: "Load tasting_room from silver for modelling"
+
+  - name: tasting_room_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tasting_room_silver
+    target: v_tasting_room_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_tasting_room_silver
+
+  - name: write_tasting_room_modelled
+    type: write
+    source: v_tasting_room_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "tasting_room_modelled"
+
+  - name: tst_tasting_room_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_tasting_room_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-tasting_room-M01"
+
+  - name: tst_tasting_room_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tasting_room_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-tasting_room-M02"

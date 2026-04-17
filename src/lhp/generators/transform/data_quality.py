@@ -62,6 +62,23 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             f"Data quality '{action.name}': {total_rules} expectation rules loaded, source='{self._extract_source_view(action.source)}'"
         )
 
+        # Check mode — dispatch to quarantine helper or existing DQE logic
+        dq_mode = getattr(action, "mode", None) or "dqe"
+
+        if dq_mode == "quarantine":
+            from .quarantine import QuarantineCodeGenerator
+
+            quarantine_gen = QuarantineCodeGenerator(self)
+            return quarantine_gen.generate(action, expectations, flowgroup_config)
+        else:
+            return self._generate_dqe_mode(action, expectations, flowgroup_config)
+
+    def _generate_dqe_mode(
+        self, action: Action, expectations, flowgroup_config: Dict[str, Any]
+    ) -> str:
+        """Generate standard DQE mode code (existing behavior)."""
+        readMode = action.readMode or "stream"
+
         # Parse expectations based on format
         if expectations and isinstance(expectations, list):
             # Old format: list of dicts with constraint/type fields

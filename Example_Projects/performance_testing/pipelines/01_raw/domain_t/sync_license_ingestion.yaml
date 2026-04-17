@@ -1,0 +1,25 @@
+pipeline: domain_t_raw
+flowgroup: sync_license_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: sync_license_raw
+  landing_folder: sync_license
+  schema_file: nation_schema
+actions:
+  - name: tst_sync_license_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_sync_license_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-sync_license-R01"
+
+  - name: tst_sync_license_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_sync_license_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-sync_license-R02"

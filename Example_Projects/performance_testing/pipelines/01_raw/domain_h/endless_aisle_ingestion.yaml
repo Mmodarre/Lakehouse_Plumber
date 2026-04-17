@@ -1,0 +1,47 @@
+pipeline: domain_h_raw
+flowgroup: endless_aisle_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_endless_aisle_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/endless_aisle/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_endless_aisle_cloudfiles
+    description: "Load endless_aisle from landing volume"
+
+  - name: write_endless_aisle_raw
+    type: write
+    source: v_endless_aisle_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "endless_aisle_raw"
+
+  - name: tst_endless_aisle_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_endless_aisle_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-endless_aisle-R01"
+
+  - name: tst_endless_aisle_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_endless_aisle_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-endless_aisle-R02"

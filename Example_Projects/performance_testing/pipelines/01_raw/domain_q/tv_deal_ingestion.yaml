@@ -1,0 +1,25 @@
+pipeline: domain_q_raw
+flowgroup: tv_deal_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: tv_deal_raw
+  landing_folder: tv_deal
+  schema_file: customer_schema
+actions:
+  - name: tst_tv_deal_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_tv_deal_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-tv_deal-R01"
+
+  - name: tst_tv_deal_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tv_deal_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-tv_deal-R02"

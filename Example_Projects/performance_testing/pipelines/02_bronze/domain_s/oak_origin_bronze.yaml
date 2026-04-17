@@ -1,0 +1,64 @@
+pipeline: domain_s_bronze
+flowgroup: oak_origin_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: oak_origin_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: oak_origin_raw
+    target: v_oak_origin_raw
+    description: "Load oak_origin from raw schema"
+
+  - name: oak_origin_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_oak_origin_raw
+    target: v_oak_origin_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as oak_origin_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_oak_origin_raw
+      WHERE 1=1
+
+  - name: oak_origin_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_oak_origin_bronze_cleaned
+    target: v_oak_origin_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to oak_origin"
+
+  - name: write_oak_origin_bronze
+    type: write
+    source: v_oak_origin_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "oak_origin"
+
+  - name: tst_oak_origin_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_oak_origin_bronze_cleaned
+    required_columns: [oak_origin_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-oak_origin-B01"
+
+  - name: tst_oak_origin_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_oak_origin_bronze_cleaned
+    columns: [oak_origin_key]
+    on_violation: warn
+    test_id: "PERF-oak_origin-B02"

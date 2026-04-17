@@ -1,0 +1,64 @@
+pipeline: domain_g_bronze
+flowgroup: title_search_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: title_search_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: title_search_raw
+    target: v_title_search_raw
+    description: "Load title_search from raw schema"
+
+  - name: title_search_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_title_search_raw
+    target: v_title_search_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as title_search_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_title_search_raw
+      WHERE 1=1
+
+  - name: title_search_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_title_search_bronze_cleaned
+    target: v_title_search_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to title_search"
+
+  - name: write_title_search_bronze
+    type: write
+    source: v_title_search_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "title_search"
+
+  - name: tst_title_search_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_title_search_bronze_cleaned
+    required_columns: [title_search_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-title_search-B01"
+
+  - name: tst_title_search_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_title_search_bronze_cleaned
+    columns: [title_search_key]
+    on_violation: warn
+    test_id: "PERF-title_search-B02"

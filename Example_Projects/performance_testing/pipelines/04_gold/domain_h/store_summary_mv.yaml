@@ -1,0 +1,38 @@
+pipeline: domain_h_gold
+flowgroup: store_summary_mv
+actions:
+  - name: store_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.store_fct
+    target: v_store_summary
+
+  - name: write_store_summary_mv
+    type: write
+    source: v_store_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "store_summary_mv"
+
+  - name: tst_store_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_store_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-store-G01"
+
+  - name: tst_store_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_store_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-store-G02"

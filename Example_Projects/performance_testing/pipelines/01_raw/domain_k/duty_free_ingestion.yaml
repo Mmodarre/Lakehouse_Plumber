@@ -1,0 +1,47 @@
+pipeline: domain_k_raw
+flowgroup: duty_free_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_duty_free_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/duty_free/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_duty_free_cloudfiles
+    description: "Load duty_free from landing volume"
+
+  - name: write_duty_free_raw
+    type: write
+    source: v_duty_free_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "duty_free_raw"
+
+  - name: tst_duty_free_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_duty_free_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-duty_free-R01"
+
+  - name: tst_duty_free_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_duty_free_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-duty_free-R02"

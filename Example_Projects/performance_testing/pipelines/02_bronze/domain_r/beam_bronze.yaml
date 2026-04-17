@@ -1,0 +1,24 @@
+pipeline: domain_r_bronze
+flowgroup: beam_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: beam
+  source_table: beam_raw
+actions:
+  - name: tst_beam_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_beam_cleansed
+    required_columns: [beam_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-beam-B01"
+
+  - name: tst_beam_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_beam_cleansed
+    columns: [beam_key]
+    on_violation: warn
+    test_id: "PERF-beam-B02"

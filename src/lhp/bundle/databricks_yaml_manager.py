@@ -4,6 +4,11 @@ DatabricksYAMLManager for LHP Databricks Asset Bundle integration.
 This module provides the DatabricksYAMLManager class that handles databricks.yml
 file modifications with perfect structure preservation using ruamel.yaml.
 This is the ONLY place in LHP that uses ruamel.yaml.
+
+.. deprecated:: 0.7.8
+    This entire module supports the auto-detect catalog/schema reverse-lookup flow,
+    which will be removed in v1.0.0. Use pipeline_config.yaml to define catalog/schema
+    per pipeline instead.
 """
 
 import logging
@@ -20,6 +25,10 @@ logger = logging.getLogger(__name__)
 class DatabricksYAMLManager:
     """
     Handles databricks.yml modifications with perfect structure preservation.
+
+    .. deprecated:: 0.7.8
+        Auto-detect catalog/schema reverse-lookup will be removed in v1.0.0.
+        Use pipeline_config.yaml to define catalog/schema per pipeline instead.
 
     IMPORTANT: This class uses ruamel.yaml exclusively for maximum preservation
     of user comments, formatting, and structure. All other YAML operations in

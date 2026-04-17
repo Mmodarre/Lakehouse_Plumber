@@ -1,0 +1,64 @@
+pipeline: domain_j_bronze
+flowgroup: island_mode_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: island_mode_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: island_mode_raw
+    target: v_island_mode_raw
+    description: "Load island_mode from raw schema"
+
+  - name: island_mode_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_island_mode_raw
+    target: v_island_mode_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as island_mode_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_island_mode_raw
+      WHERE 1=1
+
+  - name: island_mode_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_island_mode_bronze_cleaned
+    target: v_island_mode_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to island_mode"
+
+  - name: write_island_mode_bronze
+    type: write
+    source: v_island_mode_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "island_mode"
+
+  - name: tst_island_mode_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_island_mode_bronze_cleaned
+    required_columns: [island_mode_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-island_mode-B01"
+
+  - name: tst_island_mode_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_island_mode_bronze_cleaned
+    columns: [island_mode_key]
+    on_violation: warn
+    test_id: "PERF-island_mode-B02"

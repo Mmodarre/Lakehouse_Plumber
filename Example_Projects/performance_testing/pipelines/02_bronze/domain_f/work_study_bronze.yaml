@@ -1,0 +1,101 @@
+pipeline: domain_f_bronze
+flowgroup: work_study_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: work_study_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: work_study_raw
+    target: v_work_study_raw
+    description: "Load work_study from raw schema"
+
+  - name: work_study_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_work_study_raw
+    target: v_work_study_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as work_study_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_work_study_raw
+
+  - name: work_study_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_work_study_bronze_cleaned
+    target: v_work_study_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for work_study bronze"
+
+  - name: write_work_study_bronze
+    type: write
+    source: v_work_study_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "work_study"
+
+  - name: work_study_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: work_study_migration
+    target: v_work_study_migration
+    description: "Load work_study migration data"
+
+  - name: work_study_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_work_study_migration
+    target: v_work_study_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as work_study_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_work_study_migration
+
+  - name: write_work_study_migration
+    type: write
+    source: v_work_study_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "work_study"
+
+  - name: tst_work_study_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_work_study_bronze_cleaned
+    required_columns: [work_study_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-work_study-B01"
+
+  - name: tst_work_study_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_work_study_bronze_cleaned
+    columns: [work_study_key]
+    on_violation: warn
+    test_id: "PERF-work_study-B02"

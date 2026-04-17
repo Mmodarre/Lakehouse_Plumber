@@ -1,0 +1,38 @@
+pipeline: domain_p_gold
+flowgroup: gene_dashboard_mv
+actions:
+  - name: gene_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.gene_fct
+    target: v_gene_dashboard
+
+  - name: write_gene_dashboard_mv
+    type: write
+    source: v_gene_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "gene_dashboard_mv"
+
+  - name: tst_gene_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_gene_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-gene-G01"
+
+  - name: tst_gene_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_gene_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-gene-G02"

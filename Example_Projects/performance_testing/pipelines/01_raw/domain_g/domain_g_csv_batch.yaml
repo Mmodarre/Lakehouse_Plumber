@@ -1,0 +1,181 @@
+pipeline: domain_g_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: unit_ingestion
+    template_parameters:
+      table_name: unit_raw
+      landing_folder: unit
+      schema_file: part_schema
+    actions:
+      - name: tst_unit_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_unit_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-unit-R01"
+      
+      - name: tst_unit_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_unit_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-unit-R02"
+
+  - flowgroup: work_order_ingestion
+    template_parameters:
+      table_name: work_order_raw
+      landing_folder: work_order
+      schema_file: customer_schema
+    actions:
+      - name: tst_work_order_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_work_order_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-work_order-R01"
+      
+      - name: tst_work_order_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_work_order_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-work_order-R02"
+
+  - flowgroup: mortgage_ingestion
+    template_parameters:
+      table_name: mortgage_raw
+      landing_folder: mortgage
+      schema_file: product_schema
+    actions:
+      - name: tst_mortgage_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_mortgage_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-mortgage-R01"
+      
+      - name: tst_mortgage_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_mortgage_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-mortgage-R02"
+
+  - flowgroup: permit_ingestion
+    template_parameters:
+      table_name: permit_raw
+      landing_folder: permit
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_permit_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_permit_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-permit-R01"
+      
+      - name: tst_permit_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_permit_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-permit-R02"
+
+  - flowgroup: property_tax_ingestion
+    template_parameters:
+      table_name: property_tax_raw
+      landing_folder: property_tax
+      schema_file: lineitem_schema
+    actions:
+      - name: tst_property_tax_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_property_tax_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-property_tax-R01"
+      
+      - name: tst_property_tax_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_property_tax_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-property_tax-R02"
+
+  - flowgroup: plat_ingestion
+    template_parameters:
+      table_name: plat_raw
+      landing_folder: plat
+      schema_file: customer_schema
+    actions:
+      - name: tst_plat_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_plat_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-plat-R01"
+      
+      - name: tst_plat_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_plat_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-plat-R02"
+
+  - flowgroup: earnest_money_ingestion
+    template_parameters:
+      table_name: earnest_money_raw
+      landing_folder: earnest_money
+      schema_file: product_schema
+    actions:
+      - name: tst_earnest_money_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_earnest_money_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-earnest_money-R01"
+      
+      - name: tst_earnest_money_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_earnest_money_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-earnest_money-R02"
+
+  - flowgroup: radon_test_ingestion
+    template_parameters:
+      table_name: radon_test_raw
+      landing_folder: radon_test
+      schema_file: nation_schema
+    actions:
+      - name: tst_radon_test_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_radon_test_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-radon_test-R01"
+      
+      - name: tst_radon_test_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_radon_test_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-radon_test-R02"

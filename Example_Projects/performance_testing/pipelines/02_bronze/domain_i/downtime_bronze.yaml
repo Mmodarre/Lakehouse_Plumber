@@ -1,0 +1,24 @@
+pipeline: domain_i_bronze
+flowgroup: downtime_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: downtime
+  source_table: downtime_raw
+actions:
+  - name: tst_downtime_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_downtime_cleansed
+    required_columns: [downtime_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-downtime-B01"
+
+  - name: tst_downtime_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_downtime_cleansed
+    columns: [downtime_key]
+    on_violation: warn
+    test_id: "PERF-downtime-B02"

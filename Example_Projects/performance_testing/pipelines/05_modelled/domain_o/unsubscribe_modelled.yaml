@@ -1,0 +1,53 @@
+pipeline: domain_o_modelled
+flowgroup: unsubscribe_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: unsubscribe_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: unsubscribe_dim
+    target: v_unsubscribe_silver
+    description: "Load unsubscribe from silver for modelling"
+
+  - name: unsubscribe_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_unsubscribe_silver
+    target: v_unsubscribe_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_unsubscribe_silver
+
+  - name: write_unsubscribe_modelled
+    type: write
+    source: v_unsubscribe_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "unsubscribe_modelled"
+
+  - name: tst_unsubscribe_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_unsubscribe_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-unsubscribe-M01"
+
+  - name: tst_unsubscribe_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_unsubscribe_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-unsubscribe-M02"

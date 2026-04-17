@@ -1,0 +1,64 @@
+pipeline: domain_s_bronze
+flowgroup: wine_club_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: wine_club_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: wine_club_raw
+    target: v_wine_club_raw
+    description: "Load wine_club from raw schema"
+
+  - name: wine_club_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_wine_club_raw
+    target: v_wine_club_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as wine_club_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_wine_club_raw
+      WHERE 1=1
+
+  - name: wine_club_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_wine_club_bronze_cleaned
+    target: v_wine_club_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to wine_club"
+
+  - name: write_wine_club_bronze
+    type: write
+    source: v_wine_club_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "wine_club"
+
+  - name: tst_wine_club_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_wine_club_bronze_cleaned
+    required_columns: [wine_club_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-wine_club-B01"
+
+  - name: tst_wine_club_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wine_club_bronze_cleaned
+    columns: [wine_club_key]
+    on_violation: warn
+    test_id: "PERF-wine_club-B02"

@@ -1,0 +1,24 @@
+pipeline: domain_r_bronze
+flowgroup: payload_data_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: payload_data
+  source_table: payload_data_raw
+actions:
+  - name: tst_payload_data_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_payload_data_cleansed
+    required_columns: [payload_data_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-payload_data-B01"
+
+  - name: tst_payload_data_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_payload_data_cleansed
+    columns: [payload_data_key]
+    on_violation: warn
+    test_id: "PERF-payload_data-B02"

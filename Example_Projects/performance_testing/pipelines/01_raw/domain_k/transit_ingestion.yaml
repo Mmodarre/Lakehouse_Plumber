@@ -1,0 +1,25 @@
+pipeline: domain_k_raw
+flowgroup: transit_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: transit_raw
+  landing_folder: transit
+  schema_file: product_schema
+actions:
+  - name: tst_transit_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_transit_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-transit-R01"
+
+  - name: tst_transit_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_transit_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-transit-R02"

@@ -1,0 +1,64 @@
+pipeline: domain_g_bronze
+flowgroup: home_inspection_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: home_inspection_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: home_inspection_raw
+    target: v_home_inspection_raw
+    description: "Load home_inspection from raw schema"
+
+  - name: home_inspection_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_home_inspection_raw
+    target: v_home_inspection_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as home_inspection_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_home_inspection_raw
+      WHERE 1=1
+
+  - name: home_inspection_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_home_inspection_bronze_cleaned
+    target: v_home_inspection_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to home_inspection"
+
+  - name: write_home_inspection_bronze
+    type: write
+    source: v_home_inspection_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "home_inspection"
+
+  - name: tst_home_inspection_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_home_inspection_bronze_cleaned
+    required_columns: [home_inspection_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-home_inspection-B01"
+
+  - name: tst_home_inspection_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_home_inspection_bronze_cleaned
+    columns: [home_inspection_key]
+    on_violation: warn
+    test_id: "PERF-home_inspection-B02"

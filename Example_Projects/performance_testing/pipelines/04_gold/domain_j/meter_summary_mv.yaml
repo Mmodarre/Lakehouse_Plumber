@@ -1,0 +1,38 @@
+pipeline: domain_j_gold
+flowgroup: meter_summary_mv
+actions:
+  - name: meter_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.meter_fct
+    target: v_meter_summary
+
+  - name: write_meter_summary_mv
+    type: write
+    source: v_meter_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "meter_summary_mv"
+
+  - name: tst_meter_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_meter_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-meter-G01"
+
+  - name: tst_meter_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_meter_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-meter-G02"

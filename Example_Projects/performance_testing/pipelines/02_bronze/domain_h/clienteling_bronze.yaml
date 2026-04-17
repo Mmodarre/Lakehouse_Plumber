@@ -1,0 +1,64 @@
+pipeline: domain_h_bronze
+flowgroup: clienteling_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: clienteling_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: clienteling_raw
+    target: v_clienteling_raw
+    description: "Load clienteling from raw schema"
+
+  - name: clienteling_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_clienteling_raw
+    target: v_clienteling_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as clienteling_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_clienteling_raw
+      WHERE 1=1
+
+  - name: clienteling_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_clienteling_bronze_cleaned
+    target: v_clienteling_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to clienteling"
+
+  - name: write_clienteling_bronze
+    type: write
+    source: v_clienteling_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "clienteling"
+
+  - name: tst_clienteling_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_clienteling_bronze_cleaned
+    required_columns: [clienteling_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-clienteling-B01"
+
+  - name: tst_clienteling_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_clienteling_bronze_cleaned
+    columns: [clienteling_key]
+    on_violation: warn
+    test_id: "PERF-clienteling-B02"

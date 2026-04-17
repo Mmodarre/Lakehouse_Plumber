@@ -1,0 +1,38 @@
+pipeline: domain_d_gold
+flowgroup: claim_dashboard_mv
+actions:
+  - name: claim_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.claim_dim
+    target: v_claim_dashboard
+
+  - name: write_claim_dashboard_mv
+    type: write
+    source: v_claim_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "claim_dashboard_mv"
+
+  - name: tst_claim_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_claim_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-claim-G01"
+
+  - name: tst_claim_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_claim_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-claim-G02"

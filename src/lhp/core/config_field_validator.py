@@ -36,7 +36,8 @@ class ConfigFieldValidator:
                 "type",
                 "table",
                 "catalog",
-                "database",
+                "schema",
+                "database",  # REMOVE_AT_V1.0.0: deprecated, use catalog + schema
                 "readMode",
                 "options",
                 "where_clause",
@@ -66,7 +67,9 @@ class ConfigFieldValidator:
         self.write_target_fields = {
             "streaming_table": {
                 "type",
-                "database",
+                "catalog",
+                "schema",
+                "database",  # REMOVE_AT_V1.0.0: deprecated, use catalog + schema
                 "table",
                 "create_table",
                 "comment",
@@ -75,8 +78,8 @@ class ConfigFieldValidator:
                 "partition_columns",
                 "cluster_columns",
                 "spark_conf",
-                "schema",  # Legacy - kept for backward compatibility
-                "table_schema",  # Official property name
+                "schema",  # UC namespace schema name
+                "table_schema",  # DDL table schema definition
                 "row_filter",
                 "temporary",
                 "path",
@@ -86,7 +89,9 @@ class ConfigFieldValidator:
             },
             "materialized_view": {
                 "type",
-                "database",
+                "catalog",
+                "schema",
+                "database",  # REMOVE_AT_V1.0.0: deprecated, use catalog + schema
                 "table",
                 "create_table",
                 "comment",
@@ -95,8 +100,8 @@ class ConfigFieldValidator:
                 "partition_columns",
                 "cluster_columns",
                 "spark_conf",
-                "schema",  # Legacy - kept for backward compatibility
-                "table_schema",  # Official property name
+                "schema",  # UC namespace schema name
+                "table_schema",  # DDL table schema definition
                 "row_filter",
                 "temporary",
                 "path",
@@ -137,6 +142,8 @@ class ConfigFieldValidator:
             "sql_path",
             "operational_metadata",
             "expectations_file",
+            "mode",
+            "quarantine",
             "once",
             # Python transform specific fields
             "module_path",
@@ -165,6 +172,7 @@ class ConfigFieldValidator:
             "lookup_columns",
             "lookup_result_columns",
             "expectations",
+            "test_id",
         }
 
     def validate_load_source(

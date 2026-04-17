@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: sensor_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: sensor_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: sensor_fct
+    target: v_sensor_silver
+    description: "Load sensor from silver for modelling"
+
+  - name: sensor_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_sensor_silver
+    target: v_sensor_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_sensor_silver
+
+  - name: write_sensor_modelled
+    type: write
+    source: v_sensor_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "sensor_modelled"
+
+  - name: tst_sensor_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_sensor_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-sensor-M01"
+
+  - name: tst_sensor_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_sensor_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-sensor-M02"

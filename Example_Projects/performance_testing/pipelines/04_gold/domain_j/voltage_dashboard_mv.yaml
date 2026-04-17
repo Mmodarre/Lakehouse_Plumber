@@ -1,0 +1,38 @@
+pipeline: domain_j_gold
+flowgroup: voltage_dashboard_mv
+actions:
+  - name: voltage_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.voltage_dim
+    target: v_voltage_dashboard
+
+  - name: write_voltage_dashboard_mv
+    type: write
+    source: v_voltage_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "voltage_dashboard_mv"
+
+  - name: tst_voltage_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_voltage_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-voltage-G01"
+
+  - name: tst_voltage_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_voltage_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-voltage-G02"

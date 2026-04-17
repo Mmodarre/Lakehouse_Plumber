@@ -1,0 +1,25 @@
+pipeline: domain_l_raw
+flowgroup: reservation_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: reservation_raw
+  landing_folder: reservation
+  schema_file: orders_schema
+actions:
+  - name: tst_reservation_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_reservation_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-reservation-R01"
+
+  - name: tst_reservation_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_reservation_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-reservation-R02"

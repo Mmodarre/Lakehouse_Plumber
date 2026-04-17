@@ -1,0 +1,24 @@
+pipeline: domain_s_bronze
+flowgroup: cork_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: cork
+  source_table: cork_raw
+actions:
+  - name: tst_cork_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_cork_cleansed
+    required_columns: [cork_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-cork-B01"
+
+  - name: tst_cork_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cork_cleansed
+    columns: [cork_key]
+    on_violation: warn
+    test_id: "PERF-cork-B02"

@@ -1,0 +1,24 @@
+pipeline: domain_k_bronze
+flowgroup: passenger_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: passenger
+  source_table: passenger_raw
+actions:
+  - name: tst_passenger_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_passenger_cleansed
+    required_columns: [passenger_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-passenger-B01"
+
+  - name: tst_passenger_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_passenger_cleansed
+    columns: [passenger_key]
+    on_violation: warn
+    test_id: "PERF-passenger-B02"

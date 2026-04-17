@@ -1,0 +1,53 @@
+pipeline: domain_q_modelled
+flowgroup: revenue_share_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: revenue_share_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: revenue_share_fct
+    target: v_revenue_share_silver
+    description: "Load revenue_share from silver for modelling"
+
+  - name: revenue_share_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_revenue_share_silver
+    target: v_revenue_share_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_revenue_share_silver
+
+  - name: write_revenue_share_modelled
+    type: write
+    source: v_revenue_share_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "revenue_share_modelled"
+
+  - name: tst_revenue_share_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_revenue_share_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-revenue_share-M01"
+
+  - name: tst_revenue_share_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_revenue_share_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-revenue_share-M02"

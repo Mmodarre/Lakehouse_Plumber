@@ -1,0 +1,64 @@
+pipeline: domain_e_bronze
+flowgroup: return_shipment_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: return_shipment_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: return_shipment_raw
+    target: v_return_shipment_raw
+    description: "Load return_shipment from raw schema"
+
+  - name: return_shipment_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_return_shipment_raw
+    target: v_return_shipment_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as return_shipment_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_return_shipment_raw
+      WHERE 1=1
+
+  - name: return_shipment_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_return_shipment_bronze_cleaned
+    target: v_return_shipment_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to return_shipment"
+
+  - name: write_return_shipment_bronze
+    type: write
+    source: v_return_shipment_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "return_shipment"
+
+  - name: tst_return_shipment_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_return_shipment_bronze_cleaned
+    required_columns: [return_shipment_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-return_shipment-B01"
+
+  - name: tst_return_shipment_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_return_shipment_bronze_cleaned
+    columns: [return_shipment_key]
+    on_violation: warn
+    test_id: "PERF-return_shipment-B02"

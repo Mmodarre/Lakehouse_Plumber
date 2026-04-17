@@ -1,0 +1,38 @@
+pipeline: domain_r_gold
+flowgroup: orbit_analysis_mv
+actions:
+  - name: orbit_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.orbit_dim
+    target: v_orbit_analysis
+
+  - name: write_orbit_analysis_mv
+    type: write
+    source: v_orbit_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "orbit_analysis_mv"
+
+  - name: tst_orbit_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_orbit_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-orbit-G01"
+
+  - name: tst_orbit_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_orbit_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-orbit-G02"

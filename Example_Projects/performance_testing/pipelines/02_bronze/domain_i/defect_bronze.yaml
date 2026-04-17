@@ -1,0 +1,24 @@
+pipeline: domain_i_bronze
+flowgroup: defect_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: defect
+  source_table: defect_raw
+actions:
+  - name: tst_defect_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_defect_cleansed
+    required_columns: [defect_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-defect-B01"
+
+  - name: tst_defect_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_defect_cleansed
+    columns: [defect_key]
+    on_violation: warn
+    test_id: "PERF-defect-B02"

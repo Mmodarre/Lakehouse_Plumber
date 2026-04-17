@@ -1,0 +1,38 @@
+pipeline: domain_q_gold
+flowgroup: team_report_mv
+actions:
+  - name: team_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.team_dim
+    target: v_team_report
+
+  - name: write_team_report_mv
+    type: write
+    source: v_team_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "team_report_mv"
+
+  - name: tst_team_report_completeness
+    type: test
+    test_type: completeness
+    source: v_team_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-team-G01"
+
+  - name: tst_team_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_team_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-team-G02"

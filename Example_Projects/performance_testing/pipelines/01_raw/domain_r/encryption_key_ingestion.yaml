@@ -1,0 +1,25 @@
+pipeline: domain_r_raw
+flowgroup: encryption_key_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: encryption_key_raw
+  landing_folder: encryption_key
+  schema_file: part_schema
+actions:
+  - name: tst_encryption_key_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_encryption_key_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-encryption_key-R01"
+
+  - name: tst_encryption_key_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_encryption_key_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-encryption_key-R02"

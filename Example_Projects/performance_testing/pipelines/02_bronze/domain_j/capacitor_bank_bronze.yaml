@@ -1,0 +1,64 @@
+pipeline: domain_j_bronze
+flowgroup: capacitor_bank_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: capacitor_bank_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: capacitor_bank_raw
+    target: v_capacitor_bank_raw
+    description: "Load capacitor_bank from raw schema"
+
+  - name: capacitor_bank_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_capacitor_bank_raw
+    target: v_capacitor_bank_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as capacitor_bank_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_capacitor_bank_raw
+      WHERE 1=1
+
+  - name: capacitor_bank_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_capacitor_bank_bronze_cleaned
+    target: v_capacitor_bank_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to capacitor_bank"
+
+  - name: write_capacitor_bank_bronze
+    type: write
+    source: v_capacitor_bank_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "capacitor_bank"
+
+  - name: tst_capacitor_bank_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_capacitor_bank_bronze_cleaned
+    required_columns: [capacitor_bank_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-capacitor_bank-B01"
+
+  - name: tst_capacitor_bank_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_capacitor_bank_bronze_cleaned
+    columns: [capacitor_bank_key]
+    on_violation: warn
+    test_id: "PERF-capacitor_bank-B02"

@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: link_budget_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: link_budget_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: link_budget_dim
+    target: v_link_budget_silver
+    description: "Load link_budget from silver for modelling"
+
+  - name: link_budget_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_link_budget_silver
+    target: v_link_budget_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_link_budget_silver
+
+  - name: write_link_budget_modelled
+    type: write
+    source: v_link_budget_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "link_budget_modelled"
+
+  - name: tst_link_budget_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_link_budget_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-link_budget-M01"
+
+  - name: tst_link_budget_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_link_budget_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-link_budget-M02"

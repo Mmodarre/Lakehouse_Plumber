@@ -1,0 +1,181 @@
+pipeline: domain_h_raw
+use_template: csv_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: loyalty_ingestion
+    template_parameters:
+      table_name: loyalty_raw
+      landing_folder: loyalty
+      schema_file: part_schema
+    actions:
+      - name: tst_loyalty_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_loyalty_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-loyalty-R01"
+      
+      - name: tst_loyalty_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_loyalty_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-loyalty-R02"
+
+  - flowgroup: aisle_ingestion
+    template_parameters:
+      table_name: aisle_raw
+      landing_folder: aisle
+      schema_file: customer_schema
+    actions:
+      - name: tst_aisle_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_aisle_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-aisle-R01"
+      
+      - name: tst_aisle_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_aisle_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-aisle-R02"
+
+  - flowgroup: stock_count_ingestion
+    template_parameters:
+      table_name: stock_count_raw
+      landing_folder: stock_count
+      schema_file: product_schema
+    actions:
+      - name: tst_stock_count_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_stock_count_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-stock_count-R01"
+      
+      - name: tst_stock_count_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_stock_count_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-stock_count-R02"
+
+  - flowgroup: display_ingestion
+    template_parameters:
+      table_name: display_raw
+      landing_folder: display
+      schema_file: partsupp_schema
+    actions:
+      - name: tst_display_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_display_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-display-R01"
+      
+      - name: tst_display_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_display_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-display-R02"
+
+  - flowgroup: signage_ingestion
+    template_parameters:
+      table_name: signage_raw
+      landing_folder: signage
+      schema_file: lineitem_schema
+    actions:
+      - name: tst_signage_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_signage_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-signage-R01"
+      
+      - name: tst_signage_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_signage_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-signage-R02"
+
+  - flowgroup: mystery_shopper_ingestion
+    template_parameters:
+      table_name: mystery_shopper_raw
+      landing_folder: mystery_shopper
+      schema_file: customer_schema
+    actions:
+      - name: tst_mystery_shopper_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_mystery_shopper_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-mystery_shopper-R01"
+      
+      - name: tst_mystery_shopper_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_mystery_shopper_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-mystery_shopper-R02"
+
+  - flowgroup: click_collect_ingestion
+    template_parameters:
+      table_name: click_collect_raw
+      landing_folder: click_collect
+      schema_file: product_schema
+    actions:
+      - name: tst_click_collect_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_click_collect_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-click_collect-R01"
+      
+      - name: tst_click_collect_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_click_collect_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-click_collect-R02"
+
+  - flowgroup: pos_terminal_ingestion
+    template_parameters:
+      table_name: pos_terminal_raw
+      landing_folder: pos_terminal
+      schema_file: nation_schema
+    actions:
+      - name: tst_pos_terminal_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_pos_terminal_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-pos_terminal-R01"
+      
+      - name: tst_pos_terminal_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_pos_terminal_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-pos_terminal-R02"

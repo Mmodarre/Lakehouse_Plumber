@@ -1,0 +1,40 @@
+pipeline: domain_n_gold
+flowgroup: bordereaux_weekly_agg_mv
+actions:
+  - name: bordereaux_weekly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('week', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.bordereaux_dim
+        GROUP BY 1
+    target: v_bordereaux_weekly_agg
+
+  - name: write_bordereaux_weekly_agg_mv
+    type: write
+    source: v_bordereaux_weekly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "bordereaux_weekly_agg_mv"
+
+  - name: tst_bordereaux_weekly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_bordereaux_weekly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-bordereaux-G01"
+
+  - name: tst_bordereaux_weekly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bordereaux_weekly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-bordereaux-G02"

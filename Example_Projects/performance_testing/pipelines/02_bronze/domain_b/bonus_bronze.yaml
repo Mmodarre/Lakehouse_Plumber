@@ -1,0 +1,64 @@
+pipeline: domain_b_bronze
+flowgroup: bonus_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: bonus_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bonus_raw
+    target: v_bonus_raw
+    description: "Load bonus from raw schema"
+
+  - name: bonus_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_bonus_raw
+    target: v_bonus_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bonus_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_bonus_raw
+      WHERE 1=1
+
+  - name: bonus_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_bonus_bronze_cleaned
+    target: v_bonus_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to bonus"
+
+  - name: write_bonus_bronze
+    type: write
+    source: v_bonus_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bonus"
+
+  - name: tst_bonus_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_bonus_bronze_cleaned
+    required_columns: [bonus_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-bonus-B01"
+
+  - name: tst_bonus_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bonus_bronze_cleaned
+    columns: [bonus_key]
+    on_violation: warn
+    test_id: "PERF-bonus-B02"

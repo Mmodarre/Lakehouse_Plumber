@@ -1,0 +1,47 @@
+pipeline: domain_t_raw
+flowgroup: royalty_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_royalty_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/royalty/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_royalty_cloudfiles
+    description: "Load royalty from landing volume"
+
+  - name: write_royalty_raw
+    type: write
+    source: v_royalty_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "royalty_raw"
+
+  - name: tst_royalty_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_royalty_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-royalty-R01"
+
+  - name: tst_royalty_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_royalty_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-royalty-R02"

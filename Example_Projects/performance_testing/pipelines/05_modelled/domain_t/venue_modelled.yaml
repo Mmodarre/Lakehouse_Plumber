@@ -1,0 +1,53 @@
+pipeline: domain_t_modelled
+flowgroup: venue_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: venue_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: venue_fct
+    target: v_venue_silver
+    description: "Load venue from silver for modelling"
+
+  - name: venue_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_venue_silver
+    target: v_venue_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_venue_silver
+
+  - name: write_venue_modelled
+    type: write
+    source: v_venue_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "venue_modelled"
+
+  - name: tst_venue_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_venue_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-venue-M01"
+
+  - name: tst_venue_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_venue_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-venue-M02"

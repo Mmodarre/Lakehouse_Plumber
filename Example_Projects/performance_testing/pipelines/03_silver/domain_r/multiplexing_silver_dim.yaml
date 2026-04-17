@@ -1,0 +1,48 @@
+pipeline: domain_r_silver
+flowgroup: multiplexing_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: multiplexing_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: multiplexing
+    target: v_multiplexing_bronze
+    description: "Load multiplexing from bronze for silver layer"
+
+  - name: write_multiplexing_silver
+    type: write
+    source: v_multiplexing_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "multiplexing_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["multiplexing_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_multiplexing_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_multiplexing_bronze
+    required_columns: [multiplexing_key]
+    on_violation: warn
+    test_id: "PERF-multiplexing-S01"
+
+  - name: tst_multiplexing_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_multiplexing_bronze
+    columns: [multiplexing_key]
+    on_violation: warn
+    test_id: "PERF-multiplexing-S02"

@@ -1,0 +1,47 @@
+pipeline: domain_m_raw
+flowgroup: data_stream_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_data_stream_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/data_stream/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_data_stream_cloudfiles
+    description: "Load data_stream from landing volume"
+
+  - name: write_data_stream_raw
+    type: write
+    source: v_data_stream_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "data_stream_raw"
+
+  - name: tst_data_stream_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_data_stream_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-data_stream-R01"
+
+  - name: tst_data_stream_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_data_stream_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-data_stream-R02"

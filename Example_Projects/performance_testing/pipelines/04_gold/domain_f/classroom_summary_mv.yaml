@@ -1,0 +1,38 @@
+pipeline: domain_f_gold
+flowgroup: classroom_summary_mv
+actions:
+  - name: classroom_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.classroom_dim
+    target: v_classroom_summary
+
+  - name: write_classroom_summary_mv
+    type: write
+    source: v_classroom_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "classroom_summary_mv"
+
+  - name: tst_classroom_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_classroom_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-classroom-G01"
+
+  - name: tst_classroom_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_classroom_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-classroom-G02"

@@ -1,0 +1,38 @@
+pipeline: domain_j_gold
+flowgroup: battery_dashboard_mv
+actions:
+  - name: battery_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.battery_dim
+    target: v_battery_dashboard
+
+  - name: write_battery_dashboard_mv
+    type: write
+    source: v_battery_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "battery_dashboard_mv"
+
+  - name: tst_battery_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_battery_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-battery-G01"
+
+  - name: tst_battery_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_battery_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-battery-G02"

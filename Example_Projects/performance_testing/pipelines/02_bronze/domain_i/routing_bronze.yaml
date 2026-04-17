@@ -1,0 +1,24 @@
+pipeline: domain_i_bronze
+flowgroup: routing_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: routing
+  source_table: routing_raw
+actions:
+  - name: tst_routing_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_routing_cleansed
+    required_columns: [routing_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-routing-B01"
+
+  - name: tst_routing_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_routing_cleansed
+    columns: [routing_key]
+    on_violation: warn
+    test_id: "PERF-routing-B02"

@@ -1,0 +1,38 @@
+pipeline: domain_c_gold
+flowgroup: journal_dashboard_mv
+actions:
+  - name: journal_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.journal_fct
+    target: v_journal_dashboard
+
+  - name: write_journal_dashboard_mv
+    type: write
+    source: v_journal_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "journal_dashboard_mv"
+
+  - name: tst_journal_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_journal_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-journal-G01"
+
+  - name: tst_journal_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_journal_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-journal-G02"

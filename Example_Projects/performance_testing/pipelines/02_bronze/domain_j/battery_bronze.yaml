@@ -1,0 +1,24 @@
+pipeline: domain_j_bronze
+flowgroup: battery_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: battery
+  source_table: battery_raw
+actions:
+  - name: tst_battery_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_battery_cleansed
+    required_columns: [battery_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-battery-B01"
+
+  - name: tst_battery_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_battery_cleansed
+    columns: [battery_key]
+    on_violation: warn
+    test_id: "PERF-battery-B02"

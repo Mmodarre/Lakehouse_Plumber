@@ -1,0 +1,64 @@
+pipeline: domain_k_bronze
+flowgroup: hangar_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: hangar_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: hangar_raw
+    target: v_hangar_raw
+    description: "Load hangar from raw schema"
+
+  - name: hangar_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_hangar_raw
+    target: v_hangar_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as hangar_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_hangar_raw
+      WHERE 1=1
+
+  - name: hangar_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_hangar_bronze_cleaned
+    target: v_hangar_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to hangar"
+
+  - name: write_hangar_bronze
+    type: write
+    source: v_hangar_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "hangar"
+
+  - name: tst_hangar_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_hangar_bronze_cleaned
+    required_columns: [hangar_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-hangar-B01"
+
+  - name: tst_hangar_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_hangar_bronze_cleaned
+    columns: [hangar_key]
+    on_violation: warn
+    test_id: "PERF-hangar-B02"

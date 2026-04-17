@@ -1,0 +1,25 @@
+pipeline: domain_m_raw
+flowgroup: sla_metric_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: sla_metric_raw
+  landing_folder: sla_metric
+  schema_file: customer_schema
+actions:
+  - name: tst_sla_metric_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_sla_metric_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-sla_metric-R01"
+
+  - name: tst_sla_metric_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_sla_metric_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-sla_metric-R02"

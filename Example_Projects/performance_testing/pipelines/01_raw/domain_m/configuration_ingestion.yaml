@@ -1,0 +1,25 @@
+pipeline: domain_m_raw
+flowgroup: configuration_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: configuration_raw
+  landing_folder: configuration
+  schema_file: orders_schema
+actions:
+  - name: tst_configuration_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_configuration_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-configuration-R01"
+
+  - name: tst_configuration_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_configuration_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-configuration-R02"

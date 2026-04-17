@@ -30,6 +30,7 @@ class StateDependencyResolver:
         self.yaml_parser = yaml_parser or YAMLParser()
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
+        self._checksum_cache = None
 
         # Cache for dependency paths (not checksums!)
         # Key: (yaml_file, source_checksum, environment, pipeline, flowgroup)
@@ -37,6 +38,14 @@ class StateDependencyResolver:
         self._dependency_paths_cache: Dict[
             Tuple[str, str, str, str, str], Dict[str, Tuple[str, str]]
         ] = {}
+
+    def set_checksum_cache(self, cache) -> None:
+        """Inject shared ChecksumCache.
+
+        Args:
+            cache: ChecksumCache instance
+        """
+        self._checksum_cache = cache
 
     def resolve_file_dependencies(
         self,
@@ -582,12 +591,17 @@ class StateDependencyResolver:
     def _calculate_checksum(self, file_path: Path) -> str:
         """Calculate SHA256 checksum of a file.
 
+        Uses shared ChecksumCache when available for deduplication.
+
         Args:
             file_path: Path to the file
 
         Returns:
             SHA256 checksum as hex string
         """
+        if self._checksum_cache is not None:
+            return self._checksum_cache.get(file_path)
+
         import hashlib
 
         try:
@@ -792,9 +806,7 @@ class StateDependencyResolver:
                 and hasattr(action, "write_target")
                 and isinstance(action.write_target, dict)
             ):
-                table_schema = action.write_target.get(
-                    "table_schema"
-                ) or action.write_target.get("schema")
+                table_schema = action.write_target.get("table_schema")
                 if table_schema and self._is_file_path(table_schema):
                     files.add(Path(table_schema).as_posix())
 
@@ -851,14 +863,19 @@ class StateDependencyResolver:
     def calculate_composite_checksum(self, dependencies: List[str]) -> str:
         """Calculate composite checksum for a list of dependency paths.
 
+        Uses per-file checksum cache (_calculate_checksum) instead of reading
+        raw file content, avoiding redundant I/O for files already checksummed.
+
+        Non-file dependencies (e.g. context strings like "include_tests:False")
+        are hashed directly as strings.
+
         Args:
-            dependencies: List of dependency file paths relative to project root
+            dependencies: List of dependency file paths relative to project root,
+                or context strings (non-file entries)
 
         Returns:
             Composite SHA256 checksum as hex string
         """
-        import hashlib
-
         try:
             sha256_hash = hashlib.sha256()
 
@@ -870,14 +887,15 @@ class StateDependencyResolver:
                 normalized_path = dep_path.replace("\\", "/")
                 file_path = self.project_root / normalized_path
                 if file_path.exists():
-                    # Add file path to hash (normalized)
+                    # Add normalized path + per-file checksum
                     sha256_hash.update(normalized_path.encode("utf-8"))
-                    # Add file content to hash
-                    with open(file_path, "rb") as f:
-                        for chunk in iter(lambda: f.read(4096), b""):
-                            sha256_hash.update(chunk)
+                    file_checksum = self._calculate_checksum(file_path)
+                    sha256_hash.update(file_checksum.encode("utf-8"))
+                elif ":" in normalized_path or "/" not in normalized_path:
+                    # Non-file dependency (context string like "include_tests:False")
+                    sha256_hash.update(normalized_path.encode("utf-8"))
                 else:
-                    # Add path with placeholder for missing files (normalized)
+                    # Missing file
                     sha256_hash.update(f"{normalized_path}:MISSING".encode("utf-8"))
 
             return sha256_hash.hexdigest()

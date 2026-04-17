@@ -1,0 +1,53 @@
+pipeline: domain_s_modelled
+flowgroup: auction_lot_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: auction_lot_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: auction_lot_fct
+    target: v_auction_lot_silver
+    description: "Load auction_lot from silver for modelling"
+
+  - name: auction_lot_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_auction_lot_silver
+    target: v_auction_lot_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_auction_lot_silver
+
+  - name: write_auction_lot_modelled
+    type: write
+    source: v_auction_lot_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "auction_lot_modelled"
+
+  - name: tst_auction_lot_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_auction_lot_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-auction_lot-M01"
+
+  - name: tst_auction_lot_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_auction_lot_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-auction_lot-M02"

@@ -1,0 +1,38 @@
+pipeline: domain_q_gold
+flowgroup: ticket_sale_dashboard_mv
+actions:
+  - name: ticket_sale_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.ticket_sale_dim
+    target: v_ticket_sale_dashboard
+
+  - name: write_ticket_sale_dashboard_mv
+    type: write
+    source: v_ticket_sale_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "ticket_sale_dashboard_mv"
+
+  - name: tst_ticket_sale_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_ticket_sale_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-ticket_sale-G01"
+
+  - name: tst_ticket_sale_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ticket_sale_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-ticket_sale-G02"

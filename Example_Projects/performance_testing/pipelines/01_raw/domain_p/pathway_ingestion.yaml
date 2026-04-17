@@ -1,0 +1,25 @@
+pipeline: domain_p_raw
+flowgroup: pathway_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: pathway_raw
+  landing_folder: pathway
+  schema_file: product_schema
+actions:
+  - name: tst_pathway_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_pathway_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-pathway-R01"
+
+  - name: tst_pathway_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pathway_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-pathway-R02"

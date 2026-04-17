@@ -1,0 +1,40 @@
+pipeline: domain_r_gold
+flowgroup: jamming_detect_monthly_agg_mv
+actions:
+  - name: jamming_detect_monthly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('mon', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.jamming_detect_dim
+        GROUP BY 1
+    target: v_jamming_detect_monthly_agg
+
+  - name: write_jamming_detect_monthly_agg_mv
+    type: write
+    source: v_jamming_detect_monthly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "jamming_detect_monthly_agg_mv"
+
+  - name: tst_jamming_detect_monthly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_jamming_detect_monthly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-jamming_detect-G01"
+
+  - name: tst_jamming_detect_monthly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_jamming_detect_monthly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-jamming_detect-G02"

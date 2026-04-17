@@ -1,0 +1,24 @@
+pipeline: domain_o_bronze
+flowgroup: landing_page_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: landing_page
+  source_table: landing_page_raw
+actions:
+  - name: tst_landing_page_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_landing_page_cleansed
+    required_columns: [landing_page_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-landing_page-B01"
+
+  - name: tst_landing_page_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_landing_page_cleansed
+    columns: [landing_page_key]
+    on_violation: warn
+    test_id: "PERF-landing_page-B02"

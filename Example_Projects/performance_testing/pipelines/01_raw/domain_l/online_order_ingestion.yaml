@@ -1,0 +1,25 @@
+pipeline: domain_l_raw
+flowgroup: online_order_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: online_order_raw
+  landing_folder: online_order
+  schema_file: product_schema
+actions:
+  - name: tst_online_order_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_online_order_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-online_order-R01"
+
+  - name: tst_online_order_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_online_order_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-online_order-R02"

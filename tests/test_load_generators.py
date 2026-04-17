@@ -54,7 +54,7 @@ class TestLoadGenerators:
             source={
                 "type": "delta",
                 "catalog": "main",
-                "database": "bronze",
+                "schema": "bronze",
                 "table": "customers",
                 "readMode": "stream",
                 "options": {
@@ -127,12 +127,7 @@ class TestLoadGenerators:
         assert '"__SECRET_' in code or "'__SECRET_" in code
         
         # Most importantly, verify the generated code is syntactically valid
-        try:
-            compile(code, '<string>', 'exec')
-            # If compilation succeeds, the code is valid
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with secrets is not valid Python syntax: {e}")
+        compile(code, '<string>', 'exec')
     
     def test_jdbc_url_with_quotes_escaped(self):
         """Test JDBC generator with URLs containing quotes."""
@@ -159,11 +154,7 @@ class TestLoadGenerators:
         assert '\\"true\\"' in code or 'encrypt=\\"true\\"' in code
         
         # Verify generated code is syntactically valid
-        try:
-            compile(code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated JDBC code with quotes is not valid Python syntax: {e}")
+        compile(code, '<string>', 'exec')
     
     def test_jdbc_values_with_backslashes_escaped(self):
         """Test JDBC generator with values containing backslashes."""
@@ -191,15 +182,8 @@ class TestLoadGenerators:
         # Verify no SyntaxWarning
         import warnings
         warnings.simplefilter('error', SyntaxWarning)
-        try:
-            compile(code, '<string>', 'exec')
-            assert True
-        except SyntaxWarning as e:
-            pytest.fail(f"Generated code has invalid escape sequences: {e}")
-        except SyntaxError as e:
-            pytest.fail(f"Generated code is not valid Python syntax: {e}")
-        finally:
-            warnings.simplefilter('default', SyntaxWarning)
+        compile(code, '<string>', 'exec')
+        warnings.simplefilter('default', SyntaxWarning)
     
     def test_jdbc_complex_url_with_parameters(self):
         """Test JDBC generator with complex URL containing multiple parameters."""
@@ -223,11 +207,7 @@ class TestLoadGenerators:
         code = generator.generate(action, {})
         
         # Verify valid Python syntax
-        try:
-            compile(code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with complex JDBC URL is not valid Python syntax: {e}")
+        compile(code, '<string>', 'exec')
     
     def test_jdbc_table_name_with_special_chars(self):
         """Test JDBC generator with table name containing special characters."""
@@ -254,11 +234,7 @@ class TestLoadGenerators:
         assert '\\"schema\\"' in code and '\\"table_name\\"' in code
         
         # Verify valid Python
-        try:
-            compile(code, '<string>', 'exec')
-            assert True
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with quoted table name is not valid Python syntax: {e}")
+        compile(code, '<string>', 'exec')
     
     def test_python_generator(self):
         """Test Python load generator."""
@@ -300,23 +276,24 @@ class TestDeltaLoadOptions:
             target="v_orders",
             source={
                 "type": "delta",
-                "database": "catalog.bronze",
+                "catalog": "catalog",
+                "schema": "bronze",
                 "table": "orders",
                 "options": {
-                    "skipChangeCommits": "true",
+                    "readChangeFeed": "true",
                     "startingTimestamp": "2018-10-18",
-                    "readChangeFeed": "true"
+                    "ignoreDeletes": True
                 }
             },
             readMode="stream"
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify all options are rendered
-        assert '.option("skipChangeCommits", "true")' in code
-        assert '.option("startingTimestamp", "2018-10-18")' in code
         assert '.option("readChangeFeed", "true")' in code
+        assert '.option("startingTimestamp", "2018-10-18")' in code
+        assert '.option("ignoreDeletes", True)' in code
         assert "spark.readStream" in code
         assert "catalog.bronze.orders" in code
 
@@ -329,23 +306,22 @@ class TestDeltaLoadOptions:
             target="v_snapshot",
             source={
                 "type": "delta",
-                "database": "main.archive",
+                "catalog": "main",
+                "schema": "archive",
                 "table": "snapshot",
                 "options": {
-                    "versionAsOf": "10",
-                    "timestampAsOf": "2023-12-01 00:00:00"
+                    "versionAsOf": "10"
                 }
             },
             readMode="batch"
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify batch mode and options
         assert "spark.read" in code
         assert "spark.readStream" not in code
         assert '.option("versionAsOf", "10")' in code
-        assert '.option("timestampAsOf", "2023-12-01 00:00:00")' in code
 
     def test_delta_option_value_types(self):
         """Test different option value types: boolean, number, string."""
@@ -382,7 +358,8 @@ class TestDeltaLoadOptions:
             target="v_filtered",
             source={
                 "type": "delta",
-                "database": "main.bronze",
+                "catalog": "main",
+                "schema": "bronze",
                 "table": "transactions",
                 "options": {
                     "readChangeFeed": "true"
@@ -409,7 +386,8 @@ class TestDeltaLoadOptions:
             target="v_simple",
             source={
                 "type": "delta",
-                "database": "main.bronze",
+                "catalog": "main",
+                "schema": "bronze",
                 "table": "simple"
             },
             readMode="stream"
@@ -568,8 +546,8 @@ class TestDeltaLoadOptions:
         assert "dictionary" in str(exc_info.value)
         assert "str" in str(exc_info.value)
 
-    def test_delta_readchangefeed_requires_stream_mode(self):
-        """Test that readChangeFeed option requires stream mode."""
+    def test_delta_batch_cdf_without_starting_bound_raises(self):
+        """Test that batch CDF without starting bound raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_error",
@@ -582,17 +560,17 @@ class TestDeltaLoadOptions:
                     "readChangeFeed": "true"
                 }
             },
-            readMode="batch"  # Wrong mode for CDC!
+            readMode="batch"
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
 
         assert "readChangeFeed" in str(exc_info.value)
-        assert "stream" in str(exc_info.value)
+        assert "startingVersion" in str(exc_info.value) or "startingTimestamp" in str(exc_info.value)
 
     def test_delta_readchangefeed_without_readmode_raises_error(self):
-        """Test that readChangeFeed without explicit readMode raises error (defaults to batch)."""
+        """Test that readChangeFeed without explicit readMode raises error (defaults to batch, no bounds)."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_error",
@@ -605,14 +583,312 @@ class TestDeltaLoadOptions:
                     "readChangeFeed": "true"
                 }
             }
-            # No readMode specified - defaults to batch which is wrong for CDC
+            # No readMode specified - defaults to batch, which requires starting bound
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
 
         assert "readChangeFeed" in str(exc_info.value)
+        assert "startingVersion" in str(exc_info.value) or "startingTimestamp" in str(exc_info.value)
+
+    def test_delta_batch_cdf_with_starting_version(self):
+        """Test batch CDF with startingVersion works."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_batch_cdf",
+            type=ActionType.LOAD,
+            target="v_batch_cdf",
+            source={
+                "type": "delta",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
+                "table": "orders",
+                "options": {
+                    "readChangeFeed": "true",
+                    "startingVersion": "5"
+                }
+            },
+            readMode="batch"
+        )
+
+        code = generator.generate(action, {})
+
+        assert "spark.read" in code
+        assert "spark.readStream" not in code
+        assert '.option("readChangeFeed", "true")' in code
+        assert '.option("startingVersion", "5")' in code
+
+    def test_delta_batch_cdf_with_starting_timestamp(self):
+        """Test batch CDF with startingTimestamp works."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_batch_cdf_ts",
+            type=ActionType.LOAD,
+            target="v_batch_cdf_ts",
+            source={
+                "type": "delta",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
+                "table": "orders",
+                "options": {
+                    "readChangeFeed": "true",
+                    "startingTimestamp": "2024-01-01"
+                }
+            },
+            readMode="batch"
+        )
+
+        code = generator.generate(action, {})
+
+        assert "spark.read" in code
+        assert '.option("readChangeFeed", "true")' in code
+        assert '.option("startingTimestamp", "2024-01-01")' in code
+
+    def test_delta_batch_cdf_with_ending_bounds(self):
+        """Test batch CDF with starting and ending version bounds works."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_batch_range",
+            type=ActionType.LOAD,
+            target="v_batch_range",
+            source={
+                "type": "delta",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
+                "table": "orders",
+                "options": {
+                    "readChangeFeed": "true",
+                    "startingVersion": "5",
+                    "endingVersion": "20"
+                }
+            },
+            readMode="batch"
+        )
+
+        code = generator.generate(action, {})
+
+        assert "spark.read" in code
+        assert '.option("startingVersion", "5")' in code
+        assert '.option("endingVersion", "20")' in code
+
+    def test_delta_cdf_plus_skip_raises(self):
+        """Test that readChangeFeed + skipChangeCommits raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_conflict",
+            type=ActionType.LOAD,
+            target="v_conflict",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "readChangeFeed": "true",
+                    "skipChangeCommits": "true"
+                }
+            },
+            readMode="stream"
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+
+        assert "readChangeFeed" in str(exc_info.value)
+        assert "skipChangeCommits" in str(exc_info.value)
+
+    def test_delta_cdf_plus_version_as_of_raises(self):
+        """Test that readChangeFeed + versionAsOf raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_conflict",
+            type=ActionType.LOAD,
+            target="v_conflict",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "readChangeFeed": "true",
+                    "versionAsOf": "10"
+                }
+            },
+            readMode="stream"
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+
+        assert "readChangeFeed" in str(exc_info.value)
+        assert "versionAsOf" in str(exc_info.value)
+
+    def test_delta_cdf_plus_timestamp_as_of_raises(self):
+        """Test that readChangeFeed + timestampAsOf raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_conflict",
+            type=ActionType.LOAD,
+            target="v_conflict",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "readChangeFeed": "true",
+                    "timestampAsOf": "2024-01-01"
+                }
+            },
+            readMode="stream"
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+
+        assert "readChangeFeed" in str(exc_info.value)
+        assert "timestampAsOf" in str(exc_info.value)
+
+    def test_delta_starting_version_plus_timestamp_raises(self):
+        """Test that startingVersion + startingTimestamp raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_conflict",
+            type=ActionType.LOAD,
+            target="v_conflict",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "startingVersion": "0",
+                    "startingTimestamp": "2024-01-01"
+                }
+            },
+            readMode="stream"
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+
+        assert "startingVersion" in str(exc_info.value)
+        assert "startingTimestamp" in str(exc_info.value)
+
+    def test_delta_version_as_of_plus_timestamp_as_of_raises(self):
+        """Test that versionAsOf + timestampAsOf raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_conflict",
+            type=ActionType.LOAD,
+            target="v_conflict",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "versionAsOf": "10",
+                    "timestampAsOf": "2024-01-01"
+                }
+            },
+            readMode="batch"
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+
+        assert "versionAsOf" in str(exc_info.value)
+        assert "timestampAsOf" in str(exc_info.value)
+
+    def test_delta_ending_version_with_stream_raises(self):
+        """Test that endingVersion + stream mode raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_conflict",
+            type=ActionType.LOAD,
+            target="v_conflict",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "readChangeFeed": "true",
+                    "endingVersion": "20"
+                }
+            },
+            readMode="stream"
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+
+        assert "endingVersion" in str(exc_info.value)
         assert "stream" in str(exc_info.value)
+
+    def test_delta_ending_timestamp_with_stream_raises(self):
+        """Test that endingTimestamp + stream mode raises error."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_conflict",
+            type=ActionType.LOAD,
+            target="v_conflict",
+            source={
+                "type": "delta",
+                "table": "test",
+                "options": {
+                    "readChangeFeed": "true",
+                    "endingTimestamp": "2024-12-31"
+                }
+            },
+            readMode="stream"
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            generator.generate(action, {})
+
+        assert "endingTimestamp" in str(exc_info.value)
+        assert "stream" in str(exc_info.value)
+
+    def test_delta_skip_change_commits_alone_works(self):
+        """Test that skipChangeCommits without readChangeFeed works in stream mode."""
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_skip",
+            type=ActionType.LOAD,
+            target="v_skip",
+            source={
+                "type": "delta",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
+                "table": "orders",
+                "options": {
+                    "skipChangeCommits": "true"
+                }
+            },
+            readMode="stream"
+        )
+
+        code = generator.generate(action, {})
+
+        assert "spark.readStream" in code
+        assert '.option("skipChangeCommits", "true")' in code
+
+    def test_delta_cdf_metadata_warning_emitted(self, caplog):
+        """Test that CDF metadata column warning is emitted when readChangeFeed is enabled."""
+        import logging
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_cdf_warn",
+            type=ActionType.LOAD,
+            target="v_cdf_warn",
+            source={
+                "type": "delta",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
+                "table": "orders",
+                "options": {
+                    "readChangeFeed": "true"
+                }
+            },
+            readMode="stream"
+        )
+
+        with caplog.at_level(logging.WARNING, logger="lhp.generators.load.delta"):
+            generator.generate(action, {})
+
+        assert any("_change_type" in msg for msg in caplog.messages)
+        assert any("_commit_version" in msg for msg in caplog.messages)
 
     def test_delta_options_combined_features(self):
         """Test options work combined with where clause and select."""
@@ -624,7 +900,7 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "catalog": "main",
-                "database": "bronze",
+                "schema": "bronze",
                 "table": "data",
                 "options": {
                     "readChangeFeed": "true",
@@ -650,6 +926,117 @@ def test_generator_imports():
     # Load generator
     load_gen = CloudFilesLoadGenerator()
     assert "from pyspark import pipelines as dp" in load_gen.imports
+
+
+# ============================================================================
+# Golden Output Tests
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestCloudFilesGoldenOutput:
+    """Golden output test for CloudFiles load generator."""
+
+    def test_cloudfiles_golden(self, golden):
+        generator = CloudFilesLoadGenerator()
+        action = Action(
+            name="load_raw_files",
+            type=ActionType.LOAD,
+            target="v_raw_files",
+            source={
+                "type": "cloudfiles",
+                "path": "/mnt/data/raw",
+                "format": "json",
+                "readMode": "stream",
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_cloudfiles")
+
+
+@pytest.mark.unit
+class TestDeltaGoldenOutput:
+    """Golden output test for Delta load generator."""
+
+    def test_delta_golden(self, golden):
+        generator = DeltaLoadGenerator()
+        action = Action(
+            name="load_customers",
+            type=ActionType.LOAD,
+            target="v_customers",
+            source={
+                "type": "delta",
+                "catalog": "main",
+                "schema": "bronze",
+                "table": "customers",
+            },
+            readMode="stream",
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_delta")
+
+
+@pytest.mark.unit
+class TestSQLGoldenOutput:
+    """Golden output test for SQL load generator."""
+
+    def test_sql_golden(self, golden):
+        generator = SQLLoadGenerator()
+        action = Action(
+            name="load_metrics",
+            type=ActionType.LOAD,
+            target="v_metrics",
+            source="SELECT * FROM metrics WHERE date > current_date() - 7",
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_sql")
+
+
+@pytest.mark.unit
+class TestJDBCGoldenOutput:
+    """Golden output test for JDBC load generator."""
+
+    def test_jdbc_golden(self, golden):
+        generator = JDBCLoadGenerator()
+        action = Action(
+            name="load_external",
+            type=ActionType.LOAD,
+            target="v_external_data",
+            source={
+                "type": "jdbc",
+                "url": "jdbc:postgresql://host:5432/mydb",
+                "user": "admin",
+                "password": "pass123",
+                "driver": "org.postgresql.Driver",
+                "table": "external_table",
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_jdbc")
+
+
+@pytest.mark.unit
+class TestPythonGoldenOutput:
+    """Golden output test for Python load generator."""
+
+    def test_python_golden(self, golden):
+        generator = PythonLoadGenerator()
+        action = Action(
+            name="load_custom",
+            type=ActionType.LOAD,
+            target="v_custom_data",
+            source={
+                "type": "python",
+                "module_path": "custom_loaders",
+                "function_name": "load_custom_data",
+                "parameters": {
+                    "start_date": "2024-01-01",
+                    "batch_size": 1000,
+                },
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_python")
 
 
 if __name__ == "__main__":

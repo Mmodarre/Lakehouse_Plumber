@@ -1,0 +1,101 @@
+pipeline: domain_s_bronze
+flowgroup: bottling_line_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: bottling_line_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bottling_line_raw
+    target: v_bottling_line_raw
+    description: "Load bottling_line from raw schema"
+
+  - name: bottling_line_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_bottling_line_raw
+    target: v_bottling_line_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bottling_line_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_bottling_line_raw
+
+  - name: bottling_line_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_bottling_line_bronze_cleaned
+    target: v_bottling_line_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for bottling_line bronze"
+
+  - name: write_bottling_line_bronze
+    type: write
+    source: v_bottling_line_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bottling_line"
+
+  - name: bottling_line_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: bottling_line_migration
+    target: v_bottling_line_migration
+    description: "Load bottling_line migration data"
+
+  - name: bottling_line_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_bottling_line_migration
+    target: v_bottling_line_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as bottling_line_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_bottling_line_migration
+
+  - name: write_bottling_line_migration
+    type: write
+    source: v_bottling_line_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "bottling_line"
+
+  - name: tst_bottling_line_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_bottling_line_bronze_cleaned
+    required_columns: [bottling_line_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-bottling_line-B01"
+
+  - name: tst_bottling_line_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_bottling_line_bronze_cleaned
+    columns: [bottling_line_key]
+    on_violation: warn
+    test_id: "PERF-bottling_line-B02"

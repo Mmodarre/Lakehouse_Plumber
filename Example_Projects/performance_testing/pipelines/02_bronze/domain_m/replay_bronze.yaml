@@ -1,0 +1,64 @@
+pipeline: domain_m_bronze
+flowgroup: replay_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: replay_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: replay_raw
+    target: v_replay_raw
+    description: "Load replay from raw schema"
+
+  - name: replay_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_replay_raw
+    target: v_replay_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as replay_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_replay_raw
+      WHERE 1=1
+
+  - name: replay_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_replay_bronze_cleaned
+    target: v_replay_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to replay"
+
+  - name: write_replay_bronze
+    type: write
+    source: v_replay_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "replay"
+
+  - name: tst_replay_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_replay_bronze_cleaned
+    required_columns: [replay_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-replay-B01"
+
+  - name: tst_replay_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_replay_bronze_cleaned
+    columns: [replay_key]
+    on_violation: warn
+    test_id: "PERF-replay-B02"

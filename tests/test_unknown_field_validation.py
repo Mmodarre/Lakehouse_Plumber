@@ -1,6 +1,7 @@
 """Tests for unknown field validation."""
 
 import pytest
+
 from lhp.core.config_field_validator import ConfigFieldValidator
 from lhp.utils.error_formatter import LHPError
 
@@ -48,7 +49,8 @@ class TestUnknownFieldValidation:
         """Test valid delta source configuration passes validation."""
         source_config = {
             "type": "delta",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_table",
             "readMode": "batch",
         }
@@ -60,7 +62,8 @@ class TestUnknownFieldValidation:
         """Test unknown field in delta source raises error."""
         source_config = {
             "type": "delta",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_table",
             "invalid_option": "value",
         }
@@ -75,7 +78,8 @@ class TestUnknownFieldValidation:
         """Test valid streaming table write target passes validation."""
         write_target = {
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_table",
             "create_table": True,
             "table_properties": {"delta.enableChangeDataFeed": "true"},
@@ -88,7 +92,8 @@ class TestUnknownFieldValidation:
         """Test unknown field in write target raises error."""
         write_target = {
             "type": "streaming_table",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_table",
             "invalid_field": "value",
             "another_unknown": 123,
@@ -107,7 +112,8 @@ class TestUnknownFieldValidation:
         """Test valid materialized view write target passes validation."""
         write_target = {
             "type": "materialized_view",
-            "database": "catalog.schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "my_view",
             "refresh_schedule": "@daily",
             "sql": "SELECT * FROM source_table",
@@ -137,7 +143,7 @@ class TestUnknownFieldValidation:
             "type": "load",
             "source": {"type": "cloudfiles"},
             "target": "v_data",
-            "mode": "stream",  # Should be readMode
+            "read_mode": "stream",  # Should be readMode (camelCase)
             "invalid_field": "value",
         }
 
@@ -145,8 +151,8 @@ class TestUnknownFieldValidation:
             self.validator.validate_action_fields(action_dict, "test_action")
 
         error = exc_info.value
-        assert "Unknown fields: invalid_field, mode in action" in str(error)
-        assert "'mode' → 'readMode'" in str(error)
+        assert "invalid_field" in str(error)
+        assert "'read_mode' → 'readMode'" in str(error)
 
     def test_sql_source_validation(self):
         """Test SQL source validation."""
@@ -262,7 +268,8 @@ class TestUnknownFieldValidation:
         """Test materialized view with sql_path passes field validation."""
         write_target = {
             "type": "materialized_view",
-            "database": "gold",
+            "catalog": "gold_cat",
+            "schema": "gold_sch",
             "table": "ecomm_summary",
             "sql_path": "sql/gold/ecomm_summary.sql",
         }

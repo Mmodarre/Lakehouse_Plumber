@@ -1,0 +1,24 @@
+pipeline: domain_o_bronze
+flowgroup: impression_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: impression
+  source_table: impression_raw
+actions:
+  - name: tst_impression_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_impression_cleansed
+    required_columns: [impression_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-impression-B01"
+
+  - name: tst_impression_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_impression_cleansed
+    columns: [impression_key]
+    on_violation: warn
+    test_id: "PERF-impression-B02"

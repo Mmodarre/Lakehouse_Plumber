@@ -1,0 +1,64 @@
+pipeline: domain_f_bronze
+flowgroup: athletics_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: athletics_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: athletics_raw
+    target: v_athletics_raw
+    description: "Load athletics from raw schema"
+
+  - name: athletics_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_athletics_raw
+    target: v_athletics_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as athletics_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_athletics_raw
+      WHERE 1=1
+
+  - name: athletics_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_athletics_bronze_cleaned
+    target: v_athletics_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to athletics"
+
+  - name: write_athletics_bronze
+    type: write
+    source: v_athletics_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "athletics"
+
+  - name: tst_athletics_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_athletics_bronze_cleaned
+    required_columns: [athletics_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-athletics-B01"
+
+  - name: tst_athletics_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_athletics_bronze_cleaned
+    columns: [athletics_key]
+    on_violation: warn
+    test_id: "PERF-athletics-B02"

@@ -1,0 +1,25 @@
+pipeline: domain_q_raw
+flowgroup: offside_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: offside_raw
+  landing_folder: offside
+  schema_file: orders_schema
+actions:
+  - name: tst_offside_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_offside_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-offside-R01"
+
+  - name: tst_offside_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_offside_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-offside-R02"

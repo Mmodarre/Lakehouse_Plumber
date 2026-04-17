@@ -1,0 +1,24 @@
+pipeline: domain_j_bronze
+flowgroup: substation_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: substation
+  source_table: substation_raw
+actions:
+  - name: tst_substation_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_substation_cleansed
+    required_columns: [substation_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-substation-B01"
+
+  - name: tst_substation_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_substation_cleansed
+    columns: [substation_key]
+    on_violation: warn
+    test_id: "PERF-substation-B02"

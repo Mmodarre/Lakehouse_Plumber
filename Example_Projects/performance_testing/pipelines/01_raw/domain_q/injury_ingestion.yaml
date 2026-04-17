@@ -1,0 +1,25 @@
+pipeline: domain_q_raw
+flowgroup: injury_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: injury_raw
+  landing_folder: injury
+  schema_file: partsupp_schema
+actions:
+  - name: tst_injury_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_injury_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-injury-R01"
+
+  - name: tst_injury_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_injury_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-injury-R02"

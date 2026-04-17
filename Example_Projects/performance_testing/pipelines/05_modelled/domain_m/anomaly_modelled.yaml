@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: anomaly_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: anomaly_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: anomaly_fct
+    target: v_anomaly_silver
+    description: "Load anomaly from silver for modelling"
+
+  - name: anomaly_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_anomaly_silver
+    target: v_anomaly_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_anomaly_silver
+
+  - name: write_anomaly_modelled
+    type: write
+    source: v_anomaly_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "anomaly_modelled"
+
+  - name: tst_anomaly_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_anomaly_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-anomaly-M01"
+
+  - name: tst_anomaly_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_anomaly_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-anomaly-M02"

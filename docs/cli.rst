@@ -153,14 +153,18 @@ By default, Lakehouse Plumber skips test actions during code generation for fast
    # Development with data quality testing
    lhp generate -e dev --include-tests
 
-   # Validation always checks tests (regardless of generation)
+   # Validate without test actions (default)
    lhp validate -e dev
+
+   # Validate with test actions
+   lhp validate -e dev --include-tests
 
 **Flag Behavior:**
 
-- **Without flag**: Test actions are validated but not generated, test-only flowgroups are skipped entirely
-- **With flag**: All test actions are included in generated code as temporary DLT tables
-- **Validation**: Always processes test actions to catch configuration errors early
+Both commands respect ``--include-tests`` for per-flowgroup processing.
+
+- **Without flag**: Test actions are skipped during per-flowgroup processing in both validation and generation
+- **With flag**: Test actions are included — validated for configuration errors and generated as temporary DLT tables
 
 **Examples:**
 
@@ -177,3 +181,8 @@ By default, Lakehouse Plumber skips test actions during code generation for fast
 
 .. note::
    Test actions generate temporary DLT tables that persist test results for inspection and debugging while being automatically cleaned up when the pipeline completes.
+
+.. tip::
+   When ``test_reporting`` is configured in ``lhp.yaml``, the ``--include-tests``
+   flag also generates a test reporting event hook that publishes DQ results to
+   external systems. See :doc:`actions/test_reporting`.

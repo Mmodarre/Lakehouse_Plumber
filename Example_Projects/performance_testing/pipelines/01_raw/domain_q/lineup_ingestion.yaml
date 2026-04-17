@@ -1,0 +1,25 @@
+pipeline: domain_q_raw
+flowgroup: lineup_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: lineup_raw
+  landing_folder: lineup
+  schema_file: product_schema
+actions:
+  - name: tst_lineup_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_lineup_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-lineup-R01"
+
+  - name: tst_lineup_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lineup_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-lineup-R02"

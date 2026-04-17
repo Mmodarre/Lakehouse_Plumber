@@ -1,0 +1,25 @@
+pipeline: domain_j_raw
+flowgroup: net_metering_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: net_metering_raw
+  landing_folder: net_metering
+  schema_file: orders_schema
+actions:
+  - name: tst_net_metering_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_net_metering_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-net_metering-R01"
+
+  - name: tst_net_metering_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_net_metering_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-net_metering-R02"

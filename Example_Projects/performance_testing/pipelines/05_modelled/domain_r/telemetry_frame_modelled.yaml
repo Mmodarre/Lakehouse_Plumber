@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: telemetry_frame_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: telemetry_frame_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: telemetry_frame_dim
+    target: v_telemetry_frame_silver
+    description: "Load telemetry_frame from silver for modelling"
+
+  - name: telemetry_frame_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_telemetry_frame_silver
+    target: v_telemetry_frame_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_telemetry_frame_silver
+
+  - name: write_telemetry_frame_modelled
+    type: write
+    source: v_telemetry_frame_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "telemetry_frame_modelled"
+
+  - name: tst_telemetry_frame_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_telemetry_frame_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-telemetry_frame-M01"
+
+  - name: tst_telemetry_frame_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_telemetry_frame_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-telemetry_frame-M02"

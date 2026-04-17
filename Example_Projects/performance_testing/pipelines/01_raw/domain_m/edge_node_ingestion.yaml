@@ -1,0 +1,47 @@
+pipeline: domain_m_raw
+flowgroup: edge_node_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_edge_node_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/edge_node/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_edge_node_cloudfiles
+    description: "Load edge_node from landing volume"
+
+  - name: write_edge_node_raw
+    type: write
+    source: v_edge_node_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "edge_node_raw"
+
+  - name: tst_edge_node_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_edge_node_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-edge_node-R01"
+
+  - name: tst_edge_node_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_edge_node_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-edge_node-R02"

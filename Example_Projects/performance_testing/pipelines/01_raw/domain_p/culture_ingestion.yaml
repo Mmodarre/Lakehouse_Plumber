@@ -1,0 +1,25 @@
+pipeline: domain_p_raw
+flowgroup: culture_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: culture_raw
+  landing_folder: culture
+  schema_file: partsupp_schema
+actions:
+  - name: tst_culture_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_culture_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-culture-R01"
+
+  - name: tst_culture_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_culture_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-culture-R02"

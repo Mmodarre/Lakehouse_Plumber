@@ -1,0 +1,64 @@
+pipeline: domain_h_bronze
+flowgroup: endcap_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: endcap_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: endcap_raw
+    target: v_endcap_raw
+    description: "Load endcap from raw schema"
+
+  - name: endcap_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_endcap_raw
+    target: v_endcap_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as endcap_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_endcap_raw
+      WHERE 1=1
+
+  - name: endcap_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_endcap_bronze_cleaned
+    target: v_endcap_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to endcap"
+
+  - name: write_endcap_bronze
+    type: write
+    source: v_endcap_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "endcap"
+
+  - name: tst_endcap_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_endcap_bronze_cleaned
+    required_columns: [endcap_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-endcap-B01"
+
+  - name: tst_endcap_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_endcap_bronze_cleaned
+    columns: [endcap_key]
+    on_violation: warn
+    test_id: "PERF-endcap-B02"

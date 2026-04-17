@@ -25,7 +25,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "spark_conf": {
                     123: "invalid_int_key",  # Keys must be strings
@@ -43,7 +44,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "table_properties": {
                     456: "invalid_int_key",  # Keys must be strings
@@ -61,13 +63,14 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
-                "schema": {"invalid": "object"}  # Should be string
+                "table_schema": {"invalid": "object"}  # Should be string
             }
         )
         errors = validator.validate_action(action, 0)
-        assert any("'table_schema' (or 'schema') must be a string" in error for error in errors)
+        assert any("'table_schema' must be a string" in error for error in errors)
         
         # Test 4: Invalid row_filter type (lines 468, 472)
         action = Action(
@@ -76,7 +79,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "row_filter": 123  # Should be string
             }
@@ -91,7 +95,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "temporary": "yes"  # Should be boolean
             }
@@ -106,7 +111,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "partition_columns": "column1"  # Should be list
             }
@@ -121,7 +127,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "partition_columns": [123, "valid_column"]  # Elements must be strings
             }
@@ -136,7 +143,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "cluster_columns": "column1"  # Should be list
             }
@@ -151,7 +159,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "cluster_columns": [456, "valid_column"]  # Elements must be strings
             }
@@ -174,7 +183,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -193,7 +203,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -212,7 +223,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -231,7 +243,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -250,7 +263,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -269,7 +283,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -290,7 +305,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -311,7 +327,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -332,7 +349,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -361,14 +379,15 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
                     "keys": ["id"],
                     "sequence_by": "timestamp_col"
                 },
-                "schema": "id INT, name STRING, __END_AT TIMESTAMP"  # Missing __START_AT
+                "table_schema": "id INT, name STRING, __END_AT TIMESTAMP"  # Missing __START_AT
             }
         )
         errors = validator.validate_action(action, 0)
@@ -381,14 +400,15 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
                     "keys": ["id"],
                     "sequence_by": "timestamp_col"
                 },
-                "schema": "id INT, name STRING, __START_AT TIMESTAMP"  # Missing __END_AT
+                "table_schema": "id INT, name STRING, __START_AT TIMESTAMP"  # Missing __END_AT
             }
         )
         errors = validator.validate_action(action, 0)
@@ -401,35 +421,37 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
                     "keys": ["id"],
                     "sequence_by": "timestamp_col"
                 },
-                "schema": "id INT, name STRING"  # Missing both __START_AT and __END_AT
+                "table_schema": "id INT, name STRING"  # Missing both __START_AT and __END_AT
             }
         )
         errors = validator.validate_action(action, 0)
         assert any("CDC schema must include '__START_AT' column with same type as sequence_by" in error for error in errors)
         assert any("CDC schema must include '__END_AT' column with same type as sequence_by" in error for error in errors)
-        
-        # Test 4: CDC schema with schema field - alternate test (lines 576, 580, 585, 589)
+
+        # Test 4: CDC schema with table_schema field - alternate test (lines 576, 580, 585, 589)
         action = Action(
             name="test_cdc_schema_alternate_missing_both",
             type=ActionType.WRITE,
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
                     "keys": ["id"],
                     "sequence_by": "timestamp_col"
                 },
-                "schema": "id INT, name STRING"  # Missing both __START_AT and __END_AT
+                "table_schema": "id INT, name STRING"  # Missing both __START_AT and __END_AT
             }
         )
         errors = validator.validate_action(action, 0)
@@ -443,14 +465,15 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
                     "keys": ["id"],
                     "sequence_by": "timestamp_col"
                 },
-                "schema": "id INT, name STRING, __START_AT TIMESTAMP, __END_AT TIMESTAMP"
+                "table_schema": "id INT, name STRING, __START_AT TIMESTAMP, __END_AT TIMESTAMP"
             }
         )
         errors = validator.validate_action(action, 0)
@@ -465,7 +488,8 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "cdc",
                 "cdc_config": {
@@ -487,10 +511,11 @@ class TestConfigValidatorDltCdc:
             source="v_test",
             write_target={
                 "type": "streaming_table",
-                "database": "test",
+                "catalog": "test_cat",
+                "schema": "test",
                 "table": "test",
                 "mode": "standard",  # Not CDC mode
-                "schema": "id INT, name STRING"  # No CDC columns required
+                "table_schema": "id INT, name STRING"  # No CDC columns required
             }
         )
         errors = validator.validate_action(action, 0)

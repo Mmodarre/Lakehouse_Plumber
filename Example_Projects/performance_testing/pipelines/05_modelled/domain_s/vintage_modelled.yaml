@@ -1,0 +1,53 @@
+pipeline: domain_s_modelled
+flowgroup: vintage_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: vintage_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: vintage_dim
+    target: v_vintage_silver
+    description: "Load vintage from silver for modelling"
+
+  - name: vintage_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_vintage_silver
+    target: v_vintage_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_vintage_silver
+
+  - name: write_vintage_modelled
+    type: write
+    source: v_vintage_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "vintage_modelled"
+
+  - name: tst_vintage_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_vintage_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-vintage-M01"
+
+  - name: tst_vintage_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_vintage_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-vintage-M02"

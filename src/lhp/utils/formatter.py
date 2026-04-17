@@ -11,6 +11,8 @@ import tomllib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .performance_timer import perf_timer
+
 
 def _read_black_config() -> Dict[str, Any]:
     """Read Black configuration from pyproject.toml.
@@ -325,8 +327,10 @@ def format_code(code: str, line_length: Optional[int] = None) -> str:
     Returns:
         Formatted code
     """
-    formatter = CodeFormatter()
-    return formatter.format_code(code, line_length)
+    with perf_timer("CodeFormatter.__init__", category="formatter_init"):
+        formatter = CodeFormatter()
+    with perf_timer("CodeFormatter.format_code", category="black_format"):
+        return formatter.format_code(code, line_length)
 
 
 def organize_imports(code: str) -> str:

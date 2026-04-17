@@ -1,0 +1,341 @@
+pipeline: domain_d_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: patient_bronze
+    template_parameters:
+      entity_name: patient
+      source_table: patient_raw
+    actions:
+      - name: tst_patient_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_patient_cleansed
+        required_columns: [patient_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-patient-B01"
+      
+      - name: tst_patient_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_patient_cleansed
+        columns: [patient_key]
+        on_violation: warn
+        test_id: "PERF-patient-B02"
+
+  - flowgroup: doctor_bronze
+    template_parameters:
+      entity_name: doctor
+      source_table: doctor_raw
+    actions:
+      - name: tst_doctor_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_doctor_cleansed
+        required_columns: [doctor_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-doctor-B01"
+      
+      - name: tst_doctor_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_doctor_cleansed
+        columns: [doctor_key]
+        on_violation: warn
+        test_id: "PERF-doctor-B02"
+
+  - flowgroup: appointment_bronze
+    template_parameters:
+      entity_name: appointment
+      source_table: appointment_raw
+    actions:
+      - name: tst_appointment_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_appointment_cleansed
+        required_columns: [appointment_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-appointment-B01"
+      
+      - name: tst_appointment_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_appointment_cleansed
+        columns: [appointment_key]
+        on_violation: warn
+        test_id: "PERF-appointment-B02"
+
+  - flowgroup: prescription_bronze
+    template_parameters:
+      entity_name: prescription
+      source_table: prescription_raw
+    actions:
+      - name: tst_prescription_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_prescription_cleansed
+        required_columns: [prescription_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-prescription-B01"
+      
+      - name: tst_prescription_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_prescription_cleansed
+        columns: [prescription_key]
+        on_violation: warn
+        test_id: "PERF-prescription-B02"
+
+  - flowgroup: diagnosis_bronze
+    template_parameters:
+      entity_name: diagnosis
+      source_table: diagnosis_raw
+    actions:
+      - name: tst_diagnosis_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_diagnosis_cleansed
+        required_columns: [diagnosis_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-diagnosis-B01"
+      
+      - name: tst_diagnosis_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_diagnosis_cleansed
+        columns: [diagnosis_key]
+        on_violation: warn
+        test_id: "PERF-diagnosis-B02"
+
+  - flowgroup: treatment_bronze
+    template_parameters:
+      entity_name: treatment
+      source_table: treatment_raw
+    actions:
+      - name: tst_treatment_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_treatment_cleansed
+        required_columns: [treatment_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-treatment-B01"
+      
+      - name: tst_treatment_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_treatment_cleansed
+        columns: [treatment_key]
+        on_violation: warn
+        test_id: "PERF-treatment-B02"
+
+  - flowgroup: insurance_bronze
+    template_parameters:
+      entity_name: insurance
+      source_table: insurance_raw
+    actions:
+      - name: tst_insurance_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_insurance_cleansed
+        required_columns: [insurance_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-insurance-B01"
+      
+      - name: tst_insurance_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_insurance_cleansed
+        columns: [insurance_key]
+        on_violation: warn
+        test_id: "PERF-insurance-B02"
+
+  - flowgroup: claim_bronze
+    template_parameters:
+      entity_name: claim
+      source_table: claim_raw
+    actions:
+      - name: tst_claim_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_claim_cleansed
+        required_columns: [claim_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-claim-B01"
+      
+      - name: tst_claim_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_claim_cleansed
+        columns: [claim_key]
+        on_violation: warn
+        test_id: "PERF-claim-B02"
+
+  - flowgroup: hospital_bronze
+    template_parameters:
+      entity_name: hospital
+      source_table: hospital_raw
+    actions:
+      - name: tst_hospital_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_hospital_cleansed
+        required_columns: [hospital_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-hospital-B01"
+      
+      - name: tst_hospital_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_hospital_cleansed
+        columns: [hospital_key]
+        on_violation: warn
+        test_id: "PERF-hospital-B02"
+
+  - flowgroup: ward_bronze
+    template_parameters:
+      entity_name: ward
+      source_table: ward_raw
+    actions:
+      - name: tst_ward_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_ward_cleansed
+        required_columns: [ward_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-ward-B01"
+      
+      - name: tst_ward_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_ward_cleansed
+        columns: [ward_key]
+        on_violation: warn
+        test_id: "PERF-ward-B02"
+
+  - flowgroup: lab_test_bronze
+    template_parameters:
+      entity_name: lab_test
+      source_table: lab_test_raw
+    actions:
+      - name: tst_lab_test_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_lab_test_cleansed
+        required_columns: [lab_test_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-lab_test-B01"
+      
+      - name: tst_lab_test_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_lab_test_cleansed
+        columns: [lab_test_key]
+        on_violation: warn
+        test_id: "PERF-lab_test-B02"
+
+  - flowgroup: lab_result_bronze
+    template_parameters:
+      entity_name: lab_result
+      source_table: lab_result_raw
+    actions:
+      - name: tst_lab_result_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_lab_result_cleansed
+        required_columns: [lab_result_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-lab_result-B01"
+      
+      - name: tst_lab_result_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_lab_result_cleansed
+        columns: [lab_result_key]
+        on_violation: warn
+        test_id: "PERF-lab_result-B02"
+
+  - flowgroup: medication_bronze
+    template_parameters:
+      entity_name: medication
+      source_table: medication_raw
+    actions:
+      - name: tst_medication_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_medication_cleansed
+        required_columns: [medication_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-medication-B01"
+      
+      - name: tst_medication_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_medication_cleansed
+        columns: [medication_key]
+        on_violation: warn
+        test_id: "PERF-medication-B02"
+
+  - flowgroup: allergy_bronze
+    template_parameters:
+      entity_name: allergy
+      source_table: allergy_raw
+    actions:
+      - name: tst_allergy_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_allergy_cleansed
+        required_columns: [allergy_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-allergy-B01"
+      
+      - name: tst_allergy_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_allergy_cleansed
+        columns: [allergy_key]
+        on_violation: warn
+        test_id: "PERF-allergy-B02"
+
+  - flowgroup: immunization_bronze
+    template_parameters:
+      entity_name: immunization
+      source_table: immunization_raw
+    actions:
+      - name: tst_immunization_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_immunization_cleansed
+        required_columns: [immunization_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-immunization-B01"
+      
+      - name: tst_immunization_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_immunization_cleansed
+        columns: [immunization_key]
+        on_violation: warn
+        test_id: "PERF-immunization-B02"
+
+  - flowgroup: referral_bronze
+    template_parameters:
+      entity_name: referral
+      source_table: referral_raw
+    actions:
+      - name: tst_referral_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_referral_cleansed
+        required_columns: [referral_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-referral-B01"
+      
+      - name: tst_referral_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_referral_cleansed
+        columns: [referral_key]
+        on_violation: warn
+        test_id: "PERF-referral-B02"

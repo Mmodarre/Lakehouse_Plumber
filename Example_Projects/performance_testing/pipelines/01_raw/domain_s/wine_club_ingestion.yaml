@@ -1,0 +1,47 @@
+pipeline: domain_s_raw
+flowgroup: wine_club_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_wine_club_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/wine_club/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_wine_club_cloudfiles
+    description: "Load wine_club from landing volume"
+
+  - name: write_wine_club_raw
+    type: write
+    source: v_wine_club_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "wine_club_raw"
+
+  - name: tst_wine_club_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_wine_club_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-wine_club-R01"
+
+  - name: tst_wine_club_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_wine_club_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-wine_club-R02"

@@ -1,0 +1,64 @@
+pipeline: domain_i_bronze
+flowgroup: gauge_rr_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: gauge_rr_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: gauge_rr_raw
+    target: v_gauge_rr_raw
+    description: "Load gauge_rr from raw schema"
+
+  - name: gauge_rr_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_gauge_rr_raw
+    target: v_gauge_rr_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as gauge_rr_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_gauge_rr_raw
+      WHERE 1=1
+
+  - name: gauge_rr_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_gauge_rr_bronze_cleaned
+    target: v_gauge_rr_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to gauge_rr"
+
+  - name: write_gauge_rr_bronze
+    type: write
+    source: v_gauge_rr_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "gauge_rr"
+
+  - name: tst_gauge_rr_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_gauge_rr_bronze_cleaned
+    required_columns: [gauge_rr_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-gauge_rr-B01"
+
+  - name: tst_gauge_rr_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_gauge_rr_bronze_cleaned
+    columns: [gauge_rr_key]
+    on_violation: warn
+    test_id: "PERF-gauge_rr-B02"

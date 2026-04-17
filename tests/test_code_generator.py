@@ -6,7 +6,7 @@ from unittest.mock import Mock, MagicMock
 from collections import defaultdict
 
 from lhp.core.services.code_generator import CodeGenerator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models.config import Action, ActionType, FlowGroup, TransformType
 
 
 @pytest.fixture
@@ -106,7 +106,7 @@ class TestCodeGeneratorDetermineActionSubtype:
         action = Action(
             name="write_data",
             type=ActionType.WRITE,
-            write_target={"type": "streaming_table", "database": "test", "table": "table1"}
+            write_target={"type": "streaming_table", "catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
         
         result = code_generator.determine_action_subtype(action)
@@ -117,7 +117,7 @@ class TestCodeGeneratorDetermineActionSubtype:
         action = Action(
             name="write_data",
             type=ActionType.WRITE,
-            write_target={"type": "materialized_view", "database": "test", "table": "view1"}
+            write_target={"type": "materialized_view", "catalog": "test_cat", "schema": "test_sch", "table": "view1"}
         )
         
         result = code_generator.determine_action_subtype(action)
@@ -139,7 +139,7 @@ class TestCodeGeneratorDetermineActionSubtype:
         action = Action(
             name="write_data",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
         
         result = code_generator.determine_action_subtype(action)
@@ -195,54 +195,54 @@ class TestCodeGeneratorGroupWriteActionsByTarget:
         action = Action(
             name="write_table1",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
-        
+
         result = code_generator.group_write_actions_by_target([action])
-        
+
         assert len(result) == 1
-        assert "test.table1" in result
-        assert result["test.table1"] == [action]
+        assert "test_cat.test_sch.table1" in result
+        assert result["test_cat.test_sch.table1"] == [action]
     
     def test_group_write_actions_multiple_same_target(self, code_generator):
         """Test grouping multiple actions with same target."""
         action1 = Action(
             name="write_table1_a",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
         action2 = Action(
             name="write_table1_b",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
-        
+
         result = code_generator.group_write_actions_by_target([action1, action2])
-        
+
         assert len(result) == 1
-        assert "test.table1" in result
-        assert len(result["test.table1"]) == 2
-        assert action1 in result["test.table1"]
-        assert action2 in result["test.table1"]
+        assert "test_cat.test_sch.table1" in result
+        assert len(result["test_cat.test_sch.table1"]) == 2
+        assert action1 in result["test_cat.test_sch.table1"]
+        assert action2 in result["test_cat.test_sch.table1"]
     
     def test_group_write_actions_different_targets(self, code_generator):
         """Test grouping actions with different targets."""
         action1 = Action(
             name="write_table1",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table1"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1"}
         )
         action2 = Action(
             name="write_table2",
             type=ActionType.WRITE,
-            write_target={"database": "test", "table": "table2"}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table2"}
         )
-        
+
         result = code_generator.group_write_actions_by_target([action1, action2])
-        
+
         assert len(result) == 2
-        assert "test.table1" in result
-        assert "test.table2" in result
+        assert "test_cat.test_sch.table1" in result
+        assert "test_cat.test_sch.table2" in result
     
     def test_group_write_actions_table_only(self, code_generator):
         """Test grouping actions with table name only."""
@@ -286,10 +286,10 @@ class TestCodeGeneratorCreateCombinedWriteAction:
             name="write_table1",
             type=ActionType.WRITE,
             source="v_source1",
-            write_target={"database": "test", "table": "table1", "create_table": True}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": True}
         )
-        
-        combined = code_generator.create_combined_write_action([action], "test.table1")
+
+        combined = code_generator.create_combined_write_action([action], "test_cat.test_sch.table1")
         
         assert combined.name == action.name
         assert combined.write_target == action.write_target
@@ -302,16 +302,16 @@ class TestCodeGeneratorCreateCombinedWriteAction:
             name="write_table1_a",
             type=ActionType.WRITE,
             source="v_source1",
-            write_target={"database": "test", "table": "table1", "create_table": True}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": True}
         )
         action2 = Action(
             name="write_table1_b",
             type=ActionType.WRITE,
             source="v_source2",
-            write_target={"database": "test", "table": "table1", "create_table": False}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": False}
         )
-        
-        combined = code_generator.create_combined_write_action([action1, action2], "test.table1")
+
+        combined = code_generator.create_combined_write_action([action1, action2], "test_cat.test_sch.table1")
         
         assert combined.name == action1.name  # Uses table creator
         assert hasattr(combined, '_action_metadata')
@@ -323,10 +323,10 @@ class TestCodeGeneratorCreateCombinedWriteAction:
             name="write_table1",
             type=ActionType.WRITE,
             source=["v_source1", "v_source2"],
-            write_target={"database": "test", "table": "table1", "create_table": True}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": True}
         )
-        
-        combined = code_generator.create_combined_write_action([action], "test.table1")
+
+        combined = code_generator.create_combined_write_action([action], "test_cat.test_sch.table1")
         
         assert hasattr(combined, '_action_metadata')
         assert len(combined._action_metadata) == 2
@@ -341,10 +341,10 @@ class TestCodeGeneratorCreateCombinedWriteAction:
             source="v_source1",
             description="Test description",
             once=True,
-            write_target={"database": "test", "table": "table1", "create_table": True}
+            write_target={"catalog": "test_cat", "schema": "test_sch", "table": "table1", "create_table": True}
         )
-        
-        combined = code_generator.create_combined_write_action([action], "test.table1")
+
+        combined = code_generator.create_combined_write_action([action], "test_cat.test_sch.table1")
         
         assert combined._action_metadata[0]["description"] == "Test description"
         assert combined._action_metadata[0]["once"] is True
@@ -415,11 +415,11 @@ class TestCodeGeneratorExtractSourceViewsFromAction:
     def test_extract_source_views_list_dicts(self, code_generator):
         """Test extracting source views from list of dicts."""
         result = code_generator._extract_source_views_from_action([
-            {"database": "test", "table": "table1"},
-            {"database": "test", "table": "table2"}
+            {"catalog": "test_cat", "schema": "test_sch", "table": "table1"},
+            {"catalog": "test_cat", "schema": "test_sch", "table": "table2"}
         ])
-        
-        assert result == ["test.table1", "test.table2"]
+
+        assert result == ["test_cat.test_sch.table1", "test_cat.test_sch.table2"]
     
     def test_extract_source_views_list_dicts_with_view(self, code_generator):
         """Test extracting source views from list of dicts with view key."""
@@ -430,14 +430,15 @@ class TestCodeGeneratorExtractSourceViewsFromAction:
         
         assert result == ["v_view1", "v_view2"]
     
-    def test_extract_source_views_dict_with_database_table(self, code_generator):
-        """Test extracting source views from dict with database and table."""
+    def test_extract_source_views_dict_with_catalog_schema_table(self, code_generator):
+        """Test extracting source views from dict with catalog, schema, and table."""
         result = code_generator._extract_source_views_from_action({
-            "database": "test",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "table1"
         })
-        
-        assert result == ["test.table1"]
+
+        assert result == ["test_cat.test_sch.table1"]
     
     def test_extract_source_views_dict_with_table_only(self, code_generator):
         """Test extracting source views from dict with table only."""
@@ -506,12 +507,120 @@ class TestCodeGeneratorGenerateActionSections:
                 Action(name="test1", type=ActionType.TEST, test_type="row_count")
             ]
         )
-        
+
         code_generator.dependency_resolver.resolve_dependencies.return_value = flowgroup.actions
-        
+
         sections, imports, custom = code_generator._generate_action_sections(
             flowgroup, flowgroup.actions, Mock(), {}, None, None, None, None, include_tests=False
         )
-        
+
         assert not any("DATA QUALITY TESTS" in section for section in sections)
+
+
+class TestCodeGeneratorDQSectionPartitioning:
+    """Test that DQ transforms get their own section separate from regular transforms."""
+
+    def _make_mock_generator(self, code_generator, return_code="# generated"):
+        mock_gen = Mock()
+        mock_gen.generate.return_value = return_code
+        mock_gen.imports = set()
+        mock_gen.get_import_manager = Mock(return_value=None)
+        code_generator.action_registry.get_generator.return_value = mock_gen
+        return mock_gen
+
+    def test_dq_only_flowgroup_has_dq_section_no_transform_section(self, code_generator):
+        """DQ-only flowgroup → DATA QUALITY & QUARANTINE, no TRANSFORMATION VIEWS."""
+        dq_action = Action(
+            name="dq1", type=ActionType.TRANSFORM,
+            transform_type="data_quality", source="v_src", target="v_tgt",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[dq_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [dq_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [dq_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "DATA QUALITY & QUARANTINE" in joined
+        assert "TRANSFORMATION VIEWS" not in joined
+
+    def test_mixed_flowgroup_has_both_sections(self, code_generator):
+        """Mixed flowgroup → both TRANSFORMATION VIEWS and DATA QUALITY & QUARANTINE."""
+        sql_action = Action(
+            name="t1", type=ActionType.TRANSFORM, transform_type="sql",
+        )
+        dq_action = Action(
+            name="dq1", type=ActionType.TRANSFORM,
+            transform_type="data_quality", source="v_src", target="v_tgt",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[sql_action, dq_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [sql_action, dq_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [sql_action, dq_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "TRANSFORMATION VIEWS" in joined
+        assert "DATA QUALITY & QUARANTINE" in joined
+
+    def test_no_dq_flowgroup_has_transform_section_only(self, code_generator):
+        """No-DQ flowgroup → TRANSFORMATION VIEWS only, no DATA QUALITY & QUARANTINE."""
+        sql_action = Action(
+            name="t1", type=ActionType.TRANSFORM, transform_type="sql",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[sql_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [sql_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [sql_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "TRANSFORMATION VIEWS" in joined
+        assert "DATA QUALITY & QUARANTINE" not in joined
+
+    def test_dqe_sub_header_contains_expectations(self, code_generator):
+        """DQE action sub-header contains 'Expectations:'."""
+        dq_action = Action(
+            name="dq1", type=ActionType.TRANSFORM,
+            transform_type="data_quality", source="v_src", target="v_tgt",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[dq_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [dq_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [dq_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "Expectations: v_src" in joined
+
+    def test_quarantine_sub_header_contains_quarantine(self, code_generator):
+        """Quarantine action sub-header contains 'Quarantine:'."""
+        dq_action = Action(
+            name="dq1", type=ActionType.TRANSFORM,
+            transform_type="data_quality", source="v_src", target="v_tgt",
+            mode="quarantine",
+        )
+        flowgroup = FlowGroup(
+            pipeline="p", flowgroup="fg", actions=[dq_action],
+        )
+        code_generator.dependency_resolver.resolve_dependencies.return_value = [dq_action]
+        self._make_mock_generator(code_generator)
+
+        sections, _, _ = code_generator._generate_action_sections(
+            flowgroup, [dq_action], Mock(), {}, None, None, None, None, include_tests=False,
+        )
+        joined = "\n".join(sections)
+        assert "Quarantine: v_src" in joined
 

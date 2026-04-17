@@ -1,0 +1,64 @@
+pipeline: domain_h_bronze
+flowgroup: curbside_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: curbside_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: curbside_raw
+    target: v_curbside_raw
+    description: "Load curbside from raw schema"
+
+  - name: curbside_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_curbside_raw
+    target: v_curbside_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as curbside_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_curbside_raw
+      WHERE 1=1
+
+  - name: curbside_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_curbside_bronze_cleaned
+    target: v_curbside_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to curbside"
+
+  - name: write_curbside_bronze
+    type: write
+    source: v_curbside_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "curbside"
+
+  - name: tst_curbside_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_curbside_bronze_cleaned
+    required_columns: [curbside_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-curbside-B01"
+
+  - name: tst_curbside_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_curbside_bronze_cleaned
+    columns: [curbside_key]
+    on_violation: warn
+    test_id: "PERF-curbside-B02"

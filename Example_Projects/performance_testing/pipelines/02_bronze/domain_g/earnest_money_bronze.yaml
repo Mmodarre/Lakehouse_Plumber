@@ -1,0 +1,101 @@
+pipeline: domain_g_bronze
+flowgroup: earnest_money_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: earnest_money_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: earnest_money_raw
+    target: v_earnest_money_raw
+    description: "Load earnest_money from raw schema"
+
+  - name: earnest_money_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_earnest_money_raw
+    target: v_earnest_money_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as earnest_money_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_earnest_money_raw
+
+  - name: earnest_money_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_earnest_money_bronze_cleaned
+    target: v_earnest_money_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for earnest_money bronze"
+
+  - name: write_earnest_money_bronze
+    type: write
+    source: v_earnest_money_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "earnest_money"
+
+  - name: earnest_money_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: earnest_money_migration
+    target: v_earnest_money_migration
+    description: "Load earnest_money migration data"
+
+  - name: earnest_money_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_earnest_money_migration
+    target: v_earnest_money_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as earnest_money_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_earnest_money_migration
+
+  - name: write_earnest_money_migration
+    type: write
+    source: v_earnest_money_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "earnest_money"
+
+  - name: tst_earnest_money_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_earnest_money_bronze_cleaned
+    required_columns: [earnest_money_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-earnest_money-B01"
+
+  - name: tst_earnest_money_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_earnest_money_bronze_cleaned
+    columns: [earnest_money_key]
+    on_violation: warn
+    test_id: "PERF-earnest_money-B02"

@@ -1,0 +1,48 @@
+pipeline: domain_q_silver
+flowgroup: contract_deal_silver_dim
+presets:
+  - default_delta_properties
+actions:
+  - name: contract_deal_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: contract_deal
+    target: v_contract_deal_bronze
+    description: "Load contract_deal from bronze for silver layer"
+
+  - name: write_contract_deal_silver
+    type: write
+    source: v_contract_deal_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "contract_deal_dim"
+      mode: "cdc"
+      cdc_config:
+        keys: ["contract_deal_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_contract_deal_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_contract_deal_bronze
+    required_columns: [contract_deal_key]
+    on_violation: warn
+    test_id: "PERF-contract_deal-S01"
+
+  - name: tst_contract_deal_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_contract_deal_bronze
+    columns: [contract_deal_key]
+    on_violation: warn
+    test_id: "PERF-contract_deal-S02"

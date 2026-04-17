@@ -1,0 +1,64 @@
+pipeline: domain_h_bronze
+flowgroup: seasonal_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: seasonal_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: seasonal_raw
+    target: v_seasonal_raw
+    description: "Load seasonal from raw schema"
+
+  - name: seasonal_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_seasonal_raw
+    target: v_seasonal_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as seasonal_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_seasonal_raw
+      WHERE 1=1
+
+  - name: seasonal_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_seasonal_bronze_cleaned
+    target: v_seasonal_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to seasonal"
+
+  - name: write_seasonal_bronze
+    type: write
+    source: v_seasonal_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "seasonal"
+
+  - name: tst_seasonal_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_seasonal_bronze_cleaned
+    required_columns: [seasonal_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-seasonal-B01"
+
+  - name: tst_seasonal_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_seasonal_bronze_cleaned
+    columns: [seasonal_key]
+    on_violation: warn
+    test_id: "PERF-seasonal-B02"

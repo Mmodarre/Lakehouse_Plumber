@@ -1,0 +1,25 @@
+pipeline: domain_t_raw
+flowgroup: merch_item_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: merch_item_raw
+  landing_folder: merch_item
+  schema_file: part_schema
+actions:
+  - name: tst_merch_item_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_merch_item_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-merch_item-R01"
+
+  - name: tst_merch_item_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_merch_item_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-merch_item-R02"

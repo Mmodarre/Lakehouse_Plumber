@@ -1,0 +1,47 @@
+pipeline: domain_a_raw
+flowgroup: gift_wrap_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_gift_wrap_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/gift_wrap/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_gift_wrap_cloudfiles
+    description: "Load gift_wrap from landing volume"
+
+  - name: write_gift_wrap_raw
+    type: write
+    source: v_gift_wrap_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "gift_wrap_raw"
+
+  - name: tst_gift_wrap_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_gift_wrap_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-gift_wrap-R01"
+
+  - name: tst_gift_wrap_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_gift_wrap_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-gift_wrap-R02"

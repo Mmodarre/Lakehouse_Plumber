@@ -1,0 +1,24 @@
+pipeline: domain_m_bronze
+flowgroup: sensor_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: sensor
+  source_table: sensor_raw
+actions:
+  - name: tst_sensor_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_sensor_cleansed
+    required_columns: [sensor_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-sensor-B01"
+
+  - name: tst_sensor_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_sensor_cleansed
+    columns: [sensor_key]
+    on_violation: warn
+    test_id: "PERF-sensor-B02"

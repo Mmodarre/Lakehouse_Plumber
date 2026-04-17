@@ -16,7 +16,7 @@ FLOWGROUP_ID = "template_preset_merge"
 
 @dp.temporary_view()
 def v_merge_test_raw():
-    """Load data from <built-in function format> files at /data/merge_test/*.csv"""
+    """Load data from csv files at /data/merge_test/*.csv"""
     df = (
         spark.readStream.format("cloudFiles")
         .option("cloudFiles.format", "csv")

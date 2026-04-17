@@ -1,0 +1,181 @@
+pipeline: domain_e_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: route_ingestion
+    template_parameters:
+      table_name: route_raw
+      landing_folder: route
+      schema_file: nation_schema
+    actions:
+      - name: tst_route_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_route_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-route-R01"
+      
+      - name: tst_route_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_route_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-route-R02"
+
+  - flowgroup: toll_ingestion
+    template_parameters:
+      table_name: toll_raw
+      landing_folder: toll
+      schema_file: lineitem_schema
+    actions:
+      - name: tst_toll_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_toll_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-toll-R01"
+      
+      - name: tst_toll_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_toll_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-toll-R02"
+
+  - flowgroup: consignment_ingestion
+    template_parameters:
+      table_name: consignment_raw
+      landing_folder: consignment
+      schema_file: customer_schema
+    actions:
+      - name: tst_consignment_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_consignment_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-consignment-R01"
+      
+      - name: tst_consignment_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_consignment_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-consignment-R02"
+
+  - flowgroup: zone_ingestion
+    template_parameters:
+      table_name: zone_raw
+      landing_folder: zone
+      schema_file: orders_schema
+    actions:
+      - name: tst_zone_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_zone_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-zone-R01"
+      
+      - name: tst_zone_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_zone_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-zone-R02"
+
+  - flowgroup: customs_doc_ingestion
+    template_parameters:
+      table_name: customs_doc_raw
+      landing_folder: customs_doc
+      schema_file: nation_schema
+    actions:
+      - name: tst_customs_doc_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_customs_doc_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-customs_doc-R01"
+      
+      - name: tst_customs_doc_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_customs_doc_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-customs_doc-R02"
+
+  - flowgroup: last_mile_ingestion
+    template_parameters:
+      table_name: last_mile_raw
+      landing_folder: last_mile
+      schema_file: lineitem_schema
+    actions:
+      - name: tst_last_mile_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_last_mile_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-last_mile-R01"
+      
+      - name: tst_last_mile_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_last_mile_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-last_mile-R02"
+
+  - flowgroup: speed_alert_ingestion
+    template_parameters:
+      table_name: speed_alert_raw
+      landing_folder: speed_alert
+      schema_file: part_schema
+    actions:
+      - name: tst_speed_alert_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_speed_alert_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-speed_alert-R01"
+      
+      - name: tst_speed_alert_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_speed_alert_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-speed_alert-R02"
+
+  - flowgroup: temperature_log_ingestion
+    template_parameters:
+      table_name: temperature_log_raw
+      landing_folder: temperature_log
+      schema_file: orders_schema
+    actions:
+      - name: tst_temperature_log_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_temperature_log_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-temperature_log-R01"
+      
+      - name: tst_temperature_log_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_temperature_log_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-temperature_log-R02"

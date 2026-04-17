@@ -3,9 +3,10 @@
 import logging
 from typing import Any, Dict
 
-from ...models.config import FlowGroup
+from ...models.config import ActionType, FlowGroup
 from ...utils.error_formatter import LHPError, LHPValidationError
 from ...utils.local_variables import LocalVariableResolver
+from ...utils.performance_timer import perf_timer
 from ...utils.substitution import EnhancedSubstitutionManager
 
 
@@ -40,7 +41,10 @@ class FlowgroupProcessor:
         self.logger = logging.getLogger(__name__)
 
     def process_flowgroup(
-        self, flowgroup: FlowGroup, substitution_mgr: EnhancedSubstitutionManager
+        self,
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+        include_tests: bool = True,
     ) -> FlowGroup:
         """
         Process flowgroup: expand templates, apply presets, apply substitutions.
@@ -52,6 +56,8 @@ class FlowgroupProcessor:
         Args:
             flowgroup: FlowGroup to process
             substitution_mgr: Substitution manager for the environment
+            include_tests: If False, filter out test actions before processing.
+                Defaults to True for backward compatibility.
 
         Returns:
             Processed flowgroup
@@ -60,137 +66,181 @@ class FlowgroupProcessor:
             f"Processing flowgroup '{flowgroup.flowgroup}' in pipeline '{flowgroup.pipeline}' ({len(flowgroup.actions)} actions)"
         )
 
+        fg = flowgroup.flowgroup
+
         # Step 0.5: Resolve local variables FIRST (before templates)
         if flowgroup.variables:
-            self.logger.debug(
-                f"Resolving {len(flowgroup.variables)} local variable(s): {list(flowgroup.variables.keys())}"
-            )
-            resolver = LocalVariableResolver(flowgroup.variables)
-            flowgroup_dict = flowgroup.model_dump()
-            # Don't resolve variables in the 'variables' section itself
-            variables_backup = flowgroup_dict.pop("variables", None)
-            resolved_dict = resolver.resolve(flowgroup_dict)
-            resolved_dict["variables"] = variables_backup  # Preserve for debugging
-            flowgroup = FlowGroup(**resolved_dict)
+            with perf_timer(f"local_vars [{fg}]"):
+                self.logger.debug(
+                    f"Resolving {len(flowgroup.variables)} local variable(s): {list(flowgroup.variables.keys())}"
+                )
+                resolver = LocalVariableResolver(flowgroup.variables)
+                flowgroup_dict = flowgroup.model_dump()
+                # Don't resolve variables in the 'variables' section itself
+                variables_backup = flowgroup_dict.pop("variables", None)
+                resolved_dict = resolver.resolve(flowgroup_dict)
+                resolved_dict["variables"] = variables_backup  # Preserve for debugging
+                flowgroup = FlowGroup(**resolved_dict)
 
         # Step 1: Expand templates
         if flowgroup.use_template:
-            self.logger.debug(
-                f"Expanding template '{flowgroup.use_template}' with parameters: {list((flowgroup.template_parameters or {}).keys())}"
-            )
-            template = self.template_engine.get_template(flowgroup.use_template)
-            template_actions = self.template_engine.render_template(
-                flowgroup.use_template, flowgroup.template_parameters or {}
-            )
-            self.logger.debug(
-                f"Template '{flowgroup.use_template}' expanded into {len(template_actions)} action(s)"
-            )
-            # Add template actions to existing actions
-            flowgroup.actions.extend(template_actions)
+            with perf_timer(f"template_expand [{fg}]"):
+                self.logger.debug(
+                    f"Expanding template '{flowgroup.use_template}' with parameters: {list((flowgroup.template_parameters or {}).keys())}"
+                )
+                template = self.template_engine.get_template(flowgroup.use_template)
+                template_actions = self.template_engine.render_template(
+                    flowgroup.use_template, flowgroup.template_parameters or {}
+                )
+                self.logger.debug(
+                    f"Template '{flowgroup.use_template}' expanded into {len(template_actions)} action(s)"
+                )
+                # Add template actions to existing actions
+                flowgroup.actions.extend(template_actions)
 
+        # Record whether this flowgroup originally had test actions (before filtering)
+        flowgroup._has_original_test_actions = any(
+            a.type == ActionType.TEST for a in flowgroup.actions
+        )
+
+        # Filter test actions when include_tests=False
+        # Placed after template expansion so template-generated test actions are also caught
+        tests_were_filtered = False
+        if not include_tests:
+            pre_filter_count = len(flowgroup.actions)
+            flowgroup.actions = [
+                a for a in flowgroup.actions if a.type != ActionType.TEST
+            ]
+            filtered_count = pre_filter_count - len(flowgroup.actions)
+            if filtered_count > 0:
+                tests_were_filtered = True
+                self.logger.debug(
+                    f"Filtered {filtered_count} test action(s), "
+                    f"{len(flowgroup.actions)} remaining"
+                )
+
+        if flowgroup.use_template:
             # Step 1.5: Apply template-level presets to template-generated actions
             if template and template.presets:
-                self.logger.debug(f"Applying template presets: {template.presets}")
-                template_preset_config = self.preset_manager.resolve_preset_chain(
-                    template.presets
-                )
-                flowgroup = self.apply_preset_config(flowgroup, template_preset_config)
+                with perf_timer(f"template_presets [{fg}]"):
+                    self.logger.debug(f"Applying template presets: {template.presets}")
+                    template_preset_config = self.preset_manager.resolve_preset_chain(
+                        template.presets
+                    )
+                    flowgroup = self.apply_preset_config(flowgroup, template_preset_config)
 
         # Step 2: Apply flowgroup-level presets (may override template presets)
         if flowgroup.presets:
-            self.logger.debug(f"Applying flowgroup-level presets: {flowgroup.presets}")
-            preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
-            flowgroup = self.apply_preset_config(flowgroup, preset_config)
+            with perf_timer(f"fg_presets [{fg}]"):
+                self.logger.debug(f"Applying flowgroup-level presets: {flowgroup.presets}")
+                preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
+                flowgroup = self.apply_preset_config(flowgroup, preset_config)
 
         # Step 3: Apply substitutions
-        self.logger.debug(
-            f"Applying environment substitutions for env '{substitution_mgr.env}'"
-        )
-        flowgroup_dict = flowgroup.model_dump()
-        substituted_dict = substitution_mgr.substitute_yaml(flowgroup_dict)
+        with perf_timer(f"substitution [{fg}]"):
+            self.logger.debug(
+                f"Applying environment substitutions for env '{substitution_mgr.env}'"
+            )
+            flowgroup_dict = flowgroup.model_dump()
+            substituted_dict = substitution_mgr.substitute_yaml(flowgroup_dict)
 
         # Step 3.5: Validate no unresolved tokens (skip if validation disabled)
-        if not substitution_mgr.skip_validation:
-            validation_errors = substitution_mgr.validate_no_unresolved_tokens(
-                substituted_dict
-            )
-            if validation_errors:
-                from ...utils.error_formatter import ErrorCategory
-
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="010",
-                    title="Unresolved substitution tokens detected",
-                    details=f"Found {len(validation_errors)} unresolved token(s):\n\n"
-                    + "\n".join(f"  • {e}" for e in validation_errors[:5]),
-                    suggestions=[
-                        f"Check substitutions/{substitution_mgr.env}.yaml for missing token definitions",
-                        "Verify token names match exactly (including case)",
-                        "For map lookups (Phase 2), ensure both map and key exist: {map[key]}",
-                        "Check for typos in token names",
-                    ],
-                    context={
-                        "Environment": substitution_mgr.env,
-                        "Pipeline": flowgroup.pipeline,
-                        "Flowgroup": flowgroup.flowgroup,
-                        "Total Unresolved": len(validation_errors),
-                        "Showing": min(5, len(validation_errors)),
-                    },
+        with perf_timer(f"token_validation [{fg}]"):
+            if not substitution_mgr.skip_validation:
+                validation_errors = substitution_mgr.validate_no_unresolved_tokens(
+                    substituted_dict
                 )
+                if validation_errors:
+                    from ...utils.error_formatter import ErrorCategory
+
+                    raise LHPError(
+                        category=ErrorCategory.CONFIG,
+                        code_number="010",
+                        title="Unresolved substitution tokens detected",
+                        details=f"Found {len(validation_errors)} unresolved token(s):\n\n"
+                        + "\n".join(f"  • {e}" for e in validation_errors[:5]),
+                        suggestions=[
+                            f"Check substitutions/{substitution_mgr.env}.yaml for missing token definitions",
+                            "Verify token names match exactly (including case)",
+                            "For map lookups (Phase 2), ensure both map and key exist: {map[key]}",
+                            "Check for typos in token names",
+                        ],
+                        context={
+                            "Environment": substitution_mgr.env,
+                            "Pipeline": flowgroup.pipeline,
+                            "Flowgroup": flowgroup.flowgroup,
+                            "Total Unresolved": len(validation_errors),
+                            "Showing": min(5, len(validation_errors)),
+                        },
+                    )
+
+        # Step 3.7: Normalize legacy 'database' fields to catalog/schema
+        # REMOVE_AT_V1.0.0: Remove this import + call when database field is dropped
+        with perf_timer(f"namespace_normalize [{fg}]"):
+            from .namespace_normalizer import normalize_namespace_fields
+
+            substituted_dict = normalize_namespace_fields(substituted_dict)
 
         processed_flowgroup = FlowGroup(**substituted_dict)
 
-        self.logger.debug(
-            f"Validating processed flowgroup '{processed_flowgroup.flowgroup}'"
-        )
         # Step 4: Validate individual flowgroup
-        try:
-            errors = self.config_validator.validate_flowgroup(processed_flowgroup)
-            if errors:
+        # Skip validation only when test filtering caused zero actions
+        # (genuinely empty flowgroups from YAML should still fail validation)
+        if processed_flowgroup.actions or not tests_were_filtered:
+            self.logger.debug(
+                f"Validating processed flowgroup '{processed_flowgroup.flowgroup}'"
+            )
+            with perf_timer(f"fg_validation [{fg}]"):
+                try:
+                    errors = self.config_validator.validate_flowgroup(
+                        processed_flowgroup
+                    )
+                    if errors:
+                        from ...utils.error_formatter import ErrorCategory
+
+                        raise LHPValidationError(
+                            category=ErrorCategory.VALIDATION,
+                            code_number="007",
+                            title="FlowGroup validation failed",
+                            details="\n\n".join(str(e) for e in errors),
+                            suggestions=[
+                                "Check flowgroup configuration for the errors listed above",
+                                "Run 'lhp validate' for detailed diagnostics",
+                            ],
+                            context={
+                                "Pipeline": processed_flowgroup.pipeline,
+                                "FlowGroup": processed_flowgroup.flowgroup,
+                                "Error Count": len(errors),
+                            },
+                        )
+                except LHPError:
+                    # Re-raise LHPError as-is (it's already well-formatted)
+                    raise
+
+        # Step 5: Validate secret references
+        with perf_timer(f"secret_validation [{fg}]"):
+            secret_errors = self.secret_validator.validate_secret_references(
+                substitution_mgr.get_secret_references()
+            )
+            if secret_errors:
                 from ...utils.error_formatter import ErrorCategory
 
-                raise LHPValidationError(
+                raise LHPError(
                     category=ErrorCategory.VALIDATION,
-                    code_number="007",
-                    title="FlowGroup validation failed",
-                    details="\n\n".join(str(e) for e in errors),
+                    code_number="008",
+                    title="Secret validation failed",
+                    details="\n\n".join(secret_errors),
                     suggestions=[
-                        "Check flowgroup configuration for the errors listed above",
-                        "Run 'lhp validate' for detailed diagnostics",
+                        "Verify secret scope and key names are correct",
+                        "Check that referenced secrets exist in your Databricks workspace",
+                        "Use the format ${secret:scope/key}",
                     ],
                     context={
                         "Pipeline": processed_flowgroup.pipeline,
                         "FlowGroup": processed_flowgroup.flowgroup,
-                        "Error Count": len(errors),
+                        "Error Count": len(secret_errors),
                     },
                 )
-        except LHPError:
-            # Re-raise LHPError as-is (it's already well-formatted)
-            raise
-
-        # Step 5: Validate secret references
-        secret_errors = self.secret_validator.validate_secret_references(
-            substitution_mgr.get_secret_references()
-        )
-        if secret_errors:
-            from ...utils.error_formatter import ErrorCategory
-
-            raise LHPError(
-                category=ErrorCategory.VALIDATION,
-                code_number="008",
-                title="Secret validation failed",
-                details="\n\n".join(secret_errors),
-                suggestions=[
-                    "Verify secret scope and key names are correct",
-                    "Check that referenced secrets exist in your Databricks workspace",
-                    "Use the format ${secret:scope/key}",
-                ],
-                context={
-                    "Pipeline": processed_flowgroup.pipeline,
-                    "FlowGroup": processed_flowgroup.flowgroup,
-                    "Error Count": len(secret_errors),
-                },
-            )
 
         self.logger.debug(
             f"Flowgroup '{processed_flowgroup.flowgroup}' processing complete ({len(processed_flowgroup.actions)} actions)"
@@ -253,14 +303,8 @@ class FlowgroupProcessor:
                             action.get("write_target", {}), preset_defaults
                         )
 
-                        # Handle special cases like database_suffix
-                        if (
-                            "database_suffix" in preset_defaults
-                            and "database" in action["write_target"]
-                        ):
-                            action["write_target"]["database"] += preset_defaults[
-                                "database_suffix"
-                            ]
+                        # Handle special cases like database_suffix / schema_suffix
+                        self._apply_suffix(action["write_target"], preset_defaults)
 
                 # Handle old structure for backward compatibility during migration
                 elif action.get("source") and isinstance(action["source"], dict):
@@ -273,14 +317,8 @@ class FlowgroupProcessor:
                             action.get("source", {}), preset_defaults
                         )
 
-                        # Handle special cases like database_suffix
-                        if (
-                            "database_suffix" in preset_defaults
-                            and "database" in action["source"]
-                        ):
-                            action["source"]["database"] += preset_defaults[
-                                "database_suffix"
-                            ]
+                        # Handle special cases like database_suffix / schema_suffix
+                        self._apply_suffix(action["source"], preset_defaults)
 
         # Apply global preset settings
         if "defaults" in preset_config:
@@ -289,6 +327,27 @@ class FlowgroupProcessor:
                     flowgroup_dict[key] = value
 
         return FlowGroup(**flowgroup_dict)
+
+    @staticmethod
+    def _apply_suffix(target: dict, preset_defaults: dict) -> None:
+        """Apply schema_suffix or database_suffix from preset to the target config.
+
+        Supports both new format (schema) and legacy format (database).
+        database_suffix is deprecated — use schema_suffix instead.
+
+        REMOVE_AT_V1.0.0: Drop database_suffix support entirely.
+        """
+        suffix = preset_defaults.get("schema_suffix") or preset_defaults.get(
+            "database_suffix"
+        )
+        if not suffix:
+            return
+
+        if "schema" in target:
+            target["schema"] += suffix
+        elif "database" in target:
+            # REMOVE_AT_V1.0.0: Legacy database_suffix path
+            target["database"] += suffix
 
     def deep_merge(
         self, base: Dict[str, Any], override: Dict[str, Any]

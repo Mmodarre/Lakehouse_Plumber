@@ -65,7 +65,7 @@ class TestActionOrchestrator:
                     "target": "v_customers_raw",
                     "source": {
                         "type": "cloudfiles",
-                        "path": "{landing_path}/customers",
+                        "path": "${landing_path}/customers",
                         "format": "json",
                     },
                 },
@@ -83,7 +83,8 @@ class TestActionOrchestrator:
                     "source": "v_customers_clean",
                     "write_target": {
                         "type": "streaming_table",
-                        "database": "{bronze_schema}",
+                        "catalog": "${catalog}",
+                        "schema": "${bronze_schema}",
                         "table": "customers",
                         "create_table": True,
                     },
@@ -155,10 +156,10 @@ class TestActionOrchestrator:
             assert "def v_customers_clean():" in code
 
             # Check substitutions were applied
-            assert "/mnt/dev/landing/customers" in code  # {landing_path} substituted
+            assert "/mnt/dev/landing/customers" in code  # ${landing_path} substituted
             assert (
-                'name="bronze.customers"' in code
-            )  # {bronze_schema} substituted in table name
+                'name="dev_catalog.bronze.customers"' in code
+            )  # ${catalog}.${bronze_schema} substituted in table name
 
             # Check preset defaults were applied
             assert "addNewColumns" in code
@@ -193,7 +194,8 @@ class TestActionOrchestrator:
                         "source": "v_db_data",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "silver",
+                            "catalog": "test_cat",
+                            "schema": "silver",
                             "table": "customers",
                             "create_table": True,
                         },
@@ -226,12 +228,7 @@ class TestActionOrchestrator:
             assert 'key="password"' in code or "key='password'" in code
 
             # Verify the generated code is syntactically valid Python
-            try:
-                compile(code, "<string>", "exec")
-                # If compilation succeeds, the code is valid
-                assert True
-            except SyntaxError:
-                pytest.fail("Generated code with secrets is not valid Python syntax")
+            compile(code, "<string>", "exec")
 
     def test_template_expansion(self):
         """Test template expansion in flowgroup."""
@@ -244,7 +241,8 @@ class TestActionOrchestrator:
                 "version": "1.0",
                 "parameters": [
                     {"name": "source_table", "type": "string", "required": True},
-                    {"name": "target_database", "type": "string", "required": True},
+                    {"name": "target_catalog", "type": "string", "required": True},
+                    {"name": "target_schema", "type": "string", "required": True},
                 ],
                 "actions": [
                     {
@@ -253,7 +251,8 @@ class TestActionOrchestrator:
                         "target": "v_{{ source_table }}_raw",
                         "source": {
                             "type": "delta",
-                            "database": "source",
+                            "catalog": "source_cat",
+                            "schema": "source",
                             "table": "{{ source_table }}",
                         },
                     },
@@ -263,7 +262,8 @@ class TestActionOrchestrator:
                         "source": "v_{{ source_table }}_raw",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "{{ target_database }}",
+                            "catalog": "{{ target_catalog }}",
+                            "schema": "{{ target_schema }}",
                             "table": "{{ source_table }}",
                             "create_table": True,
                         },
@@ -280,7 +280,8 @@ class TestActionOrchestrator:
                 "use_template": "standard_ingestion",
                 "template_parameters": {
                     "source_table": "orders",
-                    "target_database": "silver",
+                    "target_catalog": "silver_cat",
+                    "target_schema": "silver",
                 },
             }
             with open(
@@ -300,8 +301,12 @@ class TestActionOrchestrator:
             # Verify template was expanded
             code = generated_files["template_flowgroup.py"]
             assert "def v_orders_raw():" in code
-            assert 'spark.read.table("source.orders")' in code  # Delta table reference
-            assert 'name="silver.orders"' in code  # Full table name in streaming table
+            assert (
+                'spark.read.table("source_cat.source.orders")' in code
+            )  # Delta table reference
+            assert (
+                'name="silver_cat.silver.orders"' in code
+            )  # Full table name in streaming table
 
     def test_validation_errors(self):
         """Test validation error handling."""
@@ -356,13 +361,23 @@ class TestActionOrchestrator:
                         "name": "load_b",
                         "type": "load",
                         "target": "v_b",
-                        "source": {"type": "delta", "table": "table_b"},
+                        "source": {
+                            "type": "delta",
+                            "catalog": "test_cat",
+                            "schema": "test_schema",
+                            "table": "table_b",
+                        },
                     },
                     {
                         "name": "load_a",
                         "type": "load",
                         "target": "v_a",
-                        "source": {"type": "delta", "table": "table_a"},
+                        "source": {
+                            "type": "delta",
+                            "catalog": "test_cat",
+                            "schema": "test_schema",
+                            "table": "table_a",
+                        },
                     },
                     {
                         "name": "write_result",
@@ -370,7 +385,8 @@ class TestActionOrchestrator:
                         "source": "v_ab",
                         "write_target": {
                             "type": "streaming_table",
-                            "database": "gold",
+                            "catalog": "test_cat",
+                            "schema": "gold",
                             "table": "result",
                             "create_table": True,
                         },

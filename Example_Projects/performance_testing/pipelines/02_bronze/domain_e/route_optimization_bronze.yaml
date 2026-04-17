@@ -1,0 +1,64 @@
+pipeline: domain_e_bronze
+flowgroup: route_optimization_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: route_optimization_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: route_optimization_raw
+    target: v_route_optimization_raw
+    description: "Load route_optimization from raw schema"
+
+  - name: route_optimization_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_route_optimization_raw
+    target: v_route_optimization_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as route_optimization_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_route_optimization_raw
+      WHERE 1=1
+
+  - name: route_optimization_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_route_optimization_bronze_cleaned
+    target: v_route_optimization_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to route_optimization"
+
+  - name: write_route_optimization_bronze
+    type: write
+    source: v_route_optimization_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "route_optimization"
+
+  - name: tst_route_optimization_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_route_optimization_bronze_cleaned
+    required_columns: [route_optimization_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-route_optimization-B01"
+
+  - name: tst_route_optimization_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_route_optimization_bronze_cleaned
+    columns: [route_optimization_key]
+    on_violation: warn
+    test_id: "PERF-route_optimization-B02"

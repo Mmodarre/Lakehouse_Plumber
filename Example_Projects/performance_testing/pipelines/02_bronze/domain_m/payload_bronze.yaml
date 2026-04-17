@@ -1,0 +1,24 @@
+pipeline: domain_m_bronze
+flowgroup: payload_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: payload
+  source_table: payload_raw
+actions:
+  - name: tst_payload_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_payload_cleansed
+    required_columns: [payload_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-payload-B01"
+
+  - name: tst_payload_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_payload_cleansed
+    columns: [payload_key]
+    on_violation: warn
+    test_id: "PERF-payload-B02"

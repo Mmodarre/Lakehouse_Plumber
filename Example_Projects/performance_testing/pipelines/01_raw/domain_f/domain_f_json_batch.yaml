@@ -1,0 +1,181 @@
+pipeline: domain_f_raw
+use_template: json_ingestion_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: enrollment_ingestion
+    template_parameters:
+      table_name: enrollment_raw
+      landing_folder: enrollment
+      schema_file: nation_schema
+    actions:
+      - name: tst_enrollment_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_enrollment_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-enrollment-R01"
+      
+      - name: tst_enrollment_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_enrollment_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-enrollment-R02"
+
+  - flowgroup: degree_ingestion
+    template_parameters:
+      table_name: degree_raw
+      landing_folder: degree
+      schema_file: lineitem_schema
+    actions:
+      - name: tst_degree_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_degree_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-degree-R01"
+      
+      - name: tst_degree_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_degree_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-degree-R02"
+
+  - flowgroup: tuition_ingestion
+    template_parameters:
+      table_name: tuition_raw
+      landing_folder: tuition
+      schema_file: customer_schema
+    actions:
+      - name: tst_tuition_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_tuition_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tuition-R01"
+      
+      - name: tst_tuition_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_tuition_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-tuition-R02"
+
+  - flowgroup: faculty_ingestion
+    template_parameters:
+      table_name: faculty_raw
+      landing_folder: faculty
+      schema_file: orders_schema
+    actions:
+      - name: tst_faculty_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_faculty_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-faculty-R01"
+      
+      - name: tst_faculty_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_faculty_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-faculty-R02"
+
+  - flowgroup: lab_session_ingestion
+    template_parameters:
+      table_name: lab_session_raw
+      landing_folder: lab_session
+      schema_file: nation_schema
+    actions:
+      - name: tst_lab_session_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_lab_session_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-lab_session-R01"
+      
+      - name: tst_lab_session_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_lab_session_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-lab_session-R02"
+
+  - flowgroup: alumni_donor_ingestion
+    template_parameters:
+      table_name: alumni_donor_raw
+      landing_folder: alumni_donor
+      schema_file: lineitem_schema
+    actions:
+      - name: tst_alumni_donor_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_alumni_donor_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-alumni_donor-R01"
+      
+      - name: tst_alumni_donor_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_alumni_donor_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-alumni_donor-R02"
+
+  - flowgroup: co_op_ingestion
+    template_parameters:
+      table_name: co_op_raw
+      landing_folder: co_op
+      schema_file: part_schema
+    actions:
+      - name: tst_co_op_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_co_op_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-co_op-R01"
+      
+      - name: tst_co_op_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_co_op_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-co_op-R02"
+
+  - flowgroup: financial_aid_ingestion
+    template_parameters:
+      table_name: financial_aid_raw
+      landing_folder: financial_aid
+      schema_file: orders_schema
+    actions:
+      - name: tst_financial_aid_raw_completeness
+        type: test
+        test_type: completeness
+        source: v_financial_aid_raw_cloudfiles
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-financial_aid-R01"
+      
+      - name: tst_financial_aid_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_financial_aid_raw_cloudfiles
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-financial_aid-R02"

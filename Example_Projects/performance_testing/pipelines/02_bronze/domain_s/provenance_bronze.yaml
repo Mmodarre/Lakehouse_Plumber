@@ -1,0 +1,101 @@
+pipeline: domain_s_bronze
+flowgroup: provenance_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: provenance_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: provenance_raw
+    target: v_provenance_raw
+    description: "Load provenance from raw schema"
+
+  - name: provenance_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_provenance_raw
+    target: v_provenance_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as provenance_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_provenance_raw
+
+  - name: provenance_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_provenance_bronze_cleaned
+    target: v_provenance_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for provenance bronze"
+
+  - name: write_provenance_bronze
+    type: write
+    source: v_provenance_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "provenance"
+
+  - name: provenance_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: provenance_migration
+    target: v_provenance_migration
+    description: "Load provenance migration data"
+
+  - name: provenance_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_provenance_migration
+    target: v_provenance_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as provenance_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_provenance_migration
+
+  - name: write_provenance_migration
+    type: write
+    source: v_provenance_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "provenance"
+
+  - name: tst_provenance_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_provenance_bronze_cleaned
+    required_columns: [provenance_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-provenance-B01"
+
+  - name: tst_provenance_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_provenance_bronze_cleaned
+    columns: [provenance_key]
+    on_violation: warn
+    test_id: "PERF-provenance-B02"

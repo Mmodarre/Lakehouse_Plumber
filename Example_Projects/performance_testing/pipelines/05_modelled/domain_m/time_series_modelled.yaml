@@ -1,0 +1,53 @@
+pipeline: domain_m_modelled
+flowgroup: time_series_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: time_series_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: time_series_dim
+    target: v_time_series_silver
+    description: "Load time_series from silver for modelling"
+
+  - name: time_series_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_time_series_silver
+    target: v_time_series_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_time_series_silver
+
+  - name: write_time_series_modelled
+    type: write
+    source: v_time_series_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "time_series_modelled"
+
+  - name: tst_time_series_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_time_series_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-time_series-M01"
+
+  - name: tst_time_series_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_time_series_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-time_series-M02"

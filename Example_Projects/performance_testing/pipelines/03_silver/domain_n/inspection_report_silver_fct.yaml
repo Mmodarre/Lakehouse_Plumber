@@ -1,0 +1,48 @@
+pipeline: domain_n_silver
+flowgroup: inspection_report_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: inspection_report_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: inspection_report
+    target: v_inspection_report_bronze
+    description: "Load inspection_report from bronze for silver layer"
+
+  - name: write_inspection_report_silver
+    type: write
+    source: v_inspection_report_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "inspection_report_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["inspection_report_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_inspection_report_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_inspection_report_bronze
+    required_columns: [inspection_report_key]
+    on_violation: warn
+    test_id: "PERF-inspection_report-S01"
+
+  - name: tst_inspection_report_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_inspection_report_bronze
+    columns: [inspection_report_key]
+    on_violation: warn
+    test_id: "PERF-inspection_report-S02"

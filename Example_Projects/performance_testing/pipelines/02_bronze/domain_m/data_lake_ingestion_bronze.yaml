@@ -1,0 +1,64 @@
+pipeline: domain_m_bronze
+flowgroup: data_lake_ingestion_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: data_lake_ingestion_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: data_lake_ingestion_raw
+    target: v_data_lake_ingestion_raw
+    description: "Load data_lake_ingestion from raw schema"
+
+  - name: data_lake_ingestion_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_data_lake_ingestion_raw
+    target: v_data_lake_ingestion_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as data_lake_ingestion_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_data_lake_ingestion_raw
+      WHERE 1=1
+
+  - name: data_lake_ingestion_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_data_lake_ingestion_bronze_cleaned
+    target: v_data_lake_ingestion_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to data_lake_ingestion"
+
+  - name: write_data_lake_ingestion_bronze
+    type: write
+    source: v_data_lake_ingestion_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "data_lake_ingestion"
+
+  - name: tst_data_lake_ingestion_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_data_lake_ingestion_bronze_cleaned
+    required_columns: [data_lake_ingestion_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-data_lake_ingestion-B01"
+
+  - name: tst_data_lake_ingestion_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_data_lake_ingestion_bronze_cleaned
+    columns: [data_lake_ingestion_key]
+    on_violation: warn
+    test_id: "PERF-data_lake_ingestion-B02"

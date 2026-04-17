@@ -1,0 +1,25 @@
+pipeline: domain_s_raw
+flowgroup: provenance_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: provenance_raw
+  landing_folder: provenance
+  schema_file: product_schema
+actions:
+  - name: tst_provenance_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_provenance_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-provenance-R01"
+
+  - name: tst_provenance_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_provenance_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-provenance-R02"

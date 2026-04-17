@@ -1,0 +1,64 @@
+pipeline: domain_t_bronze
+flowgroup: session_musician_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: session_musician_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: session_musician_raw
+    target: v_session_musician_raw
+    description: "Load session_musician from raw schema"
+
+  - name: session_musician_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_session_musician_raw
+    target: v_session_musician_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as session_musician_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_session_musician_raw
+      WHERE 1=1
+
+  - name: session_musician_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_session_musician_bronze_cleaned
+    target: v_session_musician_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to session_musician"
+
+  - name: write_session_musician_bronze
+    type: write
+    source: v_session_musician_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "session_musician"
+
+  - name: tst_session_musician_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_session_musician_bronze_cleaned
+    required_columns: [session_musician_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-session_musician-B01"
+
+  - name: tst_session_musician_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_session_musician_bronze_cleaned
+    columns: [session_musician_key]
+    on_violation: warn
+    test_id: "PERF-session_musician-B02"

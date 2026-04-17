@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.7.7"
+version = "0.8.2"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -34,7 +34,7 @@ dependencies = [
     "pydantic>=2.12.0",
     "jsonschema>=4.26.0",
     "packaging>=23.2",
-    "black==26.1.0",
+    "black==26.3.1",
     "networkx>=3.6.0",
 ]
 
@@ -44,11 +44,15 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
     "flake8>=6.0.0",
-    "black==26.1.0",
+    "black==26.3.1",
     "isort>=5.12.0",
     "mypy>=1.0.0",
     "requests>=2.32.0",
     "httpx>=0.28.0",
+    "pip-audit>=2.7.0",
+    "bandit[sarif]>=1.7.0",
+    "liccheck>=0.9.0",
+    "pre-commit>=3.0.0",
 ]
 notebook = [
     "ipython>=7.0.0",
@@ -105,6 +109,7 @@ addopts = [
     "--strict-config",
 ]
 testpaths = ["tests"]
+norecursedirs = ["tests/baselines"]
 pythonpath = ["src"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

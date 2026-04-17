@@ -626,7 +626,7 @@ class TestDependencyAnalyzer:
         write_action.type = ActionType.WRITE
         write_action.source = None
         write_action.target = None
-        write_action.write_target = {"database": "bronze", "table": "output_table"}
+        write_action.write_target = {"catalog": "test_cat", "schema": "bronze", "table": "output_table"}
         write_action.sql = None
         write_action.sql_path = None
         write_action.module_path = None
@@ -635,7 +635,7 @@ class TestDependencyAnalyzer:
         load_action = Mock(spec=Action)
         load_action.name = "load_action"
         load_action.type = ActionType.LOAD
-        load_action.source = "bronze.output_table"
+        load_action.source = "test_cat.bronze.output_table"
         load_action.target = "silver.processed"
         load_action.sql = None
         load_action.sql_path = None

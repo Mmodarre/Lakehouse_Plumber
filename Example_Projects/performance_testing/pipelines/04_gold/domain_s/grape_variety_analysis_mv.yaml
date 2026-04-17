@@ -1,0 +1,38 @@
+pipeline: domain_s_gold
+flowgroup: grape_variety_analysis_mv
+actions:
+  - name: grape_variety_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.grape_variety_dim
+    target: v_grape_variety_analysis
+
+  - name: write_grape_variety_analysis_mv
+    type: write
+    source: v_grape_variety_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "grape_variety_analysis_mv"
+
+  - name: tst_grape_variety_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_grape_variety_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-grape_variety-G01"
+
+  - name: tst_grape_variety_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_grape_variety_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-grape_variety-G02"

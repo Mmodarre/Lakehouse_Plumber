@@ -1,0 +1,64 @@
+pipeline: domain_h_bronze
+flowgroup: markdown_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: markdown_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: markdown_raw
+    target: v_markdown_raw
+    description: "Load markdown from raw schema"
+
+  - name: markdown_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_markdown_raw
+    target: v_markdown_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as markdown_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_markdown_raw
+      WHERE 1=1
+
+  - name: markdown_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_markdown_bronze_cleaned
+    target: v_markdown_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to markdown"
+
+  - name: write_markdown_bronze
+    type: write
+    source: v_markdown_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "markdown"
+
+  - name: tst_markdown_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_markdown_bronze_cleaned
+    required_columns: [markdown_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-markdown-B01"
+
+  - name: tst_markdown_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_markdown_bronze_cleaned
+    columns: [markdown_key]
+    on_violation: warn
+    test_id: "PERF-markdown-B02"

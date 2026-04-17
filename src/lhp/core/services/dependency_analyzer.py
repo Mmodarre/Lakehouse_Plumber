@@ -673,20 +673,24 @@ class DependencyAnalyzer:
                 if action.target:
                     target_to_action[action.target].append(action_id)
 
-                # Track write action outputs (database.table format)
+                # Track write action outputs (catalog.schema.table format)
                 if action.type == ActionType.WRITE and action.write_target:
                     if isinstance(action.write_target, dict):
-                        database = action.write_target.get("database", "")
+                        catalog = action.write_target.get("catalog", "")
+                        schema = action.write_target.get("schema", "")
                         table = action.write_target.get("table", "")
-                        if database and table:
-                            produced_table = f"{database}.{table}"
+                        if catalog and schema and table:
+                            produced_table = f"{catalog}.{schema}.{table}"
                             target_to_action[produced_table].append(action_id)
                     # Handle WriteTarget object as well
-                    elif hasattr(action.write_target, "database") and hasattr(
+                    elif hasattr(action.write_target, "catalog") and hasattr(
                         action.write_target, "table"
                     ):
-                        if action.write_target.database and action.write_target.table:
-                            produced_table = f"{action.write_target.database}.{action.write_target.table}"
+                        catalog = getattr(action.write_target, "catalog", "")
+                        schema = getattr(action.write_target, "schema", "")
+                        table = getattr(action.write_target, "table", "")
+                        if catalog and schema and table:
+                            produced_table = f"{catalog}.{schema}.{table}"
                             target_to_action[produced_table].append(action_id)
 
         # Second pass: build dependencies based on source/target relationships

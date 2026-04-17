@@ -1,0 +1,101 @@
+pipeline: domain_k_bronze
+flowgroup: standby_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: standby_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: standby_raw
+    target: v_standby_raw
+    description: "Load standby from raw schema"
+
+  - name: standby_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_standby_raw
+    target: v_standby_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as standby_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_standby_raw
+
+  - name: standby_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_standby_bronze_cleaned
+    target: v_standby_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for standby bronze"
+
+  - name: write_standby_bronze
+    type: write
+    source: v_standby_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "standby"
+
+  - name: standby_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: standby_migration
+    target: v_standby_migration
+    description: "Load standby migration data"
+
+  - name: standby_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_standby_migration
+    target: v_standby_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as standby_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_standby_migration
+
+  - name: write_standby_migration
+    type: write
+    source: v_standby_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "standby"
+
+  - name: tst_standby_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_standby_bronze_cleaned
+    required_columns: [standby_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-standby-B01"
+
+  - name: tst_standby_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_standby_bronze_cleaned
+    columns: [standby_key]
+    on_violation: warn
+    test_id: "PERF-standby-B02"

@@ -1,0 +1,38 @@
+pipeline: domain_r_gold
+flowgroup: footprint_analysis_mv
+actions:
+  - name: footprint_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.footprint_fct
+    target: v_footprint_analysis
+
+  - name: write_footprint_analysis_mv
+    type: write
+    source: v_footprint_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "footprint_analysis_mv"
+
+  - name: tst_footprint_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_footprint_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-footprint-G01"
+
+  - name: tst_footprint_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_footprint_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-footprint-G02"

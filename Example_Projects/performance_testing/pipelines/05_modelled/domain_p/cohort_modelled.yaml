@@ -1,0 +1,53 @@
+pipeline: domain_p_modelled
+flowgroup: cohort_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: cohort_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: cohort_dim
+    target: v_cohort_silver
+    description: "Load cohort from silver for modelling"
+
+  - name: cohort_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_cohort_silver
+    target: v_cohort_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_cohort_silver
+
+  - name: write_cohort_modelled
+    type: write
+    source: v_cohort_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "cohort_modelled"
+
+  - name: tst_cohort_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_cohort_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-cohort-M01"
+
+  - name: tst_cohort_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_cohort_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-cohort-M02"

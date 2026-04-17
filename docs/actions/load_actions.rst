@@ -42,7 +42,7 @@ cloudFiles
       operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time"]
       source:
         type: cloudfiles
-        path: "{landing_volume}/{{ landing_folder }}/*.csv"
+        path: "${landing_volume}/{{ landing_folder }}/*.csv"
         format: csv
         options:
           cloudFiles.format: csv
@@ -60,14 +60,15 @@ cloudFiles
 
 - **name**: Unique name for this action within the FlowGroup
 - **type**: Action type - brings data into a temporary view
-- **readMode**: is either *batch* or *stream* 
-  this will translate to either ``spark.read.format("cloudFiles")`` or ``spark.readStream.format("cloudFiles")``
+- **readMode**: must be *stream* (CloudFiles only supports streaming mode).
+  This translates to ``spark.readStream.format("cloudFiles")``
 - **operational_metadata**: Add custom metadata columns
 - **source**:
       - **type**: Use Databricks Auto Loader (CloudFiles)
       - **path**: File path pattern with substitution variables
       - **format**: Specify the file format as CSV, JSON, Parquet, etc.
-      - **options**: 
+      - **schema**: Path to a YAML schema file for full schema enforcement (see below)
+      - **options**:
             - **cloudFiles.format**: Explicitly set CloudFiles format to CSV
             - **header**: First row contains column headers
             - **delimiter**: Use pipe character as field separator
@@ -116,6 +117,70 @@ The ``cloudFiles.schemaHints`` option supports three formats, automatically dete
   
   Example: A YAML column defined as ``{name: c_custkey, type: BIGINT, nullable: false}`` will generate ``c_custkey BIGINT NOT NULL`` in the schema hints.
             
+**source.schema — Full Schema Enforcement**
+
+The ``source.schema`` field provides full schema enforcement by applying a ``StructType`` schema
+on the ``DataStreamReader`` before ``.load()``. This disables schema inference entirely, ensuring
+the data conforms exactly to the specified schema.
+
+**When to use ``schema`` vs ``schemaHints``:**
+
+- Use ``schema`` when you want to **enforce** a complete, exact schema and disable inference.
+- Use ``schemaHints`` when you want to **guide** Auto Loader's inference while still allowing it to discover additional columns.
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_customer_with_schema
+      type: load
+      readMode: stream
+      source:
+        type: cloudfiles
+        path: "/data/customers/*.csv"
+        format: csv
+        schema: schemas/customer_schema.yaml
+        options:
+          cloudFiles.format: csv
+      target: v_customer_raw
+      description: "Load customer CSV with explicit schema enforcement"
+
+The schema file uses the same YAML format as ``schemaHints`` files:
+
+.. code-block:: yaml
+
+  name: customer
+  version: "1.0"
+  columns:
+    - name: c_custkey
+      type: BIGINT
+      nullable: false
+    - name: c_name
+      type: STRING
+      nullable: true
+
+This generates code with ``.schema()`` applied on the reader chain before ``.load()``:
+
+.. code-block:: python
+
+  customer_schema = StructType([
+      StructField("c_custkey", LongType(), False),
+      StructField("c_name", StringType(), True),
+  ])
+
+  @dp.temporary_view()
+  def v_customer_raw():
+      df = spark.readStream \
+          .format("cloudFiles") \
+          .schema(customer_schema) \
+          .option("cloudFiles.format", "csv") \
+          .load("/data/customers/*.csv")
+      return df
+
+.. note::
+  When ``source.schema`` is provided, ``cloudFiles.schemaEvolutionMode`` defaults to ``none``
+  because inference is disabled. You cannot combine ``source.schema`` with ``cloudFiles.schemaHints``
+  — they are mutually exclusive approaches.
+
 .. seealso::
   - For full list of options see the `Databricks Auto Loader documentation <https://docs.databricks.com/en/data/data-sources/cloud-files/auto-loader/index.html>`_.
   - Operational metadata: :doc:`../operational_metadata`
@@ -170,6 +235,12 @@ The ``cloudFiles.schemaHints`` option supports three formats, automatically dete
 
 delta
 -------------------------------------------
+
+.. deprecated:: 0.7.8
+   The ``database`` field (e.g., ``database: "${catalog}.${schema}"``) is deprecated
+   for delta sources. Use explicit ``catalog`` and ``schema`` fields instead. The old
+   format is auto-converted with a deprecation warning. Removal in v1.0.0.
+
 .. code-block:: yaml
 
   actions:
@@ -179,7 +250,8 @@ delta
       readMode: stream
       source:
         type: delta
-        database: "{catalog}.{raw_schema}"
+        catalog: "${catalog}"
+        schema: "${raw_schema}"
         table: customer
       target: v_customer_raw
       description: "Load customer table from raw schema" 
@@ -192,7 +264,8 @@ delta
 - **readMode**: Either *batch* or *stream* - translates to ``spark.read.table()`` or ``spark.readStream.table()``
 - **source**:
       - **type**: Use Delta table as source
-      - **database**: Target database using substitution variables for catalog and schema
+      - **catalog**: Target catalog using substitution variables
+      - **schema**: Target schema using substitution variables
       - **table**: Name of the Delta table to read from
 - **target**: Name of the temporary view created
 - **description**: Optional documentation for the action
@@ -213,7 +286,8 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
       readMode: stream
       source:
         type: delta
-        database: "{catalog}.bronze"
+        catalog: "${catalog}"
+        schema: "bronze"
         table: orders
         options:
           readChangeFeed: "true"
@@ -227,11 +301,15 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
 +-------------------------+------------------+---------------------------------------------------+
 | Option                  | Type             | Description                                       |
 +=========================+==================+===================================================+
-| **readChangeFeed**      | string/boolean   | Enable Change Data Feed (requires stream mode)    |
+| **readChangeFeed**      | string/boolean   | Enable Change Data Feed (stream or batch)         |
 +-------------------------+------------------+---------------------------------------------------+
 | **startingVersion**     | string           | Starting version for CDC or time travel           |
 +-------------------------+------------------+---------------------------------------------------+
-| **startingTimestamp**   | string           | Starting timestamp for CDC (ISO 8601 format)      |
+| **startingTimestamp**    | string           | Starting timestamp for CDC (ISO 8601 format)      |
++-------------------------+------------------+---------------------------------------------------+
+| **endingVersion**       | string           | Ending version for batch CDF reads                |
++-------------------------+------------------+---------------------------------------------------+
+| **endingTimestamp**      | string           | Ending timestamp for batch CDF reads              |
 +-------------------------+------------------+---------------------------------------------------+
 | **versionAsOf**         | string           | Read specific table version (time travel)         |
 +-------------------------+------------------+---------------------------------------------------+
@@ -245,9 +323,78 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
 +-------------------------+------------------+---------------------------------------------------+
 
 .. note::
-  - The ``readChangeFeed`` option requires ``readMode: stream`` and will raise an error if used with batch mode
-  - All option values are validated and cannot be ``None`` or empty strings
-  - Options work in both streaming and batch modes (except ``readChangeFeed`` which is streaming-only)
+  - ``readChangeFeed`` works in both **stream** and **batch** mode. In batch mode, a starting bound (``startingVersion`` or ``startingTimestamp``) is required.
+  - ``endingVersion`` and ``endingTimestamp`` are only valid in batch mode.
+  - ``readChangeFeed`` and ``skipChangeCommits`` are **mutually exclusive** — one reads all changes, the other skips them.
+  - ``readChangeFeed`` cannot be combined with time-travel options (``versionAsOf`` / ``timestampAsOf``).
+  - ``startingVersion`` and ``startingTimestamp`` are mutually exclusive.
+  - ``versionAsOf`` and ``timestampAsOf`` are mutually exclusive.
+  - All option values are validated and cannot be ``None`` or empty strings.
+
+**Batch CDF Example:**
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_order_changes
+      type: load
+      readMode: batch
+      source:
+        type: delta
+        catalog: "${catalog}"
+        schema: "bronze"
+        table: orders
+        options:
+          readChangeFeed: "true"
+          startingVersion: "5"
+          endingVersion: "20"
+      target: v_order_changes
+      description: "Read order changes between version 5 and 20"
+
+.. warning::
+  When using ``startingVersion``, the specified version may become unavailable after
+  ``VACUUM`` runs. Prefer ``startingTimestamp`` for durable references, or use
+  checkpoint-managed streaming for production workloads.
+
+**readChangeFeed vs skipChangeCommits:**
+
+- ``readChangeFeed: "true"`` — reads the Change Data Feed, exposing row-level changes
+  (inserts, updates, deletes) with metadata columns. Use this when you need to process
+  individual changes (e.g., CDC into a downstream table).
+- ``skipChangeCommits: "true"`` — skips commits that contain data-changing operations
+  (useful when a table has CDF enabled but you only want the latest state, ignoring
+  change events). **Cannot be combined with readChangeFeed.**
+
+**CDF Metadata Columns:**
+
+When ``readChangeFeed`` is enabled, the resulting DataFrame includes three additional
+columns:
+
+- ``_change_type`` — the type of change: ``insert``, ``update_preimage``, ``update_postimage``, or ``delete``
+- ``_commit_version`` — the Delta version of the commit
+- ``_commit_timestamp`` — the timestamp of the commit
+
+An ``UPDATE`` operation produces **two rows**: one with ``_change_type = "update_preimage"``
+(the old values) and one with ``_change_type = "update_postimage"`` (the new values).
+
+If writing CDF data to a non-CDC streaming table, you should filter or drop these columns
+in a transform action:
+
+.. code-block:: sql
+
+  SELECT * EXCEPT (_change_type, _commit_version, _commit_timestamp)
+  FROM stream(v_order_changes)
+  WHERE _change_type != 'delete'
+
+**Full Refresh Resilience:**
+
+When a Delta table undergoes a full refresh (e.g., ``TRUNCATE`` followed by reload), the
+CDF stream emits a large batch of ``delete`` rows followed by ``insert`` rows. This can
+overwhelm downstream consumers. Mitigation strategies:
+
+- Use ``ignoreDeletes: "true"`` if deletes are not relevant to your pipeline.
+- Use ``skipChangeCommits: "true"`` on non-CDF consumers that share the same source table.
+- For CDC targets, rely on Databricks checkpointing to handle reprocessing gracefully.
 
 **Time Travel Example:**
 
@@ -259,7 +406,8 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
       readMode: batch
       source:
         type: delta
-        database: "{catalog}.silver"
+        catalog: "${catalog}"
+        schema: "silver"
         table: customers
         options:
           versionAsOf: "10"
@@ -588,8 +736,8 @@ SQL load actions support both **inline SQL** and **external SQL files**.
             c_mktsegment,
             COUNT(*) as order_count,
             SUM(o_totalprice) as total_spent
-          FROM {catalog}.{raw_schema}.customer c
-          LEFT JOIN {catalog}.{raw_schema}.orders o 
+          FROM ${catalog}.${raw_schema}.customer c
+          LEFT JOIN ${catalog}.${raw_schema}.orders o 
             ON c.c_custkey = o.o_custkey
           GROUP BY c_custkey, c_name, c_mktsegment
       target: v_customer_summary
@@ -627,12 +775,12 @@ SQL load actions support both **inline SQL** and **external SQL files**.
 
 .. Important::
   SQL load actions allow you to create complex views from multiple tables using standard SQL.
-  Use substitution variables like ``{catalog}`` and ``{schema}`` for environment-specific values.
+  Use substitution variables like ``${catalog}`` and ``${schema}`` for environment-specific values.
 
 .. note:: **File Substitution Support**
    
    Substitution variables work in both inline SQL and external SQL files (``sql_path``). 
-   The same ``{token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
+   The same ``${token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
    Files are processed for substitutions before query execution.
   
 .. note::
@@ -681,7 +829,7 @@ SQL load actions support both **inline SQL** and **external SQL files**.
             total_orders,
             avg_order_value,
             last_order_date
-          FROM {catalog}.{silver_schema}.customer_analytics
+          FROM ${catalog}.${silver_schema}.customer_analytics
           WHERE last_order_date >= current_date() - INTERVAL 90 DAYS
       """)
 
@@ -925,15 +1073,15 @@ Python load actions call custom Python functions that return DataFrames. This al
   Common practice is to create an ``extractors/`` or ``functions/`` folder alongside your pipeline YAML files.
 
 .. note::
-  **Parameter Substitution**: The ``parameters`` dictionary supports both ``${token}`` 
-  (preferred) and ``{token}`` (legacy) substitution for environment-specific values:
-  
+  **Parameter Substitution**: The ``parameters`` dictionary supports ``${token}``
+  substitution for environment-specific values:
+
   .. code-block:: yaml
-  
+
      parameters:
-       catalog: "${catalog}"                # Preferred syntax
-       table_name: "${schema}.users"        # Preferred syntax
-       api_endpoint: "{api_url}"            # Legacy (still works)
+       catalog: "${catalog}"
+       table_name: "${schema}.users"
+       api_endpoint: "${api_url}"
        batch_size: 1000                     # No substitution needed
   
   All tokens are replaced with values from ``substitutions/{env}.yaml`` at generation time.
@@ -1089,7 +1237,7 @@ Custom data source load actions use PySpark's DataSource API to implement specia
    
    Custom DataSource Python files support substitution variables:
    
-   - **Environment tokens**: ``{catalog}``, ``{api_endpoint}``, ``{environment}``
+   - **Environment tokens**: ``${catalog}``, ``${api_endpoint}``, ``${environment}``
    - **Secret references**: ``${secret:scope/key}`` for API keys and credentials
    
    Substitutions are applied before the class is embedded in the generated code.

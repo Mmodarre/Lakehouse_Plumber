@@ -1,0 +1,53 @@
+pipeline: domain_p_modelled
+flowgroup: alignment_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: alignment_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: alignment_dim
+    target: v_alignment_silver
+    description: "Load alignment from silver for modelling"
+
+  - name: alignment_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_alignment_silver
+    target: v_alignment_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_alignment_silver
+
+  - name: write_alignment_modelled
+    type: write
+    source: v_alignment_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "alignment_modelled"
+
+  - name: tst_alignment_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_alignment_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-alignment-M01"
+
+  - name: tst_alignment_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_alignment_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-alignment-M02"

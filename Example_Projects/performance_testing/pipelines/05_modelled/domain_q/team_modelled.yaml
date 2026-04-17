@@ -1,0 +1,53 @@
+pipeline: domain_q_modelled
+flowgroup: team_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: team_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: team_dim
+    target: v_team_silver
+    description: "Load team from silver for modelling"
+
+  - name: team_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_team_silver
+    target: v_team_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_team_silver
+
+  - name: write_team_modelled
+    type: write
+    source: v_team_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "team_modelled"
+
+  - name: tst_team_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_team_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-team-M01"
+
+  - name: tst_team_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_team_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-team-M02"

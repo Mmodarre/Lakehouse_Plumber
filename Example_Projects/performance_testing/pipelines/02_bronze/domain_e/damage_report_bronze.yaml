@@ -1,0 +1,64 @@
+pipeline: domain_e_bronze
+flowgroup: damage_report_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: damage_report_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: damage_report_raw
+    target: v_damage_report_raw
+    description: "Load damage_report from raw schema"
+
+  - name: damage_report_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_damage_report_raw
+    target: v_damage_report_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as damage_report_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_damage_report_raw
+      WHERE 1=1
+
+  - name: damage_report_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_damage_report_bronze_cleaned
+    target: v_damage_report_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to damage_report"
+
+  - name: write_damage_report_bronze
+    type: write
+    source: v_damage_report_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "damage_report"
+
+  - name: tst_damage_report_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_damage_report_bronze_cleaned
+    required_columns: [damage_report_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-damage_report-B01"
+
+  - name: tst_damage_report_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_damage_report_bronze_cleaned
+    columns: [damage_report_key]
+    on_violation: warn
+    test_id: "PERF-damage_report-B02"

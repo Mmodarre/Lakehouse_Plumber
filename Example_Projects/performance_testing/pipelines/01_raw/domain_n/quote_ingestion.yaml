@@ -1,0 +1,25 @@
+pipeline: domain_n_raw
+flowgroup: quote_ingestion
+presets:
+  - default_delta_properties
+use_template: parquet_ingestion_template
+template_parameters:
+  table_name: quote_raw
+  landing_folder: quote
+  schema_file: orders_schema
+actions:
+  - name: tst_quote_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_quote_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-quote-R01"
+
+  - name: tst_quote_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_quote_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-quote-R02"

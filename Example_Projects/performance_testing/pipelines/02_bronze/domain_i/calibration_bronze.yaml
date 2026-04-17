@@ -1,0 +1,64 @@
+pipeline: domain_i_bronze
+flowgroup: calibration_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: calibration_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: calibration_raw
+    target: v_calibration_raw
+    description: "Load calibration from raw schema"
+
+  - name: calibration_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_calibration_raw
+    target: v_calibration_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as calibration_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_calibration_raw
+      WHERE 1=1
+
+  - name: calibration_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_calibration_bronze_cleaned
+    target: v_calibration_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to calibration"
+
+  - name: write_calibration_bronze
+    type: write
+    source: v_calibration_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "calibration"
+
+  - name: tst_calibration_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_calibration_bronze_cleaned
+    required_columns: [calibration_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-calibration-B01"
+
+  - name: tst_calibration_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_calibration_bronze_cleaned
+    columns: [calibration_key]
+    on_violation: warn
+    test_id: "PERF-calibration-B02"

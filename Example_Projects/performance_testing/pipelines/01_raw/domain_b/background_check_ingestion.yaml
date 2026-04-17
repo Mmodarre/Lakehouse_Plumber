@@ -1,0 +1,47 @@
+pipeline: domain_b_raw
+flowgroup: background_check_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_background_check_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/background_check/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_background_check_cloudfiles
+    description: "Load background_check from landing volume"
+
+  - name: write_background_check_raw
+    type: write
+    source: v_background_check_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "background_check_raw"
+
+  - name: tst_background_check_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_background_check_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-background_check-R01"
+
+  - name: tst_background_check_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_background_check_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-background_check-R02"

@@ -1,0 +1,24 @@
+pipeline: domain_q_bronze
+flowgroup: score_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: score
+  source_table: score_raw
+actions:
+  - name: tst_score_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_score_cleansed
+    required_columns: [score_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-score-B01"
+
+  - name: tst_score_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_score_cleansed
+    columns: [score_key]
+    on_violation: warn
+    test_id: "PERF-score-B02"

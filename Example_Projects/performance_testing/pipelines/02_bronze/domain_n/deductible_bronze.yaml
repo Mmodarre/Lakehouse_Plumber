@@ -1,0 +1,24 @@
+pipeline: domain_n_bronze
+flowgroup: deductible_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: deductible
+  source_table: deductible_raw
+actions:
+  - name: tst_deductible_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_deductible_cleansed
+    required_columns: [deductible_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-deductible-B01"
+
+  - name: tst_deductible_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_deductible_cleansed
+    columns: [deductible_key]
+    on_violation: warn
+    test_id: "PERF-deductible-B02"

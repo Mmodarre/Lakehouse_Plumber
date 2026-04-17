@@ -1,0 +1,53 @@
+pipeline: domain_r_modelled
+flowgroup: mission_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: mission_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: mission_fct
+    target: v_mission_silver
+    description: "Load mission from silver for modelling"
+
+  - name: mission_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_mission_silver
+    target: v_mission_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_mission_silver
+
+  - name: write_mission_modelled
+    type: write
+    source: v_mission_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "mission_modelled"
+
+  - name: tst_mission_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_mission_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-mission-M01"
+
+  - name: tst_mission_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mission_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-mission-M02"

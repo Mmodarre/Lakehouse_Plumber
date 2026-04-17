@@ -1,0 +1,38 @@
+pipeline: domain_q_gold
+flowgroup: referee_summary_mv
+actions:
+  - name: referee_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.referee_dim
+    target: v_referee_summary
+
+  - name: write_referee_summary_mv
+    type: write
+    source: v_referee_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "referee_summary_mv"
+
+  - name: tst_referee_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_referee_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-referee-G01"
+
+  - name: tst_referee_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_referee_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-referee-G02"

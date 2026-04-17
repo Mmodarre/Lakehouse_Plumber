@@ -1,0 +1,53 @@
+pipeline: domain_s_modelled
+flowgroup: barrel_toast_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: barrel_toast_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: barrel_toast_dim
+    target: v_barrel_toast_silver
+    description: "Load barrel_toast from silver for modelling"
+
+  - name: barrel_toast_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_barrel_toast_silver
+    target: v_barrel_toast_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_barrel_toast_silver
+
+  - name: write_barrel_toast_modelled
+    type: write
+    source: v_barrel_toast_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "barrel_toast_modelled"
+
+  - name: tst_barrel_toast_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_barrel_toast_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-barrel_toast-M01"
+
+  - name: tst_barrel_toast_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_barrel_toast_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-barrel_toast-M02"

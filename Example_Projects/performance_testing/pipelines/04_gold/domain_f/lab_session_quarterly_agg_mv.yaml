@@ -1,0 +1,40 @@
+pipeline: domain_f_gold
+flowgroup: lab_session_quarterly_agg_mv
+actions:
+  - name: lab_session_quarterly_agg_load
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          date_trunc('quarter', _etl_timestamp) as period,
+          count(*) as record_count,
+          current_timestamp() as _generated_at
+        FROM {catalog}.{silver_schema}.lab_session_dim
+        GROUP BY 1
+    target: v_lab_session_quarterly_agg
+
+  - name: write_lab_session_quarterly_agg_mv
+    type: write
+    source: v_lab_session_quarterly_agg
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "lab_session_quarterly_agg_mv"
+
+  - name: tst_lab_session_quarterly_agg_completeness
+    type: test
+    test_type: completeness
+    source: v_lab_session_quarterly_agg
+    required_columns: [period, record_count]
+    on_violation: warn
+    test_id: "PERF-lab_session-G01"
+
+  - name: tst_lab_session_quarterly_agg_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lab_session_quarterly_agg
+    columns: [period]
+    on_violation: warn
+    test_id: "PERF-lab_session-G02"

@@ -1,0 +1,38 @@
+pipeline: domain_f_gold
+flowgroup: campus_analysis_mv
+actions:
+  - name: campus_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.campus_dim
+    target: v_campus_analysis
+
+  - name: write_campus_analysis_mv
+    type: write
+    source: v_campus_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "campus_analysis_mv"
+
+  - name: tst_campus_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_campus_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-campus-G01"
+
+  - name: tst_campus_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_campus_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-campus-G02"

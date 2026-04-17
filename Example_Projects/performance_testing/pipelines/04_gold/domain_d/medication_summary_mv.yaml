@@ -1,0 +1,38 @@
+pipeline: domain_d_gold
+flowgroup: medication_summary_mv
+actions:
+  - name: medication_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.medication_fct
+    target: v_medication_summary
+
+  - name: write_medication_summary_mv
+    type: write
+    source: v_medication_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "medication_summary_mv"
+
+  - name: tst_medication_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_medication_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-medication-G01"
+
+  - name: tst_medication_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_medication_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-medication-G02"

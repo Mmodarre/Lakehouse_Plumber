@@ -1,0 +1,48 @@
+pipeline: domain_o_silver
+flowgroup: dynamic_ad_silver_fct
+presets:
+  - default_delta_properties
+actions:
+  - name: dynamic_ad_silver_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: dynamic_ad
+    target: v_dynamic_ad_bronze
+    description: "Load dynamic_ad from bronze for silver layer"
+
+  - name: write_dynamic_ad_silver
+    type: write
+    source: v_dynamic_ad_bronze
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: "dynamic_ad_fct"
+      mode: "cdc"
+      cdc_config:
+        keys: ["dynamic_ad_key"]
+        sequence_by: "_etl_timestamp"
+        scd_type: 2
+        ignore_null_updates: true
+        track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+  - name: tst_dynamic_ad_silver_completeness
+    type: test
+    test_type: completeness
+    source: v_dynamic_ad_bronze
+    required_columns: [dynamic_ad_key]
+    on_violation: warn
+    test_id: "PERF-dynamic_ad-S01"
+
+  - name: tst_dynamic_ad_silver_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_dynamic_ad_bronze
+    columns: [dynamic_ad_key]
+    on_violation: warn
+    test_id: "PERF-dynamic_ad-S02"

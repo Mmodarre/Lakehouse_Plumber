@@ -1,0 +1,25 @@
+pipeline: domain_k_raw
+flowgroup: booking_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: booking_raw
+  landing_folder: booking
+  schema_file: nation_schema
+actions:
+  - name: tst_booking_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_booking_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-booking-R01"
+
+  - name: tst_booking_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_booking_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-booking-R02"

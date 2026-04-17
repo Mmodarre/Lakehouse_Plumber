@@ -1,0 +1,64 @@
+pipeline: domain_i_bronze
+flowgroup: first_article_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: first_article_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: first_article_raw
+    target: v_first_article_raw
+    description: "Load first_article from raw schema"
+
+  - name: first_article_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_first_article_raw
+    target: v_first_article_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as first_article_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_first_article_raw
+      WHERE 1=1
+
+  - name: first_article_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_first_article_bronze_cleaned
+    target: v_first_article_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to first_article"
+
+  - name: write_first_article_bronze
+    type: write
+    source: v_first_article_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "first_article"
+
+  - name: tst_first_article_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_first_article_bronze_cleaned
+    required_columns: [first_article_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-first_article-B01"
+
+  - name: tst_first_article_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_first_article_bronze_cleaned
+    columns: [first_article_key]
+    on_violation: warn
+    test_id: "PERF-first_article-B02"

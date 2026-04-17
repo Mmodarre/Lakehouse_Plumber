@@ -153,7 +153,8 @@ actions:
     source:
       type: delta
       table: "bronze.customer_cdc"
-      read_change_feed: true
+      options:
+        readChangeFeed: "true"
     target: v_customer_changes
 
   - name: apply_customer_cdc

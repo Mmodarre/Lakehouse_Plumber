@@ -25,6 +25,7 @@ class BaseCommand:
         self.logger = logging.getLogger(__name__)
         self.verbose = False
         self.log_file = None
+        self.perf = False
         self._project_root = None
 
     def setup_from_context(self) -> None:
@@ -33,6 +34,7 @@ class BaseCommand:
         if ctx.obj:
             self.verbose = ctx.obj.get("verbose", False)
             self.log_file = ctx.obj.get("log_file", None)
+            self.perf = ctx.obj.get("perf", False)
 
     def ensure_project_root(self) -> Path:
         """

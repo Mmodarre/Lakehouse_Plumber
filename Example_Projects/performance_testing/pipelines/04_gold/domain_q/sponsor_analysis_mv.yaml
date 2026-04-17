@@ -1,0 +1,38 @@
+pipeline: domain_q_gold
+flowgroup: sponsor_analysis_mv
+actions:
+  - name: sponsor_analysis_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.sponsor_dim
+    target: v_sponsor_analysis
+
+  - name: write_sponsor_analysis_mv
+    type: write
+    source: v_sponsor_analysis
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "sponsor_analysis_mv"
+
+  - name: tst_sponsor_analysis_completeness
+    type: test
+    test_type: completeness
+    source: v_sponsor_analysis
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-sponsor-G01"
+
+  - name: tst_sponsor_analysis_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_sponsor_analysis
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-sponsor-G02"

@@ -1,0 +1,64 @@
+pipeline: domain_h_bronze
+flowgroup: store_layout_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: store_layout_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: store_layout_raw
+    target: v_store_layout_raw
+    description: "Load store_layout from raw schema"
+
+  - name: store_layout_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_store_layout_raw
+    target: v_store_layout_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as store_layout_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_store_layout_raw
+      WHERE 1=1
+
+  - name: store_layout_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_store_layout_bronze_cleaned
+    target: v_store_layout_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to store_layout"
+
+  - name: write_store_layout_bronze
+    type: write
+    source: v_store_layout_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "store_layout"
+
+  - name: tst_store_layout_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_store_layout_bronze_cleaned
+    required_columns: [store_layout_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-store_layout-B01"
+
+  - name: tst_store_layout_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_store_layout_bronze_cleaned
+    columns: [store_layout_key]
+    on_violation: warn
+    test_id: "PERF-store_layout-B02"

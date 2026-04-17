@@ -1,0 +1,24 @@
+pipeline: acmi_edw_raw
+flowgroup: source_schema_load
+
+actions:
+  - name: load_customer_with_schema
+    type: load
+    readMode: stream
+    source:
+      type: cloudfiles
+      path: "/data/schema_test/*.csv"
+      format: csv
+      schema: schemas/customer_schema.yaml
+      options:
+        cloudFiles.format: csv
+    target: v_customer_schema_raw
+    description: "Load customer CSV with explicit schema enforcement"
+
+  - name: write_customer_schema
+    type: write
+    source: v_customer_schema_raw
+    write_target:
+      type: streaming_table
+      database: "{catalog}.{raw_schema}"
+      table: "customer_schema_test"

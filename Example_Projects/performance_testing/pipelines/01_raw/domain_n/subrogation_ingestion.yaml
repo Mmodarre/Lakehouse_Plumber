@@ -1,0 +1,25 @@
+pipeline: domain_n_raw
+flowgroup: subrogation_ingestion
+presets:
+  - default_delta_properties
+use_template: json_ingestion_template
+template_parameters:
+  table_name: subrogation_raw
+  landing_folder: subrogation
+  schema_file: customer_schema
+actions:
+  - name: tst_subrogation_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_subrogation_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-subrogation-R01"
+
+  - name: tst_subrogation_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_subrogation_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-subrogation-R02"

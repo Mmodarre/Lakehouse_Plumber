@@ -1,0 +1,38 @@
+pipeline: domain_l_gold
+flowgroup: chef_summary_mv
+actions:
+  - name: chef_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.chef_dim
+    target: v_chef_summary
+
+  - name: write_chef_summary_mv
+    type: write
+    source: v_chef_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "chef_summary_mv"
+
+  - name: tst_chef_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_chef_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-chef-G01"
+
+  - name: tst_chef_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_chef_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-chef-G02"

@@ -1,0 +1,53 @@
+pipeline: domain_o_modelled
+flowgroup: ab_test_modelled
+presets:
+  - default_delta_properties
+actions:
+  - name: ab_test_silver_source
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{silver_schema}"
+      table: ab_test_dim
+    target: v_ab_test_silver
+    description: "Load ab_test from silver for modelling"
+
+  - name: ab_test_model_transform
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_ab_test_silver
+    target: v_ab_test_modelled
+    sql: |
+      SELECT
+        *,
+        current_timestamp() as _modelled_at,
+        'v1' as _model_version
+      FROM v_ab_test_silver
+
+  - name: write_ab_test_modelled
+    type: write
+    source: v_ab_test_modelled
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{modelled_schema}"
+      table: "ab_test_modelled"
+
+  - name: tst_ab_test_modelled_completeness
+    type: test
+    test_type: completeness
+    source: v_ab_test_modelled
+    required_columns: [_modelled_at, _model_version]
+    on_violation: warn
+    test_id: "PERF-ab_test-M01"
+
+  - name: tst_ab_test_modelled_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ab_test_modelled
+    columns: [_modelled_at]
+    on_violation: warn
+    test_id: "PERF-ab_test-M02"

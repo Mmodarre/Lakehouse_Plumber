@@ -1,0 +1,38 @@
+pipeline: domain_k_gold
+flowgroup: terminal_report_mv
+actions:
+  - name: terminal_report_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.terminal_dim
+    target: v_terminal_report
+
+  - name: write_terminal_report_mv
+    type: write
+    source: v_terminal_report
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "terminal_report_mv"
+
+  - name: tst_terminal_report_completeness
+    type: test
+    test_type: completeness
+    source: v_terminal_report
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-terminal-G01"
+
+  - name: tst_terminal_report_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_terminal_report
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-terminal-G02"

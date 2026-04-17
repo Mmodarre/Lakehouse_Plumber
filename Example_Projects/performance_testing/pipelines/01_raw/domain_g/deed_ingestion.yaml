@@ -1,0 +1,47 @@
+pipeline: domain_g_raw
+flowgroup: deed_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_deed_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/deed/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_deed_cloudfiles
+    description: "Load deed from landing volume"
+
+  - name: write_deed_raw
+    type: write
+    source: v_deed_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "deed_raw"
+
+  - name: tst_deed_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_deed_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-deed-R01"
+
+  - name: tst_deed_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_deed_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-deed-R02"

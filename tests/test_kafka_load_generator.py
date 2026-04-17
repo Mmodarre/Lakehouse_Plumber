@@ -456,11 +456,7 @@ class TestKafkaLoadGenerator:
         assert '\\"pass\\"' in result or 'password=\\"pass\\"' in result
         
         # Verify it's valid Python by attempting to compile
-        try:
-            compile(result, '<string>', 'exec')
-            assert True  # Compilation succeeded
-        except SyntaxError as e:
-            pytest.fail(f"Generated code with quotes is not valid Python syntax: {e}")
+        compile(result, '<string>', 'exec')
 
     def test_backslash_escaping_in_patterns(self):
         """Test that backslashes in regex patterns are properly escaped."""
@@ -488,11 +484,6 @@ class TestKafkaLoadGenerator:
         warnings.simplefilter('error', SyntaxWarning)
         try:
             compile(result, '<string>', 'exec')
-            assert True  # Compilation succeeded without warnings
-        except SyntaxWarning as e:
-            pytest.fail(f"Generated code has invalid escape sequences: {e}")
-        except SyntaxError as e:
-            pytest.fail(f"Generated code is not valid Python syntax: {e}")
         finally:
             warnings.simplefilter('default', SyntaxWarning)
 
@@ -646,6 +637,32 @@ class TestKafkaLoadGenerator:
         )
         with pytest.raises(ValueError, match="bootstrap_servers"):
             self.generator.generate(action, {})
+
+
+# ============================================================================
+# Golden Output Tests
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestKafkaGoldenOutput:
+    """Golden output test for Kafka load generator."""
+
+    def test_kafka_golden(self, golden):
+        generator = KafkaLoadGenerator()
+        action = Action(
+            name="test_kafka_load",
+            type="load",
+            source={
+                "type": "kafka",
+                "bootstrap_servers": "localhost:9092",
+                "subscribe": "test_topic",
+            },
+            target="v_kafka_data",
+            readMode="stream",
+        )
+        code = generator.generate(action, {})
+        golden(code, "load_kafka")
 
 
 if __name__ == "__main__":

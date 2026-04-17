@@ -91,8 +91,8 @@ class TestEventLogIntegration:
     def test_substitution_tokens_resolved_in_event_log(self, temp_project):
         """Test that LHP tokens in event_log catalog/schema are resolved by substitution."""
         event_log = EventLogConfig(
-            catalog="{event_log_catalog}",
-            schema="{event_log_schema}",
+            catalog="${event_log_catalog}",
+            schema="${event_log_schema}",
         )
         project_config = ProjectConfig(name="test", event_log=event_log)
 
@@ -140,7 +140,7 @@ project_defaults:
 pipeline: test_pipeline
 event_log:
   name: custom_event_log
-  catalog: "{event_log_catalog}"
+  catalog: "${event_log_catalog}"
   schema: custom_schema
 """,
         )
@@ -230,7 +230,7 @@ project_defaults:
 pipeline: test_pipeline
 event_log:
   name: legacy_event_log
-  catalog: "{event_log_catalog}"
+  catalog: "${event_log_catalog}"
   schema: _meta
 """,
         )

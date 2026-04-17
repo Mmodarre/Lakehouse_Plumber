@@ -1,0 +1,64 @@
+pipeline: domain_j_bronze
+flowgroup: microgrid_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: microgrid_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: microgrid_raw
+    target: v_microgrid_raw
+    description: "Load microgrid from raw schema"
+
+  - name: microgrid_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_microgrid_raw
+    target: v_microgrid_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as microgrid_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_microgrid_raw
+      WHERE 1=1
+
+  - name: microgrid_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_microgrid_bronze_cleaned
+    target: v_microgrid_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to microgrid"
+
+  - name: write_microgrid_bronze
+    type: write
+    source: v_microgrid_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "microgrid"
+
+  - name: tst_microgrid_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_microgrid_bronze_cleaned
+    required_columns: [microgrid_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-microgrid-B01"
+
+  - name: tst_microgrid_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_microgrid_bronze_cleaned
+    columns: [microgrid_key]
+    on_violation: warn
+    test_id: "PERF-microgrid-B02"

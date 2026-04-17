@@ -1,0 +1,24 @@
+pipeline: domain_i_bronze
+flowgroup: yield_rate_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: yield_rate
+  source_table: yield_rate_raw
+actions:
+  - name: tst_yield_rate_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_yield_rate_cleansed
+    required_columns: [yield_rate_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-yield_rate-B01"
+
+  - name: tst_yield_rate_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_yield_rate_cleansed
+    columns: [yield_rate_key]
+    on_violation: warn
+    test_id: "PERF-yield_rate-B02"

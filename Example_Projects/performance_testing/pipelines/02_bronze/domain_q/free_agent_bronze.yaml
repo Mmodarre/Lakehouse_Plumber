@@ -1,0 +1,101 @@
+pipeline: domain_q_bronze
+flowgroup: free_agent_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: free_agent_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: free_agent_raw
+    target: v_free_agent_raw
+    description: "Load free_agent from raw schema"
+
+  - name: free_agent_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_free_agent_raw
+    target: v_free_agent_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as free_agent_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_free_agent_raw
+
+  - name: free_agent_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_free_agent_bronze_cleaned
+    target: v_free_agent_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for free_agent bronze"
+
+  - name: write_free_agent_bronze
+    type: write
+    source: v_free_agent_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "free_agent"
+
+  - name: free_agent_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: free_agent_migration
+    target: v_free_agent_migration
+    description: "Load free_agent migration data"
+
+  - name: free_agent_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_free_agent_migration
+    target: v_free_agent_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as free_agent_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_free_agent_migration
+
+  - name: write_free_agent_migration
+    type: write
+    source: v_free_agent_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "free_agent"
+
+  - name: tst_free_agent_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_free_agent_bronze_cleaned
+    required_columns: [free_agent_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-free_agent-B01"
+
+  - name: tst_free_agent_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_free_agent_bronze_cleaned
+    columns: [free_agent_key]
+    on_violation: warn
+    test_id: "PERF-free_agent-B02"

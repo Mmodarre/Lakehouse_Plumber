@@ -89,24 +89,21 @@ class TestStateManagerInitialization:
             file_state = list(state_manager.state.environments["dev"].values())[0]
             assert file_state.source_yaml_checksum == ""
     
-    def test_init_with_corrupted_state_file(self, caplog):
-        """Test initialization with corrupted state file (lines 80-82)."""
+    def test_init_with_corrupted_state_file(self):
+        """A corrupted state file surfaces as a user-facing error on init."""
+        from lhp.utils.error_formatter import LHPFileError
+
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             state_file = project_root / ".lhp_state.json"
-            
+
             # Create corrupted JSON file
             with open(state_file, 'w') as f:
                 f.write("{invalid json content")
-            
-            with caplog.at_level(logging.WARNING):
-                state_manager = StateManager(project_root)
-            
-            # Should create new empty state
-            assert state_manager._state.environments == {}
-            
-            # Should log warning about failed loading
-            assert "Failed to load state file" in caplog.text
+
+            with pytest.raises(LHPFileError) as exc_info:
+                StateManager(project_root)
+            assert "Malformed state file" in str(exc_info.value)
     
     def test_init_without_state_file(self):
         """Test initialization without existing state file (lines 83-84)."""
@@ -1406,93 +1403,88 @@ class TestStateManagerFileRemoval:
             assert result == False
 
 
-class TestGenerationContextHashing:
-    """Test generation context parameter hashing."""
-    
-    def test_generation_context_affects_hash(self):
-        """Test that different generation contexts produce different hashes."""
+class TestLastGenerationContext:
+    """Env-scoped generation context replaces the per-file R5 composite checksum."""
+
+    def test_record_generation_context_stores_include_tests(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             state_manager = StateManager(project_root)
-            
-            # Create source file
-            source_yaml = project_root / "test.yaml"
-            source_yaml.write_text("test: config")
-            generated_file = project_root / "generated" / "test.py"
-            generated_file.parent.mkdir(parents=True)
-            generated_file.write_text("# Generated code")
-            
-            # Track with include_tests=True
-            state_manager.track_generated_file(
-                generated_path=generated_file,
-                source_yaml=source_yaml,
-                environment="dev",
-                pipeline="test_pipeline", 
-                flowgroup="test_flowgroup",
-                generation_context="include_tests:True"
-            )
-            
-            first_state = state_manager.get_generated_files("dev")
-            first_hash = list(first_state.values())[0].file_composite_checksum
-            
-            # Remove and track again with include_tests=False
-            state_manager.remove_generated_file(generated_file, "dev")
-            state_manager.track_generated_file(
-                generated_path=generated_file,
-                source_yaml=source_yaml,
-                environment="dev",
-                pipeline="test_pipeline",
-                flowgroup="test_flowgroup", 
-                generation_context="include_tests:False"
-            )
-            
-            second_state = state_manager.get_generated_files("dev")
-            second_hash = list(second_state.values())[0].file_composite_checksum
-            
-            # Hashes should be different due to different generation context
-            assert first_hash != second_hash
-    
-    def test_empty_generation_context_ignored(self):
-        """Test that empty generation context doesn't affect hash."""
+
+            state_manager.record_generation_context("dev", include_tests=True)
+            assert state_manager.state.last_generation_context["dev"] == {
+                "include_tests": "True"
+            }
+
+            state_manager.record_generation_context("dev", include_tests=False)
+            assert state_manager.state.last_generation_context["dev"] == {
+                "include_tests": "False"
+            }
+
+    def test_record_generation_context_is_env_scoped(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_manager = StateManager(Path(tmpdir))
+            state_manager.record_generation_context("dev", include_tests=True)
+            state_manager.record_generation_context("prod", include_tests=False)
+
+            assert state_manager.state.last_generation_context == {
+                "dev": {"include_tests": "True"},
+                "prod": {"include_tests": "False"},
+            }
+
+    def test_record_generation_context_survives_save_and_reload(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             state_manager = StateManager(project_root)
-            
-            # Create source file
-            source_yaml = project_root / "test.yaml"
-            source_yaml.write_text("test: config")
-            generated_file = project_root / "generated" / "test.py"
-            generated_file.parent.mkdir(parents=True)
-            generated_file.write_text("# Generated code")
-            
-            # Track without generation context
-            state_manager.track_generated_file(
-                generated_path=generated_file,
-                source_yaml=source_yaml,
-                environment="dev",
-                pipeline="test_pipeline",
-                flowgroup="test_flowgroup"
-            )
-            
-            first_state = state_manager.get_generated_files("dev")
-            first_hash = list(first_state.values())[0].file_composite_checksum
-            
-            # Remove and track again with empty generation context
-            state_manager.remove_generated_file(generated_file, "dev")
-            state_manager.track_generated_file(
-                generated_path=generated_file,
-                source_yaml=source_yaml,
-                environment="dev", 
-                pipeline="test_pipeline",
-                flowgroup="test_flowgroup",
-                generation_context=""
-            )
-            
-            second_state = state_manager.get_generated_files("dev")
-            second_hash = list(second_state.values())[0].file_composite_checksum
-            
-            # Hashes should be the same since empty context is ignored
-            assert first_hash == second_hash
+
+            state_manager.record_generation_context("dev", include_tests=True)
+            state_manager.save()
+
+            reloaded = StateManager(project_root)
+            assert reloaded.state.last_generation_context == {
+                "dev": {"include_tests": "True"}
+            }
+
+
+class TestStateManagerLegacyStateMigration:
+    """Pre-migration state files should fail loudly, not silently reset."""
+
+    def test_legacy_file_composite_checksum_raises(self):
+        from lhp.utils.error_formatter import LHPFileError
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            state_file = project_root / ".lhp_state.json"
+
+            legacy_state = {
+                "version": "1.0",
+                "last_updated": "2025-01-01T00:00:00",
+                "environments": {
+                    "dev": {
+                        "generated/dev/test.py": {
+                            "source_yaml": "pipelines/test.yaml",
+                            "generated_path": "generated/dev/test.py",
+                            "checksum": "abc",
+                            "source_yaml_checksum": "def",
+                            "timestamp": "2025-01-01T00:00:00",
+                            "environment": "dev",
+                            "pipeline": "pipeline",
+                            "flowgroup": "flowgroup",
+                            "file_dependencies": {},
+                            # Legacy R5 field that no longer exists.
+                            "file_composite_checksum": "legacy",
+                        }
+                    }
+                },
+            }
+            state_file.write_text(json.dumps(legacy_state))
+
+            with pytest.raises(LHPFileError) as exc_info:
+                StateManager(project_root)
+            err = str(exc_info.value)
+            assert "Incompatible state file format" in err
+            # Migration guidance must tell the user how to proceed.
+            assert "Delete the state file" in err
 
 
 class TestStateManagerMultiFlowgroup:

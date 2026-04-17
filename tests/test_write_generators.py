@@ -23,7 +23,8 @@ class TestWriteGenerators:
             source="v_customers_final",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
                 "table": "customers",
                 "create_table": True,  # ← Add explicit table creation flag
                 "partition_columns": ["year", "month"],
@@ -37,7 +38,7 @@ class TestWriteGenerators:
         # Check generated code - standard mode creates table and append flow
         assert "dp.create_streaming_table" in code
         assert "@dp.append_flow(" in code
-        assert "silver.customers" in code
+        assert "silver_cat.silver_sch.customers" in code
         assert "spark.readStream.table" in code
 
     def test_materialized_view_generator(self):
@@ -48,7 +49,8 @@ class TestWriteGenerators:
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "customer_summary",
                 "refresh_schedule": "@daily",
                 "sql": "SELECT region, COUNT(*) as customer_count FROM silver.customers GROUP BY region",
@@ -59,7 +61,7 @@ class TestWriteGenerators:
 
         # Verify generated code
         assert "@dp.materialized_view(" in code
-        assert 'name="gold.customer_summary"' in code
+        assert 'name="gold_cat.gold_sch.customer_summary"' in code
         assert "spark.sql" in code
         assert "GROUP BY region" in code
 
@@ -71,7 +73,8 @@ class TestWriteGenerators:
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "advanced_table",
                 "spark_conf": {
                     "spark.sql.adaptive.enabled": "true",
@@ -81,7 +84,7 @@ class TestWriteGenerators:
                     "delta.autoOptimize.optimizeWrite": "true",
                     "delta.autoOptimize.autoCompact": "true",
                 },
-                "schema": "id BIGINT, name STRING, amount DECIMAL(18,2)",
+                "table_schema": "id BIGINT, name STRING, amount DECIMAL(18,2)",
                 "row_filter": "ROW FILTER catalog.schema.filter_fn ON (region)",
                 "temporary": True,
                 "partition_columns": ["region"],
@@ -96,7 +99,7 @@ class TestWriteGenerators:
         # Verify all options are included
         # Note: temporary parameter is accepted in config for backward compat but not passed to decorator
         assert "@dp.materialized_view(" in code
-        assert 'name="gold.advanced_table"' in code
+        assert 'name="gold_cat.gold_sch.advanced_table"' in code
         assert 'spark_conf={"spark.sql.adaptive.enabled": "true"' in code
         assert 'table_properties={"delta.autoOptimize.optimizeWrite": "true"' in code
         assert 'schema="id BIGINT, name STRING, amount DECIMAL(18,2)"' in code
@@ -114,7 +117,8 @@ class TestWriteGenerators:
             source="v_customers_final",
             write_target={
                 "type": "streaming_table",
-                "database": "silver",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
                 "table": "advanced_streaming",
                 "create_table": True,  # ← Add explicit table creation flag
                 "spark_conf": {
@@ -125,7 +129,7 @@ class TestWriteGenerators:
                     "delta.enableChangeDataFeed": "true",
                     "delta.autoOptimize.optimizeWrite": "true",
                 },
-                "schema": "customer_id BIGINT, name STRING, status STRING",
+                "table_schema": "customer_id BIGINT, name STRING, status STRING",
                 "row_filter": "ROW FILTER catalog.schema.customer_filter ON (region)",
                 "temporary": False,
                 "partition_columns": ["status"],
@@ -139,7 +143,7 @@ class TestWriteGenerators:
         # Verify all options are included in both create_streaming_table and @dp.append_flow
         assert "dp.create_streaming_table(" in code
         assert "@dp.append_flow(" in code
-        assert 'name="silver.advanced_streaming"' in code
+        assert 'name="silver_cat.silver_sch.advanced_streaming"' in code
         assert (
             'spark_conf={"spark.sql.streaming.checkpointLocation": "/checkpoints/advanced"'
             in code
@@ -166,7 +170,8 @@ class TestWriteGenerators:
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
                 "table": "customers",
                 "create_table": True,  # ← Add explicit table creation flag
                 "snapshot_cdc_config": {
@@ -181,9 +186,9 @@ class TestWriteGenerators:
 
         # Verify snapshot CDC structure
         assert "dp.create_streaming_table(" in code
-        assert 'name="silver.customers"' in code
+        assert 'name="silver_cat.silver_sch.customers"' in code
         assert "dp.create_auto_cdc_from_snapshot_flow(" in code
-        assert 'target="silver.customers"' in code
+        assert 'target="silver_cat.silver_sch.customers"' in code
         assert 'source="raw.customer_snapshots"' in code
         assert 'keys=["customer_id"]' in code
         assert "stored_as_scd_type=1" in code
@@ -215,7 +220,8 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
                 "table": "customers",
                 "create_table": True,  # ← Add explicit table creation flag
                 "snapshot_cdc_config": {
@@ -245,7 +251,7 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
         # Verify snapshot CDC structure
         assert "dp.create_streaming_table(" in code
         assert "dp.create_auto_cdc_from_snapshot_flow(" in code
-        assert 'target="silver.customers"' in code
+        assert 'target="silver_cat.silver_sch.customers"' in code
         assert "source=next_customer_snapshot" in code  # Function reference, not string
         assert 'keys=["customer_id", "region"]' in code
         assert "stored_as_scd_type=2" in code
@@ -260,7 +266,8 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
             write_target={
                 "type": "streaming_table",
                 "mode": "snapshot_cdc",
-                "database": "silver",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
                 "table": "products",
                 "create_table": True,  # ← Add explicit table creation flag
                 "snapshot_cdc_config": {
@@ -296,7 +303,8 @@ def test_materialized_view_string_source():
         source="v_simple_view",  # String source, no SQL in write_target
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table",
         },
     )
@@ -306,7 +314,7 @@ def test_materialized_view_string_source():
     # Verify the string source is correctly extracted and used
     assert "v_simple_view" in code
     assert "@dp.materialized_view(" in code
-    assert 'name="test_db.test_table"' in code
+    assert 'name="test_cat.test_sch.test_table"' in code
     assert "spark.read.table" in code  # Should use spark.read.table for source view
 
 
@@ -319,7 +327,8 @@ def test_materialized_view_list_source_first_item():
         source=["first_view", "ignored_view", "also_ignored"],  # List source
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table",
         },
     )
@@ -331,7 +340,7 @@ def test_materialized_view_list_source_first_item():
     assert "ignored_view" not in code
     assert "also_ignored" not in code
     assert "@dp.materialized_view(" in code
-    assert 'name="test_db.test_table"' in code
+    assert 'name="test_cat.test_sch.test_table"' in code
     assert "spark.read.table" in code
 
 
@@ -372,7 +381,8 @@ def test_materialized_view_missing_source_and_sql():
         # Missing source field and no SQL in write_target
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table",
             # Missing sql field
         },
@@ -394,7 +404,8 @@ def test_materialized_view_empty_list_source():
         source=[],  # Empty list source
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table",
         },
     )
@@ -406,24 +417,24 @@ def test_materialized_view_empty_list_source():
     assert "Invalid source configuration" in str(exc_info.value)
 
 
-def test_materialized_view_no_database_fallback():
-    """Test materialized view without database uses table name only."""
+def test_materialized_view_no_catalog_schema_fallback():
+    """Test materialized view without catalog/schema uses table name only."""
     generator = MaterializedViewWriteGenerator()
     action = Action(
         name="write_test",
         type=ActionType.WRITE,
         write_target={
             "type": "materialized_view",
-            "table": "test_table",  # No database field
+            "table": "test_table",  # No catalog/schema fields
             "sql": "SELECT * FROM test",
         },
     )
 
     code = generator.generate(action, {})
 
-    # Verify table name is used without database prefix
+    # Verify table name is used without catalog.schema prefix
     assert 'name="test_table"' in code
-    assert 'name="test_db.test_table"' not in code  # Should not have database prefix
+    assert 'name="test_cat.test_sch.test_table"' not in code  # Should not have catalog.schema prefix
     assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
@@ -437,7 +448,8 @@ def test_materialized_view_custom_comment_and_description():
         description="Custom action description",
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table",
             "comment": "Custom table comment",
             "sql": "SELECT * FROM test",
@@ -461,7 +473,8 @@ def test_materialized_view_with_flowgroup_context():
         type=ActionType.WRITE,
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table",
             "sql": "SELECT * FROM test",
         },
@@ -474,7 +487,7 @@ def test_materialized_view_with_flowgroup_context():
     # Verify flowgroup context is used (check this is passed to template)
     # The template should have access to flowgroup variable
     assert "@dp.materialized_view(" in code
-    assert 'name="test_db.test_table"' in code
+    assert 'name="test_cat.test_sch.test_table"' in code
     assert "spark.sql" in code
     # Note: The actual usage of flowgroup in template may vary,
     # this test ensures it's passed to template context without errors
@@ -490,7 +503,8 @@ def test_materialized_view_partition_and_cluster_variations():
         type=ActionType.WRITE,
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table_both",
             "partition_columns": ["year", "month"],
             "cluster_columns": ["id"],
@@ -508,7 +522,8 @@ def test_materialized_view_partition_and_cluster_variations():
         type=ActionType.WRITE,
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table_partition",
             "partition_columns": ["region"],
             "sql": "SELECT * FROM test",
@@ -525,7 +540,8 @@ def test_materialized_view_partition_and_cluster_variations():
         type=ActionType.WRITE,
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table_cluster",
             "cluster_columns": ["customer_id", "order_id"],
             "sql": "SELECT * FROM test",
@@ -545,7 +561,8 @@ def test_materialized_view_disabled_metadata():
         type=ActionType.WRITE,
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table",
             "sql": "SELECT * FROM test",
         },
@@ -568,7 +585,8 @@ def test_materialized_view_enabled_metadata_mock():
         type=ActionType.WRITE,
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table",
             "sql": "SELECT * FROM test",
         },
@@ -591,11 +609,11 @@ def test_materialized_view_enabled_metadata_mock():
         with patch.object(generator, "render_template") as mock_render:
             # Mock the template rendering to include metadata
             mock_render.return_value = '''@dp.materialized_view(
-    name="test_db.test_table",
+    name="test_cat.test_sch.test_table",
     comment="Materialized view: test_table",
     table_properties={})
 def test_table():
-    """Write to materialized view: test_db.test_table"""
+    """Write to materialized view: test_cat.test_sch.test_table"""
     # Materialized views use batch processing
     df = spark.sql("""SELECT * FROM test""")
     
@@ -633,7 +651,8 @@ def test_materialized_view_parametrized_sources(source_config, expected_view):
         source=source_config,
         write_target={
             "type": "materialized_view",
-            "database": "test_db",
+            "catalog": "test_cat",
+            "schema": "test_sch",
             "table": "test_table",
         },
     )
@@ -643,7 +662,7 @@ def test_materialized_view_parametrized_sources(source_config, expected_view):
     # Verify expected view name appears in generated code
     assert expected_view in code
     assert "@dp.materialized_view(" in code
-    assert 'name="test_db.test_table"' in code
+    assert 'name="test_cat.test_sch.test_table"' in code
     assert "spark.read.table" in code
 
 
@@ -657,7 +676,8 @@ def test_materialized_view_full_structure():
         source="silver.customer_data",
         write_target={
             "type": "materialized_view",
-            "database": "gold",
+            "catalog": "gold_cat",
+            "schema": "gold_sch",
             "table": "customer_analytics",
             "comment": "Customer analytics materialized view",
             "spark_conf": {
@@ -668,7 +688,7 @@ def test_materialized_view_full_structure():
                 "delta.autoOptimize.optimizeWrite": "true",
                 "delta.autoOptimize.autoCompact": "true",
             },
-            "schema": "customer_id BIGINT, name STRING, total_spent DECIMAL(18,2)",
+            "table_schema": "customer_id BIGINT, name STRING, total_spent DECIMAL(18,2)",
             "row_filter": "ROW FILTER catalog.schema.customer_filter ON (region)",
             "temporary": False,
             "partition_columns": ["region", "signup_year"],
@@ -697,7 +717,7 @@ def test_materialized_view_full_structure():
 
     # Check that imports would be at the top (handled by base generator)
     # Check specific configurations are included
-    assert 'name="gold.customer_analytics"' in code
+    assert 'name="gold_cat.gold_sch.customer_analytics"' in code
     assert 'comment="Customer analytics materialized view"' in code
     assert 'spark_conf={"spark.sql.adaptive.enabled": "true"' in code
     assert 'table_properties={"delta.autoOptimize.optimizeWrite": "true"' in code
@@ -746,7 +766,8 @@ GROUP BY customer_id, customer_name
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "customer_summary",
                 "sql_path": "sql/gold/customer_summary.sql",
             },
@@ -764,7 +785,7 @@ GROUP BY customer_id, customer_name
         assert "silver.orders" in code
         assert "GROUP BY customer_id, customer_name" in code
         assert "@dp.materialized_view(" in code
-        assert 'name="gold.customer_summary"' in code
+        assert 'name="gold_cat.gold_sch.customer_summary"' in code
 
 
 def test_materialized_view_sql_path_with_substitutions():
@@ -809,7 +830,8 @@ GROUP BY product_id
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "sales_summary",
                 "sql_path": "sql/sales_summary.sql",
             },
@@ -845,7 +867,8 @@ def test_materialized_view_sql_path_file_not_found():
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "test_view",
                 "sql_path": "sql/missing_file.sql",
             },
@@ -881,7 +904,8 @@ def test_materialized_view_sql_vs_sql_path_precedence():
             type=ActionType.WRITE,
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "test_view",
                 "sql": "SELECT customer_id, name FROM silver.customers",
                 "sql_path": "sql/query.sql",  # Should be ignored
@@ -919,7 +943,8 @@ def test_materialized_view_table_schema_from_ddl_file():
             source="v_products_source",
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "product_view",
                 "table_schema": "schemas/gold/product_view_schema.ddl",
             },
@@ -959,7 +984,8 @@ def test_materialized_view_table_schema_from_sql_file():
             source="v_customers",
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "customer_view",
                 "table_schema": "schemas/customer_view_schema.sql",
             },
@@ -991,7 +1017,8 @@ def test_materialized_view_table_schema_inline_vs_file():
             source="v_source",
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "test_view",
                 "table_schema": "id BIGINT, name STRING, amount DECIMAL(18,2)",
             },
@@ -1015,7 +1042,8 @@ def test_materialized_view_table_schema_inline_vs_file():
             source="v_source",
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "test_view",
                 "table_schema": "schemas/product_schema.ddl",
             },
@@ -1054,7 +1082,8 @@ _processing_timestamp TIMESTAMP""")
             source="v_customer_raw",
             write_target={
                 "type": "streaming_table",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "customers",
                 "table_schema": "schemas/bronze/customer_table.ddl",
             },
@@ -1093,7 +1122,8 @@ def test_streaming_table_table_schema_from_sql_file():
             source="v_orders_raw",
             write_target={
                 "type": "streaming_table",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "orders",
                 "table_schema": "schemas/orders_table.sql",
             },
@@ -1124,7 +1154,8 @@ def test_streaming_table_table_schema_inline_vs_file():
             source="v_source",
             write_target={
                 "type": "streaming_table",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "test_table",
                 "table_schema": "id BIGINT, name STRING, created_at TIMESTAMP",
             },
@@ -1152,7 +1183,8 @@ def test_streaming_table_table_schema_inline_vs_file():
             source="v_source",
             write_target={
                 "type": "streaming_table",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "test_table",
                 "table_schema": "schemas/test_schema.ddl",
             },
@@ -1202,7 +1234,8 @@ columns:
             source="v_customers_raw",
             write_target={
                 "type": "streaming_table",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "customers",
                 "table_schema": "schemas/customer_table.yaml",
             },
@@ -1251,7 +1284,8 @@ columns:
             source="v_products_raw",
             write_target={
                 "type": "streaming_table",
-                "database": "bronze",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
                 "table": "products",
                 "table_schema": "schemas/product_table.yml",
             },
@@ -1302,7 +1336,8 @@ columns:
             source="v_orders_summary",
             write_target={
                 "type": "materialized_view",
-                "database": "gold",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
                 "table": "orders_aggregate",
                 "table_schema": "schemas/orders_aggregate.yaml",
             },
@@ -1324,6 +1359,49 @@ def test_write_generator_imports():
     mv_gen = MaterializedViewWriteGenerator()
     assert "from pyspark import pipelines as dp" in mv_gen.imports
     assert "from pyspark.sql import DataFrame" in mv_gen.imports
+
+
+@pytest.mark.unit
+class TestStreamingTableGoldenOutput:
+    """Golden output test for streaming table write generator."""
+
+    def test_basic_streaming_table_golden(self, golden):
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_customers",
+            type=ActionType.WRITE,
+            source="v_customers_final",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "write_streaming_table")
+
+
+@pytest.mark.unit
+class TestMaterializedViewGoldenOutput:
+    """Golden output test for materialized view write generator."""
+
+    def test_basic_materialized_view_golden(self, golden):
+        generator = MaterializedViewWriteGenerator()
+        action = Action(
+            name="write_summary",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
+                "table": "customer_summary",
+                "sql": "SELECT region, COUNT(*) as customer_count FROM silver.customers GROUP BY region",
+            },
+        )
+        code = generator.generate(action, {})
+        golden(code, "write_materialized_view")
 
 
 if __name__ == "__main__":

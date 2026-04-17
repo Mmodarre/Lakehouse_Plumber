@@ -1,0 +1,341 @@
+pipeline: domain_h_bronze
+use_template: bronze_cleanse_template
+presets:
+  - default_delta_properties
+
+flowgroups:
+  - flowgroup: store_bronze
+    template_parameters:
+      entity_name: store
+      source_table: store_raw
+    actions:
+      - name: tst_store_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_store_cleansed
+        required_columns: [store_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-store-B01"
+      
+      - name: tst_store_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_store_cleansed
+        columns: [store_key]
+        on_violation: warn
+        test_id: "PERF-store-B02"
+
+  - flowgroup: product_listing_bronze
+    template_parameters:
+      entity_name: product_listing
+      source_table: product_listing_raw
+    actions:
+      - name: tst_product_listing_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_product_listing_cleansed
+        required_columns: [product_listing_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-product_listing-B01"
+      
+      - name: tst_product_listing_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_product_listing_cleansed
+        columns: [product_listing_key]
+        on_violation: warn
+        test_id: "PERF-product_listing-B02"
+
+  - flowgroup: purchase_bronze
+    template_parameters:
+      entity_name: purchase
+      source_table: purchase_raw
+    actions:
+      - name: tst_purchase_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_purchase_cleansed
+        required_columns: [purchase_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-purchase-B01"
+      
+      - name: tst_purchase_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_purchase_cleansed
+        columns: [purchase_key]
+        on_violation: warn
+        test_id: "PERF-purchase-B02"
+
+  - flowgroup: return_item_bronze
+    template_parameters:
+      entity_name: return_item
+      source_table: return_item_raw
+    actions:
+      - name: tst_return_item_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_return_item_cleansed
+        required_columns: [return_item_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-return_item-B01"
+      
+      - name: tst_return_item_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_return_item_cleansed
+        columns: [return_item_key]
+        on_violation: warn
+        test_id: "PERF-return_item-B02"
+
+  - flowgroup: loyalty_bronze
+    template_parameters:
+      entity_name: loyalty
+      source_table: loyalty_raw
+    actions:
+      - name: tst_loyalty_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_loyalty_cleansed
+        required_columns: [loyalty_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-loyalty-B01"
+      
+      - name: tst_loyalty_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_loyalty_cleansed
+        columns: [loyalty_key]
+        on_violation: warn
+        test_id: "PERF-loyalty-B02"
+
+  - flowgroup: gift_card_bronze
+    template_parameters:
+      entity_name: gift_card
+      source_table: gift_card_raw
+    actions:
+      - name: tst_gift_card_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_gift_card_cleansed
+        required_columns: [gift_card_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-gift_card-B01"
+      
+      - name: tst_gift_card_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_gift_card_cleansed
+        columns: [gift_card_key]
+        on_violation: warn
+        test_id: "PERF-gift_card-B02"
+
+  - flowgroup: shelf_bronze
+    template_parameters:
+      entity_name: shelf
+      source_table: shelf_raw
+    actions:
+      - name: tst_shelf_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_shelf_cleansed
+        required_columns: [shelf_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-shelf-B01"
+      
+      - name: tst_shelf_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_shelf_cleansed
+        columns: [shelf_key]
+        on_violation: warn
+        test_id: "PERF-shelf-B02"
+
+  - flowgroup: aisle_bronze
+    template_parameters:
+      entity_name: aisle
+      source_table: aisle_raw
+    actions:
+      - name: tst_aisle_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_aisle_cleansed
+        required_columns: [aisle_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-aisle-B01"
+      
+      - name: tst_aisle_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_aisle_cleansed
+        columns: [aisle_key]
+        on_violation: warn
+        test_id: "PERF-aisle-B02"
+
+  - flowgroup: price_tag_bronze
+    template_parameters:
+      entity_name: price_tag
+      source_table: price_tag_raw
+    actions:
+      - name: tst_price_tag_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_price_tag_cleansed
+        required_columns: [price_tag_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-price_tag-B01"
+      
+      - name: tst_price_tag_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_price_tag_cleansed
+        columns: [price_tag_key]
+        on_violation: warn
+        test_id: "PERF-price_tag-B02"
+
+  - flowgroup: barcode_bronze
+    template_parameters:
+      entity_name: barcode
+      source_table: barcode_raw
+    actions:
+      - name: tst_barcode_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_barcode_cleansed
+        required_columns: [barcode_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-barcode-B01"
+      
+      - name: tst_barcode_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_barcode_cleansed
+        columns: [barcode_key]
+        on_violation: warn
+        test_id: "PERF-barcode-B02"
+
+  - flowgroup: cashier_bronze
+    template_parameters:
+      entity_name: cashier
+      source_table: cashier_raw
+    actions:
+      - name: tst_cashier_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_cashier_cleansed
+        required_columns: [cashier_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-cashier-B01"
+      
+      - name: tst_cashier_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_cashier_cleansed
+        columns: [cashier_key]
+        on_violation: warn
+        test_id: "PERF-cashier-B02"
+
+  - flowgroup: register_bronze
+    template_parameters:
+      entity_name: register
+      source_table: register_raw
+    actions:
+      - name: tst_register_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_register_cleansed
+        required_columns: [register_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-register-B01"
+      
+      - name: tst_register_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_register_cleansed
+        columns: [register_key]
+        on_violation: warn
+        test_id: "PERF-register-B02"
+
+  - flowgroup: receipt_bronze
+    template_parameters:
+      entity_name: receipt
+      source_table: receipt_raw
+    actions:
+      - name: tst_receipt_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_receipt_cleansed
+        required_columns: [receipt_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-receipt-B01"
+      
+      - name: tst_receipt_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_receipt_cleansed
+        columns: [receipt_key]
+        on_violation: warn
+        test_id: "PERF-receipt-B02"
+
+  - flowgroup: stock_count_bronze
+    template_parameters:
+      entity_name: stock_count
+      source_table: stock_count_raw
+    actions:
+      - name: tst_stock_count_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_stock_count_cleansed
+        required_columns: [stock_count_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-stock_count-B01"
+      
+      - name: tst_stock_count_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_stock_count_cleansed
+        columns: [stock_count_key]
+        on_violation: warn
+        test_id: "PERF-stock_count-B02"
+
+  - flowgroup: reorder_bronze
+    template_parameters:
+      entity_name: reorder
+      source_table: reorder_raw
+    actions:
+      - name: tst_reorder_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_reorder_cleansed
+        required_columns: [reorder_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-reorder-B01"
+      
+      - name: tst_reorder_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_reorder_cleansed
+        columns: [reorder_key]
+        on_violation: warn
+        test_id: "PERF-reorder-B02"
+
+  - flowgroup: vendor_bronze
+    template_parameters:
+      entity_name: vendor
+      source_table: vendor_raw
+    actions:
+      - name: tst_vendor_bronze_completeness
+        type: test
+        test_type: completeness
+        source: v_vendor_cleansed
+        required_columns: [vendor_key, _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-vendor-B01"
+      
+      - name: tst_vendor_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: v_vendor_cleansed
+        columns: [vendor_key]
+        on_violation: warn
+        test_id: "PERF-vendor-B02"

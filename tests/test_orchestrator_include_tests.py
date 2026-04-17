@@ -303,21 +303,22 @@ actions:
     def test_empty_content_cleanup_removes_existing_file(self):
         """Test that empty content cleanup removes existing files."""
         from lhp.core.state_manager import StateManager
-        
-        # Set up output directory
-        output_dir = self.test_dir / "generated" / "test_pipeline"
-        output_dir.mkdir(parents=True)
-        
+
+        # Set up output directory matching the real CLI path structure: generated/{env}/{pipeline}
+        env_output_dir = self.test_dir / "generated" / "test"
+        pipeline_output_dir = env_output_dir / "test_pipeline"
+        pipeline_output_dir.mkdir(parents=True)
+
         # Create existing test file
-        test_file = output_dir / "test_only_flowgroup.py"
+        test_file = pipeline_output_dir / "test_only_flowgroup.py"
         test_file.write_text("# This was generated with include_tests=True")
         assert test_file.exists(), "Test file should exist initially"
-        
+
         # Create the source YAML file that would generate test-only content
         pipelines_dir = self.test_dir / "pipelines" / "test_pipeline"
         pipelines_dir.mkdir(parents=True, exist_ok=True)
         source_yaml = pipelines_dir / "test_only.yaml"
-        
+
         # Create a test-only flowgroup YAML
         test_yaml_content = """
 pipeline: test_pipeline
@@ -328,7 +329,7 @@ actions:
     query: "SELECT 1 as test"
 """
         source_yaml.write_text(test_yaml_content)
-        
+
         # Initialize state manager and track the existing file
         state_manager = StateManager(self.test_dir)
         state_manager.track_generated_file(
@@ -337,80 +338,48 @@ actions:
             environment="test",
             pipeline="test_pipeline",
             flowgroup="test_only_flowgroup",
-            generation_context="include_tests:True"
         )
-        
+
         # Verify file is tracked
         tracked_files = state_manager.get_generated_files("test")
         assert len(tracked_files) == 1, "File should be tracked initially"
-        
+
         # Generate without include_tests (should trigger empty content cleanup)
+        # output_dir should be generated/{env} to match real CLI behavior
         result = self.orchestrator.generate_pipeline_by_field(
             pipeline_field="test_pipeline",
             env="test",
-            output_dir=output_dir.parent,
+            output_dir=env_output_dir,
             state_manager=state_manager,
             include_tests=False
         )
-        
-        # Debug: Check what generation analysis finds
-        analysis = self.orchestrator.analyze_generation_requirements(
-            env="test",
-            pipeline_names=["test_pipeline"], 
-            include_tests=False,
-            force=False,
-            state_manager=state_manager
-        )
-        print(f"Generation analysis: {analysis}")
-        print(f"Pipelines needing generation: {analysis.pipelines_needing_generation}")
-        print(f"Pipelines up to date: {analysis.pipelines_up_to_date}")
-        print(f"Include tests context applied: {analysis.include_tests_context_applied}")
-        print(f"Total stale files: {analysis.total_stale_files}")
-        print(f"Detailed staleness: {analysis.detailed_staleness_info}")
-        
-        # Debug output
-        print(f"Generation result: {result}")
-        print(f"File still exists: {test_file.exists()}")
-        print(f"File content: {test_file.read_text() if test_file.exists() else 'File does not exist'}")
-        tracked_after = state_manager.get_generated_files("test")
-        print(f"Files tracked after generation: {len(tracked_after)}")
-        for path, info in tracked_after.items():
-            print(f"  - {path}")
-        
-        # TODO: CRITICAL BUG DISCOVERED - Context staleness detection not working!
-        # The file should be deleted due to context change (include_tests: True -> False)
-        # but our analysis shows include_tests_context_applied=False
-        # This indicates a bug in our context staleness implementation from Phase 1
-        
-        # Verify file was deleted and removed from state
-        # TEMPORARILY DISABLED - Real bug needs investigation
-        # assert not test_file.exists(), "Empty flowgroup file should be deleted"
-        # tracked_files = state_manager.get_generated_files("test")
-        # assert len(tracked_files) == 0, "File should be removed from state"
-        
-        # For now, just verify the test setup worked correctly
-        assert test_file.exists(), "File setup worked correctly - bug is in context staleness detection"
-        print("BUG IDENTIFIED: Context staleness detection not working - needs separate investigation")
+
+        # Context staleness detection should detect the include_tests change
+        # and regenerate the flowgroup, producing empty content (no non-test actions),
+        # which triggers empty content cleanup — deleting the file.
+        assert not test_file.exists(), "Empty flowgroup file should be deleted after context change"
+        tracked_files = state_manager.get_generated_files("test")
+        assert len(tracked_files) == 0, "File should be removed from state"
     
     def test_empty_content_cleanup_no_file_to_delete(self):
         """Test that empty content cleanup handles case when no file exists."""
         from lhp.core.state_manager import StateManager
-        
-        # Set up output directory
-        output_dir = self.test_dir / "generated" / "test_pipeline"
-        output_dir.mkdir(parents=True)
-        
+
+        # Set up output directory matching real CLI path: generated/{env}
+        env_output_dir = self.test_dir / "generated" / "test"
+        env_output_dir.mkdir(parents=True)
+
         # Don't create any existing files
         state_manager = StateManager(self.test_dir)
-        
+
         # Generate without include_tests (no files should be created or deleted)
         result = self.orchestrator.generate_pipeline_by_field(
             pipeline_field="test_pipeline",
             env="test",
-            output_dir=output_dir.parent,
+            output_dir=env_output_dir,
             state_manager=state_manager,
             include_tests=False
         )
-        
+
         # Should complete without errors
         assert result == {}, "Should return empty result for empty content"

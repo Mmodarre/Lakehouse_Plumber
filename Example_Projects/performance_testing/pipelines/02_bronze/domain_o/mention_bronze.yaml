@@ -1,0 +1,64 @@
+pipeline: domain_o_bronze
+flowgroup: mention_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: mention_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: mention_raw
+    target: v_mention_raw
+    description: "Load mention from raw schema"
+
+  - name: mention_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_mention_raw
+    target: v_mention_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as mention_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_mention_raw
+      WHERE 1=1
+
+  - name: mention_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_mention_bronze_cleaned
+    target: v_mention_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to mention"
+
+  - name: write_mention_bronze
+    type: write
+    source: v_mention_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "mention"
+
+  - name: tst_mention_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_mention_bronze_cleaned
+    required_columns: [mention_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-mention-B01"
+
+  - name: tst_mention_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_mention_bronze_cleaned
+    columns: [mention_key]
+    on_violation: warn
+    test_id: "PERF-mention-B02"

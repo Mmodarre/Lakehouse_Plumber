@@ -1,0 +1,64 @@
+pipeline: domain_k_bronze
+flowgroup: duty_free_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: duty_free_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: duty_free_raw
+    target: v_duty_free_raw
+    description: "Load duty_free from raw schema"
+
+  - name: duty_free_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_duty_free_raw
+    target: v_duty_free_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as duty_free_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_duty_free_raw
+      WHERE 1=1
+
+  - name: duty_free_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_duty_free_bronze_cleaned
+    target: v_duty_free_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to duty_free"
+
+  - name: write_duty_free_bronze
+    type: write
+    source: v_duty_free_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "duty_free"
+
+  - name: tst_duty_free_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_duty_free_bronze_cleaned
+    required_columns: [duty_free_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-duty_free-B01"
+
+  - name: tst_duty_free_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_duty_free_bronze_cleaned
+    columns: [duty_free_key]
+    on_violation: warn
+    test_id: "PERF-duty_free-B02"

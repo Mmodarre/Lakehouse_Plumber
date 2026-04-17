@@ -1,0 +1,24 @@
+pipeline: domain_m_bronze
+flowgroup: heartbeat_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: heartbeat
+  source_table: heartbeat_raw
+actions:
+  - name: tst_heartbeat_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_heartbeat_cleansed
+    required_columns: [heartbeat_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-heartbeat-B01"
+
+  - name: tst_heartbeat_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_heartbeat_cleansed
+    columns: [heartbeat_key]
+    on_violation: warn
+    test_id: "PERF-heartbeat-B02"

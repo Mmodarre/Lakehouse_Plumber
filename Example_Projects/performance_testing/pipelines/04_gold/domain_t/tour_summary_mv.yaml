@@ -1,0 +1,38 @@
+pipeline: domain_t_gold
+flowgroup: tour_summary_mv
+actions:
+  - name: tour_summary_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.tour_dim
+    target: v_tour_summary
+
+  - name: write_tour_summary_mv
+    type: write
+    source: v_tour_summary
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "tour_summary_mv"
+
+  - name: tst_tour_summary_completeness
+    type: test
+    test_type: completeness
+    source: v_tour_summary
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-tour-G01"
+
+  - name: tst_tour_summary_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tour_summary
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-tour-G02"

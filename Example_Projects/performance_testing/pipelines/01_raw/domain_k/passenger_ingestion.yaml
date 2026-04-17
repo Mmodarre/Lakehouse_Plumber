@@ -1,0 +1,47 @@
+pipeline: domain_k_raw
+flowgroup: passenger_ingestion
+presets:
+  - default_delta_properties
+actions:
+  - name: load_passenger_cloudfiles
+    type: load
+    operational_metadata:
+      - "_source_file_path"
+      - "_processing_timestamp"
+    source:
+      type: cloudfiles
+      path: "{landing_volume}/passenger/*.parquet"
+      format: parquet
+      options:
+        cloudFiles.format: parquet
+        cloudFiles.maxFilesPerTrigger: 50
+        cloudFiles.inferColumnTypes: True
+        cloudFiles.schemaEvolutionMode: "addNewColumns"
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+    target: v_passenger_cloudfiles
+    description: "Load passenger from landing volume"
+
+  - name: write_passenger_raw
+    type: write
+    source: v_passenger_cloudfiles
+    write_target:
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: "passenger_raw"
+
+  - name: tst_passenger_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_passenger_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-passenger-R01"
+
+  - name: tst_passenger_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_passenger_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-passenger-R02"

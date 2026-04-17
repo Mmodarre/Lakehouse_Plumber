@@ -1,0 +1,64 @@
+pipeline: domain_d_bronze
+flowgroup: pathology_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: pathology_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: pathology_raw
+    target: v_pathology_raw
+    description: "Load pathology from raw schema"
+
+  - name: pathology_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_pathology_raw
+    target: v_pathology_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as pathology_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_pathology_raw
+      WHERE 1=1
+
+  - name: pathology_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_pathology_bronze_cleaned
+    target: v_pathology_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to pathology"
+
+  - name: write_pathology_bronze
+    type: write
+    source: v_pathology_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "pathology"
+
+  - name: tst_pathology_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_pathology_bronze_cleaned
+    required_columns: [pathology_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-pathology-B01"
+
+  - name: tst_pathology_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_pathology_bronze_cleaned
+    columns: [pathology_key]
+    on_violation: warn
+    test_id: "PERF-pathology-B02"

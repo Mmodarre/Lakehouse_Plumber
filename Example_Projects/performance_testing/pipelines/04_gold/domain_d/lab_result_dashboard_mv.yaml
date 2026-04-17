@@ -1,0 +1,38 @@
+pipeline: domain_d_gold
+flowgroup: lab_result_dashboard_mv
+actions:
+  - name: lab_result_dashboard_sql
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _report_generated_at
+        FROM {catalog}.{silver_schema}.lab_result_dim
+    target: v_lab_result_dashboard
+
+  - name: write_lab_result_dashboard_mv
+    type: write
+    source: v_lab_result_dashboard
+    write_target:
+      type: materialized_view
+      catalog: "{catalog}"
+      schema: "{gold_schema}"
+      table: "lab_result_dashboard_mv"
+
+  - name: tst_lab_result_dashboard_completeness
+    type: test
+    test_type: completeness
+    source: v_lab_result_dashboard
+    required_columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-lab_result-G01"
+
+  - name: tst_lab_result_dashboard_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_lab_result_dashboard
+    columns: [_report_generated_at]
+    on_violation: warn
+    test_id: "PERF-lab_result-G02"

@@ -1,0 +1,64 @@
+pipeline: domain_f_bronze
+flowgroup: thesis_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: thesis_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: thesis_raw
+    target: v_thesis_raw
+    description: "Load thesis from raw schema"
+
+  - name: thesis_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_thesis_raw
+    target: v_thesis_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as thesis_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_thesis_raw
+      WHERE 1=1
+
+  - name: thesis_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_thesis_bronze_cleaned
+    target: v_thesis_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Apply data quality checks to thesis"
+
+  - name: write_thesis_bronze
+    type: write
+    source: v_thesis_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "thesis"
+
+  - name: tst_thesis_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_thesis_bronze_cleaned
+    required_columns: [thesis_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-thesis-B01"
+
+  - name: tst_thesis_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_thesis_bronze_cleaned
+    columns: [thesis_key]
+    on_violation: warn
+    test_id: "PERF-thesis-B02"

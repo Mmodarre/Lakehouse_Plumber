@@ -1,0 +1,101 @@
+pipeline: domain_i_bronze
+flowgroup: tolerance_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: tolerance_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: tolerance_raw
+    target: v_tolerance_raw
+    description: "Load tolerance from raw schema"
+
+  - name: tolerance_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_tolerance_raw
+    target: v_tolerance_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as tolerance_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_tolerance_raw
+
+  - name: tolerance_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_tolerance_bronze_cleaned
+    target: v_tolerance_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for tolerance bronze"
+
+  - name: write_tolerance_bronze
+    type: write
+    source: v_tolerance_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "tolerance"
+
+  - name: tolerance_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: tolerance_migration
+    target: v_tolerance_migration
+    description: "Load tolerance migration data"
+
+  - name: tolerance_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_tolerance_migration
+    target: v_tolerance_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as tolerance_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_tolerance_migration
+
+  - name: write_tolerance_migration
+    type: write
+    source: v_tolerance_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "tolerance"
+
+  - name: tst_tolerance_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_tolerance_bronze_cleaned
+    required_columns: [tolerance_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-tolerance-B01"
+
+  - name: tst_tolerance_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_tolerance_bronze_cleaned
+    columns: [tolerance_key]
+    on_violation: warn
+    test_id: "PERF-tolerance-B02"

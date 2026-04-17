@@ -5,8 +5,9 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from ...models.config import Action, ActionType, FlowGroup
+from ...models.config import Action, ActionType, FlowGroup, TransformType
 from ...utils.error_formatter import ErrorCategory, LHPError, LHPValidationError
+from ...utils.performance_timer import perf_timer
 from ...utils.source_extractor import extract_source_views_from_action
 from ...utils.substitution import EnhancedSubstitutionManager
 
@@ -71,14 +72,16 @@ class CodeGenerator:
         Returns:
             Complete Python code for the flowgroup
         """
+        fg = flowgroup.flowgroup
         self.logger.debug(
-            f"Starting code generation for flowgroup '{flowgroup.flowgroup}' in pipeline '{flowgroup.pipeline}'"
+            f"Starting code generation for flowgroup '{fg}' in pipeline '{flowgroup.pipeline}'"
         )
 
         # 1. Resolve action dependencies
-        ordered_actions = self.dependency_resolver.resolve_dependencies(
-            flowgroup.actions
-        )
+        with perf_timer(f"resolve_dependencies [{fg}]"):
+            ordered_actions = self.dependency_resolver.resolve_dependencies(
+                flowgroup.actions
+            )
         self.logger.debug(
             f"Resolved action ordering: {[a.name for a in ordered_actions]} ({len(ordered_actions)} actions)"
         )
@@ -88,7 +91,7 @@ class CodeGenerator:
         if flowgroup.presets:
             preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
             self.logger.debug(
-                f"Resolved preset chain for flowgroup '{flowgroup.flowgroup}': {flowgroup.presets}"
+                f"Resolved preset chain for flowgroup '{fg}': {flowgroup.presets}"
             )
 
         # 3. Check for test-only flowgroups when include_tests is False
@@ -99,35 +102,35 @@ class CodeGenerator:
             if not non_test_actions:
                 # This is a test-only flowgroup, skip entirely
                 self.logger.info(
-                    f"Skipping test-only flowgroup: {flowgroup.flowgroup} (--include-tests not specified)"
+                    f"Skipping test-only flowgroup: {fg} (--include-tests not specified)"
                 )
                 return ""  # Return empty string to skip this flowgroup
 
         # 4. Generate code sections
-        generated_sections, all_imports, custom_source_sections = (
-            self._generate_action_sections(
-                flowgroup,
-                ordered_actions,
-                substitution_mgr,
-                preset_config,
-                output_dir,
-                state_manager,
-                source_yaml,
-                env,
-                include_tests,
-                python_file_copier,
+        with perf_timer(f"generate_action_sections [{fg}]"):
+            generated_sections, all_imports, custom_source_sections = (
+                self._generate_action_sections(
+                    flowgroup,
+                    ordered_actions,
+                    substitution_mgr,
+                    preset_config,
+                    output_dir,
+                    state_manager,
+                    source_yaml,
+                    env,
+                    include_tests,
+                    python_file_copier,
+                )
             )
-        )
 
-        # 5. Apply secret substitutions to generated code
-        complete_code = self._apply_secret_substitutions(
-            generated_sections, substitution_mgr
-        )
-
-        # 6. Assemble final code with imports and headers
-        return self._assemble_final_code(
-            flowgroup, all_imports, custom_source_sections, complete_code
-        )
+        # 5-6. Apply secret substitutions and assemble final code
+        with perf_timer(f"assemble_code [{fg}]"):
+            complete_code = self._apply_secret_substitutions(
+                generated_sections, substitution_mgr
+            )
+            return self._assemble_final_code(
+                flowgroup, all_imports, custom_source_sections, complete_code
+            )
 
     def _generate_action_sections(
         self,
@@ -159,7 +162,6 @@ class CodeGenerator:
         # Define section headers
         section_headers = {
             ActionType.LOAD: "SOURCE VIEWS",
-            ActionType.TRANSFORM: "TRANSFORMATION VIEWS",
             ActionType.WRITE: "TARGET TABLES",
             ActionType.TEST: "DATA QUALITY TESTS",
         }
@@ -173,9 +175,61 @@ class CodeGenerator:
             f"Action type groups: {{{', '.join(f'{t.value}: {len(action_groups[t])}' for t in action_groups)}}}"
         )
 
+        common_kwargs = dict(
+            flowgroup=flowgroup,
+            substitution_mgr=substitution_mgr,
+            preset_config=preset_config,
+            output_dir=output_dir,
+            state_manager=state_manager,
+            source_yaml=source_yaml,
+            env=env,
+            python_file_copier=python_file_copier,
+        )
+
         for action_type in action_types:
-            if action_type in action_groups:
-                # Add section header
+            if action_type not in action_groups:
+                continue
+
+            if action_type == ActionType.TRANSFORM:
+                # Partition transforms into regular and data quality
+                regular_transforms = [
+                    a
+                    for a in action_groups[ActionType.TRANSFORM]
+                    if a.transform_type != TransformType.DATA_QUALITY
+                ]
+                dq_transforms = [
+                    a
+                    for a in action_groups[ActionType.TRANSFORM]
+                    if a.transform_type == TransformType.DATA_QUALITY
+                ]
+
+                if regular_transforms:
+                    section_header = f"""
+# {"=" * 76}
+# TRANSFORMATION VIEWS
+# {"=" * 76}"""
+                    generated_sections.append(section_header)
+                    sections, imports, custom = self._generate_regular_actions(
+                        regular_transforms, **common_kwargs
+                    )
+                    generated_sections.extend(sections)
+                    all_imports.update(imports)
+                    custom_source_sections.extend(custom)
+
+                if dq_transforms:
+                    section_header = f"""
+# {"=" * 76}
+# DATA QUALITY & QUARANTINE
+# {"=" * 76}"""
+                    generated_sections.append(section_header)
+                    sections, imports, custom = self._generate_dq_actions(
+                        dq_transforms, **common_kwargs
+                    )
+                    generated_sections.extend(sections)
+                    all_imports.update(imports)
+                    custom_source_sections.extend(custom)
+            else:
+                # Non-transform action types
                 header_text = section_headers.get(action_type, str(action_type).upper())
                 section_header = f"""
 # {"=" * 76}
@@ -183,30 +237,13 @@ class CodeGenerator:
 # {"=" * 76}"""
                 generated_sections.append(section_header)
 
-                # Generate actions for this type
                 if action_type == ActionType.WRITE:
                     sections, imports, custom = self._generate_write_actions(
-                        action_groups[action_type],
-                        flowgroup,
-                        substitution_mgr,
-                        preset_config,
-                        output_dir,
-                        state_manager,
-                        source_yaml,
-                        env,
-                        python_file_copier,
+                        action_groups[action_type], **common_kwargs
                     )
                 else:
                     sections, imports, custom = self._generate_regular_actions(
-                        action_groups[action_type],
-                        flowgroup,
-                        substitution_mgr,
-                        preset_config,
-                        output_dir,
-                        state_manager,
-                        source_yaml,
-                        env,
-                        python_file_copier,
+                        action_groups[action_type], **common_kwargs
                     )
 
                 generated_sections.extend(sections)
@@ -320,6 +357,86 @@ class CodeGenerator:
 
         for action in actions:
             try:
+                # Determine action sub-type
+                sub_type = self.determine_action_subtype(action)
+
+                # Get generator
+                generator = self.action_registry.get_generator(action.type, sub_type)
+
+                # Generate code
+                context = self._build_generation_context(
+                    flowgroup,
+                    substitution_mgr,
+                    preset_config,
+                    output_dir,
+                    state_manager,
+                    source_yaml,
+                    env,
+                    python_file_copier,
+                )
+                action_code = generator.generate(action, context)
+                sections.append(action_code)
+
+                # Collect imports and custom sources
+                section_imports, section_custom = self._collect_generator_outputs(
+                    generator
+                )
+                imports.update(section_imports)
+                custom_sources.extend(section_custom)
+
+            except LHPError:
+                raise  # Re-raise LHPError as-is
+            except Exception as e:
+                raise LHPError(
+                    category=ErrorCategory.ACTION,
+                    code_number="002",
+                    title=f"Action code generation failed for '{action.name}'",
+                    details=f"Error generating code for action '{action.name}': {e}",
+                    suggestions=[
+                        "Check the action configuration for errors",
+                        "Verify source and target references are correct",
+                        "Run 'lhp validate' for detailed diagnostics",
+                    ],
+                    context={
+                        "Action": action.name,
+                        "Action Type": str(action.type),
+                    },
+                ) from e
+
+        return sections, imports, custom_sources
+
+    def _generate_dq_actions(
+        self,
+        actions: List[Action],
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+        preset_config: Dict[str, Any],
+        output_dir: Optional[Path],
+        state_manager,
+        source_yaml: Optional[Path],
+        env: Optional[str],
+        python_file_copier=None,
+    ) -> Tuple[List[str], Set[str], List[Dict]]:
+        """Generate code for data quality actions with sub-headers."""
+        sections = []
+        imports = set()
+        custom_sources = []
+
+        for action in actions:
+            try:
+                # Build sub-header based on DQ mode
+                source = action.source if isinstance(action.source, str) else "source"
+                target = action.target or "target"
+                mode = getattr(action, "mode", None) or "dqe"
+
+                if mode == "quarantine":
+                    sub_header_text = f"Quarantine: {source} \u2192 {target}"
+                else:
+                    sub_header_text = f"Expectations: {source} \u2192 {target}"
+
+                sub_header = f"\n# {'-' * 76}\n# {sub_header_text}\n# {'-' * 76}"
+                sections.append(sub_header)
+
                 # Determine action sub-type
                 sub_type = self.determine_action_subtype(action)
 
@@ -581,11 +698,12 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                 target_config = action.source if isinstance(action.source, dict) else {}
 
             # Build full table name
-            database = target_config.get("database", "")
+            catalog = target_config.get("catalog", "")
+            schema = target_config.get("schema", "")
             table = target_config.get("table") or target_config.get("name", "")
 
-            if database and table:
-                full_table_name = f"{database}.{table}"
+            if catalog and schema and table:
+                full_table_name = f"{catalog}.{schema}.{table}"
             elif table:
                 full_table_name = table
             else:
@@ -641,6 +759,9 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                 else base_flow_name
             )
 
+            # Per-flow CDC params (only populated for CDC-mode contributors)
+            flow_cdc_config = self._build_flow_cdc_config(action)
+
             if len(source_views_for_action) > 1:
                 # Multiple sources in this action: create separate append flow for each
                 for i, source_view in enumerate(source_views_for_action):
@@ -654,6 +775,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                             "flow_name": flow_name,
                             "description": action.description
                             or f"Append flow to {target_table} from {source_view}",
+                            "flow_cdc_config": flow_cdc_config,
                         }
                     )
             else:
@@ -670,6 +792,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                         "flow_name": base_flow_name,
                         "description": action.description
                         or f"Append flow to {target_table}",
+                        "flow_cdc_config": flow_cdc_config,
                     }
                 )
 
@@ -721,3 +844,21 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
             List of source view names
         """
         return extract_source_views_from_action(source)
+
+    def _build_flow_cdc_config(self, action: Action) -> Dict[str, Any]:
+        """Build the per-flow CDC config dict for a contributing action.
+
+        Returns an empty dict for non-CDC actions so the template can safely
+        index into it without branching on mode.
+        """
+        wt = action.write_target
+        if not isinstance(wt, dict) or wt.get("mode") != "cdc":
+            return {}
+        ac = wt.get("cdc_config", {}) or {}
+        return {
+            "ignore_null_updates": ac.get("ignore_null_updates"),
+            "apply_as_deletes": ac.get("apply_as_deletes"),
+            "apply_as_truncates": ac.get("apply_as_truncates"),
+            "column_list": ac.get("column_list"),
+            "except_column_list": ac.get("except_column_list"),
+        }

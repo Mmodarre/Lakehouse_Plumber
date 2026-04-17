@@ -1,0 +1,24 @@
+pipeline: domain_n_bronze
+flowgroup: loss_report_bronze
+presets:
+  - default_delta_properties
+use_template: bronze_cleanse_template
+template_parameters:
+  entity_name: loss_report
+  source_table: loss_report_raw
+actions:
+  - name: tst_loss_report_bronze_completeness
+    type: test
+    test_type: completeness
+    source: v_loss_report_cleansed
+    required_columns: [loss_report_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-loss_report-B01"
+
+  - name: tst_loss_report_bronze_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_loss_report_cleansed
+    columns: [loss_report_key]
+    on_violation: warn
+    test_id: "PERF-loss_report-B02"

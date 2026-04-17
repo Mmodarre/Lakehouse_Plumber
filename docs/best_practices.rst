@@ -10,9 +10,6 @@ environments. These best practices correlate Databricks Lakeflow Declarative Pip
 conventions, enterprise configuration-framework patterns, and LHP-specific capabilities.
 
 
-.. contents:: Table of Contents
-   :local:
-   :depth: 2
 
 
 1. Project Structure & Organisation
@@ -161,6 +158,9 @@ Subdirectory Support Matrix
      - ``.yaml`` only
      - One file per environment
 
+.. |sup1| replace:: :sup:`1`
+
+:sup:`1` ``.yml`` extension is also accepted but ``.yaml`` is recommended for consistency.
 
 .. _bp-2-1:
 
@@ -528,7 +528,7 @@ so clarity matters.
 BP-3.5: Use SCREAMING_SNAKE_CASE for environment tokens
 --------------------------------------------------------
 
-Environment tokens (``{SOURCE_CATALOG}``, ``${LANDING_PATH}``) are resolved from
+Environment tokens (``${SOURCE_CATALOG}``, ``${LANDING_PATH}``) are resolved from
 substitution files. Local variables (``%{table_name}``, ``%{source_schema}``) are
 flowgroup-scoped. The case distinction makes it immediately clear which resolution
 mechanism applies.
@@ -727,8 +727,8 @@ Quick Reference Table
      - ``<flowgroup_name>.py``
      - ``erp_brz_raw_orders.py``
    * - Env tokens
-     - ``{SCREAMING_SNAKE_CASE}``
-     - ``{SOURCE_CATALOG}``
+     - ``${SCREAMING_SNAKE_CASE}``
+     - ``${SOURCE_CATALOG}``
    * - Local variables
      - ``%{lower_snake_case}``
      - ``%{table_suffix}``
@@ -929,7 +929,7 @@ BP-6.1: Use directory-based environment separation
 
 Maintain ``substitutions/dev.yaml``, ``substitutions/staging.yaml``,
 ``substitutions/prod.yaml``. All environments are visible on the same branch. LHP resolves
-``{token}`` and ``${token}`` patterns from these files.
+``${token}`` patterns from these files.
 
 .. _bp-6-2:
 
@@ -947,10 +947,10 @@ iterations), so you can compose:
      catalog_prefix: main
 
    dev:
-     catalog: "{catalog_prefix}_dev"
+     catalog: "${catalog_prefix}_dev"
 
    prod:
-     catalog: "{catalog_prefix}_prod"
+     catalog: "${catalog_prefix}_prod"
 
 .. _bp-6-3:
 
@@ -994,10 +994,10 @@ Standard token set for a medallion project:
    :caption: Medallion substitution tokens
 
    global:
-     bronze_catalog: "{catalog_prefix}_bronze"
-     silver_catalog: "{catalog_prefix}_silver"
-     gold_catalog: "{catalog_prefix}_gold"
-     landing_path_base: "abfss://landing@{storage_account}.dfs.core.windows.net"
+     bronze_catalog: "${catalog_prefix}_bronze"
+     silver_catalog: "${catalog_prefix}_silver"
+     gold_catalog: "${catalog_prefix}_gold"
+     landing_path_base: "abfss://landing@${storage_account}.dfs.core.windows.net"
 
 .. seealso::
    :doc:`substitutions` for the full substitution processing order and syntax.
@@ -1029,7 +1029,7 @@ BP-7.2: Prefer local variables over hardcoded values
    actions:
      - name: load_%{entity}
        source:
-         table: "{BRONZE_CATALOG}.%{source_schema}.%{entity}"
+         table: "${BRONZE_CATALOG}.%{source_schema}.%{entity}"
 
 .. _bp-7-3:
 
@@ -1037,7 +1037,7 @@ BP-7.3: Do not use local variables for environment-specific values
 ------------------------------------------------------------------
 
 ``%{var}`` is scoped to a single flowgroup and resolved at parse time. Environment-specific
-values belong in substitution tokens (``{TOKEN}``) which are resolved per environment.
+values belong in substitution tokens (``${TOKEN}``) which are resolved per environment.
 
 .. seealso::
    :doc:`substitutions` for details on local variables and environment tokens.
@@ -1116,7 +1116,7 @@ LHP's CloudFiles generator supports all Auto Loader options. In production, alwa
 
    source:
      type: cloudfiles
-     path: "{LANDING_PATH}/orders/"
+     path: "${LANDING_PATH}/orders/"
      format: json
      options:
        cloudFiles.schemaEvolutionMode: rescue
@@ -1144,7 +1144,7 @@ BP-9.3: Use full three-part names via substitution tokens for Delta loads
 
    source:
      type: delta
-     catalog: "{SILVER_CATALOG}"
+     catalog: "${SILVER_CATALOG}"
      database: "orders"
      table: "validated_orders"
 
@@ -1391,7 +1391,7 @@ subtypes are available:
      type: sink
      sink_type: kafka
      sink_config:
-       kafka.bootstrap.servers: "{KAFKA_BROKERS}"
+       kafka.bootstrap.servers: "${KAFKA_BROKERS}"
        topic: "enriched_orders"
 
 Use sinks when data must leave the lakehouse — for downstream consumers, event buses, or
@@ -1415,6 +1415,9 @@ BP-12.1: Tier expectations by medallion layer
 
 LHP's DQE parser supports ``failureAction: fail|drop|warn`` in expectation files and
 generates the appropriate decorators.
+
+.. seealso::
+   For configuring quarantine mode in LHP, see :doc:`quarantine`.
 
 .. _bp-12-2:
 
@@ -1443,6 +1446,9 @@ LHP's 9 test action types (``row_count``, ``uniqueness``, ``referential_integrit
 ``completeness``, ``range``, ``schema_match``, ``all_lookups_found``, ``custom_sql``,
 ``custom_expectations``) generate SQL-based validation views. Use ``--include-tests`` flag
 to generate them. Always run these in staging before production deployment.
+
+To publish test results to external systems like Azure DevOps or a Delta audit table,
+see :doc:`actions/test_reporting`.
 
 .. seealso::
    :doc:`actions/test_actions` for the full test action specification.
@@ -1633,12 +1639,12 @@ BP-15.4: Layer your CI validation pipeline
 
 .. _bp-16-1:
 
-BP-16.1: Commit ``.lhp_state.json`` to version control
+BP-16.1: DO NOT Commit ``.lhp_state.json`` to version control
 -------------------------------------------------------
 
 LHP's state tracking enables smart regeneration — only files whose source YAML,
 dependencies, or generation context changed are regenerated. This significantly speeds up
-``lhp generate`` for large projects.
+``lhp generate`` for large projects but must not be committed to source control
 
 .. _bp-16-2:
 

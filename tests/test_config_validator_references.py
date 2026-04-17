@@ -163,7 +163,8 @@ class TestConfigValidatorReferences:
                         source="v_source1",
                         write_target={
                             "type": "streaming_table",
-                            "database": "test",
+                            "catalog": "test_cat",
+                            "schema": "test",
                             "table": "duplicate_table",
                             "create_table": True
                         }
@@ -174,7 +175,8 @@ class TestConfigValidatorReferences:
                         source="v_source2",
                         write_target={
                             "type": "streaming_table",
-                            "database": "test",
+                            "catalog": "test_cat",
+                            "schema": "test",
                             "table": "duplicate_table",
                             "create_table": True
                         }
@@ -201,7 +203,8 @@ class TestConfigValidatorReferences:
                         source="v_source1",
                         write_target={
                             "type": "streaming_table",
-                            "database": "test",
+                            "catalog": "test_cat",
+                            "schema": "test",
                             "table": "no_creator_table",
                             "create_table": False
                         }
@@ -225,7 +228,8 @@ class TestConfigValidatorReferences:
                         source="v_source1",
                         write_target={
                             "type": "streaming_table",
-                            "database": "test",
+                            "catalog": "test_cat",
+                            "schema": "test",
                             "table": "valid_table",
                             "create_table": True
                         }
@@ -236,7 +240,8 @@ class TestConfigValidatorReferences:
                         source="v_source2",
                         write_target={
                             "type": "streaming_table",
-                            "database": "test",
+                            "catalog": "test_cat",
+                            "schema": "test",
                             "table": "valid_table",
                             "create_table": False
                         }

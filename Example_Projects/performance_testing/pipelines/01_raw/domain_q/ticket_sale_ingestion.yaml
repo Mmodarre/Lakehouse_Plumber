@@ -1,0 +1,25 @@
+pipeline: domain_q_raw
+flowgroup: ticket_sale_ingestion
+presets:
+  - default_delta_properties
+use_template: csv_ingestion_template
+template_parameters:
+  table_name: ticket_sale_raw
+  landing_folder: ticket_sale
+  schema_file: partsupp_schema
+actions:
+  - name: tst_ticket_sale_raw_completeness
+    type: test
+    test_type: completeness
+    source: v_ticket_sale_raw_cloudfiles
+    required_columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ticket_sale-R01"
+
+  - name: tst_ticket_sale_raw_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_ticket_sale_raw_cloudfiles
+    columns: [_processing_timestamp]
+    on_violation: warn
+    test_id: "PERF-ticket_sale-R02"

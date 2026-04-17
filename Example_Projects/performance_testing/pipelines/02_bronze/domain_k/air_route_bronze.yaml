@@ -1,0 +1,101 @@
+pipeline: domain_k_bronze
+flowgroup: air_route_bronze
+presets:
+  - default_delta_properties
+actions:
+  - name: air_route_raw_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: stream
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: air_route_raw
+    target: v_air_route_raw
+    description: "Load air_route from raw schema"
+
+  - name: air_route_bronze_cleanse
+    type: transform
+    transform_type: sql
+    source: v_air_route_raw
+    target: v_air_route_bronze_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as air_route_key,
+        *,
+        current_timestamp() as _etl_timestamp
+      FROM v_air_route_raw
+
+  - name: air_route_bronze_dqe
+    type: transform
+    transform_type: data_quality
+    source: v_air_route_bronze_cleaned
+    target: v_air_route_bronze_dqe
+    readMode: stream
+    expectations_file: "expectations/generic_quality.json"
+    description: "Data quality for air_route bronze"
+
+  - name: write_air_route_bronze
+    type: write
+    source: v_air_route_bronze_dqe
+    write_target:
+      create_table: true
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "air_route"
+
+  - name: air_route_migration_load
+    type: load
+    operational_metadata: ["_processing_timestamp"]
+    readMode: batch
+    source:
+      type: delta
+      catalog: "{catalog}"
+      schema: "{raw_schema}"
+      table: air_route_migration
+    target: v_air_route_migration
+    description: "Load air_route migration data"
+
+  - name: air_route_migration_cleanse
+    type: transform
+    transform_type: sql
+    readMode: batch
+    source: v_air_route_migration
+    target: v_air_route_migration_cleaned
+    sql: |
+      SELECT
+        xxhash64(*) as air_route_key,
+        *,
+        'MIGRATION' as _source_file_path,
+        current_timestamp() as _etl_timestamp
+      FROM v_air_route_migration
+
+  - name: write_air_route_migration
+    type: write
+    source: v_air_route_migration_cleaned
+    readMode: batch
+    once: true
+    write_target:
+      create_table: false
+      type: streaming_table
+      catalog: "{catalog}"
+      schema: "{bronze_schema}"
+      table: "air_route"
+
+  - name: tst_air_route_bronze_mig_completeness
+    type: test
+    test_type: completeness
+    source: v_air_route_bronze_cleaned
+    required_columns: [air_route_key, _etl_timestamp]
+    on_violation: warn
+    test_id: "PERF-air_route-B01"
+
+  - name: tst_air_route_bronze_mig_uniqueness
+    type: test
+    test_type: uniqueness
+    source: v_air_route_bronze_cleaned
+    columns: [air_route_key]
+    on_violation: warn
+    test_id: "PERF-air_route-B02"
