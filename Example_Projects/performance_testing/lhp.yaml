@@ -4,14 +4,14 @@ version: "1.0"
 description: "Performance testing project - 4000 flowgroups across 5 pipelines and 20 domains"
 author: "Performance Testing"
 created_date: "2026-04-08"
-required_lhp_version: ">=0.5.0,<0.8.0"
+required_lhp_version: ">=0.5.0,<0.9.0"
 
 # Use include patterns to select subsets for targeted testing
 # Uncomment specific patterns to test with smaller subsets:
 
-# include:
+include:
   # --- By domain (each ~100 flowgroups) ---
-  # - "*/domain_a/**"
+  - "*/domain_a/**"
   # - "*/domain_b/**"
   # - "*/domain_c/**"
   # - "*/domain_d/**"
@@ -83,3 +83,12 @@ operational_metadata:
       expression: "F.current_timestamp()"
       description: "When the record was processed by the pipeline"
       applies_to: ["streaming_table", "materialized_view", "view"]
+
+# event_log:
+#   catalog: "{catalog}"
+#   schema: _meta
+#   name_suffix: "_event_log"
+
+# monitoring: 
+#   checkpoint_path: "dddd"
+#   # materialized_views: []
