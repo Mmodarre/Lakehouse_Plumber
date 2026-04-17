@@ -203,7 +203,7 @@ LHP-CFG-008: Invalid Monitoring Configuration
 
 **When it occurs:** The ``monitoring`` section in ``lhp.yaml`` is not a valid YAML mapping,
 its field values have incorrect types, or it fails cross-validation with the ``event_log``
-section. This error code covers three monitoring validation scenarios:
+section. This error code covers several monitoring validation scenarios:
 
 **Scenario 1: monitoring is not a mapping**
 
@@ -217,7 +217,8 @@ section. This error code covers three monitoring validation scenarios:
    :caption: After (fixed)
 
    # lhp.yaml
-   monitoring: {}                      # Empty mapping = all defaults
+   monitoring:
+     checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 
 **Scenario 2: materialized_views is not a list**
 
@@ -226,6 +227,7 @@ section. This error code covers three monitoring validation scenarios:
 
    # lhp.yaml
    monitoring:
+     checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
      materialized_views: "events_summary"   # String, but a list is expected
 
 .. code-block:: yaml
@@ -233,6 +235,7 @@ section. This error code covers three monitoring validation scenarios:
 
    # lhp.yaml
    monitoring:
+     checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
      materialized_views:
        - name: "events_summary"
          sql: "SELECT * FROM all_pipelines_event_log"
@@ -244,7 +247,8 @@ section. This error code covers three monitoring validation scenarios:
 
    # lhp.yaml
    # event_log is missing or disabled!
-   monitoring: {}
+   monitoring:
+     checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 
 .. code-block:: yaml
    :caption: After (fixed) — add event_log
@@ -255,7 +259,8 @@ section. This error code covers three monitoring validation scenarios:
      schema: _meta
      name_suffix: "_event_log"
 
-   monitoring: {}
+   monitoring:
+     checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 
 .. code-block:: yaml
    :caption: Alternative fix — disable monitoring
@@ -263,6 +268,31 @@ section. This error code covers three monitoring validation scenarios:
    # lhp.yaml
    monitoring:
      enabled: false
+
+**Scenario 4: monitoring.checkpoint_path is missing**
+
+``checkpoint_path`` is required whenever ``monitoring.enabled`` is ``true``. Each
+streaming query in the generated union notebook writes to its own checkpoint directory
+at ``{checkpoint_path}/{pipeline_name}/``.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-008)
+
+   # lhp.yaml
+   event_log:
+     catalog: "${catalog}"
+     schema: _meta
+   monitoring: {}      # Missing checkpoint_path
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml
+   event_log:
+     catalog: "${catalog}"
+     schema: _meta
+   monitoring:
+     checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 
 **Additional validation (all LHP-CFG-008):**
 
