@@ -230,9 +230,7 @@ class CodeGenerator:
                     custom_source_sections.extend(custom)
             else:
                 # Non-transform action types
-                header_text = section_headers.get(
-                    action_type, str(action_type).upper()
-                )
+                header_text = section_headers.get(action_type, str(action_type).upper())
                 section_header = f"""
 # {"=" * 76}
 # {header_text}
@@ -761,6 +759,9 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                 else base_flow_name
             )
 
+            # Per-flow CDC params (only populated for CDC-mode contributors)
+            flow_cdc_config = self._build_flow_cdc_config(action)
+
             if len(source_views_for_action) > 1:
                 # Multiple sources in this action: create separate append flow for each
                 for i, source_view in enumerate(source_views_for_action):
@@ -774,6 +775,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                             "flow_name": flow_name,
                             "description": action.description
                             or f"Append flow to {target_table} from {source_view}",
+                            "flow_cdc_config": flow_cdc_config,
                         }
                     )
             else:
@@ -790,6 +792,7 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
                         "flow_name": base_flow_name,
                         "description": action.description
                         or f"Append flow to {target_table}",
+                        "flow_cdc_config": flow_cdc_config,
                     }
                 )
 
@@ -841,3 +844,21 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
             List of source view names
         """
         return extract_source_views_from_action(source)
+
+    def _build_flow_cdc_config(self, action: Action) -> Dict[str, Any]:
+        """Build the per-flow CDC config dict for a contributing action.
+
+        Returns an empty dict for non-CDC actions so the template can safely
+        index into it without branching on mode.
+        """
+        wt = action.write_target
+        if not isinstance(wt, dict) or wt.get("mode") != "cdc":
+            return {}
+        ac = wt.get("cdc_config", {}) or {}
+        return {
+            "ignore_null_updates": ac.get("ignore_null_updates"),
+            "apply_as_deletes": ac.get("apply_as_deletes"),
+            "apply_as_truncates": ac.get("apply_as_truncates"),
+            "column_list": ac.get("column_list"),
+            "except_column_list": ac.get("except_column_list"),
+        }

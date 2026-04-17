@@ -1,6 +1,7 @@
 """Action validators package."""
 
 from .base_validator import BaseActionValidator
+from .cdc_fanin_compatibility_validator import CdcFanInCompatibilityValidator
 from .load_validator import LoadActionValidator
 from .transform_validator import TransformActionValidator
 from .write_validator import WriteActionValidator
@@ -9,6 +10,7 @@ from .table_creation_validator import TableCreationValidator
 
 __all__ = [
     "BaseActionValidator",
+    "CdcFanInCompatibilityValidator",
     "LoadActionValidator",
     "TransformActionValidator",
     "WriteActionValidator",

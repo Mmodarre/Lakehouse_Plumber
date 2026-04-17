@@ -938,6 +938,47 @@ class ActionOrchestrator:
                 context={"Pipeline": pipeline_field},
             )
 
+        # 4b. Validate CDC fan-in compatibility (runs after table-creation check).
+        # Re-raise LHPError (including LHPConfigError from the validator's
+        # field-mismatch path) as-is so the rich error message reaches the user.
+        try:
+            with perf_timer("validate_cdc_fanin_compatibility"):
+                cdc_errors = self.config_validator.validate_cdc_fanin_compatibility(
+                    processed_flowgroups
+                )
+            if cdc_errors:
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="010",
+                    title="CDC fan-in compatibility validation failed",
+                    details="CDC fan-in compatibility validation failed:\n"
+                    + "\n".join(f"  - {e}" for e in cdc_errors),
+                    suggestions=[
+                        "All CDC actions sharing a target must agree on "
+                        "table-level and CDC-key fields (keys, sequence_by, "
+                        "stored_as_scd_type, track_history_*, "
+                        "partition_columns, table_properties, etc.)",
+                        "Fields allowed to differ per flow: source, once, "
+                        "ignore_null_updates, apply_as_deletes, "
+                        "apply_as_truncates, column_list, except_column_list",
+                        "Run 'lhp validate' for detailed diagnostics",
+                    ],
+                    context={
+                        "Pipeline": pipeline_field,
+                        "Error Count": len(cdc_errors),
+                    },
+                )
+        except LHPError:
+            raise
+        except Exception as e:
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="010",
+                title="CDC fan-in compatibility validation failed",
+                details=f"CDC fan-in validation failed:\n  - {str(e)}",
+                context={"Pipeline": pipeline_field},
+            )
+
         # 5. Generate code for each flowgroup
         generated_files = {}
 
@@ -1546,7 +1587,9 @@ class ActionOrchestrator:
                 # Propagate private attributes that don't survive model_dump/reconstruct
                 if flowgroup._auxiliary_files:
                     processed_fg._auxiliary_files = flowgroup._auxiliary_files
-                processed_fg._has_original_test_actions = flowgroup._has_original_test_actions
+                processed_fg._has_original_test_actions = (
+                    flowgroup._has_original_test_actions
+                )
                 processed.append(processed_fg)
             except Exception as e:
                 self.logger.debug(
@@ -1873,6 +1916,17 @@ class ActionOrchestrator:
                         exc_info=True,
                     )
                     errors.append(f"Flowgroup '{flowgroup.flowgroup}': {e}")
+
+            # Cross-flowgroup CDC fan-in compatibility check.
+            # Runs even if per-flowgroup errors exist, because a mismatch
+            # only shows up when multiple flowgroups are considered together.
+            try:
+                cdc_errors = self.config_validator.validate_cdc_fanin_compatibility(
+                    flowgroups
+                )
+                errors.extend(cdc_errors)
+            except LHPError as e:
+                errors.append(f"CDC fan-in validation: {e}")
 
         except Exception as e:
             self.logger.debug("Pipeline validation failed", exc_info=True)
