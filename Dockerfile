@@ -15,7 +15,11 @@
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS frontend-builder
 
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+
 WORKDIR /build
+
+RUN npm config set registry "$NPM_REGISTRY"
 
 # Copy package files first for layer caching
 COPY web_app/package.json web_app/package-lock.json ./
@@ -31,6 +35,10 @@ RUN npm run build
 # Stage 2: Python runtime
 # ---------------------------------------------------------------------------
 FROM python:3.12.12-slim AS runtime
+
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 # System dependencies: git (for GitPython), curl (for healthcheck),
 # ca-certificates (for HTTPS), gnupg (for NodeSource GPG key)
@@ -49,7 +57,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 
 # Install OpenCode globally
 # Note: npm package is "opencode-ai", binary is "opencode" (see deploy/DEPLOY_LESSONS_LEARNED.md #3)
-RUN npm install -g opencode-ai@1.2.15
+RUN npm config set registry "$NPM_REGISTRY" \
+    && npm install -g opencode-ai@1.3.17
 
 # Patch vulnerable transitive npm dependencies (9 HIGH + 2 LOW CVEs)
 # Creates a temp package.json with overrides in the global node_modules dir

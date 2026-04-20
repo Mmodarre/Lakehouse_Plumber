@@ -54,10 +54,7 @@ dev = [
     "liccheck>=0.9.0",
     "pre-commit>=3.0.0",
 ]
-notebook = [
-    "ipython>=7.0.0",
-    "jupyter>=1.0.0",
-]
+
 api = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
