@@ -1,0 +1,99 @@
+# ==============================================================================
+# LakehousePlumber Monitoring Job Configuration
+# ==============================================================================
+#
+# This file describes the Databricks Workflow Job that LHP generates alongside
+# the event-log monitoring pipeline. It is a **flat, single-document YAML** —
+# no `project_defaults:` wrapper and no `job_name:` key.
+#
+# The monitoring job chains:
+#   notebook_task (union event logs)  →  pipeline_task (monitoring MVs)
+#
+# This file is REQUIRED when monitoring is enabled in lhp.yaml. Point to it
+# via `monitoring.job_config_path` (relative to project root).
+#
+# Tokens like ${bundle_target} are resolved using the active environment's
+# substitutions/<env>.yaml exactly like the rest of the generated code.
+#
+# Usage:
+#   1. Copy or rename this file to remove the .tmpl extension.
+#   2. Reference it from lhp.yaml:
+#        monitoring:
+#          enabled: true
+#          checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#          job_config_path: "config/monitoring_job_config.yaml"
+#
+# Documentation: See docs/monitoring.rst for full details.
+# ==============================================================================
+
+# Maximum number of concurrent runs of the monitoring job
+# Keep this at 1 for monitoring to avoid checkpoint contention.
+max_concurrent_runs: 1
+
+# Performance target for job execution.
+# Options:
+#   - STANDARD: cost-effective, slower cluster startup
+#   - PERFORMANCE_OPTIMIZED: faster startup, higher cost
+performance_target: STANDARD
+
+# Queue settings — let runs queue instead of being dropped.
+queue:
+  enabled: true
+
+# Tags for cost tracking and organization.
+tags:
+  managed_by: lakehouse_plumber
+  environment: ${bundle_target}
+  # project: my_project
+  # team: data-platform
+
+# Optional: job-level timeout (seconds). Uncomment to enable.
+# timeout_seconds: 3600
+
+# Optional: cluster overrides for the union notebook task.
+# Uncomment and tune based on the number of event-log streams you union.
+# notebook_cluster:
+#   spark_version: "15.4.x-scala2.12"
+#   node_type_id: "i3.xlarge"
+#   num_workers: 2
+
+# Optional: email notifications.
+# email_notifications:
+#   on_failure:
+#     - data-platform-oncall@company.com
+
+# Optional: webhook notifications.
+# webhook_notifications:
+#   on_failure:
+#     - id: pagerduty_alert
+
+# Optional: schedule. Uncomment to run on a cron.
+# schedule:
+#   quartz_cron_expression: "0 0 * * * ?"     # hourly
+#   timezone_id: "America/New_York"
+#   pause_status: "UNPAUSED"
+
+# Optional: permissions.
+# permissions:
+#   - level: CAN_VIEW
+#     user_name: user@company.com
+#   - level: CAN_MANAGE_RUN
+#     group_name: data-platform
+
+# ==============================================================================
+# Notes
+# ==============================================================================
+#
+# MERGE BEHAVIOR:
+#   The values above are deep-merged over LHP's DEFAULT_JOB_CONFIG
+#   (max_concurrent_runs=1, performance_target=STANDARD, queue.enabled=true).
+#   Nested dicts (tags, queue) are deep-merged; lists are replaced wholesale.
+#
+# DO NOT:
+#   - Wrap the config in a `project_defaults:` key (that format is only for
+#     the generic multi-job orchestration config used by `lhp deps`).
+#   - Add a `job_name:` key. The monitoring job name is auto-derived from
+#     `monitoring.pipeline_name` (or the default) as `<pipeline_name>_job`.
+#
+# For detailed documentation, see: docs/monitoring.rst
+# ==============================================================================

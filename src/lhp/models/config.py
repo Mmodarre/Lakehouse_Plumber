@@ -154,6 +154,7 @@ class MonitoringConfig(BaseModel):
     schema_: Optional[str] = Field(None, alias="schema")  # default: event_log.schema
     streaming_table: str = "all_pipelines_event_log"  # user-created Delta table
     checkpoint_path: str = ""  # streaming checkpoint base path (required when enabled)
+    job_config_path: Optional[str] = None  # relative path to monitoring job config YAML (required when enabled)
     max_concurrent_streams: int = 10  # ThreadPoolExecutor max_workers
     materialized_views: Optional[List[MonitoringMaterializedViewConfig]] = None
     enable_job_monitoring: bool = False

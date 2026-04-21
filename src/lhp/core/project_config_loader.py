@@ -4,8 +4,11 @@ Loads project-level configuration from lhp.yaml including operational metadata d
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+
+_SUBSTITUTION_TOKEN_PATTERN = re.compile(r"\$\{[^}]+\}")
 
 from ..models.config import (
     EventLogConfig,
@@ -376,6 +379,7 @@ class ProjectConfigLoader:
                     "streaming_table", "all_pipelines_event_log"
                 ),
                 checkpoint_path=monitoring_data.get("checkpoint_path", ""),
+                job_config_path=monitoring_data.get("job_config_path"),
                 max_concurrent_streams=monitoring_data.get(
                     "max_concurrent_streams", 10
                 ),
@@ -472,6 +476,8 @@ class ProjectConfigLoader:
 
         Checks:
         - If enabled, event_log must be present and enabled
+        - If enabled, checkpoint_path must be set
+        - If enabled, job_config_path must be set and point to an existing file
         - MV names must be unique
         - MVs must not specify both sql and sql_path
 
@@ -518,6 +524,47 @@ class ProjectConfigLoader:
                     "/Volumes/catalog/schema/checkpoints/event_logs",
                 ],
             )
+
+        # job_config_path is required when monitoring is enabled
+        if not config.job_config_path:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="008",
+                title="Monitoring job_config_path is required",
+                details=(
+                    "monitoring.job_config_path must be set when monitoring is enabled. "
+                    "It points to a dedicated YAML file describing the monitoring "
+                    "workflow job (cluster, tags, notifications, schedule, etc.)."
+                ),
+                suggestions=[
+                    "Add job_config_path to your monitoring config in lhp.yaml",
+                    "Example:\n  monitoring:\n    job_config_path: "
+                    "config/monitoring_job_config.yaml",
+                    "Run 'lhp init <project>' to scaffold a starter config file",
+                ],
+            )
+
+        # Defer the existence check when the path contains substitution tokens
+        # (e.g. ${env}). Tokens can only be resolved once the CLI selects an
+        # environment — orchestrator.finalize_monitoring_artifacts re-checks
+        # existence after substitution.
+        if not _SUBSTITUTION_TOKEN_PATTERN.search(config.job_config_path):
+            job_config_file = self.project_root / config.job_config_path
+            if not job_config_file.is_file():
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="008",
+                    title="Monitoring job_config file not found",
+                    details=(
+                        f"monitoring.job_config_path points to '{config.job_config_path}', "
+                        f"but no file exists at {job_config_file}."
+                    ),
+                    suggestions=[
+                        "Create the file at the configured path",
+                        "Or update monitoring.job_config_path to a valid location",
+                        "Paths are resolved relative to the project root",
+                    ],
+                )
 
         # Validate materialized views
         if config.materialized_views:

@@ -13,3 +13,6 @@ resources:
       queue:
         enabled: true
       performance_target: STANDARD
+      tags:
+        managed_by: "lakehouse_plumber"
+        environment: "${bundle_target}"

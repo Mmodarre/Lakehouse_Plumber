@@ -67,26 +67,31 @@ operational_metadata:
 ## [monitoring_default]
 #monitoring:
 #  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#  job_config_path: "config/monitoring_job_config.yaml"
 
 ## [monitoring_custom_pipeline_name]
 #monitoring:
 #  pipeline_name: "my_custom_monitor"
 #  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#  job_config_path: "config/monitoring_job_config.yaml"
 
 ## [monitoring_catalog_schema_override]
 #monitoring:
 #  catalog: "analytics_cat"
 #  schema: "_analytics"
 #  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#  job_config_path: "config/monitoring_job_config.yaml"
 
 ## [monitoring_custom_streaming_table]
 #monitoring:
 #  streaming_table: "unified_event_log"
 #  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#  job_config_path: "config/monitoring_job_config.yaml"
 
 ## [monitoring_custom_mvs]
 #monitoring:
 #  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#  job_config_path: "config/monitoring_job_config.yaml"
 #  materialized_views:
 #    - name: "error_events"
 #      sql: "SELECT * FROM all_pipelines_event_log WHERE event_type = 'error'"
@@ -96,11 +101,13 @@ operational_metadata:
 ## [monitoring_no_mvs]
 #monitoring:
 #  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#  job_config_path: "config/monitoring_job_config.yaml"
 #  materialized_views: []
 
 ## [monitoring_mv_sql_path]
 #monitoring:
 #  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#  job_config_path: "config/monitoring_job_config.yaml"
 #  materialized_views:
 #    - name: "custom_analysis"
 #      sql_path: "sql/monitoring_custom_analysis.sql"
@@ -108,7 +115,15 @@ operational_metadata:
 ## [monitoring_enable_job_monitoring]
 #monitoring:
 #  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#  job_config_path: "config/monitoring_job_config.yaml"
 #  enable_job_monitoring: true
+
+## [monitoring_custom_job_config]
+## Variant that exercises a richer monitoring_job_config.yaml (tags,
+## performance target, timeout, notifications) via the dedicated path.
+#monitoring:
+#  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#  job_config_path: "config/monitoring_job_config_custom.yaml"
 
 ## Test result reporting to external systems
 test_reporting:
