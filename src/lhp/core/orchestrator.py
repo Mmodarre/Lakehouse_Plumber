@@ -643,14 +643,94 @@ class ActionOrchestrator:
         smart_writer.write_if_changed(notebook_path, notebook_content)
         self.logger.info(f"Generated monitoring notebook: {notebook_path}")
 
-        # 6. Generate and write monitoring job resource
+        # 6. Load + substitute + merge monitoring job config from the dedicated file
+        import yaml
+
         from .services.job_generator import JobGenerator
 
-        job_name = f"{monitoring_pipeline_name}_job"
-        job_gen = JobGenerator(
-            project_root=self.project_root,
-            monitoring_job_name=job_name,
+        raw_job_config_rel_path = self.project_config.monitoring.job_config_path
+        # Substitute tokens (e.g. ${env}) in the path. The loader only checks
+        # file existence for static paths; tokenized paths are resolved here
+        # once the environment is known.
+        job_config_rel_path = (
+            substitution_mgr.substitute_yaml(raw_job_config_rel_path)
+            if raw_job_config_rel_path
+            else raw_job_config_rel_path
         )
+        # Presence + (static-path) existence are guaranteed by ProjectConfigLoader
+        # validation, but we keep a defensive check here because orchestration
+        # also runs through code paths that bypass the loader's validation (tests)
+        # and tokenized paths only resolve at this stage.
+        if not job_config_rel_path:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="008",
+                title="Monitoring job_config_path is required",
+                details=(
+                    "monitoring.job_config_path must be set when monitoring is enabled."
+                ),
+                suggestions=[
+                    "Add job_config_path to your monitoring config in lhp.yaml",
+                    "Example: job_config_path: config/monitoring_job_config.yaml",
+                ],
+            )
+
+        job_config_file = self.project_root / job_config_rel_path
+        if not job_config_file.is_file():
+            raise LHPFileError(
+                category=ErrorCategory.IO,
+                code_number="001",
+                title="Monitoring job_config file not found",
+                details=(
+                    f"monitoring.job_config_path points to '{job_config_rel_path}', "
+                    f"but no file exists at {job_config_file}."
+                ),
+                suggestions=[
+                    "Create the file at the configured path",
+                    "Or update monitoring.job_config_path to a valid location",
+                ],
+                context={
+                    "File Path": str(job_config_rel_path),
+                    "Project Root": str(self.project_root),
+                },
+            )
+
+        try:
+            with open(job_config_file, "r", encoding="utf-8") as f:
+                raw_job_config = yaml.safe_load(f) or {}
+        except yaml.YAMLError as e:
+            raise LHPFileError(
+                category=ErrorCategory.IO,
+                code_number="002",
+                title="Invalid monitoring job_config YAML",
+                details=f"Failed to parse {job_config_file}: {e}",
+                suggestions=["Fix the YAML syntax in the monitoring job config"],
+                context={"File Path": str(job_config_file)},
+            )
+
+        if not isinstance(raw_job_config, dict):
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="008",
+                title="Invalid monitoring job_config structure",
+                details=(
+                    f"{job_config_file} must contain a YAML mapping at the top level, "
+                    f"got {type(raw_job_config).__name__}."
+                ),
+                suggestions=[
+                    "Use a flat single-document mapping (no 'project_defaults' wrapper, "
+                    "no 'job_name' key)",
+                ],
+            )
+
+        substituted_job_config = substitution_mgr.substitute_yaml(raw_job_config)
+        resolved_job_config = JobGenerator.resolve_monitoring_job_config(
+            substituted_job_config
+        )
+
+        # 7. Generate and write monitoring job resource
+        job_name = f"{monitoring_pipeline_name}_job"
+        job_gen = JobGenerator(project_root=self.project_root)
         notebook_workspace_path = (
             "${workspace.file_path}/monitoring/${bundle.target}/union_event_logs"
         )
@@ -659,6 +739,7 @@ class ActionOrchestrator:
             pipeline_name=monitoring_pipeline_name,
             notebook_path=notebook_workspace_path,
             job_name=job_name,
+            job_config=resolved_job_config,
             has_pipeline=has_pipeline,
         )
         resources_dir = self.project_root / "resources"

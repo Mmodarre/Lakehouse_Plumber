@@ -1181,40 +1181,58 @@ class TestMonitoringPipelineE2E:
 
     _CP = "/Volumes/${catalog}/_meta/checkpoints/event_logs"
 
+    # job_config_path is required when monitoring is enabled — every variant
+    # points at ``config/monitoring_job_config.yaml`` in the fixture project.
+    # The ``monitoring_custom_job_config`` variant uses a richer file to
+    # exercise deep-merge, schedule, notifications, and tags.
+    _JC = "config/monitoring_job_config.yaml"
+    _JC_CUSTOM = "config/monitoring_job_config_custom.yaml"
+
     MONITORING_VARIANTS = {
         "monitoring_default": (
-            "#monitoring:\n" '#  checkpoint_path: "' + _CP + '"',
-            "monitoring:\n" '  checkpoint_path: "' + _CP + '"',
+            "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
+            '#  job_config_path: "' + _JC + '"',
+            "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
+            '  job_config_path: "' + _JC + '"',
         ),
         "monitoring_custom_pipeline_name": (
             "#monitoring:\n"
             '#  pipeline_name: "my_custom_monitor"\n'
-            '#  checkpoint_path: "' + _CP + '"',
+            '#  checkpoint_path: "' + _CP + '"\n'
+            '#  job_config_path: "' + _JC + '"',
             "monitoring:\n"
             '  pipeline_name: "my_custom_monitor"\n'
-            '  checkpoint_path: "' + _CP + '"',
+            '  checkpoint_path: "' + _CP + '"\n'
+            '  job_config_path: "' + _JC + '"',
         ),
         "monitoring_catalog_schema_override": (
             "#monitoring:\n"
             '#  catalog: "analytics_cat"\n'
             '#  schema: "_analytics"\n'
-            '#  checkpoint_path: "' + _CP + '"',
+            '#  checkpoint_path: "' + _CP + '"\n'
+            '#  job_config_path: "' + _JC + '"',
             "monitoring:\n"
             '  catalog: "analytics_cat"\n'
             '  schema: "_analytics"\n'
-            '  checkpoint_path: "' + _CP + '"',
+            '  checkpoint_path: "' + _CP + '"\n'
+            '  job_config_path: "' + _JC + '"',
         ),
         "monitoring_custom_streaming_table": (
             "#monitoring:\n"
             '#  streaming_table: "unified_event_log"\n'
-            '#  checkpoint_path: "' + _CP + '"',
+            '#  checkpoint_path: "' + _CP + '"\n'
+            '#  job_config_path: "' + _JC + '"',
             "monitoring:\n"
             '  streaming_table: "unified_event_log"\n'
-            '  checkpoint_path: "' + _CP + '"',
+            '  checkpoint_path: "' + _CP + '"\n'
+            '  job_config_path: "' + _JC + '"',
         ),
         "monitoring_custom_mvs": (
             "#monitoring:\n"
             '#  checkpoint_path: "' + _CP + '"\n'
+            '#  job_config_path: "' + _JC + '"\n'
             "#  materialized_views:\n"
             '#    - name: "error_events"\n'
             '#      sql: "SELECT * FROM all_pipelines_event_log'
@@ -1225,6 +1243,7 @@ class TestMonitoringPipelineE2E:
             ' GROUP BY _source_pipeline"',
             "monitoring:\n"
             '  checkpoint_path: "' + _CP + '"\n'
+            '  job_config_path: "' + _JC + '"\n'
             "  materialized_views:\n"
             '    - name: "error_events"\n'
             '      sql: "SELECT * FROM all_pipelines_event_log'
@@ -1237,19 +1256,23 @@ class TestMonitoringPipelineE2E:
         "monitoring_no_mvs": (
             "#monitoring:\n"
             '#  checkpoint_path: "' + _CP + '"\n'
+            '#  job_config_path: "' + _JC + '"\n'
             "#  materialized_views: []",
             "monitoring:\n"
             '  checkpoint_path: "' + _CP + '"\n'
+            '  job_config_path: "' + _JC + '"\n'
             "  materialized_views: []",
         ),
         "monitoring_mv_sql_path": (
             "#monitoring:\n"
             '#  checkpoint_path: "' + _CP + '"\n'
+            '#  job_config_path: "' + _JC + '"\n'
             "#  materialized_views:\n"
             '#    - name: "custom_analysis"\n'
             '#      sql_path: "sql/monitoring_custom_analysis.sql"',
             "monitoring:\n"
             '  checkpoint_path: "' + _CP + '"\n'
+            '  job_config_path: "' + _JC + '"\n'
             "  materialized_views:\n"
             '    - name: "custom_analysis"\n'
             '      sql_path: "sql/monitoring_custom_analysis.sql"',
@@ -1257,10 +1280,20 @@ class TestMonitoringPipelineE2E:
         "monitoring_enable_job_monitoring": (
             "#monitoring:\n"
             '#  checkpoint_path: "' + _CP + '"\n'
+            '#  job_config_path: "' + _JC + '"\n'
             "#  enable_job_monitoring: true",
             "monitoring:\n"
             '  checkpoint_path: "' + _CP + '"\n'
+            '  job_config_path: "' + _JC + '"\n'
             "  enable_job_monitoring: true",
+        ),
+        "monitoring_custom_job_config": (
+            "#monitoring:\n"
+            '#  checkpoint_path: "' + _CP + '"\n'
+            '#  job_config_path: "' + _JC_CUSTOM + '"',
+            "monitoring:\n"
+            '  checkpoint_path: "' + _CP + '"\n'
+            '  job_config_path: "' + _JC_CUSTOM + '"',
         ),
     }
 
@@ -1708,6 +1741,82 @@ class TestMonitoringPipelineE2E:
         assert (
             loader_content == expected
         ), "Generated jobs_stats_loader.py does not match package resource"
+
+    # ------------------------------------------------------------------
+    # Test 10b: dedicated monitoring job_config_path with rich overrides
+    # ------------------------------------------------------------------
+
+    def test_monitoring_custom_job_config(self):
+        """A rich monitoring_job_config.yaml is loaded, token-substituted, and
+        deep-merged over defaults; all overrides flow into the generated job
+        YAML. Regression guard for the dedicated-file contract that replaced
+        the legacy ``__eventlog_monitoring`` alias path."""
+        self._enable_event_log()
+        self._enable_monitoring_variant("monitoring_custom_job_config")
+
+        exit_code, output = self._run_generate()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        # Hash-check monitoring notebook + pipeline code match the default
+        # variant (this variant only changes the *job* config, not the
+        # notebook or MVs).
+        self._assert_monitoring_py_baseline("default")
+        self._assert_monitoring_notebook_baseline("default")
+
+        # Job YAML must reflect the rich overrides + substituted tokens.
+        job_yml = (
+            self.resources_root / "acme_edw_event_log_monitoring.job.yml"
+        )
+        assert job_yml.exists(), f"Monitoring job YAML not generated: {job_yml}"
+        parsed = yaml.safe_load(job_yml.read_text())
+        job = parsed["resources"]["jobs"]["acme_edw_event_log_monitoring_job"]
+
+        # Scalar overrides
+        assert job["max_concurrent_runs"] == 2
+        assert job["performance_target"] == "PERFORMANCE_OPTIMIZED"
+        assert job["timeout_seconds"] == 3600
+        assert job["queue"]["enabled"] is True
+
+        # Tags deep-merged + token substituted. ${bundle_target} is not
+        # defined in substitutions/dev.yaml so it is preserved verbatim for
+        # Databricks Asset Bundles to resolve at deploy time.
+        assert job["tags"]["managed_by"] == "lakehouse_plumber"
+        assert job["tags"]["environment"] == "${bundle_target}"
+        assert job["tags"]["purpose"] == "event_log_monitoring"
+        assert job["tags"]["team"] == "data-platform"
+
+        # Email notifications flow through
+        assert job["email_notifications"]["on_failure"] == [
+            "monitoring-alerts@example.com"
+        ]
+
+        # Schedule flows through
+        assert job["schedule"]["quartz_cron_expression"] == "0 0 * * * ?"
+        assert job["schedule"]["timezone_id"] == "UTC"
+        assert job["schedule"]["pause_status"] == "UNPAUSED"
+
+    # ------------------------------------------------------------------
+    # Test 10c: missing job_config_path file surfaces a clear error
+    # ------------------------------------------------------------------
+
+    def test_monitoring_job_config_file_missing_fails(self):
+        """If monitoring.job_config_path points to a non-existent file, the
+        CLI must fail with a clear LHP-CFG-008 error at validation time —
+        before any generation work starts."""
+        self._enable_event_log()
+        # Hand-roll a monitoring block that references a file we do NOT create
+        self.lhp_yaml.write_text(
+            self.lhp_yaml.read_text()
+            + "\nmonitoring:\n"
+            '  checkpoint_path: "/Volumes/cat/_meta/checkpoints/event_logs"\n'
+            '  job_config_path: "config/does_not_exist.yaml"\n'
+        )
+
+        exit_code, output = self._run_generate()
+        assert exit_code != 0, "Expected generation to fail for missing job config"
+        assert (
+            "job_config" in output or "job_config_path" in output
+        ), f"Error message should mention job_config: {output}"
 
     # ------------------------------------------------------------------
     # Test 11: monitoring pipeline picks up pipeline_config.yaml settings

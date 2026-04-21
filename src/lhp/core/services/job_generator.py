@@ -56,15 +56,11 @@ class JobGenerator:
         "master_job_name": None,  # Custom master job name (None = auto-generate)
     }
 
-    # Alias for monitoring job in job_config.yaml (same pattern as PipelineConfigLoader)
-    MONITORING_JOB_ALIAS = "__eventlog_monitoring"
-
     def __init__(
         self,
         template_dir: Optional[Path] = None,
         project_root: Optional[Path] = None,
         config_file_path: Optional[str] = None,
-        monitoring_job_name: Optional[str] = None,
     ):
         """
         Initialize the job generator.
@@ -73,10 +69,7 @@ class JobGenerator:
             template_dir: Directory containing Jinja2 templates. If None, uses default.
             project_root: Root directory of the project for loading custom config.
             config_file_path: Custom config file path (relative to project_root).
-            monitoring_job_name: Resolved monitoring job name for alias support.
         """
-        self.monitoring_job_name = monitoring_job_name
-
         if template_dir is None:
             # Default to the templates directory in the package
             template_dir = Path(__file__).parent.parent.parent / "templates"
@@ -92,7 +85,7 @@ class JobGenerator:
         )
         self.logger = logger
 
-        # Load and merge job configuration
+        # Load and merge job configuration (used by the `deps` orchestration-job flow)
         self.project_defaults, self.job_specific_configs = self._load_job_config(
             project_root, config_file_path
         )
@@ -100,9 +93,6 @@ class JobGenerator:
         self.job_config = self._deep_merge_dicts(
             self.DEFAULT_JOB_CONFIG.copy(), self.project_defaults
         )
-
-        # Resolve monitoring job alias after loading config
-        self._resolve_monitoring_alias()
 
     def _load_job_config(
         self,
@@ -294,8 +284,9 @@ class JobGenerator:
             )
             raise
 
+    @staticmethod
     def _deep_merge_dicts(
-        self, base: Dict[str, Any], override: Dict[str, Any]
+        base: Dict[str, Any], override: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Deep merge two dictionaries. Nested dicts are merged recursively, lists are replaced.
@@ -316,7 +307,7 @@ class JobGenerator:
                 and isinstance(value, dict)
             ):
                 # Recursively merge nested dicts
-                result[key] = self._deep_merge_dicts(result[key], value)
+                result[key] = JobGenerator._deep_merge_dicts(result[key], value)
             else:
                 # Replace value (including lists)
                 result[key] = value
@@ -750,59 +741,14 @@ class JobGenerator:
 
     # ---- Monitoring job support ----
 
-    def _resolve_monitoring_alias(self) -> None:
-        """Resolve __eventlog_monitoring alias to actual monitoring job name.
-
-        Same pattern as PipelineConfigLoader._resolve_monitoring_alias():
-        - If alias not in job_specific_configs: return
-        - If monitoring_job_name is None: warn and remove
-        - If actual name already exists: raise collision error
-        - Otherwise: rename alias key to actual name
-        """
-        if self.MONITORING_JOB_ALIAS not in self.job_specific_configs:
-            return
-
-        if self.monitoring_job_name is None:
-            self.logger.warning(
-                f"'{self.MONITORING_JOB_ALIAS}' found in job config but monitoring "
-                f"is not configured or enabled. Ignoring this entry."
-            )
-            del self.job_specific_configs[self.MONITORING_JOB_ALIAS]
-            return
-
-        if self.monitoring_job_name in self.job_specific_configs:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="010",
-                title="Duplicate monitoring job configuration",
-                details=(
-                    f"Both '{self.MONITORING_JOB_ALIAS}' alias and the actual monitoring job "
-                    f"name '{self.monitoring_job_name}' are defined in job config. "
-                    f"Use one or the other, not both."
-                ),
-                suggestions=[
-                    f"Remove either the '{self.MONITORING_JOB_ALIAS}' entry or the "
-                    f"'{self.monitoring_job_name}' entry",
-                    f"The '{self.MONITORING_JOB_ALIAS}' alias automatically resolves to "
-                    f"'{self.monitoring_job_name}'",
-                ],
-                context={
-                    "Alias": self.MONITORING_JOB_ALIAS,
-                    "Actual Name": self.monitoring_job_name,
-                },
-            )
-
-        config = self.job_specific_configs.pop(self.MONITORING_JOB_ALIAS)
-        self.job_specific_configs[self.monitoring_job_name] = config
-        self.logger.debug(
-            f"Resolved '{self.MONITORING_JOB_ALIAS}' alias to '{self.monitoring_job_name}'"
-        )
+    
 
     def generate_monitoring_job(
         self,
         pipeline_name: str,
         notebook_path: str,
-        job_name: Optional[str] = None,
+        job_name: str,
+        job_config: Dict[str, Any],
         has_pipeline: bool = True,
     ) -> str:
         """Generate monitoring job YAML (notebook_task → optional pipeline_task).
@@ -810,17 +756,15 @@ class JobGenerator:
         Args:
             pipeline_name: Name of the monitoring DLT pipeline
             notebook_path: Workspace path to the union event logs notebook
-            job_name: Custom job name (defaults to monitoring_job_name or pipeline_name + "_job")
+            job_name: Resolved monitoring job name
+            job_config: Resolved monitoring job config (already merged with defaults
+                and substituted). The caller is responsible for building this dict —
+                typically via ``JobGenerator.resolve_monitoring_job_config``.
             has_pipeline: Whether a DLT pipeline exists (False = notebook-only job)
 
         Returns:
             Rendered YAML string for the monitoring job resource
         """
-        if not job_name:
-            job_name = self.monitoring_job_name or f"{pipeline_name}_job"
-
-        job_config = self.get_job_config_for_job(job_name)
-
         context = {
             "job_name": job_name,
             "pipeline_name": pipeline_name,
@@ -837,3 +781,22 @@ class JobGenerator:
         except Exception as e:
             self.logger.error(f"Failed to render monitoring job template: {e}")
             raise
+
+    @classmethod
+    def resolve_monitoring_job_config(
+        cls, raw_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Deep-merge a raw monitoring job config dict over ``DEFAULT_JOB_CONFIG``.
+
+        This keeps merge semantics inside the class that owns ``DEFAULT_JOB_CONFIG``
+        and is used by the orchestrator to build the per-generate monitoring job
+        config from the dedicated YAML file referenced by
+        ``monitoring.job_config_path``.
+
+        Args:
+            raw_config: Parsed monitoring job config (post token substitution).
+
+        Returns:
+            Merged config dict ready to hand to ``generate_monitoring_job``.
+        """
+        return cls._deep_merge_dicts(cls.DEFAULT_JOB_CONFIG.copy(), raw_config or {})

@@ -440,6 +440,35 @@ class TestTemplateContext:
         assert sources[0][1] == "my_catalog._meta.bronze_event_log"
 
 
+class TestNotebookRendering:
+    """Rendered-notebook assertions (beyond context dict checks)."""
+
+    def test_rendered_notebook_contains_ensure_target_exists_prologue(self):
+        """The rendered notebook must pre-create the target table before the
+        executor pool starts — this guards against a parallel-CREATE race on
+        the first run (TABLE_OR_VIEW_ALREADY_EXISTS)."""
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze", "silver"])
+
+        rendered = builder._render_notebook(
+            sources=result.template_context["sources"],
+            target_fqn=result.template_context["target_fqn"],
+        )
+
+        assert "def _ensure_target_exists()" in rendered
+        assert "_ensure_target_exists()" in rendered
+        assert "from pyspark.sql.utils import AnalysisException" in rendered
+
+        ensure_call_idx = rendered.index("\n    _ensure_target_exists()\n")
+        executor_idx = rendered.index("with ThreadPoolExecutor")
+        assert ensure_call_idx < executor_idx, (
+            "_ensure_target_exists() must be invoked before the "
+            "ThreadPoolExecutor block"
+        )
+
+
 @pytest.mark.unit
 class TestDefaultMvSql:
     """Tests for the default MV SQL template."""

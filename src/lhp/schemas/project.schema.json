@@ -178,6 +178,11 @@
                     "type": "string",
                     "description": "Base path for streaming checkpoints. Each pipeline gets a subdirectory: {checkpoint_path}/{pipeline_name}/"
                 },
+                "job_config_path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Relative path (from project root) to the dedicated monitoring job config YAML. Required when monitoring.enabled is true (enforced at validation time)."
+                },
                 "max_concurrent_streams": {
                     "type": "integer",
                     "default": 10,
