@@ -128,11 +128,13 @@ Get centralized pipeline monitoring in three steps:
 
    monitoring:
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
 
 .. tip::
-   ``checkpoint_path`` is the only required field under ``monitoring``. Everything else
-   has sensible defaults: the pipeline is named ``${project_name}_event_log_monitoring``,
-   uses the same catalog/schema as ``event_log``, creates a Delta table called
+   ``checkpoint_path`` and ``job_config_path`` are the only required fields under
+   ``monitoring``. Everything else has sensible defaults: the pipeline is named
+   ``${project_name}_event_log_monitoring``, uses the same catalog/schema as
+   ``event_log``, creates a Delta table called
    ``all_pipelines_event_log``, and exposes a default ``events_summary`` materialized view
    that summarizes pipeline run status, duration, and row metrics.
 
@@ -332,6 +334,22 @@ Workflow job that chains them.
    ``LHP-CFG-008`` if it is missing. Prior releases accepted ``monitoring: {}`` — that
    form is no longer valid.
 
+.. warning::
+   ``job_config_path`` is **required** when ``monitoring.enabled`` is ``true``. It must
+   point (relative to the project root) to a flat single-document YAML file describing
+   the monitoring Workflow job (cluster, tags, notifications, schedule, etc.). LHP
+   raises ``LHP-CFG-008`` if the setting is missing and ``LHP-IO-001`` if the configured
+   path does not resolve to an existing file. Token substitution (``${...}``) applies to
+   the file contents, resolved from the active environment's
+   ``substitutions/<env>.yaml``.
+
+.. note::
+   The legacy auto-pickup of ``templates/bundle/job_config.yaml`` for the monitoring
+   job — and the reserved ``__eventlog_monitoring`` alias inside it — has been
+   **removed**. The ``__eventlog_monitoring`` alias still works in the generic
+   ``config/job_config.yaml`` used by ``lhp deps`` to customize *orchestration* jobs;
+   that surface is unchanged.
+
 Configuration Reference
 ~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -356,6 +374,18 @@ Configuration Reference
        ``{checkpoint_path}/{pipeline_name}/``. Typically a Unity Catalog volume path
        (e.g., ``/Volumes/my_catalog/_meta/checkpoints/event_logs``). Supports LHP token
        substitution.
+   * - ``job_config_path``
+     - string
+     - **required**
+     - Relative path (from the project root) to a dedicated YAML file describing the
+       generated monitoring Workflow job (cluster, tags, notifications, schedule,
+       permissions, …). Flat single-document mapping — no ``project_defaults:`` wrapper
+       and no ``job_name:`` key. Contents are deep-merged over LHP's default job config
+       (``max_concurrent_runs=1``, ``performance_target=STANDARD``, ``queue.enabled=true``)
+       and then token-substituted via the active env's ``substitutions/<env>.yaml``.
+       ``lhp init`` scaffolds ``config/monitoring_job_config_env.yaml.tmpl`` — rename it
+       to ``config/monitoring_job_config.yaml`` (or your preferred path) and point
+       ``job_config_path`` at it.
    * - ``max_concurrent_streams``
      - integer
      - ``10``
@@ -400,7 +430,8 @@ Configuration Reference
 Minimal Configuration
 ~~~~~~~~~~~~~~~~~~~~~
 
-The simplest valid monitoring configuration specifies just the checkpoint path:
+The simplest valid monitoring configuration specifies the checkpoint path and the
+path to the dedicated monitoring-job config file:
 
 .. code-block:: yaml
    :caption: lhp.yaml
@@ -412,6 +443,7 @@ The simplest valid monitoring configuration specifies just the checkpoint path:
 
    monitoring:
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
 
 This creates:
 
@@ -432,6 +464,7 @@ Custom Pipeline Name
    monitoring:
      pipeline_name: "my_custom_monitor"
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
 
 The pipeline name affects:
 
@@ -459,6 +492,7 @@ in ``event_log``. You can override either or both:
      catalog: "analytics_cat"
      schema: "_analytics"
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
 
 **Override priority:**
 
@@ -496,6 +530,26 @@ with its own checkpoint directory.
        ("gold_analytics",  "acme_edw_dev._meta.gold_analytics_event_log"),
    ]
 
+   def _ensure_target_exists() -> None:
+       # Pre-create TARGET_TABLE (idempotent) so parallel streams do not race
+       # on CREATE during a cold run.
+       if spark.catalog.tableExists(TARGET_TABLE):
+           return
+       for sample_name, sample_ref in SOURCES:
+           try:
+               empty = (
+                   spark.read.format("delta").table(sample_ref).limit(0)
+                   .withColumn("_source_pipeline", F.lit(sample_name))
+               )
+               empty.write.format("delta").saveAsTable(TARGET_TABLE)
+               return
+           except AnalysisException:
+               continue
+       raise RuntimeError("no readable source event log")
+
+   if SOURCES:
+       _ensure_target_exists()
+
    def process_source(pipeline_name: str, table_ref: str) -> str:
        checkpoint = f"{CHECKPOINT_BASE}/{pipeline_name}"
        query = (
@@ -519,6 +573,15 @@ with its own checkpoint directory.
 
 Key aspects:
 
+* **Pre-created target table.** Before launching the executor pool,
+  ``_ensure_target_exists()`` pre-creates the target Delta table using the schema
+  of the first readable source event log (event-log schemas are uniform across
+  Lakeflow Declarative Pipelines). Without this prologue, N parallel streams all
+  race to ``CREATE`` the target via ``.toTable()`` on a cold run; one wins, the
+  rest fail with ``TABLE_OR_VIEW_ALREADY_EXISTS``. The function is idempotent —
+  warm runs short-circuit via ``spark.catalog.tableExists`` — and iterates through
+  ``SOURCES`` until one event log is readable, so partially-deployed environments
+  still bootstrap cleanly.
 * **Per-pipeline checkpoints.** Each source has its own directory at
   ``{CHECKPOINT_BASE}/{pipeline_name}/``. Changing the set of sources never invalidates
   existing checkpoints.
@@ -753,6 +816,7 @@ Define materialized views with inline SQL using the ``sql`` property:
 
    monitoring:
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
      materialized_views:
        - name: "error_events"
          sql: "SELECT * FROM all_pipelines_event_log WHERE event_type = 'error'"
@@ -798,6 +862,7 @@ For complex queries, use ``sql_path`` to reference an external SQL file:
 
    monitoring:
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
      materialized_views:
        - name: "custom_analysis"
          sql_path: "sql/monitoring_custom_analysis.sql"
@@ -828,6 +893,7 @@ To generate only the notebook and the notebook task of the job, set
 
    monitoring:
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
      materialized_views: []
 
 When omitted entirely (or set to ``null``), the default ``events_summary`` MV is created.
@@ -862,27 +928,17 @@ Violations raise ``LHP-CFG-008`` with a descriptive error message.
 Customizing the Workflow Job
 ----------------------------
 
-The generated Workflow job resource can be customized from ``config/job_config.yaml``.
-LHP provides a reserved alias so you do not need to hardcode the monitoring job name.
-
-Using the __eventlog_monitoring Alias in job_config.yaml
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Use the ``__eventlog_monitoring`` reserved keyword as a job name in
-``config/job_config.yaml`` to target the monitoring job without hardcoding its generated
-name.
+The generated Workflow job is configured from a **dedicated** YAML file referenced by
+``monitoring.job_config_path`` in ``lhp.yaml``. This file is required when monitoring
+is enabled.
 
 .. code-block:: yaml
-   :caption: config/job_config.yaml
+   :caption: config/monitoring_job_config.yaml
 
-   project_defaults:
-     max_concurrent_runs: 1
-     performance_target: STANDARD
-
-   ---
-   job_name: __eventlog_monitoring
    max_concurrent_runs: 1
    performance_target: PERFORMANCE_OPTIMIZED
+   queue:
+     enabled: true
    timeout_seconds: 3600
    notebook_cluster:
      new_cluster:
@@ -896,12 +952,22 @@ name.
    tags:
      purpose: event_log_monitoring
      team: data-platform
+     environment: ${bundle_target}
    email_notifications:
      on_failure:
        - monitoring-alerts@company.com
 
-At generation time, ``__eventlog_monitoring`` resolves to the actual monitoring job
-name (``${pipeline_name}_job``). ``project_defaults`` still merges in as usual.
+How it is resolved:
+
+1. LHP reads the file at ``project_root / monitoring.job_config_path``.
+2. Token substitution (``${...}``) is applied using the active environment's
+   ``substitutions/<env>.yaml``.
+3. The result is deep-merged over LHP's default job config
+   (``max_concurrent_runs=1``, ``performance_target=STANDARD``, ``queue.enabled=true``)
+   — nested dicts like ``tags`` and ``queue`` merge recursively; lists are replaced
+   wholesale.
+4. The monitoring job name is always ``${pipeline_name}_job``. Do **not** add a
+   ``job_name`` key to this file.
 
 Available job fields (all optional):
 
@@ -918,12 +984,19 @@ Available job fields (all optional):
 Rules
 ~~~~~
 
-* If monitoring is **not configured or disabled** in ``lhp.yaml``, the alias entry is
-  silently ignored with a warning.
-* If **both** the alias and the resolved monitoring job name appear in the config, LHP
-  raises an error.
+* The file must be a **flat single-document YAML mapping**. Do not wrap it in a
+  ``project_defaults:`` key and do not add a ``job_name:`` key.
 * The ``pipeline_task`` in the job is always generated automatically — do not redefine
-  it in ``job_config.yaml``.
+  it in this file.
+* If the file is missing at generation time, LHP raises ``LHP-IO-001`` pointing to the
+  resolved absolute path.
+
+.. note::
+   The legacy auto-pickup of ``templates/bundle/job_config.yaml`` for the monitoring
+   job — and the reserved ``__eventlog_monitoring`` alias inside it — has been
+   **removed**. Use ``monitoring.job_config_path`` instead. The ``__eventlog_monitoring``
+   alias continues to work in the generic ``config/job_config.yaml`` used by
+   ``lhp deps`` for *orchestration* jobs; that surface is unchanged.
 
 Pipeline Configuration for Monitoring
 --------------------------------------
@@ -1008,6 +1081,7 @@ pipeline runs using the Databricks SDK. The results are written to a separate
 
    monitoring:
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
      enable_job_monitoring: true
 
 **What it generates:**
@@ -1123,6 +1197,7 @@ The simplest possible monitoring configuration:
 
    monitoring:
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
 
 This gives you:
 
@@ -1155,6 +1230,7 @@ A fully customized monitoring setup:
      schema: "_monitoring"
      streaming_table: "unified_event_stream"
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
      max_concurrent_streams: 20
      materialized_views:
        - name: "error_events"
@@ -1183,6 +1259,7 @@ to opt individual pipelines out:
 
    monitoring:
      checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
 
 .. code-block:: yaml
    :caption: config/pipeline_config.yaml — opt out specific pipelines
@@ -1213,6 +1290,7 @@ Use LHP substitution tokens for environment-aware monitoring:
 
    monitoring:
      checkpoint_path: "/Volumes/${catalog}/${monitoring_schema}/checkpoints/event_logs"
+     job_config_path: "config/monitoring_job_config.yaml"
 
 .. code-block:: yaml
    :caption: substitutions/dev.yaml
@@ -1249,11 +1327,18 @@ Migration steps:
 
 1. **Add ``checkpoint_path``** to your ``monitoring`` block (now required — typically a
    Unity Catalog volume path).
-2. **Re-run ``lhp generate``.** LHP will clean up the old single-pipeline artifacts and
+2. **Add ``job_config_path``** to your ``monitoring`` block (now required). Create the
+   file it points to — ``lhp init`` scaffolds
+   ``config/monitoring_job_config_env.yaml.tmpl`` as a starting point. If you previously
+   used the ``__eventlog_monitoring`` alias inside ``templates/bundle/job_config.yaml``
+   for the monitoring job, move those settings into the new dedicated file and drop the
+   ``job_name: __eventlog_monitoring`` wrapper plus the ``project_defaults:`` wrapper —
+   the monitoring config is a flat single-document mapping.
+3. **Re-run ``lhp generate``.** LHP will clean up the old single-pipeline artifacts and
    write the new notebook, MVs-only pipeline, and job resource.
-3. **Redeploy via Databricks Asset Bundles.** The old pipeline is removed by the bundle
+4. **Redeploy via Databricks Asset Bundles.** The old pipeline is removed by the bundle
    deploy; the new job and (MVs-only) pipeline are deployed in its place.
-4. **Backfill the union Delta table** if needed. Historical event log rows written before
+5. **Backfill the union Delta table** if needed. Historical event log rows written before
    the new notebook's first run are not replayed into the union table unless you manually
    run a one-off backfill from each event log table.
 
@@ -1268,6 +1353,16 @@ Common issues:
 
 * **``LHP-CFG-008`` — "Monitoring checkpoint_path is required"** — add
   ``checkpoint_path`` under ``monitoring`` or set ``monitoring.enabled: false``.
+* **``LHP-CFG-008`` — "Monitoring job_config_path is required"** — add
+  ``job_config_path`` under ``monitoring`` pointing to your dedicated monitoring job
+  config file, or set ``monitoring.enabled: false``.
+* **``LHP-CFG-008`` — "Monitoring job_config file not found"** — the file referenced by
+  ``job_config_path`` does not exist. Check the path (resolved relative to project root)
+  and create the file if needed. ``lhp init`` provides
+  ``config/monitoring_job_config_env.yaml.tmpl`` as a starter.
+* **``LHP-IO-001`` — "Monitoring job_config file not found"** — raised at generate time
+  when the configured ``job_config_path`` cannot be opened. The error message includes
+  the resolved absolute path.
 * **No rows in ``all_pipelines_event_log``** — check that the Workflow job has run
   successfully. The notebook writes via Structured Streaming; the Delta table is created
   on first successful write.
