@@ -627,8 +627,7 @@ class ActionOrchestrator:
         # 4. Render notebook with resolved context
         from ..utils.template_renderer import TemplateRenderer
 
-        template_dir = Path(__file__).parent.parent / "templates"
-        renderer = TemplateRenderer(template_dir)
+        renderer = TemplateRenderer.from_package()
         notebook_content = renderer.render_template(
             "monitoring/union_event_logs.py.j2", resolved_context
         )

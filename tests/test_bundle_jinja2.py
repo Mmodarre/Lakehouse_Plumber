@@ -388,9 +388,13 @@ class TestBundleJinja2Templates:
         assert "tojson" in self.manager.template_renderer.env.filters
         assert "toyaml" in self.manager.template_renderer.env.filters
 
-        # Verify template directory is correctly set
-        template_paths = self.manager.template_renderer.env.loader.searchpath
-        assert any("templates" in path for path in template_paths)
+        # Verify the loader is wired to the lhp package templates.
+        from jinja2 import PackageLoader
+
+        loader = self.manager.template_renderer.env.loader
+        assert isinstance(loader, PackageLoader)
+        assert loader.package_name == "lhp"
+        assert loader.package_path == "templates"
 
     def test_template_loading_from_package(self):
         """Should load .j2 template file from package resources."""

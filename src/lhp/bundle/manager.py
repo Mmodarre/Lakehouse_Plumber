@@ -80,8 +80,7 @@ class BundleManager:
         self.logger = logging.getLogger(__name__)
 
         # Set up template rendering using composition
-        template_dir = Path(__file__).parent.parent / "templates"
-        self.template_renderer = TemplateRenderer(template_dir)
+        self.template_renderer = TemplateRenderer.from_package()
 
         # Load pipeline config once at initialization for efficiency
         from ..core.services.pipeline_config_loader import PipelineConfigLoader

@@ -159,8 +159,7 @@ class MonitoringPipelineBuilder:
         self.project_root = project_root
 
         # Template renderer for the notebook template
-        template_dir = Path(__file__).parent.parent.parent / "templates"
-        self._renderer = TemplateRenderer(template_dir)
+        self._renderer = TemplateRenderer.from_package()
 
     @property
     def monitoring_config(self) -> Optional[MonitoringConfig]:

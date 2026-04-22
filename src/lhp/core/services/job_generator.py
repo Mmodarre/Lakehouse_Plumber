@@ -66,19 +66,28 @@ class JobGenerator:
         Initialize the job generator.
 
         Args:
-            template_dir: Directory containing Jinja2 templates. If None, uses default.
+            template_dir: Directory containing Jinja2 templates. If None, uses
+                the LHP package template loader.
             project_root: Root directory of the project for loading custom config.
             config_file_path: Custom config file path (relative to project_root).
         """
+        from jinja2 import Environment
+
         if template_dir is None:
-            # Default to the templates directory in the package
-            template_dir = Path(__file__).parent.parent.parent / "templates"
+            # Default: load templates from the installed lhp package.
+            from ...utils.template_renderer import get_lhp_template_loader
 
-        # Create a custom template renderer with different settings for YAML formatting
-        from jinja2 import Environment, FileSystemLoader
+            loader = get_lhp_template_loader()
+        else:
+            # Test/injection path: read templates from the provided directory.
+            from jinja2 import FileSystemLoader
 
+            loader = FileSystemLoader(template_dir)
+
+        # Distinct Environment settings: YAML output requires block-preserving
+        # behavior and trailing-newline retention, unlike the Python generators.
         self.jinja_env = Environment(  # nosec B701 — generates YAML, not HTML
-            loader=FileSystemLoader(template_dir),
+            loader=loader,
             trim_blocks=False,
             lstrip_blocks=False,
             keep_trailing_newline=True,
