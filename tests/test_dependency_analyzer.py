@@ -557,7 +557,11 @@ class TestDependencyAnalyzer:
         write_action.type = ActionType.WRITE
         write_action.source = None
         write_action.target = None
-        write_action.write_target = {"catalog": "test_cat", "schema": "bronze", "table": "output_table"}
+        write_action.write_target = {
+            "catalog": "test_cat",
+            "schema": "bronze",
+            "table": "output_table",
+        }
         write_action.sql = None
         write_action.sql_path = None
         write_action.module_path = None
@@ -899,3 +903,374 @@ class TestCycleDetection:
         assert (
             parts[0] == parts[-1]
         ), f"Cycle should close back to start node: {first_desc}"
+
+
+class TestWriteTargetExtraction:
+    """Tests for extracting dependencies from SQL/Python externalized inside write_target."""
+
+    def setup_method(self):
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.mock_config_loader = Mock()
+        self.analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
+
+    def teardown_method(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_action(self, **overrides) -> Mock:
+        """Build a minimal Mock(spec=Action) with common defaults."""
+        action = Mock(spec=Action)
+        action.name = overrides.get("name", "action")
+        action.type = overrides.get("type", ActionType.WRITE)
+        action.source = overrides.get("source", None)
+        action.target = overrides.get("target", None)
+        action.sql = overrides.get("sql", None)
+        action.sql_path = overrides.get("sql_path", None)
+        action.module_path = overrides.get("module_path", None)
+        action.write_target = overrides.get("write_target", None)
+        return action
+
+    # ---- _iter_sql_bodies ----
+
+    def test_iter_sql_bodies_yields_write_target_sql_path(self):
+        action = self._make_action(
+            write_target={"type": "materialized_view", "sql_path": "sql/mv.sql"}
+        )
+        results = list(self.analyzer._iter_sql_bodies(action))
+        # (top-level sql/sql_path), (write_target sql/sql_path)
+        assert (None, None) in results
+        assert (None, "sql/mv.sql") in results
+
+    def test_iter_sql_bodies_yields_write_target_inline_sql(self):
+        action = self._make_action(
+            write_target={"type": "materialized_view", "sql": "SELECT 1 FROM x"}
+        )
+        results = list(self.analyzer._iter_sql_bodies(action))
+        assert ("SELECT 1 FROM x", None) in results
+
+    def test_iter_sql_bodies_handles_pydantic_model_and_dict_forms(self):
+        # Object with model_dump() — simulate a Pydantic model.
+        class FakeWriteTarget:
+            def model_dump(self):
+                return {"type": "materialized_view", "sql_path": "sql/mv.sql"}
+
+        action = self._make_action(write_target=FakeWriteTarget())
+        results = list(self.analyzer._iter_sql_bodies(action))
+        assert (None, "sql/mv.sql") in results
+
+        # Dict form
+        action_dict = self._make_action(
+            write_target={"type": "materialized_view", "sql_path": "sql/mv.sql"}
+        )
+        results_dict = list(self.analyzer._iter_sql_bodies(action_dict))
+        assert (None, "sql/mv.sql") in results_dict
+
+    def test_iter_sql_bodies_combines_all_three_sources(self):
+        action = self._make_action(
+            sql="SELECT 1",
+            sql_path="a.sql",
+            source={"type": "sql", "sql": "SELECT 2", "sql_path": "b.sql"},
+            write_target={
+                "type": "materialized_view",
+                "sql": "SELECT 3",
+                "sql_path": "c.sql",
+            },
+        )
+        results = list(self.analyzer._iter_sql_bodies(action))
+        assert ("SELECT 1", "a.sql") in results
+        assert ("SELECT 2", "b.sql") in results
+        assert ("SELECT 3", "c.sql") in results
+
+    # ---- _iter_python_bodies ----
+
+    def test_iter_python_bodies_yields_custom_sink_module_path(self):
+        action = self._make_action(
+            write_target={"type": "custom", "module_path": "sinks/custom.py"}
+        )
+        results = list(self.analyzer._iter_python_bodies(action))
+        assert (None, "sinks/custom.py") in results
+
+    def test_iter_python_bodies_yields_batch_handler_inline(self):
+        action = self._make_action(
+            write_target={
+                "type": "foreachbatch",
+                "batch_handler": "def handler(df, epoch): spark.table('a.b.c')",
+            }
+        )
+        results = list(self.analyzer._iter_python_bodies(action))
+        assert any(inline and "spark.table" in inline for inline, _ in results)
+
+    def test_iter_python_bodies_yields_snapshot_cdc_source_function(self):
+        action = self._make_action(
+            write_target={
+                "type": "streaming_table",
+                "snapshot_cdc_config": {"source_function": {"file": "cdc/source.py"}},
+            }
+        )
+        results = list(self.analyzer._iter_python_bodies(action))
+        assert (None, "cdc/source.py") in results
+
+    def test_iter_python_bodies_preserves_top_level_module_path(self):
+        action = self._make_action(
+            type=ActionType.TRANSFORM, module_path="transforms/t.py"
+        )
+        results = list(self.analyzer._iter_python_bodies(action))
+        assert (None, "transforms/t.py") in results
+
+    # ---- E2E: write_target reads via _extract_*_sources ----
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_extract_sql_sources_reads_write_target_sql_path_e2e(
+        self, mockget_flowgroups
+    ):
+        """Materialized-view SQL in write_target.sql_path should resolve into sources."""
+        # Write SQL file relative to a fake YAML path.
+        yaml_path = self.temp_dir / "pipelines" / "mv.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        sql_file = yaml_path.parent / "sql" / "mv.sql"
+        sql_file.parent.mkdir(parents=True, exist_ok=True)
+        sql_file.write_text("SELECT * FROM silver.customers")
+
+        action = self._make_action(
+            write_target={"type": "materialized_view", "sql_path": "sql/mv.sql"}
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "gold_fg"
+        flowgroup.pipeline = "gold_pipeline"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["gold_fg"] = yaml_path
+
+        with patch(
+            "lhp.utils.sql_parser.extract_tables_from_sql",
+            return_value=["silver.customers"],
+        ):
+            graphs = self.analyzer.build_dependency_graphs()
+
+        action_id = "gold_fg.action"
+        assert action_id in graphs.action_graph.nodes
+        external_sources = graphs.action_graph.nodes[action_id].get(
+            "external_sources", []
+        )
+        assert "silver.customers" in external_sources
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_extract_sql_sources_raises_lhperror_on_missing_write_target_sql_path(
+        self, mockget_flowgroups
+    ):
+        """Missing write_target.sql_path must raise LHPError(IO, 002) with full context."""
+        action = self._make_action(
+            write_target={"type": "materialized_view", "sql_path": "nonexistent.sql"}
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "gold_fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["gold_fg"] = self.temp_dir / "mv.yaml"
+
+        with pytest.raises(LHPError) as exc_info:
+            self.analyzer.build_dependency_graphs()
+
+        err = exc_info.value
+        assert "LHP-IO-002" in err.code
+        assert "SQL file not found" in err.title
+        # Context must carry enough to locate the failure.
+        assert err.context["Action"] == "action"
+        assert err.context["Flowgroup"] == "gold_fg"
+        assert err.context["SQL Path"] == "nonexistent.sql"
+        assert "Full Path" in err.context
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_extract_python_sources_reads_write_target_module_path_e2e(
+        self, mockget_flowgroups
+    ):
+        """Custom-sink Python in write_target.module_path should be parsed."""
+        yaml_path = self.temp_dir / "pipelines" / "sink.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        py_file = yaml_path.parent / "sinks" / "custom.py"
+        py_file.parent.mkdir(parents=True, exist_ok=True)
+        py_file.write_text('spark.table("aux.lookup_table")')
+
+        action = self._make_action(
+            write_target={"type": "custom", "module_path": "sinks/custom.py"}
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "sink_fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["sink_fg"] = yaml_path
+
+        graphs = self.analyzer.build_dependency_graphs()
+
+        action_id = "sink_fg.action"
+        external_sources = graphs.action_graph.nodes[action_id].get(
+            "external_sources", []
+        )
+        assert "aux.lookup_table" in external_sources
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_extract_python_sources_raises_lhperror_on_missing_module_path(
+        self, mockget_flowgroups
+    ):
+        action = self._make_action(
+            write_target={"type": "custom", "module_path": "nonexistent.py"}
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "sink_fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["sink_fg"] = self.temp_dir / "s.yaml"
+
+        with pytest.raises(LHPError) as exc_info:
+            self.analyzer.build_dependency_graphs()
+
+        assert "LHP-IO-003" in exc_info.value.code
+        assert "Python file not found" in exc_info.value.title
+        assert exc_info.value.context["Module Path"] == "nonexistent.py"
+
+    # ---- _resolve_and_parse_file path resolution ----
+
+    def test_resolve_and_parse_file_yaml_relative_wins_over_project_root(self):
+        """When a file exists in both yaml-relative and project-root, yaml wins."""
+        yaml_path = self.temp_dir / "pipelines" / "x.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        yaml_rel = yaml_path.parent / "q.sql"
+        yaml_rel.write_text("SELECT * FROM yaml_rel_source")
+        root_rel = self.temp_dir / "q.sql"
+        root_rel.write_text("SELECT * FROM root_rel_source")
+        self.analyzer._flowgroup_file_paths["fg"] = yaml_path
+
+        captured = []
+
+        def fake_parser(content):
+            captured.append(content)
+            return ["dummy"]
+
+        self.analyzer._resolve_and_parse_file(
+            "q.sql",
+            "fg",
+            self._make_action(name="act"),
+            fake_parser,
+            file_type_label="SQL",
+            code_number="002",
+            path_context_key="SQL Path",
+        )
+        assert captured == ["SELECT * FROM yaml_rel_source"]
+
+    def test_resolve_and_parse_file_falls_back_to_project_root(self):
+        """When the yaml-relative path doesn't exist, project-root is used."""
+        yaml_path = self.temp_dir / "pipelines" / "x.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)  # no q.sql here
+        root_rel = self.temp_dir / "q.sql"
+        root_rel.write_text("SELECT * FROM root_rel_source")
+        self.analyzer._flowgroup_file_paths["fg"] = yaml_path
+
+        captured = []
+
+        def fake_parser(content):
+            captured.append(content)
+            return ["dummy"]
+
+        self.analyzer._resolve_and_parse_file(
+            "q.sql",
+            "fg",
+            self._make_action(name="act"),
+            fake_parser,
+            file_type_label="SQL",
+            code_number="002",
+            path_context_key="SQL Path",
+        )
+        assert captured == ["SELECT * FROM root_rel_source"]
+
+    def test_resolve_and_parse_file_uses_correct_file_type_label_in_error(self):
+        """Python errors should say 'Python file not found', SQL errors 'SQL file not found'."""
+        self.analyzer._flowgroup_file_paths["fg"] = self.temp_dir / "x.yaml"
+
+        with pytest.raises(LHPError) as sql_err:
+            self.analyzer._resolve_and_parse_file(
+                "missing.sql",
+                "fg",
+                self._make_action(name="act"),
+                lambda c: [],
+                file_type_label="SQL",
+                code_number="002",
+                path_context_key="SQL Path",
+            )
+        assert "SQL file not found" in sql_err.value.title
+
+        with pytest.raises(LHPError) as py_err:
+            self.analyzer._resolve_and_parse_file(
+                "missing.py",
+                "fg",
+                self._make_action(name="act"),
+                lambda c: [],
+                file_type_label="Python",
+                code_number="003",
+                path_context_key="Module Path",
+            )
+        assert "Python file not found" in py_err.value.title
+
+    # ---- Union vs parser-wins semantics ----
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_extract_action_sources_python_unions_parser_and_explicit(
+        self, mockget_flowgroups
+    ):
+        """Python action with batch_handler code AND explicit source: unions both."""
+        # batch_handler code that parses to ["parser.src"]; explicit source ["explicit.src"].
+        action = self._make_action(
+            source=["explicit.src"],
+            write_target={
+                "type": "foreachbatch",
+                "batch_handler": 'spark.table("parser.src")',
+            },
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["fg"] = self.temp_dir / "x.yaml"
+
+        graphs = self.analyzer.build_dependency_graphs()
+        external_sources = set(
+            graphs.action_graph.nodes["fg.action"].get("external_sources", [])
+        )
+        assert "parser.src" in external_sources
+        assert "explicit.src" in external_sources
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_extract_action_sources_sql_does_not_union_explicit(
+        self, mockget_flowgroups
+    ):
+        """SQL action: parser wins — explicit sources suppressed when SQL parser matches."""
+        yaml_path = self.temp_dir / "x.yaml"
+        sql_file = self.temp_dir / "q.sql"
+        sql_file.write_text("SELECT * FROM parser.src")
+
+        action = self._make_action(
+            source=["explicit.src"],
+            sql_path="q.sql",
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["fg"] = yaml_path
+
+        with patch(
+            "lhp.utils.sql_parser.extract_tables_from_sql",
+            return_value=["parser.src"],
+        ):
+            graphs = self.analyzer.build_dependency_graphs()
+        external_sources = set(
+            graphs.action_graph.nodes["fg.action"].get("external_sources", [])
+        )
+        assert "parser.src" in external_sources
+        # SQL precedence: explicit is intentionally dropped.
+        assert "explicit.src" not in external_sources
