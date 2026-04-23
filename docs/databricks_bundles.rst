@@ -680,6 +680,55 @@ Job Configuration controls Databricks orchestration job settings for dependency-
    # Short flag version
    lhp deps -jc config/job_config.yaml --bundle-output
 
+**Pass-through Fields (Unknown Keys)**
+
+Any top-level job_config key that is **not** in the table above is rendered
+verbatim into the generated orchestration job YAML. This lets you use any
+Databricks Jobs API field — including fields added after your LHP release —
+without waiting for LHP to add explicit support.
+
+Common pass-through examples:
+
+.. code-block:: yaml
+   :caption: File-arrival trigger
+
+   project_defaults:
+     trigger:
+       file_arrival:
+         url: "s3://my-bucket/landing-zone/"
+         min_time_between_triggers_seconds: 60
+         wait_after_last_change_seconds: 30
+       pause_status: UNPAUSED
+
+.. code-block:: yaml
+   :caption: Continuous job
+
+   project_defaults:
+     continuous:
+       pause_status: UNPAUSED
+
+.. code-block:: yaml
+   :caption: run_as service principal
+
+   project_defaults:
+     run_as:
+       service_principal_name: "<sp-application-id>"
+
+.. code-block:: yaml
+   :caption: Any other Databricks Jobs API field
+
+   project_defaults:
+     # git_source, health, parameters, environments, edit_mode,
+     # budget_policy_id, … all pass through in the same way.
+     budget_policy_id: "your-policy-id"
+     edit_mode: EDITABLE
+
+.. note::
+
+   Author-specified key order is preserved. LHP does not validate pass-through
+   keys against the Databricks API — if you misspell a field, Databricks will
+   reject it at deploy time, not LHP.
+
 **Merge Behavior**
 
 Configs are deep-merged: ``DEFAULT → project_defaults → job-specific``

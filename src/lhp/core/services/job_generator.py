@@ -18,7 +18,52 @@ from ...utils.error_formatter import (
     LHPFileError,
     LHPValidationError,
 )
+
 logger = logging.getLogger(__name__)
+
+
+# Top-level job_config keys that the Jinja job templates render explicitly.
+# Anything NOT in this set is passed through as-is via the `toyaml` filter,
+# so users can use new Databricks Jobs API fields (trigger.file_arrival,
+# continuous, run_as, git_source, health, etc.) without waiting for LHP to
+# explicitly support them.
+#
+# Kept here (not inside JobGenerator) so templates and tests can reference it
+# via a single source of truth.
+EXPLICITLY_RENDERED_JOB_CONFIG_KEYS = frozenset(
+    {
+        # Rendered by job_resource.yml.j2 / monitoring_job_resource.yml.j2
+        "max_concurrent_runs",
+        "queue",
+        "performance_target",
+        "timeout_seconds",
+        "tags",
+        "email_notifications",
+        "webhook_notifications",
+        "permissions",
+        "schedule",
+        # Only in monitoring_job_resource.yml.j2
+        "notebook_cluster",
+        # LHP-internal control knobs — must never be emitted into the rendered YAML
+        "generate_master_job",
+        "master_job_name",
+    }
+)
+
+
+def _dict_to_yaml(value: Any) -> str:
+    """Serialize a Python value to YAML for pass-through rendering.
+
+    Used as a Jinja filter (``{{ {key: value} | toyaml | indent(6) }}``) so
+    unknown job_config keys flow into the generated job YAML with correct
+    structure. ``sort_keys=False`` preserves author-specified order;
+    ``default_flow_style=False`` forces block style so nested dicts look
+    natural next to the hand-written Jinja blocks above the pass-through loop.
+
+    Trailing newline is stripped so the rendered block integrates cleanly
+    with surrounding template whitespace controls.
+    """
+    return yaml.safe_dump(value, default_flow_style=False, sort_keys=False).rstrip("\n")
 
 
 @dataclass
@@ -91,6 +136,16 @@ class JobGenerator:
             trim_blocks=False,
             lstrip_blocks=False,
             keep_trailing_newline=True,
+        )
+        # Pass-through filter: lets job_resource templates render any unknown
+        # job_config key as YAML so users can use new Databricks Jobs fields
+        # (trigger.file_arrival, continuous, run_as, git_source, …) without
+        # waiting for an LHP release to explicitly support them.
+        self.jinja_env.filters["toyaml"] = _dict_to_yaml
+        # Exposed as a Jinja global so every render site sees it without
+        # having to thread it through its own context dict.
+        self.jinja_env.globals["explicitly_rendered_keys"] = (
+            EXPLICITLY_RENDERED_JOB_CONFIG_KEYS
         )
         self.logger = logger
 
@@ -749,8 +804,6 @@ class JobGenerator:
         return jobs_info
 
     # ---- Monitoring job support ----
-
-    
 
     def generate_monitoring_job(
         self,

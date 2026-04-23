@@ -100,3 +100,9 @@ resources:
         timezone_id: {{ job_config.schedule.timezone_id }}
         pause_status: {{ job_config.schedule.pause_status }}
 {%- endif %}
+{#- Pass-through: render any job_config key not handled explicitly above.
+    Mirrors the same behavior as the individual job template so monitoring
+    jobs can also use new Databricks Jobs API fields without a template change. #}
+{%- for key, value in job_config.items() if key not in explicitly_rendered_keys %}
+      {{ {key: value} | toyaml | indent(6) }}
+{%- endfor %}
