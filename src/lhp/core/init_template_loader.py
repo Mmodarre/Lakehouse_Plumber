@@ -1,53 +1,13 @@
 """Template loader for project initialization."""
 
 import logging
+from importlib.resources import files
 from pathlib import Path
-from typing import Dict, List, Any
-from jinja2 import Environment, BaseLoader
+from typing import List
 
-try:
-    from importlib.resources import files
-except ImportError:
-    # Fallback for Python < 3.9
-    import importlib_resources
-
-    files = importlib_resources.files
+from jinja2 import Environment, PackageLoader
 
 from .init_template_context import InitTemplateContext
-
-
-class PackageTemplateLoader(BaseLoader):
-    """Custom Jinja2 loader for templates stored in package resources."""
-
-    def __init__(self, package_path: str):
-        """Initialize the loader.
-
-        Args:
-            package_path: Package path like 'lhp.templates.init'
-        """
-        self.package_path = package_path
-        self.logger = logging.getLogger(__name__)
-
-    def get_source(self, environment, template):
-        """Get template source from package resources."""
-        try:
-            # Navigate to the template file
-            package_files = files(self.package_path)
-            template_file = package_files / template
-
-            if not template_file.is_file():
-                raise FileNotFoundError(
-                    f"Template {template} not found in {self.package_path}"
-                )
-
-            source = template_file.read_text(encoding="utf-8")
-
-            # Return source, filename, uptodate function
-            return source, template, lambda: True
-
-        except Exception as e:
-            self.logger.error(f"Failed to load template {template}: {e}")
-            raise
 
 
 class InitTemplateLoader:
@@ -57,9 +17,11 @@ class InitTemplateLoader:
         """Initialize the template loader."""
         self.logger = logging.getLogger(__name__)
 
-        # Create Jinja2 environment with package template loader
-        loader = PackageTemplateLoader("lhp.templates.init")
-        self.jinja_env = Environment(loader=loader)  # nosec B701 — generates text, not HTML
+        # PackageLoader uses importlib.util.find_spec (PEP 451) internally,
+        # so it works identically for editable installs, wheels, and zipapps.
+        self.jinja_env = Environment(  # nosec B701 — generates text, not HTML
+            loader=PackageLoader("lhp", "templates/init"),
+        )
 
     def load_template(self, template_path: str):
         """Load a template from package resources.

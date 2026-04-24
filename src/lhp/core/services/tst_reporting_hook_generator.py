@@ -9,17 +9,16 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment
 
 from ...models.config import ActionType, FlowGroup, ProjectConfig
 from ...utils.error_formatter import ErrorCategory, LHPError
 from ...utils.formatter import CodeFormatter
 from ...utils.smart_file_writer import SmartFileWriter, build_lhp_source_header
 from ...utils.substitution import EnhancedSubstitutionManager
+from ...utils.template_renderer import get_lhp_template_loader
 
 logger = logging.getLogger(__name__)
-
-_TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 
 HOOK_FILENAME = "_test_reporting_hook.py"
 
@@ -39,7 +38,7 @@ class TestReportingHookGenerator:
         self.project_config = project_config
         self.project_root = project_root
         self._jinja_env = Environment(  # nosec B701 — generates Python, not HTML
-            loader=FileSystemLoader(str(_TEMPLATES_DIR)),
+            loader=get_lhp_template_loader(),
             keep_trailing_newline=True,
         )
         self._formatter = CodeFormatter()

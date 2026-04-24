@@ -5,15 +5,16 @@ This module contains tests for the conversion from f-string templates
 to Jinja2 templates for bundle resource file generation.
 """
 
-import pytest
-import tempfile
 import shutil
-import yaml
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from lhp.bundle.manager import BundleManager
+import pytest
+import yaml
+
 from lhp.bundle.exceptions import BundleResourceError
+from lhp.bundle.manager import BundleManager
 
 
 class TestBundleJinja2Templates:
@@ -388,9 +389,13 @@ class TestBundleJinja2Templates:
         assert "tojson" in self.manager.template_renderer.env.filters
         assert "toyaml" in self.manager.template_renderer.env.filters
 
-        # Verify template directory is correctly set
-        template_paths = self.manager.template_renderer.env.loader.searchpath
-        assert any("templates" in path for path in template_paths)
+        # Verify the loader is wired to the lhp package templates.
+        from jinja2 import PackageLoader
+
+        loader = self.manager.template_renderer.env.loader
+        assert isinstance(loader, PackageLoader)
+        assert loader.package_name == "lhp"
+        assert loader.package_path == "templates"
 
     def test_template_loading_from_package(self):
         """Should load .j2 template file from package resources."""
@@ -426,6 +431,7 @@ class TestBundleJinja2Templates:
 
         # Verify template file physically exists in expected location
         from pathlib import Path
+
         import lhp
 
         # Find the lhp package path
@@ -468,21 +474,25 @@ class TestBundleJinja2Templates:
                 # Verify correct template was used
                 assert template_name == "bundle/pipeline_resource.yml.j2"
 
-                # Verify context structure (updated for catalog/schema config feature)
+                # Verify context structure (updated for catalog/schema config feature
+                # and pass-through pipeline_config rendering)
                 assert isinstance(context, dict)
                 assert "pipeline_name" in context
                 assert "pipeline_config" in context
                 assert "catalog" in context  # Now included (may be None)
                 assert "schema" in context  # Now included (may be None)
+                # Drives the pass-through loop in pipeline_resource.yml.j2
+                assert "explicitly_rendered_keys" in context
 
                 # Verify correct pipeline_name value
                 expected_name = pipeline_names[i]
                 assert context["pipeline_name"] == expected_name
 
-                # Context should contain pipeline_name, pipeline_config, catalog, and schema
+                # Context should contain pipeline_name, pipeline_config, catalog,
+                # schema, and explicitly_rendered_keys
                 assert (
-                    len(context) == 4
-                ), f"Context should contain 4 keys, got: {context.keys()}"
+                    len(context) == 5
+                ), f"Context should contain 5 keys, got: {context.keys()}"
 
         finally:
             # Restore original method
@@ -556,6 +566,7 @@ dev:
     def test_template_rendering_error_handling(self):
         """Should handle Jinja2 errors gracefully (missing variables, etc.)"""
         from unittest.mock import patch
+
         from jinja2 import TemplateNotFound, UndefinedError
 
         from lhp.utils.error_formatter import LHPConfigError
@@ -771,8 +782,8 @@ dev:
 
     def test_no_notebook_path_iteration(self):
         """Should not require iteration through individual notebook paths."""
-        from unittest.mock import patch, MagicMock
         import os
+        from unittest.mock import MagicMock, patch
 
         # Test that bundle manager no longer needs to scan for files
         with (
@@ -889,8 +900,9 @@ dev:
 
     def test_invalid_template_output_detection(self):
         """Should detect when template produces invalid YAML."""
-        import yaml
         from unittest.mock import patch
+
+        import yaml
 
         # Test 1: Verify normal template produces valid YAML
         pipeline_name = "validation_test"
@@ -1132,6 +1144,7 @@ class TestBundleJinja2TemplateHelpers:
     def test_template_file_discovery(self):
         """Should find and load bundle template files."""
         from pathlib import Path
+
         import lhp
         from lhp.bundle.manager import BundleManager
 
@@ -1183,6 +1196,7 @@ class TestBundleJinja2TemplateHelpers:
     def test_template_variable_validation(self):
         """Should validate required template variables are present."""
         from pathlib import Path
+
         import lhp
         from lhp.bundle.manager import BundleManager
 

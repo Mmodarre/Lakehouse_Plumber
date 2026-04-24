@@ -110,6 +110,28 @@ resources:
       environment:
 {{ pipeline_config.environment | toyaml | indent(8, first=True) -}}
 {%- endif %}
+{%- if pipeline_config.get('permissions') %}
+
+      permissions:
+{% for permission in pipeline_config.permissions %}
+        - level: {{ permission.level }}
+{% if permission.get('user_name') %}
+          user_name: {{ permission.user_name }}
+{% endif %}
+{% if permission.get('group_name') %}
+          group_name: {{ permission.group_name }}
+{% endif %}
+{% if permission.get('service_principal_name') %}
+          service_principal_name: {{ permission.service_principal_name }}
+{% endif %}
+{% endfor %}
+{%- endif %}
+{# Pass-through: render any pipeline_config key not handled explicitly above.
+   Lets users specify new Databricks Pipelines API fields (run_as, ...) without a template change. #}
+{%- for key, value in pipeline_config.items() if key not in explicitly_rendered_keys %}
+
+      {{ {key: value} | toyaml | indent(6) }}
+{%- endfor %}
 
       # Additional pipeline configuration options 
       # Add to your pipeline_config-<env>.yaml as needed and pass the file path through the --pipeline-config flag:

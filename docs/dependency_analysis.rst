@@ -118,6 +118,103 @@ FlowGroups regenerate when upstream definitions change.
        source: v_clean_data  # ← Dependency
        target: v_aggregated
 
+How ``lhp deps`` Extracts Dependencies from Python Code
+--------------------------------------------------------
+
+When an action carries Python code — either at the top level
+(``action.module_path``) or inside a ``write_target`` (custom sinks,
+ForEachBatch handlers, or CDC snapshot functions) — ``lhp deps`` statically
+analyzes the Python source to extract table references from Spark calls.
+
+**Calls the parser recognizes:**
+
+- ``spark.table("cat.sch.t")``
+- ``spark.read.table("cat.sch.t")``
+- ``spark.catalog.tableExists("cat.sch.t")``
+- ``spark.catalog.dropTempView("cat.sch.t")``
+- ``spark.sql("...")`` — the SQL string is parsed, and any table references
+  inside are extracted.
+
+The parser also follows local variable bindings inside direct table calls::
+
+    tbl = "cat.sch.orders"
+    spark.read.table(tbl)        # resolves to "cat.sch.orders"
+
+**What the parser can resolve:**
+
+- Simple assignments: ``tbl = "literal"`` or ``tbl: str = "literal"``.
+- Chained assignments: ``a = b = "literal"``.
+- Tuple / list unpacking where both sides are parallel literals:
+  ``a, b = "x", "y"``.
+- Reassignments and conditional branches — every possible literal value is
+  emitted (union semantics)::
+
+      tbl = "cat.sch.a"
+      if cond:
+          tbl = "cat.sch.b"
+      spark.table(tbl)         # emits both "cat.sch.a" and "cat.sch.b"
+
+- Module-level constants referenced inside functions.
+- f-strings with well-known placeholder names (``catalog``, ``schema``,
+  ``table``, ``bronze_schema``, ``silver_schema``, ``gold_schema``,
+  ``migration_schema``, ``old_schema``). The placeholder is preserved in the
+  extracted source name.
+
+**What the parser cannot resolve:**
+
+- Function parameters (the value depends on the caller).
+- Function return values (``tbl = get_name()``).
+- String concatenation via ``+`` or ``.format()``.
+- Class attributes (``self.tbl``, class-body bindings seen from methods).
+- Loop variables.
+- ``nonlocal`` / ``global`` declarations.
+
+For any of these unresolvable cases, declare the source explicitly on the
+action::
+
+    - name: my_transform
+      type: transform
+      transform_type: python
+      source:
+        - "acme_edw_dev.edw_silver.parameterized_table"
+      module_path: transforms/my_transform.py
+      function_name: run
+
+**Precedence between parser output and explicit source:**
+
+The analyzer treats SQL parsing as authoritative — if a SQL body produces any
+extracted sources, the explicit ``source:`` declaration is not additionally
+consulted. For Python, the analyzer takes the **union** of parser output and
+explicit ``source:``, because Python parsing is best-effort and the escape
+hatch above is the canonical way to patch unresolvable cases:
+
++--------+---------------------------------------------+
+| Body   | Behavior                                    |
++========+=============================================+
+| SQL    | Parser wins. Explicit ``source:`` ignored   |
+|        | when parser finds any references.           |
++--------+---------------------------------------------+
+| Python | Parser ∪ explicit ``source:``.              |
++--------+---------------------------------------------+
+| None   | Falls back to explicit ``source:`` only.    |
++--------+---------------------------------------------+
+
+This matches the expected workflows: SQL parsing is reliable, so the parser
+is trusted outright. Python parsing has known limits, so users keep an
+escape hatch while still benefiting from automatic detection.
+
+**Locations the parser inspects:**
+
+- ``action.sql``, ``action.sql_path``
+- ``action.source["sql"]``, ``action.source["sql_path"]``
+- ``action.write_target["sql"]``, ``action.write_target["sql_path"]``
+  (materialized views)
+- ``action.module_path`` (Python transforms, custom sources)
+- ``action.write_target["module_path"]`` (custom sinks)
+- ``action.write_target["batch_handler"]`` (inline ForEachBatch code)
+- ``action.write_target["snapshot_cdc_config"]["source_function"]["file"]``
+  (CDC snapshot functions)
+
 Using the deps Command
 ----------------------
 

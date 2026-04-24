@@ -7,16 +7,32 @@ rendering functionality, promoting composition over inheritance.
 
 import json
 import logging
-from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateSyntaxError, UndefinedError
+from jinja2 import (
+    BaseLoader,
+    Environment,
+    PackageLoader,
+    TemplateSyntaxError,
+    UndefinedError,
+)
 from jinja2.exceptions import TemplateNotFound
 
 from .error_formatter import ErrorCategory, ErrorFormatter, LHPConfigError
+from .yaml_filters import dict_to_yaml
 
 logger = logging.getLogger(__name__)
+
+
+def get_lhp_template_loader() -> PackageLoader:
+    """Return a Jinja2 loader rooted at ``src/lhp/templates/``.
+
+    Uses :class:`jinja2.PackageLoader`, which resolves templates via
+    ``importlib.util.find_spec()`` (PEP 451). This is the single source of
+    truth for the LHP package-template location; renames/moves are a one-line
+    change here.
+    """
+    return PackageLoader("lhp", "templates")
 
 
 class TemplateRenderer:
@@ -27,21 +43,28 @@ class TemplateRenderer:
     clear separation of concerns.
     """
 
-    def __init__(self, template_dir: Path):
+    def __init__(self, loader: Optional[BaseLoader] = None):
         """
         Initialize template renderer.
 
         Args:
-            template_dir: Directory containing template files
+            loader: Jinja2 loader. Defaults to the LHP package loader
+                (``PackageLoader("lhp", "templates")``).
         """
-        self.template_dir = template_dir
+        if loader is None:
+            loader = get_lhp_template_loader()
         self.env = Environment(  # nosec B701 — generates Python, not HTML
-            loader=FileSystemLoader(template_dir), trim_blocks=True, lstrip_blocks=True
+            loader=loader, trim_blocks=True, lstrip_blocks=True
         )
 
         # Add common filters
         self.env.filters["tojson"] = json.dumps
-        self.env.filters["toyaml"] = yaml.dump
+        self.env.filters["toyaml"] = dict_to_yaml
+
+    @classmethod
+    def from_package(cls) -> "TemplateRenderer":
+        """Construct a renderer backed by the LHP package template tree."""
+        return cls(get_lhp_template_loader())
 
     def render_template(self, template_name: str, context: Dict[str, Any]) -> str:
         """
@@ -63,7 +86,7 @@ class TemplateRenderer:
             raise ErrorFormatter.template_not_found(
                 template_name=template_name,
                 available_templates=[],
-                templates_dir=str(self.template_dir),
+                templates_dir="lhp.templates package",
             ) from e
 
         try:
@@ -88,7 +111,7 @@ class TemplateRenderer:
                 details=f"Template '{template_name}' has a syntax error: {e}",
                 suggestions=[
                     "Check the Jinja2 syntax in the template file",
-                    f"Review the template at: {self.template_dir / template_name}",
+                    f"Review the template at: lhp/templates/{template_name}",
                 ],
                 context={"Template": template_name, "Line": str(e.lineno or "unknown")},
             ) from e

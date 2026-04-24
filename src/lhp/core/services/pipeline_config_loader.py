@@ -447,6 +447,93 @@ class PipelineConfigLoader:
                         },
                     )
 
+        # Validate permissions (if present): list of dicts, each with a 'level'
+        # string and exactly one of user_name / group_name / service_principal_name.
+        # Catching these at `lhp validate` time produces specific messages instead of
+        # opaque failures at `databricks bundle deploy`.
+        if "permissions" in config:
+            if not isinstance(config["permissions"], list):
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Invalid 'permissions' field type",
+                    details=(
+                        f"Invalid 'permissions' value: expected a list, "
+                        f"got {type(config['permissions']).__name__}."
+                    ),
+                    suggestions=[
+                        "Use a list of permission entries",
+                        "Each entry must have a 'level' and exactly one identity "
+                        "(user_name, group_name, or service_principal_name)",
+                    ],
+                    context={"Actual Type": type(config["permissions"]).__name__},
+                    example=(
+                        "permissions:\n"
+                        "  - level: CAN_MANAGE\n"
+                        "    user_name: user@example.com"
+                    ),
+                )
+
+            identity_keys = {"user_name", "group_name", "service_principal_name"}
+            for idx, entry in enumerate(config["permissions"]):
+                if not isinstance(entry, dict):
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title=f"Invalid permissions entry at index {idx}",
+                        details=(
+                            f"Permissions entry {idx} must be a dict, "
+                            f"got {type(entry).__name__}."
+                        ),
+                        suggestions=[
+                            "Each permissions entry must be a mapping with 'level' "
+                            "and one identity key"
+                        ],
+                        context={
+                            "Index": idx,
+                            "Actual Type": type(entry).__name__,
+                        },
+                    )
+                if "level" not in entry or not isinstance(entry["level"], str):
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title=f"Permissions entry {idx} missing 'level'",
+                        details=(
+                            f"Permissions entry {idx} must have a string 'level' "
+                            f"field (e.g. CAN_MANAGE, CAN_VIEW, CAN_RUN, CAN_MANAGE_RUN)."
+                        ),
+                        suggestions=[
+                            "Add a 'level' field to this permissions entry",
+                            "Use one of the Databricks permission levels (CAN_VIEW, "
+                            "CAN_RUN, CAN_MANAGE, CAN_MANAGE_RUN)",
+                        ],
+                        context={
+                            "Index": idx,
+                            "Entry": repr(entry),
+                        },
+                    )
+                present = [k for k in identity_keys if k in entry]
+                if len(present) != 1:
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title=f"Permissions entry {idx} has invalid identity keys",
+                        details=(
+                            f"Permissions entry {idx} must have exactly one of "
+                            f"{', '.join(sorted(identity_keys))}; found: {present}."
+                        ),
+                        suggestions=[
+                            "Specify exactly one identity per permissions entry",
+                            "Split into separate entries if multiple identities need "
+                            "the same level",
+                        ],
+                        context={
+                            "Index": idx,
+                            "Identities Found": present,
+                        },
+                    )
+
         # Note: We intentionally do NOT validate:
         # - cluster structures
         # - notification formats

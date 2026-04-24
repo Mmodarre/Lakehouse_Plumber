@@ -23,7 +23,6 @@ resources:
       environment:
         dependencies:
         - msal==1.31.0
-
       # Additional pipeline configuration options 
       # Add to your pipeline_config-<env>.yaml as needed and pass the file path through the --pipeline-config flag:
       # You can use substitutions file to define the values for the pipeline configuration using the following syntax:

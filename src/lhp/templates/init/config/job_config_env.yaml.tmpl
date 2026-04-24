@@ -82,7 +82,31 @@ project_defaults:
   #   quartz_cron_expression: "0 0 2 * * ?"
   #   timezone_id: "America/New_York"
   #   pause_status: "UNPAUSED"
-  
+
+  # File-arrival trigger (optional, pass-through)
+  # LHP renders this block verbatim into the generated job YAML, so any
+  # Databricks Jobs API trigger type works (file_arrival, periodic,
+  # table_update) without waiting for explicit LHP support.
+  # trigger:
+  #   file_arrival:
+  #     url: "s3://my-bucket/landing-zone/"
+  #     min_time_between_triggers_seconds: 60
+  #     wait_after_last_change_seconds: 30
+  #   pause_status: "UNPAUSED"
+
+  # Continuous job (optional, pass-through)
+  # continuous:
+  #   pause_status: "UNPAUSED"
+
+  # Service-principal run_as (optional, pass-through)
+  # run_as:
+  #   service_principal_name: "<sp-application-id>"
+
+  # Any other Databricks Jobs API field (git_source, health, parameters,
+  # environments, edit_mode, budget_policy_id, …) also passes through.
+  # LHP renders unknown top-level keys verbatim — no template change needed
+  # when Databricks adds new fields.
+
   # Job permissions (optional)
   # permissions:
   #   - level: CAN_VIEW

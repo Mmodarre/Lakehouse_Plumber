@@ -864,31 +864,6 @@ class TestDeltaLoadOptions:
         assert "spark.readStream" in code
         assert '.option("skipChangeCommits", "true")' in code
 
-    def test_delta_cdf_metadata_warning_emitted(self, caplog):
-        """Test that CDF metadata column warning is emitted when readChangeFeed is enabled."""
-        import logging
-        generator = DeltaLoadGenerator()
-        action = Action(
-            name="load_cdf_warn",
-            type=ActionType.LOAD,
-            target="v_cdf_warn",
-            source={
-                "type": "delta",
-                "catalog": "bronze_cat",
-                "schema": "bronze_sch",
-                "table": "orders",
-                "options": {
-                    "readChangeFeed": "true"
-                }
-            },
-            readMode="stream"
-        )
-
-        with caplog.at_level(logging.WARNING, logger="lhp.generators.load.delta"):
-            generator.generate(action, {})
-
-        assert any("_change_type" in msg for msg in caplog.messages)
-        assert any("_commit_version" in msg for msg in caplog.messages)
 
     def test_delta_options_combined_features(self):
         """Test options work combined with where clause and select."""

@@ -3,7 +3,7 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
 
 import networkx as nx
 
@@ -765,12 +765,171 @@ class DependencyAnalyzer:
 
         return graph
 
+    def _write_target_as_dict(self, action: Action) -> Optional[Dict[str, Any]]:
+        """Normalize ``action.write_target`` to a ``dict`` for uniform lookup.
+
+        Returns ``None`` when the action has no write target. Handles both the
+        Pydantic ``WriteTarget`` form and a raw dict (some code paths pre-dump
+        it before reaching the analyzer).
+        """
+        wt = getattr(action, "write_target", None)
+        if wt is None:
+            return None
+        if isinstance(wt, dict):
+            return wt
+        # Pydantic model — serialize to a plain dict for uniform key lookup.
+        return wt.model_dump()
+
+    def _iter_sql_bodies(
+        self, action: Action
+    ) -> Iterator[Tuple[Optional[str], Optional[str]]]:
+        """Yield ``(inline_sql, sql_path)`` for every known SQL location.
+
+        Covers:
+          - ``action.sql`` / ``action.sql_path``
+          - ``action.source["sql"]`` / ``action.source["sql_path"]`` (when
+            ``source["type"] == "sql"``)
+          - ``write_target["sql"]`` / ``write_target["sql_path"]``
+            (materialized-view SQL)
+
+        Either element of a yielded tuple may be ``None``; callers should
+        treat each independently.
+        """
+        yield (
+            getattr(action, "sql", None),
+            getattr(action, "sql_path", None),
+        )
+
+        source = getattr(action, "source", None)
+        if isinstance(source, dict) and source.get("type") == "sql":
+            yield source.get("sql"), source.get("sql_path")
+
+        wt = self._write_target_as_dict(action)
+        if wt is not None:
+            yield wt.get("sql"), wt.get("sql_path")
+
+    def _iter_python_bodies(
+        self, action: Action
+    ) -> Iterator[Tuple[Optional[str], Optional[str]]]:
+        """Yield ``(inline_python, file_path)`` for every known Python location.
+
+        Covers:
+          - top-level ``action.module_path`` (Python transforms / custom sources)
+          - ``write_target["module_path"]`` (custom sinks)
+          - ``write_target["batch_handler"]`` (inline ForEachBatch code)
+          - ``write_target["snapshot_cdc_config"]["source_function"]["file"]``
+            (CDC snapshot functions, existing behavior)
+        """
+        module_path = getattr(action, "module_path", None)
+        if module_path:
+            yield None, module_path
+
+        wt = self._write_target_as_dict(action)
+        if wt is None:
+            return
+
+        wt_module_path = wt.get("module_path")
+        if wt_module_path:
+            yield None, wt_module_path
+
+        batch_handler = wt.get("batch_handler")
+        if batch_handler:
+            yield batch_handler, None
+
+        cdc = wt.get("snapshot_cdc_config") or {}
+        source_function = cdc.get("source_function") if isinstance(cdc, dict) else None
+        if isinstance(source_function, dict):
+            fn_file = source_function.get("file")
+            if fn_file:
+                yield None, fn_file
+
+    def _resolve_and_parse_file(
+        self,
+        file_path_str: str,
+        flowgroup_name: str,
+        action: Action,
+        parser_fn: Callable[[str], List[str]],
+        file_type_label: str,
+        code_number: str,
+        path_context_key: str,
+    ) -> List[str]:
+        """Resolve a relative file path, read it, and parse via ``parser_fn``.
+
+        Resolution order: first relative to the flowgroup YAML file (if the
+        mapping is available), then relative to the project root. Both SQL
+        and Python paths go through this — this matches the pre-refactor
+        behavior for SQL and extends Python paths to also honor YAML-relative
+        paths, which is consistent with how generators resolve
+        ``write_target`` file references.
+
+        Raises ``LHPError(IO, code_number)`` when no candidate resolves to an
+        existing file. Parse-time failures log a warning and return ``[]``
+        instead of raising (preserving pre-refactor behavior).
+        """
+        yaml_file_path = self._flowgroup_file_paths.get(flowgroup_name)
+
+        candidate_paths: List[Path] = []
+        if yaml_file_path is not None:
+            candidate_paths.append(yaml_file_path.parent / file_path_str)
+        candidate_paths.append(self.project_root / file_path_str)
+
+        resolved_path = next((p for p in candidate_paths if p.exists()), None)
+
+        if resolved_path is None:
+            # Use the last candidate as the "expected" path in the error.
+            reported_path = candidate_paths[-1]
+            context: Dict[str, str] = {
+                "Action": action.name,
+                "Flowgroup": flowgroup_name,
+                path_context_key: file_path_str,
+                "Full Path": str(reported_path),
+            }
+            if yaml_file_path is not None:
+                context["YAML File"] = str(yaml_file_path)
+            else:
+                context["Project Root"] = str(self.project_root)
+
+            raise LHPError(
+                category=ErrorCategory.IO,
+                code_number=code_number,
+                title=f"{file_type_label} file not found for action '{action.name}'",
+                details=(
+                    f"{file_type_label} file '{file_path_str}' referenced by "
+                    f"action '{action.name}' does not exist."
+                ),
+                suggestions=[
+                    f"Check that the {file_type_label} file exists at: {reported_path}",
+                    f"Verify the {path_context_key.lower()} is correct "
+                    f"relative to the YAML file or project root",
+                    "Ensure the file has proper read permissions",
+                ],
+                context=context,
+            )
+
+        try:
+            content = resolved_path.read_text(encoding="utf-8")
+            parsed = list(parser_fn(content))
+            self.logger.debug(
+                f"Extracted {len(parsed)} sources from {file_type_label} file "
+                f"{resolved_path} for {flowgroup_name}.{action.name}"
+            )
+            return parsed
+        except Exception as e:
+            self.logger.warning(
+                f"Could not analyze {file_type_label} file {resolved_path} for "
+                f"{flowgroup_name}.{action.name}: {e}"
+            )
+            return []
+
     def _extract_action_sources(self, action: Action, flowgroup_name: str) -> List[str]:
         """
-        Extract source names from action, prioritizing SQL/Python analysis over explicit sources.
+        Extract source names from action.
 
-        SQL and Python sources OVERRIDE explicit sources per user requirements.
-        Only falls back to explicit sources if no SQL/Python sources found.
+        Precedence:
+          1. SQL parsing — reliable; if it yields sources, return only those.
+          2. Python parsing — best-effort; union parser output with explicit
+             `source:` so users can patch unresolvable cases.
+          3. Explicit source declaration (fallback).
 
         Args:
             action: The action to analyze
@@ -779,7 +938,7 @@ class DependencyAnalyzer:
         Returns:
             List of source table references
         """
-        # Priority 1: Try SQL source extraction
+        # Priority 1: SQL parsing is reliable — parser wins.
         sql_sources = self._extract_sql_sources(action, flowgroup_name)
         if sql_sources:
             self.logger.debug(
@@ -787,13 +946,16 @@ class DependencyAnalyzer:
             )
             return sql_sources
 
-        # Priority 2: Try Python source extraction
+        # Priority 2: Python parsing is best-effort — union with explicit source.
         python_sources = self._extract_python_sources(action, flowgroup_name)
         if python_sources:
+            explicit = extract_action_sources(action)
+            merged = sorted(set(python_sources) | set(explicit))
             self.logger.debug(
-                f"Using {len(python_sources)} Python sources for {flowgroup_name}.{action.name}: {python_sources}"
+                f"Using {len(merged)} Python sources for {flowgroup_name}.{action.name} "
+                f"(parser: {python_sources}, explicit: {explicit})"
             )
-            return python_sources
+            return merged
 
         # Priority 3: Fall back to shared explicit source extraction
         sources = extract_action_sources(action)
@@ -811,10 +973,8 @@ class DependencyAnalyzer:
         """
         Extract table references from SQL content in actions.
 
-        Handles:
-        - Inline SQL in action.sql field
-        - SQL files referenced by action.sql_path
-        - Custom SQL in test actions
+        Iterates over every known SQL location (inline, sql_path, source dict,
+        and write_target) and collects table references from each.
 
         Args:
             action: The action to analyze
@@ -825,93 +985,31 @@ class DependencyAnalyzer:
         """
         from ...utils.sql_parser import extract_tables_from_sql
 
-        sources = []
-
-        # Handle inline SQL
-        if hasattr(action, "sql") and action.sql:
-            try:
-                sources.extend(extract_tables_from_sql(action.sql))
-                self.logger.debug(
-                    f"Extracted {len(sources)} sources from inline SQL in {flowgroup_name}.{action.name}"
-                )
-            except Exception as e:
-                self.logger.warning(
-                    f"Could not parse inline SQL in {flowgroup_name}.{action.name}: {e}"
-                )
-
-        # Handle inline SQL in source dict
-        elif (
-            hasattr(action, "source")
-            and isinstance(action.source, dict)
-            and action.source.get("type") == "sql"
-            and action.source.get("sql")
-        ):
-            try:
-                sources.extend(extract_tables_from_sql(action.source["sql"]))
-                self.logger.debug(
-                    f"Extracted {len(sources)} sources from source dict SQL in {flowgroup_name}.{action.name}"
-                )
-            except Exception as e:
-                self.logger.warning(
-                    f"Could not parse source dict SQL in {flowgroup_name}.{action.name}: {e}"
-                )
-
-        # Handle SQL files - check both direct sql_path and nested in source dict
-        sql_path = None
-        if hasattr(action, "sql_path") and action.sql_path:
-            sql_path = action.sql_path
-        elif (
-            hasattr(action, "source")
-            and isinstance(action.source, dict)
-            and action.source.get("type") == "sql"
-            and action.source.get("sql_path")
-        ):
-            sql_path = action.source["sql_path"]
-
-        if sql_path:
-            # Get the YAML file path for this flowgroup
-            yaml_file_path = self._flowgroup_file_paths.get(flowgroup_name)
-            if yaml_file_path:
-                # Try relative to YAML file first
-                sql_file_path = yaml_file_path.parent / sql_path
-
-                # If not found, try relative to project root
-                if not sql_file_path.exists():
-                    sql_file_path = self.project_root / sql_path
-
-                if not sql_file_path.exists():
-                    raise LHPError(
-                        category=ErrorCategory.IO,
-                        code_number="002",
-                        title=f"SQL file not found for action '{action.name}'",
-                        details=f"SQL file '{sql_path}' referenced by action '{action.name}' does not exist.",
-                        suggestions=[
-                            f"Check that the SQL file exists at: {sql_file_path}",
-                            "Verify the sql_path is correct relative to the YAML file",
-                            "Ensure the file has proper read permissions",
-                        ],
-                        context={
-                            "Action": action.name,
-                            "Flowgroup": flowgroup_name,
-                            "SQL Path": sql_path,
-                            "Full Path": str(sql_file_path),
-                            "YAML File": str(yaml_file_path),
-                        },
-                    )
-
+        sources: List[str] = []
+        for inline_sql, sql_path in self._iter_sql_bodies(action):
+            if inline_sql:
                 try:
-                    sql_content = sql_file_path.read_text(encoding="utf-8")
-                    sources.extend(extract_tables_from_sql(sql_content))
+                    parsed = extract_tables_from_sql(inline_sql)
+                    sources.extend(parsed)
                     self.logger.debug(
-                        f"Extracted {len(sources)} sources from SQL file {sql_file_path} for {flowgroup_name}.{action.name}"
+                        f"Extracted {len(parsed)} sources from inline SQL in {flowgroup_name}.{action.name}"
                     )
                 except Exception as e:
                     self.logger.warning(
-                        f"Could not read SQL file {sql_file_path} for {flowgroup_name}.{action.name}: {e}"
+                        f"Could not parse inline SQL in {flowgroup_name}.{action.name}: {e}"
                     )
-            else:
-                self.logger.warning(
-                    f"No YAML file path found for flowgroup {flowgroup_name} - cannot resolve SQL file {sql_path}"
+
+            if sql_path:
+                sources.extend(
+                    self._resolve_and_parse_file(
+                        sql_path,
+                        flowgroup_name,
+                        action,
+                        extract_tables_from_sql,
+                        file_type_label="SQL",
+                        code_number="002",
+                        path_context_key="SQL Path",
+                    )
                 )
 
         return sources
@@ -920,9 +1018,13 @@ class DependencyAnalyzer:
         """
         Extract table references from Python code in actions.
 
-        Handles:
-        - Python transform actions with module_path
-        - CDC snapshot functions with source_function
+        Iterates over every known Python location and collects table references
+        from each:
+          - top-level ``action.module_path`` (Python transforms / custom sources)
+          - ``write_target.module_path`` (custom sinks)
+          - ``write_target.batch_handler`` (inline ForEachBatch Python)
+          - ``write_target.snapshot_cdc_config.source_function.file``
+            (CDC snapshot functions)
 
         Args:
             action: The action to analyze
@@ -933,115 +1035,32 @@ class DependencyAnalyzer:
         """
         from ...utils.python_parser import extract_tables_from_python
 
-        sources = []
+        sources: List[str] = []
+        for inline_python, file_path in self._iter_python_bodies(action):
+            if inline_python:
+                try:
+                    parsed = extract_tables_from_python(inline_python)
+                    sources.extend(parsed)
+                    self.logger.debug(
+                        f"Extracted {len(parsed)} sources from inline Python in {flowgroup_name}.{action.name}"
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Could not parse inline Python in {flowgroup_name}.{action.name}: {e}"
+                    )
 
-        # Handle Python transform actions
-        if (
-            action.type in [ActionType.LOAD, ActionType.TRANSFORM]
-            and hasattr(action, "module_path")
-            and action.module_path
-        ):
-
-            python_file_path = self.project_root / action.module_path
-
-            if not python_file_path.exists():
-                raise LHPError(
-                    category=ErrorCategory.IO,
-                    code_number="003",
-                    title=f"Python file not found for action '{action.name}'",
-                    details=f"Python file '{action.module_path}' referenced by action '{action.name}' does not exist.",
-                    suggestions=[
-                        f"Check that the Python file exists at: {python_file_path}",
-                        "Verify the module_path is correct relative to the project root",
-                        "Ensure the file has proper read permissions",
-                    ],
-                    context={
-                        "Action": action.name,
-                        "Flowgroup": flowgroup_name,
-                        "Module Path": action.module_path,
-                        "Full Path": str(python_file_path),
-                        "Project Root": str(self.project_root),
-                    },
+            if file_path:
+                sources.extend(
+                    self._resolve_and_parse_file(
+                        file_path,
+                        flowgroup_name,
+                        action,
+                        extract_tables_from_python,
+                        file_type_label="Python",
+                        code_number="003",
+                        path_context_key="Module Path",
+                    )
                 )
-
-            try:
-                python_content = python_file_path.read_text(encoding="utf-8")
-                sources.extend(extract_tables_from_python(python_content))
-                self.logger.debug(
-                    f"Extracted {len(sources)} sources from Python file {python_file_path} for {flowgroup_name}.{action.name}"
-                )
-            except Exception as e:
-                self.logger.warning(
-                    f"Could not analyze Python file {python_file_path} for {flowgroup_name}.{action.name}: {e}"
-                )
-
-        # Handle CDC snapshot functions in write actions
-        elif (
-            action.type == ActionType.WRITE
-            and hasattr(action, "write_target")
-            and action.write_target
-        ):
-
-            # Handle both dict and object write_target formats
-            write_target = action.write_target
-            snapshot_cdc_config = None
-
-            if isinstance(write_target, dict):
-                snapshot_cdc_config = write_target.get("snapshot_cdc_config")
-            elif hasattr(write_target, "snapshot_cdc_config"):
-                snapshot_cdc_config = write_target.snapshot_cdc_config
-
-            if snapshot_cdc_config:
-                # Handle both dict and object source_function formats
-                source_function = None
-                if isinstance(snapshot_cdc_config, dict):
-                    source_function = snapshot_cdc_config.get("source_function")
-                elif hasattr(snapshot_cdc_config, "source_function"):
-                    source_function = snapshot_cdc_config.source_function
-
-                if source_function:
-                    # Handle both dict and object source_function formats
-                    function_file = None
-                    if isinstance(source_function, dict):
-                        function_file = source_function.get("file")
-                    elif hasattr(source_function, "file"):
-                        function_file = source_function.file
-
-                    if function_file:
-                        python_file_path = self.project_root / function_file
-
-                        if not python_file_path.exists():
-                            raise LHPError(
-                                category=ErrorCategory.IO,
-                                code_number="004",
-                                title=f"CDC source function file not found for action '{action.name}'",
-                                details=f"Python file '{function_file}' referenced by CDC source function in action '{action.name}' does not exist.",
-                                suggestions=[
-                                    f"Check that the Python file exists at: {python_file_path}",
-                                    "Verify the source_function.file path is correct relative to the project root",
-                                    "Ensure the file has proper read permissions",
-                                ],
-                                context={
-                                    "Action": action.name,
-                                    "Flowgroup": flowgroup_name,
-                                    "Source Function File": function_file,
-                                    "Full Path": str(python_file_path),
-                                    "Project Root": str(self.project_root),
-                                },
-                            )
-
-                        try:
-                            python_content = python_file_path.read_text(
-                                encoding="utf-8"
-                            )
-                            sources.extend(extract_tables_from_python(python_content))
-                            self.logger.debug(
-                                f"Extracted {len(sources)} sources from CDC Python file {python_file_path} for {flowgroup_name}.{action.name}"
-                            )
-                        except Exception as e:
-                            self.logger.warning(
-                                f"Could not analyze CDC Python file {python_file_path} for {flowgroup_name}.{action.name}: {e}"
-                            )
 
         return sources
 

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from pathlib import Path
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment
 from typing import Dict, Any, Set, List, TYPE_CHECKING, Optional
 import yaml
 import json
+
+from ..utils.template_renderer import get_lhp_template_loader
 
 if TYPE_CHECKING:
     from ..models.config import Action
@@ -28,11 +29,10 @@ class BaseActionGenerator(ABC):
 
             self._import_manager = ImportManager()
 
-        # Template setup
-        pkg_dir = Path(__file__).parent.parent
-        template_dir = pkg_dir / "templates"
+        # Template setup: PackageLoader works for editable installs, wheels,
+        # and zipapps; no dependence on filesystem-path math from __file__.
         self.env = Environment(  # nosec B701 — generates Python, not HTML
-            loader=FileSystemLoader(template_dir),
+            loader=get_lhp_template_loader(),
             trim_blocks=True,
             lstrip_blocks=True,
         )

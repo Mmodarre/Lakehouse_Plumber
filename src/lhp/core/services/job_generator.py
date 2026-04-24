@@ -18,7 +18,38 @@ from ...utils.error_formatter import (
     LHPFileError,
     LHPValidationError,
 )
+from ...utils.yaml_filters import dict_to_yaml
+
 logger = logging.getLogger(__name__)
+
+
+# Top-level job_config keys that the Jinja job templates render explicitly.
+# Anything NOT in this set is passed through as-is via the `toyaml` filter,
+# so users can use new Databricks Jobs API fields (trigger.file_arrival,
+# continuous, run_as, git_source, health, etc.) without waiting for LHP to
+# explicitly support them.
+#
+# Kept here (not inside JobGenerator) so templates and tests can reference it
+# via a single source of truth.
+EXPLICITLY_RENDERED_JOB_CONFIG_KEYS = frozenset(
+    {
+        # Rendered by job_resource.yml.j2 / monitoring_job_resource.yml.j2
+        "max_concurrent_runs",
+        "queue",
+        "performance_target",
+        "timeout_seconds",
+        "tags",
+        "email_notifications",
+        "webhook_notifications",
+        "permissions",
+        "schedule",
+        # Only in monitoring_job_resource.yml.j2
+        "notebook_cluster",
+        # LHP-internal control knobs — must never be emitted into the rendered YAML
+        "generate_master_job",
+        "master_job_name",
+    }
+)
 
 
 @dataclass
@@ -66,22 +97,41 @@ class JobGenerator:
         Initialize the job generator.
 
         Args:
-            template_dir: Directory containing Jinja2 templates. If None, uses default.
+            template_dir: Directory containing Jinja2 templates. If None, uses
+                the LHP package template loader.
             project_root: Root directory of the project for loading custom config.
             config_file_path: Custom config file path (relative to project_root).
         """
+        from jinja2 import Environment
+
         if template_dir is None:
-            # Default to the templates directory in the package
-            template_dir = Path(__file__).parent.parent.parent / "templates"
+            # Default: load templates from the installed lhp package.
+            from ...utils.template_renderer import get_lhp_template_loader
 
-        # Create a custom template renderer with different settings for YAML formatting
-        from jinja2 import Environment, FileSystemLoader
+            loader = get_lhp_template_loader()
+        else:
+            # Test/injection path: read templates from the provided directory.
+            from jinja2 import FileSystemLoader
 
+            loader = FileSystemLoader(template_dir)
+
+        # Distinct Environment settings: YAML output requires block-preserving
+        # behavior and trailing-newline retention, unlike the Python generators.
         self.jinja_env = Environment(  # nosec B701 — generates YAML, not HTML
-            loader=FileSystemLoader(template_dir),
+            loader=loader,
             trim_blocks=False,
             lstrip_blocks=False,
             keep_trailing_newline=True,
+        )
+        # Pass-through filter: lets job_resource templates render any unknown
+        # job_config key as YAML so users can use new Databricks Jobs fields
+        # (trigger.file_arrival, continuous, run_as, git_source, …) without
+        # waiting for an LHP release to explicitly support them.
+        self.jinja_env.filters["toyaml"] = dict_to_yaml
+        # Exposed as a Jinja global so every render site sees it without
+        # having to thread it through its own context dict.
+        self.jinja_env.globals["explicitly_rendered_keys"] = (
+            EXPLICITLY_RENDERED_JOB_CONFIG_KEYS
         )
         self.logger = logger
 
@@ -740,8 +790,6 @@ class JobGenerator:
         return jobs_info
 
     # ---- Monitoring job support ----
-
-    
 
     def generate_monitoring_job(
         self,
