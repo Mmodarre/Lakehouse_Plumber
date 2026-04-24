@@ -18,6 +18,7 @@ from ...utils.error_formatter import (
     LHPFileError,
     LHPValidationError,
 )
+from ...utils.yaml_filters import dict_to_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -49,21 +50,6 @@ EXPLICITLY_RENDERED_JOB_CONFIG_KEYS = frozenset(
         "master_job_name",
     }
 )
-
-
-def _dict_to_yaml(value: Any) -> str:
-    """Serialize a Python value to YAML for pass-through rendering.
-
-    Used as a Jinja filter (``{{ {key: value} | toyaml | indent(6) }}``) so
-    unknown job_config keys flow into the generated job YAML with correct
-    structure. ``sort_keys=False`` preserves author-specified order;
-    ``default_flow_style=False`` forces block style so nested dicts look
-    natural next to the hand-written Jinja blocks above the pass-through loop.
-
-    Trailing newline is stripped so the rendered block integrates cleanly
-    with surrounding template whitespace controls.
-    """
-    return yaml.safe_dump(value, default_flow_style=False, sort_keys=False).rstrip("\n")
 
 
 @dataclass
@@ -141,7 +127,7 @@ class JobGenerator:
         # job_config key as YAML so users can use new Databricks Jobs fields
         # (trigger.file_arrival, continuous, run_as, git_source, …) without
         # waiting for an LHP release to explicitly support them.
-        self.jinja_env.filters["toyaml"] = _dict_to_yaml
+        self.jinja_env.filters["toyaml"] = dict_to_yaml
         # Exposed as a Jinja global so every render site sees it without
         # having to thread it through its own context dict.
         self.jinja_env.globals["explicitly_rendered_keys"] = (

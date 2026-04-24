@@ -1,15 +1,17 @@
 """Tests for JobGenerator service."""
 
-import pytest
 from pathlib import Path
+
+import networkx as nx
+import pytest
 import yaml
+
 from lhp.core.services.job_generator import JobGenerator
 from lhp.models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,
     PipelineDependency,
 )
-import networkx as nx
 
 # ============================================================================
 # Config Loading Tests
@@ -613,10 +615,10 @@ trigger:
 
 
 def test_dict_to_yaml_filter_directly():
-    """Sanity check the _dict_to_yaml helper in isolation."""
-    from lhp.core.services.job_generator import _dict_to_yaml
+    """Sanity check the dict_to_yaml helper in isolation."""
+    from lhp.utils.yaml_filters import dict_to_yaml
 
-    result = _dict_to_yaml({"trigger": {"file_arrival": {"url": "s3://x/"}}})
+    result = dict_to_yaml({"trigger": {"file_arrival": {"url": "s3://x/"}}})
 
     # No trailing newline (so indent filter composes cleanly).
     assert not result.endswith("\n")

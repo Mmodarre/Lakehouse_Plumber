@@ -9,7 +9,6 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
-import yaml
 from jinja2 import (
     BaseLoader,
     Environment,
@@ -20,6 +19,7 @@ from jinja2 import (
 from jinja2.exceptions import TemplateNotFound
 
 from .error_formatter import ErrorCategory, ErrorFormatter, LHPConfigError
+from .yaml_filters import dict_to_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class TemplateRenderer:
 
         # Add common filters
         self.env.filters["tojson"] = json.dumps
-        self.env.filters["toyaml"] = yaml.dump
+        self.env.filters["toyaml"] = dict_to_yaml
 
     @classmethod
     def from_package(cls) -> "TemplateRenderer":

@@ -40,6 +40,15 @@ clusters:
       min_workers: "{cluster_autoscale_min_workers}"
       max_workers: "{cluster_autoscale_max_workers}"
       mode: ENHANCED
+permissions:
+  - level: CAN_MANAGE
+    user_name: "admin@example.com"
+  - level: CAN_VIEW
+    group_name: "data-engineers"
+  - level: CAN_MANAGE_RUN
+    service_principal_name: "2aa4ed8e-0a18-4072-97c6-9c074c8be40d"
+run_as:
+  service_principal_name: "2aa4ed8e-0a18-4072-97c6-9c074c8be40d"
 
 ---
 # Environment dependencies E2E test pipelines

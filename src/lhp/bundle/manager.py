@@ -19,6 +19,33 @@ from .exceptions import BundleResourceError, YAMLParsingError
 logger = logging.getLogger(__name__)
 
 
+# Top-level pipeline_config keys that pipeline_resource.yml.j2 renders explicitly.
+# Anything NOT in this set is passed through as-is via the `toyaml` filter, so
+# users can use new Databricks Pipelines API fields (run_as, …) without waiting
+# for LHP to explicitly support them.
+#
+# Kept here (not inside BundleManager) so templates and tests can reference it
+# via a single source of truth.
+EXPLICITLY_RENDERED_PIPELINE_CONFIG_KEYS = frozenset(
+    {
+        "catalog",
+        "schema",
+        "serverless",
+        "clusters",
+        "configuration",
+        "continuous",
+        "photon",
+        "edition",
+        "channel",
+        "notifications",
+        "tags",
+        "event_log",
+        "environment",
+        "permissions",
+    }
+)
+
+
 class BundleManager:
     """
     Manages Databricks Asset Bundle resource files using a conservative approach.
@@ -498,6 +525,9 @@ class BundleManager:
             "pipeline_config": pipeline_config_resolved,  # Fully substituted!
             "catalog": catalog,
             "schema": schema,
+            # Scoped here (not on TemplateRenderer.env) so the set stays bound
+            # to bundle pipeline rendering and doesn't leak into other templates.
+            "explicitly_rendered_keys": EXPLICITLY_RENDERED_PIPELINE_CONFIG_KEYS,
         }
 
         return self.template_renderer.render_template(
