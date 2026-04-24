@@ -213,15 +213,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
   # or: startingTimestamp: "2024-01-01" """,
                 )
 
-        # Warn about CDF metadata columns
-        if has_cdf:
-            logger.warning(
-                f"Delta load '{action.name}': readChangeFeed is enabled. The resulting "
-                f"DataFrame will include CDF metadata columns (_change_type, "
-                f"_commit_version, _commit_timestamp). If writing to a non-CDC streaming "
-                f"table, you may need to drop these columns in a transform action."
-            )
-
         # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
