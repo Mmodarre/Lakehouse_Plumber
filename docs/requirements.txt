@@ -5,5 +5,5 @@ sphinx-notfound-page
 sphinx-llms-txt
 myst-parser>=2.0
 sphinx-click>=4.4
-sphinxcontrib-mermaid>=0.9
+sphinxcontrib-mermaid>=2.0.1
 sphinx-copybutton>=0.5
