@@ -18,7 +18,7 @@ sphinx-rtd-theme>=1.2.0
 
 # Development tools
 pre-commit>=3.0.0
-tox>=4.0.0
+tox>=4.53.0
 
 # Build and publishing tools
 build>=0.10.0
