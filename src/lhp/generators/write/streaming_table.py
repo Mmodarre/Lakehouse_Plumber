@@ -682,8 +682,15 @@ def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, 
             # Keep pyspark.sql.functions, pyspark.sql.types, pyspark.sql, and other specific imports
             skip_import = False
 
+            # __future__ imports must be hoisted to the top of the assembled
+            # module per PEP 236; CodeGenerator._assemble_final_code handles
+            # this centrally. Strip here so the inlined source-function block
+            # does not embed a duplicate the chokepoint would then have to
+            # harvest mid-body.
+            if imp.startswith("from __future__"):
+                skip_import = True
             # Skip base pyspark session imports (these are redundant in DLT)
-            if imp.startswith("from pyspark import") or imp.startswith(
+            elif imp.startswith("from pyspark import") or imp.startswith(
                 "import pyspark"
             ):
                 skip_import = True

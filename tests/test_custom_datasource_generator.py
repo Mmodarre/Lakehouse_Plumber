@@ -1,7 +1,9 @@
 """Tests for custom data source load generator."""
 
-import pytest
 from pathlib import Path
+
+import pytest
+
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
 from lhp.models.config import Action, ActionType
 
@@ -45,24 +47,24 @@ spark.dataSource.register(TestDataSource)
             name="test_load",
             type=ActionType.LOAD,
             target="v_test_data",
-            readMode="stream"
+            readMode="stream",
         )
         # Set source configuration (new structure)
         action.source = {
             "type": "custom_datasource",
             "module_path": str(custom_source_file.relative_to(tmp_path)),
-            "custom_datasource_class": "TestDataSource"
+            "custom_datasource_class": "TestDataSource",
         }
 
         # Create generator
         generator = CustomDataSourceLoadGenerator()
-        
+
         # Create context
         context = {
             "spec_dir": tmp_path,
             "flowgroup": None,
             "preset_config": {},
-            "project_config": None
+            "project_config": None,
         }
 
         # Generate code
@@ -71,11 +73,11 @@ spark.dataSource.register(TestDataSource)
         # Verify format is correct (uses name() method, not class name)
         assert '.format("test_datasource")' in result
         # Verify no .option() calls since no parameters
-        assert '.option(' not in result
+        assert ".option(" not in result
         # Verify stream mode
-        assert 'spark.readStream' in result
+        assert "spark.readStream" in result
         # Verify target view name
-        assert 'def v_test_data():' in result
+        assert "def v_test_data():" in result
         # Verify custom source code is stored
         assert generator.custom_source_code is not None
         assert "TestDataSource" in generator.custom_source_code
@@ -96,7 +98,7 @@ class APIDataSource(DataSource):
             name="test_api_load",
             type=ActionType.LOAD,
             target="v_api_data",
-            readMode="batch"
+            readMode="batch",
         )
         # Set source configuration with options (new structure)
         action.source = {
@@ -108,19 +110,19 @@ class APIDataSource(DataSource):
                 "endpoint": "https://api.example.com",
                 "timeout": 30,
                 "retries": 3,
-                "enabled": True
-            }
+                "enabled": True,
+            },
         }
 
         # Create generator
         generator = CustomDataSourceLoadGenerator()
-        
+
         # Create context
         context = {
             "spec_dir": tmp_path,
             "flowgroup": None,
             "preset_config": {},
-            "project_config": None
+            "project_config": None,
         }
 
         # Generate code
@@ -132,23 +134,19 @@ class APIDataSource(DataSource):
         assert '.option("apiKey", "test-key-123")' in result
         assert '.option("endpoint", "https://api.example.com")' in result
         assert '.option("timeout", 30)' in result  # Number without quotes
-        assert '.option("retries", 3)' in result   # Number without quotes
+        assert '.option("retries", 3)' in result  # Number without quotes
         assert '.option("enabled", True)' in result  # Boolean
         # Verify batch mode
-        assert 'spark.read' in result
-        assert 'spark.readStream' not in result
+        assert "spark.read" in result
+        assert "spark.readStream" not in result
 
     def test_missing_module_path_error(self):
         """Test error when module_path is missing."""
-        action = Action(
-            name="test_load",
-            type=ActionType.LOAD,
-            target="v_test_data"
-        )
+        action = Action(name="test_load", type=ActionType.LOAD, target="v_test_data")
         # Set source with missing module_path
         action.source = {
             "type": "custom_datasource",
-            "custom_datasource_class": "TestDataSource"
+            "custom_datasource_class": "TestDataSource",
         }
 
         generator = CustomDataSourceLoadGenerator()
@@ -156,7 +154,7 @@ class APIDataSource(DataSource):
 
         with pytest.raises(Exception) as exc_info:
             generator.generate(action, context)
-        
+
         assert "module_path" in str(exc_info.value)
 
     def test_missing_custom_datasource_class_error(self, tmp_path):
@@ -164,15 +162,11 @@ class APIDataSource(DataSource):
         custom_source_file = tmp_path / "test_source.py"
         custom_source_file.write_text("# test file")
 
-        action = Action(
-            name="test_load",
-            type=ActionType.LOAD,
-            target="v_test_data"
-        )
+        action = Action(name="test_load", type=ActionType.LOAD, target="v_test_data")
         # Set source with missing custom_datasource_class
         action.source = {
             "type": "custom_datasource",
-            "module_path": str(custom_source_file.relative_to(tmp_path))
+            "module_path": str(custom_source_file.relative_to(tmp_path)),
         }
 
         generator = CustomDataSourceLoadGenerator()
@@ -180,21 +174,17 @@ class APIDataSource(DataSource):
 
         with pytest.raises(Exception) as exc_info:
             generator.generate(action, context)
-        
+
         assert "custom_datasource_class" in str(exc_info.value)
 
     def test_missing_file_error(self, tmp_path):
         """Test error when module file doesn't exist."""
-        action = Action(
-            name="test_load",
-            type=ActionType.LOAD,
-            target="v_test_data"
-        )
+        action = Action(name="test_load", type=ActionType.LOAD, target="v_test_data")
         # Set source with nonexistent file
         action.source = {
             "type": "custom_datasource",
             "module_path": "nonexistent_file.py",
-            "custom_datasource_class": "TestDataSource"
+            "custom_datasource_class": "TestDataSource",
         }
 
         generator = CustomDataSourceLoadGenerator()
@@ -202,7 +192,7 @@ class APIDataSource(DataSource):
 
         with pytest.raises(FileNotFoundError) as exc_info:
             generator.generate(action, context)
-        
+
         assert "Custom data source file not found" in str(exc_info.value)
 
     def test_values_with_quotes_escaped(self, tmp_path):
@@ -219,7 +209,7 @@ class TestDataSource(DataSource):
             name="test_quotes",
             type=ActionType.LOAD,
             target="v_test_quotes",
-            readMode="stream"
+            readMode="stream",
         )
         action.source = {
             "type": "custom_datasource",
@@ -228,7 +218,7 @@ class TestDataSource(DataSource):
             "options": {
                 # Value with embedded quotes
                 "authConfig": 'token="secret123"',
-            }
+            },
         }
 
         generator = CustomDataSourceLoadGenerator()
@@ -236,16 +226,16 @@ class TestDataSource(DataSource):
             "spec_dir": tmp_path,
             "flowgroup": None,
             "preset_config": {},
-            "project_config": None
+            "project_config": None,
         }
 
         result = generator.generate(action, context)
 
         # Check that quotes are escaped
         assert '\\"secret123\\"' in result or 'token=\\"secret123\\"' in result
-        
+
         # Verify it's valid Python by compiling
-        compile(result, '<string>', 'exec')
+        compile(result, "<string>", "exec")
 
     def test_values_with_backslashes_escaped(self, tmp_path):
         """Test that option values containing backslashes are properly escaped."""
@@ -261,7 +251,7 @@ class TestDataSource(DataSource):
             name="test_backslashes",
             type=ActionType.LOAD,
             target="v_test_backslashes",
-            readMode="batch"
+            readMode="batch",
         )
         action.source = {
             "type": "custom_datasource",
@@ -270,7 +260,7 @@ class TestDataSource(DataSource):
             "options": {
                 # Value with backslashes (Windows path)
                 "dataPath": r"C:\data\files",
-            }
+            },
         }
 
         generator = CustomDataSourceLoadGenerator()
@@ -278,19 +268,20 @@ class TestDataSource(DataSource):
             "spec_dir": tmp_path,
             "flowgroup": None,
             "preset_config": {},
-            "project_config": None
+            "project_config": None,
         }
 
         result = generator.generate(action, context)
 
         # Check that backslashes are escaped
-        assert '\\\\data\\\\files' in result or r'C:\\data\\files' in result
-        
+        assert "\\\\data\\\\files" in result or r"C:\\data\\files" in result
+
         # Verify no SyntaxWarning
         import warnings
-        warnings.simplefilter('error', SyntaxWarning)
-        compile(result, '<string>', 'exec')
-        warnings.simplefilter('default', SyntaxWarning)
+
+        warnings.simplefilter("error", SyntaxWarning)
+        compile(result, "<string>", "exec")
+        warnings.simplefilter("default", SyntaxWarning)
 
     def test_json_config_with_quotes(self, tmp_path):
         """Test JSON configuration strings with quotes."""
@@ -306,7 +297,7 @@ class APIDataSource(DataSource):
             name="test_json",
             type=ActionType.LOAD,
             target="v_api_json",
-            readMode="stream"
+            readMode="stream",
         )
         action.source = {
             "type": "custom_datasource",
@@ -315,7 +306,7 @@ class APIDataSource(DataSource):
             "options": {
                 # JSON-like configuration
                 "config": '{"key": "value", "nested": {"field": "data"}}',
-            }
+            },
         }
 
         generator = CustomDataSourceLoadGenerator()
@@ -323,13 +314,125 @@ class APIDataSource(DataSource):
             "spec_dir": tmp_path,
             "flowgroup": None,
             "preset_config": {},
-            "project_config": None
+            "project_config": None,
         }
 
         result = generator.generate(action, context)
 
         # Verify valid Python (quotes should be escaped)
-        compile(result, '<string>', 'exec')
+        compile(result, "<string>", "exec")
+
+
+class TestCustomDataSourcePEP236:
+    """Verify the assembly chokepoint hoists ``from __future__`` imports.
+
+    Regression coverage for the latent ASCII-sort bug: previously
+    ``_assemble_final_code`` ran ``sorted(all_imports)``, which placed any
+    user import starting with an uppercase letter (``from PIL import Image``)
+    above ``from __future__ import annotations`` and produced a SyntaxError
+    when Lakeflow imported the generated module.
+    """
+
+    def _build_assembled_module(self, tmp_path, custom_source_text):
+        from lhp.core.services.code_generator import CodeGenerator
+        from lhp.models.config import FlowGroup
+
+        custom_source_file = tmp_path / "future_source.py"
+        custom_source_file.write_text(custom_source_text)
+
+        action = Action(
+            name="load_future",
+            type=ActionType.LOAD,
+            target="v_future",
+            readMode="batch",
+        )
+        action.source = {
+            "type": "custom_datasource",
+            "module_path": str(custom_source_file.relative_to(tmp_path)),
+            "custom_datasource_class": "FutureDataSource",
+        }
+
+        generator = CustomDataSourceLoadGenerator()
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": None,
+            "preset_config": {},
+            "project_config": None,
+        }
+        generated = generator.generate(action, context)
+
+        # Mirror what _collect_generator_outputs does for a generator that
+        # uses ImportManager and exposes custom_source_code.
+        all_imports = set()
+        all_imports.add("from pyspark import pipelines as dp")
+        import_mgr = generator.get_import_manager()
+        if import_mgr:
+            all_imports.update(import_mgr.get_consolidated_imports())
+
+        custom_sections = [
+            {
+                "content": generator.custom_source_code,
+                "source_file": Path(str(generator.source_file_path)).as_posix(),
+                "action_name": action.name,
+            }
+        ]
+
+        flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
+        cg = CodeGenerator()
+        return cg._assemble_final_code(
+            flowgroup, all_imports, custom_sections, generated
+        )
+
+    def test_future_with_uppercase_import_compiles(self, tmp_path):
+        # The PIL import here is the trigger for the original ASCII-sort bug:
+        # under the old `sorted(all_imports)` it would land above the
+        # __future__ line and break PEP 236.
+        source_text = (
+            "from __future__ import annotations\n"
+            "from PIL import Image  # noqa: F401\n"
+            "from pyspark.sql.datasource import DataSource\n"
+            "\n"
+            "class FutureDataSource(DataSource):\n"
+            "    @classmethod\n"
+            "    def name(cls):\n"
+            "        return 'future_ds'\n"
+            "\n"
+            "spark.dataSource.register(FutureDataSource)\n"
+        )
+
+        assembled = self._build_assembled_module(tmp_path, source_text)
+
+        # Hard contract: the assembled module must parse cleanly. This is
+        # what Lakeflow does at import time — silent generation is no
+        # longer enough.
+        compile(assembled, "<string>", "exec")
+
+        # Hoisted exactly once and ahead of every other import.
+        assert assembled.count("from __future__ import annotations") == 1
+        future_pos = assembled.index("from __future__ import annotations")
+        pil_pos = assembled.index("from PIL import Image")
+        dp_pos = assembled.index("from pyspark import pipelines as dp")
+        assert future_pos < pil_pos
+        assert future_pos < dp_pos
+
+    def test_no_future_import_unchanged(self, tmp_path):
+        # Negative regression: when there is no __future__ line, the
+        # chokepoint must not fabricate one or shift the categorized order.
+        source_text = (
+            "from pyspark.sql.datasource import DataSource\n"
+            "\n"
+            "class FutureDataSource(DataSource):\n"
+            "    @classmethod\n"
+            "    def name(cls):\n"
+            "        return 'future_ds'\n"
+            "\n"
+            "spark.dataSource.register(FutureDataSource)\n"
+        )
+
+        assembled = self._build_assembled_module(tmp_path, source_text)
+
+        compile(assembled, "<string>", "exec")
+        assert "from __future__" not in assembled
 
 
 # ============================================================================
@@ -344,29 +447,29 @@ class TestCustomDataSourceGoldenOutput:
     def test_custom_datasource_golden(self, golden, tmp_path):
         custom_source_file = tmp_path / "test_source.py"
         custom_source_file.write_text(
-            'from pyspark.sql.datasource import DataSource, DataSourceReader\n'
-            'from pyspark.sql.types import StructType\n'
-            '\n'
-            'class TestDataSource(DataSource):\n'
-            '    @classmethod\n'
-            '    def name(cls):\n'
+            "from pyspark.sql.datasource import DataSource, DataSourceReader\n"
+            "from pyspark.sql.types import StructType\n"
+            "\n"
+            "class TestDataSource(DataSource):\n"
+            "    @classmethod\n"
+            "    def name(cls):\n"
             '        return "test_datasource"\n'
-            '\n'
-            '    def schema(self):\n'
+            "\n"
+            "    def schema(self):\n"
             '        return "id int, name string"\n'
-            '\n'
-            '    def reader(self, schema: StructType):\n'
-            '        return TestDataSourceReader(schema, self.options)\n'
-            '\n'
-            'class TestDataSourceReader(DataSourceReader):\n'
-            '    def __init__(self, schema, options):\n'
-            '        self.schema = schema\n'
-            '        self.options = options\n'
-            '\n'
-            '    def read(self, partition):\n'
+            "\n"
+            "    def reader(self, schema: StructType):\n"
+            "        return TestDataSourceReader(schema, self.options)\n"
+            "\n"
+            "class TestDataSourceReader(DataSourceReader):\n"
+            "    def __init__(self, schema, options):\n"
+            "        self.schema = schema\n"
+            "        self.options = options\n"
+            "\n"
+            "    def read(self, partition):\n"
             '        yield (1, "test")\n'
-            '\n'
-            'spark.dataSource.register(TestDataSource)\n'
+            "\n"
+            "spark.dataSource.register(TestDataSource)\n"
         )
 
         action = Action(
@@ -390,4 +493,4 @@ class TestCustomDataSourceGoldenOutput:
         }
 
         code = generator.generate(action, context)
-        golden(code, "load_custom_datasource") 
+        golden(code, "load_custom_datasource")

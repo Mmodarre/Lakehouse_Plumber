@@ -2,8 +2,8 @@
 # Pipeline: namespace_validation
 # FlowGroup: namespace_mv
 
-from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "namespace_validation"

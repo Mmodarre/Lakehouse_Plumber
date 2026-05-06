@@ -2,10 +2,10 @@
 # Pipeline: custom_datasource
 # FlowGroup: custom_with_metadata
 
-from pyspark import pipelines as dp
 from pyspark.sql.datasource import DataSource, DataSourceReader
 from pyspark.sql.functions import *  # Wildcard import - triggers expression adaptation
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "custom_datasource"

@@ -152,8 +152,11 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
             raw_sink_code, custom_sink_class
         )
 
-        # Store the custom sink code for orchestrator to append
-        self.custom_sink_code = raw_sink_code
+        # Route imports through ImportManager so they land in the assembled
+        # module's header (where __future__ can be hoisted by the chokepoint)
+        # instead of being inlined as a top-level body block.
+        self.custom_sink_code = self.add_imports_from_file(raw_sink_code)
+        self.logger.info(f"Extracted imports from custom sink file: {sink_path}")
 
         # Extract source views
         source_views = self._extract_source_views(action.source)

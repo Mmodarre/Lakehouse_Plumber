@@ -2,8 +2,9 @@
 # Pipeline: custom_datasource
 # FlowGroup: sink_with_metadata
 
+from pyspark.sql.datasource import DataSink, DataSourceWriter
+from pyspark.sql.functions import *  # Wildcard import - triggers expression adaptation
 from pyspark import pipelines as dp
-from pyspark.sql import functions as F
 
 # Pipeline Configuration
 PIPELINE_ID = "custom_datasource"
@@ -17,9 +18,6 @@ FLOWGROUP_ID = "sink_with_metadata"
 # Used by action: unknown
 
 """Custom data sink with wildcard imports to test BaseSinkWriteGenerator operational metadata."""
-
-from pyspark.sql.functions import *  # Wildcard import - triggers expression adaptation
-from pyspark.sql.datasource import DataSink, DataSourceWriter
 
 
 class CustomSinkWithWildcard(DataSink):
@@ -106,6 +104,6 @@ def f_custom_wildcard_sink_1():
     df = spark.readStream.table("v_test_sink_data")
 
     # Add operational metadata columns
-    df = df.withColumn("_processing_timestamp", F.current_timestamp())
+    df = df.withColumn("_processing_timestamp", current_timestamp())
 
     return df

@@ -601,12 +601,63 @@ class CodeGenerator:
         custom_source_sections: List[Dict],
         complete_code: str,
     ) -> str:
-        """Assemble final Python code with headers and imports."""
+        """Assemble final Python code with headers and imports.
+
+        Enforces PEP 236 by hoisting every ``from __future__ import ...``
+        statement collected from the imports set, custom source/sink sections,
+        and the main generated body to the top of the assembled module — a
+        single chokepoint so individual generators do not need to know about
+        future imports.
+        """
+        from ...utils.import_manager import ImportManager, extract_future_imports
+
         self.logger.debug(
             f"Assembling final code for flowgroup '{flowgroup.flowgroup}' with {len(all_imports)} imports and {len(custom_source_sections)} custom sections"
         )
-        # Build imports section
-        imports_section = "\n".join(sorted(all_imports))
+
+        # (a) Pull __future__ statements out of the collected imports set.
+        future_imports: List[str] = []
+        non_future: Set[str] = set()
+        for imp in all_imports:
+            if imp.lstrip().startswith("from __future__"):
+                future_imports.append(imp.strip())
+            else:
+                non_future.add(imp)
+
+        # (b) Pull __future__ out of every custom_source_section content.
+        cleaned_sections: List[Dict] = []
+        for section in custom_source_sections:
+            fl, cleaned = extract_future_imports(section["content"])
+            future_imports.extend(fl)
+            cleaned_sections.append({**section, "content": cleaned})
+
+        # (c) Pull __future__ out of the main generated code body (e.g.
+        # snapshot-CDC source_function_code inlined into the streaming_table
+        # template).
+        fl, complete_code = extract_future_imports(complete_code)
+        future_imports.extend(fl)
+
+        # Dedupe in declaration order.
+        seen: Set[str] = set()
+        ordered_futures = [f for f in future_imports if not (f in seen or seen.add(f))]
+
+        # Category-aware ordering for the rest (replaces sorted(all_imports)).
+        # Reuses ImportManager._sort_imports via a transient instance so we get
+        # PEP 8 style grouping (stdlib -> third-party -> pyspark -> dlt -> custom)
+        # rather than ASCII-sorted output.
+        mgr = ImportManager()
+        for imp in non_future:
+            mgr.add_import(imp)
+        sorted_non_future = mgr.get_consolidated_imports()
+
+        # Compose the final imports block: __future__ first, blank line, then
+        # the categorized remainder.
+        import_block_lines: List[str] = []
+        if ordered_futures:
+            import_block_lines.extend(ordered_futures)
+            import_block_lines.append("")
+        import_block_lines.extend(sorted_non_future)
+        imports_section = "\n".join(import_block_lines)
 
         # Add pipeline configuration section
         pipeline_config = f"""
@@ -627,8 +678,8 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
         final_code = header
 
         # Add custom source code first (so classes are defined before registration)
-        if custom_source_sections:
-            custom_code_block = self.build_custom_source_block(custom_source_sections)
+        if cleaned_sections:
+            custom_code_block = self.build_custom_source_block(cleaned_sections)
             final_code += "\n\n" + custom_code_block
 
         # Then add main generated code (registration happens after class definitions)

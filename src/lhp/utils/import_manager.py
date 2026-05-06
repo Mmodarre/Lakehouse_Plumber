@@ -26,6 +26,58 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 from .operational_metadata import ImportDetector
 
 
+def extract_future_imports(source: str) -> Tuple[List[str], str]:
+    """Extract ``from __future__ import ...`` statements from a Python source string.
+
+    PEP 236 requires future imports to appear before any other statement (other
+    than docstrings, comments, and other future imports). LHP assembles
+    generated pipeline modules from multiple sources (manual imports, custom
+    datasource/sink files, snapshot-CDC source functions). When any of those
+    inputs contain a ``from __future__`` line, it must be hoisted to the top
+    of the assembled module — this helper is the AST-based extractor used at
+    the assembly chokepoint to do that.
+
+    Uses AST so that future-looking strings inside docstrings or comments
+    (e.g. ``\"\"\"from __future__ ...\"\"\"`` in a triple-quoted block) are not
+    mis-extracted.
+
+    Args:
+        source: Python source code (may be a full module or a fragment).
+
+    Returns:
+        Tuple of (future_lines, source_with_those_lines_blanked). The original
+        line numbering is preserved by replacing extracted lines with empty
+        lines, which keeps any debug/traceback line references valid.
+
+        On a SyntaxError (e.g. fragment), returns ([], source) so the caller
+        can fall through without losing content.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return [], source
+
+    future_lines: List[str] = []
+    lineno_to_blank: Set[int] = set()
+    src_lines = source.split("\n")
+    for node in tree.body:
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "__future__"
+            and node.level == 0
+        ):
+            start = node.lineno - 1
+            end = (node.end_lineno or node.lineno) - 1
+            future_lines.append("\n".join(src_lines[start : end + 1]).strip())
+            for i in range(start, end + 1):
+                lineno_to_blank.add(i)
+
+    cleaned = "\n".join(
+        "" if i in lineno_to_blank else line for i, line in enumerate(src_lines)
+    )
+    return future_lines, cleaned
+
+
 class ImportManager:
     """
     Unified import management with zero configuration.
