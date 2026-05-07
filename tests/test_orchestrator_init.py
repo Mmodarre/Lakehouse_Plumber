@@ -874,28 +874,6 @@ class TestActionOrchestratorActionAnalysis:
             mock_action
         )
 
-    def test_build_custom_source_block_delegation(self, orchestrator_action_analysis):
-        """Test build_custom_source_block delegates to generator."""
-        # Arrange
-        custom_sections = [
-            {"name": "section1", "code": "print('custom1')"},
-            {"name": "section2", "code": "print('custom2')"},
-        ]
-        expected_block = "# Custom code block\nprint('custom1')\nprint('custom2')"
-
-        orchestrator_action_analysis.mock_generator.build_custom_source_block.return_value = (
-            expected_block
-        )
-
-        # Act
-        result = orchestrator_action_analysis.build_custom_source_block(custom_sections)
-
-        # Assert
-        assert result == expected_block
-        orchestrator_action_analysis.mock_generator.build_custom_source_block.assert_called_once_with(
-            custom_sections
-        )
-
     def test_group_write_actions_by_target_delegation(
         self, orchestrator_action_analysis
     ):
@@ -1017,7 +995,11 @@ class TestActionOrchestratorActionAnalysis:
     ):
         """Test _extract_single_source_view with dict using 'view' field."""
         # Arrange
-        source = {"catalog": "analytics_cat", "schema": "analytics_db", "view": "customer_view"}
+        source = {
+            "catalog": "analytics_cat",
+            "schema": "analytics_db",
+            "view": "customer_view",
+        }
 
         # Act
         result = orchestrator_action_analysis._extract_single_source_view(source)
@@ -1086,7 +1068,12 @@ class TestActionOrchestratorActionAnalysis:
         result = orchestrator_action_analysis._extract_source_views_from_action(source)
 
         # Assert
-        expected = ["cat1.db1.table1", "cat2.db2.view2", "standalone_table", "named_table"]
+        expected = [
+            "cat1.db1.table1",
+            "cat2.db2.view2",
+            "standalone_table",
+            "named_table",
+        ]
         assert result == expected
 
     def test_extract_source_views_from_action_mixed_list(

@@ -78,9 +78,17 @@ spark.dataSource.register(TestDataSource)
         assert "spark.readStream" in result
         # Verify target view name
         assert "def v_test_data():" in result
-        # Verify custom source code is stored
-        assert generator.custom_source_code is not None
-        assert "TestDataSource" in generator.custom_source_code
+
+        # Verify the new copy-and-import shape: imports + pre-pipeline statement
+        imports = generator.imports
+        assert "import custom_python_functions" in imports
+        assert "from pyspark import cloudpickle as _lhp_cloudpickle" in imports
+        assert (
+            "from custom_python_functions.test_source import TestDataSource" in imports
+        )
+        assert generator.get_pre_pipeline_statements() == [
+            "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+        ]
 
     def test_generation_with_parameters(self, tmp_path):
         """Test generation with parameters."""
@@ -324,21 +332,26 @@ class APIDataSource(DataSource):
 
 
 class TestCustomDataSourcePEP236:
-    """Verify the assembly chokepoint hoists ``from __future__`` imports.
+    """``from __future__`` lives in the user's file, not the assembled module.
 
-    Regression coverage for the latent ASCII-sort bug: previously
-    ``_assemble_final_code`` ran ``sorted(all_imports)``, which placed any
-    user import starting with an uppercase letter (``from PIL import Image``)
-    above ``from __future__ import annotations`` and produced a SyntaxError
-    when Lakeflow imported the generated module.
+    Under the new copy-and-import pattern, the user's PySpark ``DataSource``
+    file is copied verbatim into a sibling ``custom_python_functions/``
+    directory. The pipeline file imports the class by name; it never inlines
+    the user source. Therefore the user's ``from __future__ import …`` lines
+    stay at the top of the user's *own* file (the natural PEP 236 location)
+    and never need cross-file hoisting.
+
+    These tests verify that invariant.
     """
 
-    def _build_assembled_module(self, tmp_path, custom_source_text):
-        from lhp.core.services.code_generator import CodeGenerator
+    def _generate_with_output_dir(self, tmp_path, custom_source_text):
         from lhp.models.config import FlowGroup
 
         custom_source_file = tmp_path / "future_source.py"
         custom_source_file.write_text(custom_source_text)
+
+        output_dir = tmp_path / "generated"
+        output_dir.mkdir()
 
         action = Action(
             name="load_future",
@@ -353,86 +366,65 @@ class TestCustomDataSourcePEP236:
         }
 
         generator = CustomDataSourceLoadGenerator()
+        flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
         context = {
             "spec_dir": tmp_path,
-            "flowgroup": None,
+            "output_dir": output_dir,
+            "flowgroup": flowgroup,
             "preset_config": {},
             "project_config": None,
         }
         generated = generator.generate(action, context)
+        return generated, output_dir, generator
 
-        # Mirror what _collect_generator_outputs does for a generator that
-        # uses ImportManager and exposes custom_source_code.
-        all_imports = set()
-        all_imports.add("from pyspark import pipelines as dp")
-        import_mgr = generator.get_import_manager()
-        if import_mgr:
-            all_imports.update(import_mgr.get_consolidated_imports())
+    def test_future_import_lives_in_copied_user_file(self, tmp_path):
+        """``from __future__ import annotations`` is preserved in the copy."""
+        source_text = """from __future__ import annotations
 
-        custom_sections = [
-            {
-                "content": generator.custom_source_code,
-                "source_file": Path(str(generator.source_file_path)).as_posix(),
-                "action_name": action.name,
-            }
-        ]
+from pyspark.sql.datasource import DataSource
 
-        flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
-        cg = CodeGenerator()
-        return cg._assemble_final_code(
-            flowgroup, all_imports, custom_sections, generated
-        )
+class FutureDataSource(DataSource):
+    @classmethod
+    def name(cls) -> str:
+        return "future_format"
+"""
+        generated, output_dir, _ = self._generate_with_output_dir(tmp_path, source_text)
 
-    def test_future_with_uppercase_import_compiles(self, tmp_path):
-        # The PIL import here is the trigger for the original ASCII-sort bug:
-        # under the old `sorted(all_imports)` it would land above the
-        # __future__ line and break PEP 236.
-        source_text = (
-            "from __future__ import annotations\n"
-            "from PIL import Image  # noqa: F401\n"
-            "from pyspark.sql.datasource import DataSource\n"
-            "\n"
-            "class FutureDataSource(DataSource):\n"
-            "    @classmethod\n"
-            "    def name(cls):\n"
-            "        return 'future_ds'\n"
-            "\n"
-            "spark.dataSource.register(FutureDataSource)\n"
-        )
-
-        assembled = self._build_assembled_module(tmp_path, source_text)
-
-        # Hard contract: the assembled module must parse cleanly. This is
-        # what Lakeflow does at import time — silent generation is no
-        # longer enough.
-        compile(assembled, "<string>", "exec")
-
-        # Hoisted exactly once and ahead of every other import.
-        assert assembled.count("from __future__ import annotations") == 1
-        future_pos = assembled.index("from __future__ import annotations")
-        pil_pos = assembled.index("from PIL import Image")
-        dp_pos = assembled.index("from pyspark import pipelines as dp")
-        assert future_pos < pil_pos
-        assert future_pos < dp_pos
+        # The generated pipeline file does NOT contain the user's class body.
+        assert "class FutureDataSource" not in generated
+        # The user's __future__ import lives in the copied file, not in the
+        # generated pipeline file.
+        copied = (
+            output_dir / "custom_python_functions" / "future_source.py"
+        ).read_text()
+        assert "from __future__ import annotations" in copied
 
     def test_no_future_import_unchanged(self, tmp_path):
-        # Negative regression: when there is no __future__ line, the
-        # chokepoint must not fabricate one or shift the categorized order.
-        source_text = (
-            "from pyspark.sql.datasource import DataSource\n"
-            "\n"
-            "class FutureDataSource(DataSource):\n"
-            "    @classmethod\n"
-            "    def name(cls):\n"
-            "        return 'future_ds'\n"
-            "\n"
-            "spark.dataSource.register(FutureDataSource)\n"
+        """No ``__future__`` import → file copied verbatim, generated file unaffected."""
+        source_text = """from pyspark.sql.datasource import DataSource
+
+class FutureDataSource(DataSource):
+    @classmethod
+    def name(cls):
+        return "no_future"
+"""
+        generated, output_dir, generator = self._generate_with_output_dir(
+            tmp_path, source_text
         )
 
-        assembled = self._build_assembled_module(tmp_path, source_text)
+        # The generator emits the import for the user's class via add_import
+        # (collected by the assembler into the file header), not by inlining
+        # the class body.
+        assert (
+            "from custom_python_functions.future_source import FutureDataSource"
+            in generator.imports
+        )
+        assert "class FutureDataSource" not in generated
 
-        compile(assembled, "<string>", "exec")
-        assert "from __future__" not in assembled
+        copied = (
+            output_dir / "custom_python_functions" / "future_source.py"
+        ).read_text()
+        assert "from __future__" not in copied
 
 
 # ============================================================================
@@ -494,3 +486,168 @@ class TestCustomDataSourceGoldenOutput:
 
         code = generator.generate(action, context)
         golden(code, "load_custom_datasource")
+
+
+@pytest.mark.unit
+class TestCustomDataSourceCopyAndImportInvariants:
+    """Cross-action invariants for the copy-and-import pattern.
+
+    These tests verify the architectural guarantees of the refactor:
+    boilerplate dedup across multiple custom actions in one flowgroup,
+    and clear errors on class-name collisions.
+    """
+
+    @staticmethod
+    def _write_source(path, class_name, format_name):
+        path.write_text(f"""from pyspark.sql.datasource import DataSource
+
+class {class_name}(DataSource):
+    @classmethod
+    def name(cls):
+        return "{format_name}"
+""")
+
+    def test_multiple_custom_actions_dedupe_boilerplate(self, tmp_path):
+        """Two custom_datasources in one flowgroup → boilerplate appears once.
+
+        ``import custom_python_functions``, the cloudpickle alias import, and
+        the ``register_pickle_by_value`` statement each must appear exactly
+        once even though two actions independently call ``add_import`` /
+        ``add_pre_pipeline_statement``. Dedup is provided by ``ImportManager``
+        (set-based) and the assembler's pre-pipeline statements set.
+        """
+        from lhp.core.services.code_generator import CodeGenerator
+        from lhp.models.config import FlowGroup
+
+        # Two distinct user files exporting two distinct classes.
+        src_a = tmp_path / "source_a.py"
+        src_b = tmp_path / "source_b.py"
+        self._write_source(src_a, "ClassA", "format_a")
+        self._write_source(src_b, "ClassB", "format_b")
+
+        flowgroup = FlowGroup(
+            pipeline="p_test",
+            flowgroup="fg_test",
+            actions=[
+                Action(
+                    name="load_a",
+                    type=ActionType.LOAD,
+                    target="v_a",
+                    readMode="batch",
+                    source={
+                        "type": "custom_datasource",
+                        "module_path": "source_a.py",
+                        "custom_datasource_class": "ClassA",
+                    },
+                ),
+                Action(
+                    name="load_b",
+                    type=ActionType.LOAD,
+                    target="v_b",
+                    readMode="batch",
+                    source={
+                        "type": "custom_datasource",
+                        "module_path": "source_b.py",
+                        "custom_datasource_class": "ClassB",
+                    },
+                ),
+            ],
+        )
+
+        # Run two independent generator instances and merge their outputs the
+        # way the assembler does.
+        all_imports: set = set()
+        all_pre_stmts: set = set()
+        for action in flowgroup.actions:
+            gen = CustomDataSourceLoadGenerator()
+            gen.generate(
+                action,
+                {
+                    "spec_dir": tmp_path,
+                    "flowgroup": flowgroup,
+                    "preset_config": {},
+                    "project_config": None,
+                },
+            )
+            all_imports.update(gen.imports)
+            all_pre_stmts.update(gen.get_pre_pipeline_statements())
+
+        # ImportManager dedupe: the package import and cloudpickle alias
+        # import each appear exactly once across the merged set.
+        assert (
+            sum(1 for imp in all_imports if imp == "import custom_python_functions")
+            == 1
+        )
+        assert (
+            sum(
+                1
+                for imp in all_imports
+                if imp == "from pyspark import cloudpickle as _lhp_cloudpickle"
+            )
+            == 1
+        )
+
+        # Two distinct from-imports (one per class).
+        from_imports = [
+            imp
+            for imp in all_imports
+            if imp.startswith("from custom_python_functions.")
+        ]
+        assert len(from_imports) == 2
+        assert "from custom_python_functions.source_a import ClassA" in all_imports
+        assert "from custom_python_functions.source_b import ClassB" in all_imports
+
+        # Pre-pipeline registration appears exactly once.
+        assert all_pre_stmts == {
+            "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+        }
+
+    def test_class_name_collision_raises(self, tmp_path):
+        """Two actions exporting the same class name from different files → LHPValidationError."""
+        from lhp.utils.error_formatter import LHPValidationError
+
+        # Two files both exporting a class named ``Conflict``.
+        src_a = tmp_path / "alpha.py"
+        src_b = tmp_path / "beta.py"
+        self._write_source(src_a, "Conflict", "alpha_format")
+        self._write_source(src_b, "Conflict", "beta_format")
+
+        action_a = Action(
+            name="load_alpha",
+            type=ActionType.LOAD,
+            target="v_alpha",
+            readMode="batch",
+            source={
+                "type": "custom_datasource",
+                "module_path": "alpha.py",
+                "custom_datasource_class": "Conflict",
+            },
+        )
+        action_b = Action(
+            name="load_beta",
+            type=ActionType.LOAD,
+            target="v_beta",
+            readMode="batch",
+            source={
+                "type": "custom_datasource",
+                "module_path": "beta.py",
+                "custom_datasource_class": "Conflict",
+            },
+        )
+
+        # Both actions share the same generator's ImportManager. The first
+        # add_import succeeds; the second raises because ``Conflict`` would
+        # bind to a different module path.
+        generator = CustomDataSourceLoadGenerator()
+        ctx = {
+            "spec_dir": tmp_path,
+            "flowgroup": None,
+            "preset_config": {},
+            "project_config": None,
+        }
+        generator.generate(action_a, ctx)
+
+        with pytest.raises(LHPValidationError) as excinfo:
+            generator.generate(action_b, ctx)
+        assert "Conflict" in str(excinfo.value)
+        assert "collision" in str(excinfo.value).lower()

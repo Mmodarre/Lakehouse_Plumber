@@ -108,19 +108,21 @@ class CodeGenerator:
 
         # 4. Generate code sections
         with perf_timer(f"generate_action_sections [{fg}]"):
-            generated_sections, all_imports, custom_source_sections = (
-                self._generate_action_sections(
-                    flowgroup,
-                    ordered_actions,
-                    substitution_mgr,
-                    preset_config,
-                    output_dir,
-                    state_manager,
-                    source_yaml,
-                    env,
-                    include_tests,
-                    python_file_copier,
-                )
+            (
+                generated_sections,
+                all_imports,
+                pre_pipeline_statements,
+            ) = self._generate_action_sections(
+                flowgroup,
+                ordered_actions,
+                substitution_mgr,
+                preset_config,
+                output_dir,
+                state_manager,
+                source_yaml,
+                env,
+                include_tests,
+                python_file_copier,
             )
 
         # 5-6. Apply secret substitutions and assemble final code
@@ -129,7 +131,10 @@ class CodeGenerator:
                 generated_sections, substitution_mgr
             )
             return self._assemble_final_code(
-                flowgroup, all_imports, custom_source_sections, complete_code
+                flowgroup,
+                all_imports,
+                pre_pipeline_statements,
+                complete_code,
             )
 
     def _generate_action_sections(
@@ -144,7 +149,7 @@ class CodeGenerator:
         env: Optional[str],
         include_tests: bool,
         python_file_copier=None,
-    ) -> Tuple[List[str], Set[str], List[Dict]]:
+    ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code sections for all actions."""
         # Group actions by type while preserving order
         action_groups = defaultdict(list)
@@ -153,8 +158,8 @@ class CodeGenerator:
 
         # Initialize collections
         generated_sections = []
-        all_imports = set()
-        custom_source_sections = []
+        all_imports: Set[str] = set()
+        pre_pipeline_statements: Set[str] = set()
 
         # Add base imports
         all_imports.add("from pyspark import pipelines as dp")
@@ -209,12 +214,12 @@ class CodeGenerator:
 # TRANSFORMATION VIEWS
 # {"=" * 76}"""
                     generated_sections.append(section_header)
-                    sections, imports, custom = self._generate_regular_actions(
+                    sections, imports, pre_stmts = self._generate_regular_actions(
                         regular_transforms, **common_kwargs
                     )
                     generated_sections.extend(sections)
                     all_imports.update(imports)
-                    custom_source_sections.extend(custom)
+                    pre_pipeline_statements.update(pre_stmts)
 
                 if dq_transforms:
                     section_header = f"""
@@ -222,12 +227,12 @@ class CodeGenerator:
 # DATA QUALITY & QUARANTINE
 # {"=" * 76}"""
                     generated_sections.append(section_header)
-                    sections, imports, custom = self._generate_dq_actions(
+                    sections, imports, pre_stmts = self._generate_dq_actions(
                         dq_transforms, **common_kwargs
                     )
                     generated_sections.extend(sections)
                     all_imports.update(imports)
-                    custom_source_sections.extend(custom)
+                    pre_pipeline_statements.update(pre_stmts)
             else:
                 # Non-transform action types
                 header_text = section_headers.get(action_type, str(action_type).upper())
@@ -238,22 +243,23 @@ class CodeGenerator:
                 generated_sections.append(section_header)
 
                 if action_type == ActionType.WRITE:
-                    sections, imports, custom = self._generate_write_actions(
+                    sections, imports, pre_stmts = self._generate_write_actions(
                         action_groups[action_type], **common_kwargs
                     )
                 else:
-                    sections, imports, custom = self._generate_regular_actions(
+                    sections, imports, pre_stmts = self._generate_regular_actions(
                         action_groups[action_type], **common_kwargs
                     )
 
                 generated_sections.extend(sections)
                 all_imports.update(imports)
-                custom_source_sections.extend(custom)
+                pre_pipeline_statements.update(pre_stmts)
 
         self.logger.debug(
-            f"Collected {len(all_imports)} total imports and {len(custom_source_sections)} custom source sections"
+            f"Collected {len(all_imports)} total imports, "
+            f"{len(pre_pipeline_statements)} pre-pipeline statements"
         )
-        return generated_sections, all_imports, custom_source_sections
+        return generated_sections, all_imports, pre_pipeline_statements
 
     def _generate_write_actions(
         self,
@@ -266,11 +272,11 @@ class CodeGenerator:
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
-    ) -> Tuple[List[str], Set[str], List[Dict]]:
+    ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for write actions with target grouping."""
         sections = []
-        imports = set()
-        custom_sources = []
+        imports: Set[str] = set()
+        pre_pipeline_statements: Set[str] = set()
 
         # Group write actions by target table
         grouped_actions = self.group_write_actions_by_target(write_actions)
@@ -306,12 +312,12 @@ class CodeGenerator:
                 action_code = generator.generate(combined_action, context)
                 sections.append(action_code)
 
-                # Collect imports and custom sources
-                section_imports, section_custom = self._collect_generator_outputs(
+                # Collect imports and pre-pipeline statements
+                section_imports, section_pre = self._collect_generator_outputs(
                     generator
                 )
                 imports.update(section_imports)
-                custom_sources.extend(section_custom)
+                pre_pipeline_statements.update(section_pre)
 
             except LHPError:
                 raise  # Re-raise LHPError as-is
@@ -336,7 +342,7 @@ class CodeGenerator:
                     },
                 ) from e
 
-        return sections, imports, custom_sources
+        return sections, imports, pre_pipeline_statements
 
     def _generate_regular_actions(
         self,
@@ -349,11 +355,11 @@ class CodeGenerator:
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
-    ) -> Tuple[List[str], Set[str], List[Dict]]:
+    ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for regular (non-write) actions."""
         sections = []
-        imports = set()
-        custom_sources = []
+        imports: Set[str] = set()
+        pre_pipeline_statements: Set[str] = set()
 
         for action in actions:
             try:
@@ -377,12 +383,12 @@ class CodeGenerator:
                 action_code = generator.generate(action, context)
                 sections.append(action_code)
 
-                # Collect imports and custom sources
-                section_imports, section_custom = self._collect_generator_outputs(
+                # Collect imports and pre-pipeline statements
+                section_imports, section_pre = self._collect_generator_outputs(
                     generator
                 )
                 imports.update(section_imports)
-                custom_sources.extend(section_custom)
+                pre_pipeline_statements.update(section_pre)
 
             except LHPError:
                 raise  # Re-raise LHPError as-is
@@ -403,7 +409,7 @@ class CodeGenerator:
                     },
                 ) from e
 
-        return sections, imports, custom_sources
+        return sections, imports, pre_pipeline_statements
 
     def _generate_dq_actions(
         self,
@@ -416,11 +422,11 @@ class CodeGenerator:
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
-    ) -> Tuple[List[str], Set[str], List[Dict]]:
+    ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for data quality actions with sub-headers."""
         sections = []
-        imports = set()
-        custom_sources = []
+        imports: Set[str] = set()
+        pre_pipeline_statements: Set[str] = set()
 
         for action in actions:
             try:
@@ -430,9 +436,9 @@ class CodeGenerator:
                 mode = getattr(action, "mode", None) or "dqe"
 
                 if mode == "quarantine":
-                    sub_header_text = f"Quarantine: {source} \u2192 {target}"
+                    sub_header_text = f"Quarantine: {source} → {target}"
                 else:
-                    sub_header_text = f"Expectations: {source} \u2192 {target}"
+                    sub_header_text = f"Expectations: {source} → {target}"
 
                 sub_header = f"\n# {'-' * 76}\n# {sub_header_text}\n# {'-' * 76}"
                 sections.append(sub_header)
@@ -457,12 +463,12 @@ class CodeGenerator:
                 action_code = generator.generate(action, context)
                 sections.append(action_code)
 
-                # Collect imports and custom sources
-                section_imports, section_custom = self._collect_generator_outputs(
+                # Collect imports and pre-pipeline statements
+                section_imports, section_pre = self._collect_generator_outputs(
                     generator
                 )
                 imports.update(section_imports)
-                custom_sources.extend(section_custom)
+                pre_pipeline_statements.update(section_pre)
 
             except LHPError:
                 raise  # Re-raise LHPError as-is
@@ -483,7 +489,7 @@ class CodeGenerator:
                     },
                 ) from e
 
-        return sections, imports, custom_sources
+        return sections, imports, pre_pipeline_statements
 
     def _build_generation_context(
         self,
@@ -513,15 +519,14 @@ class CodeGenerator:
             "python_file_copier": python_file_copier,  # Thread-safe copier for parallel mode
         }
 
-    def _collect_generator_outputs(self, generator) -> Tuple[Set[str], List[Dict]]:
-        """Collect imports and custom source code from generator."""
-        imports = set()
-        custom_sources = []
+    def _collect_generator_outputs(self, generator) -> Tuple[Set[str], Set[str]]:
+        """Collect imports and pre-pipeline statements from a generator."""
+        imports: Set[str] = set()
+        pre_pipeline_statements: Set[str] = set()
 
         # Enhanced import collection - use ImportManager if available
         import_manager = getattr(generator, "get_import_manager", lambda: None)()
         if import_manager:
-            # Generator uses ImportManager - get consolidated imports
             consolidated_imports = import_manager.get_consolidated_imports()
             imports.update(consolidated_imports)
             self.logger.debug(
@@ -531,43 +536,13 @@ class CodeGenerator:
             # Legacy generator - use simple import collection
             imports.update(generator.imports)
 
-        # Collect custom source code if available
-        if hasattr(generator, "custom_source_code") and generator.custom_source_code:
-            custom_sources.append(
-                {
-                    "content": generator.custom_source_code,
-                    "source_file": (
-                        Path(str(generator.source_file_path)).as_posix()
-                        if generator.source_file_path
-                        else None
-                    ),
-                    "action_name": (
-                        generator.action_name
-                        if hasattr(generator, "action_name")
-                        else "unknown"
-                    ),
-                }
-            )
+        # Collect pre-pipeline statements (e.g. cloudpickle registration for
+        # custom data sources/sinks).
+        get_pre = getattr(generator, "get_pre_pipeline_statements", None)
+        if callable(get_pre):
+            pre_pipeline_statements.update(get_pre())
 
-        # Collect custom sink code if available
-        if hasattr(generator, "custom_sink_code") and generator.custom_sink_code:
-            custom_sources.append(
-                {
-                    "content": generator.custom_sink_code,
-                    "source_file": (
-                        Path(str(generator.sink_file_path)).as_posix()
-                        if generator.sink_file_path
-                        else None
-                    ),
-                    "action_name": (
-                        generator.action_name
-                        if hasattr(generator, "action_name")
-                        else "unknown"
-                    ),
-                }
-            )
-
-        return imports, custom_sources
+        return imports, pre_pipeline_statements
 
     def _apply_secret_substitutions(
         self,
@@ -598,21 +573,26 @@ class CodeGenerator:
         self,
         flowgroup: FlowGroup,
         all_imports: Set[str],
-        custom_source_sections: List[Dict],
+        pre_pipeline_statements: Set[str],
         complete_code: str,
     ) -> str:
         """Assemble final Python code with headers and imports.
 
         Enforces PEP 236 by hoisting every ``from __future__ import ...``
-        statement collected from the imports set, custom source/sink sections,
-        and the main generated body to the top of the assembled module — a
-        single chokepoint so individual generators do not need to know about
-        future imports.
+        statement collected from the imports set and the main generated body
+        to the top of the assembled module — a single chokepoint so individual
+        generators do not need to know about future imports.
+
+        The pre-pipeline statements set (e.g. ``cloudpickle.register_pickle_by_value``
+        for custom data sources/sinks) is emitted as a sorted block immediately
+        after the imports block and before ``PIPELINE_ID``.
         """
         from ...utils.import_manager import ImportManager, extract_future_imports
 
         self.logger.debug(
-            f"Assembling final code for flowgroup '{flowgroup.flowgroup}' with {len(all_imports)} imports and {len(custom_source_sections)} custom sections"
+            f"Assembling final code for flowgroup '{flowgroup.flowgroup}' with "
+            f"{len(all_imports)} imports, "
+            f"{len(pre_pipeline_statements)} pre-pipeline statements"
         )
 
         # (a) Pull __future__ statements out of the collected imports set.
@@ -624,14 +604,7 @@ class CodeGenerator:
             else:
                 non_future.add(imp)
 
-        # (b) Pull __future__ out of every custom_source_section content.
-        cleaned_sections: List[Dict] = []
-        for section in custom_source_sections:
-            fl, cleaned = extract_future_imports(section["content"])
-            future_imports.extend(fl)
-            cleaned_sections.append({**section, "content": cleaned})
-
-        # (c) Pull __future__ out of the main generated code body (e.g.
+        # (b) Pull __future__ out of the main generated code body (e.g.
         # snapshot-CDC source_function_code inlined into the streaming_table
         # template).
         fl, complete_code = extract_future_imports(complete_code)
@@ -659,6 +632,13 @@ class CodeGenerator:
         import_block_lines.extend(sorted_non_future)
         imports_section = "\n".join(import_block_lines)
 
+        # Pre-pipeline statements block (sorted for deterministic output).
+        pre_pipeline_block = ""
+        if pre_pipeline_statements:
+            pre_pipeline_block = (
+                "\n" + "\n".join(sorted(pre_pipeline_statements)) + "\n"
+            )
+
         # Add pipeline configuration section
         pipeline_config = f"""
 # Pipeline Configuration
@@ -672,20 +652,9 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
 # FlowGroup: {flowgroup.flowgroup}
 
 {imports_section}
-{pipeline_config}"""
+{pre_pipeline_block}{pipeline_config}"""
 
-        # FIXED ORDERING: Custom source code FIRST, then main generated code
-        final_code = header
-
-        # Add custom source code first (so classes are defined before registration)
-        if cleaned_sections:
-            custom_code_block = self.build_custom_source_block(cleaned_sections)
-            final_code += "\n\n" + custom_code_block
-
-        # Then add main generated code (registration happens after class definitions)
-        final_code += "\n\n" + complete_code
-
-        return final_code
+        return header + "\n\n" + complete_code
 
     def determine_action_subtype(self, action: Action) -> str:
         """
@@ -855,32 +824,6 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
         object.__setattr__(combined_action, "_table_creator", table_creator)
 
         return combined_action
-
-    def build_custom_source_block(self, custom_sections: List[Dict]) -> str:
-        """
-        Build the custom source code block to append to flowgroup files.
-
-        Args:
-            custom_sections: List of dictionaries with custom source code info
-
-        Returns:
-            Formatted custom source code block with headers
-        """
-        blocks = []
-        blocks.append("# " + "=" * 76)
-        blocks.append("# CUSTOM DATA SOURCE IMPLEMENTATIONS")
-        blocks.append("# " + "=" * 76)
-
-        for section in custom_sections:
-            blocks.append(
-                f"# The following code was automatically copied from: {section['source_file']}"
-            )
-            blocks.append(f"# Used by action: {section['action_name']}")
-            blocks.append("")
-            blocks.append(section["content"])
-            blocks.append("")
-
-        return "\n".join(blocks)
 
     def _extract_source_views_from_action(self, source) -> List[str]:
         """

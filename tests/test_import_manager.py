@@ -995,3 +995,80 @@ class TestRealWorldScenarios:
 
         # Non-conflicting imports should remain
         assert "from pyspark import pipelines as dp" in imports
+
+
+class TestImportNameCollision:
+    """Test ImportManager.add_import collision detection.
+
+    The check fires when two ``from … import …`` statements bind the same
+    local name to different source modules — the silent-shadowing risk that
+    exists for python load/transform and (post-refactor) for custom
+    datasource/sink imports.
+    """
+
+    def test_same_name_different_modules_raises(self):
+        """``from a import X`` then ``from b import X`` → LHPValidationError."""
+        from lhp.utils.error_formatter import LHPValidationError
+
+        mgr = ImportManager()
+        mgr.add_import("from a import Conflict")
+        with pytest.raises(LHPValidationError) as excinfo:
+            mgr.add_import("from b import Conflict")
+        msg = str(excinfo.value)
+        assert "Conflict" in msg
+        assert "collision" in msg.lower()
+
+    def test_same_name_same_module_dedupes(self):
+        """Identical ``from … import …`` is silently deduped (set behavior)."""
+        mgr = ImportManager()
+        mgr.add_import("from a import Same")
+        mgr.add_import("from a import Same")
+        # No exception, set dedupe leaves a single entry.
+        assert "from a import Same" in mgr.get_consolidated_imports()
+        assert (
+            sum(
+                1
+                for imp in mgr.get_consolidated_imports()
+                if imp == "from a import Same"
+            )
+            == 1
+        )
+
+    def test_different_aliases_coexist(self):
+        """``from a import X as Y`` and ``from b import X as Z`` → no collision."""
+        mgr = ImportManager()
+        mgr.add_import("from a import X as Y")
+        mgr.add_import("from b import X as Z")
+        # Both bindings are distinct local names; no collision.
+        consolidated = mgr.get_consolidated_imports()
+        assert "from a import X as Y" in consolidated
+        assert "from b import X as Z" in consolidated
+
+    def test_alias_vs_unaliased_different_names(self):
+        """``from a import X`` and ``from b import Y as X`` collide on local name X."""
+        from lhp.utils.error_formatter import LHPValidationError
+
+        mgr = ImportManager()
+        mgr.add_import("from a import X")
+        with pytest.raises(LHPValidationError):
+            mgr.add_import("from b import Y as X")
+
+    def test_plain_import_does_not_trigger_check(self):
+        """``import x`` form has no binding-name extraction; never raises."""
+        mgr = ImportManager()
+        mgr.add_import("import a")
+        mgr.add_import("import b")
+        # Both coexist without any collision check.
+        consolidated = mgr.get_consolidated_imports()
+        assert "import a" in consolidated
+        assert "import b" in consolidated
+
+    def test_wildcard_import_skipped(self):
+        """``from a import *`` doesn't bind named symbols; never collides."""
+        mgr = ImportManager()
+        mgr.add_import("from a import *")
+        mgr.add_import("from b import X")
+        # The wildcard contributes no specific name, so X is unique.
+        # No collision should fire.
+        consolidated = mgr.get_consolidated_imports()
+        assert "from b import X" in consolidated

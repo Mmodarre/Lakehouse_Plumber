@@ -630,8 +630,15 @@ class MyCustomDataSink:
         assert 'format="my_custom_format"' in code
         assert "MyCustomDataSink" in code
         assert "spark.dataSource.register" in code
-        assert self.generator.custom_sink_code is not None
-        assert self.generator.sink_file_path == "sinks/my_sink.py"
+
+        # New copy-and-import shape: imports + pre-pipeline statement
+        imports = self.generator.imports
+        assert "import custom_python_functions" in imports
+        assert "from pyspark import cloudpickle as _lhp_cloudpickle" in imports
+        assert "from custom_python_functions.my_sink import MyCustomDataSink" in imports
+        assert self.generator.get_pre_pipeline_statements() == [
+            "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+        ]
 
     def test_generate_missing_module_path(self):
         """Test generation with missing module_path raises error."""
@@ -689,8 +696,8 @@ class MyCustomDataSink:
         with pytest.raises(FileNotFoundError):
             self.generator.generate(action, {"spec_dir": self.project_root})
 
-    def test_generate_with_substitution_manager(self):
-        """Test generation with substitution manager."""
+    def test_generate_with_substitution_manager(self, tmp_path):
+        """Substitution applied to user file is preserved in the copied module."""
         sink_dir = self.project_root / "sinks"
         sink_dir.mkdir()
         sink_file = sink_dir / "my_sink.py"
@@ -720,14 +727,26 @@ class MyCustomDataSink:
             },
         )
 
+        from lhp.models.config import FlowGroup
+
+        flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
+        output_dir = tmp_path / "generated"
+        output_dir.mkdir()
+
         context = {
             "spec_dir": self.project_root,
+            "output_dir": output_dir,
+            "flowgroup": flowgroup,
             "substitution_manager": substitution_mgr,
         }
 
-        code = self.generator.generate(action, context)
+        self.generator.generate(action, context)
 
-        assert "substituted_format" in self.generator.custom_sink_code
+        # The substituted format name shows up as the format value in the
+        # template (extracted from the source pre-substitution; substitution
+        # happens during file copy).
+        copied = (output_dir / "custom_python_functions" / "my_sink.py").read_text()
+        assert "substituted_format" in copied
 
     def test_generate_with_options(self):
         """Test generation with custom options."""
@@ -852,30 +871,35 @@ class MyCustomDataSink:
 
 
 class TestCustomSinkPEP236:
-    """Verify the assembly chokepoint hoists ``from __future__`` for custom sinks.
+    """``from __future__`` lives in the user's file, not the assembled module.
 
-    Before the chokepoint port, ``CustomSinkWriteGenerator`` stored the raw
-    user file as ``custom_sink_code`` and the orchestrator appended it
-    directly into the assembled module body — beneath the dp import — which
-    silently broke PEP 236 for any sink file starting with
-    ``from __future__ import annotations``.
+    Mirror of :class:`TestCustomDataSourcePEP236` for the custom sink path:
+    under the new copy-and-import pattern, the user's PySpark ``DataSink``
+    file is copied verbatim into a sibling ``custom_python_functions/``
+    directory, and the pipeline file imports the class by name. The user's
+    ``from __future__`` lines stay in the user's own file (the natural PEP
+    236 location) and never need cross-file hoisting.
     """
 
     def setup_method(self):
         self.generator = CustomSinkWriteGenerator()
-        self.temp_dir = tempfile.mkdtemp()
-        self.project_root = Path(self.temp_dir)
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.project_root = self.temp_dir / "test_project"
+        self.project_root.mkdir()
 
     def teardown_method(self):
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
+        shutil.rmtree(self.temp_dir)
 
-    def _build_assembled_module(self, sink_file_text):
-        from lhp.core.services.code_generator import CodeGenerator
+    def _generate_with_output_dir(self, sink_text):
+        from lhp.models.config import FlowGroup
 
         sink_dir = self.project_root / "sinks"
         sink_dir.mkdir(exist_ok=True)
         sink_file = sink_dir / "future_sink.py"
-        sink_file.write_text(sink_file_text)
+        sink_file.write_text(sink_text)
+
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
 
         action = Action(
             name="write_future_sink",
@@ -886,108 +910,58 @@ class TestCustomSinkPEP236:
                 "sink_type": "custom",
                 "sink_name": "future_sink",
                 "module_path": "sinks/future_sink.py",
-                "custom_sink_class": "FutureDataSink",
+                "custom_sink_class": "FutureSink",
             },
         )
 
-        # Drive through the SinkWriteGenerator dispatcher so its
-        # ImportManager merges the inner generator's file imports — that
-        # is the production path. The dispatcher mirrors the inner
-        # generator's `custom_sink_code` and `sink_file_path` onto itself.
-        dispatcher = SinkWriteGenerator()
-        context = {"spec_dir": self.project_root}
-        generated = dispatcher.generate(action, context)
-
-        all_imports = set()
-        all_imports.add("from pyspark import pipelines as dp")
-        import_mgr = dispatcher.get_import_manager()
-        if import_mgr:
-            all_imports.update(import_mgr.get_consolidated_imports())
-
-        custom_sections = [
-            {
-                "content": dispatcher.custom_sink_code,
-                "source_file": Path(str(dispatcher.sink_file_path)).as_posix(),
-                "action_name": action.name,
-            }
-        ]
-
         flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
-        cg = CodeGenerator()
-        return cg._assemble_final_code(
-            flowgroup, all_imports, custom_sections, generated
-        )
+        context = {
+            "spec_dir": self.project_root,
+            "output_dir": output_dir,
+            "flowgroup": flowgroup,
+        }
+        generated = self.generator.generate(action, context)
+        return generated, output_dir
 
-    def test_future_sink_compiles_and_hoisted(self):
-        sink_text = (
-            "from __future__ import annotations\n"
-            "from pyspark.sql.datasource import DataSink\n"
-            "\n"
-            "class FutureDataSink(DataSink):\n"
-            "    @classmethod\n"
-            "    def name(cls):\n"
-            "        return 'future_sink_format'\n"
-            "\n"
-            "spark.dataSource.register(FutureDataSink)\n"
-        )
+    def test_future_import_lives_in_copied_user_file(self):
+        """``from __future__ import annotations`` is preserved in the copy."""
+        sink_text = """from __future__ import annotations
 
-        assembled = self._build_assembled_module(sink_text)
+class FutureSink:
+    @classmethod
+    def name(cls) -> str:
+        return "future_sink_format"
+"""
+        generated, output_dir = self._generate_with_output_dir(sink_text)
 
-        # Hard contract: assembled module must parse.
-        compile(assembled, "<string>", "exec")
-
-        # Future hoisted exactly once and ahead of dp / DataSink imports.
-        assert assembled.count("from __future__ import annotations") == 1
-        future_pos = assembled.index("from __future__ import annotations")
-        dp_pos = assembled.index("from pyspark import pipelines as dp")
-        datasink_pos = assembled.index("from pyspark.sql.datasource import DataSink")
-        assert future_pos < dp_pos
-        assert future_pos < datasink_pos
+        # The generated pipeline file does NOT contain the user's class body.
+        assert "class FutureSink" not in generated
+        # The user's __future__ import lives in the copied file.
+        copied = (output_dir / "custom_python_functions" / "future_sink.py").read_text()
+        assert "from __future__ import annotations" in copied
 
     def test_imports_routed_to_header_not_body(self):
-        # Confirm the port (CustomSinkWriteGenerator.add_imports_from_file)
-        # actually moved the user's imports out of `custom_sink_code` and
-        # into the ImportManager. The custom code block should now contain
-        # only the class definition + registration line.
-        sink_text = (
-            "from pyspark.sql.datasource import DataSink\n"
-            "\n"
-            "class FutureDataSink(DataSink):\n"
-            "    @classmethod\n"
-            "    def name(cls):\n"
-            "        return 'future_sink_format'\n"
-            "\n"
-            "spark.dataSource.register(FutureDataSink)\n"
-        )
+        """Generated body has no inlined user imports; cloudpickle is in pre-pipeline slot."""
+        sink_text = """from pyspark.sql.types import StructType
 
-        assembled = self._build_assembled_module(sink_text)
-        compile(assembled, "<string>", "exec")
+class FutureSink:
+    @classmethod
+    def name(cls):
+        return "future_sink_format"
+"""
+        generated, _ = self._generate_with_output_dir(sink_text)
 
-        # The DataSink import appears exactly once — in the header block,
-        # not duplicated inside the CUSTOM DATA SOURCE IMPLEMENTATIONS
-        # section.
-        assert assembled.count("from pyspark.sql.datasource import DataSink") == 1
+        # User imports do not appear inlined in the generated body.
+        assert "from pyspark.sql.types import StructType" not in generated
+        # The class itself is not inlined.
+        assert "class FutureSink" not in generated
 
-        # The custom-source section does NOT contain a top-level
-        # ``from`` or ``import`` line (everything was hoisted).
-        custom_section_marker = "# CUSTOM DATA SOURCE IMPLEMENTATIONS"
-        custom_start = assembled.index(custom_section_marker)
-        custom_block = assembled[custom_start:]
-        # Strip the comment header lines from the section before scanning
-        # for residual top-level imports.
-        body_lines = [
-            ln
-            for ln in custom_block.splitlines()
-            if ln.strip() and not ln.lstrip().startswith("#")
-        ]
-        for ln in body_lines:
-            stripped = ln.lstrip()
-            assert not stripped.startswith(
-                "import "
-            ), f"Unexpected top-level import in custom section: {ln!r}"
-            assert not stripped.startswith(
-                "from "
-            ), f"Unexpected top-level import in custom section: {ln!r}"
+        # New shape: imports drive the dispatcher's ImportManager and the
+        # cloudpickle registration goes into pre-pipeline statements.
+        imports = self.generator.imports
+        assert "import custom_python_functions" in imports
+        assert "from pyspark import cloudpickle as _lhp_cloudpickle" in imports
+        assert "from custom_python_functions.future_sink import FutureSink" in imports
 
 
 class TestSinkWriteGenerator:
@@ -1072,8 +1046,12 @@ class MyCustomDataSink:
 
             assert "dp.create_sink" in code
             assert "MyCustomDataSink" in code
-            assert hasattr(self.generator, "custom_sink_code")
-            assert self.generator.custom_sink_code is not None
+
+            # Dispatcher forwards pre-pipeline statements from the inner
+            # generator so the assembler sees them.
+            assert self.generator.get_pre_pipeline_statements() == [
+                "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+            ]
 
         finally:
             shutil.rmtree(temp_dir)
@@ -1119,8 +1097,8 @@ class MyCustomDataSink:
         assert "from pyspark import pipelines as dp" in imports
         assert "from pyspark.sql import functions as F" in imports
 
-    def test_custom_sink_code_forwarding(self):
-        """Test that custom sink code is forwarded from sub-generator."""
+    def test_dispatcher_forwards_imports_and_pre_pipeline_statements(self):
+        """Dispatcher forwards inner generator's imports + pre-pipeline statements."""
         temp_dir = Path(tempfile.mkdtemp())
         project_root = temp_dir / "test_project"
         project_root.mkdir()
@@ -1153,11 +1131,18 @@ class MyCustomDataSink:
 
             self.generator.generate(action, context)
 
-            assert hasattr(self.generator, "custom_sink_code")
-            assert self.generator.custom_sink_code is not None
-            assert "MyCustomDataSink" in self.generator.custom_sink_code
-            assert hasattr(self.generator, "sink_file_path")
-            assert self.generator.sink_file_path == "sinks/my_sink.py"
+            # Imports from the inner generator are merged into the dispatcher.
+            dispatcher_imports = self.generator.imports
+            assert "import custom_python_functions" in dispatcher_imports
+            assert (
+                "from custom_python_functions.my_sink import MyCustomDataSink"
+                in dispatcher_imports
+            )
+
+            # Pre-pipeline statements (cloudpickle registration) are forwarded.
+            assert self.generator.get_pre_pipeline_statements() == [
+                "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+            ]
 
         finally:
             shutil.rmtree(temp_dir)

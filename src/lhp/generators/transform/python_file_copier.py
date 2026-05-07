@@ -130,3 +130,83 @@ class PythonFileCopier:
         """
         with self._lock:
             return dict(self._copied_files)
+
+    def copy_user_module(
+        self,
+        source_file: Path,
+        module_path: str,
+        custom_functions_dir: Path,
+        context: dict,
+    ) -> str:
+        """Copy a user Python module into the custom_functions directory.
+
+        Reads the source file, applies YAML substitutions and propagates secret
+        references, prepends an LHP-SOURCE provenance header, ensures the
+        package's ``__init__.py`` exists, copies the module thread-safely, and
+        registers both files with the state manager (when present).
+
+        Caller is responsible for resolving ``source_file`` (which must exist)
+        and ``custom_functions_dir`` (typically ``output_dir / "custom_python_functions"``).
+        Dry-run handling (skipping when ``output_dir is None``) belongs to the
+        caller.
+
+        Args:
+            source_file: Resolved path to the user's source ``.py`` file.
+            module_path: Original user-facing relative path; used in the
+                LHP-SOURCE header so generated headers point back to the
+                original location.
+            custom_functions_dir: Destination directory for the copied module.
+            context: Generation context. Reads ``substitution_manager``,
+                ``secret_references``, ``state_manager``, ``source_yaml``,
+                ``environment``, ``flowgroup``.
+
+        Returns:
+            The module stem (e.g. ``"api_source"`` for ``"data/api_source.py"``).
+        """
+        from ...utils.smart_file_writer import build_lhp_source_header
+
+        module_name = Path(module_path).stem
+        dest_file = custom_functions_dir / f"{module_name}.py"
+
+        original_content = source_file.read_text()
+
+        substitution_mgr = context.get("substitution_manager")
+        if substitution_mgr is not None:
+            original_content = substitution_mgr._process_string(original_content)
+
+            secret_refs = substitution_mgr.get_secret_references()
+            secret_target = context.get("secret_references")
+            if secret_target is not None:
+                secret_target.update(secret_refs)
+
+        full_content = build_lhp_source_header(module_path) + original_content
+
+        self.ensure_init_file(custom_functions_dir)
+        file_copied = self.copy_python_file(module_path, dest_file, full_content)
+
+        if file_copied:
+            state_manager = context.get("state_manager")
+            source_yaml = context.get("source_yaml")
+            flowgroup = context.get("flowgroup")
+            if state_manager and source_yaml and flowgroup:
+                env = context.get("environment", "unknown")
+                init_file = custom_functions_dir / "__init__.py"
+                state_manager.track_generated_file(
+                    generated_path=init_file,
+                    source_yaml=source_yaml,
+                    environment=env,
+                    pipeline=flowgroup.pipeline,
+                    flowgroup=flowgroup.flowgroup,
+                )
+                state_manager.track_generated_file(
+                    generated_path=dest_file,
+                    source_yaml=source_yaml,
+                    environment=env,
+                    pipeline=flowgroup.pipeline,
+                    flowgroup=flowgroup.flowgroup,
+                )
+                self._logger.debug(
+                    f"Tracked custom module files for module_path={module_path}"
+                )
+
+        return module_name

@@ -2,60 +2,17 @@
 # Pipeline: custom_datasource
 # FlowGroup: sink_with_metadata
 
-from pyspark.sql.datasource import DataSink, DataSourceWriter
-from pyspark.sql.functions import *  # Wildcard import - triggers expression adaptation
+from pyspark import cloudpickle as _lhp_cloudpickle
+from pyspark.sql import functions as F
 from pyspark import pipelines as dp
+from custom_python_functions.custom_sink_wildcard import CustomSinkWithWildcard
+import custom_python_functions
+
+_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)
 
 # Pipeline Configuration
 PIPELINE_ID = "custom_datasource"
 FLOWGROUP_ID = "sink_with_metadata"
-
-
-# ============================================================================
-# CUSTOM DATA SOURCE IMPLEMENTATIONS
-# ============================================================================
-# The following code was automatically copied from: py_functions/pyspark_custom_data_sources/custom_sink_wildcard.py
-# Used by action: unknown
-
-"""Custom data sink with wildcard imports to test BaseSinkWriteGenerator operational metadata."""
-
-
-class CustomSinkWithWildcard(DataSink):
-    """Custom sink that uses wildcard imports."""
-
-    @classmethod
-    def name(cls):
-        return "custom_sink_wildcard"
-
-    def writer(self, schema, saveMode):
-        return CustomSinkWriter(schema, saveMode, self.options)
-
-
-class CustomSinkWriter(DataSourceWriter):
-    """Writer for custom sink with wildcard."""
-
-    def __init__(self, schema, save_mode, options):
-        self.schema = schema
-        self.save_mode = save_mode
-        self.options = options
-
-    def write(self, iterator):
-        # Process rows using wildcard-imported functions
-        for row in iterator:
-            # Simulate writing data
-            pass
-
-    def commit(self, messages):
-        # Commit write operation
-        pass
-
-    def abort(self, messages):
-        # Abort write operation
-        pass
-
-
-# Register the sink
-spark.dataSource.register(CustomSinkWithWildcard)
 
 
 # ============================================================================
@@ -104,6 +61,6 @@ def f_custom_wildcard_sink_1():
     df = spark.readStream.table("v_test_sink_data")
 
     # Add operational metadata columns
-    df = df.withColumn("_processing_timestamp", current_timestamp())
+    df = df.withColumn("_processing_timestamp", F.current_timestamp())
 
     return df

@@ -1,19 +1,18 @@
 """Python transformation generator."""
 
 import logging
-import shutil
 from pathlib import Path
-from typing import Optional
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.error_formatter import (
     ErrorCategory,
     ErrorFormatter,
-    LHPFileError,
     LHPValidationError,
 )
-from .python_file_copier import PythonFunctionConflictError
+from .python_file_copier import (  # noqa: F401  (re-exported for test compatibility)
+    PythonFunctionConflictError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -155,10 +154,7 @@ class PythonTransformGenerator(BaseActionGenerator):
     def _copy_python_file(
         self, module_path: str, project_root: Path, context: dict
     ) -> str:
-        """Copy Python file to custom_python_functions directory and return module name."""
-        logger = logging.getLogger(__name__)
-
-        # Resolve source file path relative to project root
+        """Resolve the source file then delegate to ``PythonFileCopier``."""
         source_file = project_root / module_path
 
         if not source_file.exists():
@@ -170,10 +166,6 @@ class PythonTransformGenerator(BaseActionGenerator):
                 file_type="Python module file",
             )
 
-        # Extract module name from path (strip .py extension)
-        module_name = Path(module_path).stem
-
-        # Determine output directory for the current flowgroup
         flowgroup = context.get("flowgroup")
         if not flowgroup:
             raise LHPValidationError(
@@ -188,116 +180,19 @@ class PythonTransformGenerator(BaseActionGenerator):
                 context={"Module Path": module_path},
             )
 
-        # Get output directory
+        module_name = Path(module_path).stem
         output_dir = context.get("output_dir")
         if output_dir is None:
-            # For dry-run mode, no file operations needed
             return module_name
 
-        # Prepare destination
         custom_functions_dir = output_dir / "custom_python_functions"
-        dest_file = custom_functions_dir / f"{module_name}.py"
 
-        # Read and process source content
-        original_content = source_file.read_text()
-
-        # Apply substitutions if available
-        if context and "substitution_manager" in context:
-            substitution_mgr = context["substitution_manager"]
-            original_content = substitution_mgr._process_string(original_content)
-
-            # Track secret references
-            secret_refs = substitution_mgr.get_secret_references()
-            if (
-                "secret_references" in context
-                and context["secret_references"] is not None
-            ):
-                context["secret_references"].update(secret_refs)
-
-        # Build content with header
-        from ...utils.smart_file_writer import build_lhp_source_header
-
-        full_content = build_lhp_source_header(module_path) + original_content
-
-        # Use thread-safe copier if available (always available in normal mode)
         python_copier = context.get("python_file_copier")
-        if python_copier:
-            # Thread-safe mode (parallel or sequential with conflict detection)
-            python_copier.ensure_init_file(custom_functions_dir)
-            file_copied = python_copier.copy_python_file(
-                module_path, dest_file, full_content
-            )
+        if python_copier is None:
+            from .python_file_copier import PythonFileCopier
 
-            # Track files with state manager (only if file was actually copied)
-            if file_copied:
-                state_manager = context.get("state_manager")
-                source_yaml = context.get("source_yaml")
-                if state_manager and source_yaml:
-                    init_file = custom_functions_dir / "__init__.py"
+            python_copier = PythonFileCopier()
 
-                    # Track the __init__.py file
-                    state_manager.track_generated_file(
-                        generated_path=init_file,
-                        source_yaml=source_yaml,
-                        environment=context.get("environment", "unknown"),
-                        pipeline=flowgroup.pipeline,
-                        flowgroup=flowgroup.flowgroup,
-                    )
-                    logger.debug(
-                        f"Tracked additional file: {init_file} for Python transform"
-                    )
-
-                    # Track the copied Python function file
-                    state_manager.track_generated_file(
-                        generated_path=dest_file,
-                        source_yaml=source_yaml,
-                        environment=context.get("environment", "unknown"),
-                        pipeline=flowgroup.pipeline,
-                        flowgroup=flowgroup.flowgroup,
-                    )
-                    logger.debug(
-                        f"Tracked additional file: {dest_file} for Python transform"
-                    )
-        else:
-            # Fallback mode for edge cases (dry-run, etc.)
-            custom_functions_dir.mkdir(parents=True, exist_ok=True)
-            init_file = custom_functions_dir / "__init__.py"
-            init_file.write_text("# Generated package for custom Python functions\n")
-            dest_file.write_text(full_content)
-            logger.debug(
-                f"Copied Python file (sequential mode): {module_path} → {dest_file.name}"
-            )
-
-            # Track files with state manager if available
-            state_manager = context.get("state_manager")
-            source_yaml = context.get("source_yaml")
-            if state_manager and source_yaml:
-                # Track the __init__.py file
-                state_manager.track_generated_file(
-                    generated_path=init_file,
-                    source_yaml=source_yaml,
-                    environment=context.get("environment", "unknown"),
-                    pipeline=flowgroup.pipeline,
-                    flowgroup=flowgroup.flowgroup,
-                )
-                logger.debug(
-                    f"Tracked additional file: {init_file} for Python transform"
-                )
-
-                # Track the copied Python function file
-                state_manager.track_generated_file(
-                    generated_path=dest_file,
-                    source_yaml=source_yaml,
-                    environment=context.get("environment", "unknown"),
-                    pipeline=flowgroup.pipeline,
-                    flowgroup=flowgroup.flowgroup,
-                )
-                logger.debug(
-                    f"Tracked additional file: {dest_file} for Python transform"
-                )
-            else:
-                logger.debug(
-                    f"Skipping file tracking - state_manager: {bool(state_manager)}, source_yaml: {bool(source_yaml)}"
-                )
-
-        return module_name
+        return python_copier.copy_user_module(
+            source_file, module_path, custom_functions_dir, context
+        )

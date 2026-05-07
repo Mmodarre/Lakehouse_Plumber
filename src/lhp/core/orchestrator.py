@@ -1548,18 +1548,6 @@ class ActionOrchestrator:
         """
         return self.generator.determine_action_subtype(action)
 
-    def build_custom_source_block(self, custom_sections: List[Dict]) -> str:
-        """
-        Build the custom source code block to append to flowgroup files.
-
-        Args:
-            custom_sections: List of dictionaries with custom source code info
-
-        Returns:
-            Formatted custom source code block with headers
-        """
-        return self.generator.build_custom_source_block(custom_sections)
-
     def _discover_and_filter_flowgroups(
         self,
         env: str,

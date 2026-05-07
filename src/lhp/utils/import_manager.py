@@ -130,11 +130,83 @@ class ImportManager:
         """
         Add manual import statement (backward compatible API).
 
+        Detects silent name shadowing: if a previously-added ``from x import Y``
+        line binds the same local name as the new statement but points at a
+        different source module, raise ``LHPValidationError``. This prevents
+        the case where two custom datasources/sinks (or python transforms)
+        unintentionally export the same class/function name from different
+        modules — without this check, the second import would silently shadow
+        the first and SDP would register the wrong class.
+
         Args:
-            import_stmt: Import statement like "from pyspark import pipelines as dp" or "from pyspark.sql import functions"
+            import_stmt: Import statement like ``"from pyspark import pipelines as dp"``.
         """
-        if import_stmt and import_stmt.strip():
-            self._manual_imports.add(import_stmt.strip())
+        if not import_stmt or not import_stmt.strip():
+            return
+
+        stmt = import_stmt.strip()
+
+        new_bindings = self._extract_from_import_bindings(stmt)
+        if new_bindings:
+            for existing in self._manual_imports | self._file_imports:
+                existing_bindings = self._extract_from_import_bindings(existing)
+                for name, module in new_bindings.items():
+                    if name in existing_bindings and existing_bindings[name] != module:
+                        from .error_formatter import (
+                            ErrorCategory,
+                            LHPValidationError,
+                        )
+
+                        raise LHPValidationError(
+                            category=ErrorCategory.VALIDATION,
+                            code_number="020",
+                            title="Import name collision",
+                            details=(
+                                f"Two imports bind the local name '{name}' "
+                                f"to different modules:\n"
+                                f"  Existing: {existing}\n"
+                                f"  New:      {stmt}"
+                            ),
+                            suggestions=[
+                                f"Rename one of the '{name}' definitions in "
+                                f"the source files",
+                                f"Use a different alias when importing one of "
+                                f"the modules (e.g. 'from {module} import "
+                                f"{name} as {name}2')",
+                                "Move conflicting symbols into distinct module "
+                                "paths so the binding names differ",
+                            ],
+                            context={
+                                "Conflicting Name": name,
+                                "Existing Module": existing_bindings[name],
+                                "New Module": module,
+                            },
+                        )
+
+        self._manual_imports.add(stmt)
+
+    def _extract_from_import_bindings(self, stmt: str) -> Dict[str, str]:
+        """Extract a ``{local_name: source_module}`` map from a ``from … import …`` statement.
+
+        Returns an empty dict for ``import x`` form, wildcard imports, or
+        statements that fail to parse — the collision check then becomes a
+        no-op for those cases.
+        """
+        try:
+            tree = ast.parse(stmt)
+        except SyntaxError:
+            return {}
+
+        bindings: Dict[str, str] = {}
+        for node in tree.body:
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                for alias in node.names:
+                    if alias.name == "*":
+                        continue
+                    local_name = alias.asname or alias.name
+                    bindings[local_name] = module
+        return bindings
 
     def add_imports_from_expression(self, expression: str) -> None:
         """

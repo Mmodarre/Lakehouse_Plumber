@@ -1230,23 +1230,26 @@ Custom data source load actions use PySpark's DataSource API to implement specia
 
 .. Important::
   Custom DataSources require implementing the DataSource interface with appropriate reader methods.
-  The framework automatically registers your DataSource and copies the implementation to the generated pipeline.
+  The framework copies your file to a ``custom_python_functions/`` subdirectory next to the generated
+  pipeline file and imports the class by name; the user file is not inlined into the pipeline.
   Use options dictionary to pass configuration parameters from YAML to your DataSource.
 
 .. note:: **File Substitution Support**
-   
+
    Custom DataSource Python files support substitution variables:
-   
+
    - **Environment tokens**: ``${catalog}``, ``${api_endpoint}``, ``${environment}``
    - **Secret references**: ``${secret:scope/key}`` for API keys and credentials
-   
-   Substitutions are applied before the class is embedded in the generated code.
+
+   Substitutions are applied to the file's contents as it is copied to ``custom_python_functions/``.
 
   **Key Implementation Requirements:**
   - Your DataSource class must implement the ``name()`` class method returning the format name used in ``.format()``
   - The framework uses the return value of ``name()`` method, not the class name, for the format string
-  - The custom source code is placed *before* the registration call to ensure proper class definition order
-  - Import management is handled automatically to resolve conflicts between source file imports and generated code
+  - The class is imported from the copied module; the registration call (``spark.dataSource.register``)
+    runs at module load before the pipeline body
+  - PySpark's *vendored* cloudpickle is registered (``register_pickle_by_value``) so the class survives
+    serialization to executors
 
 .. note::
   **File Organization**: The ``module_path`` is relative to your YAML file location.
@@ -1261,6 +1264,11 @@ Custom data source load actions use PySpark's DataSource API to implement specia
 
 **The above YAML translates to the following PySpark code**
 
+The user's ``data_sources/currency_api_source.py`` is copied verbatim into a
+``custom_python_functions/`` subdirectory beside the generated pipeline file.
+The pipeline file imports the class by name and registers it on the local
+Spark session at module load:
+
 .. code-block:: python
   :linenos:
 
@@ -1268,59 +1276,17 @@ Custom data source load actions use PySpark's DataSource API to implement specia
   # Pipeline: unirate_api_ingestion
   # FlowGroup: api_unirate_ingestion_bronze
 
-  from pyspark.sql.datasource import DataSource, DataSourceStreamReader, InputPartition
-  from pyspark.sql.functions import *
-  from pyspark.sql.types import *
-  from typing import Iterator, Tuple
+  from pyspark import cloudpickle as _lhp_cloudpickle
+  from pyspark.sql import functions as F
   from pyspark import pipelines as dp
-  import json
-  import os
-  import requests
-  import time
+  from custom_python_functions.currency_api_source import CurrencyAPIStreamingDataSource
+  import custom_python_functions
+
+  _lhp_cloudpickle.register_pickle_by_value(custom_python_functions)
 
   # Pipeline Configuration
   PIPELINE_ID = "unirate_api_ingestion"
   FLOWGROUP_ID = "api_unirate_ingestion_bronze"
-
-  # ============================================================================
-  # CUSTOM DATA SOURCE IMPLEMENTATIONS
-  # ============================================================================
-  # The following code was automatically copied from: data_sources/currency_api_source.py
-  # Used by action: load_currency_exchange
-
-  class CurrencyInputPartition(InputPartition):
-      """Input partition for currency API data source"""
-      def __init__(self, start_time, end_time):
-          self.start_time = start_time
-          self.end_time = end_time
-
-  class CurrencyAPIStreamingDataSource(DataSource):
-      """
-      Real currency exchange data source powered by UniRateAPI.
-      Fetches live exchange rates on each triggered pipeline run.
-      """
-
-      @classmethod
-      def name(cls):
-          return "currency_api_stream"
-
-      def schema(self):
-          return """
-              base_currency string,
-              target_currency string,
-              exchange_rate double,
-              api_timestamp timestamp,
-              fetch_timestamp timestamp,
-              rate_change_1h double,
-              is_crypto boolean,
-              data_source string,
-              pipeline_run_id string
-          """
-
-      def streamReader(self, schema: StructType):
-          return CurrencyAPIStreamingReader(schema, self.options)
-
-  # ... rest of custom data source implementation ...
 
   # ============================================================================
   # SOURCE VIEWS
@@ -1345,7 +1311,14 @@ Custom data source load actions use PySpark's DataSource API to implement specia
           .load()
 
       # Add operational metadata columns
-      df = df.withColumn('_processing_timestamp', current_timestamp())
+      df = df.withColumn('_processing_timestamp', F.current_timestamp())
 
       return df
+
+The ``register_pickle_by_value(custom_python_functions)`` line registers the
+package with PySpark's *vendored* cloudpickle so the ``DataSource`` class
+survives serialization when SDP ships it to the executors. (The system
+``cloudpickle`` is silently inert here because PySpark uses its own bundled
+copy — this is the one-line fix that makes the copy-and-import pattern work
+across local + executor boundaries.)
 

@@ -6,20 +6,24 @@ from pathlib import Path
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter, LHPFileError, LHPValidationError
-from ...utils.error_formatter import ErrorCategory
+from ...utils.error_formatter import ErrorFormatter
 
 
 class CustomDataSourceLoadGenerator(BaseActionGenerator):
-    """Generate custom data source load actions with unified import management."""
+    """Generate custom data source load actions via copy-and-import.
+
+    Copies the user's PySpark ``DataSource`` source file into a
+    ``custom_python_functions/`` sibling directory of the generated pipeline
+    file, then registers the package with PySpark's *vendored* cloudpickle
+    so the class survives serialization to executors. The class is imported
+    by name and registered on the local Spark session at module load.
+    """
 
     def __init__(self):
         # Enable ImportManager for advanced import handling
         super().__init__(use_import_manager=True)
         self.add_import("from pyspark import pipelines as dp")
         self.logger = logging.getLogger(__name__)
-        self.custom_source_code = None  # Store for later appending by orchestrator
-        self.source_file_path = None  # Track source file
 
     def _extract_datasource_format_name(self, source_code: str, class_name: str) -> str:
         """Extract the format name from the DataSource class name() method."""
@@ -62,8 +66,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             return class_name  # Fallback to class name
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate custom data source load code with unified import management."""
-        # Extract configuration from source (following cloudfiles pattern)
+        """Generate custom data source load code via copy-and-import."""
         source_config = action.source
         if isinstance(source_config, str):
             raise ErrorFormatter.invalid_source_format(
@@ -125,7 +128,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         endpoint: "https://api.example.com" """,
             )
 
-        # Read custom source file
+        # Resolve the source file relative to the project root
         project_root = context.get("spec_dir") or Path.cwd()
         source_path = project_root / module_path
 
@@ -139,35 +142,55 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             )
 
         raw_source_code = source_path.read_text()
-        self.source_file_path = Path(module_path).as_posix()
 
-        # Apply substitutions to the raw source code if substitution_manager is available
-        if context and "substitution_manager" in context:
-            substitution_mgr = context["substitution_manager"]
-            raw_source_code = substitution_mgr._process_string(raw_source_code)
+        # Apply substitution to the source so format extraction sees resolved
+        # tokens (e.g. ``${datasource_format}`` in the user's ``name()`` return
+        # value). ``copy_user_module`` re-applies substitution when copying —
+        # idempotent for resolved tokens.
+        if "substitution_manager" in context:
+            raw_source_code = context["substitution_manager"]._process_string(
+                raw_source_code
+            )
 
-            # Track secret references if they exist
-            secret_refs = substitution_mgr.get_secret_references()
-            if (
-                "secret_references" in context
-                and context["secret_references"] is not None
-            ):
-                context["secret_references"].update(secret_refs)
-
-        # Use ImportManager to extract imports and get cleaned source
-        self.custom_source_code = self.add_imports_from_file(raw_source_code)
-
-        self.logger.info(f"Extracted imports from custom source file: {source_path}")
-
-        # Extract the actual format name from the DataSource class
+        # Extract the format name against the substituted source so the
+        # generated ``format=...`` value matches the user's post-substitution
+        # ``name()`` return value.
         datasource_format_name = self._extract_datasource_format_name(
             raw_source_code, custom_datasource_class
+        )
+
+        # Copy the user's module into custom_python_functions/ alongside the
+        # generated pipeline file. Skipped in dry-run (output_dir is None).
+        module_name = Path(module_path).stem
+        output_dir = context.get("output_dir")
+        if output_dir is not None:
+            python_copier = context.get("python_file_copier")
+            if python_copier is None:
+                from ..transform.python_file_copier import PythonFileCopier
+
+                python_copier = PythonFileCopier()
+            custom_functions_dir = output_dir / "custom_python_functions"
+            module_name = python_copier.copy_user_module(
+                source_path, module_path, custom_functions_dir, context
+            )
+
+        # Plumb the three imports + the cloudpickle registration statement.
+        # Dedupe across actions in the same flowgroup is handled by
+        # ImportManager (imports) and the assembler (pre-pipeline statements).
+        self.add_import("import custom_python_functions")
+        self.add_import("from pyspark import cloudpickle as _lhp_cloudpickle")
+        self.add_import(
+            f"from custom_python_functions.{module_name} import {custom_datasource_class}"
+        )
+        self.add_pre_pipeline_statement(
+            "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
         )
 
         # Get readMode from action or default to stream
         readMode = action.readMode or "stream"
         self.logger.debug(
-            f"Custom datasource '{action.name}': class='{custom_datasource_class}', format='{datasource_format_name}', readMode='{readMode}'"
+            f"Custom datasource '{action.name}': class='{custom_datasource_class}', "
+            f"format='{datasource_format_name}', readMode='{readMode}', module='{module_name}'"
         )
 
         # Handle operational metadata
