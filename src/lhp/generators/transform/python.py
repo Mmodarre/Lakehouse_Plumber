@@ -1,7 +1,6 @@
 """Python transformation generator."""
 
 import logging
-from pathlib import Path
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
@@ -10,8 +9,14 @@ from ...utils.error_formatter import (
     ErrorFormatter,
     LHPValidationError,
 )
-from .python_file_copier import (  # noqa: F401  (re-exported for test compatibility)
-    PythonFunctionConflictError,
+
+# PythonFunctionConflictError is re-exported here for backwards-compatible
+# test imports (``from lhp.generators.transform.python import …``).
+from ..python_file_copier import (  # noqa: F401,E501
+    PythonFunctionConflictError as PythonFunctionConflictError,
+)
+from ..python_file_copier import (
+    copy_user_module_for_pipeline,
 )
 
 logger = logging.getLogger(__name__)
@@ -21,7 +26,7 @@ class PythonTransformGenerator(BaseActionGenerator):
     """Generate Python transformation actions."""
 
     def __init__(self):
-        super().__init__()
+        super().__init__(use_import_manager=True)
         self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: dict) -> str:
@@ -79,9 +84,10 @@ class PythonTransformGenerator(BaseActionGenerator):
             f"Python transform '{action.name}': module_path='{module_path}', function='{function_name}', readMode='{action.readMode or 'batch'}'"
         )
 
-        # Resolve and copy Python file
-        project_root = context.get("spec_dir") or Path.cwd()
-        copied_module_name = self._copy_python_file(module_path, project_root, context)
+        # Resolve and copy Python file via the shared helper.
+        copied_module_name = copy_user_module_for_pipeline(
+            module_path, context, component_label="Python transform action"
+        )
 
         # Determine source view(s) from action.source directly
         source_views = self._extract_source_views_from_action_source(action.source)
@@ -150,49 +156,3 @@ class PythonTransformGenerator(BaseActionGenerator):
                 ],
                 context={"Source Type": type(source).__name__},
             )
-
-    def _copy_python_file(
-        self, module_path: str, project_root: Path, context: dict
-    ) -> str:
-        """Resolve the source file then delegate to ``PythonFileCopier``."""
-        source_file = project_root / module_path
-
-        if not source_file.exists():
-            raise ErrorFormatter.file_not_found(
-                file_path=str(source_file),
-                search_locations=[
-                    f"Relative to project root: {project_root / module_path}",
-                ],
-                file_type="Python module file",
-            )
-
-        flowgroup = context.get("flowgroup")
-        if not flowgroup:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="015",
-                title="Missing flowgroup context for Python file copying",
-                details="Flowgroup context is required for Python file copying but was not provided.",
-                suggestions=[
-                    "Ensure the action is executed within a flowgroup context",
-                    "Check that the flowgroup configuration is valid",
-                ],
-                context={"Module Path": module_path},
-            )
-
-        module_name = Path(module_path).stem
-        output_dir = context.get("output_dir")
-        if output_dir is None:
-            return module_name
-
-        custom_functions_dir = output_dir / "custom_python_functions"
-
-        python_copier = context.get("python_file_copier")
-        if python_copier is None:
-            from .python_file_copier import PythonFileCopier
-
-            python_copier = PythonFileCopier()
-
-        return python_copier.copy_user_module(
-            source_file, module_path, custom_functions_dir, context
-        )

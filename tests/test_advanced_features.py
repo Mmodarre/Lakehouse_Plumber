@@ -1,34 +1,42 @@
 """Advanced feature tests for LakehousePlumber."""
 
-import pytest
 import tempfile
-import yaml
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import pytest
+import yaml
 
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.models.config import FlowGroup, Action, ActionType
+from lhp.models.config import Action, ActionType, FlowGroup
 
 
 class TestAdvancedFeatures:
     """Test advanced features and edge cases."""
-    
+
     @pytest.fixture
     def project_root(self):
         """Create a temporary project with standard structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            
+
             # Create standard directories
-            for dir_name in ['presets', 'templates', 'pipelines', 'substitutions', 'schemas', 'expectations']:
+            for dir_name in [
+                "presets",
+                "templates",
+                "pipelines",
+                "substitutions",
+                "schemas",
+                "expectations",
+            ]:
                 (root / dir_name).mkdir()
-            
+
             # Create basic project config
             (root / "lhp.yaml").write_text("""
 name: test_project
 version: "1.0"
 """)
-            
+
             # Create basic substitutions
             (root / "substitutions" / "dev.yaml").write_text("""
 dev:
@@ -38,15 +46,15 @@ dev:
   bronze_schema: bronze
   silver_schema: silver
 """)
-            
+
             yield root
-    
+
     def test_python_source_and_transform(self, project_root):
         """Test Python-based load and transform actions."""
         # Create flowgroup with Python actions
         pipeline_dir = project_root / "pipelines" / "python_pipeline"
         pipeline_dir.mkdir(parents=True)
-        
+
         (pipeline_dir / "python_processing.yaml").write_text("""
 pipeline: python_pipeline
 flowgroup: python_processing
@@ -56,7 +64,7 @@ actions:
     type: load
     source:
       type: python
-      module_path: "my_project.loaders.customer_loader"
+      module_path: "loaders/customer_loader.py"
     target: v_customers_python
     description: "Load data using Python function"
     
@@ -79,7 +87,7 @@ actions:
       table: customers_enriched
       create_table: true
 """)
-        
+
         # Create the Python transform function file
         transformers_dir = project_root / "transformers"
         transformers_dir.mkdir(parents=True)
@@ -88,32 +96,39 @@ def enrich_customers(df, spark, parameters):
     # Mock enrichment function
     return df.withColumn("enriched", "true")
 """)
-        
+
+        # Python LOAD now hard-requires a real .py file too.
+        loaders_dir = project_root / "loaders"
+        loaders_dir.mkdir(parents=True)
+        (loaders_dir / "customer_loader.py").write_text("""
+def get_df(spark, parameters):
+    return spark.range(1)
+""")
+
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
         generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="python_pipeline",
-            env="dev"
+            pipeline_field="python_pipeline", env="dev"
         )
-        
+
         code = generated_files["python_processing.py"]
-        
+
         # Check for Python imports
-        assert "from my_project.loaders.customer_loader import" in code
+        assert "from custom_python_functions.customer_loader import" in code
         assert "from custom_python_functions.enrich_customers import" in code
-        
+
         # Check for DLT decorators
         assert "@dp.temporary_view()" in code
-        
+
         # Python sources should still be wrapped in DLT views
         assert "def v_customers_python" in code
         assert "def v_customers_enriched" in code
-    
+
     def test_temp_table_transform(self, project_root):
         """Test temporary table transformation."""
         pipeline_dir = project_root / "pipelines" / "temp_tables"
         pipeline_dir.mkdir(parents=True)
-        
+
         (pipeline_dir / "temp_processing.yaml").write_text("""
 pipeline: temp_tables
 flowgroup: temp_processing
@@ -163,15 +178,14 @@ actions:
       table: enriched_data
       create_table: true
 """)
-        
+
         orchestrator = ActionOrchestrator(project_root)
         generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="temp_tables",
-            env="dev"
+            pipeline_field="temp_tables", env="dev"
         )
-        
+
         code = generated_files["temp_processing.py"]
-        
+
         # Check for correct temporary table implementation
         assert "@dp.table(" in code
         assert "temporary=True" in code
@@ -179,19 +193,21 @@ actions:
         # Verify it does NOT use the old incorrect temp table pattern
         assert "temp_daily_aggregates_temp" not in code
         # Verify the temp table section uses @dp.table, not dp.create_streaming_table for temp
-        temp_table_section = code.split("# TRANSFORMATION VIEWS")[1].split("# TARGET TABLES")[0]
+        temp_table_section = code.split("# TRANSFORMATION VIEWS")[1].split(
+            "# TARGET TABLES"
+        )[0]
         assert "@dp.table(" in temp_table_section
         assert "dp.create_streaming_table" not in temp_table_section
-        
+
         # Check for SQL with multiple sources
         assert "v_raw_data r" in code
         assert "temp_daily_aggregates t" in code
-    
+
     def test_schema_transform(self, project_root):
         """Test schema application transformation."""
         pipeline_dir = project_root / "pipelines" / "schema_pipeline"
         pipeline_dir.mkdir(parents=True)
-        
+
         (pipeline_dir / "schema_application.yaml").write_text("""
 pipeline: schema_pipeline
 flowgroup: schema_application
@@ -229,34 +245,33 @@ actions:
       refresh_schedule: "CRON '0 0 * * *'"
       create_table: true
 """)
-        
+
         orchestrator = ActionOrchestrator(project_root)
         generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="schema_pipeline",
-            env="dev"
+            pipeline_field="schema_pipeline", env="dev"
         )
-        
+
         code = generated_files["schema_application.py"]
-        
+
         # Check for schema enforcement
         assert "cast" in code.lower()
         assert "customer_id" in code
         assert "BIGINT" in code
-        
+
         # Check for column mapping
         assert "withColumnRenamed" in code
         assert '"cust_id"' in code
         assert '"customer_id"' in code
-        
+
         # Check for materialized view
         assert "@dp.materialized_view(" in code
         # Note: refresh_schedule no longer supported in @dp.materialized_view
-    
+
     def test_many_to_many_relationships(self, project_root):
         """Test many-to-many action relationships."""
         pipeline_dir = project_root / "pipelines" / "complex_flows"
         pipeline_dir.mkdir(parents=True)
-        
+
         (pipeline_dir / "many_to_many.yaml").write_text("""
 pipeline: complex_flows
 flowgroup: many_to_many
@@ -328,33 +343,38 @@ actions:
       table: "dim_customer_metrics"
       create_table: true
 """)
-        
+
         orchestrator = ActionOrchestrator(project_root)
         generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="complex_flows",
-            env="dev"
+            pipeline_field="complex_flows", env="dev"
         )
-        
+
         code = generated_files["many_to_many.py"]
-        
+
         # Check for multiple sources in SQL
         assert "v_orders o" in code
         assert "v_customers c" in code
-        
+
         # Check for both write targets
         assert "fact_orders" in code
         assert "dim_customer_metrics" in code
-        
+
         # Check proper ordering (loads before transforms before writes)
-        code_lines = code.split('\n')
-        v_orders_idx = next(i for i, line in enumerate(code_lines) if "def v_orders" in line)
-        v_customers_idx = next(i for i, line in enumerate(code_lines) if "def v_customers" in line)
-        v_order_details_idx = next(i for i, line in enumerate(code_lines) if "def v_order_details" in line)
-        
+        code_lines = code.split("\n")
+        v_orders_idx = next(
+            i for i, line in enumerate(code_lines) if "def v_orders" in line
+        )
+        v_customers_idx = next(
+            i for i, line in enumerate(code_lines) if "def v_customers" in line
+        )
+        v_order_details_idx = next(
+            i for i, line in enumerate(code_lines) if "def v_order_details" in line
+        )
+
         # Transforms should come after loads
         assert v_order_details_idx > v_orders_idx
         assert v_order_details_idx > v_customers_idx
-    
+
     def test_operational_metadata_configurations(self, project_root):
         """Test different operational metadata configurations."""
         # Create preset with operational metadata
@@ -364,10 +384,10 @@ version: "1.0"
 defaults:
   operational_metadata: ["_ingestion_timestamp", "_pipeline_name"]
 """)
-        
+
         pipeline_dir = project_root / "pipelines" / "metadata_test"
         pipeline_dir.mkdir(parents=True)
-        
+
         # Flowgroup 1: Operational metadata from preset
         (pipeline_dir / "with_preset_metadata.yaml").write_text("""
 pipeline: metadata_test
@@ -393,7 +413,7 @@ actions:
       table: "with_metadata"
       create_table: true
 """)
-        
+
         # Flowgroup 2: Operational metadata override
         (pipeline_dir / "override_metadata.yaml").write_text("""
 pipeline: metadata_test
@@ -418,38 +438,36 @@ actions:
       table: "override_metadata"
       create_table: true
 """)
-        
+
         orchestrator = ActionOrchestrator(project_root)
-        
+
         # Test preset metadata
         files1 = orchestrator.generate_pipeline_by_field(
-            pipeline_field="metadata_test",
-            env="dev"
+            pipeline_field="metadata_test", env="dev"
         )
         code1 = files1["with_preset_metadata.py"]
-        
+
         # Should have metadata columns
         assert "_ingestion_timestamp" in code1
         assert "F.current_timestamp()" in code1
         assert "_pipeline_name" in code1
-        
+
         # Test override metadata
         files2 = orchestrator.generate_pipeline_by_field(
-            pipeline_field="metadata_test",
-            env="dev"
+            pipeline_field="metadata_test", env="dev"
         )
         code2 = files2["override_metadata.py"]
-        
+
         # Should also have metadata columns
         assert "_ingestion_timestamp" in code2
         assert "_pipeline_name" in code2
-    
+
     def test_error_handling_invalid_configurations(self, project_root):
         """Test error handling for invalid configurations."""
         # Test 1: Missing required Load action
         pipeline_dir1 = project_root / "pipelines" / "invalid_no_load"
         pipeline_dir1.mkdir(parents=True)
-        
+
         (pipeline_dir1 / "no_load.yaml").write_text("""
 pipeline: invalid_no_load
 flowgroup: no_load
@@ -462,20 +480,19 @@ actions:
     target: v_transformed
     sql: "SELECT * FROM {source}"
 """)
-        
+
         orchestrator = ActionOrchestrator(project_root)
-        
+
         # The orphaned transform error is more specific and helpful than "missing load action"
         with pytest.raises(ValueError, match="Unused transform action"):
             orchestrator.generate_pipeline_by_field(
-                pipeline_field="invalid_no_load",
-                env="dev"
+                pipeline_field="invalid_no_load", env="dev"
             )
-        
+
         # Test 2: Circular dependency - Create separate pipeline
         pipeline_dir2 = project_root / "pipelines" / "invalid_circular"
         pipeline_dir2.mkdir(parents=True)
-        
+
         (pipeline_dir2 / "circular.yaml").write_text("""
 pipeline: invalid_circular
 flowgroup: circular
@@ -512,20 +529,19 @@ actions:
       table: "result"
       create_table: true
 """)
-        
+
         # Create fresh orchestrator instance
         orchestrator2 = ActionOrchestrator(project_root)
-        
+
         with pytest.raises(ValueError, match="Circular dependency"):
             orchestrator2.generate_pipeline_by_field(
-                pipeline_field="invalid_circular",
-                env="dev"
+                pipeline_field="invalid_circular", env="dev"
             )
-        
+
         # Test 3: Multiple table creators (rich error formatting)
         pipeline_dir3 = project_root / "pipelines" / "invalid_multiple_creators"
         pipeline_dir3.mkdir(parents=True)
-        
+
         (pipeline_dir3 / "multiple_creators.yaml").write_text("""
 pipeline: invalid_multiple_creators
 flowgroup: multiple_creators
@@ -559,17 +575,16 @@ actions:
       table: "lineitem"
       create_table: true
 """)
-        
+
         # Create fresh orchestrator instance
         orchestrator3 = ActionOrchestrator(project_root)
-        
+
         # Should raise a ValueError containing the rich LHPError formatting
         with pytest.raises(ValueError) as exc_info:
             orchestrator3.generate_pipeline_by_field(
-                pipeline_field="invalid_multiple_creators",
-                env="dev"
+                pipeline_field="invalid_multiple_creators", env="dev"
             )
-        
+
         error_str = str(exc_info.value)
         # Verify it contains rich error formatting
         assert "❌ Error [LHP-CFG-004]" in error_str
@@ -577,7 +592,7 @@ actions:
         assert "Context:" in error_str
         assert "How to fix:" in error_str
         assert "Example:" in error_str
-    
+
     def test_preset_inheritance_chain(self, project_root):
         """Test complex preset inheritance chains."""
         # Create base preset
@@ -591,7 +606,7 @@ defaults:
     cloudfiles:
       schema_evolution_mode: "failOnNewColumns"
 """)
-        
+
         # Create bronze preset extending base
         (project_root / "presets" / "bronze.yaml").write_text("""
 name: bronze
@@ -606,7 +621,7 @@ defaults:
       schema_evolution_mode: "addNewColumns"  # Override base
       rescue_data_column: "_rescued_data"
 """)
-        
+
         # Create source-specific preset extending bronze
         (project_root / "presets" / "customer_bronze.yaml").write_text("""
 name: customer_bronze
@@ -617,10 +632,10 @@ defaults:
     retention_days: "30"
   specific_source: "customer_system"
 """)
-        
+
         pipeline_dir = project_root / "pipelines" / "preset_test"
         pipeline_dir.mkdir(parents=True)
-        
+
         (pipeline_dir / "preset_inheritance.yaml").write_text("""
 pipeline: preset_test
 flowgroup: preset_inheritance
@@ -645,4 +660,4 @@ actions:
       schema: "bronze"
       table: "customers"
       create_table: true
-""") 
+""")

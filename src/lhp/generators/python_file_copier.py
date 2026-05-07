@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from typing import Dict, Optional
 
-from ...utils.error_formatter import ErrorCategory, LHPValidationError
+from ..utils.error_formatter import ErrorCategory, LHPValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -133,25 +133,29 @@ class PythonFileCopier:
 
     def copy_user_module(
         self,
-        source_file: Path,
+        source_file: Optional[Path],
         module_path: str,
         custom_functions_dir: Path,
         context: dict,
+        *,
+        inline_source: Optional[str] = None,
     ) -> str:
         """Copy a user Python module into the custom_functions directory.
 
-        Reads the source file, applies YAML substitutions and propagates secret
-        references, prepends an LHP-SOURCE provenance header, ensures the
-        package's ``__init__.py`` exists, copies the module thread-safely, and
-        registers both files with the state manager (when present).
+        Reads the source file (or accepts pre-loaded ``inline_source``), applies
+        YAML substitutions and propagates secret references, prepends an
+        LHP-SOURCE provenance header, ensures the package's ``__init__.py``
+        exists, copies the module thread-safely, and registers both files with
+        the state manager (when present).
 
-        Caller is responsible for resolving ``source_file`` (which must exist)
-        and ``custom_functions_dir`` (typically ``output_dir / "custom_python_functions"``).
-        Dry-run handling (skipping when ``output_dir is None``) belongs to the
-        caller.
+        Caller is responsible for resolving ``source_file`` (which must exist
+        when ``inline_source`` is None) and ``custom_functions_dir`` (typically
+        ``output_dir / "custom_python_functions"``). Dry-run handling
+        (skipping when ``output_dir is None``) belongs to the caller.
 
         Args:
-            source_file: Resolved path to the user's source ``.py`` file.
+            source_file: Resolved path to the user's source ``.py`` file. May
+                be ``None`` when ``inline_source`` is supplied.
             module_path: Original user-facing relative path; used in the
                 LHP-SOURCE header so generated headers point back to the
                 original location.
@@ -159,16 +163,25 @@ class PythonFileCopier:
             context: Generation context. Reads ``substitution_manager``,
                 ``secret_references``, ``state_manager``, ``source_yaml``,
                 ``environment``, ``flowgroup``.
+            inline_source: Optional pre-loaded source content. When provided,
+                the disk read is skipped — used for synthetic flowgroups
+                (e.g. monitoring) whose source is generated in memory.
 
         Returns:
             The module stem (e.g. ``"api_source"`` for ``"data/api_source.py"``).
         """
-        from ...utils.smart_file_writer import build_lhp_source_header
+        from ..utils.smart_file_writer import build_lhp_source_header
 
         module_name = Path(module_path).stem
         dest_file = custom_functions_dir / f"{module_name}.py"
 
-        original_content = source_file.read_text()
+        if inline_source is not None:
+            original_content = inline_source
+        else:
+            assert (
+                source_file is not None
+            ), "copy_user_module requires either source_file or inline_source"
+            original_content = source_file.read_text()
 
         substitution_mgr = context.get("substitution_manager")
         if substitution_mgr is not None:
@@ -210,3 +223,96 @@ class PythonFileCopier:
                 )
 
         return module_name
+
+
+def copy_user_module_for_pipeline(
+    module_path: str,
+    context: dict,
+    *,
+    component_label: str,
+) -> str:
+    """Resolve, validate, and copy a user Python module into the pipeline output.
+
+    Shared by python LOAD/TRANSFORM and the custom_datasource/custom_sink
+    generators so that all four emit identical error messages and follow the
+    same flat ``custom_python_functions/<leaf>.py`` layout.
+
+    Resolves ``module_path`` relative to ``context["spec_dir"]`` (or CWD),
+    validates that the source file exists and that flowgroup context is
+    present, then delegates to :meth:`PythonFileCopier.copy_user_module`. In
+    dry-run (``context["output_dir"] is None``) the copy is skipped and the
+    leaf module name is returned anyway so import lines can still be rendered.
+
+    Synthetic flowgroups (e.g. the monitoring pipeline) may pre-populate
+    ``context["auxiliary_module_sources"]``: a ``{module_path: source_str}``
+    mapping. When ``module_path`` is found there, the on-disk lookup is
+    skipped and the source content is copied directly into
+    ``custom_python_functions/<leaf>.py``.
+
+    Args:
+        module_path: User-facing path to the module file (e.g.
+            ``"loaders/my_loader.py"``). Must end in ``.py`` — caller is
+            responsible for that check; here we treat it as an opaque path
+            and use ``Path(module_path).stem`` as the import-time module name.
+        context: Generation context. Reads ``spec_dir``, ``flowgroup``,
+            ``output_dir``, ``python_file_copier``, ``auxiliary_module_sources``,
+            plus the keys :meth:`PythonFileCopier.copy_user_module` consumes.
+        component_label: Human-readable label inserted into error messages,
+            e.g. ``"Python load action"``, ``"Custom data source"``.
+
+    Returns:
+        The leaf module name (e.g. ``"my_loader"`` for
+        ``"loaders/my_loader.py"``), suitable for use in
+        ``from custom_python_functions.<name> import ...``.
+
+    Raises:
+        LHPError: ``ErrorFormatter.file_not_found`` when the resolved source
+            file does not exist (and no inline source is registered).
+        LHPValidationError: code ``015`` when flowgroup context is missing.
+    """
+    from ..utils.error_formatter import ErrorFormatter
+
+    inline_sources = context.get("auxiliary_module_sources") or {}
+    inline_source = inline_sources.get(module_path)
+
+    project_root = context.get("spec_dir") or Path.cwd()
+    source_file: Path = project_root / module_path
+
+    if inline_source is None and not source_file.exists():
+        raise ErrorFormatter.file_not_found(
+            file_path=str(source_file),
+            search_locations=[
+                f"Relative to project root: {project_root / module_path}",
+            ],
+            file_type=f"{component_label} module file",
+        )
+
+    if not context.get("flowgroup"):
+        raise LHPValidationError(
+            category=ErrorCategory.VALIDATION,
+            code_number="015",
+            title=f"Missing flowgroup context for {component_label} file copying",
+            details=(
+                "Flowgroup context is required for Python file copying but "
+                "was not provided."
+            ),
+            suggestions=[
+                "Ensure the action is executed within a flowgroup context",
+                "Check that the flowgroup configuration is valid",
+            ],
+            context={"Module Path": module_path, "Component": component_label},
+        )
+
+    output_dir = context.get("output_dir")
+    if output_dir is None:
+        return Path(module_path).stem
+
+    custom_functions_dir = output_dir / "custom_python_functions"
+    python_copier = context.get("python_file_copier") or PythonFileCopier()
+    return python_copier.copy_user_module(
+        source_file if inline_source is None else None,
+        module_path,
+        custom_functions_dir,
+        context,
+        inline_source=inline_source,
+    )

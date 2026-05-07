@@ -7,6 +7,7 @@ from pathlib import Path
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.error_formatter import ErrorFormatter
+from ..python_file_copier import copy_user_module_for_pipeline
 
 
 class CustomDataSourceLoadGenerator(BaseActionGenerator):
@@ -128,7 +129,9 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         endpoint: "https://api.example.com" """,
             )
 
-        # Resolve the source file relative to the project root
+        # Resolve the source file relative to the project root for the
+        # substitution pre-pass below; copy + flowgroup validation happen
+        # later via copy_user_module_for_pipeline.
         project_root = context.get("spec_dir") or Path.cwd()
         source_path = project_root / module_path
 
@@ -161,18 +164,9 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
 
         # Copy the user's module into custom_python_functions/ alongside the
         # generated pipeline file. Skipped in dry-run (output_dir is None).
-        module_name = Path(module_path).stem
-        output_dir = context.get("output_dir")
-        if output_dir is not None:
-            python_copier = context.get("python_file_copier")
-            if python_copier is None:
-                from ..transform.python_file_copier import PythonFileCopier
-
-                python_copier = PythonFileCopier()
-            custom_functions_dir = output_dir / "custom_python_functions"
-            module_name = python_copier.copy_user_module(
-                source_path, module_path, custom_functions_dir, context
-            )
+        module_name = copy_user_module_for_pipeline(
+            module_path, context, component_label="Custom data source"
+        )
 
         # Plumb the three imports + the cloudpickle registration statement.
         # Dedupe across actions in the same flowgroup is handled by

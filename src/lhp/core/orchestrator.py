@@ -1245,7 +1245,7 @@ class ActionOrchestrator:
         else:
             # Sequential generation
             # Create Python file copier for consistent conflict detection
-            from ..generators.transform.python_file_copier import PythonFileCopier
+            from ..generators.python_file_copier import PythonFileCopier
 
             python_copier = PythonFileCopier()
 
@@ -1910,7 +1910,7 @@ class ActionOrchestrator:
             List of FlowgroupResult objects
         """
         # Create thread-safe Python file copier for this pipeline
-        from ..generators.transform.python_file_copier import PythonFileCopier
+        from ..generators.python_file_copier import PythonFileCopier
 
         python_copier = PythonFileCopier()
 

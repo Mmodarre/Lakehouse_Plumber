@@ -621,7 +621,10 @@ class MyCustomDataSink:
             },
         )
 
-        context = {"spec_dir": self.project_root}
+        context = {
+            "spec_dir": self.project_root,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        }
 
         code = self.generator.generate(action, context)
 
@@ -774,7 +777,10 @@ class MyCustomDataSink:
             },
         )
 
-        context = {"spec_dir": self.project_root}
+        context = {
+            "spec_dir": self.project_root,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        }
 
         code = self.generator.generate(action, context)
 
@@ -806,7 +812,10 @@ class MyCustomDataSink:
             },
         )
 
-        context = {"spec_dir": self.project_root}
+        context = {
+            "spec_dir": self.project_root,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        }
 
         code = self.generator.generate(action, context)
 
@@ -1040,7 +1049,10 @@ class MyCustomDataSink:
                 },
             )
 
-            context = {"spec_dir": project_root}
+            context = {
+                "spec_dir": project_root,
+                "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+            }
 
             code = self.generator.generate(action, context)
 
@@ -1127,7 +1139,10 @@ class MyCustomDataSink:
                 },
             )
 
-            context = {"spec_dir": project_root}
+            context = {
+                "spec_dir": project_root,
+                "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+            }
 
             self.generator.generate(action, context)
 
@@ -1247,6 +1262,9 @@ class TestCustomSinkGoldenOutput:
                 "custom_sink_class": "MyCustomDataSink",
             },
         )
-        context = {"spec_dir": tmp_path}
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        }
         code = generator.generate(action, context)
         golden(code, "sink_custom")

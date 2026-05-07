@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
-from lhp.models.config import Action, ActionType
+from lhp.models.config import Action, ActionType, FlowGroup
 
 
 class TestCustomDataSourceGenerator:
@@ -62,7 +62,7 @@ spark.dataSource.register(TestDataSource)
         # Create context
         context = {
             "spec_dir": tmp_path,
-            "flowgroup": None,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
             "preset_config": {},
             "project_config": None,
         }
@@ -128,7 +128,7 @@ class APIDataSource(DataSource):
         # Create context
         context = {
             "spec_dir": tmp_path,
-            "flowgroup": None,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
             "preset_config": {},
             "project_config": None,
         }
@@ -232,7 +232,7 @@ class TestDataSource(DataSource):
         generator = CustomDataSourceLoadGenerator()
         context = {
             "spec_dir": tmp_path,
-            "flowgroup": None,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
             "preset_config": {},
             "project_config": None,
         }
@@ -274,7 +274,7 @@ class TestDataSource(DataSource):
         generator = CustomDataSourceLoadGenerator()
         context = {
             "spec_dir": tmp_path,
-            "flowgroup": None,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
             "preset_config": {},
             "project_config": None,
         }
@@ -320,7 +320,7 @@ class APIDataSource(DataSource):
         generator = CustomDataSourceLoadGenerator()
         context = {
             "spec_dir": tmp_path,
-            "flowgroup": None,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
             "preset_config": {},
             "project_config": None,
         }
@@ -479,7 +479,7 @@ class TestCustomDataSourceGoldenOutput:
         generator = CustomDataSourceLoadGenerator()
         context = {
             "spec_dir": tmp_path,
-            "flowgroup": None,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
             "preset_config": {},
             "project_config": None,
         }
@@ -641,7 +641,7 @@ class {class_name}(DataSource):
         generator = CustomDataSourceLoadGenerator()
         ctx = {
             "spec_dir": tmp_path,
-            "flowgroup": None,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
             "preset_config": {},
             "project_config": None,
         }

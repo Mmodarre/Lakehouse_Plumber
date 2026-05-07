@@ -1,13 +1,14 @@
 """Unit tests for thread-safe Python file copier."""
 
-import pytest
-import threading
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import tempfile
 import shutil
+import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
-from lhp.generators.transform.python_file_copier import (
+import pytest
+
+from lhp.generators.python_file_copier import (
     PythonFileCopier,
     PythonFunctionConflictError,
 )

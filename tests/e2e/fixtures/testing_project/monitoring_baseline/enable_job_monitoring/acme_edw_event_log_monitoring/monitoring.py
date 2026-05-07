@@ -4,7 +4,7 @@
 
 from pyspark.sql import DataFrame
 from pyspark import pipelines as dp
-from jobs_stats_loader import get_jobs_stats
+from custom_python_functions.jobs_stats_loader import get_jobs_stats
 
 # Pipeline Configuration
 PIPELINE_ID = "acme_edw_event_log_monitoring"
