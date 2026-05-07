@@ -118,7 +118,9 @@ class ShowCommand(BaseCommand):
                 details=f"No file at {instance_path}",
                 suggestions=[
                     "Check the path for typos",
-                    "Verify the file exists under instance_include patterns",
+                    "Place each instance file under "
+                    "pipelines/<system>/<layer>/ or your configured "
+                    "instance_include patterns",
                 ],
                 context={"Path": str(instance_path)},
             )
@@ -160,7 +162,7 @@ class ShowCommand(BaseCommand):
         )
 
         substitution_mgr = self._load_substitution_manager(project_root, env)
-        click.echo(f"\n📐 Blueprint: {instance.blueprint}")
+        click.echo(f"\n📐 Blueprint: {instance.blueprint_name}")
         click.echo(f"📊 Flowgroups produced: {len(flowgroups)}")
 
         for fg in flowgroups:

@@ -146,7 +146,7 @@ class ListCommand(BaseCommand):
             name: [] for name in blueprints
         }
         for instance, instance_path in instances:
-            instances_by_blueprint.setdefault(instance.blueprint, []).append(
+            instances_by_blueprint.setdefault(instance.blueprint_name, []).append(
                 (instance, instance_path)
             )
 

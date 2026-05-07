@@ -58,7 +58,7 @@ flowgroups:
 """,
     )
     instance_path = _write(
-        tmp_path / "instances" / "sg.yaml",
+        tmp_path / "pipelines" / "erp" / "bronze" / "sg.yaml",
         """
 blueprint: erp_ingestion
 site_name: apac_sg
@@ -86,7 +86,7 @@ site_name: apac_sg
     )
     instance_keys = [k for k, v in deps_first.items() if v.type == "instance"]
     assert len(instance_keys) == 1
-    assert "instances/sg.yaml" in instance_keys[0].replace("\\", "/")
+    assert "pipelines/erp/bronze/sg.yaml" in instance_keys[0].replace("\\", "/")
 
     # Second call — cache hit path. Instance dep must still be present.
     deps_second = resolver.resolve_file_dependencies(
@@ -202,7 +202,7 @@ def test_dependency_tracker_sets_synthetic_from_provenance(tmp_path):
         "name: erp\nparameters: []\nflowgroups: []\n",
     )
     instance_path = _write(
-        tmp_path / "instances" / "sg.yaml",
+        tmp_path / "pipelines" / "erp" / "bronze" / "sg.yaml",
         "blueprint: erp\n",
     )
     generated = _write(

@@ -89,13 +89,15 @@ def test_duplicate_blueprint_name_raises_046(tmp_path):
 
 
 def test_discover_instances_default_patterns(tmp_path):
+    # New default: instance_include = ['pipelines/**/*.yaml']. Instance files
+    # live alongside hand-written flowgroups under pipelines/<system>/<layer>/.
     _write(tmp_path / "blueprints" / "erp.yaml", _bp_yaml("erp_ingestion"))
     _write(
-        tmp_path / "instances" / "g" / "sg.yaml",
+        tmp_path / "pipelines" / "erp" / "bronze" / "sg.yaml",
         _instance_yaml("erp_ingestion", "apac_sg"),
     )
     _write(
-        tmp_path / "instances" / "g" / "uk.yaml",
+        tmp_path / "pipelines" / "erp" / "bronze" / "uk.yaml",
         _instance_yaml("erp_ingestion", "emea_uk"),
     )
     disco = BlueprintDiscoverer(tmp_path)

@@ -481,6 +481,30 @@ BP-2.9: Full enterprise project layout example
          system_a_silver_pipeline/
            orders_cleanse.py
 
+.. _bp-2-10:
+
+BP-2.10: Place blueprint instance files in the layer folder they target
+-----------------------------------------------------------------------
+
+For the dominant case (a blueprint that shapes one layer), instance files
+belong alongside hand-written flowgroups under
+``pipelines/<system>/<layer>/`` — not in a separate top-level
+``instances/`` directory. The blueprint discoverer routes by content shape,
+so instance and flowgroup YAMLs co-exist in the same folder safely:
+
+.. code-block:: text
+
+   pipelines/
+     halo/
+       bronze/
+         halo_bronze_acme_BP001.yaml         # use_blueprint: halo_bronze
+         halo_bronze_globex_BP001.yaml       # use_blueprint: halo_bronze
+         halo_bronze_one_off_special.yaml    # hand-written flowgroup
+
+For a blueprint that genuinely spans multiple layers, use a peer
+``instances/`` subfolder under the system directory rather than the layer
+folder — see :ref:`BP-5.4 <bp-5-4>`.
+
 
 3. Naming Conventions
 =====================
@@ -686,6 +710,70 @@ organisation:
      gld_standard                        # Gold layer standard preset
      erp_custom                          # ERP domain custom overrides
 
+.. _bp-3-11:
+
+BP-3.11: Name instance files ``<system>_<layer>_<variant>_<BPxxx>.yaml``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Extends :ref:`BP-3.8 <bp-3-8>` for blueprint instance files. The variant
+identifier (the parameter that distinguishes one instance from another —
+typically site, region, or tenant) goes between the layer and the ``BPxxx``
+suffix. The ``BPxxx`` suffix references the blueprint definition file
+(:ref:`BP-3.12 <bp-3-12>`):
+
+.. code-block:: text
+   :caption: Instance file naming pattern
+
+   Pattern: <system>_<layer>_<variant>_<BPxxx>.yaml
+
+   Examples:
+     halo_bronze_acme_BP001.yaml
+     halo_bronze_globex_BP001.yaml
+     sap_silver_emea_BP005.yaml
+     sap_silver_apac_BP005.yaml
+
+This is convention only; the discoverer does not enforce the pattern.
+
+.. _bp-3-12:
+
+BP-3.12: Name blueprint definition files ``BPxxx_<system>_<layer>.yaml``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Mirrors the templates pattern (:ref:`BP-3.7 <bp-3-7>`). Each blueprint
+has a stable ID that variant instance files reference in their suffix:
+
+.. code-block:: text
+   :caption: Blueprint file naming pattern
+
+   Pattern: BPxxx_<system>_<layer>.yaml
+
+   Examples:
+     blueprints/BP001_halo_bronze.yaml
+     blueprints/BP002_halo_silver.yaml
+     blueprints/BP005_sap_silver.yaml
+
+.. _bp-3-13:
+
+BP-3.13: Pipelines and flowgroups produced by blueprints carry a variant prefix
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Inside a blueprint definition, use ``%{variant}`` (or whatever the variant
+parameter is named) in pipeline and flowgroup identity fields so each
+expanded instance produces uniquely-named outputs:
+
+.. code-block:: yaml
+   :caption: Blueprint identity fields
+
+   flowgroups:
+     - pipeline: "%{variant}_halo_bronze_pipeline"
+       flowgroup: "%{variant}_halo_bronze"
+       actions:
+         ...
+
+This produces ``acme_halo_bronze_pipeline``, ``globex_halo_bronze_pipeline``,
+etc. Without this prefix, all instances would collide on the same identity
+keys and fail expansion.
+
 Quick Reference Table
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -735,6 +823,15 @@ Quick Reference Table
    * - Template params
      - ``{{ lower_snake_case }}``
      - ``{{ partition_column }}``
+   * - Blueprint definition files
+     - ``BPxxx_<system>_<layer>.yaml``
+     - ``BP001_halo_bronze.yaml``
+   * - Blueprint instance files
+     - ``<system>_<layer>_<variant>_<BPxxx>.yaml``
+     - ``halo_bronze_acme_BP001.yaml``
+   * - Variant identifier (in blueprint)
+     - ``%{variant}`` (local var used in identity fields)
+     - ``%{variant}_halo_bronze_pipeline``
 
 
 4. Template Design
@@ -846,12 +943,139 @@ the template, ensuring all teams follow the same file organisation.
    :doc:`dynamic_templates_guide` for conditionals, loops, and advanced Jinja2 features.
 
 
-5. Preset Strategy
-==================
+5. Blueprint Strategy
+=====================
+
+Blueprints are the right tool when the *same* parameterised flowgroup shape
+must be instantiated across many variants — typically sites, regions,
+tenants, or other identifier dimensions. They are conceptually adjacent to
+templates but operate one layer higher: a template parameterises an action;
+a blueprint parameterises a whole flowgroup (or a small set of flowgroups).
+
+An instance file is just a small YAML document that says "give me this
+blueprint with these parameter values". The shape mirrors templates:
+
+.. code-block:: yaml
+   :caption: New (preferred) instance syntax
+
+   use_blueprint: example_system_bronze
+   parameters:
+     variant: acme
+     source_path: s3://example-bucket/acme/raw/
+
+This parallels ``use_template:`` / ``template_parameters:`` so operators do
+not have to learn a different idiom.
+
+.. note::
+   The legacy ``blueprint:`` + flat parameters form is deprecated and
+   removed in V0.9. A migration deprecation warning is emitted once per file.
 
 .. _bp-5-1:
 
-BP-5.1: Design a preset hierarchy — global, domain, pipeline-specific
+BP-5.1: Reach for blueprints when there are 10+ near-identical variants
+-----------------------------------------------------------------------
+
+Below 10 variants, a hand-written flowgroup per variant is more readable.
+Blueprints become valuable when the variant count is high enough that
+copy-paste drift is a real risk and the shape is genuinely identical.
+
+If only the *write target* differs (e.g. table name) but the actions are the
+same, a template usually fits better. If the *whole flowgroup shape* is
+identical and only identifiers vary across variants, a blueprint fits.
+
+.. _bp-5-2:
+
+BP-5.2: Prefer one blueprint per ``(system, layer)`` pair
+---------------------------------------------------------
+
+A blueprint that spans multiple layers (e.g. raw → bronze → silver in one
+definition) is convenient at first, but it couples the layers' release
+cycles together: any change to silver-layer logic forces re-expansion of
+all variants for all layers, and the blast radius grows with the number of
+variants.
+
+The default is one blueprint per ``(system, layer)``. Each variant gets
+one instance file *per layer*, located in the layer folder.
+
+.. _bp-5-3:
+
+BP-5.3: Place instance files in the layer folder they target (Case 1)
+---------------------------------------------------------------------
+
+The dominant case is single-layer: a blueprint shapes one layer's
+flowgroups, and an instance file fits semantically alongside hand-written
+flowgroups in that layer's directory.
+
+.. code-block:: text
+   :caption: Case 1 — single-layer blueprint (recommended)
+
+   pipelines/
+     halo/
+       bronze/
+         halo_bronze_acme_BP001.yaml          # instance (use_blueprint: ...)
+         halo_bronze_globex_BP001.yaml        # instance
+         halo_bronze_one_off_special.yaml     # hand-written flowgroup, fine to coexist
+
+This keeps CODEOWNERS scoping intact and makes the layer folder the single
+source of truth for "what flows through this layer".
+
+.. _bp-5-4:
+
+BP-5.4: Use ``pipelines/<system>/instances/`` for multi-layer blueprints (Case 2)
+---------------------------------------------------------------------------------
+
+When a blueprint genuinely spans multiple layers (the escape hatch), there
+is no single layer folder for the instance to live in. Use a peer
+``instances/`` subfolder under the system directory:
+
+.. code-block:: text
+   :caption: Case 2 — multi-layer blueprint (escape hatch)
+
+   pipelines/
+     halo/
+       bronze/                              # layer folders, hand-written or per-layer instances
+       silver/
+       gold/
+       instances/                           # multi-layer instance files only
+         halo_full_stack_acme_BP010.yaml
+
+This signals to readers that the instance is intentionally cross-layer and
+that the blueprint's blast radius is wide.
+
+.. _bp-5-5:
+
+BP-5.5: Naming — blueprints ``BPxxx_<system>_<layer>.yaml``, instances ``<system>_<layer>_<variant>_<BPxxx>.yaml``
+-----------------------------------------------------------------------------------------------------------------
+
+Blueprint definition files follow the same prefix idea as templates
+(:ref:`BP-3.7 <bp-3-7>`):
+
+.. code-block:: text
+
+   blueprints/BP001_halo_bronze.yaml
+   blueprints/BP002_sap_bronze.yaml
+
+Instance files extend the flowgroup-config naming (:ref:`BP-3.8 <bp-3-8>`)
+with a variant identifier:
+
+.. code-block:: text
+
+   pipelines/halo/bronze/halo_bronze_acme_BP001.yaml
+   pipelines/halo/bronze/halo_bronze_globex_BP001.yaml
+
+Generated pipelines and flowgroups carry the variant prefix
+(:ref:`BP-3.13 <bp-3-13>`) — ``acme_halo_bronze_pipeline`` etc.
+
+.. seealso::
+   :ref:`AP-14 <ap-14>` for the cross-system god-blueprint anti-pattern.
+
+
+6. Preset Strategy
+==================
+
+.. _bp-6-1:
+
+BP-6.1: Design a preset hierarchy — global, domain, pipeline-specific
 ----------------------------------------------------------------------
 
 LHP supports preset inheritance via ``extends`` and preset chaining (multiple presets in a
@@ -861,9 +1085,9 @@ list, merged left-to-right). Use this to build layers:
 - ``bronze_standard`` extends ``global_defaults`` — bronze-layer conventions
 - ``orders_bronze`` extends ``bronze_standard`` — domain-specific overrides
 
-.. _bp-5-2:
+.. _bp-6-2:
 
-BP-5.2: Encode organisational standards in presets, not just values
+BP-6.2: Encode organisational standards in presets, not just values
 -------------------------------------------------------------------
 
 A high-value preset sets multiple related properties together:
@@ -888,17 +1112,17 @@ A high-value preset sets multiple related properties together:
        - ingest_timestamp
        - source_file
 
-.. _bp-5-3:
+.. _bp-6-3:
 
-BP-5.3: Limit the total number of presets
+BP-6.3: Limit the total number of presets
 -----------------------------------------
 
 More than 15--20 distinct presets leads to confusion and misuse. Consolidate overlapping
 presets. LHP's ``lhp list_presets`` command helps audit the current set.
 
-.. _bp-5-4:
+.. _bp-6-4:
 
-BP-5.4: Use ``lhp show`` to verify effective configuration
+BP-6.4: Use ``lhp show`` to verify effective configuration
 -----------------------------------------------------------
 
 After preset merging, template expansion, and substitution, the effective config can differ
@@ -906,9 +1130,9 @@ from what the YAML file suggests. Always verify with ``lhp show <flowgroup> --en
 before deploying changes to shared presets. This is LHP's equivalent of "fully resolved
 config."
 
-.. _bp-5-5:
+.. _bp-6-5:
 
-BP-5.5: Treat preset changes as high-blast-radius events
+BP-6.5: Treat preset changes as high-blast-radius events
 ---------------------------------------------------------
 
 A change to a global preset affects every pipeline using it. Version presets (add a version
@@ -919,21 +1143,21 @@ before merging preset changes.
    :doc:`presets_reference` for complete details on preset inheritance and merging.
 
 
-6. Substitution & Environment Management
+7. Substitution & Environment Management
 =========================================
 
-.. _bp-6-1:
+.. _bp-7-1:
 
-BP-6.1: Use directory-based environment separation
+BP-7.1: Use directory-based environment separation
 ---------------------------------------------------
 
 Maintain ``substitutions/dev.yaml``, ``substitutions/staging.yaml``,
 ``substitutions/prod.yaml``. All environments are visible on the same branch. LHP resolves
 ``${token}`` patterns from these files.
 
-.. _bp-6-2:
+.. _bp-7-2:
 
-BP-6.2: Put all environment-varying values in substitution tokens
+BP-7.2: Put all environment-varying values in substitution tokens
 -----------------------------------------------------------------
 
 Catalog names, schema names, storage paths, cluster policies, alert emails — all should be
@@ -952,18 +1176,18 @@ iterations), so you can compose:
    prod:
      catalog: "${catalog_prefix}_prod"
 
-.. _bp-6-3:
+.. _bp-7-3:
 
-BP-6.3: Use the ``global`` section for shared values
+BP-7.3: Use the ``global`` section for shared values
 -----------------------------------------------------
 
 LHP's substitution files support a ``global`` section whose values are inherited by all
 environments. Environment-specific sections override global values. This eliminates
 duplication.
 
-.. _bp-6-4:
+.. _bp-7-4:
 
-BP-6.4: Never put secret values in substitution files
+BP-7.4: Never put secret values in substitution files
 ------------------------------------------------------
 
 Use LHP's ``${secret:scope/key}`` syntax. LHP converts these to
@@ -975,17 +1199,17 @@ references.
    Secrets in substitution files will be committed to version control and leaked. Always
    use the ``${secret:scope/key}`` syntax exclusively.
 
-.. _bp-6-5:
+.. _bp-7-5:
 
-BP-6.5: Use ``lhp substitutions`` to audit available tokens
+BP-7.5: Use ``lhp substitutions`` to audit available tokens
 ------------------------------------------------------------
 
 Before writing flowgroups, run ``lhp substitutions --env <env>`` to check what tokens are
 available. This prevents unresolved token errors at generation time.
 
-.. _bp-6-6:
+.. _bp-7-6:
 
-BP-6.6: Design substitution tokens for the medallion pattern
+BP-7.6: Design substitution tokens for the medallion pattern
 -------------------------------------------------------------
 
 Standard token set for a medallion project:
@@ -1003,21 +1227,21 @@ Standard token set for a medallion project:
    :doc:`substitutions` for the full substitution processing order and syntax.
 
 
-7. Local Variables
+8. Local Variables
 ==================
 
-.. _bp-7-1:
+.. _bp-8-1:
 
-BP-7.1: Use local variables for flowgroup-scoped repetition
+BP-8.1: Use local variables for flowgroup-scoped repetition
 ------------------------------------------------------------
 
 When the same value (table name, schema, path segment) appears multiple times within a
 single flowgroup, define it as a local variable rather than repeating it. LHP resolves
 ``%{var}`` first, before template expansion.
 
-.. _bp-7-2:
+.. _bp-8-2:
 
-BP-7.2: Prefer local variables over hardcoded values
+BP-8.2: Prefer local variables over hardcoded values
 -----------------------------------------------------
 
 .. code-block:: yaml
@@ -1031,9 +1255,9 @@ BP-7.2: Prefer local variables over hardcoded values
        source:
          table: "${BRONZE_CATALOG}.%{source_schema}.%{entity}"
 
-.. _bp-7-3:
+.. _bp-8-3:
 
-BP-7.3: Do not use local variables for environment-specific values
+BP-8.3: Do not use local variables for environment-specific values
 ------------------------------------------------------------------
 
 ``%{var}`` is scoped to a single flowgroup and resolved at parse time. Environment-specific
@@ -1043,12 +1267,12 @@ values belong in substitution tokens (``${TOKEN}``) which are resolved per envir
    :doc:`substitutions` for details on local variables and environment tokens.
 
 
-8. FlowGroup Design
+9. FlowGroup Design
 ====================
 
-.. _bp-8-1:
+.. _bp-9-1:
 
-BP-8.1: Use array syntax with field inheritance for multi-flowgroup pipelines
+BP-9.1: Use array syntax with field inheritance for multi-flowgroup pipelines
 -----------------------------------------------------------------------------
 
 When multiple flowgroups share the same pipeline, presets, or template, use LHP's array
@@ -1072,18 +1296,18 @@ Inherited fields: ``pipeline``, ``use_template``, ``presets``, ``operational_met
 .. seealso::
    :doc:`multi_flowgroup_guide` for the full multi-flowgroup reference.
 
-.. _bp-8-2:
+.. _bp-9-2:
 
-BP-8.2: Scope one pipeline per data domain
+BP-9.2: Scope one pipeline per data domain
 -------------------------------------------
 
 Pipeline ``orders_bronze`` contains flowgroups ``raw_orders``, ``raw_returns``,
 ``raw_refunds``. Each flowgroup generates its own Python function set but runs in the same
 DLT pipeline, enabling dependency resolution across them.
 
-.. _bp-8-3:
+.. _bp-9-3:
 
-BP-8.3: Use ``job_name`` to group flowgroups into Databricks jobs
+BP-9.3: Use ``job_name`` to group flowgroups into Databricks jobs
 -----------------------------------------------------------------
 
 LHP's ``lhp deps --format job`` generates job resource definitions. Use ``job_name`` to
@@ -1092,21 +1316,21 @@ control which flowgroups are orchestrated together in a Databricks Workflow.
 .. seealso::
    :doc:`concepts` for details on ``job_name`` and multi-job orchestration.
 
-.. _bp-8-4:
+.. _bp-9-4:
 
-BP-8.4: Order actions as Load, Transform, Write, Test
+BP-9.4: Order actions as Load, Transform, Write, Test
 ------------------------------------------------------
 
 This matches the data flow direction and makes YAML files scannable. LHP resolves
 dependencies automatically, but consistent ordering improves readability.
 
 
-9. Load Actions
+10. Load Actions
 ===============
 
-.. _bp-9-1:
+.. _bp-10-1:
 
-BP-9.1: Always set ``schemaEvolutionMode`` and ``rescuedDataColumn`` for CloudFiles
+BP-10.1: Always set ``schemaEvolutionMode`` and ``rescuedDataColumn`` for CloudFiles
 ------------------------------------------------------------------------------------
 
 LHP's CloudFiles generator supports all Auto Loader options. In production, always use:
@@ -1126,17 +1350,17 @@ LHP's CloudFiles generator supports all Auto Loader options. In production, alwa
    Put these options in a ``bronze_standard`` preset so they apply everywhere without
    repetition.
 
-.. _bp-9-2:
+.. _bp-10-2:
 
-BP-9.2: Use ``readMode: stream`` for bronze, ``readMode: batch`` for lookups
+BP-10.2: Use ``readMode: stream`` for bronze, ``readMode: batch`` for lookups
 -----------------------------------------------------------------------------
 
 LHP's ``readMode`` field controls whether ``spark.readStream`` or ``spark.read`` is
 generated. Bronze sources should stream; dimension/lookup tables should batch-read.
 
-.. _bp-9-3:
+.. _bp-10-3:
 
-BP-9.3: Use full three-part names via substitution tokens for Delta loads
+BP-10.3: Use full three-part names via substitution tokens for Delta loads
 -------------------------------------------------------------------------
 
 .. code-block:: yaml
@@ -1151,18 +1375,18 @@ BP-9.3: Use full three-part names via substitution tokens for Delta loads
 LHP constructs ``catalog.database.table`` references. Never hardcode catalog or database
 names.
 
-.. _bp-9-4:
+.. _bp-10-4:
 
-BP-9.4: Rate-limit Auto Loader in production
+BP-10.4: Rate-limit Auto Loader in production
 ---------------------------------------------
 
 Use ``cloudFiles.maxFilesPerTrigger`` and ``cloudFiles.maxBytesPerTrigger`` options (via
 presets) to prevent bronze ingestion from overwhelming downstream tables. Set this in your
 ``bronze_standard`` preset.
 
-.. _bp-9-5:
+.. _bp-10-5:
 
-BP-9.5: Use ``schema_hints`` for critical columns
+BP-10.5: Use ``schema_hints`` for critical columns
 --------------------------------------------------
 
 LHP supports ``cloudFiles.schemaHints`` option strings. For columns where wrong type
@@ -1173,30 +1397,30 @@ hints.
    :doc:`actions/load_actions` for the full load action specification.
 
 
-10. Transform Actions
+11. Transform Actions
 =====================
 
-.. _bp-10-1:
+.. _bp-11-1:
 
-BP-10.1: Default to SQL transforms for silver/gold layer logic
+BP-11.1: Default to SQL transforms for silver/gold layer logic
 --------------------------------------------------------------
 
 LHP's SQL transform generator supports inline SQL or external SQL files via ``sql_path``.
 SQL is more readable, more widely understood, and easier to review than Python transforms
 for standard operations. Use external SQL files for anything over ~5 lines.
 
-.. _bp-10-2:
+.. _bp-11-2:
 
-BP-10.2: Use external SQL files for complex transformations
+BP-11.2: Use external SQL files for complex transformations
 -----------------------------------------------------------
 
 LHP resolves ``sql_path`` relative to the project root. Store SQL in
 ``sql/<system>/<layer>/<transform_name>.sql`` (see :ref:`Section 2 <bp-2-2>`). This keeps
 YAML files concise and enables SQL-specific linting.
 
-.. _bp-10-3:
+.. _bp-11-3:
 
-BP-10.3: Use Python transforms only when SQL cannot express the logic
+BP-11.3: Use Python transforms only when SQL cannot express the logic
 ---------------------------------------------------------------------
 
 LHP's Python transform generator copies external modules and calls your function. The
@@ -1208,27 +1432,27 @@ signature depends on the number of sources:
 
 Reserve Python transforms for UDFs, ML scoring, or complex procedural logic.
 
-.. _bp-10-4:
+.. _bp-11-4:
 
-BP-10.4: Use schema transforms for explicit column control
+BP-11.4: Use schema transforms for explicit column control
 -----------------------------------------------------------
 
 LHP's ``schema`` transform type supports column renaming (arrow syntax:
 ``old_name -> new_name``), type casting, and strict/permissive enforcement. Use
 ``enforcement: strict`` at silver to reject unexpected columns from bronze.
 
-.. _bp-10-5:
+.. _bp-11-5:
 
-BP-10.5: Use data_quality transforms for DQE expectations
+BP-11.5: Use data_quality transforms for DQE expectations
 ----------------------------------------------------------
 
 LHP's ``data_quality`` transform type reads expectations from YAML/JSON files or inline
 definitions, generating the appropriate ``@dp.expect_all()``,
 ``@dp.expect_all_or_drop()``, or ``@dp.expect_all_or_fail()`` decorators.
 
-.. _bp-10-6:
+.. _bp-11-6:
 
-BP-10.6: Use temp_table transforms for intermediate calculations
+BP-11.6: Use temp_table transforms for intermediate calculations
 ----------------------------------------------------------------
 
 LHP generates ``@dp.table(temporary=True)`` for temp tables. Use these for intermediate
@@ -1238,21 +1462,21 @@ steps that should not be published to Unity Catalog.
    :doc:`actions/transform_actions` for the full transform action specification.
 
 
-11. Write Actions
+12. Write Actions
 =================
 
-.. _bp-11-1:
+.. _bp-12-1:
 
-BP-11.1: Default to materialized views for silver/gold layers
+BP-12.1: Default to materialized views for silver/gold layers
 -------------------------------------------------------------
 
 LHP's materialized_view write target generates ``@dp.materialized_view()``. Materialized
 views always produce correct results — they reprocess when source data changes. Use them for
 all joins, aggregations, and enrichment.
 
-.. _bp-11-2:
+.. _bp-12-2:
 
-BP-11.2: Use streaming tables for bronze ingestion and CDC targets
+BP-12.2: Use streaming tables for bronze ingestion and CDC targets
 ------------------------------------------------------------------
 
 LHP's streaming_table write target generates ``dp.create_streaming_table()`` +
@@ -1262,9 +1486,9 @@ LHP's streaming_table write target generates ``dp.create_streaming_table()`` +
    Joins in streaming tables do not recompute when dimensions change — use materialized
    views for enrichment.
 
-.. _bp-11-3:
+.. _bp-12-3:
 
-BP-11.3: Set ``pipelines.reset.allowed: "false"`` on history tables
+BP-12.3: Set ``pipelines.reset.allowed: "false"`` on history tables
 --------------------------------------------------------------------
 
 LHP supports ``table_properties`` in write targets. This prevents accidental full refresh
@@ -1281,9 +1505,9 @@ from destroying historical data:
 .. tip::
    Put this in your ``silver_standard`` and ``gold_standard`` presets.
 
-.. _bp-11-4:
+.. _bp-12-4:
 
-BP-11.4: Use ``cluster_columns`` (liquid clustering) instead of ``partition_columns``
+BP-12.4: Use ``cluster_columns`` (liquid clustering) instead of ``partition_columns``
 -------------------------------------------------------------------------------------
 
 LHP supports both, but liquid clustering is the modern recommendation. It's incremental,
@@ -1296,25 +1520,25 @@ allows redefining keys without rewriting data, and works well with high-cardinal
      type: streaming_table
      cluster_columns: [customer_id, order_date]
 
-.. _bp-11-5:
+.. _bp-12-5:
 
-BP-11.5: Use ``comment`` on every write target
+BP-12.5: Use ``comment`` on every write target
 -----------------------------------------------
 
 LHP passes the ``comment`` field to the generated table/view definition. This appears in
 Unity Catalog UI and is queryable.
 
-.. _bp-11-6:
+.. _bp-12-6:
 
-BP-11.6: Use ``spark_conf`` for per-table performance tuning
+BP-12.6: Use ``spark_conf`` for per-table performance tuning
 -------------------------------------------------------------
 
 LHP supports ``spark_conf`` on write targets. Use it for adaptive shuffle or per-table
 optimisations rather than global pipeline settings.
 
-.. _bp-11-7:
+.. _bp-12-7:
 
-BP-11.7: For CDC, use the ``cdc`` mode with explicit ``cdc_config``
+BP-12.7: For CDC, use the ``cdc`` mode with explicit ``cdc_config``
 --------------------------------------------------------------------
 
 LHP generates ``dp.create_auto_cdc_flow()`` with full support for ``keys``,
@@ -1322,26 +1546,26 @@ LHP generates ``dp.create_auto_cdc_flow()`` with full support for ``keys``,
 ``apply_as_deletes``, ``ignore_null_updates``, ``track_history_column_list``, and
 ``track_history_except_column_list`` options. Always specify ``sequence_by`` explicitly.
 
-.. _bp-11-8:
+.. _bp-12-8:
 
-BP-11.8: Use ``once: true`` for backfill flows
+BP-12.8: Use ``once: true`` for backfill flows
 -----------------------------------------------
 
 LHP supports the ``once`` flag on individual actions, generating one-time flows for
 historical data backfill without affecting the ongoing streaming ingestion.
 
-.. _bp-11-9:
+.. _bp-12-9:
 
-BP-11.9: Multiple write actions targeting the same table are automatically grouped
+BP-12.9: Multiple write actions targeting the same table are automatically grouped
 ----------------------------------------------------------------------------------
 
 LHP consolidates multiple sources writing to the same streaming table into one
 ``create_streaming_table`` with multiple ``append_flow`` functions. Use this for
 multi-source ingestion patterns.
 
-.. _bp-11-10:
+.. _bp-12-10:
 
-BP-11.10: Use ``snapshot_cdc`` mode for full-snapshot change data capture
+BP-12.10: Use ``snapshot_cdc`` mode for full-snapshot change data capture
 --------------------------------------------------------------------------
 
 LHP also supports ``mode: "snapshot_cdc"`` on streaming tables, generating
@@ -1371,9 +1595,9 @@ Key differences from ``cdc`` mode:
 - Requires a ``source_function`` with ``file`` and ``function`` fields
 - Does not use ``sequence_by`` — ordering is implicit from snapshot timing
 
-.. _bp-11-11:
+.. _bp-12-11:
 
-BP-11.11: Use ``sink`` write targets for streaming to external destinations
+BP-12.11: Use ``sink`` write targets for streaming to external destinations
 ---------------------------------------------------------------------------
 
 LHP supports a ``sink`` write target type for writing to external systems. Four sink
@@ -1401,12 +1625,12 @@ external APIs. Pair with streaming tables for the primary lakehouse copy.
    :doc:`actions/write_actions` for the full write action specification.
 
 
-12. Data Quality (Expectations)
+13. Data Quality (Expectations)
 ===============================
 
-.. _bp-12-1:
+.. _bp-13-1:
 
-BP-12.1: Tier expectations by medallion layer
+BP-13.1: Tier expectations by medallion layer
 ----------------------------------------------
 
 - **Bronze**: ``warn`` only — never drop or fail at bronze. Every raw record is precious.
@@ -1419,27 +1643,27 @@ generates the appropriate decorators.
 .. seealso::
    For configuring quarantine mode in LHP, see :doc:`quarantine`.
 
-.. _bp-12-2:
+.. _bp-13-2:
 
-BP-12.2: Centralise expectation definitions in external DQE files
+BP-13.2: Centralise expectation definitions in external DQE files
 -----------------------------------------------------------------
 
 LHP supports ``expectations_file`` pointing to YAML/JSON files. Store these in
 ``expectations/<domain>/`` and reference them from multiple actions. This enables reuse and
 independent review of quality rules.
 
-.. _bp-12-3:
+.. _bp-13-3:
 
-BP-12.3: Name expectations descriptively
+BP-13.3: Name expectations descriptively
 -----------------------------------------
 
 Convention: ``valid_<column>_<constraint_type>`` (e.g., ``valid_order_id_not_null``,
 ``valid_amount_positive``). These names appear in the DLT Data Quality tab and event log.
 
 
-.. _bp-12-5:
+.. _bp-13-5:
 
-BP-12.5: Use test actions for cross-table validation
+BP-13.5: Use test actions for cross-table validation
 ----------------------------------------------------
 
 LHP's 9 test action types (``row_count``, ``uniqueness``, ``referential_integrity``,
@@ -1454,12 +1678,12 @@ see :doc:`actions/test_reporting`.
    :doc:`actions/test_actions` for the full test action specification.
 
 
-13. Operational Metadata
+14. Operational Metadata
 ========================
 
-.. _bp-13-1:
+.. _bp-14-1:
 
-BP-13.1: Define operational metadata columns in ``lhp.yaml``
+BP-14.1: Define operational metadata columns in ``lhp.yaml``
 -------------------------------------------------------------
 
 LHP supports project-level ``operational_metadata`` with column definitions, presets, and
@@ -1493,9 +1717,9 @@ Each column config supports these fields:
 - ``enabled`` — Boolean to enable/disable the column (default: ``true``)
 - ``additional_imports`` — List of extra Python import statements needed by the expression
 
-.. _bp-13-2:
+.. _bp-14-2:
 
-BP-13.2: Create metadata presets for different layers
+BP-14.2: Create metadata presets for different layers
 -----------------------------------------------------
 
 LHP supports ``operational_metadata.presets`` for named groups in ``lhp.yaml``:
@@ -1515,18 +1739,18 @@ LHP supports ``operational_metadata.presets`` for named groups in ``lhp.yaml``:
    names. Reference the preset definitions as a guide when writing the column name lists in
    your flowgroups.
 
-.. _bp-13-3:
+.. _bp-14-3:
 
-BP-13.3: Metadata is additive across preset, flowgroup, and action levels
+BP-14.3: Metadata is additive across preset, flowgroup, and action levels
 -------------------------------------------------------------------------
 
 LHP deep-merges operational metadata with deduplication. This means you can set a baseline
 in a preset and add columns at the flowgroup or action level without losing the preset
 columns.
 
-.. _bp-13-4:
+.. _bp-14-4:
 
-BP-13.4: Use ``applies_to`` to control which target types get each column
+BP-14.4: Use ``applies_to`` to control which target types get each column
 -------------------------------------------------------------------------
 
 ``input_file_name()`` is only valid in streaming/batch reads — set
@@ -1537,20 +1761,20 @@ BP-13.4: Use ``applies_to`` to control which target types get each column
    :doc:`operational_metadata` for the full operational metadata reference.
 
 
-14. Schema Management
+15. Schema Management
 =====================
 
-.. _bp-14-1:
+.. _bp-15-1:
 
-BP-14.1: Use schema files for bronze layer schema definition
+BP-15.1: Use schema files for bronze layer schema definition
 ------------------------------------------------------------
 
 LHP's ``schema_file`` field in load actions points to external DDL, YAML, or JSON schema
 files. This makes schema definitions reviewable independently of pipeline config.
 
-.. _bp-14-2:
+.. _bp-15-2:
 
-BP-14.2: Use schema transforms at the bronze-to-silver boundary
+BP-15.2: Use schema transforms at the bronze-to-silver boundary
 ----------------------------------------------------------------
 
 LHP's ``schema`` transform type provides explicit column control:
@@ -1559,9 +1783,9 @@ LHP's ``schema`` transform type provides explicit column control:
 - Type casting: ``amount: decimal(18,2)``
 - Strict enforcement to reject unexpected columns
 
-.. _bp-14-3:
+.. _bp-15-3:
 
-BP-14.3: Use ``enforcement: strict`` at silver to prevent schema drift
+BP-15.3: Use ``enforcement: strict`` at silver to prevent schema drift
 ----------------------------------------------------------------------
 
 LHP's schema transform with ``enforcement: strict`` generates code that only keeps declared
@@ -1569,12 +1793,12 @@ columns. Combined with silver-layer DQE expectations, this creates a clean schem
 between bronze and silver.
 
 
-15. Validation & CI Integration
+16. Validation & CI Integration
 ===============================
 
-.. _bp-15-1:
+.. _bp-16-1:
 
-BP-15.1: Run ``lhp validate`` as a blocking CI check on every PR
+BP-16.1: Run ``lhp validate`` as a blocking CI check on every PR
 -----------------------------------------------------------------
 
 LHP's validation stack catches: missing required fields, unknown fields (with fuzzy-match
@@ -1582,26 +1806,26 @@ suggestions), circular dependencies, invalid references, template parameter mism
 type-specific validation for all 7 load types, 5 transform types, and all write target
 types.
 
-.. _bp-15-2:
+.. _bp-16-2:
 
-BP-15.2: Run ``lhp generate --dry-run`` to verify code generation
+BP-16.2: Run ``lhp generate --dry-run`` to verify code generation
 ------------------------------------------------------------------
 
 Dry-run generates code without writing files. Use this in CI to catch generation errors
 early.
 
-.. _bp-15-3:
+.. _bp-16-3:
 
-BP-15.3: Maintain dry-run baselines for regression detection
+BP-16.3: Maintain dry-run baselines for regression detection
 ------------------------------------------------------------
 
 Commit expected generated output to the repo. In CI, run ``lhp generate --dry-run`` and
 diff against baselines. Unexpected changes (especially from preset modifications) are
 flagged for review. This is the config-equivalent of snapshot testing.
 
-.. _bp-15-4:
+.. _bp-16-4:
 
-BP-15.4: Layer your CI validation pipeline
+BP-16.4: Layer your CI validation pipeline
 ------------------------------------------
 
 .. list-table::
@@ -1634,21 +1858,21 @@ BP-15.4: Layer your CI validation pipeline
    :doc:`cicd_reference` for comprehensive CI/CD patterns and deployment strategies.
 
 
-16. State Management & Incremental Generation
+17. State Management & Incremental Generation
 ==============================================
 
-.. _bp-16-1:
+.. _bp-17-1:
 
-BP-16.1: DO NOT Commit ``.lhp_state.json`` to version control
+BP-17.1: DO NOT Commit ``.lhp_state.json`` to version control
 -------------------------------------------------------
 
 LHP's state tracking enables smart regeneration — only files whose source YAML,
 dependencies, or generation context changed are regenerated. This significantly speeds up
 ``lhp generate`` for large projects but must not be committed to source control
 
-.. _bp-16-2:
+.. _bp-17-2:
 
-BP-16.2: Use ``lhp state`` to audit orphaned and stale files
+BP-17.2: Use ``lhp state`` to audit orphaned and stale files
 -------------------------------------------------------------
 
 After refactoring (renaming flowgroups, deleting pipelines), use the available flags to
@@ -1676,9 +1900,9 @@ audit and manage state:
 Combine filters: ``lhp state --env dev --orphaned --cleanup --dry-run`` previews which
 orphaned files would be deleted.
 
-.. _bp-16-3:
+.. _bp-17-3:
 
-BP-16.3: Use ``--force`` only when necessary
+BP-17.3: Use ``--force`` only when necessary
 ---------------------------------------------
 
 LHP's ``ForceGenerationStrategy`` regenerates everything. Use it only after framework
@@ -1689,20 +1913,20 @@ rely on smart generation.
    :doc:`cli` for the full ``lhp state`` command reference.
 
 
-17. Bundle Integration (Databricks Asset Bundles)
+18. Bundle Integration (Databricks Asset Bundles)
 =================================================
 
-.. _bp-17-1:
+.. _bp-18-1:
 
-BP-17.1: Use ``lhp deps --format job`` to generate DAB job resource definitions
+BP-18.1: Use ``lhp deps --format job`` to generate DAB job resource definitions
 --------------------------------------------------------------------------------
 
 LHP analyses dependencies and generates pipeline and job resource YAML for Databricks
 Asset Bundles. Use ``--bundle-output`` to specify where bundle files are written.
 
-.. _bp-17-2:
+.. _bp-18-2:
 
-BP-17.2: Bundle scaffolding is included by default
+BP-18.2: Bundle scaffolding is included by default
 ---------------------------------------------------
 
 LHP scaffolds the full DAB structure by default with ``lhp init``, including
@@ -1710,9 +1934,9 @@ LHP scaffolds the full DAB structure by default with ``lhp init``, including
 ``lhp init <name> --no-bundle`` to skip DAB setup if you manage bundle configuration
 separately.
 
-.. _bp-17-3:
+.. _bp-18-3:
 
-BP-17.3: Keep generated bundle resources separate from hand-written ones
+BP-18.3: Keep generated bundle resources separate from hand-written ones
 ------------------------------------------------------------------------
 
 LHP generates bundle resources from dependency analysis. Store them in a dedicated
@@ -1723,12 +1947,12 @@ with manually defined resources.
    :doc:`databricks_bundles` for the full bundle integration guide.
 
 
-18. Architectural Pattern Support
+19. Architectural Pattern Support
 =================================
 
-.. _bp-18-1:
+.. _bp-19-1:
 
-BP-18.1: Medallion architecture — use LHP's layered approach
+BP-19.1: Medallion architecture — use LHP's layered approach
 -------------------------------------------------------------
 
 .. list-table::
@@ -1759,17 +1983,17 @@ BP-18.1: Medallion architecture — use LHP's layered approach
 LHP supports all these natively through its action types, write targets, and DQE
 integration.
 
-.. _bp-18-2:
+.. _bp-19-2:
 
-BP-18.2: Environment promotion — use substitution files per environment
+BP-19.2: Environment promotion — use substitution files per environment
 -----------------------------------------------------------------------
 
 Same YAML configs, different ``--env`` flags. LHP resolves all tokens per environment.
 Generated code is environment-specific but source configs are environment-agnostic.
 
-.. _bp-18-3:
+.. _bp-19-3:
 
-BP-18.3: Multi-pipeline orchestration — use ``job_name`` and ``lhp deps``
+BP-19.3: Multi-pipeline orchestration — use ``job_name`` and ``lhp deps``
 --------------------------------------------------------------------------
 
 LHP's dependency analysis produces pipeline-level and job-level dependency graphs. Use
@@ -1780,9 +2004,9 @@ pipelines.
    :doc:`dependency_analysis` for pipeline dependency analysis and orchestration job
    generation.
 
-.. _bp-18-4:
+.. _bp-19-4:
 
-BP-18.4: Multi-source ingestion — use multiple load/write actions targeting the same table
+BP-19.4: Multi-source ingestion — use multiple load/write actions targeting the same table
 ------------------------------------------------------------------------------------------
 
 LHP consolidates multiple write actions to the same streaming table into multiple
@@ -1790,28 +2014,28 @@ LHP consolidates multiple write actions to the same streaming table into multipl
 natively.
 
 
-19. Documentation & Discoverability
+20. Documentation & Discoverability
 ====================================
 
-.. _bp-19-1:
+.. _bp-20-1:
 
-BP-19.1: Use ``description`` fields on every action and write target
+BP-20.1: Use ``description`` fields on every action and write target
 --------------------------------------------------------------------
 
 LHP passes descriptions through to generated code comments and table metadata. Fill these
 in consistently.
 
-.. _bp-19-2:
+.. _bp-20-2:
 
-BP-19.2: Use ``comment`` on write targets for Unity Catalog table descriptions
+BP-20.2: Use ``comment`` on write targets for Unity Catalog table descriptions
 ------------------------------------------------------------------------------
 
 These appear in the Data Explorer and are queryable. Make them meaningful:
 "Silver layer orders — deduped, validated, enriched with customer data."
 
-.. _bp-19-3:
+.. _bp-20-3:
 
-BP-19.3: Use YAML comments for "why" decisions
+BP-20.3: Use YAML comments for "why" decisions
 -----------------------------------------------
 
 .. code-block:: yaml
@@ -1822,9 +2046,9 @@ BP-19.3: Use YAML comments for "why" decisions
 
 The YAML declares *what*; comments explain *why*.
 
-.. _bp-19-4:
+.. _bp-20-4:
 
-BP-19.4: Use ``lhp info`` and ``lhp stats`` for project documentation
+BP-20.4: Use ``lhp info`` and ``lhp stats`` for project documentation
 ----------------------------------------------------------------------
 
 These commands produce summaries of project structure, pipeline counts, and action
@@ -1834,7 +2058,7 @@ distributions. Use them in onboarding documentation.
    :doc:`cli` for the full CLI command reference.
 
 
-20. Anti-Patterns to Avoid
+21. Anti-Patterns to Avoid
 ==========================
 
 .. warning::
@@ -1901,3 +2125,12 @@ distributions. Use them in onboarding documentation.
      - Generic names without system/layer context
      - ``pipeline_1``, ``ingest.yaml``, ``transform.sql`` are meaningless at scale
      - Use ID-based naming: ``erp_brz_raw_orders`` (see :ref:`Section 3 <bp-3-7>`)
+   * - .. _ap-14:
+
+       AP-14
+     - Building cross-system, multi-layer god-blueprints
+     - One blueprint covering many systems × many layers couples unrelated release
+       cycles, hides scope, and produces an enormous expansion blast radius
+     - Prefer one blueprint per ``(system, layer)`` and use Case 2's
+       ``pipelines/<system>/instances/`` only for genuine multi-layer cases
+       (see :ref:`Section 5 <bp-5-2>`)

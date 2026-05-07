@@ -81,7 +81,7 @@ def test_validate_instance_unknown_blueprint_raises_041(tmp_path):
         _bootstrap(root)
         # No blueprint files; instance references a nonexistent blueprint.
         _write(
-            root / "instances" / "sg.yaml",
+            root / "pipelines" / "erp" / "bronze" / "sg.yaml",
             "blueprint: nonexistent_blueprint\nsite_name: apac_sg\n",
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
@@ -110,11 +110,11 @@ flowgroups:
 """,
         )
         _write(
-            root / "instances" / "sg_a.yaml",
+            root / "pipelines" / "erp" / "bronze" / "sg_a.yaml",
             "blueprint: erp\nsite_name: apac_sg\n",
         )
         _write(
-            root / "instances" / "sg_b.yaml",
+            root / "pipelines" / "erp" / "bronze" / "sg_b.yaml",
             "blueprint: erp\nsite_name: apac_sg\n",
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
@@ -143,7 +143,7 @@ flowgroups:
 """,
         )
         _write(
-            root / "instances" / "sg.yaml",
+            root / "pipelines" / "erp" / "bronze" / "sg.yaml",
             "blueprint: erp\nsite_name: apac_sg\n",
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
@@ -186,7 +186,7 @@ flowgroups:
 """,
         )
         _write(
-            root / "instances" / "sg.yaml",
+            root / "pipelines" / "erp" / "bronze" / "sg.yaml",
             "blueprint: erp\nsite_name: apac_sg\n",
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])

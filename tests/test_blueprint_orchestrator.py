@@ -72,11 +72,11 @@ flowgroups:
 """,
     )
     _write(
-        tmp_path / "instances" / "sg.yaml",
+        tmp_path / "pipelines" / "erp" / "bronze" / "sg.yaml",
         "blueprint: erp\nsite_name: apac_sg\n",
     )
     _write(
-        tmp_path / "instances" / "uk.yaml",
+        tmp_path / "pipelines" / "erp" / "bronze" / "uk.yaml",
         "blueprint: erp\nsite_name: emea_uk\n",
     )
     orch = ActionOrchestrator(tmp_path, enforce_version=False)
@@ -109,7 +109,7 @@ flowgroups:
 """,
     )
     _write(
-        tmp_path / "instances" / "sg.yaml",
+        tmp_path / "pipelines" / "erp" / "bronze" / "sg.yaml",
         "blueprint: erp\nsite_name: apac_sg\n",
     )
     orch = ActionOrchestrator(tmp_path, enforce_version=False)

@@ -115,10 +115,11 @@ class BlueprintParser:
     ) -> BlueprintInstance:
         """Parse an instance YAML file into a validated `BlueprintInstance`.
 
-        Two-pass parse: first reads the `blueprint:` field to identify the referenced
-        blueprint, then re-validates the instance file's keys against
-        `{"blueprint"} | {p.name for p in blueprint.parameters}` and raises on
-        unknown keys with a `difflib.get_close_matches` suggestion.
+        Two-pass parse: first reads the blueprint reference (``use_blueprint:`` or
+        legacy ``blueprint:``) to identify the referenced blueprint, then
+        re-validates the supplied parameter dict against
+        ``{p.name for p in blueprint.parameters}`` and raises on unknown keys
+        with a `difflib.get_close_matches` suggestion.
 
         Args:
             path: Path to an instance YAML file (single-document).
@@ -142,7 +143,7 @@ class BlueprintParser:
                 title="Empty instance file",
                 details=f"No content found in instance file {path}",
                 suggestions=[
-                    "Ensure the file has a 'blueprint' key plus parameter values",
+                    "Ensure the file has 'use_blueprint:' + nested 'parameters:'",
                 ],
                 context={"file": str(path)},
             )
@@ -157,30 +158,42 @@ class BlueprintParser:
                     "documents; instance files must be single-document."
                 ),
                 suggestions=[
-                    "Place each instance in its own file under instance_include",
+                    "Place each instance file under "
+                    "pipelines/<system>/<layer>/ or your configured "
+                    "instance_include patterns",
                 ],
                 context={"file": str(path), "documents": len(documents)},
             )
 
         doc = documents[0]
 
-        if not isinstance(doc, dict) or "blueprint" not in doc:
+        if not isinstance(doc, dict) or not (
+            "use_blueprint" in doc or "blueprint" in doc
+        ):
             raise LHPValidationError(
                 category=ErrorCategory.VALIDATION,
                 code_number="053",
-                title="Instance file missing 'blueprint' key",
+                title="Instance file missing blueprint reference",
                 details=(
-                    f"Instance file {path} must declare a top-level 'blueprint:' "
-                    "key naming the blueprint it instantiates."
+                    f"Instance file {path} must declare a top-level "
+                    "'use_blueprint:' (preferred) or legacy 'blueprint:' key "
+                    "naming the blueprint it instantiates."
                 ),
                 suggestions=[
-                    "Add 'blueprint: <blueprint_name>' as the first key",
+                    "Add 'use_blueprint: <blueprint_name>' as the first key, "
+                    "with a nested 'parameters:' block underneath",
                     "Verify the value matches an existing blueprint's name",
                 ],
                 context={"file": str(path)},
             )
 
-        blueprint_name = doc["blueprint"]
+        # Pre-validate dual-syntax conflicts here so we can raise an
+        # LHPValidationError directly. (Pydantic wraps any ValueError raised
+        # in a model_validator into its own ValidationError, which would
+        # otherwise be swallowed by the generic Exception handler below.)
+        self._validate_instance_syntax(path, doc)
+
+        blueprint_name = doc.get("use_blueprint") or doc.get("blueprint")
         if blueprint_name not in blueprints:
             available = ", ".join(sorted(blueprints.keys())) or "(none)"
             close = difflib.get_close_matches(
@@ -206,11 +219,14 @@ class BlueprintParser:
             )
 
         blueprint = blueprints[blueprint_name]
-        self._validate_instance_keys(path, doc, blueprint)
-        self._validate_required_parameters(path, doc, blueprint)
+        param_dict = self._extract_param_dict(doc)
+        self._validate_instance_keys(path, param_dict, blueprint)
+        self._validate_required_parameters(path, param_dict, blueprint)
 
         try:
-            return BlueprintInstance(**doc)
+            return BlueprintInstance.model_validate(
+                doc, context={"file_path": str(path)}
+            )
         except LHPError:
             raise
         except Exception as e:
@@ -220,18 +236,80 @@ class BlueprintParser:
                 title="Invalid instance definition",
                 details=f"Error parsing instance {path}: {e}",
                 suggestions=[
-                    "Verify the file has a 'blueprint' key plus parameter values",
+                    "Verify the file uses 'use_blueprint:' + nested "
+                    "'parameters:' (preferred) or legacy 'blueprint:' + flat "
+                    "parameters",
                 ],
                 context={"file": str(path)},
             ) from e
 
     @staticmethod
+    def _validate_instance_syntax(path: Path, doc: Dict[str, Any]) -> None:
+        """Reject mixed/conflicting blueprint instance syntax (LHP-VAL-061).
+
+        Detects two failure modes:
+        - Both ``use_blueprint:`` and ``blueprint:`` declared in the same file.
+        - ``use_blueprint:`` plus flat top-level keys outside the allowed
+          set ``{use_blueprint, parameters, overrides}``.
+        """
+        if "use_blueprint" in doc and "blueprint" in doc:
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="061",
+                title="Conflicting blueprint instance syntax",
+                details=(
+                    f"Instance file {path} uses both 'use_blueprint:' (new) "
+                    "and 'blueprint:' (legacy) keys. Pick exactly one."
+                ),
+                suggestions=[
+                    "Use 'use_blueprint:' + nested 'parameters:' block (preferred)",
+                    "Or use legacy 'blueprint:' with flat parameters "
+                    "(deprecated, removed in V0.9)",
+                ],
+                context={"file": str(path)},
+            )
+        if "use_blueprint" not in doc:
+            return
+        allowed = {"use_blueprint", "parameters", "overrides"}
+        extras = sorted(k for k in doc if k not in allowed)
+        if not extras:
+            return
+        raise LHPValidationError(
+            category=ErrorCategory.VALIDATION,
+            code_number="061",
+            title="Mixing blueprint instance syntax forms",
+            details=(
+                f"Instance file {path} uses 'use_blueprint:' but also has "
+                f"flat top-level keys {extras}. With the new syntax, all "
+                "parameter values must live under 'parameters:'."
+            ),
+            suggestions=[
+                f"Move {extras} under the 'parameters:' block",
+            ],
+            context={"file": str(path), "extras": extras},
+        )
+
+    @staticmethod
+    def _extract_param_dict(doc: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract the supplied parameter values from either input shape.
+
+        - New shape: parameters live under the ``parameters:`` key.
+        - Legacy shape: parameters are flat top-level keys (everything except
+          ``blueprint``).
+        """
+        if "use_blueprint" in doc:
+            params = doc.get("parameters") or {}
+            return params if isinstance(params, dict) else {}
+        # Legacy: flat keys minus 'blueprint'
+        return {k: v for k, v in doc.items() if k != "blueprint"}
+
+    @staticmethod
     def _validate_instance_keys(
-        path: Path, doc: Dict[str, Any], blueprint: Blueprint
+        path: Path, params: Dict[str, Any], blueprint: Blueprint
     ) -> None:
-        """Verify each instance key is `blueprint` or a declared parameter."""
-        valid_keys = {"blueprint"} | {p.name for p in blueprint.parameters}
-        unknown = [k for k in doc if k not in valid_keys]
+        """Verify each supplied parameter key is declared on the blueprint."""
+        valid_keys = {p.name for p in blueprint.parameters}
+        unknown = [k for k in params if k not in valid_keys]
         if not unknown:
             return
 
@@ -252,7 +330,7 @@ class BlueprintParser:
             code_number="043",
             title="Unknown parameter key in instance",
             details=(
-                f"Instance {path} contains unknown key(s) {unknown!r}. "
+                f"Instance {path} contains unknown parameter key(s) {unknown!r}. "
                 f"Blueprint '{blueprint.name}' declares parameters: "
                 f"{sorted(param_names) or '(none)'}."
             ),
@@ -266,11 +344,11 @@ class BlueprintParser:
 
     @staticmethod
     def _validate_required_parameters(
-        path: Path, doc: Dict[str, Any], blueprint: Blueprint
+        path: Path, params: Dict[str, Any], blueprint: Blueprint
     ) -> None:
         """Verify required parameters are present in the instance file."""
         missing = [
-            p.name for p in blueprint.parameters if p.required and p.name not in doc
+            p.name for p in blueprint.parameters if p.required and p.name not in params
         ]
         if not missing:
             return
@@ -314,3 +392,28 @@ class BlueprintParser:
         if "actions" in doc:
             return False
         return "parameters" in doc and "flowgroups" in doc
+
+    @staticmethod
+    def looks_like_instance(doc: Any) -> bool:
+        """Return True if a YAML document has the shape of a blueprint instance.
+
+        Used by the routing logic in `yaml_parser.parse_flowgroups_from_file`
+        and by `BlueprintDiscoverer.discover_instances` to skip files that
+        match an overlapping include/instance_include glob but belong to the
+        other discoverer.
+
+        Heuristic:
+        - New shape: top-level ``use_blueprint:`` key is present.
+        - Legacy shape: top-level ``blueprint:`` key is present (string),
+          AND there is no ``flowgroups:`` and no ``actions:`` key (those would
+          indicate a flowgroup or blueprint definition).
+        """
+        if not isinstance(doc, dict):
+            return False
+        if "use_blueprint" in doc:
+            return True
+        if "blueprint" in doc and isinstance(doc["blueprint"], str):
+            if "flowgroups" in doc or "actions" in doc:
+                return False
+            return True
+        return False

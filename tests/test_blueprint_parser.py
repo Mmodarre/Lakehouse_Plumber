@@ -156,6 +156,76 @@ site_id: SG001
     assert values["site_id"] == "SG001"
 
 
+def test_parse_instance_file_new_use_blueprint_syntax(tmp_path):
+    """The preferred ``use_blueprint:`` + nested ``parameters:`` form parses
+    cleanly through the parser and round-trips to the canonical normalized
+    state."""
+    parser = BlueprintParser()
+    blueprints = _make_blueprint(parser, tmp_path)
+    inst_file = _write(
+        tmp_path / "pipelines" / "erp" / "bronze" / "sg.yaml",
+        """
+use_blueprint: erp_ingestion
+parameters:
+  site_name: apac_sg
+  site_id: SG001
+""",
+    )
+    inst = parser.parse_instance_file(inst_file, blueprints)
+    assert inst.blueprint_name == "erp_ingestion"
+    assert inst.use_blueprint == "erp_ingestion"
+    assert inst.parameter_values() == {"site_name": "apac_sg", "site_id": "SG001"}
+
+
+def test_parse_instance_file_legacy_form_emits_deprecation(tmp_path, caplog):
+    """Legacy form parses successfully but emits a deprecation warning per
+    file (deduplicated)."""
+    import logging
+
+    parser = BlueprintParser()
+    blueprints = _make_blueprint(parser, tmp_path)
+    inst_file = _write(
+        tmp_path / "instances" / "legacy_sg.yaml",
+        """
+blueprint: erp_ingestion
+site_name: apac_sg
+site_id: SG001
+""",
+    )
+    # Reset dedupe state so this test is independent of others.
+    from lhp.models.config import BlueprintInstance
+
+    BlueprintInstance._legacy_warned_paths.clear()
+    caplog.set_level(logging.WARNING, logger="lhp.models.config")
+    inst = parser.parse_instance_file(inst_file, blueprints)
+    assert inst.blueprint_name == "erp_ingestion"
+    deprecation = [
+        r for r in caplog.records if "Deprecated blueprint instance syntax" in r.message
+    ]
+    assert len(deprecation) == 1
+    assert str(inst_file) in deprecation[0].args[0]
+
+
+def test_parse_instance_file_mutual_exclusion_raises_061(tmp_path):
+    """Mixing ``use_blueprint:`` and legacy ``blueprint:`` keys triggers
+    LHP-VAL-061."""
+    parser = BlueprintParser()
+    blueprints = _make_blueprint(parser, tmp_path)
+    inst_file = _write(
+        tmp_path / "pipelines" / "erp" / "bronze" / "bad.yaml",
+        """
+use_blueprint: erp_ingestion
+blueprint: erp_ingestion
+parameters:
+  site_name: apac_sg
+  site_id: SG001
+""",
+    )
+    with pytest.raises(LHPError) as exc:
+        parser.parse_instance_file(inst_file, blueprints)
+    assert exc.value.code == "LHP-VAL-061"
+
+
 def test_instance_unknown_blueprint_raises_041(tmp_path):
     parser = BlueprintParser()
     blueprints = _make_blueprint(parser, tmp_path)

@@ -114,7 +114,7 @@ class YAMLParser:
 
         # Process each document
         for doc_index, doc in enumerate(documents, start=1):
-            # Defensive guard: catch a blueprint that was accidentally
+            # Defensive guard: catch a blueprint *definition* accidentally
             # placed under `include:` (pipelines/) instead of `blueprint_include:`.
             # Without this, the array-syntax path below would attempt to
             # construct a FlowGroup from a BlueprintFlowgroupSpec and crash with
@@ -137,6 +137,16 @@ class YAMLParser:
                     ],
                     context={"file": str(file_path)},
                 )
+
+            # Routing: instance files (use_blueprint or legacy blueprint+flat)
+            # may live alongside flowgroups under pipelines/. Skip them here so
+            # the BlueprintDiscoverer can pick them up via instance_include.
+            if BlueprintParser.looks_like_instance(doc):
+                self.logger.debug(
+                    f"Skipping instance file {file_path} during flowgroup parse "
+                    "(routed to BlueprintDiscoverer)"
+                )
+                return []
 
             # Check if this document uses array syntax
             if "flowgroups" in doc:

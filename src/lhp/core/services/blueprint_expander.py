@@ -111,7 +111,7 @@ class BlueprintExpander:
             seen: Dict[Tuple[str, str], Path] = {}
 
             for instance, instance_path in instances:
-                blueprint, blueprint_path = blueprints[instance.blueprint]
+                blueprint, blueprint_path = blueprints[instance.blueprint_name]
                 effective_params = self._effective_params(blueprint, instance)
 
                 for spec_index, spec in enumerate(blueprint.flowgroups):

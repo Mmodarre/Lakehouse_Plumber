@@ -258,7 +258,9 @@ class StateDependencyResolver:
                     "keys remain stable across runs."
                 ),
                 suggestions=[
-                    "Move the instance file under the project's instances/ directory",
+                    "Place each instance file under "
+                    "pipelines/<system>/<layer>/ or your configured "
+                    "instance_include patterns",
                     "Adjust 'instance_include' patterns in lhp.yaml so they only "
                     "resolve files inside the project root",
                     "If the path involves a symlink, resolve the symlink target "

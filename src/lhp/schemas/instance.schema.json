@@ -1,14 +1,49 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "LakehousePlumber Blueprint Instance",
-    "description": "Schema for an instance file. References a blueprint by name and supplies parameter values. Parameter names are dynamic (declared per-blueprint), so the keyset cannot be enumerated here — the validator cross-checks keys against the referenced blueprint's parameter list.",
+    "description": "Schema for a blueprint instance file. Two shapes are supported: (1) the preferred 'use_blueprint:' + nested 'parameters:' shape, and (2) the legacy 'blueprint:' + flat parameters shape (deprecated, removed in V0.9). Parameter names are dynamic (declared per-blueprint), so the keyset cannot be enumerated here — the runtime validator cross-checks keys against the referenced blueprint's parameter list.",
     "type": "object",
-    "required": ["blueprint"],
-    "properties": {
-        "blueprint": {
-            "type": "string",
-            "description": "Name of the blueprint this instance refers to (must match a Blueprint.name)"
+    "oneOf": [
+        {
+            "title": "New shape (preferred)",
+            "type": "object",
+            "required": ["use_blueprint"],
+            "properties": {
+                "use_blueprint": {
+                    "type": "string",
+                    "description": "Name of the blueprint this instance refers to (must match a Blueprint.name)."
+                },
+                "parameters": {
+                    "type": "object",
+                    "description": "Concrete parameter values supplied to the blueprint. Keys must match the blueprint's declared parameters.",
+                    "additionalProperties": true
+                },
+                "overrides": {
+                    "type": "object",
+                    "description": "Reserved for future per-instance overrides (e.g. preset/operational_metadata adjustments).",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": false
+        },
+        {
+            "title": "Legacy shape (deprecated; removed in V0.9)",
+            "type": "object",
+            "required": ["blueprint"],
+            "properties": {
+                "blueprint": {
+                    "type": "string",
+                    "description": "Legacy: name of the blueprint this instance refers to. Prefer 'use_blueprint:' + nested 'parameters:' instead."
+                }
+            },
+            "not": {
+                "anyOf": [
+                    {"required": ["use_blueprint"]},
+                    {"required": ["parameters"]},
+                    {"required": ["overrides"]}
+                ]
+            },
+            "additionalProperties": true
         }
-    },
-    "additionalProperties": true
+    ]
 }

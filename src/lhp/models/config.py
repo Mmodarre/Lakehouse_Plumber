@@ -1,6 +1,7 @@
+import logging
 import warnings
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, ClassVar, Dict, List, Optional, Set, Union
 
 # Suppress Pydantic warning about 'schema' field shadowing BaseModel.schema() class method.
 # This is deliberate: 'schema' is a UC namespace field, not related to Pydantic's schema().
@@ -8,7 +9,18 @@ warnings.filterwarnings(
     "ignore", message=r".*Field name \"schema\".*shadows an attribute.*"
 )
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import (  # noqa: E402
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    model_validator,
+)
+
+from ..utils.error_formatter import (  # noqa: E402
+    ErrorCategory,
+    LHPValidationError,
+)
 
 
 class ActionType(str, Enum):
@@ -448,19 +460,122 @@ class Blueprint(BaseModel):
 class BlueprintInstance(BaseModel):
     """An instance of a blueprint with concrete parameter values.
 
-    Strict-mode handling: parameter names are dynamic (declared per blueprint),
-    so we cannot use Pydantic's `extra="forbid"` directly to reject unknown keys.
-    Instead, we accept extra fields here and the BlueprintExpander/parser
-    cross-validates the keys against the referenced blueprint's parameter list,
-    surfacing near-miss suggestions via difflib for typos like
-    `partion_key` -> "did you mean `partition_key`?".
+    Two input shapes are accepted:
+
+    - **New (preferred):** ``use_blueprint:`` references the blueprint and a
+      nested ``parameters:`` block holds parameter values; an optional
+      ``overrides:`` block is reserved for future use. This shape mirrors the
+      ``use_template:`` / ``template_parameters:`` pattern operators already
+      know.
+    - **Legacy (deprecated, removed in V0.9):** ``blueprint:`` plus flat
+      top-level parameter keys. A deprecation warning is emitted once per
+      file when this form is encountered.
+
+    A `model_validator(mode='before')` is the single normalization point: it
+    converts both shapes into the canonical (`use_blueprint`, `parameters`)
+    form so all downstream code reads from one place. Mixing the two forms
+    in the same file raises LHP-CFG-061.
     """
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
-    blueprint: str
+    use_blueprint: Optional[str] = None
+    parameters: Optional[Dict[str, Any]] = None
+    overrides: Optional[Dict[str, Any]] = None
+    # Legacy field retained so existing readers (e.g. CLI display, expander)
+    # continue to work; populated from `use_blueprint` after normalization.
+    blueprint: Optional[str] = None
+
+    # Tracks instance file paths for which we've already emitted the legacy
+    # deprecation warning, so callers that re-parse the same file (e.g.
+    # validate then generate) only see the warning once per process.
+    _legacy_warned_paths: "ClassVar[Set[str]]" = set()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_syntax(cls, data: Any, info: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        has_use = "use_blueprint" in data
+        has_legacy = "blueprint" in data
+
+        file_path: Optional[str] = None
+        if info is not None and getattr(info, "context", None):
+            file_path = info.context.get("file_path")
+
+        if has_use and has_legacy:
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="061",
+                title="Conflicting blueprint instance syntax",
+                details=(
+                    "Instance file uses both 'use_blueprint:' (new) and "
+                    "'blueprint:' (legacy) keys. Pick exactly one."
+                ),
+                suggestions=[
+                    "Use 'use_blueprint:' + nested 'parameters:' block (preferred)",
+                    "Or use legacy 'blueprint:' with flat parameters "
+                    "(deprecated, removed in V0.9)",
+                ],
+                context={"file": file_path or "<unknown>"},
+            )
+
+        if has_use:
+            allowed = {"use_blueprint", "parameters", "overrides"}
+            extras = sorted(k for k in data if k not in allowed)
+            if extras:
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="061",
+                    title="Mixing blueprint instance syntax forms",
+                    details=(
+                        "Instance file uses 'use_blueprint:' but also has "
+                        f"flat top-level keys {extras}. With the new syntax, "
+                        "all parameter values must live under 'parameters:'."
+                    ),
+                    suggestions=[
+                        f"Move {extras} under the 'parameters:' block",
+                    ],
+                    context={"file": file_path or "<unknown>", "extras": extras},
+                )
+            return data
+
+        if has_legacy:
+            blueprint_name = data["blueprint"]
+            flat_params = {k: v for k, v in data.items() if k != "blueprint"}
+
+            warn_key = file_path or repr(sorted(data.items()))
+            if warn_key not in cls._legacy_warned_paths:
+                cls._legacy_warned_paths.add(warn_key)
+                _legacy_logger = logging.getLogger("lhp.models.config")
+                _legacy_logger.warning(
+                    "Deprecated blueprint instance syntax in %s: the "
+                    "'blueprint:' + flat parameters form will be removed in "
+                    "V0.9. Migrate to 'use_blueprint:' + nested 'parameters:' "
+                    "block.",
+                    file_path or "<unknown>",
+                )
+
+            return {
+                "use_blueprint": blueprint_name,
+                "blueprint": blueprint_name,
+                "parameters": flat_params,
+            }
+
+        return data
+
+    @model_validator(mode="after")
+    def _mirror_blueprint_field(self) -> "BlueprintInstance":
+        if self.use_blueprint and not self.blueprint:
+            object.__setattr__(self, "blueprint", self.use_blueprint)
+        return self
+
+    @property
+    def blueprint_name(self) -> str:
+        """Normalized blueprint name (works for both input shapes)."""
+        return self.use_blueprint or self.blueprint or ""
 
     def parameter_values(self) -> Dict[str, Any]:
-        """Return the parameter values supplied in this instance file (excluding `blueprint`)."""
-        extras = self.__pydantic_extra__ or {}
-        return dict(extras)
+        """Return the parameter values supplied in this instance file."""
+        return dict(self.parameters or {})

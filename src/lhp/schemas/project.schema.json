@@ -53,14 +53,14 @@
         },
         "instance_include": {
             "type": "array",
-            "description": "List of glob patterns to include when discovering blueprint instance files (default: ['instances/**/*.yaml'])",
+            "description": "List of glob patterns to include when discovering blueprint instance files (default: ['pipelines/**/*.yaml']). Instance files normally live alongside hand-written flowgroups under pipelines/<system>/<layer>/; the BlueprintDiscoverer routes by content shape, so overlapping patterns with 'include' are safe.",
             "items": {
                 "type": "string",
                 "description": "Glob pattern for instance files to include"
             },
             "examples": [
-                ["instances/**/*.yaml"],
-                ["instances/sites/*.yaml"]
+                ["pipelines/**/*.yaml"],
+                ["pipelines/halo/**/*.yaml", "pipelines/sap/**/*.yaml"]
             ]
         },
         "required_lhp_version": {

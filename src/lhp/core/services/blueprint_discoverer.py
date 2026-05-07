@@ -2,8 +2,10 @@
 
 Mirrors `FlowgroupDiscoverer`'s pattern: pattern-driven file discovery via
 `discover_files_with_patterns`, then validation. Default patterns are
-`blueprints/**/*.yaml` and `instances/**/*.yaml`; both are configurable via
-`blueprint_include` / `instance_include` in `lhp.yaml`.
+`blueprints/**/*.yaml` for blueprint definitions and
+`pipelines/**/*.yaml` for instance files (alongside hand-written
+flowgroups). Both are configurable via `blueprint_include` /
+`instance_include` in `lhp.yaml`.
 """
 
 import logging
@@ -20,7 +22,7 @@ from ...utils.file_pattern_matcher import discover_files_with_patterns
 from ...utils.performance_timer import perf_timer
 
 DEFAULT_BLUEPRINT_PATTERNS = ["blueprints/**/*.yaml", "blueprints/**/*.yml"]
-DEFAULT_INSTANCE_PATTERNS = ["instances/**/*.yaml", "instances/**/*.yml"]
+DEFAULT_INSTANCE_PATTERNS = ["pipelines/**/*.yaml", "pipelines/**/*.yml"]
 
 
 class BlueprintDiscoverer:
@@ -105,30 +107,68 @@ class BlueprintDiscoverer:
     ) -> List[Tuple[BlueprintInstance, Path]]:
         """Discover instance files and parse each one against the blueprint registry.
 
+        With the default `instance_include = ['pipelines/**/*.yaml']`, the
+        instance pattern overlaps with the flowgroup `include:` pattern.
+        We route by content shape: a peeked first document is parsed as an
+        instance only if `BlueprintParser.looks_like_instance()` returns True;
+        all other files (regular flowgroups, blueprint definitions, etc.) are
+        skipped here and handled by their respective discoverers.
+
         Args:
             blueprints: Output of `discover_blueprints()`. Used by the parser
-                to validate `blueprint:` references and parameter names.
+                to validate `use_blueprint:` references and parameter names.
 
         Returns:
             List of (BlueprintInstance, instance_path).
         """
+        from ...utils.yaml_loader import load_yaml_documents_all
+
         with perf_timer("discover_instances [discoverer]"):
             files = discover_files_with_patterns(
                 self.project_root, self._instance_patterns()
             )
             self.logger.debug(
-                f"Found {len(files)} instance file(s) under {self.project_root}"
+                f"Found {len(files)} candidate instance file(s) under "
+                f"{self.project_root}"
             )
 
             blueprint_models: Dict[str, Blueprint] = {
                 name: bp for name, (bp, _) in blueprints.items()
             }
             instances: List[Tuple[BlueprintInstance, Path]] = []
+            skipped_non_instance = 0
             for path in files:
+                try:
+                    documents = load_yaml_documents_all(
+                        path, error_context=f"instance candidate {path}"
+                    )
+                except Exception as e:
+                    self.logger.debug(
+                        f"Skipping {path} during instance discovery (load "
+                        f"error): {e}"
+                    )
+                    continue
+
+                if not documents or not BlueprintParser.looks_like_instance(
+                    documents[0]
+                ):
+                    skipped_non_instance += 1
+                    self.logger.debug(
+                        f"Skipping {path}: not an instance file "
+                        "(no use_blueprint/blueprint key)"
+                    )
+                    continue
+
                 instance = self.blueprint_parser.parse_instance_file(
                     path, blueprint_models
                 )
                 instances.append((instance, path))
 
+            if skipped_non_instance:
+                self.logger.debug(
+                    f"Skipped {skipped_non_instance} non-instance file(s) "
+                    "during instance discovery (overlapping with flowgroup "
+                    "include pattern)"
+                )
             self.logger.info(f"Discovered {len(instances)} instance(s)")
             return instances

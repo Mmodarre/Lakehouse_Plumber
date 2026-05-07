@@ -54,11 +54,11 @@ flowgroups:
 """,
     )
     _write(
-        root / "instances" / "sg.yaml",
+        root / "pipelines" / "erp" / "bronze" / "sg.yaml",
         "blueprint: erp_ingestion\nsite_name: apac_sg\n",
     )
     _write(
-        root / "instances" / "uk.yaml",
+        root / "pipelines" / "erp" / "bronze" / "uk.yaml",
         "blueprint: erp_ingestion\nsite_name: emea_uk\n",
     )
 
@@ -94,7 +94,7 @@ def test_show_instance_resolves_flowgroups(tmp_path):
         _bootstrap_blueprint_project(Path(fs))
         result = runner.invoke(
             cli,
-            ["show", "--env", "dev", "--instance", "instances/sg.yaml"],
+            ["show", "--env", "dev", "--instance", "pipelines/erp/bronze/sg.yaml"],
         )
     assert result.exit_code == 0, result.output
     # The resolved pipeline / flowgroup names should appear in the output.
@@ -108,7 +108,7 @@ def test_show_with_both_flowgroup_and_instance_raises_057(tmp_path):
         _bootstrap_blueprint_project(Path(fs))
         result = runner.invoke(
             cli,
-            ["show", "some_fg", "--instance", "instances/sg.yaml"],
+            ["show", "some_fg", "--instance", "pipelines/erp/bronze/sg.yaml"],
         )
     assert result.exit_code != 0
     assert "LHP-CFG-057" in result.output
