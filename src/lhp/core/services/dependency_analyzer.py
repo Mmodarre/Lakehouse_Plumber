@@ -710,9 +710,13 @@ class DependencyAnalyzer:
     def _build_action_graph(self, flowgroups: List[FlowGroup]) -> nx.DiGraph:
         """Build action-level dependency graph."""
         graph = nx.DiGraph()
-        target_to_action = defaultdict(
-            list
-        )  # Map of target -> list of action_names for dependency resolution
+        # View targets are pipeline-scoped to mirror Lakeflow runtime semantics:
+        # `action.target` produces a temporary view visible only within its own
+        # pipeline. Keying on `(pipeline, target)` prevents same-named views in
+        # sibling pipelines (common with blueprint expansion) from generating
+        # phantom cross-pipeline edges.
+        view_target_to_action: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+        table_target_to_action: Dict[str, List[str]] = defaultdict(list)
 
         # First pass: collect all actions and their targets
         for flowgroup in flowgroups:
@@ -729,9 +733,10 @@ class DependencyAnalyzer:
                     action_name=action.name,
                 )
 
-                # Track targets for dependency resolution
                 if action.target:
-                    target_to_action[action.target].append(action_id)
+                    view_target_to_action[(flowgroup.pipeline, action.target)].append(
+                        action_id
+                    )
 
                 # Track write action outputs (catalog.schema.table format)
                 if action.type == ActionType.WRITE and action.write_target:
@@ -741,7 +746,7 @@ class DependencyAnalyzer:
                         table = action.write_target.get("table", "")
                         if catalog and schema and table:
                             produced_table = f"{catalog}.{schema}.{table}"
-                            target_to_action[produced_table].append(action_id)
+                            table_target_to_action[produced_table].append(action_id)
                     # Handle WriteTarget object as well
                     elif hasattr(action.write_target, "catalog") and hasattr(
                         action.write_target, "table"
@@ -751,7 +756,7 @@ class DependencyAnalyzer:
                         table = getattr(action.write_target, "table", "")
                         if catalog and schema and table:
                             produced_table = f"{catalog}.{schema}.{table}"
-                            target_to_action[produced_table].append(action_id)
+                            table_target_to_action[produced_table].append(action_id)
 
         # Second pass: build dependencies based on source/target relationships
         for flowgroup in flowgroups:
@@ -760,9 +765,12 @@ class DependencyAnalyzer:
                 sources = self._extract_action_sources(action, flowgroup.flowgroup)
 
                 for source in sources:
-                    if source in target_to_action:
-                        # Internal dependency - create edges to ALL actions that produce this source
-                        for source_action_id in target_to_action[source]:
+                    producers = view_target_to_action.get(
+                        (flowgroup.pipeline, source)
+                    ) or table_target_to_action.get(source)
+
+                    if producers:
+                        for source_action_id in producers:
                             graph.add_edge(
                                 source_action_id, action_id, dependency_type="internal"
                             )

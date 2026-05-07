@@ -118,20 +118,29 @@ class TestDependencyAnalyzer:
 
     @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
     def test_build_flowgroup_graph(self, mockget_flowgroups):
-        """Test flowgroup graph building."""
-        # Create flowgroups with cross-flowgroup dependencies
+        """Test flowgroup graph building across pipelines via a write_target table."""
         actions1 = [
             {
                 "name": "load_customers",
                 "type": ActionType.LOAD,
-                "target": "bronze.customers",
-            }
+                "target": "v_customers",
+            },
+            {
+                "name": "write_customers",
+                "type": ActionType.WRITE,
+                "source": "v_customers",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "bronze",
+                    "table": "customers",
+                },
+            },
         ]
         actions2 = [
             {
                 "name": "process_orders",
                 "type": ActionType.TRANSFORM,
-                "source": "bronze.customers",
+                "source": "c.bronze.customers",
             }
         ]
 
@@ -152,26 +161,55 @@ class TestDependencyAnalyzer:
 
     @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
     def test_build_pipeline_graph(self, mockget_flowgroups):
-        """Test pipeline graph building."""
-        # Create flowgroups in different pipelines with dependencies
+        """Test pipeline graph building for a bronze -> silver -> gold chain."""
         actions1 = [
-            {"name": "load_raw", "type": ActionType.LOAD, "target": "bronze.data"}
+            {"name": "load_raw", "type": ActionType.LOAD, "target": "v_data"},
+            {
+                "name": "write_bronze",
+                "type": ActionType.WRITE,
+                "source": "v_data",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "bronze",
+                    "table": "data",
+                },
+            },
         ]
         actions2 = [
             {
                 "name": "transform",
                 "type": ActionType.TRANSFORM,
-                "source": "bronze.data",
-                "target": "silver.data",
-            }
+                "source": "c.bronze.data",
+                "target": "v_silver_data",
+            },
+            {
+                "name": "write_silver",
+                "type": ActionType.WRITE,
+                "source": "v_silver_data",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "silver",
+                    "table": "data",
+                },
+            },
         ]
         actions3 = [
             {
                 "name": "aggregate",
                 "type": ActionType.TRANSFORM,
-                "source": "silver.data",
-                "target": "gold.summary",
-            }
+                "source": "c.silver.data",
+                "target": "v_gold_summary",
+            },
+            {
+                "name": "write_gold",
+                "type": ActionType.WRITE,
+                "source": "v_gold_summary",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "gold",
+                    "table": "summary",
+                },
+            },
         ]
 
         flowgroup1 = self.create_mock_flowgroup(
@@ -198,11 +236,26 @@ class TestDependencyAnalyzer:
 
     @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
     def test_analyze_dependencies_complete(self, mockget_flowgroups):
-        """Test complete dependency analysis."""
-        # Create a simple dependency chain
-        actions1 = [{"name": "load", "type": ActionType.LOAD, "target": "bronze.data"}]
+        """Test complete dependency analysis for a cross-pipeline chain."""
+        actions1 = [
+            {"name": "load", "type": ActionType.LOAD, "target": "v_data"},
+            {
+                "name": "write_bronze",
+                "type": ActionType.WRITE,
+                "source": "v_data",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "bronze",
+                    "table": "data",
+                },
+            },
+        ]
         actions2 = [
-            {"name": "transform", "type": ActionType.TRANSFORM, "source": "bronze.data"}
+            {
+                "name": "transform",
+                "type": ActionType.TRANSFORM,
+                "source": "c.bronze.data",
+            }
         ]
 
         flowgroup1 = self.create_mock_flowgroup("loader", "pipeline1", actions1)
@@ -218,31 +271,60 @@ class TestDependencyAnalyzer:
 
     @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
     def test_detect_circular_dependencies(self, mockget_flowgroups):
-        """Test circular dependency detection."""
-        # Create circular dependency: A -> B -> C -> A
+        """Test circular dependency detection for cross-pipeline A -> B -> C -> A."""
         actions_a = [
             {
                 "name": "action_a",
                 "type": ActionType.TRANSFORM,
-                "source": "table_c",
-                "target": "table_a",
-            }
+                "source": "c.s.table_c",
+                "target": "v_a",
+            },
+            {
+                "name": "write_a",
+                "type": ActionType.WRITE,
+                "source": "v_a",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "table_a",
+                },
+            },
         ]
         actions_b = [
             {
                 "name": "action_b",
                 "type": ActionType.TRANSFORM,
-                "source": "table_a",
-                "target": "table_b",
-            }
+                "source": "c.s.table_a",
+                "target": "v_b",
+            },
+            {
+                "name": "write_b",
+                "type": ActionType.WRITE,
+                "source": "v_b",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "table_b",
+                },
+            },
         ]
         actions_c = [
             {
                 "name": "action_c",
                 "type": ActionType.TRANSFORM,
-                "source": "table_b",
-                "target": "table_c",
-            }
+                "source": "c.s.table_b",
+                "target": "v_c",
+            },
+            {
+                "name": "write_c",
+                "type": ActionType.WRITE,
+                "source": "v_c",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "table_c",
+                },
+            },
         ]
 
         flowgroup_a = self.create_mock_flowgroup("fg_a", "pipeline_a", actions_a)
@@ -259,34 +341,73 @@ class TestDependencyAnalyzer:
 
     @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
     def test_execution_order_parallel_stages(self, mockget_flowgroups):
-        """Test execution order with parallel stages."""
-        # Create graph: A -> B, A -> C, B -> D, C -> D
+        """Test execution order: A -> B, A -> C, B -> D, C -> D across pipelines."""
         actions_a = [
-            {"name": "load_base", "type": ActionType.LOAD, "target": "base.data"}
+            {"name": "load_base", "type": ActionType.LOAD, "target": "v_base"},
+            {
+                "name": "write_base",
+                "type": ActionType.WRITE,
+                "source": "v_base",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "base",
+                },
+            },
         ]
         actions_b = [
             {
                 "name": "process_b",
                 "type": ActionType.TRANSFORM,
-                "source": "base.data",
-                "target": "branch_b.data",
-            }
+                "source": "c.s.base",
+                "target": "v_branch_b",
+            },
+            {
+                "name": "write_b",
+                "type": ActionType.WRITE,
+                "source": "v_branch_b",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "branch_b",
+                },
+            },
         ]
         actions_c = [
             {
                 "name": "process_c",
                 "type": ActionType.TRANSFORM,
-                "source": "base.data",
-                "target": "branch_c.data",
-            }
+                "source": "c.s.base",
+                "target": "v_branch_c",
+            },
+            {
+                "name": "write_c",
+                "type": ActionType.WRITE,
+                "source": "v_branch_c",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "branch_c",
+                },
+            },
         ]
         actions_d = [
             {
                 "name": "merge",
                 "type": ActionType.TRANSFORM,
-                "source": ["branch_b.data", "branch_c.data"],
-                "target": "final.data",
-            }
+                "source": ["c.s.branch_b", "c.s.branch_c"],
+                "target": "v_final",
+            },
+            {
+                "name": "write_final",
+                "type": ActionType.WRITE,
+                "source": "v_final",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "final",
+                },
+            },
         ]
 
         flowgroup_a = self.create_mock_flowgroup("base", "pipeline_a", actions_a)
@@ -637,6 +758,60 @@ class TestDependencyAnalyzer:
 
         with pytest.raises(NotImplementedError):
             self.analyzer.get_centrality_metrics(graphs)
+
+    @patch("lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups")
+    def test_shared_view_targets_across_pipelines_no_phantom_cycles(
+        self, mockget_flowgroups
+    ):
+        """View targets are pipeline-scoped: identical view names across
+        sibling pipelines (e.g. blueprint expansion into site_a/b/c) must
+        not create cross-pipeline dependency edges or cycles."""
+        def make_site_actions(site: str):
+            return [
+                {
+                    "name": f"load_{site}",
+                    "type": ActionType.LOAD,
+                    "target": "v_data",
+                },
+                {
+                    "name": f"write_{site}",
+                    "type": ActionType.WRITE,
+                    "source": "v_data",
+                    "write_target": {
+                        "catalog": "c",
+                        "schema": "s",
+                        "table": f"{site}_table",
+                    },
+                },
+            ]
+
+        flowgroup_a = self.create_mock_flowgroup(
+            "site_a_raw", "site_a_pipeline", make_site_actions("site_a")
+        )
+        flowgroup_b = self.create_mock_flowgroup(
+            "site_b_raw", "site_b_pipeline", make_site_actions("site_b")
+        )
+        flowgroup_c = self.create_mock_flowgroup(
+            "site_c_raw", "site_c_pipeline", make_site_actions("site_c")
+        )
+        mockget_flowgroups.return_value = [flowgroup_a, flowgroup_b, flowgroup_c]
+
+        result = self.analyzer.analyze_dependencies()
+
+        assert result.circular_dependencies == []
+        assert len(result.execution_stages) > 0
+
+        graphs = self.analyzer.build_dependency_graphs()
+        flowgroup_graph = graphs.flowgroup_graph
+        site_names = {"site_a_raw", "site_b_raw", "site_c_raw"}
+        for src in site_names:
+            for dst in site_names:
+                if src == dst:
+                    continue
+                assert not flowgroup_graph.has_edge(src, dst), (
+                    f"Phantom edge {src} -> {dst} should not exist when "
+                    "view targets are pipeline-scoped"
+                )
 
 
 class TestCycleDetection:
