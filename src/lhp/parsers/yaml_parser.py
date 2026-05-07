@@ -77,8 +77,8 @@ class YAMLParser:
             ValueError: For duplicate flowgroup names, mixed syntax, or parsing errors
         """
         from ..utils.yaml_loader import load_yaml_documents_all
+        from .blueprint_parser import BlueprintParser
 
-        # Load all documents from file
         try:
             documents = load_yaml_documents_all(
                 file_path, error_context=f"flowgroup file {file_path}"
@@ -114,6 +114,30 @@ class YAMLParser:
 
         # Process each document
         for doc_index, doc in enumerate(documents, start=1):
+            # Defensive guard: catch a blueprint that was accidentally
+            # placed under `include:` (pipelines/) instead of `blueprint_include:`.
+            # Without this, the array-syntax path below would attempt to
+            # construct a FlowGroup from a BlueprintFlowgroupSpec and crash with
+            # an opaque error about missing `actions:` and unresolved %{var}.
+            if BlueprintParser.looks_like_blueprint(doc):
+                raise LHPConfigError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="040",
+                    title="Blueprint file in flowgroup directory",
+                    details=(
+                        f"{file_path} appears to be a blueprint (has 'parameters' "
+                        "and 'flowgroups' but no 'actions'). Blueprint files must "
+                        "live under blueprints/ (or your configured "
+                        "blueprint_include patterns), not in pipelines/."
+                    ),
+                    suggestions=[
+                        f"Move {file_path} to blueprints/",
+                        "Or adjust 'include:' / 'blueprint_include:' patterns "
+                        "in lhp.yaml",
+                    ],
+                    context={"file": str(file_path)},
+                )
+
             # Check if this document uses array syntax
             if "flowgroups" in doc:
                 uses_array_syntax = True

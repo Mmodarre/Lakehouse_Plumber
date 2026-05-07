@@ -1,0 +1,14 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LakehousePlumber Blueprint Instance",
+    "description": "Schema for an instance file. References a blueprint by name and supplies parameter values. Parameter names are dynamic (declared per-blueprint), so the keyset cannot be enumerated here — the validator cross-checks keys against the referenced blueprint's parameter list.",
+    "type": "object",
+    "required": ["blueprint"],
+    "properties": {
+        "blueprint": {
+            "type": "string",
+            "description": "Name of the blueprint this instance refers to (must match a Blueprint.name)"
+        }
+    },
+    "additionalProperties": true
+}

@@ -154,7 +154,9 @@ class MonitoringConfig(BaseModel):
     schema_: Optional[str] = Field(None, alias="schema")  # default: event_log.schema
     streaming_table: str = "all_pipelines_event_log"  # user-created Delta table
     checkpoint_path: str = ""  # streaming checkpoint base path (required when enabled)
-    job_config_path: Optional[str] = None  # relative path to monitoring job config YAML (required when enabled)
+    job_config_path: Optional[str] = (
+        None  # relative path to monitoring job config YAML (required when enabled)
+    )
     max_concurrent_streams: int = 10  # ThreadPoolExecutor max_workers
     materialized_views: Optional[List[MonitoringMaterializedViewConfig]] = None
     enable_job_monitoring: bool = False
@@ -179,6 +181,8 @@ class ProjectConfig(BaseModel):
     author: Optional[str] = None
     created_date: Optional[str] = None
     include: Optional[List[str]] = None
+    blueprint_include: Optional[List[str]] = None
+    instance_include: Optional[List[str]] = None
     operational_metadata: Optional[ProjectOperationalMetadataConfig] = None
     event_log: Optional[EventLogConfig] = None
     monitoring: Optional[MonitoringConfig] = None
@@ -396,3 +400,67 @@ class Preset(BaseModel):
     extends: Optional[str] = None
     description: Optional[str] = None
     defaults: Optional[Dict[str, Any]] = None
+
+
+class BlueprintParameter(BaseModel):
+    """A declared parameter on a blueprint, with optional default and required flag."""
+
+    name: str
+    required: bool = False
+    default: Optional[Any] = None
+    description: Optional[str] = None
+
+
+class BlueprintFlowgroupSpec(BaseModel):
+    """A flowgroup template inside a blueprint.
+
+    Same shape as FlowGroup, but `pipeline` and `flowgroup` are templates that
+    contain `%{var}` placeholders resolved at expansion time against instance
+    parameter values.
+    """
+
+    pipeline: str
+    flowgroup: str
+    job_name: Optional[str] = None
+    variables: Optional[Dict[str, str]] = None
+    presets: List[str] = []
+    use_template: Optional[str] = None
+    template_parameters: Optional[Dict[str, Any]] = None
+    actions: List[Action] = []
+    operational_metadata: Optional[Union[bool, List[str]]] = None
+
+
+class Blueprint(BaseModel):
+    """A reusable collection of flowgroups instantiated once per BlueprintInstance.
+
+    Distinguishing fields from a regular flowgroup file are `parameters` and
+    `flowgroups` (the array of BlueprintFlowgroupSpec). `looks_like_blueprint()`
+    keys on the presence of both fields together with the absence of `actions`.
+    """
+
+    name: str
+    version: str = "1.0"
+    description: Optional[str] = None
+    parameters: List[BlueprintParameter] = []
+    flowgroups: List[BlueprintFlowgroupSpec]
+
+
+class BlueprintInstance(BaseModel):
+    """An instance of a blueprint with concrete parameter values.
+
+    Strict-mode handling: parameter names are dynamic (declared per blueprint),
+    so we cannot use Pydantic's `extra="forbid"` directly to reject unknown keys.
+    Instead, we accept extra fields here and the BlueprintExpander/parser
+    cross-validates the keys against the referenced blueprint's parameter list,
+    surfacing near-miss suggestions via difflib for typos like
+    `partion_key` -> "did you mean `partition_key`?".
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    blueprint: str
+
+    def parameter_values(self) -> Dict[str, Any]:
+        """Return the parameter values supplied in this instance file (excluding `blueprint`)."""
+        extras = self.__pydantic_extra__ or {}
+        return dict(extras)

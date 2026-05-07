@@ -311,3 +311,38 @@ class FlowgroupDiscoverer:
         return self._source_path_index.get(
             (flowgroup.pipeline, flowgroup.flowgroup)
         )
+
+    def register_synthetic_sources(
+        self, synthetic_sources: Dict[Tuple[str, str], Path]
+    ) -> None:
+        """Add synthetic-flowgroup -> blueprint-path entries to the source index.
+
+        Called by the orchestrator after blueprint expansion. The index is built
+        lazily on first use, so this method initializes it if necessary, then
+        merges in the synthetic entries. The (pipeline, flowgroup) keys are
+        guaranteed unique post-expansion (the expander raises on duplicates).
+
+        Args:
+            synthetic_sources: Map of resolved (pipeline, flowgroup) tuple to
+                the path of the originating blueprint file.
+        """
+        if not synthetic_sources:
+            return
+        with self._index_lock:
+            if self._source_path_index is None:
+                # Trigger eager build via the standard discovery path so the
+                # index reflects on-disk flowgroups too.
+                pairs = self.discover_all_flowgroups_with_paths()
+                self._source_path_index = (
+                    self._build_source_path_index_from_pairs(pairs)
+                )
+            for key, blueprint_path in synthetic_sources.items():
+                # Synthetic entries always win — they are the only authoritative
+                # source for blueprint-expanded flowgroups, and disk-sourced
+                # entries with the same (pipeline, flowgroup) are caught earlier
+                # by the duplicate-flowgroup validator in the orchestrator.
+                self._source_path_index[key] = blueprint_path
+            self.logger.debug(
+                f"Registered {len(synthetic_sources)} synthetic source(s); "
+                f"source path index now has {len(self._source_path_index)} entries"
+            )

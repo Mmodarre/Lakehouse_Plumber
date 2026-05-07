@@ -23,6 +23,7 @@ from .state_models import DependencyInfo, FileState, GlobalDependencies, Project
 
 if TYPE_CHECKING:
     from ..parsers.yaml_parser import YAMLParser
+    from .services.blueprint_expander import BlueprintProvenance
 
 
 class StateManager:
@@ -53,7 +54,7 @@ class StateManager:
         self.project_root = project_root
         self.state_file = project_root / state_file_name
         self.logger = logging.getLogger(__name__)
-        self.discoverer = discoverer  # From Phase 2 circular import fix
+        self.discoverer = discoverer
 
         # Initialize services with service composition
         self.persistence = StatePersistence(project_root, state_file_name)
@@ -86,6 +87,16 @@ class StateManager:
         self.analyzer.set_checksum_cache(cache)
         # Distribute to top-level tracker
         self.tracker.set_checksum_cache(cache)
+
+    def set_blueprint_provenance(
+        self, provenance: Optional[Dict[Tuple[str, str], "BlueprintProvenance"]]
+    ) -> None:
+        """Distribute the blueprint provenance map to sub-services.
+
+        Empty/None is safe and idempotent.
+        """
+        self.analyzer.set_blueprint_provenance(provenance)
+        self.tracker.set_blueprint_provenance(provenance)
 
     def set_staleness_cache(self, cache) -> None:
         """Inject a shared StalenessCache so save() can invalidate it.

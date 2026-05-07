@@ -324,7 +324,8 @@ class TestCommandRouting:
                         cli, ["deps", "--format", "json", "--pipeline", "p1"]
                     )
                     mock_exec.assert_called_once_with(
-                        "json", None, "p1", None, None, False, False
+                        "json", None, "p1", None, None, False, False,
+                        expand_blueprints=False, blueprint_filter=None,
                     )
                     assert result.exit_code == 0
 
@@ -361,6 +362,8 @@ class TestCommandRouting:
                         "cfg.yaml",
                         True,
                         True,
+                        expand_blueprints=False,
+                        blueprint_filter=None,
                     )
                     assert result.exit_code == 0
 

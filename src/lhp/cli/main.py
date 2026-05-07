@@ -369,13 +369,66 @@ def list_templates():
 
 
 @cli.command()
-@click.argument("flowgroup")
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Show each instance and the resolved pipelines it produces",
+)
+@cli_error_boundary("List blueprints")
+def list_blueprints(verbose):
+    """List available blueprints with parameter and instance counts."""
+    from .commands.list_commands import ListCommand
+
+    ListCommand().list_blueprints(verbose=verbose)
+
+
+@cli.command()
+@click.argument("flowgroup", required=False)
 @click.option("--env", "-e", default="dev", help="Environment")
+@click.option(
+    "--instance",
+    "instance_path",
+    default=None,
+    help=(
+        "Path to a blueprint instance file; expands only that instance and "
+        "displays the resolved flowgroups (M4)."
+    ),
+)
 @cli_error_boundary("Show flowgroup")
-def show(flowgroup, env):
-    """Show resolved configuration for a flowgroup in table format"""
+def show(flowgroup, env, instance_path):
+    """Show resolved configuration for a flowgroup or blueprint instance."""
+    from ..utils.error_formatter import ErrorCategory, LHPError
     from .commands.show_command import ShowCommand
 
+    if instance_path:
+        if flowgroup:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="057",
+                title="Cannot pass both flowgroup and --instance",
+                details=(
+                    "Use either FLOWGROUP positional argument OR --instance "
+                    "<path>, not both."
+                ),
+                suggestions=[
+                    "Drop the FLOWGROUP positional argument when using --instance",
+                ],
+            )
+        ShowCommand().show_instance(instance_path, env)
+        return
+
+    if not flowgroup:
+        raise LHPError(
+            category=ErrorCategory.CONFIG,
+            code_number="058",
+            title="Missing flowgroup argument",
+            details="Provide a flowgroup name OR --instance <path>.",
+            suggestions=[
+                "Run `lhp show <flowgroup>` to inspect a flowgroup",
+                "Run `lhp show --instance <path>` to inspect a blueprint instance",
+            ],
+        )
     ShowCommand().show_flowgroup(flowgroup, env)
 
 
@@ -429,14 +482,50 @@ def info():
     is_flag=True,
     help="Save job file to resources/ directory for Databricks bundle integration",
 )
+@click.option(
+    "--expand-blueprints",
+    is_flag=True,
+    default=False,
+    help=(
+        "Emit one flowgroup per (blueprint x instance x spec) instead of "
+        "deduping. Default behavior collapses synthetic flowgroups by "
+        "(blueprint_name, spec_index) to keep the graph readable at scale."
+    ),
+)
+@click.option(
+    "--blueprint",
+    "blueprint_name",
+    help=(
+        "Restrict the dependency graph to flowgroups expanded from the named "
+        "blueprint. Combine with --expand-blueprints to see per-instance edges."
+    ),
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @cli_error_boundary("Dependency analysis")
-def deps(format, output, pipeline, job_name, job_config, bundle_output, verbose):
+def deps(
+    format,
+    output,
+    pipeline,
+    job_name,
+    job_config,
+    bundle_output,
+    expand_blueprints,
+    blueprint_name,
+    verbose,
+):
     """Analyze and visualize pipeline dependencies for orchestration planning."""
     from .commands.dependencies_command import DependenciesCommand
 
     DependenciesCommand().execute(
-        format, output, pipeline, job_name, job_config, bundle_output, verbose
+        format,
+        output,
+        pipeline,
+        job_name,
+        job_config,
+        bundle_output,
+        verbose,
+        expand_blueprints=expand_blueprints,
+        blueprint_filter=blueprint_name,
     )
 
 

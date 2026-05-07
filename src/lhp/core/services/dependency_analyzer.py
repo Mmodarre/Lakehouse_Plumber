@@ -49,11 +49,13 @@ class DependencyAnalyzer:
         self.logger = logging.getLogger(__name__)
 
         # Initialize components for template expansion
+        from ...parsers.blueprint_parser import BlueprintParser
         from ...presets.preset_manager import PresetManager
-        from ...utils.substitution import EnhancedSubstitutionManager
         from ..secret_validator import SecretValidator
         from ..template_engine import TemplateEngine
         from ..validator import ConfigValidator
+        from .blueprint_discoverer import BlueprintDiscoverer
+        from .blueprint_expander import BlueprintExpander
         from .flowgroup_processor import FlowgroupProcessor
 
         self.template_engine = TemplateEngine(project_root / "templates")
@@ -70,9 +72,27 @@ class DependencyAnalyzer:
             self.secret_validator,
         )
 
-        # Cache for discovered flowgroups and their file paths
+        # The analyzer mirrors the orchestrator's view of synthetic flowgroups
+        # so `lhp deps` sees them.
+        self.blueprint_parser = BlueprintParser()
+        self.blueprint_discoverer = BlueprintDiscoverer(
+            project_root,
+            project_config=project_config,
+            blueprint_parser=self.blueprint_parser,
+        )
+        self.blueprint_expander = BlueprintExpander()
+
+        # View-mode controls: set via `set_blueprint_view_mode` and consumed
+        # in get_flowgroups. Defaults to dedupe ON (one representative per
+        # spec + count annotation) to keep 32k-flowgroup output usable.
+        self._expand_blueprints_view: bool = False
+        self._blueprint_filter: Optional[str] = None
+
         self._flowgroups: Optional[List[FlowGroup]] = None
         self._flowgroup_file_paths: Dict[str, Path] = {}
+        from .blueprint_expander import BlueprintProvenance
+
+        self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
 
     def get_project_name(self) -> str:
         """
@@ -553,48 +573,130 @@ class DependencyAnalyzer:
     # Private helper methods
 
     def get_flowgroups(self, pipeline_filter: Optional[str] = None) -> List[FlowGroup]:
-        """Get flowgroups, optionally filtered by pipeline."""
+        """Get flowgroups, optionally filtered by pipeline.
+
+        Includes synthetic flowgroups expanded from blueprints, deduplicated
+        by `(blueprint_name, spec_index)` unless `set_blueprint_view_mode(
+        expand=True)` was called. With a blueprint filter, only synthetics
+        from that blueprint are emitted (and on-disk flowgroups are excluded).
+        """
         if self._flowgroups is None:
-            # Discover raw flowgroups with their file paths
-            raw_flowgroups_with_paths = (
-                self.flowgroup_discoverer.discover_all_flowgroups_with_paths()
-            )
+            self._flowgroups = self._discover_and_process_all_flowgroups()
 
-            # Process flowgroups (expand templates, apply presets) and build file path mapping
-            processed_flowgroups = []
-            for fg, yaml_file_path in raw_flowgroups_with_paths:
-                try:
-                    # Create a basic substitution manager (without env-specific values)
-                    from ...utils.substitution import EnhancedSubstitutionManager
+        flowgroups = self._flowgroups
 
-                    substitution_mgr = EnhancedSubstitutionManager(
-                        substitution_file=None,  # No substitution file needed for dependency analysis
-                        env="dev",  # Use a default env
-                        skip_validation=True,  # Skip unresolved token validation for dependency analysis
-                    )
-
-                    # Process the flowgroup (expand templates, apply presets)
-                    processed_fg = self.flowgroup_processor.process_flowgroup(
-                        fg, substitution_mgr
-                    )
-                    processed_flowgroups.append(processed_fg)
-
-                    # Store the file path mapping for this flowgroup
-                    self._flowgroup_file_paths[processed_fg.flowgroup] = yaml_file_path
-                except Exception as e:
-                    # If processing fails (e.g., template/preset errors), use raw flowgroup
-                    self.logger.warning(
-                        f"Could not process flowgroup {fg.flowgroup}: {e}"
-                    )
-                    processed_flowgroups.append(fg)
-                    # Store the file path mapping for the raw flowgroup
-                    self._flowgroup_file_paths[fg.flowgroup] = yaml_file_path
-
-            self._flowgroups = processed_flowgroups
+        if self._blueprint_filter is not None:
+            allowed_keys = {
+                key
+                for key, prov in self._blueprint_provenance.items()
+                if prov.blueprint_name == self._blueprint_filter
+            }
+            flowgroups = [
+                fg for fg in flowgroups if (fg.pipeline, fg.flowgroup) in allowed_keys
+            ]
+        elif not self._expand_blueprints_view and self._blueprint_provenance:
+            # Dedupe synthetics by (blueprint_name, spec_index); first wins.
+            # Non-synthetic flowgroups pass through.
+            seen_specs: Set[Tuple[str, int]] = set()
+            deduped: List[FlowGroup] = []
+            for fg in flowgroups:
+                prov = self._blueprint_provenance.get((fg.pipeline, fg.flowgroup))
+                if prov is None:
+                    deduped.append(fg)
+                    continue
+                spec_key = (prov.blueprint_name, prov.spec_index)
+                if spec_key in seen_specs:
+                    continue
+                seen_specs.add(spec_key)
+                deduped.append(fg)
+            flowgroups = deduped
 
         if pipeline_filter:
-            return [fg for fg in self._flowgroups if fg.pipeline == pipeline_filter]
-        return self._flowgroups
+            return [fg for fg in flowgroups if fg.pipeline == pipeline_filter]
+        return flowgroups
+
+    def _discover_and_process_all_flowgroups(self) -> List[FlowGroup]:
+        """Discover flowgroups (on-disk + synthetic) and process them once.
+
+        The substitution manager is constructed once and reused for every
+        flowgroup; per-flowgroup processing errors fall back to the raw
+        flowgroup so the dependency graph never crashes on a single bad file.
+        """
+        from ...utils.substitution import EnhancedSubstitutionManager
+
+        substitution_mgr = EnhancedSubstitutionManager(
+            substitution_file=None,
+            env="dev",
+            skip_validation=True,
+        )
+
+        processed: List[FlowGroup] = []
+        for fg, yaml_file_path in (
+            self.flowgroup_discoverer.discover_all_flowgroups_with_paths()
+        ):
+            processed.append(self._process_one(fg, yaml_file_path, substitution_mgr))
+
+        try:
+            blueprints = self.blueprint_discoverer.discover_blueprints()
+            if not blueprints:
+                return processed
+            instances = self.blueprint_discoverer.discover_instances(blueprints)
+            if not instances:
+                return processed
+            synthetic_fgs, provenance = self.blueprint_expander.expand(
+                blueprints, instances
+            )
+            self._blueprint_provenance = provenance
+            for fg in synthetic_fgs:
+                bp_path = provenance[(fg.pipeline, fg.flowgroup)].blueprint_path
+                processed.append(self._process_one(fg, bp_path, substitution_mgr))
+        except Exception as e:
+            # Blueprint expansion errors surface via `lhp validate` / `generate`;
+            # `deps` is read-only and degrades gracefully rather than blocking.
+            self.logger.warning(
+                f"Blueprint expansion skipped during dependency analysis: {e}"
+            )
+
+        return processed
+
+    def _process_one(
+        self, fg: FlowGroup, file_path: Path, substitution_mgr
+    ) -> FlowGroup:
+        """Process one flowgroup; fall back to raw fg on template/preset error."""
+        try:
+            processed_fg = self.flowgroup_processor.process_flowgroup(
+                fg, substitution_mgr
+            )
+            self._flowgroup_file_paths[processed_fg.flowgroup] = file_path
+            return processed_fg
+        except Exception as e:
+            self.logger.warning(f"Could not process flowgroup {fg.flowgroup}: {e}")
+            self._flowgroup_file_paths[fg.flowgroup] = file_path
+            return fg
+
+    def set_blueprint_view_mode(
+        self,
+        expand_blueprints: bool = False,
+        blueprint: Optional[str] = None,
+    ) -> None:
+        """Configure how synthetic flowgroups are surfaced in the deps graph.
+
+        Args:
+            expand_blueprints: When True, emit one flowgroup per (blueprint x
+                instance x spec) — the literal expansion. Default False
+                dedupes by (blueprint_name, spec_index) for readable graphs at
+                32k-flowgroup scale.
+            blueprint: When set, restrict the graph to the named blueprint's
+                flowgroups (still deduped unless expand_blueprints=True).
+        """
+        self._expand_blueprints_view = expand_blueprints
+        self._blueprint_filter = blueprint
+        # Invalidate cached flowgroup list so the new view is rebuilt next call
+        # (cheap because the underlying discovery/expansion is also cached on
+        # the discoverer's side — the cache invalidation here only affects the
+        # processed/filtered list assembled in get_flowgroups).
+        self._flowgroups = None
+        self._flowgroup_file_paths = {}
 
     def _create_empty_graphs(self) -> DependencyGraphs:
         """Create empty dependency graphs."""

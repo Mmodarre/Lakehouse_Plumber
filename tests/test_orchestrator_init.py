@@ -647,6 +647,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
             spec=FlowGroup, pipeline=pipeline_field, flowgroup="test_flowgroup"
         )
         mock_flowgroup.actions = []  # Strategy code expects actions attribute
+        mock_flowgroup._synthetic = False
         orchestrator_basic.mock_discoverer.discover_all_flowgroups.return_value = [
             mock_flowgroup
         ]

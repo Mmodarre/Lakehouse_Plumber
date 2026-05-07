@@ -1,0 +1,112 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LakehousePlumber Blueprint",
+    "description": "Schema for LakehousePlumber blueprint files. A blueprint defines a reusable collection of flowgroups instantiated once per BlueprintInstance entry.",
+    "type": "object",
+    "required": ["name", "flowgroups"],
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Unique name of the blueprint, referenced by `blueprint:` in instance files"
+        },
+        "version": {
+            "type": "string",
+            "default": "1.0",
+            "description": "Version of the blueprint"
+        },
+        "description": {
+            "type": "string",
+            "description": "Free-form description of the blueprint"
+        },
+        "parameters": {
+            "type": "array",
+            "description": "Declared parameters that instance files supply via `%{var}` substitution at expansion time",
+            "items": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Parameter name (referenced as `%{name}` inside flowgroup specs)"
+                    },
+                    "required": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Whether this parameter must be present in every instance file"
+                    },
+                    "default": {
+                        "description": "Default value used when an instance does not supply this parameter (only valid when required is false)"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Free-form description of the parameter"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "default": []
+        },
+        "flowgroups": {
+            "type": "array",
+            "description": "Flowgroup specs to expand once per instance. `pipeline` and `flowgroup` are templates with %{var} placeholders.",
+            "items": {
+                "type": "object",
+                "required": ["pipeline", "flowgroup"],
+                "properties": {
+                    "pipeline": {
+                        "type": "string",
+                        "description": "Pipeline name template (resolved eagerly at expansion time; %{var} only — ${env_token} forbidden here)"
+                    },
+                    "flowgroup": {
+                        "type": "string",
+                        "description": "Flowgroup name template (resolved eagerly at expansion time; %{var} only — ${env_token} forbidden here)"
+                    },
+                    "job_name": {
+                        "type": "string"
+                    },
+                    "variables": {
+                        "type": "object",
+                        "description": "Per-spec local variables. Wins over instance parameter values on key conflict (blueprint-author-defined derived state).",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "presets": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "use_template": {
+                        "type": "string"
+                    },
+                    "template_parameters": {
+                        "type": "object",
+                        "additionalProperties": true
+                    },
+                    "actions": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "operational_metadata": {
+                        "oneOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        ]
+                    }
+                }
+            },
+            "minItems": 1
+        }
+    }
+}
