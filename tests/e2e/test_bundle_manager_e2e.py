@@ -788,17 +788,17 @@ resources:
                 exit_code == 0
             ), f"Generation after flowgroup deletion should succeed: {output}"
 
-            # Verify corresponding generated files are cleaned up
-            # Look for files that should be related to customer_bronze
-            remaining_customer_bronze_files = list(
-                dev_generated_dir.rglob("*customer_bronze*")
-            )
-
-            # Also check in acmi_edw_bronze directory specifically
+            # Verify corresponding generated files are cleaned up.
+            # Scope the search to acmi_edw_bronze; a global rglob picks up
+            # unrelated pipelines that legitimately reference "customer_bronze"
+            # in their own filenames (e.g. blueprint-derived flowgroups under
+            # acme_edw_bp_bronze).
             bronze_dir = dev_generated_dir / "acmi_edw_bronze"
-            if bronze_dir.exists():
-                remaining_in_bronze = [f for f in bronze_dir.rglob("*customer_bronze*")]
-                remaining_customer_bronze_files.extend(remaining_in_bronze)
+            remaining_customer_bronze_files = (
+                list(bronze_dir.rglob("*customer_bronze*"))
+                if bronze_dir.exists()
+                else []
+            )
 
             assert (
                 len(remaining_customer_bronze_files) == 0
@@ -984,7 +984,13 @@ resources:
         return file_sizes
 
     def _enable_include_filtering(self, lhp_config_file: Path) -> str:
-        """Enable include filtering in lhp.yaml and return original content."""
+        """Enable include filtering in lhp.yaml and return original content.
+
+        Also constrains blueprint instance discovery to the same path: the
+        `include:` directive only filters hand-written flowgroups, so without
+        a parallel `instance_include:` blueprint instances would still be
+        discovered from the default `pipelines/**/*.yaml` glob.
+        """
         original_content = lhp_config_file.read_text()
 
         # Uncomment lines 9-10 to enable include filtering
@@ -999,6 +1005,10 @@ resources:
                 modified_lines.append('  - "01_raw_ingestion/**"')
             else:
                 modified_lines.append(line)
+
+        # Append a matching instance_include so blueprints are filtered too.
+        modified_lines.append('instance_include:')
+        modified_lines.append('  - "01_raw_ingestion/**"')
 
         modified_content = "\n".join(modified_lines)
         lhp_config_file.write_text(modified_content)
@@ -1181,19 +1191,25 @@ resources:
 
         print(" Phase 3: Regeneration completed")
 
-        # Phase 4: Validate selective regeneration occurred
+        # Phase 4: Validate selective regeneration occurred.
+        # partsupp_snapshot_func.py is also reused by the medallion_demo
+        # blueprint's silver layer (snapshot_cdc source_function), so two
+        # additional synthetic flowgroups (one per blueprint instance) are
+        # legitimate dependents.
         expected_dependent_files = [
-            "acmi_edw_silver/partsupp_silver_dim.py"  # Only this file should be regenerated
+            "acmi_edw_silver/partsupp_silver_dim.py",
+            "acme_edw_bp_silver/site_alpha_customer_silver.py",
+            "acme_edw_bp_silver/site_beta_customer_silver.py",
         ]
 
         regenerated_count = self._validate_python_dependency_regeneration(
             baseline_state, updated_state, py_function_path, expected_dependent_files
         )
 
-        # Validate exactly 1 file was regenerated (embedded pattern) - STRICT ASSERTION
+        # Validate exactly 3 files were regenerated (embedded pattern) - STRICT ASSERTION
         assert (
-            regenerated_count == 1
-        ), f"Expected exactly 1 file regenerated for embedded pattern, got {regenerated_count}"
+            regenerated_count == 3
+        ), f"Expected exactly 3 files regenerated for embedded pattern, got {regenerated_count}"
 
         print(" ✅ BM-8a: Embedded Python function regeneration working correctly")
 

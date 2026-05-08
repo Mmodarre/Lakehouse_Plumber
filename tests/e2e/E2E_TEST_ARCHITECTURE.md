@@ -39,6 +39,7 @@ The E2E tests validate the complete LHP workflow end-to-end: from reading YAML p
 | `test_pipeline_config_e2e.py` | Pipeline config with clusters, notifications, tags |
 | `test_local_variables_e2e.py` | `%{local_var}` resolution in flowgroups |
 | `test_multi_job_generation_e2e.py` | Multi-job CLI integration |
+| `test_blueprint_e2e.py` | Blueprint expansion (BP-1/3/4/6/8/9/10) |
 
 ---
 
