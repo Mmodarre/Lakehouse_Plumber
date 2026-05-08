@@ -88,9 +88,6 @@ web_app/*.sw?
 .claude/commands/drawio-databricks.md
 .claude/skills/databricks-unity-catalog/5-system-tables.md
 .claude/skills/databricks-unity-catalog/SKILL.md
-.claude/skills/lhp/drawio-databricks/references/databricks-icon-catalog.txt
-.claude/skills/lhp/drawio-databricks/references/layout-patterns.md
-.claude/skills/lhp/drawio-databricks/references/REFERENCE.md
 .claude/settings.json
 Example_Projects/Bupa/
 Example_Projects/performance_testing/.lhp/
@@ -102,5 +99,9 @@ Example_Projects/performance_testing/resources
 Example_Projects/performance_testing/
 
 Example_Projects/performance_testing/monitoring/
-.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/lhp/
+!.claude/skills/lhp/**
 HOW_TO_CREATE_BLUEPRINTS.md

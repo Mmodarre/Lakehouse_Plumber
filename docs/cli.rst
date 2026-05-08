@@ -134,11 +134,62 @@ Use this when you've modified your pipeline configuration and need to update the
    lhp generate -e dev -f -pc config/my_pipeline_config.yaml
 
 .. note::
-   LHP-generated files are overwritten directly without backup when using ``--force`` with ``-pc``. 
+   LHP-generated files are overwritten directly without backup when using ``--force`` with ``-pc``.
    This is safe because LHP can always regenerate them. User-created files are backed up for safety.
 
-Test Generation Workflow
-========================
+Skill Management
+================
+
+LHP ships a Claude Code skill (``SKILL.md`` + reference markdown) that teaches Claude
+how to author LHP YAML configurations. The ``lhp skill`` command group installs and
+maintains this skill in your project (or your user-global Claude Code directory).
+
+Subcommands
+-----------
+
+.. code-block:: bash
+
+   # Install the skill into <cwd>/.claude/skills/lhp/
+   lhp skill install
+
+   # Install for the current user (~/.claude/skills/lhp/)
+   lhp skill install --user
+
+   # Overwrite an existing install
+   lhp skill install --force
+
+   # Update an existing install to the current LHP version
+   lhp skill update
+
+   # Show installed version, current LHP version, and any drift
+   lhp skill status
+
+   # Remove the install (prompts for confirmation)
+   lhp skill uninstall
+
+   # Remove without prompting
+   lhp skill uninstall --force
+
+Behavior
+--------
+
+- ``install`` errors if a skill is already present unless ``--force`` is given.
+- ``update`` errors if no install is found (use ``install`` instead). The skill is
+  always overwritten — local modifications under ``.claude/skills/lhp/`` will be
+  replaced.
+- ``status`` reports one of: not installed, up-to-date, update available,
+  installed-newer-than-CLI (suggests ``pip install -U lakehouse-plumber``), or
+  foreign-install (no marker file — suggests ``install --force``).
+- An ``.lhp_skill_version`` marker file inside the install directory tracks which
+  LHP version produced the content; this file is the source of truth for
+  ``status`` and ``update``.
+
+When to use ``--user``
+----------------------
+
+Use ``--user`` when you want the skill available across every project on your
+machine. The default project-scoped install is best when each project might be
+pinned to a different LHP version.
 
 By default, Lakehouse Plumber skips test actions during code generation for faster builds and cleaner production pipelines. Use the ``--include-tests`` flag to include data quality tests when needed.
 

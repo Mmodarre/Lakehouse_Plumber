@@ -81,6 +81,8 @@ where = ["src"]
 "lhp.templates.write.sinks" = ["*.j2"]
 "lhp.templates.test_reporting" = ["*.j2"]
 "lhp.templates.monitoring" = ["*.py", "*.j2"]
+"lhp.resources.skills.lhp" = ["*.md"]
+"lhp.resources.skills.lhp.references" = ["*.md"]
 
 
 

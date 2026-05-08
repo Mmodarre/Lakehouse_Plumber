@@ -243,6 +243,82 @@ def init(project_name, no_bundle):
     InitCommand().execute(project_name, bundle=not no_bundle)
 
 
+@cli.group("skill")
+def skill() -> None:
+    """Manage the LHP Claude Code skill installation."""
+
+
+@skill.command("install")
+@click.option(
+    "--user",
+    is_flag=True,
+    help="Install to ~/.claude/skills/lhp/ instead of <cwd>/.claude/skills/lhp/",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite an existing install without prompting",
+)
+@cli_error_boundary("Skill management")
+def skill_install(user: bool, force: bool) -> None:
+    """Install the LHP Claude Code skill."""
+    from .commands.skill_command import SkillCommand
+
+    SkillCommand().install(user=user, force=force)
+
+
+@skill.command("update")
+@click.option(
+    "--user",
+    is_flag=True,
+    help="Update the install at ~/.claude/skills/lhp/",
+)
+@click.option(
+    "--yes",
+    is_flag=True,
+    help="Skip confirmation when installed version is newer than the CLI",
+)
+@cli_error_boundary("Skill management")
+def skill_update(user: bool, yes: bool) -> None:
+    """Update the installed LHP skill to the current LHP version."""
+    from .commands.skill_command import SkillCommand
+
+    SkillCommand().update(user=user, yes=yes)
+
+
+@skill.command("status")
+@click.option(
+    "--user",
+    is_flag=True,
+    help="Check the install at ~/.claude/skills/lhp/",
+)
+@cli_error_boundary("Skill management")
+def skill_status(user: bool) -> None:
+    """Show installed skill version and drift state."""
+    from .commands.skill_command import SkillCommand
+
+    SkillCommand().status(user=user)
+
+
+@skill.command("uninstall")
+@click.option(
+    "--user",
+    is_flag=True,
+    help="Remove the install at ~/.claude/skills/lhp/",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Skip the confirmation prompt",
+)
+@cli_error_boundary("Skill management")
+def skill_uninstall(user: bool, force: bool) -> None:
+    """Remove the LHP Claude Code skill installation."""
+    from .commands.skill_command import SkillCommand
+
+    SkillCommand().uninstall(user=user, force=force)
+
+
 @cli.command()
 @click.option("--env", "-e", required=True, help="Environment")
 @click.option("--pipeline", "-p", help="Specific pipeline to generate")
