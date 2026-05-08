@@ -9,15 +9,7 @@ from ...utils.error_formatter import (
     ErrorFormatter,
     LHPValidationError,
 )
-
-# PythonFunctionConflictError is re-exported here for backwards-compatible
-# test imports (``from lhp.generators.transform.python import …``).
-from ..python_file_copier import (  # noqa: F401,E501
-    PythonFunctionConflictError as PythonFunctionConflictError,
-)
-from ..python_file_copier import (
-    copy_user_module_for_pipeline,
-)
+from ..python_file_copier import copy_user_module_for_pipeline
 
 logger = logging.getLogger(__name__)
 

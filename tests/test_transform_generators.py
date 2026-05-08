@@ -13,7 +13,7 @@ from lhp.generators.transform import (
     SQLTransformGenerator,
     TempTableTransformGenerator,
 )
-from lhp.generators.transform.python import PythonFunctionConflictError
+from lhp.generators.python_file_copier import PythonFunctionConflictError
 from lhp.models.config import (
     Action,
     ActionType,

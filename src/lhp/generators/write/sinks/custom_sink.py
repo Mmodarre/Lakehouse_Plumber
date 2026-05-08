@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from ....models.config import Action
 from ....utils.error_formatter import ErrorFormatter
+from ....utils.external_file_loader import load_external_file_text
 from ...python_file_copier import copy_user_module_for_pipeline
 from .base_sink import BaseSinkWriteGenerator
 
@@ -123,27 +124,19 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
         api_key: "your-api-key" """,
             )
 
-        # Resolve the source file relative to the project root for the
-        # substitution pre-pass below; copy + flowgroup validation happen
-        # later via copy_user_module_for_pipeline.
+        # Read the user's sink module via the shared external-file loader so
+        # that missing-file / permission / encoding errors match every other
+        # generator. The copy itself happens later via
+        # ``copy_user_module_for_pipeline``.
         project_root = context.get("spec_dir") or Path.cwd()
-        sink_path = project_root / module_path
+        raw_sink_code = load_external_file_text(
+            module_path, project_root, file_type="custom sink file"
+        )
 
-        if not sink_path.exists():
-            raise ErrorFormatter.file_not_found(
-                file_path=str(sink_path),
-                search_locations=[
-                    f"Relative to project root: {project_root / module_path}",
-                ],
-                file_type="custom sink file",
-            )
-
-        raw_sink_code = sink_path.read_text()
-
-        # Apply substitution to the source so format extraction sees resolved
-        # tokens (e.g. ``${sink_format}`` in the user's ``name()`` return value).
-        # ``copy_user_module`` re-applies substitution when copying — idempotent
-        # for resolved tokens.
+        # Substitute so format-name extraction sees resolved tokens (e.g.
+        # ``${sink_format}`` in the user's ``name()`` return value).
+        # ``copy_user_module`` re-substitutes when copying — idempotent for
+        # resolved tokens.
         if "substitution_manager" in context:
             raw_sink_code = context["substitution_manager"]._process_string(
                 raw_sink_code

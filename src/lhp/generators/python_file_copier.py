@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from ..utils.error_formatter import ErrorCategory, LHPValidationError
+from ..utils.external_file_loader import resolve_external_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -237,17 +238,16 @@ def copy_user_module_for_pipeline(
     generators so that all four emit identical error messages and follow the
     same flat ``custom_python_functions/<leaf>.py`` layout.
 
-    Resolves ``module_path`` relative to ``context["spec_dir"]`` (or CWD),
-    validates that the source file exists and that flowgroup context is
+    Resolves ``module_path`` relative to ``context["spec_dir"]`` (or CWD) via
+    :func:`resolve_external_file_path`, validates that flowgroup context is
     present, then delegates to :meth:`PythonFileCopier.copy_user_module`. In
     dry-run (``context["output_dir"] is None``) the copy is skipped and the
     leaf module name is returned anyway so import lines can still be rendered.
 
     Synthetic flowgroups (e.g. the monitoring pipeline) may pre-populate
-    ``context["auxiliary_module_sources"]``: a ``{module_path: source_str}``
-    mapping. When ``module_path`` is found there, the on-disk lookup is
-    skipped and the source content is copied directly into
-    ``custom_python_functions/<leaf>.py``.
+    ``flowgroup._auxiliary_files``: a ``{module_path: source_str}`` mapping.
+    When ``module_path`` is found there, the on-disk lookup is skipped and the
+    source content is copied directly into ``custom_python_functions/<leaf>.py``.
 
     Args:
         module_path: User-facing path to the module file (e.g.
@@ -255,8 +255,8 @@ def copy_user_module_for_pipeline(
             responsible for that check; here we treat it as an opaque path
             and use ``Path(module_path).stem`` as the import-time module name.
         context: Generation context. Reads ``spec_dir``, ``flowgroup``,
-            ``output_dir``, ``python_file_copier``, ``auxiliary_module_sources``,
-            plus the keys :meth:`PythonFileCopier.copy_user_module` consumes.
+            ``output_dir``, ``python_file_copier``, plus the keys
+            :meth:`PythonFileCopier.copy_user_module` consumes.
         component_label: Human-readable label inserted into error messages,
             e.g. ``"Python load action"``, ``"Custom data source"``.
 
@@ -266,28 +266,25 @@ def copy_user_module_for_pipeline(
         ``from custom_python_functions.<name> import ...``.
 
     Raises:
-        LHPError: ``ErrorFormatter.file_not_found`` when the resolved source
-            file does not exist (and no inline source is registered).
+        LHPError: when the resolved source file does not exist (and no inline
+            source is registered on the flowgroup).
         LHPValidationError: code ``015`` when flowgroup context is missing.
     """
-    from ..utils.error_formatter import ErrorFormatter
-
-    inline_sources = context.get("auxiliary_module_sources") or {}
+    flowgroup = context.get("flowgroup")
+    inline_sources = getattr(flowgroup, "_auxiliary_files", None) or {}
     inline_source = inline_sources.get(module_path)
 
-    project_root = context.get("spec_dir") or Path.cwd()
-    source_file: Path = project_root / module_path
-
-    if inline_source is None and not source_file.exists():
-        raise ErrorFormatter.file_not_found(
-            file_path=str(source_file),
-            search_locations=[
-                f"Relative to project root: {project_root / module_path}",
-            ],
+    if inline_source is None:
+        project_root = context.get("spec_dir") or Path.cwd()
+        source_file: Optional[Path] = resolve_external_file_path(
+            module_path,
+            base_dir=project_root,
             file_type=f"{component_label} module file",
         )
+    else:
+        source_file = None
 
-    if not context.get("flowgroup"):
+    if not flowgroup:
         raise LHPValidationError(
             category=ErrorCategory.VALIDATION,
             code_number="015",
@@ -310,7 +307,7 @@ def copy_user_module_for_pipeline(
     custom_functions_dir = output_dir / "custom_python_functions"
     python_copier = context.get("python_file_copier") or PythonFileCopier()
     return python_copier.copy_user_module(
-        source_file if inline_source is None else None,
+        source_file,
         module_path,
         custom_functions_dir,
         context,

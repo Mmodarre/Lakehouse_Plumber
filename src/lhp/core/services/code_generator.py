@@ -517,12 +517,6 @@ class CodeGenerator:
             "environment": env,
             "secret_references": set(),  # Track secret references from file processing
             "python_file_copier": python_file_copier,  # Thread-safe copier for parallel mode
-            # In-memory module sources keyed by ``module_path``. Populated
-            # for synthetic flowgroups (e.g. monitoring) whose Python LOAD
-            # source content is generated rather than read from disk.
-            "auxiliary_module_sources": dict(
-                getattr(flowgroup, "_auxiliary_files", {}) or {}
-            ),
         }
 
     def _collect_generator_outputs(self, generator) -> Tuple[Set[str], Set[str]]:
