@@ -96,6 +96,7 @@ Features at a Glance
 **Reusability**
 
 * **Presets & Templates** — reuse patterns without copy-paste.
+* **Blueprints** — fan one pipeline shape across many sites, tenants, or regions with tiny per-instance files.
 * **Local Variables** — flowgroup-scoped variables (``%{var}``) reduce repetition.
 * **Substitutions** — environment-aware tokens & secret references.
 
@@ -129,6 +130,7 @@ Next Steps
 * :doc:`templates_reference` – comprehensive guide to creating and using templates.
 * :doc:`dynamic_templates_guide` – conditionals, loops, and advanced Jinja2 features.
 * :doc:`presets_reference` – reusable default configurations.
+* :doc:`blueprints_reference` – reusable parametrised pipeline shapes for multi-site/tenant deployments.
 * :doc:`best_practices` – enterprise patterns for naming, structure, presets, and production readiness.
 * :doc:`pipeline_patterns` – practical patterns for multi-source ingestion, path filtering, and fan-in architectures.
 * :doc:`quarantine` – quarantine mode with DLQ recycling for data quality transforms.
@@ -171,6 +173,7 @@ Next Steps
    templates_reference
    dynamic_templates_guide
    presets_reference
+   blueprints_reference
 
 .. toctree::
    :maxdepth: 2
