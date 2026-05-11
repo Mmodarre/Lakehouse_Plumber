@@ -151,15 +151,16 @@ class BundleManager:
         - Deletes resource files for pipeline directories that no longer exist
         - Errors on multiple resource files for same pipeline
 
-        Decision Matrix:
-        | Python Dir | Bundle File Type | Action |
-        |------------|------------------|--------|
-        | Exists     | LHP file         | DON'T TOUCH (Scenario 1a) |
-        | Exists     | LHP file + force + pc | REGENERATE (Scenario 1a override) |
-        | Exists     | User file        | BACKUP + REPLACE (Scenario 1b) |
-        | Exists     | No file          | CREATE (Scenario 2) |
-        | Missing    | Any file         | DELETE (Scenario 3) |
-        | Any        | Multiple         | ERROR (Scenario 4) |
+        Decision Matrix::
+
+            | Python Dir | Bundle File Type      | Action                              |
+            |------------|-----------------------|-------------------------------------|
+            | Exists     | LHP file              | DON'T TOUCH (Scenario 1a)           |
+            | Exists     | LHP file + force + pc | REGENERATE (Scenario 1a override)   |
+            | Exists     | User file             | BACKUP + REPLACE (Scenario 1b)      |
+            | Exists     | No file               | CREATE (Scenario 2)                 |
+            | Missing    | Any file              | DELETE (Scenario 3)                 |
+            | Any        | Multiple              | ERROR (Scenario 4)                  |
 
         Args:
             output_dir: Directory containing generated Python files
