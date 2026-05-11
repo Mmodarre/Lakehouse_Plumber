@@ -105,3 +105,9 @@ Example_Projects/performance_testing/monitoring/
 !.claude/skills/lhp/
 !.claude/skills/lhp/**
 HOW_TO_CREATE_BLUEPRINTS.md
+
+# Raw perf.log archives from `python -m tests.performance.benchmark capture`.
+# Ignored by default (large); commit a specific release's archives with
+# `git add -f .perf_runs/v0.X.Y/` if desired.
+.perf_runs/
+

@@ -144,6 +144,57 @@ class PerfSummary:
         for line in lines:
             _perf_logger.info(line)
 
+    def snapshot(self) -> dict:
+        """Return a deep-copy snapshot of all collected metrics.
+
+        Shape::
+
+            {
+                "enabled": bool,
+                "started_at": str | None,
+                "phases": {phase_name: seconds, ...},
+                "sub_phases": {parent: [(name, seconds), ...], ...},
+                "categories": {
+                    cat: {"cnt": int, "total": float, "min": float,
+                          "max": float, "avg": float}, ...
+                },
+                "counts": {name: int, ...},
+            }
+
+        Callable even when ``--perf`` is disabled; inner collections will be
+        empty in that case. Returned object is caller-owned: mutating it does
+        not affect internal state.
+        """
+        with self._lock:
+            timings = {k: list(v) for k, v in self._timings.items()}
+            phase_timings = dict(self._phase_timings)
+            counts = dict(self._counts)
+            sub_phase_timings = {
+                k: [(name, dur) for name, dur in v]
+                for k, v in self._sub_phase_timings.items()
+            }
+
+        categories: dict[str, dict[str, float]] = {}
+        for cat, durations in timings.items():
+            cnt = len(durations)
+            total = sum(durations)
+            categories[cat] = {
+                "cnt": cnt,
+                "total": total,
+                "min": min(durations) if durations else 0.0,
+                "max": max(durations) if durations else 0.0,
+                "avg": (total / cnt) if cnt else 0.0,
+            }
+
+        return {
+            "enabled": _enabled,
+            "started_at": _start_wall_clock,
+            "phases": phase_timings,
+            "sub_phases": sub_phase_timings,
+            "categories": categories,
+            "counts": counts,
+        }
+
 
 # Module-level singleton
 _summary = PerfSummary()
@@ -253,3 +304,12 @@ def record_count(name: str, value: int) -> None:
     """
     if _enabled:
         _summary.record_count(name, value)
+
+
+def get_perf_summary() -> dict:
+    """Return a snapshot of collected perf metrics.
+
+    See ``PerfSummary.snapshot`` for the dict shape. Always callable; returns
+    an empty-shape dict (with ``enabled=False``) when perf timing is disabled.
+    """
+    return _summary.snapshot()
