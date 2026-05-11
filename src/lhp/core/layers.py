@@ -64,6 +64,10 @@ class GenerationResponse:
     output_location: Optional[Path]
     performance_info: Dict[str, Any]
     error_message: Optional[str] = None
+    # Preserved so the CLI can re-raise the original (typically LHPError) at
+    # the fail-fast boundary, where ``cli_error_boundary`` formats it and
+    # maps the LHP code to a POSIX exit code via ``ExitCode.from_lhp_error``.
+    original_error: Optional[Exception] = None
 
     def is_successful(self) -> bool:
         """Check if generation was successful."""
@@ -289,6 +293,10 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 # Regular exception - log full details
                 self.logger.error(f"Pipeline generation failed: {e}")
 
+            # Build the failure response so the CLI can still print a per-pipeline
+            # status line, but attach the original exception so the CLI can
+            # re-raise at the fail-fast boundary (where cli_error_boundary takes
+            # over formatting and exit-code mapping).
             return GenerationResponse(
                 success=False,
                 generated_files={},
@@ -297,6 +305,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 output_location=None,
                 performance_info={},
                 error_message=str(e),
+                original_error=e,
             )
 
     def validate_pipeline(

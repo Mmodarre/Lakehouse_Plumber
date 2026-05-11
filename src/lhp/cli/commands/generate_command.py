@@ -183,9 +183,22 @@ class GenerateCommand(BaseCommand):
             # Display results (presentation)
             self._display_generation_response(response, pipeline_identifier)
 
-            if response.is_successful():
-                total_files += response.files_written
-                all_generated_files.update(response.generated_files)
+            if not response.is_successful():
+                # Fail-fast: re-raise the original exception. The outer
+                # ``cli_error_boundary`` decorator on the ``generate`` command
+                # turns it into the full formatted block + POSIX exit code.
+                # ``original_error`` is always populated when ``success`` is
+                # False (see ``LakehousePlumberApplicationFacade.generate_pipeline``);
+                # fall back to a plain RuntimeError only as a defensive guard.
+                if response.original_error is not None:
+                    raise response.original_error
+                raise RuntimeError(
+                    response.error_message
+                    or f"Pipeline '{pipeline_identifier}' generation failed"
+                )
+
+            total_files += response.files_written
+            all_generated_files.update(response.generated_files)
 
         # 9.5. Finalize monitoring artifacts (after all pipelines generated)
         if not dry_run:

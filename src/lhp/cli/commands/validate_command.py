@@ -268,28 +268,70 @@ class ValidateCommand(BaseCommand):
         errors: List[str],
         warnings: List[str],
     ) -> None:
-        """Display validation results for a single pipeline."""
+        """Display validation results for a single pipeline.
+
+        Always emits the error code + title header for every error so users
+        can see *what* is wrong without re-running with ``--verbose``. The
+        full multi-line LHPError block (details, context, suggestions, doc
+        link) is gated behind ``--verbose`` to keep the default output
+        scannable when validating many pipelines at once.
+        """
         if pipeline_errors == 0 and pipeline_warnings == 0:
             click.echo(f"✅ Pipeline '{pipeline_name}' is valid")
-        else:
-            if pipeline_errors > 0:
-                click.echo(
-                    f"❌ Pipeline '{pipeline_name}' has {pipeline_errors} error(s)"
-                )
-                if self.verbose:
-                    for error in errors:
-                        click.echo(f"   Error: {error}")
+            return
 
-            if pipeline_warnings > 0:
-                click.echo(
-                    f"⚠️  Pipeline '{pipeline_name}' has {pipeline_warnings} warning(s)"
-                )
+        if pipeline_errors > 0:
+            click.echo(
+                f"❌ Pipeline '{pipeline_name}' has {pipeline_errors} error(s)"
+            )
+            for error in errors:
                 if self.verbose:
-                    for warning in warnings:
-                        click.echo(f"   Warning: {warning}")
+                    # Full formatted LHPError block (or raw string for non-LHP errors).
+                    click.echo(f"   {error}")
+                else:
+                    click.echo(f"   {self._summarize_error(error)}")
 
-            if not self.verbose:
-                click.echo("   Use --verbose flag to see detailed messages")
+        if pipeline_warnings > 0:
+            click.echo(
+                f"⚠️  Pipeline '{pipeline_name}' has {pipeline_warnings} warning(s)"
+            )
+            for warning in warnings:
+                if self.verbose:
+                    click.echo(f"   {warning}")
+                else:
+                    click.echo(f"   {self._summarize_error(warning)}")
+
+        if not self.verbose:
+            click.echo(
+                "   (use --verbose for full details, suggestions, and context)"
+            )
+
+    @staticmethod
+    def _summarize_error(message: str) -> str:
+        """Extract a single-line summary from a (possibly multi-line) error.
+
+        LHPError stringifies to a block whose header line is
+        ``❌ Error [CODE]: Title``. Upstream code may prefix that with a
+        flowgroup label (e.g. ``"Flowgroup 'foo': <block>"``), so we scan
+        for the ``❌ Error`` header line and prepend the upstream prefix
+        (the first non-empty line, when it differs from the header). For
+        plain-string errors with no LHP header, we return the first
+        non-empty line.
+        """
+        first_non_empty: Optional[str] = None
+        for line in message.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("❌ Error ["):
+                if first_non_empty and first_non_empty != stripped:
+                    return f"{first_non_empty} {stripped}"
+                return stripped
+            if first_non_empty is None:
+                first_non_empty = stripped
+        if first_non_empty is not None:
+            return first_non_empty
+        return message.strip()
 
     def _validate_test_reporting(
         self,

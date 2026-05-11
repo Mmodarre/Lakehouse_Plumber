@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
 import yaml
 
-from ..models.config import FlowGroup, Preset, Template
+from ..models.config import ActionType, FlowGroup, Preset, Template
 from ..utils.error_formatter import (
     ErrorCategory,
     ErrorFormatter,
@@ -63,6 +63,50 @@ class YAMLParser:
                     ],
                     context={"file": str(file_path)},
                 )
+
+    def _validate_action_types(self, doc: Dict[str, Any], file_path: Path) -> None:
+        """Pre-check ``type:`` on every action before Pydantic constructs FlowGroup.
+
+        Pydantic's own validation rejects unknown action types, but produces a
+        generic ValidationError. Doing the check here lets us emit a friendlier
+        LHP-ACT-001 with a did-you-mean suggestion sourced from
+        ``ErrorFormatter.unknown_type_with_suggestion``.
+
+        Args:
+            doc: A single parsed YAML document (one flowgroup's worth, or an
+                array-syntax shared-fields document — both expose ``actions:``
+                the same way when iterated on a per-flowgroup basis).
+            file_path: Source file path, surfaced in the resulting error
+                context for user diagnostics.
+
+        Raises:
+            LHPConfigError: When an action's ``type:`` value is not a member
+                of :class:`ActionType`.
+        """
+        valid_values = [t.value for t in ActionType]
+        actions = doc.get("actions") or []
+        if not isinstance(actions, list):
+            return  # Let Pydantic emit the structural error for non-list actions
+        for action in actions:
+            if not isinstance(action, dict):
+                continue
+            action_type = action.get("type")
+            if action_type is None:
+                continue  # Missing type: Pydantic enforces required field
+            if action_type not in valid_values:
+                error = ErrorFormatter.unknown_type_with_suggestion(
+                    value_type="action type",
+                    provided_value=str(action_type),
+                    valid_values=valid_values,
+                    example_usage="""actions:
+  - name: my_action
+    type: load  # Valid types: load, transform, write, test""",
+                )
+                error.context["file"] = str(file_path)
+                action_name = action.get("name")
+                if action_name:
+                    error.context["action"] = action_name
+                raise error
 
     def parse_flowgroups_from_file(self, file_path: Path) -> List[FlowGroup]:
         """Parse one or more FlowGroups from a YAML file.
@@ -188,24 +232,16 @@ class YAMLParser:
                     if fg_name:
                         seen_flowgroup_names.add(fg_name)
 
-                    # Parse flowgroup
-                    try:
-                        flowgroups.append(FlowGroup(**fg_config))
-                    except LHPError:
-                        raise  # Re-raise LHPError as-is
-                    except Exception as e:
-                        raise LHPConfigError(
-                            category=ErrorCategory.CONFIG,
-                            code_number="006",
-                            title="Flowgroup parsing error",
-                            details=f"Error parsing flowgroup in document {doc_index} of {file_path}: {e}",
-                            suggestions=[
-                                "Check the flowgroup YAML syntax and required fields",
-                                "Ensure 'flowgroup' and 'actions' keys are present",
-                                "Review field types match expected formats",
-                            ],
-                            context={"file": str(file_path), "document": doc_index},
-                        )
+                    # Pre-check action types (better error than Pydantic's generic
+                    # ValidationError; emits LHP-ACT-001 with did-you-mean).
+                    self._validate_action_types(fg_config, file_path)
+
+                    # Build the flowgroup. LHPError subclasses (e.g. the pre-check
+                    # above, or LHPValidationError raised inside Pydantic validators)
+                    # already carry structured context — let them propagate as-is.
+                    # Pydantic's ValidationError also propagates and is detailed
+                    # enough for the user; no need to wrap it.
+                    flowgroups.append(FlowGroup(**fg_config))
             else:
                 # Regular syntax (one flowgroup per document)
                 uses_regular_syntax = True
@@ -227,24 +263,11 @@ class YAMLParser:
                 if fg_name:
                     seen_flowgroup_names.add(fg_name)
 
-                # Parse flowgroup
-                try:
-                    flowgroups.append(FlowGroup(**doc))
-                except LHPError:
-                    raise  # Re-raise LHPError as-is
-                except Exception as e:
-                    raise LHPConfigError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="006",
-                        title="Flowgroup parsing error",
-                        details=f"Error parsing flowgroup in document {doc_index} of {file_path}: {e}",
-                        suggestions=[
-                            "Check the flowgroup YAML syntax and required fields",
-                            "Ensure 'flowgroup' and 'actions' keys are present",
-                            "Review field types match expected formats",
-                        ],
-                        context={"file": str(file_path), "document": doc_index},
-                    )
+                # Pre-check action types (see array-syntax branch above).
+                self._validate_action_types(doc, file_path)
+
+                # See array-syntax branch comments above.
+                flowgroups.append(FlowGroup(**doc))
 
         self.logger.debug(
             f"Parsed {len(flowgroups)} flowgroup(s) from {file_path}"
