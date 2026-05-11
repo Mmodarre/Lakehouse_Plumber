@@ -28,7 +28,8 @@ Actions come in four top-level types:
 +----------------+----------------------------------------------------------+
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :titlesonly:
 
    load_actions
    transform_actions

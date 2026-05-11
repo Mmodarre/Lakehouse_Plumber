@@ -5,9 +5,7 @@ Load Actions
    :description: Complete reference for LHP Load action types: CloudFiles, Delta, SQL, JDBC, Python, and custom datasource.
 
 
-.. note::
-  - At this time the framework supports the following load sub-types.
-  - Coming soon: It will support more sources and target types through **plugins**.
+At this time the framework supports the following load sub-types. Coming soon: it will support more sources and target types through **plugins**.
 
 +----------------------------+------------------------------------------------------------+
 | Sub-type                   | Purpose & Source                                           |
@@ -101,21 +99,20 @@ The ``cloudFiles.schemaHints`` option supports three formats, automatically dete
   # or
   cloudFiles.schemaHints: "schemas/customer_schema.sql"
 
-.. note::
-  **File Path Organization**: Schema files can be organized in subdirectories relative to your project root:
-  
-  - Root level: ``"customer_schema.yaml"``
-  - Single directory: ``"schemas/customer_schema.yaml"``
-  - Nested subdirectories: ``"schemas/bronze/dimensions/customer_schema.yaml"``
-  
-  The framework automatically detects whether the value is an inline DDL string or a file path based on common file indicators (``.yaml``, ``.yml``, ``.ddl``, ``.sql``, or path separators).
-  
-  **YAML Schema Conversion**: When using YAML schema files (Option 2), the ``nullable`` field is respected during conversion to DDL:
-  
-  - Columns with ``nullable: false`` are converted to include ``NOT NULL`` constraint
-  - Columns with ``nullable: true`` (or omitted, default is true) are converted without constraints
-  
-  Example: A YAML column defined as ``{name: c_custkey, type: BIGINT, nullable: false}`` will generate ``c_custkey BIGINT NOT NULL`` in the schema hints.
+**File Path Organization**: Organize schema files in subdirectories relative to your project root:
+
+- Root level: ``"customer_schema.yaml"``
+- Single directory: ``"schemas/customer_schema.yaml"``
+- Nested subdirectories: ``"schemas/bronze/dimensions/customer_schema.yaml"``
+
+The framework automatically detects whether the value is an inline DDL string or a file path based on common file indicators (``.yaml``, ``.yml``, ``.ddl``, ``.sql``, or path separators).
+
+**YAML Schema Conversion**: When using YAML schema files (Option 2), the ``nullable`` field is respected during conversion to DDL:
+
+- Columns with ``nullable: false`` are converted to include ``NOT NULL`` constraint
+- Columns with ``nullable: true`` (or omitted, default is true) are converted without constraints
+
+Example: A YAML column defined as ``{name: c_custkey, type: BIGINT, nullable: false}`` will generate ``c_custkey BIGINT NOT NULL`` in the schema hints.
             
 **source.schema — Full Schema Enforcement**
 
@@ -176,18 +173,16 @@ This generates code with ``.schema()`` applied on the reader chain before ``.loa
           .load("/data/customers/*.csv")
       return df
 
-.. note::
-  When ``source.schema`` is provided, ``cloudFiles.schemaEvolutionMode`` defaults to ``none``
-  because inference is disabled. You cannot combine ``source.schema`` with ``cloudFiles.schemaHints``
-  — they are mutually exclusive approaches.
+When you provide ``source.schema``, ``cloudFiles.schemaEvolutionMode`` defaults to ``none``
+because inference is disabled. Do not combine ``source.schema`` with ``cloudFiles.schemaHints``
+— these are mutually exclusive approaches.
+
+Lakehouse Plumber uses syntax consistent with Databricks so you can transfer knowledge between
+the two. All options available here mirror those of Databricks Auto Loader.
 
 .. seealso::
-  - For full list of options see the `Databricks Auto Loader documentation <https://docs.databricks.com/en/data/data-sources/cloud-files/auto-loader/index.html>`_.
+  - For full list of options see the `Databricks Auto Loader documentation <https://docs.databricks.com/aws/en/ingestion/cloud-object-storage/auto-loader/>`_.
   - Operational metadata: :doc:`../operational_metadata`
-
-.. Important::
-  Lakehouse Plumber uses syntax consistent with Databricks, making it easy to transfer knowledge between the two.
-  All options available here mirror those of Databricks Auto Loader.
 
 
 **The above Yaml translates to the following Pyspark code**
@@ -270,9 +265,8 @@ delta
 - **target**: Name of the temporary view created
 - **description**: Optional documentation for the action
 
-.. Important::
-  Delta load actions can read from both regular Delta tables and Change Data Feed (CDC) enabled tables.
-  Use readMode: stream for real-time processing or readMode: batch for one-time loads.
+Delta load actions read from both regular Delta tables and Change Data Feed (:term:`CDC`) enabled tables.
+Use ``readMode: stream`` for real-time processing or ``readMode: batch`` for one-time loads.
 
 **Delta Options**
 
@@ -305,11 +299,11 @@ Delta load actions support the ``options`` field to configure Delta-specific rea
 +-------------------------+------------------+---------------------------------------------------+
 | **startingVersion**     | string           | Starting version for CDC or time travel           |
 +-------------------------+------------------+---------------------------------------------------+
-| **startingTimestamp**    | string           | Starting timestamp for CDC (ISO 8601 format)      |
+| **startingTimestamp**   | string           | Starting timestamp for CDC (ISO 8601 format)      |
 +-------------------------+------------------+---------------------------------------------------+
 | **endingVersion**       | string           | Ending version for batch CDF reads                |
 +-------------------------+------------------+---------------------------------------------------+
-| **endingTimestamp**      | string           | Ending timestamp for batch CDF reads              |
+| **endingTimestamp**     | string           | Ending timestamp for batch CDF reads              |
 +-------------------------+------------------+---------------------------------------------------+
 | **versionAsOf**         | string           | Read specific table version (time travel)         |
 +-------------------------+------------------+---------------------------------------------------+
@@ -417,7 +411,7 @@ overwhelm downstream consumers. Mitigation strategies:
       description: "Load customers at version 10"
 
 .. seealso::
-  - For ``stream`` readMode see the Databricks documentation on `Change Data Feed <https://docs.databricks.com/en/data/data-sources/delta/change-data-feed.html>`_
+  - For ``stream`` readMode see the Databricks documentation on `Change Data Feed <https://docs.databricks.com/aws/en/delta/delta-change-data-feed>`_
   - For time travel see `Delta Time Travel <https://docs.databricks.com/en/delta/history.html>`_
   - Operational metadata: :doc:`../operational_metadata`
 
@@ -490,18 +484,17 @@ kafka
   - For full list of Kafka options see the `Databricks Kafka documentation <https://docs.databricks.com/aws/en/connect/streaming/kafka.html>`_.
   - Operational metadata: :doc:`../operational_metadata`
 
-.. Important::
-  Kafka always returns a fixed 7-column schema with binary key/value columns:
-  ``key``, ``value``, ``topic``, ``partition``, ``offset``, ``timestamp``, ``timestampType``.
-  You must explicitly deserialize the key and value columns using transform actions.
+Kafka always returns a fixed 7-column schema with binary key/value columns:
+``key``, ``value``, ``topic``, ``partition``, ``offset``, ``timestamp``, ``timestampType``.
+Explicitly deserialize the key and value columns using transform actions.
 
-.. Warning::
-  **Subscription Methods**: You must specify exactly ONE of:
-  
+.. warning::
+  **Subscription Methods**: Specify exactly ONE of:
+
   - ``subscribe``: Comma-separated list of specific topics
   - ``subscribePattern``: Java regex pattern for topic names
   - ``assign``: JSON with specific topic partitions
-  
+
   Using multiple subscription methods will result in an error.
 
 **The above YAML translates to the following PySpark code**
@@ -634,14 +627,13 @@ AWS Managed Streaming for Apache Kafka (MSK) supports IAM authentication for sec
 .. seealso::
   For complete MSK IAM documentation see `AWS MSK IAM Access Control <https://docs.aws.amazon.com/msk/latest/developerguide/iam-access-control.html>`_.
 
-.. Important::
-  **MSK IAM Requirements:**
-  
-  - Port 9098 is used for IAM authentication (not the standard 9092)
-  - All three options are required: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, ``kafka.sasl.client.callback.handler.class``
-  - IAM role must have appropriate kafka-cluster:* permissions
-  - No credentials are stored - authentication is via IAM
-  - Ensure Databricks cluster has network access to MSK cluster
+**MSK IAM Requirements:**
+
+- Use port 9098 for IAM authentication (not the standard 9092).
+- Provide all four required options: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, and ``kafka.sasl.client.callback.handler.class``.
+- Grant the IAM role appropriate ``kafka-cluster:*`` permissions.
+- Rely on IAM for authentication — no credentials are stored.
+- Ensure your Databricks cluster has network access to the MSK cluster.
 
 **Advanced Authentication: Azure Event Hubs OAuth**
 
@@ -704,16 +696,15 @@ Azure Event Hubs provides Kafka protocol support with OAuth 2.0 authentication u
 .. seealso::
   For complete Event Hubs Kafka documentation see `Azure Event Hubs for Apache Kafka <https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-for-kafka-ecosystem-overview>`_.
 
-.. Important::
-  **Event Hubs OAuth Requirements:**
-  
-  - Port 9093 is always used for Kafka protocol with Event Hubs
-  - Event Hubs namespace must be in format: ``<namespace>.servicebus.windows.net``
-  - The scope in JAAS config must match: ``https://<namespace>.servicebus.windows.net/.default``
-  - All four options are required: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, ``kafka.sasl.oauthbearer.token.endpoint.url``, ``kafka.sasl.login.callback.handler.class``
-  - Service Principal needs "Azure Event Hubs Data Receiver" role assignment
-  - OAuth token refresh is handled automatically by the callback handler
-  - Always use secrets for client credentials - never hardcode in YAML
+**Event Hubs OAuth Requirements:**
+
+- Always use port 9093 for the Kafka protocol with Event Hubs.
+- Specify the Event Hubs namespace in the format ``<namespace>.servicebus.windows.net``.
+- Match the scope in JAAS config to ``https://<namespace>.servicebus.windows.net/.default``.
+- Provide all five required options: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, ``kafka.sasl.oauthbearer.token.endpoint.url``, and ``kafka.sasl.login.callback.handler.class``.
+- Assign the Service Principal the "Azure Event Hubs Data Receiver" role.
+- Rely on the callback handler to refresh OAuth tokens automatically.
+- Always use secrets for client credentials — never hardcode them in YAML.
 
 sql
 -------------------------------------------
@@ -773,19 +764,17 @@ SQL load actions support both **inline SQL** and **external SQL files**.
   - For SQL syntax see the `Databricks SQL documentation <https://docs.databricks.com/en/sql/index.html>`_.
   - Substitution variables: :doc:`../substitutions`
 
-.. Important::
-  SQL load actions allow you to create complex views from multiple tables using standard SQL.
-  Use substitution variables like ``${catalog}`` and ``${schema}`` for environment-specific values.
+SQL load actions let you create complex views from multiple tables using standard SQL.
+Use substitution variables like ``${catalog}`` and ``${schema}`` for environment-specific values.
 
-.. note:: **File Substitution Support**
-   
-   Substitution variables work in both inline SQL and external SQL files (``sql_path``). 
-   The same ``${token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
-   Files are processed for substitutions before query execution.
-  
-.. note::
-  **File Organization**: When using ``sql_path``, the path is relative to your YAML file location. 
-  Common practice is to create a ``sql/`` folder alongside your pipeline YAML files.
+**File Substitution Support**
+
+Substitution variables work in both inline SQL and external SQL files (``sql_path``).
+The same ``${token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
+Files are processed for substitutions before query execution.
+
+**File Organization**: When using ``sql_path``, the path is relative to your YAML file location.
+Common practice is to create a ``sql/`` folder alongside your pipeline YAML files.
 
 **The above YAML examples translate to the following PySpark code**
 
@@ -905,14 +894,12 @@ JDBC load actions connect to external relational databases using JDBC drivers. T
   - For JDBC drivers see the `Databricks JDBC documentation <https://docs.databricks.com/en/connect/external-systems/jdbc.html>`_.
   - Secret management: :doc:`../substitutions`
 
-.. Important::
-  JDBC load actions require either a ``query`` or ``table`` field, but not both.
-  Use secret substitution (``${secret:scope/key}``) for secure credential management.
-  Ensure the appropriate JDBC driver is available in your Databricks cluster.
+JDBC load actions require either a ``query`` or ``table`` field, but not both — providing
+both raises an error. Use secret substitution (``${secret:scope/key}``) for secure credential
+management, and ensure the appropriate JDBC driver is available on your Databricks cluster.
 
-.. note::
-  **Secret Management**: Always use ``${secret:scope/key}`` syntax for database credentials.
-  The framework automatically handles secret substitution during code generation.
+**Secret Management**: Always use ``${secret:scope/key}`` syntax for database credentials.
+The framework automatically handles secret substitution during code generation.
 
 **The above YAML examples translate to the following PySpark code**
 
@@ -1062,30 +1049,27 @@ Python load actions call custom Python functions that return DataFrames. This al
 
 .. seealso::
   - For PySpark DataFrame operations see the `Databricks PySpark documentation <https://docs.databricks.com/en/spark/latest/spark-sql/index.html>`_.
-  - Custom functions: :doc:`../concepts`
+  - Custom functions: :doc:`../architecture`
 
-.. Important::
-  Python functions must accept two parameters: ``spark`` (SparkSession) and ``parameters`` (dict).
-  The function must return a PySpark DataFrame that will be used as the view source.
+Python functions must accept two parameters: ``spark`` (SparkSession) and ``parameters`` (dict).
+The function must return a PySpark DataFrame that will be used as the view source.
 
-.. note::
-  **File Organization**: When using ``module_path``, the path is relative to your YAML file location.
-  Common practice is to create an ``extractors/`` or ``functions/`` folder alongside your pipeline YAML files.
+**File Organization**: When using ``module_path``, the path is relative to your YAML file location.
+Common practice is to create an ``extractors/`` or ``functions/`` folder alongside your pipeline YAML files.
 
-.. note::
-  **Parameter Substitution**: The ``parameters`` dictionary supports ``${token}``
-  substitution for environment-specific values:
+**Parameter Substitution**: The ``parameters`` dictionary supports ``${token}``
+substitution for environment-specific values:
 
-  .. code-block:: yaml
+.. code-block:: yaml
 
-     parameters:
-       catalog: "${catalog}"
-       table_name: "${schema}.users"
-       api_endpoint: "${api_url}"
-       batch_size: 1000                     # No substitution needed
-  
-  All tokens are replaced with values from ``substitutions/{env}.yaml`` at generation time.
-  Secret references (``${secret:scope/key}``) are converted to ``dbutils.secrets.get()`` calls.
+   parameters:
+     catalog: "${catalog}"
+     table_name: "${schema}.users"
+     api_endpoint: "${api_url}"
+     batch_size: 1000                     # No substitution needed
+
+All tokens are replaced with values from ``substitutions/{env}.yaml`` at generation time.
+Secret references (``${secret:scope/key}``) are converted to ``dbutils.secrets.get()`` calls.
 
 **The above YAML translates to the following PySpark code**
 
@@ -1226,41 +1210,40 @@ Custom data source load actions use PySpark's DataSource API to implement specia
 
 .. seealso::
   - For PySpark DataSource API see the `PySpark DataSource documentation <https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.datasource.DataSource.html>`_.
-  - Custom integrations: :doc:`../concepts`
+  - Custom integrations: :doc:`../architecture`
 
-.. Important::
-  Custom DataSources require implementing the DataSource interface with appropriate reader methods.
-  The framework copies your file to a ``custom_python_functions/`` subdirectory next to the generated
-  pipeline file and imports the class by name; the user file is not inlined into the pipeline.
-  Use options dictionary to pass configuration parameters from YAML to your DataSource.
+Custom DataSources require implementing the DataSource interface with appropriate reader methods.
+The framework copies your file to a ``custom_python_functions/`` subdirectory next to the generated
+pipeline file and imports the class by name — the user file is not inlined into the pipeline.
+Use the ``options`` dictionary to pass configuration parameters from YAML to your DataSource.
 
-.. note:: **File Substitution Support**
+**File Substitution Support**
 
-   Custom DataSource Python files support substitution variables:
+Custom DataSource Python files support substitution variables:
 
-   - **Environment tokens**: ``${catalog}``, ``${api_endpoint}``, ``${environment}``
-   - **Secret references**: ``${secret:scope/key}`` for API keys and credentials
+- **Environment tokens**: ``${catalog}``, ``${api_endpoint}``, ``${environment}``
+- **Secret references**: ``${secret:scope/key}`` for API keys and credentials
 
-   Substitutions are applied to the file's contents as it is copied to ``custom_python_functions/``.
+Substitutions are applied to the file's contents as it is copied to ``custom_python_functions/``.
 
-  **Key Implementation Requirements:**
-  - Your DataSource class must implement the ``name()`` class method returning the format name used in ``.format()``
-  - The framework uses the return value of ``name()`` method, not the class name, for the format string
-  - The class is imported from the copied module; the registration call (``spark.dataSource.register``)
-    runs at module load before the pipeline body
-  - PySpark's *vendored* cloudpickle is registered (``register_pickle_by_value``) so the class survives
-    serialization to executors
+**Key Implementation Requirements:**
 
-.. note::
-  **File Organization**: The ``module_path`` is relative to your YAML file location.
-  Common practice is to create a ``data_sources/`` folder alongside your pipeline YAML files.
-  
-  **Schema Definition**: Define your schema in the ``schema()`` method using DDL string format as shown in the example.
-  This schema should match the data structure returned by your ``read()`` method.
+- Your DataSource class must implement the ``name()`` class method returning the format name used in ``.format()``
+- The framework uses the return value of ``name()`` method, not the class name, for the format string
+- The class is imported from the copied module; the registration call (``spark.dataSource.register``)
+  runs at module load before the pipeline body
+- PySpark's *vendored* cloudpickle is registered (``register_pickle_by_value``) so the class survives
+  serialization to executors
 
-  **Import Management**: The framework automatically handles import deduplication and conflict resolution.
-  If your custom source uses wildcard imports (e.g., ``from pyspark.sql.functions import *``), 
-  they will take precedence over alias imports, and operational metadata expressions will adapt accordingly.
+**File Organization**: The ``module_path`` is relative to your YAML file location.
+Common practice is to create a ``data_sources/`` folder alongside your pipeline YAML files.
+
+**Schema Definition**: Define your schema in the ``schema()`` method using DDL string format as shown in the example.
+This schema should match the data structure returned by your ``read()`` method.
+
+**Import Management**: The framework automatically handles import deduplication and conflict resolution.
+If your custom source uses wildcard imports (e.g., ``from pyspark.sql.functions import *``),
+they will take precedence over alias imports, and operational metadata expressions will adapt accordingly.
 
 **The above YAML translates to the following PySpark code**
 

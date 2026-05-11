@@ -79,23 +79,22 @@ SQL transform actions execute SQL queries to transform data between views. They 
   - For SQL syntax see the `Databricks SQL documentation <https://docs.databricks.com/en/sql/index.html>`_.
   - Stream syntax: Use ``stream(view_name)`` for streaming transformations
 
-.. Important::
-  SQL transforms can use ``stream()`` function for streaming data or direct view references for batch processing.
-  Column aliasing and data type transformations are common patterns in bronze layer cleansing.
+SQL transforms can use the ``stream()`` function for streaming data or direct view references
+for batch processing. Column aliasing and data type transformations are common patterns in
+bronze layer cleansing.
 
-.. note:: **File Substitution Support**
-   
-   Substitution variables work in both inline SQL and external SQL files (``sql_path``). 
-   The same ``${token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
-   Files are processed for substitutions before query execution.
+**File Substitution Support**
 
-.. Warning::
-  When writing SQL statements, if your source or target is a streaming table you must use the ``stream()`` function.
-  For example: `` FROM stream(v_customer_raw) ``
+Substitution variables work in both inline SQL and external SQL files (``sql_path``).
+The same ``${token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
+Files are processed for substitutions before query execution.
 
-.. note::
-  **File Organization**: When using ``sql_path``, the path is relative to your YAML file location.
-  Common practice is to create a ``sql/`` folder alongside your pipeline YAML files.
+.. warning::
+  When writing SQL statements, if your source or target is a streaming table you must use the
+  ``stream()`` function. For example: ``FROM stream(v_customer_raw)``.
+
+**File Organization**: When using ``sql_path``, the path is relative to your YAML file location.
+Common practice is to create a ``sql/`` folder alongside your pipeline YAML files.
 
 **The above YAML examples translate to the following PySpark code**
 
@@ -157,8 +156,7 @@ python
 -------------------------------------------
 Python transform actions call custom Python functions to apply complex transformation logic that goes beyond SQL capabilities. 
 
-.. tip::
-  The framework automatically copies your Python functions into the generated pipeline and handles import management.
+The framework automatically copies your Python functions into the generated pipeline and handles import management.
 
 .. code-block:: yaml
 
@@ -331,18 +329,18 @@ Lakehouse Plumber automatically handles Python function deployment:
 5. **State Tracking**: All copied files are tracked and cleaned up when source YAML is removed
 6. **Package Structure**: A ``__init__.py`` file is automatically created to make the directory a Python package
 
-.. note:: **File Substitution Support**
-   
-   Python transform files support the same substitution syntax as YAML:
-   
-   - **Environment tokens**: ``${catalog}``, ``${schema}``, ``${environment}``
-   - **Secret references**: ``${secret:scope/key}`` or ``${secret:key}``
-   
-   Substitutions are applied before the file is copied and imported.
+**File Substitution Support**
+
+Python transform files support the same substitution syntax as YAML:
+
+- **Environment tokens**: ``${catalog}``, ``${schema}``, ``${environment}``
+- **Secret references**: ``${secret:scope/key}`` or ``${secret:key}``
+
+Substitutions are applied before the file is copied and imported.
 
 .. seealso::
   - For PySpark DataFrame operations see the `Databricks PySpark documentation <https://docs.databricks.com/en/spark/latest/spark-sql/index.html>`_.
-  - Custom functions: :doc:`../concepts`
+  - Custom functions: :doc:`../architecture`
 
 .. Important::
   **Function Requirements**: Python functions must accept the appropriate parameters based on source configuration:
@@ -351,17 +349,16 @@ Lakehouse Plumber automatically handles Python function deployment:
   - **Multiple sources**: ``function_name(dataframes: List[DataFrame], spark: SparkSession, parameters: dict)``  
   - **No sources**: ``function_name(spark: SparkSession, parameters: dict)`` (for data generators)
 
-.. note::
-  **File Organization Tips**:
-  
-  - Keep your Python functions in a dedicated folder (e.g., ``transformations/``, ``functions/``)
-  - Use descriptive function names that clearly indicate their purpose
-  - Always edit the original files in your project, never the copied files in ``generated/``
-  - The ``module_path`` is relative to your project root directory
-  - Multiple transforms can reference the same Python file with different functions
+**File Organization Tips**:
 
-.. Warning::
-  **DO NOT Edit Generated Files**: The copied Python files in ``custom_python_functions/`` are automatically regenerated and include warning headers. Always edit your original source files.
+- Keep your Python functions in a dedicated folder (e.g., ``transformations/``, ``functions/``)
+- Use descriptive function names that clearly indicate their purpose
+- Always edit the original files in your project, never the copied files in ``generated/``
+- The ``module_path`` is relative to your project root directory
+- Multiple transforms can reference the same Python file with different functions
+
+**Do not edit generated files.** The copied Python files in ``custom_python_functions/`` are
+automatically regenerated and include warning headers. Always edit your original source files.
 
 **Generated File Structure**
 
@@ -452,7 +449,7 @@ After generation, your Python functions appear in the pipeline output with warni
 
 data_quality
 -------------------------------------------
-Data quality transform actions apply data validation rules using Databricks DLT expectations. They automatically handle data that fails validation based on configured actions.
+Data quality transform actions apply data validation rules using Databricks DLT :term:`expectations <Expectation>`. They automatically handle data that fails validation based on configured actions.
 
 .. code-block:: yaml
 
@@ -521,15 +518,14 @@ Data quality transform actions apply data validation rules using Databricks DLT 
 
 .. seealso::
   - For DLT expectations see the `Databricks DLT expectations documentation <https://docs.databricks.com/en/delta-live-tables/expectations.html>`_.
-  - Data quality patterns: :doc:`../concepts`
+  - Data quality patterns: :doc:`../architecture`
 
-.. Important::
-  Data quality transforms require ``readMode: stream`` and generate DLT streaming tables with built-in quality monitoring.
-  Use **fail** for critical business rules, **warn** for monitoring, and **drop** for data cleansing.
+Data quality transforms require ``readMode: stream`` and generate DLT streaming tables with
+built-in quality monitoring. Use **fail** for critical business rules, **warn** for monitoring,
+and **drop** for data cleansing.
 
-.. note::
-  **File Organization**: Expectations files are typically stored in an ``expectations/`` folder.
-  JSON format allows for version control and reuse across multiple pipelines.
+**File Organization**: Expectations files are typically stored in an ``expectations/`` folder.
+JSON format allows for version control and reuse across multiple pipelines.
 
 **The above YAML translates to the following PySpark code**
 
@@ -560,7 +556,7 @@ Data quality transform actions apply data validation rules using Databricks DLT 
       return df
 
 .. seealso::
-   For advanced quarantine mode with Dead Letter Queue (DLQ) recycling — routing failed rows
+   For advanced :term:`quarantine <Quarantine>` mode with Dead Letter Queue (DLQ) recycling — routing failed rows
    to an external table and automatically recycling fixed records back into the pipeline —
    see :doc:`../quarantine`.
 
@@ -738,10 +734,12 @@ Schema transforms support two enforcement modes (specified at action level):
 
 .. seealso::
   - For Spark data types see the `PySpark SQL types documentation <https://spark.apache.org/docs/latest/sql-ref-datatypes.html>`_.
-  - Schema evolution: :doc:`../concepts`
+  - Schema evolution: :doc:`../architecture`
 
-.. Important::
-  Schema transforms preserve operational metadata columns automatically. These columns are never renamed or cast, and are always included in the output regardless of enforcement mode. Use schema transforms for standardizing column names and ensuring consistent data types across your lakehouse.
+Schema transforms preserve operational metadata columns automatically. These columns are never
+renamed or cast, and are always included in the output regardless of enforcement mode. Use
+schema transforms to standardize column names and ensure consistent data types across your
+lakehouse.
 
 **The above YAML translates to the following PySpark code**
 
@@ -841,19 +839,16 @@ Temp table transform actions create temporary streaming tables for intermediate 
 
 .. seealso::
   - For SDP table types see the `Databricks SDP table types documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-table>`_.
-  - Intermediate processing: :doc:`../concepts`
+  - Intermediate processing: :doc:`../architecture`
 
-.. Important::
-  Temp tables are automatically cleaned up when the pipeline completes.
-  Use for complex multi-step transformations where intermediate materialization improves performance.
-  
-  For instance, if you have a complex transformation that will be used by several downstream actions,
-  you can create a temporary table to prevent the transformation from being recomputed each time.
+Temp tables are automatically cleaned up when the pipeline completes. Use them for complex
+multi-step transformations where intermediate materialization improves performance — for
+instance, if you have a complex transformation that will be used by several downstream actions,
+create a temporary table to prevent the transformation from being recomputed each time.
 
-.. Warning::
-  When using the ``sql`` property with streaming tables (``readMode: stream``), you must use the 
-  ``stream()`` function in your SQL query to maintain streaming semantics. Without it, the query 
-  will process data in batch mode.
+When using the ``sql`` property with streaming tables (``readMode: stream``), use the
+``stream()`` function in your SQL query to maintain streaming semantics. Without it, the query
+will process data in batch mode.
 
 **The above YAML examples translate to the following PySpark code**
 

@@ -1,6 +1,6 @@
 # LHP Best Practices Reference
 
-Authoritative guidance for enterprise LHP projects. Source: https://lakehouse-plumber.readthedocs.io/best_practices.html
+Authoritative guidance for LHP projects. Source: https://lakehouse-plumber.readthedocs.io/best_practices/index.html (subpages: project_structure, environments, performance, governance, testing).
 
 Load this file when:
 - Setting up a new LHP project structure

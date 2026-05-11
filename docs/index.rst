@@ -14,11 +14,8 @@ Lakehouse Plumber turns concise YAML **actions** into fully-featured
 Databricks Lakeflow Declarative Pipelines (formerly Delta Live Tables) — without hiding the Databricks
 platform you already know and love.
 
-
-
-
 How LHP Solves It
-=================
+-----------------
 
 - **Eliminates boilerplate** — a template + 5-line config replaces 86 lines of Python per table.
 - **Zero runtime overhead** — pure code generation, not a runtime framework.
@@ -26,7 +23,6 @@ How LHP Solves It
 - **Fits DataOps workflows** — CI/CD, automated testing, multi-environment substitutions.
 - **No lock-in** — the output is plain Python & SQL you own and control.
 - **Data democratization** — power users create artifacts within platform standards.
-
 
 **Real-World Example**
 
@@ -44,17 +40,17 @@ Instead of repeating 86 lines of Python per table, write a **5-line configuratio
      landing_folder: customer
 
 **Result:** 4,300 lines of repetitive Python → 250 lines total (1 template + 50 simple configs).
-See :doc:`getting_started` for the full template and generated output.
+See :doc:`quickstart` for the full template and generated output.
 
 Quick Start
-===========
+-----------
 
 Get started in minutes:
 
 .. code-block:: bash
 
    pip install lakehouse-plumber
-   lhp init my_project --bundle
+   lhp init my_project
    cd my_project
 
    # Edit your YAML flowgroups (IntelliSense auto-configured)
@@ -64,10 +60,10 @@ Get started in minutes:
    # Inspect the generated/ directory — readable Python ready for Databricks
 
 .. note::
-   **New to LHP?** Follow the :doc:`getting_started` tutorial to build your first pipeline in 10 minutes.
+   **New to LHP?** Follow the :doc:`quickstart` to build your first pipeline in 10 minutes.
 
 Core Workflow
-=============
+-------------
 
 The execution model is deliberately simple:
 
@@ -81,110 +77,56 @@ The execution model is deliberately simple:
 2. **Transform**   Apply *zero or many* transforms (SQL, Python, schema, data-quality, temp-tables…).
 3. **Write**   Persist results as Streaming Tables, Materialized Views, or Snapshots.
 
-Features at a Glance
-====================
+Where to next
+-------------
 
-**Pipeline Definition**
+The sidebar groups documentation by purpose, following the
+`Diátaxis <https://diataxis.fr/>`_ framework:
 
-* **Actions** — Load | Transform | Write with many sub-types (see :doc:`actions/index`).
-* **Sinks** — Stream to external destinations: Delta tables, Kafka, Event Hubs, custom APIs.
-* **CDC & SCD** — change-data capture SCD type 1 and 2, and snapshot ingestion.
-* **Append Flows** — multi-source writes to a single streaming table.
-* **Data-Quality** — declarative expectations integrated into transforms, with optional :doc:`quarantine <quarantine>` mode for DLQ recycling.
-* **Seeding** — seed data from existing tables using Lakeflow native features.
+* **Get Started** — install LHP, set up your editor, and ship your first pipeline.
+* **How-to** — task-shaped recipes for common data-engineering problems.
+* **Explanation** — the *why* behind LHP's design and patterns.
+* **Reference** — exhaustive lookup tables for CLI flags, YAML keys, error codes, and the public API.
 
-**Reusability**
-
-* **Presets & Templates** — reuse patterns without copy-paste.
-* **Blueprints** — fan one pipeline shape across many sites, tenants, or regions with tiny per-instance files.
-* **Local Variables** — flowgroup-scoped variables (``%{var}``) reduce repetition.
-* **Substitutions** — environment-aware tokens & secret references.
-
-**Operations**
-
-* **Operational Metadata** — custom audit columns and metadata.
-* **Pipeline Monitoring** — centralized event log aggregation and analysis (see :doc:`monitoring`).
-* **Test Result Reporting** — publish DQ expectation results to Azure DevOps, Delta tables, or custom systems (see :doc:`actions/test_reporting`).
-* **Dependency Analysis** — automatic dependency detection and orchestration job generation (see :doc:`dependency_analysis`).
-* **Smart State Management** — regenerate only what changed; cleanup orphaned code.
-
-**Developer Experience**
-
-* **IntelliSense** — VS Code schema hints & YAML completion (automatically configured).
-
-Next Steps
-==========
-
-**Getting Started**
-
-* :doc:`getting_started` – a hands-on walk-through using the ACMI demo project.
-* :doc:`examples` – real-world examples and sink configurations.
-
-**Configuration Guides**
-
-* :doc:`concepts` – deep-dive into FlowGroups, Actions, presets, templates and more.
-* :doc:`substitutions` – environment tokens, local variables, and secret management.
-* :doc:`operational_metadata` – audit columns, version requirements, and event log configuration.
-* :doc:`multi_flowgroup_guide` – reduce file proliferation with multiple flowgroups per YAML file.
-* :doc:`actions/index` – complete reference for all action types and sub-types.
-* :doc:`templates_reference` – comprehensive guide to creating and using templates.
-* :doc:`dynamic_templates_guide` – conditionals, loops, and advanced Jinja2 features.
-* :doc:`presets_reference` – reusable default configurations.
-* :doc:`blueprints_reference` – reusable parametrised pipeline shapes for multi-site/tenant deployments.
-* :doc:`best_practices` – enterprise patterns for naming, structure, presets, and production readiness.
-* :doc:`pipeline_patterns` – practical patterns for multi-source ingestion, path filtering, and fan-in architectures.
-* :doc:`quarantine` – quarantine mode with DLQ recycling for data quality transforms.
-
-**Deployment & Operations**
-
-* :doc:`databricks_bundles` – integrate with Databricks Asset Bundles for production deployments.
-* :doc:`monitoring` – centralized event log monitoring and analysis across all pipelines.
-* :doc:`actions/test_reporting` – publish test results to external systems.
-* :doc:`dependency_analysis` – pipeline dependency analysis and orchestration job generation.
-* :doc:`cicd_reference` – CI/CD patterns, deployment strategies, and DataOps best practices.
-
-**Reference**
-
-* :doc:`cli` – command-line reference.
-* :doc:`errors_reference` – error codes, causes, and resolution steps.
-* :doc:`api` – REST API reference.
+If you have a specific problem, jump straight to :doc:`how_to_index`. If you
+want to understand the execution model first, read :doc:`architecture`.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
-   :caption: Getting Started
+   :caption: Get Started
 
-   getting_started
-   examples
+   quickstart
+   editor_setup
+   requirements
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
-   :caption: Configuration Guides
+   :caption: How-to
 
-   concepts
-   substitutions
-   operational_metadata
-   multi_flowgroup_guide
-   best_practices
+   how_to_index
+   ingest_with_autoloader
    pipeline_patterns
-   quarantine
-   actions/index
-   templates_reference
+   multi_flowgroup_guide
    dynamic_templates_guide
-   presets_reference
-   blueprints_reference
+   configure_bundles
+   enable_monitoring
+   quarantine_records
+   migrate_from_dlt
+   troubleshooting
+   cicd
+   actions/test_reporting
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
-   :caption: Deployment & Operations
+   :caption: Explanation
 
-   databricks_bundles
-   monitoring
-   actions/test_reporting
-   dependency_analysis
-   cicd_reference
+   architecture
+   decisions
+   skills_concept
+   best_practices/index
 
 .. toctree::
    :maxdepth: 1
@@ -192,5 +134,17 @@ Next Steps
    :caption: Reference
 
    cli
+   actions/index
+   substitutions
+   operational_metadata
+   templates_reference
+   presets_reference
+   blueprints
+   bundle_config_reference
+   monitoring_reference
+   dependency_analysis
+   quarantine
    errors_reference
+   glossary
    api
+   changelog

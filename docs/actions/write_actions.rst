@@ -16,7 +16,7 @@ Write Actions
 
 streaming_table
 -------------------------------------------
-Streaming table write actions create or append to Delta streaming tables. They support three modes: **standard** (append flows), **cdc** (change data capture), and **snapshot_cdc** (snapshot-based CDC).
+:term:`Streaming table` write actions create or append to Delta streaming tables. They support three modes: **standard** (append flows), **cdc** (change data capture), and **snapshot_cdc** (snapshot-based CDC).
 
 .. deprecated:: 0.7.8
    The ``database`` field (e.g., ``database: "${catalog}.${schema}"``) is deprecated.
@@ -105,8 +105,7 @@ The ``table_schema`` option supports two formats, automatically detected by the 
   # or
   table_schema: "schemas/customer_table.yaml"
 
-.. note::
-  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
+**External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
 
 **The above YAML translates to the following PySpark code**
 
@@ -157,7 +156,7 @@ CDC Mode
 
 **Incremental CDC**
 
-CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD Type 1 and Type 2 processing.
+:term:`CDC` mode enables Change Data Capture using :term:`DLT`'s auto CDC functionality for :term:`SCD` Type 1 and Type 2 processing.
 
 .. code-block:: yaml
 
@@ -281,14 +280,13 @@ If any shared field disagrees across contributors, ``lhp validate`` / ``lhp gene
 
 **Snapshot CDC**
 
-Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `create_auto_cdc_from_snapshot_flow()`. It supports two source approaches: direct table references or custom Python functions.
+:term:`Snapshot CDC` mode creates CDC flows from full snapshots of data using DLT's `create_auto_cdc_from_snapshot_flow()`. It supports two source approaches: direct table references or custom Python functions.
 
-.. note::
-  **Recent Improvements**: Snapshot CDC actions using ``source_function`` are now **self-contained** and automatically handle:
-  
-  - **Dependency Management**: No false dependency errors when using ``source_function``
-  - **FlowGroup Validation**: Exempt from "must have at least one Load action" requirement
-  - **Source Field Handling**: Action-level ``source`` field is redundant and should be omitted
+**Recent Improvements**: Snapshot CDC actions using ``source_function`` are now **self-contained** and automatically handle:
+
+- **Dependency Management**: No false dependency errors when using ``source_function``
+- **FlowGroup Validation**: Exempt from "must have at least one Load action" requirement
+- **Source Field Handling**: Action-level ``source`` field is redundant and should be omitted
 
 **Option 1: Table Source**
 
@@ -414,15 +412,16 @@ instead of a bare function reference.
       - **track_history_column_list**: Specific columns to track history for (optional)
       - **track_history_except_column_list**: Columns to exclude from history tracking (optional, mutually exclusive with track_history_column_list)
 
-.. Important::
-  **Source Configuration for snapshot CDC**: 
+**Source configuration for snapshot CDC:**
 
-  - **With source_function**: The action becomes **self-contained** and does not require external dependencies. 
-    Any ``source`` field at the action level is **redundant** and should be omitted.
-  - **With source table**: The action depends on the specified source table and requires proper dependency management.
-  
-  **FlowGroup Requirements**: Self-contained snapshot CDC actions (using ``source_function``) are exempt from the 
-  "FlowGroup must have at least one Load action" requirement, as they provide their own data source.
+- **With source_function**: The action becomes self-contained and does not require external
+  dependencies. Any ``source`` field at the action level is redundant and should be omitted.
+- **With source table**: The action depends on the specified source table and requires proper
+  dependency management.
+
+**FlowGroup requirements**: Self-contained snapshot CDC actions (using ``source_function``)
+are exempt from the "FlowGroup must have at least one Load action" requirement, as they
+provide their own data source.
 
 **Example Python Function for source_function**
 
@@ -476,7 +475,7 @@ Create file `py_functions/part_snapshot_func.py`:
           
           return (df, next_snapshot_id)
 .. seealso::
-  - For more information on ``create_auto_cdc_from_snapshot_flow`` see the `Databricks snapshot CDC documentation <https://docs.databricks.com/en/delta-live-tables/python-ref.html#create_auto_cdc_from_snapshot_flow>`_
+  - For more information on ``create_auto_cdc_from_snapshot_flow`` see the `Databricks snapshot CDC documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-apply-changes-from-snapshot>`_
 
 **The above YAML examples translate to the following PySpark code**
 
@@ -648,7 +647,7 @@ Create file `py_functions/part_snapshot_func.py`:
 
 materialized_view
 -------------------------------------------
-Materialized view write actions create Databricks materialized views
+:term:`Materialized view` write actions create Databricks materialized views
 for pre-computed analytics tables based on the output of a query.
 
 **Option 1: Source View Based**
@@ -743,15 +742,14 @@ for pre-computed analytics tables based on the output of a query.
       - **comment**: Table comment for documentation
 - **description**: Optional documentation for the action
 
-.. note::
-  **SQL Query Options**: You can define the materialized view query in three ways:
-  
-  1. **Source view** (Option 1): Read from an existing view using ``source``
-  2. **Inline SQL** (Option 2): Define SQL directly in YAML using ``sql``
-  3. **External SQL file** (Option 3): Reference external SQL file using ``sql_path``
-  
-  External SQL files support substitution variables (``${tokens}`` and ``${secret:scope/key}``) 
-  and can be organized in subdirectories (e.g., ``"sql/gold/aggregations/sales_summary.sql"``).
+**SQL Query Options**: You can define the materialized view query in three ways:
+
+1. **Source view** (Option 1): Read from an existing view using ``source``
+2. **Inline SQL** (Option 2): Define SQL directly in YAML using ``sql``
+3. **External SQL file** (Option 3): Reference external SQL file using ``sql_path``
+
+External SQL files support substitution variables (``${tokens}`` and ``${secret:scope/key}``)
+and can be organized in subdirectories (e.g., ``"sql/gold/aggregations/sales_summary.sql"``).
 
 **table_schema Format Options**
 
@@ -773,8 +771,7 @@ The ``table_schema`` option supports two formats, automatically detected by the 
   # or
   table_schema: "schemas/product_view_schema.yaml"
 
-.. note::
-  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
+**External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
 
 **The above YAML examples translate to the following PySpark code**
 
@@ -835,14 +832,13 @@ The ``table_schema`` option supports two formats, automatically detected by the 
       return df
 
 
-.. Important::
-  Materialized views are designed for analytics workloads and always use batch processing.
-  Materialized views in Databricks refresh automatically based on source data changes.
-  Materialized views can either read from source views or execute custom SQL queries.
+Materialized views are designed for analytics workloads and always use batch processing.
+Materialized views in Databricks refresh automatically based on source data changes, and they
+can either read from source views or execute custom SQL queries.
 
-.. Note::
-  The `refresh_schedule` parameter is no longer supported by `@dp.materialized_view`.
-  If present in YAML configurations, it will be accepted for backward compatibility but ignored during code generation.
+The ``refresh_schedule`` parameter is no longer supported by ``@dp.materialized_view``. If
+present in YAML configurations, it is accepted for backward compatibility but ignored during
+code generation.
 
 sink
 -------------------------------------------
@@ -940,14 +936,14 @@ analytics databases managed outside of DLT pipelines.
   - **path**: File system path (``/mnt/delta/table``) - Required (use this OR tableName)
   - Other options can be specified and will be passed to DLT (currently not all options are supported by DLT)
 
-.. Important::
-  Delta sinks require EITHER ``tableName`` OR ``path`` (not both).
-  
-  - Use ``tableName`` for Unity Catalog tables (``catalog.schema.table``) or Hive metastore (``schema.table``)
-  - Use ``path`` for file-based Delta tables
-  
-  Additional options like ``checkpointLocation`` can be included in YAML for future compatibility, 
-  but verify current DLT support before relying on them.
+Delta sinks require EITHER ``tableName`` OR ``path`` (not both):
+
+- Use ``tableName`` for Unity Catalog tables (``catalog.schema.table``) or Hive metastore
+  (``schema.table``).
+- Use ``path`` for file-based Delta tables.
+
+Additional options like ``checkpointLocation`` can be included in YAML for future
+compatibility, but verify current DLT support before relying on them.
 
 **The above YAML translates to the following PySpark code:**
 
@@ -1194,7 +1190,7 @@ configuration for authentication.
           checkpointLocation: "/tmp/checkpoints/eventhubs_alerts"
 
 For more details on Event Hubs authentication, see the 
-`Databricks Event Hubs documentation <https://docs.databricks.com/structured-streaming/streaming-event-hubs.html>`_.
+`Databricks Event Hubs documentation <https://docs.databricks.com/aws/en/ldp/event-hubs>`_.
 
 Custom Sink
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1405,7 +1401,7 @@ and registers the sink format on the local Spark session at module load:
 * **Authentication**: Use Unity Catalog secrets for API keys and credentials
 
 For more details on implementing custom data sources, see the 
-`PySpark Custom Data Sources documentation <https://spark.apache.org/docs/latest/api/python/user_guide/sql/python_data_source.html>`_.
+`PySpark Custom Data Sources documentation <https://spark.apache.org/docs/latest/api/python/tutorial/sql/python_data_source.html>`_.
 
 Operational Metadata with Sinks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1500,10 +1496,10 @@ merging into Delta tables, writing to multiple destinations, or implementing com
 - Implement complex upsert patterns with conditional logic
 - Apply custom transformations or validations per batch
 
-.. Important::
-  **ForEachBatch sinks are for advanced streaming use cases.** Unlike other sinks that use ``dp.create_sink()``,
-  ForEachBatch uses the ``@dp.foreach_batch_sink()`` decorator pattern. You provide the batch processing logic
-  (function body), and LHP wraps it with the decorator and generates the append_flow.
+ForEachBatch sinks are for advanced streaming use cases. Unlike other sinks that use
+``dp.create_sink()``, ForEachBatch uses the ``@dp.foreach_batch_sink()`` decorator pattern.
+You provide the batch processing logic (function body), and LHP wraps it with the decorator
+and generates the ``append_flow``.
 
 **Configuration Options**
 
@@ -1609,8 +1605,7 @@ LHP generates the complete ForEachBatch sink code:
 - **write_target.comment**: Optional description
 - **source**: Single source view (string) - ForEachBatch sinks support only one source
 
-.. Important::
-  **You must provide EITHER ``module_path`` OR ``batch_handler``, not both.**
+Provide EITHER ``module_path`` OR ``batch_handler``, not both — supplying both raises an error.
 
 **Writing to Multiple Destinations**
 
@@ -1644,10 +1639,9 @@ ForEachBatch excels at writing each batch to multiple destinations:
           summary.write.format("delta").mode("append") \
             .saveAsTable("${monitoring_table}")
 
-.. Note::
-  **Idempotent Writes**: Use ``txnVersion`` and ``txnAppId`` options to make Delta writes idempotent.
-  This ensures that if a batch is re-run, duplicate writes are prevented. See 
-  `Databricks documentation on idempotent writes <https://docs.databricks.com/structured-streaming/foreach-batch.html#idempotent-table-writes-in-foreachbatch>`_.
+**Idempotent writes**: Use the ``txnVersion`` and ``txnAppId`` options to make Delta writes
+idempotent. This ensures that if a batch is re-run, duplicate writes are prevented. See the
+`Databricks documentation on idempotent writes <https://docs.databricks.com/aws/en/structured-streaming/delta-lake#use-foreachbatch-for-idempotent-table-writes>`_.
 
 **Full Refresh Handling**
 
@@ -1734,6 +1728,6 @@ Use ``${token}`` substitutions in your batch handler code:
 
 .. seealso::
   - `Databricks ForEachBatch documentation <https://docs.databricks.com/aws/en/ldp/for-each-batch>`_
-  - `Idempotent writes in ForEachBatch <https://docs.databricks.com/structured-streaming/foreach-batch.html#idempotent-table-writes-in-foreachbatch>`_
+  - `Idempotent writes in ForEachBatch <https://docs.databricks.com/aws/en/structured-streaming/delta-lake#use-foreachbatch-for-idempotent-table-writes>`_
 
 

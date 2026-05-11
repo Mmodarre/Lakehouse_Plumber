@@ -57,7 +57,7 @@ master_doc = 'index'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'README.md', 'DOCS_REORGANIZATION_PLAN.md']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'README.md', 'DOCS_REORGANIZATION_PLAN.md', 'STYLE_GUIDE.md']
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'furo'

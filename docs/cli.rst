@@ -15,15 +15,15 @@ usual ``--help`` flags.
 
 .. seealso::
 
-   For detailed information about dependency analysis and orchestration job generation, see :doc:`databricks_bundles`.
+   For detailed information about dependency analysis and orchestration job generation, see :doc:`configure_bundles`.
 
 Project Initialization
-======================
+----------------------
 
 The ``lhp init`` command creates a new LakehousePlumber project with the complete directory structure and configuration templates.
 
 Basic Usage
------------
+~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -51,7 +51,7 @@ Basic Usage
    └── resources/                # Bundle resources (--bundle only)
 
 Configuration Templates
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``config/`` directory contains template files for customizing Databricks job and pipeline settings:
 
@@ -77,7 +77,7 @@ Template for customizing orchestration job configuration used with ``lhp deps`` 
    # 2. Use with lhp deps command
    lhp deps --job-config config/job_config.yaml --bundle-output
 
-See :doc:`databricks_bundles` for detailed job configuration options.
+See :doc:`bundle_config_reference` for detailed job configuration options.
 
 **pipeline_config.yaml.tmpl**
 
@@ -103,7 +103,7 @@ Template for customizing Delta Live Tables (DLT) pipeline settings used with ``l
    # 3. Or specify custom path
    lhp generate -e dev --pipeline-config config/my_pipeline_config.yaml
 
-See :doc:`databricks_bundles` for detailed pipeline configuration options.
+See :doc:`bundle_config_reference` for detailed pipeline configuration options.
 
 .. note::
    Template files (\*.tmpl) are provided as starting points. Copy and remove the
@@ -111,7 +111,7 @@ See :doc:`databricks_bundles` for detailed pipeline configuration options.
    templates as reference while customizing your own versions.
 
 Force Regeneration of Pipeline Resources
------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``--force`` flag combined with ``--pipeline-config`` allows you to regenerate bundle pipeline resource YAML files even when they haven't changed.
 
@@ -138,14 +138,14 @@ Use this when you've modified your pipeline configuration and need to update the
    This is safe because LHP can always regenerate them. User-created files are backed up for safety.
 
 Skill Management
-================
+----------------
 
 LHP ships a Claude Code skill (``SKILL.md`` + reference markdown) that teaches Claude
 how to author LHP YAML configurations. The ``lhp skill`` command group installs and
 maintains this skill in your project (or your user-global Claude Code directory).
 
 Subcommands
------------
+~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -171,7 +171,7 @@ Subcommands
    lhp skill uninstall --force
 
 Behavior
---------
+~~~~~~~~
 
 - ``install`` errors if a skill is already present unless ``--force`` is given.
 - ``update`` errors if no install is found (use ``install`` instead). The skill is
@@ -185,7 +185,7 @@ Behavior
   ``status`` and ``update``.
 
 When to use ``--user``
-----------------------
+~~~~~~~~~~~~~~~~~~~~~~
 
 Use ``--user`` when you want the skill available across every project on your
 machine. The default project-scoped install is best when each project might be

@@ -11,8 +11,8 @@ Operational metadata are automatically generated columns that provide lineage, d
 provenance, and processing context. These columns are added to your tables without
 requiring manual SQL modifications.
 
-.. note::
-   Operational metadata columns are defined in the project level configuration file. under the ``operational_metadata`` key.
+Operational metadata columns are defined in the project level configuration file, under
+the ``operational_metadata`` key.
 
 **Project-level configuration:**
 
@@ -116,8 +116,8 @@ LakehousePlumber supports version enforcement to ensure consistent code generati
    lhp validate -e prod
    lhp generate -e prod
 
-.. note::
-   Version enforcement is **optional**. Projects without ``required_lhp_version`` work normally with any installed LakehousePlumber version.
+Version enforcement is **optional**. Projects without ``required_lhp_version`` work
+normally with any installed LakehousePlumber version.
 
 .. warning::
    Use the bypass environment variable (``LHP_IGNORE_VERSION=1``) only in emergencies. It's not recommended for production environments as it defeats the purpose of version consistency.
@@ -148,7 +148,7 @@ Individual pipelines can override or opt out of project-level event logging thro
 
 .. seealso::
    For complete details including per-pipeline overrides, opt-out, monitoring pipeline
-   setup, and all configuration options, see :doc:`monitoring`.
+   setup, and all configuration options, see :doc:`monitoring_reference`.
 
 Target Type Compatibility
 -------------------------
@@ -253,12 +253,12 @@ pipeline configurations. This is a defensive design pattern that prevents common
 Usage in YAML Files
 -------------------
 
-Operational metadata can be configured at multiple levels with **additive behavior** - columns from all levels are combined together:
+Operational metadata can be configured at multiple levels with **additive behavior** - columns from all levels are combined together.
 
-.. important::
-   **Additive Behavior**: Operational metadata columns are **never overridden** between levels.
-   Instead, columns from preset + flowgroup + action levels are **combined together**.
-   The only exception is ``operational_metadata: false`` at action level, which disables **all** metadata.
+**Additive behavior:** Operational metadata columns are **never overridden** between levels.
+Instead, columns from preset + flowgroup + action levels are **combined together**. The
+only exception is ``operational_metadata: false`` at action level, which disables **all**
+metadata.
 
 **Preset level**
 

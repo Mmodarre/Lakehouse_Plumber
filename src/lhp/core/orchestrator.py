@@ -319,7 +319,8 @@ class ActionOrchestrator:
         Returns:
             CommandResult with execution results
 
-        Example:
+        Example::
+
             # Generate pipeline
             result = orchestrator.execute_command(
                 "generate", "dev",
@@ -1264,9 +1265,13 @@ class ActionOrchestrator:
 
                 try:
                     fg_name = processed_flowgroup.flowgroup
-                    source_yaml = self._find_source_yaml_for_flowgroup(
-                        processed_flowgroup
-                    )
+                    with perf_timer(
+                        f"find_source_yaml [{fg_name}]",
+                        category="find_source_yaml",
+                    ):
+                        source_yaml = self._find_source_yaml_for_flowgroup(
+                            processed_flowgroup
+                        )
 
                     with perf_timer(
                         f"generate_code [{fg_name}]",
@@ -1937,7 +1942,11 @@ class ActionOrchestrator:
                 if fg._auxiliary_files:
                     processed._auxiliary_files = fg._auxiliary_files
                 processed._has_original_test_actions = fg._has_original_test_actions
-                source_yaml = self._find_source_yaml_for_flowgroup(fg)
+                with perf_timer(
+                    f"find_source_yaml [{fg.flowgroup}]",
+                    category="find_source_yaml",
+                ):
+                    source_yaml = self._find_source_yaml_for_flowgroup(fg)
 
                 # Generate code with shared Python file copier
                 with perf_timer(

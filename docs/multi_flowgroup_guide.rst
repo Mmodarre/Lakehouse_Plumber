@@ -189,7 +189,7 @@ The ``job_name`` property (used for multi-job orchestration) is also inherited b
 
 **Result:** All flowgroups automatically assigned to the ``SAP_SFCC`` job.
 
-**Note:** If any flowgroup has ``job_name`` defined, all flowgroups in your project must have it (validated at runtime). See :doc:`databricks_bundles` for multi-job orchestration details.
+**Note:** If any flowgroup has ``job_name`` defined, all flowgroups in your project must have it (validated at runtime). See :doc:`bundle_config_reference` for multi-job orchestration details.
 
 Migration Guide
 ---------------

@@ -151,6 +151,7 @@ class MonitoringConfig(BaseModel):
     """Project-level monitoring pipeline configuration.
 
     Generates two artifacts:
+
     1. A standalone notebook that runs N independent streaming queries (one per
        pipeline event log) appending into a user-created Delta table.
     2. A DLT pipeline with materialized views only, reading from that Delta table.

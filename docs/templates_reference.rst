@@ -627,7 +627,7 @@ A more advanced template supporting multiple file formats with format-specific c
 CDC Template with SCD Type 2
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A template for implementing Change Data Capture with Slowly Changing Dimensions:
+A template for implementing :term:`Change Data Capture <CDC>` with :term:`Slowly Changing Dimensions <SCD>`:
 
 .. code-block:: yaml
    :caption: templates/scd_type2_template.yaml
@@ -1188,7 +1188,7 @@ Best Practices for Substitutions
 .. seealso::
    - For complete secret management documentation: :doc:`substitutions`
    - For substitution file format: :doc:`substitutions`
-   - For environment-specific deployment: :doc:`databricks_bundles`
+   - For environment-specific deployment: :doc:`configure_bundles`
 
 Template Expressions
 --------------------
@@ -1596,6 +1596,6 @@ Enable verbose logging to see parameter substitution details:
 
 .. seealso::
    - For complete template examples see the `Example Projects <https://github.com/Mmodarre/Lakehouse_Plumber/tree/main/Example_Projects>`_
-   - Template syntax: :doc:`concepts`  
+   - Template syntax: :doc:`architecture`
    - Action reference: :doc:`actions/index`
-   - Using presets: :doc:`concepts` 
+   - Using presets: :doc:`presets_reference`

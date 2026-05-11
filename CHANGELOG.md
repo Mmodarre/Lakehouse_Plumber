@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Bundle sync sub-phase instrumentation**: new `--perf` aggregate-stat
+  categories expose the cost breakdown of `lhp generate`'s Bundle sync phase
+  — `bundle_extract_keys`, `bundle_find_resource_files`,
+  `bundle_existing_files`, `bundle_extract_catalog`,
+  `bundle_update_databricks_yaml`, `bundle_create_resource`,
+  `bundle_cleanup_orphans` — plus a restored `find_source_yaml` per-flowgroup
+  timer in `core/orchestrator.py` (deleted between v0.8.0 and v0.8.6, causing
+  measurement artifacts in `process_flowgroup` aggregates). The perf summary
+  header also reports `pipelines_synced` and `resource_files_scanned` counts
+  so timings can be normalised across runs of different project sizes. Zero
+  overhead when `--perf` is not set.
+
+### Fixed
+
+- **Bundle sync O(P²) YAML re-parse**: `_find_all_resource_files_for_pipeline`
+  previously re-parsed every `*.pipeline.yml` in `resources/lhp/` once per
+  pipeline, so a project with 100 pipelines triggered ~10,000
+  `yaml.safe_load` calls per sync. Added a per-sync memoisation cache
+  (`BundleManager._pipeline_keys_cache`, initialised in
+  `sync_resources_with_generated_files` and cleared in a `finally` block) so
+  each unique resource file is parsed at most once per sync. On the
+  `performance_testing` fixture (100 pipelines × ~101 files, 4,001 generated
+  files), median Bundle sync drops from **13.46s** (v0.8.0) / **13.62s**
+  (v0.8.6) to **0.25s** — a ~55× speedup. End-to-end `lhp generate --env dev
+  --force` median wall time drops by ~10s. Behaviour is unchanged; the cache
+  is opt-in (`None` outside of sync) so callers invoking
+  `_extract_pipeline_keys_from_file` outside the sync path see the original
+  uncached read.
+
 ## [0.8.6] — 2026-05-11
 
 ### Changed

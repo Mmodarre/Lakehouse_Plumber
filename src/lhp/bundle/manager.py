@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ..utils.error_formatter import ErrorCategory, LHPConfigError, LHPError
-from ..utils.performance_timer import perf_timer
+from ..utils.performance_timer import perf_timer, record_count
 from ..utils.template_renderer import TemplateRenderer
 from .error_factories import create_missing_databricks_file_error
 from .exceptions import BundleResourceError, YAMLParsingError
@@ -118,6 +118,11 @@ class BundleManager:
             monitoring_pipeline_name=self._get_monitoring_pipeline_name(),
         )
 
+        # Per-sync memo for _extract_pipeline_keys_from_file. Set to {} at the
+        # top of sync_resources_with_generated_files, reset to None on exit, so
+        # callers outside the sync path see uncached behavior.
+        self._pipeline_keys_cache: Optional[Dict[Path, List[str]]] = None
+
     def _get_env_resources_dir(self, env: str) -> Path:
         """Get root-level resources directory (no longer environment-specific).
 
@@ -170,26 +175,37 @@ class BundleManager:
         """
         self.logger.info("Syncing bundle resources for environment: %s", env)
 
-        with perf_timer("bundle_sync_resources"):
-            # Setup: Prepare environment and gather current state
-            current_pipeline_dirs, current_pipeline_names, existing_resource_files = (
-                self._setup_sync_environment(env, output_dir)
-            )
+        # Enable per-sync memoization for _extract_pipeline_keys_from_file.
+        # Without this, _find_all_resource_files_for_pipeline re-parses every
+        # resource YAML once per pipeline (O(P^2) parses for P pipelines).
+        self._pipeline_keys_cache = {}
+        try:
+            with perf_timer("bundle_sync_resources"):
+                # Setup: Prepare environment and gather current state
+                current_pipeline_dirs, current_pipeline_names, existing_resource_files = (
+                    self._setup_sync_environment(env, output_dir)
+                )
 
-            # Step 1: Process current pipelines using Conservative Approach
-            updated_count = self._process_current_pipelines(
-                current_pipeline_dirs, env, force, has_pipeline_config
-            )
+                # Record project shape for perf summary header
+                record_count("pipelines_synced", len(current_pipeline_names))
+                record_count("resource_files_scanned", len(existing_resource_files))
 
-            # Step 2: Clean up orphaned resources
-            removed_count = self._cleanup_orphaned_resources(current_pipeline_names)
+                # Step 1: Process current pipelines using Conservative Approach
+                updated_count = self._process_current_pipelines(
+                    current_pipeline_dirs, env, force, has_pipeline_config
+                )
 
-            # Step 3: Update configuration files
-            self._update_configuration_files(output_dir, env)
+                # Step 2: Clean up orphaned resources
+                removed_count = self._cleanup_orphaned_resources(current_pipeline_names)
 
-            # Step 4: Log results and return summary
-            self._log_sync_summary(updated_count, removed_count)
-            return updated_count + removed_count
+                # Step 3: Update configuration files
+                self._update_configuration_files(output_dir, env)
+
+                # Step 4: Log results and return summary
+                self._log_sync_summary(updated_count, removed_count)
+                return updated_count + removed_count
+        finally:
+            self._pipeline_keys_cache = None
 
     def _sync_pipeline_resource(
         self,
@@ -581,51 +597,54 @@ class BundleManager:
         Returns:
             Dict with 'catalog' and 'schema' keys containing resolved values
         """
-        # Convert string to Path for backward compatibility
-        if isinstance(output_dir, str):
-            output_dir = self.project_root / "generated"
+        with perf_timer(
+            "_extract_first_global_catalog_schema", category="bundle_extract_catalog"
+        ):
+            # Convert string to Path for backward compatibility
+            if isinstance(output_dir, str):
+                output_dir = self.project_root / "generated"
 
-        if not output_dir.exists():
-            self.logger.debug(f"Output directory not found: {output_dir}")
-            return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
+            if not output_dir.exists():
+                self.logger.debug(f"Output directory not found: {output_dir}")
+                return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
 
-        # Find all pipeline directories (directories containing Python files)
-        # Sort for deterministic cross-platform behavior
-        pipeline_dirs = sorted([d for d in output_dir.iterdir() if d.is_dir()])
-        self.logger.debug(
-            f"Found {len(pipeline_dirs)} pipeline directories in {output_dir}"
-        )
-
-        # Search through all Python files across all pipelines
-        for pipeline_dir in pipeline_dirs:
-            # Sort Python files for deterministic ordering within each directory
-            python_files = sorted(list(pipeline_dir.glob("*.py")))
+            # Find all pipeline directories (directories containing Python files)
+            # Sort for deterministic cross-platform behavior
+            pipeline_dirs = sorted([d for d in output_dir.iterdir() if d.is_dir()])
             self.logger.debug(
-                f"Searching {len(python_files)} Python files in {pipeline_dir.name}"
+                f"Found {len(pipeline_dirs)} pipeline directories in {output_dir}"
             )
 
-            for py_file in python_files:
-                try:
-                    content = py_file.read_text(encoding="utf-8")
-                    file_database_values = self._extract_database_patterns(content)
+            # Search through all Python files across all pipelines
+            for pipeline_dir in pipeline_dirs:
+                # Sort Python files for deterministic ordering within each directory
+                python_files = sorted(list(pipeline_dir.glob("*.py")))
+                self.logger.debug(
+                    f"Searching {len(python_files)} Python files in {pipeline_dir.name}"
+                )
 
-                    # Return the FIRST catalog.schema found
-                    if file_database_values:
-                        first_db_value = file_database_values[0]
-                        self.logger.info(
-                            f"Found first global catalog.schema: {first_db_value} in {py_file}"
-                        )
-                        return self._parse_resolved_database_string(first_db_value)
+                for py_file in python_files:
+                    try:
+                        content = py_file.read_text(encoding="utf-8")
+                        file_database_values = self._extract_database_patterns(content)
 
-                except Exception as e:
-                    self.logger.debug(f"Could not read {py_file}: {e}")
-                    continue
+                        # Return the FIRST catalog.schema found
+                        if file_database_values:
+                            first_db_value = file_database_values[0]
+                            self.logger.info(
+                                f"Found first global catalog.schema: {first_db_value} in {py_file}"
+                            )
+                            return self._parse_resolved_database_string(first_db_value)
 
-        # No catalog.schema found in any Python files
-        self.logger.info(
-            "No catalog.schema patterns found in any Python files, using defaults"
-        )
-        return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
+                    except Exception as e:
+                        self.logger.debug(f"Could not read {py_file}: {e}")
+                        continue
+
+            # No catalog.schema found in any Python files
+            self.logger.info(
+                "No catalog.schema patterns found in any Python files, using defaults"
+            )
+            return {"catalog": "main", "schema": f"lhp_${{bundle.target}}"}
 
     def _get_all_substitution_environments(self) -> List[str]:
         """
@@ -848,137 +867,140 @@ class BundleManager:
             BundleResourceError: If the update process fails
             MissingDatabricksTargetError: If required targets are missing
         """
-        self.logger.info("Updating databricks.yml with pipeline variables...")
+        with perf_timer(
+            "_update_databricks_variables", category="bundle_update_databricks_yaml"
+        ):
+            self.logger.info("Updating databricks.yml with pipeline variables...")
 
-        # Step 1: Extract first global catalog.schema
-        global_db_info = self._extract_first_global_catalog_schema(output_dir)
-        catalog_value = global_db_info.get("catalog")
-        schema_value = global_db_info.get("schema")
+            # Step 1: Extract first global catalog.schema
+            global_db_info = self._extract_first_global_catalog_schema(output_dir)
+            catalog_value = global_db_info.get("catalog")
+            schema_value = global_db_info.get("schema")
 
-        if not catalog_value or not schema_value:
-            self.logger.warning(
-                f"Could not find catalog.schema in Python files. "
-                f"Found: catalog={catalog_value}, schema={schema_value}. "
-                f"Skipping databricks.yml variable update."
-            )
-            return
-
-        self.logger.info(f"Found global catalog.schema: {catalog_value}.{schema_value}")
-
-        # Step 2: Get all substitution environments
-        all_environments = self._get_all_substitution_environments()
-        if not all_environments:
-            self.logger.warning(
-                "No substitution files found. Skipping databricks.yml variable update."
-            )
-            return
-
-        self.logger.debug(f"Found substitution environments: {all_environments}")
-
-        # Step 2.5: Identify pipelines with catalog/schema in config
-        pipelines_with_config = set()
-        pipelines_with_config_errors = {}
-        all_pipeline_names = set()
-
-        for pipeline_dir in sorted([d for d in output_dir.iterdir() if d.is_dir()]):
-            pipeline_name = pipeline_dir.name
-            all_pipeline_names.add(pipeline_name)
-
-            try:
-                # Check if pipeline config defines catalog/schema
-                pipeline_config = self.config_loader.get_pipeline_config(pipeline_name)
-                if pipeline_config.get("catalog") or pipeline_config.get("schema"):
-                    pipelines_with_config.add(pipeline_name)
-                    self.logger.debug(
-                        f"Pipeline '{pipeline_name}' has catalog/schema in config - "
-                        f"will skip databricks.yml variable update"
-                    )
-            except Exception as e:
-                pipelines_with_config_errors[pipeline_name] = str(e)
+            if not catalog_value or not schema_value:
                 self.logger.warning(
-                    f"Pipeline '{pipeline_name}' config check failed: {e}"
+                    f"Could not find catalog.schema in Python files. "
+                    f"Found: catalog={catalog_value}, schema={schema_value}. "
+                    f"Skipping databricks.yml variable update."
+                )
+                return
+
+            self.logger.info(f"Found global catalog.schema: {catalog_value}.{schema_value}")
+
+            # Step 2: Get all substitution environments
+            all_environments = self._get_all_substitution_environments()
+            if not all_environments:
+                self.logger.warning(
+                    "No substitution files found. Skipping databricks.yml variable update."
+                )
+                return
+
+            self.logger.debug(f"Found substitution environments: {all_environments}")
+
+            # Step 2.5: Identify pipelines with catalog/schema in config
+            pipelines_with_config = set()
+            pipelines_with_config_errors = {}
+            all_pipeline_names = set()
+
+            for pipeline_dir in sorted([d for d in output_dir.iterdir() if d.is_dir()]):
+                pipeline_name = pipeline_dir.name
+                all_pipeline_names.add(pipeline_name)
+
+                try:
+                    # Check if pipeline config defines catalog/schema
+                    pipeline_config = self.config_loader.get_pipeline_config(pipeline_name)
+                    if pipeline_config.get("catalog") or pipeline_config.get("schema"):
+                        pipelines_with_config.add(pipeline_name)
+                        self.logger.debug(
+                            f"Pipeline '{pipeline_name}' has catalog/schema in config - "
+                            f"will skip databricks.yml variable update"
+                        )
+                except Exception as e:
+                    pipelines_with_config_errors[pipeline_name] = str(e)
+                    self.logger.warning(
+                        f"Pipeline '{pipeline_name}' config check failed: {e}"
+                    )
+
+            # Skip entirely if ALL pipelines have config
+            if pipelines_with_config and pipelines_with_config == all_pipeline_names:
+                self.logger.info(
+                    f"All {len(all_pipeline_names)} pipelines have catalog/schema in config. "
+                    f"Skipping databricks.yml variable update entirely."
+                )
+                return
+
+            if pipelines_with_config:
+                self.logger.info(
+                    f"{len(pipelines_with_config)} pipelines have config-defined catalog/schema: "
+                    f"{sorted(pipelines_with_config)}"
                 )
 
-        # Skip entirely if ALL pipelines have config
-        if pipelines_with_config and pipelines_with_config == all_pipeline_names:
-            self.logger.info(
-                f"All {len(all_pipeline_names)} pipelines have catalog/schema in config. "
-                f"Skipping databricks.yml variable update entirely."
+            # DEPRECATED(v1.0.0): Auto-detect catalog/schema will be removed.
+            import click
+
+            pipelines_needing_config = sorted(all_pipeline_names - pipelines_with_config)
+            click.echo(
+                "\n"
+                "  ⚠️  DEPRECATION WARNING: Auto-detection of catalog/schema from generated files\n"
+                "     is deprecated and will be removed in version 1.0.0.\n"
+                "     Starting in v1.0.0, pipeline_config.yaml (--pipeline-config / -pc) will be required\n"
+                "     for bundle projects. Define 'catalog' and 'schema' either:\n"
+                "       - In project_defaults (applies to all pipelines), or\n"
+                "       - Per pipeline in pipeline_config.yaml\n"
+                "     Pipeline(s) currently missing catalog/schema config:\n"
+                f"       {', '.join(pipelines_needing_config)}\n"
+                "     See: https://lakehouse-plumber.readthedocs.io/en/latest/databricks_bundles.html#pipeline-configuration\n"
             )
-            return
-
-        if pipelines_with_config:
-            self.logger.info(
-                f"{len(pipelines_with_config)} pipelines have config-defined catalog/schema: "
-                f"{sorted(pipelines_with_config)}"
-            )
-
-        # DEPRECATED(v1.0.0): Auto-detect catalog/schema will be removed.
-        import click
-
-        pipelines_needing_config = sorted(all_pipeline_names - pipelines_with_config)
-        click.echo(
-            "\n"
-            "  \u26a0\ufe0f  DEPRECATION WARNING: Auto-detection of catalog/schema from generated files\n"
-            "     is deprecated and will be removed in version 1.0.0.\n"
-            "     Starting in v1.0.0, pipeline_config.yaml (--pipeline-config / -pc) will be required\n"
-            "     for bundle projects. Define 'catalog' and 'schema' either:\n"
-            "       - In project_defaults (applies to all pipelines), or\n"
-            "       - Per pipeline in pipeline_config.yaml\n"
-            "     Pipeline(s) currently missing catalog/schema config:\n"
-            f"       {', '.join(pipelines_needing_config)}\n"
-            "     See: https://lakehouse-plumber.readthedocs.io/en/latest/databricks_bundles.html#pipeline-configuration\n"
-        )
-        self.logger.warning(
-            "Auto-detect catalog/schema is deprecated (removal in v1.0.0). "
-            f"Pipelines missing config: {pipelines_needing_config}"
-        )
-
-        # Step 3: Find variable names in current environment's substitution file
-        variable_info = self._find_substitution_variables_for_values(
-            catalog_value, schema_value, current_env
-        )
-        catalog_var_name = variable_info.get("catalog_var")
-        schema_var_name = variable_info.get("schema_var")
-
-        if not catalog_var_name or not schema_var_name:
             self.logger.warning(
-                f"Could not find variable names in {current_env} substitution file for "
-                f"catalog='{catalog_value}', schema='{schema_value}'. "
-                f"Found: catalog_var={catalog_var_name}, schema_var={schema_var_name}. "
-                f"Skipping databricks.yml variable update."
+                "Auto-detect catalog/schema is deprecated (removal in v1.0.0). "
+                f"Pipelines missing config: {pipelines_needing_config}"
             )
-            return
 
-        self.logger.info(
-            f"Using variable names: {catalog_var_name}={catalog_value}, {schema_var_name}={schema_value}"
-        )
-
-        # Step 4: Validate all targets exist in databricks.yml
-        self._validate_databricks_targets_exist(all_environments)
-
-        # Step 5: Load actual values from each environment's substitution files
-        environment_variables = {}
-        for env in all_environments:
-            env_values = self._load_substitution_values_for_environment(
-                env, catalog_var_name, schema_var_name
+            # Step 3: Find variable names in current environment's substitution file
+            variable_info = self._find_substitution_variables_for_values(
+                catalog_value, schema_value, current_env
             )
-            environment_variables[env] = {
-                "default_pipeline_catalog": env_values["catalog"],
-                "default_pipeline_schema": env_values["schema"],
-            }
+            catalog_var_name = variable_info.get("catalog_var")
+            schema_var_name = variable_info.get("schema_var")
 
-        # Step 6: Update databricks.yml using DatabricksYAMLManager
-        from .databricks_yaml_manager import DatabricksYAMLManager
+            if not catalog_var_name or not schema_var_name:
+                self.logger.warning(
+                    f"Could not find variable names in {current_env} substitution file for "
+                    f"catalog='{catalog_value}', schema='{schema_value}'. "
+                    f"Found: catalog_var={catalog_var_name}, schema_var={schema_var_name}. "
+                    f"Skipping databricks.yml variable update."
+                )
+                return
 
-        databricks_manager = DatabricksYAMLManager(self.project_root)
-        databricks_manager.bulk_update_all_targets(
-            all_environments, environment_variables
-        )
+            self.logger.info(
+                f"Using variable names: {catalog_var_name}={catalog_value}, {schema_var_name}={schema_value}"
+            )
 
-        self.logger.info(
-            f"Updated databricks.yml variables for {len(all_environments)} targets: {all_environments}"
-        )
+            # Step 4: Validate all targets exist in databricks.yml
+            self._validate_databricks_targets_exist(all_environments)
+
+            # Step 5: Load actual values from each environment's substitution files
+            environment_variables = {}
+            for env in all_environments:
+                env_values = self._load_substitution_values_for_environment(
+                    env, catalog_var_name, schema_var_name
+                )
+                environment_variables[env] = {
+                    "default_pipeline_catalog": env_values["catalog"],
+                    "default_pipeline_schema": env_values["schema"],
+                }
+
+            # Step 6: Update databricks.yml using DatabricksYAMLManager
+            from .databricks_yaml_manager import DatabricksYAMLManager
+
+            databricks_manager = DatabricksYAMLManager(self.project_root)
+            databricks_manager.bulk_update_all_targets(
+                all_environments, environment_variables
+            )
+
+            self.logger.info(
+                f"Updated databricks.yml variables for {len(all_environments)} targets: {all_environments}"
+            )
 
     def _load_substitution_values_for_environment(
         self, env: str, catalog_var: str, schema_var: str
@@ -1367,30 +1389,31 @@ class BundleManager:
         Returns:
             Number of resource files that were removed
         """
-        removed_count = 0
+        with perf_timer("_cleanup_orphaned_resources", category="bundle_cleanup_orphans"):
+            removed_count = 0
 
-        # Step 2: Backup resource files for pipeline directories that no longer exist
-        # Check ALL files in resources/lhp, not just LHP-generated ones
-        all_resource_files = self._get_all_resource_files_in_lhp_directory()
-        for resource_file_info in all_resource_files:
-            pipeline_name = resource_file_info["pipeline_name"]
-            resource_file = resource_file_info["path"]
+            # Step 2: Backup resource files for pipeline directories that no longer exist
+            # Check ALL files in resources/lhp, not just LHP-generated ones
+            all_resource_files = self._get_all_resource_files_in_lhp_directory()
+            for resource_file_info in all_resource_files:
+                pipeline_name = resource_file_info["pipeline_name"]
+                resource_file = resource_file_info["path"]
 
-            if pipeline_name not in current_pipeline_names:
-                try:
-                    self._delete_resource_file(resource_file, pipeline_name)
-                    removed_count += 1
-                    self.logger.debug(
-                        "Successfully deleted resource file for removed pipeline: %s",
-                        pipeline_name,
-                    )
+                if pipeline_name not in current_pipeline_names:
+                    try:
+                        self._delete_resource_file(resource_file, pipeline_name)
+                        removed_count += 1
+                        self.logger.debug(
+                            "Successfully deleted resource file for removed pipeline: %s",
+                            pipeline_name,
+                        )
 
-                except Exception as e:
-                    self.logger.warning(
-                        "Failed to delete resource file %s: %s", resource_file, e
-                    )
+                    except Exception as e:
+                        self.logger.warning(
+                            "Failed to delete resource file %s: %s", resource_file, e
+                        )
 
-        return removed_count
+            return removed_count
 
     def _update_configuration_files(self, output_dir: Path, env: str) -> None:
         """
@@ -1449,22 +1472,23 @@ class BundleManager:
             output_dir: Output directory containing generated Python files
             env: Environment name for template context
         """
-        # Ensure resources directory exists
-        self.ensure_resources_directory()
+        with perf_timer("_create_new_resource_file", category="bundle_create_resource"):
+            # Ensure resources directory exists
+            self.ensure_resources_directory()
 
-        resource_file = self.get_resource_file_path(pipeline_name)
+            resource_file = self.get_resource_file_path(pipeline_name)
 
-        # Generate resource file content from Python files
-        content = self.generate_resource_file_content(pipeline_name, output_dir, env)
+            # Generate resource file content from Python files
+            content = self.generate_resource_file_content(pipeline_name, output_dir, env)
 
-        try:
-            resource_file.write_text(content, encoding="utf-8")
-            self.logger.info(f"Created new resource file: {resource_file}")
+            try:
+                resource_file.write_text(content, encoding="utf-8")
+                self.logger.info(f"Created new resource file: {resource_file}")
 
-        except (OSError, PermissionError) as e:
-            raise BundleResourceError(
-                f"Failed to create resource file {resource_file}: {e}", e
-            )
+            except (OSError, PermissionError) as e:
+                raise BundleResourceError(
+                    f"Failed to create resource file {resource_file}: {e}", e
+                )
 
     def _get_existing_resource_files(self) -> List[Dict[str, Any]]:
         """
@@ -1473,32 +1497,35 @@ class BundleManager:
         Returns:
             List of dictionaries with 'path' and 'pipeline_name' keys
         """
-        resource_files = []
+        with perf_timer(
+            "_get_existing_resource_files", category="bundle_existing_files"
+        ):
+            resource_files = []
 
-        if not self.resources_dir.exists():
-            return resource_files
+            if not self.resources_dir.exists():
+                return resource_files
 
-        try:
-            # Look for pipeline resource files (.pipeline.yml and .yml)
-            for resource_file in self.resources_dir.glob("*.yml"):
-                pipeline_name = self._extract_pipeline_name_from_resource_file(
-                    resource_file
+            try:
+                # Look for pipeline resource files (.pipeline.yml and .yml)
+                for resource_file in self.resources_dir.glob("*.yml"):
+                    pipeline_name = self._extract_pipeline_name_from_resource_file(
+                        resource_file
+                    )
+                    if pipeline_name:
+                        resource_files.append(
+                            {"path": resource_file, "pipeline_name": pipeline_name}
+                        )
+                        self.logger.debug(
+                            f"Found existing resource file: {resource_file.name} for pipeline: {pipeline_name}"
+                        )
+
+                return resource_files
+
+            except (OSError, PermissionError) as e:
+                self.logger.warning(
+                    f"Error scanning resources directory {self.resources_dir}: {e}"
                 )
-                if pipeline_name:
-                    resource_files.append(
-                        {"path": resource_file, "pipeline_name": pipeline_name}
-                    )
-                    self.logger.debug(
-                        f"Found existing resource file: {resource_file.name} for pipeline: {pipeline_name}"
-                    )
-
-            return resource_files
-
-        except (OSError, PermissionError) as e:
-            self.logger.warning(
-                f"Error scanning resources directory {self.resources_dir}: {e}"
-            )
-            return []
+                return []
 
     def _extract_pipeline_name_from_resource_file(
         self, resource_file: Path
@@ -1673,43 +1700,47 @@ class BundleManager:
         Raises:
             BundleResourceError: If YAML files are malformed
         """
-        matching_files = []
-        expected_pipeline_key = f"{pipeline_name}_pipeline"
+        with perf_timer(
+            "_find_all_resource_files_for_pipeline",
+            category="bundle_find_resource_files",
+        ):
+            matching_files = []
+            expected_pipeline_key = f"{pipeline_name}_pipeline"
 
-        if not self.resources_dir.exists():
-            return matching_files
+            if not self.resources_dir.exists():
+                return matching_files
 
-        try:
-            # Get all YAML files (both .yml and .yaml extensions)
-            yaml_files = []
-            for ext in ["*.yml", "*.yaml"]:
-                yaml_files.extend(self.resources_dir.glob(ext))
+            try:
+                # Get all YAML files (both .yml and .yaml extensions)
+                yaml_files = []
+                for ext in ["*.yml", "*.yaml"]:
+                    yaml_files.extend(self.resources_dir.glob(ext))
 
-            for file_path in yaml_files:
-                # Skip backup files
-                if ".bkup" in file_path.name:
-                    self.logger.debug(f"Skipping backup file: {file_path.name}")
-                    continue
+                for file_path in yaml_files:
+                    # Skip backup files
+                    if ".bkup" in file_path.name:
+                        self.logger.debug(f"Skipping backup file: {file_path.name}")
+                        continue
 
-                # Parse YAML and check for pipeline definition
-                pipeline_keys = self._extract_pipeline_keys_from_file(file_path)
-                if expected_pipeline_key in pipeline_keys:
-                    matching_files.append(file_path)
-                    self.logger.debug(
-                        f"Found pipeline '{expected_pipeline_key}' in {file_path.name}"
-                    )
+                    # Parse YAML and check for pipeline definition
+                    pipeline_keys = self._extract_pipeline_keys_from_file(file_path)
+                    if expected_pipeline_key in pipeline_keys:
+                        matching_files.append(file_path)
+                        self.logger.debug(
+                            f"Found pipeline '{expected_pipeline_key}' in {file_path.name}"
+                        )
 
-            return matching_files
+                return matching_files
 
-        except BundleResourceError:
-            # Re-raise BundleResourceError as-is (already formatted)
-            raise
-        except (OSError, PermissionError) as e:
-            error_msg = (
-                f"Error accessing resource files for pipeline '{pipeline_name}': {e}"
-            )
-            self.logger.error(error_msg)
-            raise BundleResourceError(error_msg, e)
+            except BundleResourceError:
+                # Re-raise BundleResourceError as-is (already formatted)
+                raise
+            except (OSError, PermissionError) as e:
+                error_msg = (
+                    f"Error accessing resource files for pipeline '{pipeline_name}': {e}"
+                )
+                self.logger.error(error_msg)
+                raise BundleResourceError(error_msg, e)
 
     def _extract_pipeline_keys_from_file(self, resource_file: Path) -> List[str]:
         """
@@ -1717,6 +1748,14 @@ class BundleManager:
 
         Parses the YAML structure to find keys under resources.pipelines section.
         Used for content-based duplicate detection.
+
+        Per-sync memoization: when ``self._pipeline_keys_cache`` is not None
+        (i.e., we are inside ``sync_resources_with_generated_files``), results
+        are cached by file path. Errors are not cached. The cache turns the
+        ~P^2 YAML parses in ``_find_all_resource_files_for_pipeline`` into
+        roughly P parses (one per unique resource file). The ``bundle_extract_keys``
+        perf category counts only actual parses (cache misses); cache hits are
+        the fast path and are intentionally excluded so the count reflects work.
 
         Args:
             resource_file: Path to the resource file to parse
@@ -1727,30 +1766,40 @@ class BundleManager:
         Raises:
             BundleResourceError: If YAML is malformed or unreadable
         """
-        try:
-            import yaml
+        cache = self._pipeline_keys_cache
+        if cache is not None and resource_file in cache:
+            return cache[resource_file]
 
-            with open(resource_file, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
+        with perf_timer(
+            "_extract_pipeline_keys_from_file", category="bundle_extract_keys"
+        ):
+            try:
+                import yaml
 
-            # Navigate YAML structure: resources -> pipelines -> keys
-            if data and isinstance(data, dict):
-                resources = data.get("resources", {})
-                if isinstance(resources, dict):
-                    pipelines = resources.get("pipelines", {})
-                    if isinstance(pipelines, dict):
-                        return list(pipelines.keys())
+                with open(resource_file, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
 
-            return []
+                # Navigate YAML structure: resources -> pipelines -> keys
+                result: List[str] = []
+                if data and isinstance(data, dict):
+                    resources = data.get("resources", {})
+                    if isinstance(resources, dict):
+                        pipelines = resources.get("pipelines", {})
+                        if isinstance(pipelines, dict):
+                            result = list(pipelines.keys())
 
-        except yaml.YAMLError as e:
-            error_msg = f"Malformed YAML in {resource_file.name}: {e}"
-            self.logger.error(error_msg)
-            raise BundleResourceError(error_msg, e)
-        except Exception as e:
-            error_msg = f"Failed to read {resource_file.name}: {e}"
-            self.logger.error(error_msg)
-            raise BundleResourceError(error_msg, e)
+                if cache is not None:
+                    cache[resource_file] = result
+                return result
+
+            except yaml.YAMLError as e:
+                error_msg = f"Malformed YAML in {resource_file.name}: {e}"
+                self.logger.error(error_msg)
+                raise BundleResourceError(error_msg, e)
+            except Exception as e:
+                error_msg = f"Failed to read {resource_file.name}: {e}"
+                self.logger.error(error_msg)
+                raise BundleResourceError(error_msg, e)
 
     def _backup_single_file(self, resource_file: Path, pipeline_name: str):
         """
