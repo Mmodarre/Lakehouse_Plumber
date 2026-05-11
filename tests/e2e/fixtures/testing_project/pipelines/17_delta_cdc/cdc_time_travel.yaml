@@ -1,0 +1,29 @@
+# B8 fixture — Delta time-travel reader with versionAsOf.
+# Reads a Delta table at a specific historical version (batch, not stream).
+# Verifies that LHP emits .option("versionAsOf", "10") on a spark.read chain
+# (NOT spark.readStream, since time travel is batch-only).
+pipeline: 17_delta_cdc
+flowgroup: cdc_time_travel
+
+actions:
+  - name: snapshot_customers_v10
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: "customers"
+      options:
+        versionAsOf: "10"
+    target: v_customers_snapshot_v10
+    description: "Load customers as of Delta version 10"
+
+  - name: write_customers_snapshot_v10
+    type: write
+    source: v_customers_snapshot_v10
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${gold_schema}"
+      table: "customers_snapshot_v10"
+      comment: "Snapshot of customers at Delta version 10 (time-travel)"

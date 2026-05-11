@@ -40,7 +40,7 @@ from ...utils.error_formatter import (
     LHPValidationError,
 )
 from ...utils.local_variables import LocalVariableResolver
-from ...utils.performance_timer import perf_timer
+from ...utils.performance_timer import perf_timer, record_count
 
 # Matches any `${...}` token (env or secret). Both kinds are forbidden inside
 # `pipeline`/`flowgroup` strings because they resolve at Step 3, after the
@@ -103,7 +103,7 @@ class BlueprintExpander:
               - List of FlowGroup objects with `_synthetic = True`
               - Map keyed by resolved `(pipeline, flowgroup)` tuple
         """
-        with perf_timer("expand_blueprints"):
+        with perf_timer("expand_blueprints", category="blueprint_expansion"):
             flowgroups: List[FlowGroup] = []
             provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
             # Track first-emitter file path per resolved tuple, to produce
@@ -181,6 +181,7 @@ class BlueprintExpander:
                 f"Expanded {len(instances)} instance(s) into "
                 f"{len(flowgroups)} synthetic flowgroup(s)"
             )
+            record_count("synthetic_flowgroups", len(flowgroups))
             return flowgroups, provenance
 
     def expand_single_instance(

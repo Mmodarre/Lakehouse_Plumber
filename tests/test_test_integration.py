@@ -180,27 +180,31 @@ class TestTestActionIntegration:
         assert 'lookup_customer_sk IS NOT NULL' in code
     
     def test_schema_match_end_to_end(self):
-        """Test SCHEMA_MATCH test type generates correct code."""
+        """SCHEMA_MATCH must accept 3-part FQNs and emit catalog-qualified SQL."""
         action = Action(
             name='test_schema_consistency',
             type=ActionType.TEST,
             test_type='schema_match',
-            source='current_data',
-            reference='historical_data',
+            source='cat.sch.current_data',
+            reference='cat.sch.historical_data',
             on_violation='fail'
         )
-        
+
         generator = TestActionGenerator()
         code = generator.generate(action=action, context={})
-        
-        # Verify SQL
-        assert 'information_schema.columns' in code
+
+        # Verify SQL — must be catalog-qualified and split into a 3-part predicate.
+        assert 'cat.information_schema.columns' in code
+        assert "table_catalog = 'cat'" in code
+        assert "table_schema = 'sch'" in code
+        assert "table_name = 'current_data'" in code
+        assert "table_name = 'historical_data'" in code
         assert 'source_schema' in code
         assert 'reference_schema' in code
         assert 'FULL OUTER JOIN' in code
         assert 'column_name' in code
         assert 'data_type' in code
-        
+
         # Verify expectations
         assert 'schemas_match' in code
         assert 'false' in code  # Fails if any schema difference exists

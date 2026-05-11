@@ -590,7 +590,12 @@ class ActionOrchestrator:
             flowgroups = self.discoverer.discover_all_flowgroups()
 
         # Expand blueprints into synthetic flowgroups
-        blueprint_fgs, provenance = self._expand_blueprints()
+        with perf_timer(
+            "Blueprint expansion",
+            phase=True,
+            parent_phase="Pipeline discovery",
+        ):
+            blueprint_fgs, provenance = self._expand_blueprints()
         flowgroups.extend(blueprint_fgs)
         self._blueprint_provenance = provenance
 

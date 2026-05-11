@@ -1,0 +1,36 @@
+# B2 fixture — ForEachBatch sink (@dp.foreach_batch_sink + @dp.append_flow)
+# Per-batch custom Python; inline batch_handler form (single source).
+pipeline: 13_sinks
+flowgroup: sk_foreach_batch
+
+actions:
+  - name: load_customer_changes_for_merge
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "${catalog}.${silver_schema}"
+      table: "dim_customer"
+    target: v_customer_changes
+    description: "Load customer dim CDC stream for foreach_batch merge"
+
+  - name: merge_customer_updates
+    type: write
+    source: v_customer_changes
+    write_target:
+      type: sink
+      sink_type: foreachbatch
+      sink_name: customer_merge_sink
+      comment: "Per-batch MERGE into target customer dimension"
+      batch_handler: |
+        df.createOrReplaceTempView("batch_view")
+        df.sparkSession.sql("""
+            MERGE INTO ${catalog}.${gold_schema}.dim_customer_merged AS tgt
+            USING batch_view AS src
+            ON tgt.customer_id = src.customer_id
+            WHEN MATCHED THEN
+                UPDATE SET tgt.name = src.name
+            WHEN NOT MATCHED THEN
+                INSERT (customer_id, name)
+                VALUES (src.customer_id, src.name)
+        """)

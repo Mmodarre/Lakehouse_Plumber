@@ -152,4 +152,111 @@ lhp list_templates                        # List available templates
 lhp list_presets                          # List available presets
 lhp deps --format dot --env <env>         # Visualize dependencies (spot cycles)
 lhp show <flowgroup> --env <env>          # Show resolved config
+lhp substitutions --env <env>             # List substitution tokens for env
+lhp state --env <env>                     # Inspect state file (checksums, stale)
 ```
+
+---
+
+## Symptom-Based Troubleshooting
+
+Task-shaped entries — start from what the user sees, find the fix. Use these
+before grepping the catalog above.
+
+### `lhp generate` aborts with an error banner
+
+Read the error code prefix:
+
+- `LHP-CFG-*` — fix YAML/preset/template/bundle config
+- `LHP-VAL-*` — fix missing/invalid fields in actions
+- `LHP-IO-*` — fix file path (paths are relative to FlowGroup YAML)
+- `LHP-ACT-*` — fix typo in action type/sub_type/preset name
+- `LHP-DEP-*` — break the dependency cycle shown in the message
+
+Apply the numbered fix suggestions in the terminal output, then re-run.
+
+### `lhp validate` lists multiple errors for one action
+
+Fix the **first** error first — later errors often cascade. For `LHP-VAL-002`,
+each `✗` marker is a separate issue. Use `lhp show <flowgroup> --env <env>` to
+see the resolved config (after preset merge + template expansion).
+
+### Pipeline deploys but does not run / runs stale code
+
+1. Run `lhp generate --env <env>` before `databricks bundle deploy --target <env>`.
+2. `--env` and `--target` must match.
+3. Check `resources/lhp/` contains the pipeline resource file.
+4. Force regen: `lhp generate --env <env> --force`.
+5. If missing `databricks.yml` (`LHP-CFG-022`): run `lhp init` or use `--no-bundle`.
+6. If env has no matching bundle target (`LHP-CFG-023`): add target to `databricks.yml`.
+
+### YAML completion / IntelliSense not working
+
+JSON Schemas live under `src/lhp/schemas/` in the installed package. The editor
+must map them to `pipelines/*.yaml`, `presets/*.yaml`, `templates/*.yaml`,
+`substitutions/*.yaml`. Reload editor window after LHP install/upgrade.
+
+### Substitutions not resolved (literal `${token}` in output)
+
+Substitution order: `%{local_var}` → `{{ template_param }}` → `${env_token}` →
+`${secret:scope/key}`. Bare-braces `{token}` is **deprecated**.
+
+1. `lhp substitutions --env <env>` — list known tokens.
+2. Add missing token to `substitutions/<env>.yaml`.
+3. Token must appear inside a string value, not as a YAML key.
+4. `lhp show <flowgroup> --env <env>` — inspect resolved config; unresolved
+   tokens appear unchanged.
+
+### Preset/template/blueprint edits not picked up
+
+LHP regenerates FlowGroups by content checksum. Most edits trigger regen on
+next `lhp generate`. If state is out of sync:
+
+```bash
+lhp generate --env <env> --force      # Force regen, keep state
+rm .lhp_state.json                    # Nuclear: drop state, regen all
+lhp generate --env <env>
+```
+
+Confirm the preset/template is actually referenced via `lhp show <flowgroup>`.
+
+### `lhp generate` says nothing to do after editing
+
+LHP does not checksum every indirectly-referenced file (e.g., external `.sql`
+loaded via `sql_file`). Use `--force` after editing such files.
+
+```bash
+lhp generate --env <env> --dry-run --verbose   # Show what would happen + why
+lhp state --env <env>                          # Tracked files, checksums, stale
+lhp generate --env <env> --force               # Bypass state check
+```
+
+### CLI flags reference
+
+Only these flags exist on `lhp generate`:
+
+- `--env <name>` — required
+- `--force` — bypass state check, regenerate all
+- `--dry-run` — preview without writing
+- `--no-bundle` — skip bundle resource generation
+- `--include-tests` — include test actions in output
+- `--pipeline <name>` — target a single pipeline
+- `--verbose` / `-v` — extra logging
+
+Do **not** use `--force-all`, `--show-dependencies`, or `--check-cycles` — those
+flags do not exist (despite appearing in some older docs).
+
+### POSIX exit codes (from `src/lhp/utils/exit_codes.py`)
+
+| Code | Meaning | LHP categories |
+|------|---------|----------------|
+| 0 | Success | — |
+| 1 | General error | unknown |
+| 64 | Usage error | bad CLI args |
+| 65 | Data error | VAL, DEP, ACT |
+| 66 | No input | IO |
+| 70 | Software error | internal bug |
+| 74 | I/O error | permissions, disk |
+| 78 | Config error | CFG, CloudFiles |
+
+Script integrations should branch on exit code, not on stderr text.

@@ -16,20 +16,24 @@ LHP generates DAB pipeline resource YAML files; it does NOT replace DAB or deplo
 
 ### Setup
 
+Bundle is enabled by default. Use `--no-bundle` to opt out.
+
 ```bash
-lhp init --bundle my-data-platform
+lhp init my-data-platform
 cd my-data-platform
-# Edit databricks.yml with workspace details
+# Edit databricks.yml with workspace details (host, run_as)
 lhp generate -e dev
 databricks bundle deploy --target dev
 ```
 
 ### What LHP Does
 
-- Generates `resources/lhp/*.pipeline.yml` using glob patterns
-- Synchronizes resources with generated code
-- Cleans up obsolete resource files
-- Never modifies `databricks.yml` or files outside `resources/lhp/`
+- `lhp init` (default) scaffolds `databricks.yml` (targets: dev/tst/prod) and `resources/lhp/`
+- Generates `resources/lhp/*.pipeline.yml` using glob libraries
+- Conservative sync: creates missing files, leaves LHP-owned files untouched, backs up user-edited files to `.bkup`, deletes orphans when a pipeline directory is removed
+- Force-regen LHP-owned bundle files only with `--force --pipeline-config <file>`
+- Never modifies `databricks.yml` (except DEPRECATED auto-detect variable update, removed in v1.0.0) or files outside `resources/lhp/`
+- Target names in `databricks.yml` must match substitution filenames under `substitutions/`
 
 ### Generated Resource Example
 

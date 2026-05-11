@@ -20,7 +20,7 @@ from ...utils.error_formatter import (
     LHPValidationError,
 )
 from ...utils.file_pattern_matcher import discover_files_with_patterns
-from ...utils.performance_timer import perf_timer
+from ...utils.performance_timer import perf_timer, record_count
 from ...utils.yaml_loader import load_yaml_documents_all
 
 if TYPE_CHECKING:
@@ -82,7 +82,10 @@ class BlueprintDiscoverer:
         a duplicate name raises code 046 with both file paths in the context.
         Returns an empty dict if there are no blueprint files.
         """
-        with perf_timer("discover_blueprints [discoverer]"):
+        with perf_timer(
+            "discover_blueprints [discoverer]",
+            category="blueprint_discovery",
+        ):
             files = discover_files_with_patterns(
                 self.project_root, self._blueprint_patterns()
             )
@@ -121,6 +124,7 @@ class BlueprintDiscoverer:
                 f"Discovered {len(registry)} blueprint(s): "
                 f"{sorted(registry.keys())}"
             )
+            record_count("blueprints", len(registry))
             return registry
 
     def discover_instances(
@@ -142,7 +146,10 @@ class BlueprintDiscoverer:
         Returns:
             List of (BlueprintInstance, instance_path).
         """
-        with perf_timer("discover_instances [discoverer]"):
+        with perf_timer(
+            "discover_instances [discoverer]",
+            category="instance_discovery",
+        ):
             files = discover_files_with_patterns(
                 self.project_root, self._instance_patterns()
             )
@@ -199,4 +206,5 @@ class BlueprintDiscoverer:
                     "include pattern)"
                 )
             self.logger.info(f"Discovered {len(instances)} instance(s)")
+            record_count("instances", len(instances))
             return instances

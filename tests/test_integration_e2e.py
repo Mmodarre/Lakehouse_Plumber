@@ -355,12 +355,12 @@ version: "1.0"
         subs_dir = self.project_root / "substitutions"
         subs_dir.mkdir(exist_ok=True)
         for env in ["dev", "test", "prod"]:
-            (subs_dir / f"{env}.yaml").write_text(f"""
-catalog: test_catalog_{env}
-raw_schema: raw
-bronze_schema: bronze
-silver_schema: silver
-gold_schema: gold
+            (subs_dir / f"{env}.yaml").write_text(f"""{env}:
+  catalog: test_catalog_{env}
+  raw_schema: raw
+  bronze_schema: bronze
+  silver_schema: silver
+  gold_schema: gold
 """)
         
         # Pipelines

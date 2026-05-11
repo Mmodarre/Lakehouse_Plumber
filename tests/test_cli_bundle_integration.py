@@ -37,11 +37,11 @@ class TestCLIBundleFlags:
         (self.project_root / "lhp.yaml").write_text("""name: test_project
 version: "1.0"
 """)
-        
+
         # Create substitutions
         sub_dir = self.project_root / "substitutions"
         sub_dir.mkdir()
-        (sub_dir / "dev.yaml").write_text("catalog: dev_catalog\nraw_schema: raw\nbronze_schema: bronze")
+        (sub_dir / "dev.yaml").write_text("dev:\n  catalog: dev_catalog\n  raw_schema: raw\n  bronze_schema: bronze\n")
         
         # Create pipelines directory with a simple pipeline
         pipe_dir = self.project_root / "pipelines"
@@ -53,7 +53,7 @@ actions:
     type: load
     source:
       type: delta
-      database: "{catalog}.raw"
+      database: "${catalog}.raw"
       table: test_table
     target: v_test_table
   - name: test_write
@@ -61,7 +61,7 @@ actions:
     source: v_test_table
     write_target:
       type: streaming_table
-      database: "{catalog}.bronze"
+      database: "${catalog}.bronze"
       table: test_table
 """)
         
@@ -399,8 +399,8 @@ target:
         # Create substitutions
         sub_dir = self.project_root / "substitutions"
         sub_dir.mkdir()
-        (sub_dir / "dev.yaml").write_text("catalog: dev_catalog\nraw_schema: raw\nbronze_schema: bronze")
-        
+        (sub_dir / "dev.yaml").write_text("dev:\n  catalog: dev_catalog\n  raw_schema: raw\n  bronze_schema: bronze\n")
+
         # Create pipelines
         pipe_dir = self.project_root / "pipelines"
         pipe_dir.mkdir()
@@ -411,7 +411,7 @@ actions:
     type: load
     source:
       type: delta
-      database: "{catalog}.{raw_schema}"
+      database: "${catalog}.${raw_schema}"
       table: customer
     target: v_customer
   - name: customer_write
@@ -419,7 +419,7 @@ actions:
     source: v_customer
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: customer
 """)
         
@@ -636,7 +636,7 @@ actions:
     type: load
     source:
       type: delta
-      database: "{catalog}.{raw_schema}"
+      database: "${catalog}.${raw_schema}"
       table: test_table
     target: v_test_table
   - name: test_write
@@ -644,7 +644,7 @@ actions:
     source: v_test_table
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: test_table
 """)
 
@@ -674,7 +674,7 @@ actions:
     type: load
     source:
       type: delta
-      database: "{catalog}.{raw_schema}"
+      database: "${catalog}.${raw_schema}"
       table: customer
     target: v_customer
   - name: customer_write
@@ -682,7 +682,7 @@ actions:
     source: v_customer
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: customer
 """)
             Path("pipelines/bronze.yaml").write_text("""pipeline: bronze
@@ -692,7 +692,7 @@ actions:
     type: load
     source:
       type: delta
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: customer
     target: v_customer_bronze
   - name: customer_bronze_write
@@ -700,7 +700,7 @@ actions:
     source: v_customer_bronze
     write_target:
       type: streaming_table
-      database: "{catalog}.{silver_schema}"
+      database: "${catalog}.${silver_schema}"
       table: customer
 """)
 
@@ -731,7 +731,7 @@ actions:
     type: load
     source:
       type: delta
-      database: "{catalog}.{raw_schema}"
+      database: "${catalog}.${raw_schema}"
       table: test_table
     target: v_test_table
   - name: test_write
@@ -739,7 +739,7 @@ actions:
     source: v_test_table
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: test_table
 """)
 

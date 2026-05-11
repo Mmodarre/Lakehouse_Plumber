@@ -29,6 +29,7 @@ readonly NC='\033[0m' # No Color
 #------------------------------------------------------------------------------
 DRY_RUN=false
 MOVE_GENERATED=false
+MOVE_GENERATED_WITH_TESTS=false
 EMPTY_RESOURCES=false
 MOVE_RESOURCES=false
 EMPTY_GENERATED=false
@@ -76,7 +77,13 @@ ALWAYS EXECUTED OPERATIONS:
   - Git discard changes in databricks.yml
 
 OPTIONAL OPERATIONS:
-  --move-generated      Move generated/dev to generated_baseline/dev (overwrite)
+  --move-generated              Move generated/dev to generated_baseline/dev (overwrite)
+  --move-generated-with-tests   Run 'lhp generate --include-tests --force', then promote
+                                test-specific files (those new or different vs the regular
+                                generated_baseline/dev) into generated_baseline_with_tests/dev.
+                                Files byte-identical to generated_baseline/dev are skipped to
+                                preserve the convention that generated_baseline_with_tests/
+                                holds only test-specific deltas, not duplicates.
   --empty-generated     Empty the generated directory
   --empty-resources     Empty the resources directory
   --move-resources    Move resources content to resources_baseline (overwrite)
@@ -95,6 +102,9 @@ EXAMPLES:
 
   # Cleanup and move generated files to baseline
   $(basename "$0") --move-generated --execute
+
+  # Promote test-specific files into generated_baseline_with_tests
+  $(basename "$0") --move-generated-with-tests --execute
 
   # Cleanup and move resources
   $(basename "$0") --move-resources --execute
@@ -222,6 +232,60 @@ move_generated_to_baseline() {
     return 0
 }
 
+# Promote test-specific files into generated_baseline_with_tests/dev/
+# Strategy:
+#   1. Run 'lhp generate --env dev --include-tests --force' to produce up-to-date output.
+#   2. For each file in generated/dev/, compare to generated_baseline/dev/.
+#      - If it matches byte-for-byte → skip (it is part of the regular baseline, not test-specific).
+#      - If it is new or differs → copy into generated_baseline_with_tests/dev/.
+#   This filtering preserves the established convention: generated_baseline_with_tests/dev/
+#   contains ONLY the deltas introduced by --include-tests (e.g. _test_reporting_hook.py,
+#   tst_*.py, test_reporting_providers/), not duplicates of the regular baseline.
+move_generated_with_tests_to_baseline() {
+    if [[ "$MOVE_GENERATED_WITH_TESTS" == false ]]; then
+        return 0
+    fi
+
+    local source_dir="${TESTING_PROJECT_DIR}/generated/dev"
+    local regular_baseline="${TESTING_PROJECT_DIR}/generated_baseline/dev"
+    local target_dir="${TESTING_PROJECT_DIR}/generated_baseline_with_tests/dev"
+
+    print_info "Running 'lhp generate --env dev --include-tests --force' inside testing_project"
+    if [[ "$DRY_RUN" == true ]]; then
+        echo -e "${YELLOW}[DRY RUN]${NC}   Command: cd '$TESTING_PROJECT_DIR' && lhp generate --env dev --include-tests --force"
+    else
+        (cd "$TESTING_PROJECT_DIR" && lhp generate --env dev --include-tests --force) \
+            || { print_error "lhp generate failed"; return 1; }
+    fi
+
+    if [[ ! -d "$source_dir" ]]; then
+        print_warning "Source directory does not exist: generated/dev (skipping promotion)"
+        return 0
+    fi
+
+    print_info "Promoting test-specific files into generated_baseline_with_tests/dev (filtering vs regular baseline)"
+
+    local promoted_count=0
+    while IFS= read -r src_file; do
+        local rel_path="${src_file#${source_dir}/}"
+        local regular_file="${regular_baseline}/${rel_path}"
+        local target_file="${target_dir}/${rel_path}"
+
+        # Skip if file is byte-identical to regular baseline (not test-specific)
+        if [[ -f "$regular_file" ]] && cmp -s "$src_file" "$regular_file"; then
+            continue
+        fi
+
+        execute_cmd "  Promote: ${rel_path}" "mkdir -p \"\$(dirname '${target_file}')\" && cp '${src_file}' '${target_file}'"
+        promoted_count=$((promoted_count + 1))
+    done < <(find "$source_dir" -type f)
+
+    if [[ "$DRY_RUN" == false ]]; then
+        print_success "Promoted ${promoted_count} test-specific file(s) to generated_baseline_with_tests/dev"
+    fi
+    return 0
+}
+
 # Empty generated directory
 empty_generated_dir() {
     if [[ "$EMPTY_GENERATED" == false ]]; then
@@ -343,9 +407,10 @@ main() {
     echo ""
     
     # Optional operations
-    if [[ "$MOVE_GENERATED" == true || "$EMPTY_GENERATED" == true || "$EMPTY_RESOURCES" == true || "$MOVE_RESOURCES" == true ]]; then
+    if [[ "$MOVE_GENERATED" == true || "$MOVE_GENERATED_WITH_TESTS" == true || "$EMPTY_GENERATED" == true || "$EMPTY_RESOURCES" == true || "$MOVE_RESOURCES" == true ]]; then
         print_info "Running optional operations..."
         move_generated_to_baseline
+        move_generated_with_tests_to_baseline
         empty_generated_dir
         empty_resources_dir
         move_resources_to_baseline
@@ -387,6 +452,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --move-generated)
             MOVE_GENERATED=true
+            shift
+            ;;
+        --move-generated-with-tests)
+            MOVE_GENERATED_WITH_TESTS=true
             shift
             ;;
         --empty-generated)

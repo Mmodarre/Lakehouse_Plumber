@@ -1,0 +1,18 @@
+# B1 fixture — custom_expectations test action
+# Attaches arbitrary expectations to an existing source.
+pipeline: 12_test_actions
+flowgroup: ta_custom_expectations
+
+actions:
+  - name: ta_orders_business_rules
+    type: test
+    test_type: custom_expectations
+    source: "${catalog}.${silver_schema}.fact_orders"
+    expectations:
+      - name: positive_amount
+        expression: "total_price > 0"
+        on_violation: warn
+      - name: reasonable_discount
+        expression: "discount_percent <= 50"
+        on_violation: warn
+    description: "Validate business rules on fact_orders"

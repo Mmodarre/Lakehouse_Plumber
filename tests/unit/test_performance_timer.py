@@ -162,7 +162,7 @@ class TestPerfSummary:
         assert "Phase breakdown:" in content
         assert "Phase A" in content
         assert "Phase B" in content
-        assert "Per-flowgroup aggregate stats:" in content
+        assert "Per-category aggregate stats:" in content
         assert "process_fg" in content
         assert "cnt=2" in content
 

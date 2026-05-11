@@ -171,7 +171,13 @@ class TestTestActionErrorHandling:
             assert code.count('[') == code.count(']')
     
     def test_schema_match_without_reference(self):
-        """Test schema_match without reference table."""
+        """schema_match without a valid 3-part reference must raise LHP-VAL-022.
+
+        Previously the generator silently emitted SQL that did not match
+        anything in information_schema; the contract is now strict.
+        """
+        from lhp.utils.error_formatter import LHPValidationError
+
         generator = TestActionGenerator()
         action = Action(
             name='test_schema',
@@ -180,10 +186,10 @@ class TestTestActionErrorHandling:
             source='table1'
             # Missing 'reference' field
         )
-        
-        code = generator.generate(action=action)
-        # Should handle missing reference gracefully
-        assert 'def tmp_test_' in code
+
+        with pytest.raises(LHPValidationError) as exc_info:
+            generator.generate(action=action)
+        assert "LHP-VAL-022" in str(exc_info.value)
         
     def test_very_long_action_name(self):
         """Test handling of very long action names."""
