@@ -194,7 +194,7 @@ actions:
         assert stats['hits'] + stats['misses'] == 10
 
     # ------------------------------------------------------------------
-    # load_documents_all (raw-document sub-cache) — added for Issue 3a
+    # load_documents_all (raw-document sub-cache)
     # ------------------------------------------------------------------
 
     def test_load_documents_all_caches_by_mtime(self, temp_yaml_file):
