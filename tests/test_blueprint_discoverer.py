@@ -11,6 +11,7 @@ import pytest
 from lhp.core.services.blueprint_discoverer import BlueprintDiscoverer
 from lhp.models.config import ProjectConfig
 from lhp.parsers.blueprint_parser import BlueprintParser
+from lhp.parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from lhp.utils.error_formatter import ErrorCategory, LHPError
 
 pytestmark = pytest.mark.unit
@@ -134,3 +135,131 @@ def test_discover_instances_custom_patterns(tmp_path):
     instances = disco.discover_instances(blueprints)
     sites = {inst.parameter_values()["site_name"] for inst, _ in instances}
     assert sites == {"apac_sg"}
+
+
+# ----------------------------------------------------------------------
+# Issue 2 + 3 (PR #130): cache plumbing + load-error UX
+# ----------------------------------------------------------------------
+
+
+def test_discover_instances_uses_cached_parser_single_load(tmp_path):
+    """When wired with a CachingYAMLParser, every unique YAML file is read
+    from disk exactly once across the entire blueprint+instance discovery
+    flow. A second discover_instances pass adds no misses (all hits)."""
+    _write(tmp_path / "blueprints" / "erp.yaml", _bp_yaml("erp_ingestion"))
+    _write(
+        tmp_path / "pipelines" / "erp" / "sg.yaml",
+        _instance_yaml("erp_ingestion", "apac_sg"),
+    )
+    _write(
+        tmp_path / "pipelines" / "erp" / "uk.yaml",
+        _instance_yaml("erp_ingestion", "emea_uk"),
+    )
+
+    cache = CachingYAMLParser(YAMLParser())
+    disco = BlueprintDiscoverer(tmp_path, caching_yaml_parser=cache)
+
+    # discover_blueprints reads 1 file; discover_instances peeks then parses
+    # 2 instance files (parse_instance_file re-reads via cache → hit).
+    blueprints = disco.discover_blueprints()
+    disco.discover_instances(blueprints)
+
+    cold = cache.get_cache_stats()
+    # 3 unique files (1 blueprint + 2 instances) → cache has 3 entries,
+    # each loaded from disk exactly once.
+    assert cold["documents_cache_size"] == 3
+    assert cold["misses"] == 3
+    # parse_instance_file re-reads each of the 2 instances → 2 hits.
+    assert cold["hits"] >= 2
+
+    # Warm pass: no new physical reads, only hits.
+    disco.discover_instances(blueprints)
+    warm = cache.get_cache_stats()
+    assert warm["misses"] == cold["misses"], "warm pass must not re-read disk"
+    assert warm["hits"] > cold["hits"], "warm pass must produce additional hits"
+
+
+def test_blueprint_discoverer_emits_warning_on_load_errors(tmp_path, caplog):
+    """A malformed YAML under pipelines/ must surface as a WARNING summary
+    (not vanish at default log level), while valid instances still parse."""
+    import logging
+
+    _write(tmp_path / "blueprints" / "erp.yaml", _bp_yaml("erp_ingestion"))
+    _write(
+        tmp_path / "pipelines" / "erp" / "sg.yaml",
+        _instance_yaml("erp_ingestion", "apac_sg"),
+    )
+    # Malformed YAML: unclosed bracket triggers yaml.YAMLError inside the
+    # loader, which it wraps into an LHPConfigError.
+    _write(
+        tmp_path / "pipelines" / "erp" / "bad.yaml",
+        "blueprint: erp_ingestion\nparameters: [unclosed\n",
+    )
+
+    disco = BlueprintDiscoverer(tmp_path)
+    blueprints = disco.discover_blueprints()
+
+    with caplog.at_level(
+        logging.WARNING, logger="lhp.core.services.blueprint_discoverer"
+    ):
+        instances = disco.discover_instances(blueprints)
+
+    # Valid instance still returned.
+    assert len(instances) == 1
+    sites = {inst.parameter_values()["site_name"] for inst, _ in instances}
+    assert sites == {"apac_sg"}
+
+    # Filter to *this* logger; unrelated WARNINGs (e.g. deprecation messages
+    # from lhp.models.config) are noise for this assertion.
+    warnings = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING
+        and r.name == "lhp.core.services.blueprint_discoverer"
+    ]
+    assert len(warnings) == 1
+    msg = warnings[0].getMessage()
+    assert "bad.yaml" in msg
+    assert "1 instance candidate" in msg
+
+
+def test_blueprint_discoverer_silent_on_non_instance_files(tmp_path, caplog):
+    """Hand-written flowgroup YAMLs under pipelines/ are NOT instances; the
+    discoverer must skip them silently at default (WARNING) log level."""
+    import logging
+
+    _write(tmp_path / "blueprints" / "erp.yaml", _bp_yaml("erp_ingestion"))
+    _write(
+        tmp_path / "pipelines" / "erp" / "sg.yaml",
+        _instance_yaml("erp_ingestion", "apac_sg"),
+    )
+    # Flowgroup-shaped file: no `use_blueprint:` / `blueprint:` key.
+    _write(
+        tmp_path / "pipelines" / "erp" / "fg.yaml",
+        "pipeline: raw_pipeline\nflowgroup: my_fg\nactions: []\n",
+    )
+
+    disco = BlueprintDiscoverer(tmp_path)
+    blueprints = disco.discover_blueprints()
+
+    with caplog.at_level(
+        logging.WARNING, logger="lhp.core.services.blueprint_discoverer"
+    ):
+        instances = disco.discover_instances(blueprints)
+
+    # Valid instance still parsed; flowgroup silently routed away.
+    assert len(instances) == 1
+    # Scope to the discoverer's logger: deprecation warnings from
+    # lhp.models.config (triggered by the legacy `blueprint:` flat syntax
+    # in _instance_yaml) are unrelated to this test's invariant.
+    warnings = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING
+        and r.name == "lhp.core.services.blueprint_discoverer"
+    ]
+    assert warnings == [], (
+        "Non-instance files (regular flowgroups) must not produce "
+        "discoverer warnings at default log level; got: "
+        f"{[w.getMessage() for w in warnings]}"
+    )

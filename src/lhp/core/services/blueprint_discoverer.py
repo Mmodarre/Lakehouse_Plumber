@@ -10,16 +10,21 @@ flowgroups). Both are configurable via `blueprint_include` /
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ...models.config import Blueprint, BlueprintInstance, ProjectConfig
 from ...parsers.blueprint_parser import BlueprintParser
 from ...utils.error_formatter import (
     ErrorCategory,
+    LHPError,
     LHPValidationError,
 )
 from ...utils.file_pattern_matcher import discover_files_with_patterns
 from ...utils.performance_timer import perf_timer
+from ...utils.yaml_loader import load_yaml_documents_all
+
+if TYPE_CHECKING:
+    from ...parsers.yaml_parser import CachingYAMLParser
 
 DEFAULT_BLUEPRINT_PATTERNS = ["blueprints/**/*.yaml", "blueprints/**/*.yml"]
 DEFAULT_INSTANCE_PATTERNS = ["pipelines/**/*.yaml", "pipelines/**/*.yml"]
@@ -38,11 +43,27 @@ class BlueprintDiscoverer:
         project_root: Path,
         project_config: Optional[ProjectConfig] = None,
         blueprint_parser: Optional[BlueprintParser] = None,
+        caching_yaml_parser: Optional["CachingYAMLParser"] = None,
     ) -> None:
         self.project_root = project_root
         self.project_config = project_config
-        self.blueprint_parser = blueprint_parser or BlueprintParser()
+        self.caching_yaml_parser = caching_yaml_parser
+        self.blueprint_parser = blueprint_parser or BlueprintParser(
+            caching_yaml_parser=caching_yaml_parser
+        )
         self.logger = logging.getLogger(__name__)
+
+    def _load_documents(
+        self, path: Path, error_context: str
+    ) -> List[Dict[str, Any]]:
+        """Load all YAML documents from ``path``, routing through the cache
+        when one was wired at construction time.
+        """
+        if self.caching_yaml_parser is not None:
+            return self.caching_yaml_parser.load_documents_all(
+                path, error_context=error_context
+            )
+        return load_yaml_documents_all(path, error_context=error_context)
 
     def _blueprint_patterns(self) -> List[str]:
         if self.project_config and self.project_config.blueprint_include:
@@ -121,8 +142,6 @@ class BlueprintDiscoverer:
         Returns:
             List of (BlueprintInstance, instance_path).
         """
-        from ...utils.yaml_loader import load_yaml_documents_all
-
         with perf_timer("discover_instances [discoverer]"):
             files = discover_files_with_patterns(
                 self.project_root, self._instance_patterns()
@@ -136,17 +155,18 @@ class BlueprintDiscoverer:
                 name: bp for name, (bp, _) in blueprints.items()
             }
             instances: List[Tuple[BlueprintInstance, Path]] = []
+            skipped_load_errors: List[Path] = []
             skipped_non_instance = 0
             for path in files:
                 try:
-                    documents = load_yaml_documents_all(
+                    documents = self._load_documents(
                         path, error_context=f"instance candidate {path}"
                     )
-                except Exception as e:
+                except LHPError as e:
                     self.logger.debug(
-                        f"Skipping {path} during instance discovery (load "
-                        f"error): {e}"
+                        f"Could not load instance candidate {path}: {e}"
                     )
+                    skipped_load_errors.append(path)
                     continue
 
                 if not documents or not BlueprintParser.looks_like_instance(
@@ -164,6 +184,12 @@ class BlueprintDiscoverer:
                 )
                 instances.append((instance, path))
 
+            if skipped_load_errors:
+                self.logger.warning(
+                    f"Skipped {len(skipped_load_errors)} instance candidate "
+                    f"file(s) due to load errors: "
+                    f"{[p.name for p in skipped_load_errors]}"
+                )
             if skipped_non_instance:
                 self.logger.debug(
                     f"Skipped {skipped_non_instance} non-instance file(s) "

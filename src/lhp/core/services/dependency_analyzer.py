@@ -15,7 +15,7 @@ from ...models.dependencies import (
     FlowgroupDependencyInfo,
     PipelineDependency,
 )
-from ...parsers.yaml_parser import YAMLParser
+from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...utils.error_formatter import ErrorCategory, LHPError
 from ...utils.source_extractor import extract_action_sources
 from ..project_config_loader import ProjectConfigLoader
@@ -42,10 +42,13 @@ class DependencyAnalyzer:
         """
         self.project_root = project_root
         self.config_loader = config_loader or ProjectConfigLoader(project_root)
-        self.flowgroup_discoverer = FlowgroupDiscoverer(
-            project_root, self.config_loader
-        )
         self.yaml_parser = YAMLParser()
+        self._cached_yaml_parser = CachingYAMLParser(self.yaml_parser)
+        self.flowgroup_discoverer = FlowgroupDiscoverer(
+            project_root,
+            self.config_loader,
+            yaml_parser=self._cached_yaml_parser,
+        )
         self.logger = logging.getLogger(__name__)
 
         # Initialize components for template expansion
@@ -74,11 +77,14 @@ class DependencyAnalyzer:
 
         # The analyzer mirrors the orchestrator's view of synthetic flowgroups
         # so `lhp deps` sees them.
-        self.blueprint_parser = BlueprintParser()
+        self.blueprint_parser = BlueprintParser(
+            caching_yaml_parser=self._cached_yaml_parser
+        )
         self.blueprint_discoverer = BlueprintDiscoverer(
             project_root,
             project_config=project_config,
             blueprint_parser=self.blueprint_parser,
+            caching_yaml_parser=self._cached_yaml_parser,
         )
         self.blueprint_expander = BlueprintExpander()
 

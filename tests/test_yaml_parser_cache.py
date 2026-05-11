@@ -161,35 +161,149 @@ actions:
     def test_thread_safety(self, temp_yaml_file):
         """Test that cache is thread-safe."""
         import threading
-        
+
         parser = CachingYAMLParser()
         results = []
         errors = []
-        
+
         def read_file():
             try:
                 flowgroups = parser.parse_flowgroups_from_file(temp_yaml_file)
                 results.append(flowgroups)
             except Exception as e:
                 errors.append(e)
-        
+
         # Create multiple threads reading same file
         threads = [threading.Thread(target=read_file) for _ in range(10)]
-        
+
         # Start all threads
         for thread in threads:
             thread.start()
-        
+
         # Wait for all threads
         for thread in threads:
             thread.join()
-        
+
         # Verify no errors and all reads succeeded
         assert len(errors) == 0
         assert len(results) == 10
-        
+
         # Verify cache stats show hits (thread-safe operations)
         stats = parser.get_cache_stats()
         assert stats['total'] == 10
         assert stats['hits'] + stats['misses'] == 10
+
+    # ------------------------------------------------------------------
+    # load_documents_all (raw-document sub-cache) — added for Issue 3a
+    # ------------------------------------------------------------------
+
+    def test_load_documents_all_caches_by_mtime(self, temp_yaml_file):
+        """Two calls on an unchanged file: first miss, second hit."""
+        parser = CachingYAMLParser()
+
+        documents1 = parser.load_documents_all(temp_yaml_file)
+        assert len(documents1) == 1
+        assert documents1[0]["flowgroup"] == "test_flowgroup"
+        assert parser._misses == 1
+        assert parser._hits == 0
+        assert len(parser._documents_cache) == 1
+
+        documents2 = parser.load_documents_all(temp_yaml_file)
+        assert documents2 is documents1  # same cached list object
+        assert parser._misses == 1
+        assert parser._hits == 1
+
+    def test_load_documents_all_invalidates_on_mtime_change(self, temp_yaml_file):
+        """Editing the file must invalidate the cache entry and re-load."""
+        parser = CachingYAMLParser()
+
+        parser.load_documents_all(temp_yaml_file)
+        assert parser._misses == 1
+
+        time.sleep(0.01)
+        with open(temp_yaml_file, "a") as f:
+            f.write("\n# Modified\n")
+
+        parser.load_documents_all(temp_yaml_file)
+        assert parser._misses == 2
+        assert parser._hits == 0
+
+    def test_load_documents_all_eviction(self):
+        """Cache evicts ~10% of oldest entries when max size is exceeded."""
+        parser = CachingYAMLParser(max_cache_size=10)
+
+        temp_files = []
+        try:
+            for i in range(12):
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".yaml", delete=False
+                ) as f:
+                    f.write(f"flowgroup: fg_{i}\npipeline: pl\nactions: []\n")
+                    temp_path = Path(f.name)
+                    temp_files.append(temp_path)
+                parser.load_documents_all(temp_path)
+
+            assert len(parser._documents_cache) <= 10
+        finally:
+            for temp_file in temp_files:
+                if temp_file.exists():
+                    temp_file.unlink()
+
+    def test_load_documents_all_falls_through_on_oserror(
+        self, temp_yaml_file, monkeypatch
+    ):
+        """If stat() raises OSError, fall through to the uncached loader
+        rather than crashing. Result must still match the direct loader.
+        """
+        parser = CachingYAMLParser()
+
+        # Force every Path.stat() to raise OSError. The cache key cannot be
+        # computed; the parser must fall back to calling the loader directly.
+        real_stat = Path.stat
+
+        def fail_stat(self, *args, **kwargs):
+            raise OSError("simulated stat failure")
+
+        monkeypatch.setattr(Path, "stat", fail_stat)
+
+        documents = parser.load_documents_all(temp_yaml_file)
+        assert len(documents) == 1
+        assert documents[0]["flowgroup"] == "test_flowgroup"
+        # Nothing should have been cached (stat failed before we could key it).
+        assert len(parser._documents_cache) == 0
+        assert parser._hits == 0
+        assert parser._misses == 0
+
+        # Restore for cleanup of the temp_yaml_file fixture
+        monkeypatch.setattr(Path, "stat", real_stat)
+
+    def test_load_documents_all_thread_safety(self, temp_yaml_file):
+        """Concurrent load_documents_all calls must not corrupt counters."""
+        import threading
+
+        parser = CachingYAMLParser()
+        results = []
+        errors = []
+
+        def read_file():
+            try:
+                documents = parser.load_documents_all(temp_yaml_file)
+                results.append(documents)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=read_file) for _ in range(10)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert len(errors) == 0
+        assert len(results) == 10
+
+        stats = parser.get_cache_stats()
+        # All 10 calls hit the same key; cache must hold exactly one entry.
+        assert stats["documents_cache_size"] == 1
+        assert stats["total"] == 10
+        assert stats["hits"] + stats["misses"] == 10
 

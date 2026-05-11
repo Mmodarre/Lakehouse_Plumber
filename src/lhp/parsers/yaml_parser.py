@@ -13,7 +13,7 @@ from ..utils.error_formatter import (
     LHPError,
     LHPValidationError,
 )
-from ..utils.yaml_loader import load_yaml_file
+from ..utils.yaml_loader import load_yaml_documents_all, load_yaml_file
 
 
 class YAMLParser:
@@ -370,6 +370,7 @@ class CachingYAMLParser:
         """
         self._parser: YAMLParser = base_parser or YAMLParser()
         self._cache: Dict[Tuple[str, float], List[FlowGroup]] = {}
+        self._documents_cache: Dict[Tuple[str, float], List[Dict[str, Any]]] = {}
         self._max_cache_size: int = max_cache_size
         self._lock: threading.RLock = threading.RLock()
         self._hits: int = 0
@@ -416,18 +417,75 @@ class CachingYAMLParser:
             self._cache[cache_key] = result
             return result
 
+    def load_documents_all(
+        self, path: Path, error_context: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Load all YAML documents from a file with mtime-keyed caching.
+
+        Mirrors the cache shape of ``parse_flowgroups_from_file`` but stores raw
+        document dicts (the output of ``load_yaml_documents_all``) rather than
+        ``FlowGroup`` models. Hit/miss counters are shared with the flowgroup
+        sub-cache; ``get_cache_stats()`` reports per-sub-cache sizes separately.
+
+        Args:
+            path: Path to YAML file
+            error_context: Optional context string forwarded to the loader for
+                error messages on cache miss
+
+        Returns:
+            List of raw YAML document dicts (empty documents already filtered)
+        """
+        resolved_path: Path = path.resolve()
+        try:
+            mtime: float = resolved_path.stat().st_mtime
+        except OSError as e:
+            self._parser.logger.debug(
+                f"Could not stat {resolved_path}, skipping cache: {e}"
+            )
+            return load_yaml_documents_all(path, error_context=error_context)
+
+        cache_key: Tuple[str, float] = (str(resolved_path), mtime)
+
+        with self._lock:
+            if cache_key in self._documents_cache:
+                self._hits += 1
+                self._parser.logger.debug(
+                    f"Documents cache hit for {path} (hits={self._hits})"
+                )
+                return self._documents_cache[cache_key]
+
+            self._misses += 1
+
+            if len(self._documents_cache) >= self._max_cache_size:
+                keys_to_remove = list(self._documents_cache.keys())[
+                    : self._max_cache_size // 10
+                ]
+                for key in keys_to_remove:
+                    del self._documents_cache[key]
+
+            documents: List[Dict[str, Any]] = load_yaml_documents_all(
+                path, error_context=error_context
+            )
+            self._documents_cache[cache_key] = documents
+            return documents
+
     def clear_cache(self) -> None:
-        """Clear all cached entries."""
+        """Clear all cached entries across both sub-caches."""
         with self._lock:
             self._cache.clear()
+            self._documents_cache.clear()
             self._hits = 0
             self._misses = 0
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache performance statistics.
 
+        Hit/miss counters are aggregated across both sub-caches (flowgroup
+        parsing and raw-document loading). Sub-cache sizes are reported
+        separately for visibility.
+
         Returns:
-            Dictionary with cache hits, misses, hit rate, and size
+            Dictionary with cache hits, misses, hit rate, and per-sub-cache sizes
         """
         with self._lock:
             total: int = self._hits + self._misses
@@ -438,6 +496,7 @@ class CachingYAMLParser:
                 "total": total,
                 "hit_rate_percent": round(hit_rate, 1),
                 "cache_size": len(self._cache),
+                "documents_cache_size": len(self._documents_cache),
             }
 
     def __getattr__(self, name: str) -> Any:

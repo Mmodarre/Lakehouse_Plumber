@@ -159,7 +159,7 @@ class ImportManager:
 
                         raise LHPValidationError(
                             category=ErrorCategory.VALIDATION,
-                            code_number="020",
+                            code_number="021",
                             title="Import name collision",
                             details=(
                                 f"Two imports bind the local name '{name}' "

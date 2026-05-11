@@ -151,11 +151,14 @@ class ActionOrchestrator:
             self.project_config_loader,
             yaml_parser=self._cached_yaml_parser,
         )
-        self.blueprint_parser = BlueprintParser()
+        self.blueprint_parser = BlueprintParser(
+            caching_yaml_parser=self._cached_yaml_parser
+        )
         self.blueprint_discoverer = BlueprintDiscoverer(
             project_root,
             project_config=self.project_config,
             blueprint_parser=self.blueprint_parser,
+            caching_yaml_parser=self._cached_yaml_parser,
         )
         self.blueprint_expander = BlueprintExpander()
         # Provenance map keyed by resolved (pipeline, flowgroup) tuple.

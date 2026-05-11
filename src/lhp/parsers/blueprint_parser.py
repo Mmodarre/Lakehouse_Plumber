@@ -8,7 +8,7 @@ and errors are clear. Blueprint files always live under the configured
 import difflib
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ..models.config import (
     Blueprint,
@@ -22,12 +22,33 @@ from ..utils.error_formatter import (
 )
 from ..utils.yaml_loader import load_yaml_documents_all
 
+if TYPE_CHECKING:
+    from .yaml_parser import CachingYAMLParser
+
 
 class BlueprintParser:
     """Parses blueprint and instance YAML files into validated Pydantic models."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self, caching_yaml_parser: Optional["CachingYAMLParser"] = None
+    ) -> None:
         self.logger = logging.getLogger(__name__)
+        self.caching_yaml_parser = caching_yaml_parser
+
+    def _load_documents(
+        self, path: Path, error_context: str
+    ) -> List[Dict[str, Any]]:
+        """Load all YAML documents from ``path``, routing through the cache
+        when a ``CachingYAMLParser`` was supplied at construction time.
+
+        Falls back to the uncached loader so existing call sites that don't
+        wire a cache continue to work.
+        """
+        if self.caching_yaml_parser is not None:
+            return self.caching_yaml_parser.load_documents_all(
+                path, error_context=error_context
+            )
+        return load_yaml_documents_all(path, error_context=error_context)
 
     def parse_blueprint_file(self, path: Path) -> Blueprint:
         """Parse a blueprint YAML file into a `Blueprint` model.
@@ -41,7 +62,7 @@ class BlueprintParser:
         Raises:
             LHPConfigError: If the file is empty, multi-document, or fails Pydantic validation.
         """
-        documents = load_yaml_documents_all(
+        documents = self._load_documents(
             path, error_context=f"blueprint file {path}"
         )
 
@@ -134,7 +155,7 @@ class BlueprintParser:
             LHPValidationError: For unknown blueprint references, unknown parameter
                 keys (M5), or missing required parameters.
         """
-        documents = load_yaml_documents_all(path, error_context=f"instance file {path}")
+        documents = self._load_documents(path, error_context=f"instance file {path}")
 
         if not documents:
             raise LHPConfigError(
