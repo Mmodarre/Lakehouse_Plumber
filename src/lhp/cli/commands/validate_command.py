@@ -1,6 +1,7 @@
 """Validate command implementation for LakehousePlumber CLI."""
 
 import logging
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import click
@@ -50,6 +51,12 @@ class ValidateCommand(BaseCommand):
         click.echo(f"🔍 Validating pipeline configurations for environment: {env}")
         self.echo_verbose_info(f"Detailed logs: {self.log_file}")
 
+        # Validate blueprint/instance files up front so codes 040–055, 059
+        # surface cleanly before the orchestrator wraps them in discovery
+        # context. Without this, the same errors would still be raised by
+        # discover_all_flowgroups later, just less cleanly.
+        self._validate_blueprints_and_instances(project_root)
+
         # Check if substitution file exists
         self.check_substitution_file(env)
 
@@ -84,6 +91,67 @@ class ValidateCommand(BaseCommand):
         # Exit with appropriate code (let error boundary handle it)
         if total_errors > 0:
             raise SystemExit(ExitCode.DATA_ERROR)
+
+    def _validate_blueprints_and_instances(self, project_root: Path) -> None:
+        """Validate every blueprint and instance file before pipeline validation.
+
+        Reuses the runtime parser/discoverer/expander stack so the contract
+        is identical to ``lhp generate``: any error that would fail generation
+        also fails validation, just earlier and with a clearer rendering path.
+
+        - No blueprint files AND no instance files → silent no-op (the entire
+          feature is opt-in via file presence; same contract as the
+          orchestrator's ``_expand_blueprints``).
+        - One or more blueprint files exist → parse all (codes 046, 047–050,
+          plus Pydantic-level shape errors) and resolve them into a
+          name-keyed registry.
+        - One or more instance files exist → parse each against the registry
+          (codes 041–043, 051–054).
+        - If both populations are non-empty, run cross-file expansion so codes
+          044, 045 and 055 surface here rather than mid-generation.
+
+        All errors are raised as ``LHPError`` and formatted by the existing
+        CLI error boundary.
+        """
+        from ...core.project_config_loader import ProjectConfigLoader
+        from ...core.services.blueprint_discoverer import BlueprintDiscoverer
+        from ...core.services.blueprint_expander import BlueprintExpander
+        from ...parsers.blueprint_parser import BlueprintParser
+
+        project_config = ProjectConfigLoader(project_root).load_project_config()
+        discoverer = BlueprintDiscoverer(
+            project_root,
+            project_config=project_config,
+            blueprint_parser=BlueprintParser(),
+        )
+
+        blueprints = discoverer.discover_blueprints()
+        instances = discoverer.discover_instances(blueprints)
+
+        if not blueprints and not instances:
+            logger.debug(
+                "No blueprint or instance files found; skipping blueprint validation."
+            )
+            return
+
+        expanded_count = 0
+        if blueprints and instances:
+            expanded_flowgroups, _provenance = BlueprintExpander().expand(
+                blueprints, instances
+            )
+            expanded_count = len(expanded_flowgroups)
+        elif blueprints and not instances:
+            logger.info(
+                f"Found {len(blueprints)} blueprint(s) but no instance files; "
+                "no flowgroups will be expanded."
+            )
+
+        if self.verbose:
+            click.echo(
+                f"   ✅ Validated {len(blueprints)} blueprint(s), "
+                f"{len(instances)} instance(s), "
+                f"{expanded_count} expanded flowgroup(s)"
+            )
 
     def _determine_pipelines_to_validate(
         self, pipeline: Optional[str], orchestrator: ActionOrchestrator

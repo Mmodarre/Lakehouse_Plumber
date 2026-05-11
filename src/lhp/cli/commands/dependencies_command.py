@@ -32,6 +32,8 @@ class DependenciesCommand(BaseCommand):
         job_config_path: Optional[str] = None,
         bundle_output: bool = False,
         verbose: bool = False,
+        expand_blueprints: bool = False,
+        blueprint_filter: Optional[str] = None,
     ) -> None:
         """
         Execute the dependencies command.
@@ -44,6 +46,12 @@ class DependenciesCommand(BaseCommand):
             job_config_path: Custom job config file path (relative to project root)
             bundle_output: If True, save job file to resources/ directory
             verbose: Enable verbose output
+            expand_blueprints: When True, render the literal expansion (one
+                node per blueprint × instance × spec). Default False dedupes
+                synthetic flowgroups by (blueprint_name, spec_index) so the
+                graph stays readable at scale.
+            blueprint_filter: When set, restrict the dependency graph to
+                synthetic flowgroups expanded from the named blueprint.
         """
         self.setup_from_context()
         project_root = self.ensure_project_root()
@@ -53,7 +61,9 @@ class DependenciesCommand(BaseCommand):
 
         logger.debug(
             f"Dependencies request: format={output_format}, pipeline={pipeline}, "
-            f"job_name={job_name}, bundle_output={bundle_output}"
+            f"job_name={job_name}, bundle_output={bundle_output}, "
+            f"expand_blueprints={expand_blueprints}, "
+            f"blueprint_filter={blueprint_filter}"
         )
 
         click.echo("🔍 Analyzing Pipeline Dependencies")
@@ -62,6 +72,9 @@ class DependenciesCommand(BaseCommand):
         # Initialize services
         config_loader = ProjectConfigLoader(project_root)
         analyzer = DependencyAnalyzer(project_root, config_loader)
+        analyzer.set_blueprint_view_mode(
+            expand_blueprints=expand_blueprints, blueprint=blueprint_filter
+        )
         output_manager = DependencyOutputManager()
 
         # Validate pipeline filter with job_name usage

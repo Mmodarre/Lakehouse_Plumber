@@ -13,7 +13,7 @@ from lhp.generators.transform import (
     SQLTransformGenerator,
     TempTableTransformGenerator,
 )
-from lhp.generators.transform.python import PythonFunctionConflictError
+from lhp.generators.python_file_copier import PythonFunctionConflictError
 from lhp.models.config import (
     Action,
     ActionType,
@@ -440,7 +440,7 @@ def clean_data(df, spark, parameters):
             output_dir = tmpdir_path / "generated"
 
             # Create Python file copier for conflict detection (simulates orchestrator behavior)
-            from lhp.generators.transform.python_file_copier import PythonFileCopier
+            from lhp.generators.python_file_copier import PythonFileCopier
 
             python_copier = PythonFileCopier()
 
@@ -687,7 +687,7 @@ def process_customers(df, spark, parameters):
             ]
 
             # Create Python file copier for conflict detection
-            from lhp.generators.transform.python_file_copier import PythonFileCopier
+            from lhp.generators.python_file_copier import PythonFileCopier
 
             python_copier = PythonFileCopier()
 
@@ -1222,7 +1222,7 @@ def transform_customers(df, spark, parameters):
 """)
 
             # Create Python file copier for conflict detection
-            from lhp.generators.transform.python_file_copier import PythonFileCopier
+            from lhp.generators.python_file_copier import PythonFileCopier
 
             python_copier = PythonFileCopier()
 
@@ -2008,7 +2008,7 @@ class TestDataQualityQuarantine:
             )
 
         # Escaped double quotes should appear in the generated code
-        assert r'status = \"active\"' in code
+        assert r"status = \"active\"" in code
 
 
 class TestDQEParserQuarantine:

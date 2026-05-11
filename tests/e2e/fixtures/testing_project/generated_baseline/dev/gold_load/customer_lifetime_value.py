@@ -2,8 +2,8 @@
 # Pipeline: gold_load
 # FlowGroup: customer_lifetime_value
 
-from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "gold_load"

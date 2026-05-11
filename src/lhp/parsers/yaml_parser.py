@@ -1,7 +1,7 @@
 import logging
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
 import yaml
 
@@ -13,7 +13,9 @@ from ..utils.error_formatter import (
     LHPError,
     LHPValidationError,
 )
-from ..utils.yaml_loader import load_yaml_file
+from ..utils.yaml_loader import load_yaml_documents_all, load_yaml_file
+
+_CacheValueT = TypeVar("_CacheValueT")
 
 
 class YAMLParser:
@@ -77,8 +79,8 @@ class YAMLParser:
             ValueError: For duplicate flowgroup names, mixed syntax, or parsing errors
         """
         from ..utils.yaml_loader import load_yaml_documents_all
+        from .blueprint_parser import BlueprintParser
 
-        # Load all documents from file
         try:
             documents = load_yaml_documents_all(
                 file_path, error_context=f"flowgroup file {file_path}"
@@ -114,6 +116,40 @@ class YAMLParser:
 
         # Process each document
         for doc_index, doc in enumerate(documents, start=1):
+            # Defensive guard: catch a blueprint *definition* accidentally
+            # placed under `include:` (pipelines/) instead of `blueprint_include:`.
+            # Without this, the array-syntax path below would attempt to
+            # construct a FlowGroup from a BlueprintFlowgroupSpec and crash with
+            # an opaque error about missing `actions:` and unresolved %{var}.
+            if BlueprintParser.looks_like_blueprint(doc):
+                raise LHPConfigError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="040",
+                    title="Blueprint file in flowgroup directory",
+                    details=(
+                        f"{file_path} appears to be a blueprint (has 'parameters' "
+                        "and 'flowgroups' but no 'actions'). Blueprint files must "
+                        "live under blueprints/ (or your configured "
+                        "blueprint_include patterns), not in pipelines/."
+                    ),
+                    suggestions=[
+                        f"Move {file_path} to blueprints/",
+                        "Or adjust 'include:' / 'blueprint_include:' patterns "
+                        "in lhp.yaml",
+                    ],
+                    context={"file": str(file_path)},
+                )
+
+            # Routing: instance files (use_blueprint or legacy blueprint+flat)
+            # may live alongside flowgroups under pipelines/. Skip them here so
+            # the BlueprintDiscoverer can pick them up via instance_include.
+            if BlueprintParser.looks_like_instance(doc):
+                self.logger.debug(
+                    f"Skipping instance file {file_path} during flowgroup parse "
+                    "(routed to BlueprintDiscoverer)"
+                )
+                return []
+
             # Check if this document uses array syntax
             if "flowgroups" in doc:
                 uses_array_syntax = True
@@ -336,64 +372,97 @@ class CachingYAMLParser:
         """
         self._parser: YAMLParser = base_parser or YAMLParser()
         self._cache: Dict[Tuple[str, float], List[FlowGroup]] = {}
+        self._documents_cache: Dict[Tuple[str, float], List[Dict[str, Any]]] = {}
         self._max_cache_size: int = max_cache_size
         self._lock: threading.RLock = threading.RLock()
         self._hits: int = 0
         self._misses: int = 0
 
-    def parse_flowgroups_from_file(self, path: Path) -> List[FlowGroup]:
-        """Parse flowgroups with caching based on file mtime.
+    def _cached_load(
+        self,
+        path: Path,
+        cache: Dict[Tuple[str, float], _CacheValueT],
+        loader: Callable[[], _CacheValueT],
+        label: str,
+    ) -> _CacheValueT:
+        """Cache-shell shared by every sub-cache: mtime-keyed lookup, FIFO
+        eviction at the shared ``max_cache_size`` ceiling, hit/miss counters.
 
-        Args:
-            path: Path to YAML file
-
-        Returns:
-            List of FlowGroup objects
+        ``loader`` is the no-arg fallback invoked on cache miss (and on the
+        OSError fast-path where the key can't be computed).
         """
         resolved_path: Path = path.resolve()
         try:
             mtime: float = resolved_path.stat().st_mtime
         except OSError as e:
-            # File doesn't exist or can't be accessed - don't cache
             self._parser.logger.debug(
                 f"Could not stat {resolved_path}, skipping cache: {e}"
             )
-            return self._parser.parse_flowgroups_from_file(path)
+            return loader()
 
         cache_key: Tuple[str, float] = (str(resolved_path), mtime)
 
         with self._lock:
-            if cache_key in self._cache:
+            if cache_key in cache:
                 self._hits += 1
-                self._parser.logger.debug(f"Cache hit for {path} (hits={self._hits})")
-                return self._cache[cache_key]
+                self._parser.logger.debug(
+                    f"{label} cache hit for {path} (hits={self._hits})"
+                )
+                return cache[cache_key]
 
             self._misses += 1
 
-            # Evict oldest entries if cache is full
-            if len(self._cache) >= self._max_cache_size:
+            if len(cache) >= self._max_cache_size:
                 # Remove ~10% of entries (FIFO approximation)
-                keys_to_remove = list(self._cache.keys())[: self._max_cache_size // 10]
+                keys_to_remove = list(cache.keys())[: self._max_cache_size // 10]
                 for key in keys_to_remove:
-                    del self._cache[key]
+                    del cache[key]
 
-            # Parse and cache
-            result: List[FlowGroup] = self._parser.parse_flowgroups_from_file(path)
-            self._cache[cache_key] = result
+            result: _CacheValueT = loader()
+            cache[cache_key] = result
             return result
 
+    def parse_flowgroups_from_file(self, path: Path) -> List[FlowGroup]:
+        """Parse flowgroups with caching based on file mtime."""
+        return self._cached_load(
+            path,
+            self._cache,
+            lambda: self._parser.parse_flowgroups_from_file(path),
+            label="Flowgroup",
+        )
+
+    def load_documents_all(
+        self, path: Path, error_context: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Load all YAML documents from a file with mtime-keyed caching.
+
+        Hit/miss counters are shared with the flowgroup sub-cache;
+        ``get_cache_stats()`` reports per-sub-cache sizes separately.
+        """
+        return self._cached_load(
+            path,
+            self._documents_cache,
+            lambda: load_yaml_documents_all(path, error_context=error_context),
+            label="Documents",
+        )
+
     def clear_cache(self) -> None:
-        """Clear all cached entries."""
+        """Clear all cached entries across both sub-caches."""
         with self._lock:
             self._cache.clear()
+            self._documents_cache.clear()
             self._hits = 0
             self._misses = 0
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache performance statistics.
 
+        Hit/miss counters are aggregated across both sub-caches (flowgroup
+        parsing and raw-document loading). Sub-cache sizes are reported
+        separately for visibility.
+
         Returns:
-            Dictionary with cache hits, misses, hit rate, and size
+            Dictionary with cache hits, misses, hit rate, and per-sub-cache sizes
         """
         with self._lock:
             total: int = self._hits + self._misses
@@ -404,6 +473,7 @@ class CachingYAMLParser:
                 "total": total,
                 "hit_rate_percent": round(hit_rate, 1),
                 "cache_size": len(self._cache),
+                "documents_cache_size": len(self._documents_cache),
             }
 
     def __getattr__(self, name: str) -> Any:

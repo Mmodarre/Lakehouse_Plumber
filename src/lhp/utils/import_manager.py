@@ -26,6 +26,58 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 from .operational_metadata import ImportDetector
 
 
+def extract_future_imports(source: str) -> Tuple[List[str], str]:
+    """Extract ``from __future__ import ...`` statements from a Python source string.
+
+    PEP 236 requires future imports to appear before any other statement (other
+    than docstrings, comments, and other future imports). LHP assembles
+    generated pipeline modules from multiple sources (manual imports, custom
+    datasource/sink files, snapshot-CDC source functions). When any of those
+    inputs contain a ``from __future__`` line, it must be hoisted to the top
+    of the assembled module — this helper is the AST-based extractor used at
+    the assembly chokepoint to do that.
+
+    Uses AST so that future-looking strings inside docstrings or comments
+    (e.g. ``\"\"\"from __future__ ...\"\"\"`` in a triple-quoted block) are not
+    mis-extracted.
+
+    Args:
+        source: Python source code (may be a full module or a fragment).
+
+    Returns:
+        Tuple of (future_lines, source_with_those_lines_blanked). The original
+        line numbering is preserved by replacing extracted lines with empty
+        lines, which keeps any debug/traceback line references valid.
+
+        On a SyntaxError (e.g. fragment), returns ([], source) so the caller
+        can fall through without losing content.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return [], source
+
+    future_lines: List[str] = []
+    lineno_to_blank: Set[int] = set()
+    src_lines = source.split("\n")
+    for node in tree.body:
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "__future__"
+            and node.level == 0
+        ):
+            start = node.lineno - 1
+            end = (node.end_lineno or node.lineno) - 1
+            future_lines.append("\n".join(src_lines[start : end + 1]).strip())
+            for i in range(start, end + 1):
+                lineno_to_blank.add(i)
+
+    cleaned = "\n".join(
+        "" if i in lineno_to_blank else line for i, line in enumerate(src_lines)
+    )
+    return future_lines, cleaned
+
+
 class ImportManager:
     """
     Unified import management with zero configuration.
@@ -78,11 +130,83 @@ class ImportManager:
         """
         Add manual import statement (backward compatible API).
 
+        Detects silent name shadowing: if a previously-added ``from x import Y``
+        line binds the same local name as the new statement but points at a
+        different source module, raise ``LHPValidationError``. This prevents
+        the case where two custom datasources/sinks (or python transforms)
+        unintentionally export the same class/function name from different
+        modules — without this check, the second import would silently shadow
+        the first and SDP would register the wrong class.
+
         Args:
-            import_stmt: Import statement like "from pyspark import pipelines as dp" or "from pyspark.sql import functions"
+            import_stmt: Import statement like ``"from pyspark import pipelines as dp"``.
         """
-        if import_stmt and import_stmt.strip():
-            self._manual_imports.add(import_stmt.strip())
+        if not import_stmt or not import_stmt.strip():
+            return
+
+        stmt = import_stmt.strip()
+
+        new_bindings = self._extract_from_import_bindings(stmt)
+        if new_bindings:
+            for existing in self._manual_imports | self._file_imports:
+                existing_bindings = self._extract_from_import_bindings(existing)
+                for name, module in new_bindings.items():
+                    if name in existing_bindings and existing_bindings[name] != module:
+                        from .error_formatter import (
+                            ErrorCategory,
+                            LHPValidationError,
+                        )
+
+                        raise LHPValidationError(
+                            category=ErrorCategory.VALIDATION,
+                            code_number="021",
+                            title="Import name collision",
+                            details=(
+                                f"Two imports bind the local name '{name}' "
+                                f"to different modules:\n"
+                                f"  Existing: {existing}\n"
+                                f"  New:      {stmt}"
+                            ),
+                            suggestions=[
+                                f"Rename one of the '{name}' definitions in "
+                                f"the source files",
+                                f"Use a different alias when importing one of "
+                                f"the modules (e.g. 'from {module} import "
+                                f"{name} as {name}2')",
+                                "Move conflicting symbols into distinct module "
+                                "paths so the binding names differ",
+                            ],
+                            context={
+                                "Conflicting Name": name,
+                                "Existing Module": existing_bindings[name],
+                                "New Module": module,
+                            },
+                        )
+
+        self._manual_imports.add(stmt)
+
+    def _extract_from_import_bindings(self, stmt: str) -> Dict[str, str]:
+        """Extract a ``{local_name: source_module}`` map from a ``from … import …`` statement.
+
+        Returns an empty dict for ``import x`` form, wildcard imports, or
+        statements that fail to parse — the collision check then becomes a
+        no-op for those cases.
+        """
+        try:
+            tree = ast.parse(stmt)
+        except SyntaxError:
+            return {}
+
+        bindings: Dict[str, str] = {}
+        for node in tree.body:
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                for alias in node.names:
+                    if alias.name == "*":
+                        continue
+                    local_name = alias.asname or alias.name
+                    bindings[local_name] = module
+        return bindings
 
     def add_imports_from_expression(self, expression: str) -> None:
         """

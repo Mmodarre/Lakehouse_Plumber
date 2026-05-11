@@ -68,9 +68,12 @@ class SinkWriteGenerator(BaseActionGenerator):
             for import_stmt in gen_import_manager.get_consolidated_imports():
                 import_manager.add_import(import_stmt)
 
-        # For custom sinks, store the custom code for orchestrator
-        if sink_type == "custom" and hasattr(generator, "custom_sink_code"):
-            self.custom_sink_code = generator.custom_sink_code
-            self.sink_file_path = generator.sink_file_path
+        # Forward pre-pipeline statements (e.g. cloudpickle registration from
+        # the custom sink generator) up to the dispatcher so the assembler
+        # sees them.
+        gen_pre = getattr(generator, "get_pre_pipeline_statements", None)
+        if callable(gen_pre):
+            for stmt in gen_pre():
+                self.add_pre_pipeline_statement(stmt)
 
         return generated_code

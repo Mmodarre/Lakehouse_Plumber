@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_bronze
 # FlowGroup: tst_customer_dq
 
-from pyspark import pipelines as dp
 from pyspark.sql.functions import *
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"

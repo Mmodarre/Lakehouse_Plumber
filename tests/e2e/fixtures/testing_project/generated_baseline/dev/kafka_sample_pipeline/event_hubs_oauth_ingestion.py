@@ -2,8 +2,8 @@
 # Pipeline: kafka_sample_pipeline
 # FlowGroup: event_hubs_oauth_ingestion
 
-from pyspark import pipelines as dp
 from pyspark.sql import functions as F
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "kafka_sample_pipeline"

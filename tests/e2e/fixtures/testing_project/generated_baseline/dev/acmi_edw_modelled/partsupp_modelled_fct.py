@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_modelled
 # FlowGroup: partsupp_modelled_fct
 
-from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_modelled"

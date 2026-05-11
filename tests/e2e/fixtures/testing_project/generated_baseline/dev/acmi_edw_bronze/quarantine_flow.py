@@ -2,11 +2,11 @@
 # Pipeline: acmi_edw_bronze
 # FlowGroup: quarantine_flow
 
-from delta.tables import DeltaTable
-from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 from pyspark.sql.types import MapType, StringType
 from pyspark.sql.window import Window
+from pyspark import pipelines as dp
+from delta.tables import DeltaTable
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"

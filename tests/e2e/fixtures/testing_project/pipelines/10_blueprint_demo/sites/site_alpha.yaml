@@ -1,0 +1,4 @@
+use_blueprint: medallion_demo
+parameters:
+  site_name: site_alpha
+  domain_id: ALPHA001

@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import click
 
@@ -108,6 +108,83 @@ class ListCommand(BaseCommand):
 
         click.echo(f"\n📊 Total templates: {len(templates_info)}")
         self._display_template_usage_help()
+
+    def list_blueprints(self, verbose: bool = False) -> None:
+        """List blueprints with parameter and instance counts.
+
+        With ``--verbose``, lists each blueprint's instances and the resolved
+        pipeline names that would be produced from each.
+        """
+        self.setup_from_context()
+        project_root = self.ensure_project_root()
+
+        from ...core.project_config_loader import ProjectConfigLoader
+        from ...core.services.blueprint_discoverer import BlueprintDiscoverer
+        from ...parsers.blueprint_parser import BlueprintParser
+
+        click.echo("📐 Blueprints:")
+
+        project_config_loader = ProjectConfigLoader(project_root)
+        project_config = project_config_loader.load_project_config()
+
+        discoverer = BlueprintDiscoverer(
+            project_root,
+            project_config=project_config,
+            blueprint_parser=BlueprintParser(),
+        )
+        blueprints = discoverer.discover_blueprints()
+        if not blueprints:
+            click.echo("📭 No blueprints found")
+            click.echo(
+                "\n💡 Create a blueprint file under blueprints/ "
+                "(or your configured blueprint_include patterns)"
+            )
+            return
+
+        instances = discoverer.discover_instances(blueprints)
+        instances_by_blueprint: Dict[str, List[Tuple[Any, Path]]] = {
+            name: [] for name in blueprints
+        }
+        for instance, instance_path in instances:
+            instances_by_blueprint.setdefault(instance.blueprint_name, []).append(
+                (instance, instance_path)
+            )
+
+        click.echo("")
+        click.echo(
+            f"{'Name':<30} {'Version':<8} {'Params':<8} "
+            f"{'Specs':<8} {'Instances':<10}"
+        )
+        click.echo("-" * 70)
+        for name, (bp, _path) in sorted(blueprints.items()):
+            n_instances = len(instances_by_blueprint.get(name, []))
+            click.echo(
+                f"{name:<30} {bp.version:<8} "
+                f"{len(bp.parameters):<8} {len(bp.flowgroups):<8} "
+                f"{n_instances:<10}"
+            )
+
+        if verbose:
+            from ...core.services.blueprint_expander import BlueprintExpander
+
+            expander = BlueprintExpander()
+            click.echo("\n🔍 Verbose:")
+            for name, (bp, bp_path) in sorted(blueprints.items()):
+                click.echo(f"\n  {name} ({bp_path}):")
+                for instance, instance_path in instances_by_blueprint.get(name, []):
+                    fgs, _ = expander.expand_single_instance(
+                        instance, instance_path, blueprints
+                    )
+                    pipelines = sorted({fg.pipeline for fg in fgs})
+                    click.echo(
+                        f"    - {instance_path.name}: "
+                        f"{len(fgs)} flowgroup(s) -> pipeline(s) {pipelines}"
+                    )
+
+        click.echo(
+            f"\n📊 Total blueprints: {len(blueprints)}, "
+            f"total instances: {len(instances)}"
+        )
 
     def _parse_preset_information(
         self, preset_files: List[Path]

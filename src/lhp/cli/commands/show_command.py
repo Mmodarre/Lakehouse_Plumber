@@ -88,6 +88,97 @@ class ShowCommand(BaseCommand):
         self._display_secret_references(substitution_mgr)
         self._display_substitution_summary(substitution_mgr)
 
+    def show_instance(self, instance_path_str: str, env: str = "dev") -> None:
+        """Show resolved configuration for the flowgroups produced by an instance.
+
+        M4 fix: at 80-instance scale, debugging a misconfigured instance would
+        otherwise require a full ``lhp generate`` run or mentally applying the
+        instance's parameters to the blueprint by hand. This command expands
+        only the named instance and prints the resolved flowgroups in the
+        existing show-flowgroup format, so the round-trip is sub-second.
+        """
+        self.setup_from_context()
+        project_root = self.ensure_project_root()
+
+        from ...core.project_config_loader import ProjectConfigLoader
+        from ...core.services.blueprint_discoverer import BlueprintDiscoverer
+        from ...core.services.blueprint_expander import BlueprintExpander
+        from ...parsers.blueprint_parser import BlueprintParser
+
+        instance_path = Path(instance_path_str)
+        if not instance_path.is_absolute():
+            instance_path = (project_root / instance_path).resolve()
+        if not instance_path.exists():
+            from ...utils.error_formatter import ErrorCategory, LHPError
+
+            raise LHPError(
+                category=ErrorCategory.IO,
+                code_number="003",
+                title="Instance file not found",
+                details=f"No file at {instance_path}",
+                suggestions=[
+                    "Check the path for typos",
+                    "Place each instance file under "
+                    "pipelines/<system>/<layer>/ or your configured "
+                    "instance_include patterns",
+                ],
+                context={"Path": str(instance_path)},
+            )
+
+        click.echo(
+            f"🔍 Resolving instance '{instance_path.name}' " f"in environment '{env}'"
+        )
+
+        project_config = ProjectConfigLoader(project_root).load_project_config()
+        parser = BlueprintParser()
+        discoverer = BlueprintDiscoverer(
+            project_root,
+            project_config=project_config,
+            blueprint_parser=parser,
+        )
+        blueprints = discoverer.discover_blueprints()
+        if not blueprints:
+            from ...utils.error_formatter import ErrorCategory, LHPError
+
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="056",
+                title="No blueprints in project",
+                details=(
+                    "Cannot resolve an instance file because no blueprints "
+                    "are present in the project."
+                ),
+                suggestions=[
+                    "Add a blueprint file under blueprints/",
+                ],
+            )
+
+        blueprint_models = {name: bp for name, (bp, _) in blueprints.items()}
+        instance = parser.parse_instance_file(instance_path, blueprint_models)
+
+        expander = BlueprintExpander()
+        flowgroups, _ = expander.expand_single_instance(
+            instance, instance_path, blueprints
+        )
+
+        substitution_mgr = self._load_substitution_manager(project_root, env)
+        click.echo(f"\n📐 Blueprint: {instance.blueprint_name}")
+        click.echo(f"📊 Flowgroups produced: {len(flowgroups)}")
+
+        for fg in flowgroups:
+            click.echo("")
+            click.echo("=" * 70)
+            click.echo(f"Pipeline: {fg.pipeline}    Flowgroup: {fg.flowgroup}")
+            click.echo("=" * 70)
+            processed = self._process_flowgroup(fg, substitution_mgr, project_root)
+            self._display_flowgroup_configuration(
+                processed, instance_path, project_root, env
+            )
+            self._display_actions_table(processed)
+
+        self._display_secret_references(substitution_mgr)
+        self._display_substitution_summary(substitution_mgr)
+
     def show_project_info(self) -> None:
         """Display comprehensive project information and statistics."""
         self.setup_from_context()

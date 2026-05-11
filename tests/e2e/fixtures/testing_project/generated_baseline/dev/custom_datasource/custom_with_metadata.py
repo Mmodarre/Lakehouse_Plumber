@@ -2,60 +2,17 @@
 # Pipeline: custom_datasource
 # FlowGroup: custom_with_metadata
 
+from pyspark import cloudpickle as _lhp_cloudpickle
+from pyspark.sql import functions as F
 from pyspark import pipelines as dp
-from pyspark.sql.datasource import DataSource, DataSourceReader
-from pyspark.sql.functions import *  # Wildcard import - triggers expression adaptation
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+from custom_python_functions.api_with_wildcard import APIWithWildcardSource
+import custom_python_functions
+
+_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)
 
 # Pipeline Configuration
 PIPELINE_ID = "custom_datasource"
 FLOWGROUP_ID = "custom_with_metadata"
-
-
-# ============================================================================
-# CUSTOM DATA SOURCE IMPLEMENTATIONS
-# ============================================================================
-# The following code was automatically copied from: py_functions/pyspark_custom_data_sources/api_with_wildcard.py
-# Used by action: unknown
-
-"""Custom data source with wildcard imports to test operational metadata import consistency."""
-
-
-class APIWithWildcardSource(DataSource):
-    """Custom data source that uses wildcard imports."""
-
-    @classmethod
-    def name(cls):
-        return "api_wildcard"
-
-    def schema(self):
-        return StructType(
-            [
-                StructField("id", IntegerType(), False),
-                StructField("name", StringType(), True),
-                StructField("value", IntegerType(), True),
-            ]
-        )
-
-    def reader(self, schema: StructType):
-        return APIWithWildcardReader(schema, self.options)
-
-
-class APIWithWildcardReader(DataSourceReader):
-    """Reader for API with wildcard source."""
-
-    def __init__(self, schema, options):
-        self.schema = schema
-        self.options = options
-
-    def read(self, partition):
-        # Generate some test data using wildcard-imported functions
-        yield (1, "test_item", 100)
-        yield (2, "another_item", 200)
-
-
-# Register the data source
-spark.dataSource.register(APIWithWildcardSource)
 
 
 # ============================================================================
@@ -79,7 +36,7 @@ def v_custom_api_data():
     )
 
     # Add operational metadata columns
-    df = df.withColumn("_processing_timestamp", current_timestamp())
+    df = df.withColumn("_processing_timestamp", F.current_timestamp())
 
     return df
 

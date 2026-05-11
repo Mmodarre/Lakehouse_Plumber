@@ -5,7 +5,40 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.8.7] — 2026-04-23
+## [0.8.6]
+
+### Changed
+
+- **`custom_datasource` and `custom_sink` generated output format** changed from
+  *inline-embed* to *copy-and-import*. The user's PySpark `DataSource` /
+  `DataSink` source file is now copied verbatim into a
+  `custom_python_functions/` subdirectory beside the generated pipeline file,
+  and the pipeline imports the class by name. Previously the user's class body
+  (50–250 lines) was inlined into every generated file that registered a
+  custom source/sink. **YAML user-facing surface is unchanged.** The new
+  generated file is shorter, more diff-able, and consistent with the existing
+  python-transform action pattern.
+
+### Added
+
+- **Cloudpickle registration for custom sources/sinks**: generated files now
+  emit `_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)`
+  between the imports block and `PIPELINE_ID`. This is the one-line fix that
+  makes the import-based pattern work across the local-Spark / executor
+  boundary — PySpark's *vendored* cloudpickle is what serializes registered
+  DataSource classes to executors, and only `register_pickle_by_value`
+  against the vendored copy actually takes effect.
+
+- **Import name-collision detection in `ImportManager.add_import`**: two
+  `from … import …` lines that bind the same local name to *different*
+  modules now raise `LHPValidationError` (LHP-VAL-021). This catches a class
+  of silent shadowing bugs that affected `python` load/transform actions and
+  (post-refactor) the new copy-and-import pattern. Existing projects with
+  legitimately conflicting symbol names will see this as an error on the
+  next regenerate; rename one of the conflicting symbols, or alias one of
+  the imports, to resolve.
+
+## [0.8.5] — 2026-04-23
 
 ### Fixed
 

@@ -1,0 +1,4 @@
+use_blueprint: medallion_demo
+parameters:
+  site_name: site_beta
+  domain_id: BETA001

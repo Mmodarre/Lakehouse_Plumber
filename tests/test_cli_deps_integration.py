@@ -100,7 +100,9 @@ class TestCliDepsIntegration:
             None,   # no job name
             None,   # no job config
             False,  # bundle_output=False
-            False   # verbose=False
+            False,  # verbose=False
+            expand_blueprints=False,
+            blueprint_filter=None,
         )
 
     @patch('lhp.cli.commands.dependencies_command.DependenciesCommand.execute')
@@ -123,7 +125,9 @@ class TestCliDepsIntegration:
             'custom_job',  # job name
             None,   # no job config
             False,  # bundle_output=False
-            True  # verbose=True
+            True,  # verbose=True
+            expand_blueprints=False,
+            blueprint_filter=None,
         )
 
     @patch('lhp.cli.commands.dependencies_command.DependenciesCommand.execute')
@@ -146,7 +150,9 @@ class TestCliDepsIntegration:
             'my_job',  # job name
             None,   # no job config
             False,  # bundle_output=False
-            True  # verbose=True
+            True,  # verbose=True
+            expand_blueprints=False,
+            blueprint_filter=None,
         )
 
     def test_deps_command_invalid_format(self):
@@ -237,7 +243,10 @@ class TestCliDepsIntegration:
             for pipeline_name in pipeline_names:
                 result = self.runner.invoke(cli, ['deps', '--pipeline', pipeline_name])
                 assert result.exit_code == 0
-                mock_execute.assert_called_with('all', None, pipeline_name, None, None, False, False)
+                mock_execute.assert_called_with(
+                    'all', None, pipeline_name, None, None, False, False,
+                    expand_blueprints=False, blueprint_filter=None,
+                )
 
     def test_deps_command_job_name_option(self):
         """Test job name option functionality."""
@@ -295,7 +304,9 @@ class TestCliDepsIntegration:
             None,
             None,
             False,
-            False
+            False,
+            expand_blueprints=False,
+            blueprint_filter=None,
         )
 
     def test_deps_command_default_values(self):

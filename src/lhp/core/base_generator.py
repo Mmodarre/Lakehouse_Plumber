@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from jinja2 import Environment
-from typing import Dict, Any, Set, List, TYPE_CHECKING, Optional
-import yaml
 import json
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+
+import yaml
+from jinja2 import Environment
 
 from ..utils.template_renderer import get_lhp_template_loader
 
@@ -28,6 +29,12 @@ class BaseActionGenerator(ABC):
             from ..utils.import_manager import ImportManager
 
             self._import_manager = ImportManager()
+
+        # Statements to emit between the imports block and PIPELINE_ID in the
+        # assembled flowgroup file. Used for module-load-time setup that must
+        # run after imports but before the pipeline body — e.g. cloudpickle
+        # ``register_pickle_by_value`` for custom data sources/sinks.
+        self._pre_pipeline_statements: List[str] = []
 
         # Template setup: PackageLoader works for editable installs, wheels,
         # and zipapps; no dependence on filesystem-path math from __file__.
@@ -81,18 +88,21 @@ class BaseActionGenerator(ABC):
             # Graceful fallback - ignore if not using ImportManager
             pass
 
-    def add_imports_from_file(self, source_code: str) -> str:
-        """
-        Extract imports from file and return cleaned source (new functionality).
+    def add_pre_pipeline_statement(self, stmt: str) -> None:
+        """Add a statement to be emitted between imports and ``PIPELINE_ID``.
 
-        Only available when ImportManager is enabled.
-        Returns original source if ImportManager not enabled.
+        Used for module-load-time setup that must run after imports but before
+        the pipeline body — e.g. ``cloudpickle.register_pickle_by_value(...)``
+        for custom data sources/sinks. The assembler dedupes across all
+        generators, so the same statement collected from multiple actions
+        within a flowgroup appears exactly once in the assembled file.
         """
-        if self._use_import_manager and self._import_manager:
-            return self._import_manager.add_imports_from_file(source_code)
-        else:
-            # Graceful fallback - return source unchanged
-            return source_code
+        if stmt and stmt.strip():
+            self._pre_pipeline_statements.append(stmt.strip())
+
+    def get_pre_pipeline_statements(self) -> List[str]:
+        """Get the pre-pipeline statements collected by this generator."""
+        return list(self._pre_pipeline_statements)
 
     def get_import_manager(self) -> Optional["ImportManager"]:
         """

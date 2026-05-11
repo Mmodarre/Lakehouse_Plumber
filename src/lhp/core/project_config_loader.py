@@ -6,21 +6,21 @@ Loads project-level configuration from lhp.yaml including operational metadata d
 import logging
 import re
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 _SUBSTITUTION_TOKEN_PATTERN = re.compile(r"\$\{[^}]+\}")
 
 from ..models.config import (
     EventLogConfig,
+    MetadataColumnConfig,
+    MetadataPresetConfig,
     MonitoringConfig,
     MonitoringMaterializedViewConfig,
     ProjectConfig,
     ProjectOperationalMetadataConfig,
-    MetadataColumnConfig,
-    MetadataPresetConfig,
     TestReportingConfig,
 )
-from ..utils.error_formatter import LHPError, ErrorCategory
+from ..utils.error_formatter import ErrorCategory, LHPError
 
 
 class ProjectConfigLoader:
@@ -121,6 +121,22 @@ class ProjectConfigLoader:
         if "include" in config_data:
             include_patterns = self._parse_include_patterns(config_data["include"])
 
+        # Parse blueprint_include / instance_include patterns. Reuses
+        # `_parse_include_patterns` for shape and pattern validation; defaults
+        # are applied at discovery time inside BlueprintDiscoverer (one
+        # source of truth there).
+        blueprint_include_patterns: Optional[List[str]] = None
+        if "blueprint_include" in config_data:
+            blueprint_include_patterns = self._parse_include_patterns(
+                config_data["blueprint_include"]
+            )
+
+        instance_include_patterns: Optional[List[str]] = None
+        if "instance_include" in config_data:
+            instance_include_patterns = self._parse_include_patterns(
+                config_data["instance_include"]
+            )
+
         # Parse event_log configuration
         event_log_config = None
         if "event_log" in config_data:
@@ -148,6 +164,8 @@ class ProjectConfigLoader:
             author=config_data.get("author"),
             created_date=config_data.get("created_date"),
             include=include_patterns,
+            blueprint_include=blueprint_include_patterns,
+            instance_include=instance_include_patterns,
             operational_metadata=operational_metadata_config,
             event_log=event_log_config,
             monitoring=monitoring_config,

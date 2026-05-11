@@ -1,13 +1,16 @@
 """State dependency resolver for LakehousePlumber dependency tracking."""
 
-import logging
 import hashlib
+import logging
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+from ..core.template_engine import TemplateEngine
 from ..models.config import FlowGroup
 from ..parsers.yaml_parser import YAMLParser
 from ..presets.preset_manager import PresetManager
-from ..core.template_engine import TemplateEngine
+from ..utils.error_formatter import ErrorCategory, LHPError
+from .services.blueprint_expander import BlueprintProvenance
 from .state_models import DependencyInfo
 
 
@@ -39,6 +42,11 @@ class StateDependencyResolver:
             Tuple[str, str, str, str, str], Dict[str, Tuple[str, str]]
         ] = {}
 
+        # When (pipeline, flowgroup) appears here, resolve_file_dependencies
+        # fingerprints the corresponding instance file as a separate dependency
+        # so changes to one instance only regenerate that one site.
+        self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
+
     def set_checksum_cache(self, cache) -> None:
         """Inject shared ChecksumCache.
 
@@ -46,6 +54,15 @@ class StateDependencyResolver:
             cache: ChecksumCache instance
         """
         self._checksum_cache = cache
+
+    def set_blueprint_provenance(
+        self, provenance: Optional[Dict[Tuple[str, str], BlueprintProvenance]]
+    ) -> None:
+        """Inject the blueprint expansion provenance map.
+
+        Empty/None means "no blueprints in this project". Idempotent.
+        """
+        self._blueprint_provenance = provenance or {}
 
     def resolve_file_dependencies(
         self,
@@ -63,6 +80,14 @@ class StateDependencyResolver:
         Caches dependency discovery (which files are referenced) but always recalculates
         checksums to preserve change detection accuracy. If stored_deps is provided,
         uses mtime optimization to avoid recalculating unchanged checksums.
+
+        Synthetic flowgroups: when (pipeline, flowgroup_name) is in the
+        blueprint provenance map, the source `yaml_file` is the blueprint path,
+        which cannot be parsed as a flowgroup file (the B1 discriminator in
+        `parse_flowgroups_from_file` rejects it). In that case the in-memory
+        synthetic FlowGroup attached to the provenance entry is used directly,
+        and an additional `type='instance'` dependency is injected for the
+        instance file.
 
         Args:
             yaml_file: Path to the YAML file (relative to project_root)
@@ -108,26 +133,9 @@ class StateDependencyResolver:
                 )
             else:
                 # Cache miss: full discovery and resolution
-                # Parse all flowgroups from file (supports multi-document and array syntax)
-                flowgroups = self.yaml_parser.parse_flowgroups_from_file(
-                    resolved_yaml_file
+                target_flowgroup = self._resolve_target_flowgroup(
+                    resolved_yaml_file, yaml_file, pipeline, flowgroup_name
                 )
-
-                # Find the specific flowgroup if pipeline and flowgroup_name provided
-                target_flowgroup = None
-                if pipeline and flowgroup_name:
-                    for fg in flowgroups:
-                        if fg.pipeline == pipeline and fg.flowgroup == flowgroup_name:
-                            target_flowgroup = fg
-                            break
-                    if not target_flowgroup:
-                        self.logger.warning(
-                            f"Flowgroup {flowgroup_name} not found in {yaml_file}"
-                        )
-                        return dependencies
-                else:
-                    # If no specific flowgroup specified, use first one (backward compat)
-                    target_flowgroup = flowgroups[0] if flowgroups else None
 
                 if not target_flowgroup:
                     return dependencies
@@ -152,6 +160,19 @@ class StateDependencyResolver:
                 )
                 dependencies.update(external_file_deps)
 
+                # Synthetic flowgroups carry an extra
+                # `type='instance'` dependency on their originating instance
+                # file. This MUST happen BEFORE _cache_dependency_paths so the
+                # cache snapshot includes the instance entry; on subsequent
+                # cache hits, _recalculate_dependency_checksums iterates
+                # cached_paths and recalculates checksums for ALL of them.
+                # Without this ordering the instance dep would be invisible
+                # after the first cache miss.
+                if pipeline and flowgroup_name:
+                    self._inject_instance_dependency(
+                        dependencies, pipeline, flowgroup_name
+                    )
+
                 # Cache the dependency paths (without checksums)
                 self._cache_dependency_paths(cache_key, dependencies)
 
@@ -163,6 +184,108 @@ class StateDependencyResolver:
             self.logger.warning(f"Failed to resolve dependencies for {yaml_file}: {e}")
 
         return dependencies
+
+    def _resolve_target_flowgroup(
+        self,
+        resolved_yaml_file: Path,
+        yaml_file: Path,
+        pipeline: Optional[str],
+        flowgroup_name: Optional[str],
+    ) -> Optional[FlowGroup]:
+        """Pick the FlowGroup whose dependencies we resolve.
+
+        For synthetic (blueprint-expanded) flowgroups, the source path points
+        at the blueprint file. We cannot reparse that as a flowgroup file
+        because the B1 discriminator in `parse_flowgroups_from_file` rejects
+        it. Instead, look up the in-memory synthetic FlowGroup from the
+        provenance map populated by the orchestrator post-expansion.
+
+        For disk-sourced flowgroups, parse the file and pick the flowgroup
+        matching `(pipeline, flowgroup_name)` (or the first one for backward
+        compat when those are not provided).
+        """
+        if pipeline and flowgroup_name:
+            provenance = self._blueprint_provenance.get((pipeline, flowgroup_name))
+            if provenance is not None:
+                return provenance.flowgroup
+
+        flowgroups = self.yaml_parser.parse_flowgroups_from_file(resolved_yaml_file)
+
+        if pipeline and flowgroup_name:
+            for fg in flowgroups:
+                if fg.pipeline == pipeline and fg.flowgroup == flowgroup_name:
+                    return fg
+            self.logger.warning(f"Flowgroup {flowgroup_name} not found in {yaml_file}")
+            return None
+
+        return flowgroups[0] if flowgroups else None
+
+    def _inject_instance_dependency(
+        self,
+        dependencies: Dict[str, DependencyInfo],
+        pipeline: str,
+        flowgroup_name: str,
+    ) -> None:
+        """Inject the blueprint instance file as a `type='instance'` dependency.
+
+        Only fires when the (pipeline, flowgroup) is in the provenance map —
+        i.e. for synthetic flowgroups. The instance file's checksum is what
+        makes per-instance change detection work: editing one instance file
+        invalidates only that flowgroup's stored deps, leaving other instances
+        of the same blueprint untouched.
+        """
+        provenance = self._blueprint_provenance.get((pipeline, flowgroup_name))
+        if provenance is None:
+            return
+
+        instance_full = provenance.instance_path
+        if not instance_full.is_absolute():
+            instance_full = self.project_root / instance_full
+        try:
+            rel_instance = instance_full.relative_to(self.project_root).as_posix()
+        except ValueError:
+            # Instance file outside project_root would key the cache on an
+            # absolute path that varies across machines/symlinked checkouts,
+            # so the dependency would appear "new" forever. Treat as config bug.
+            raise LHPError(
+                category=ErrorCategory.IO,
+                code_number="059",
+                title="Instance file outside project root",
+                details=(
+                    f"Blueprint instance file {instance_full} is not under "
+                    f"project root {self.project_root}. Instance files must "
+                    "live inside the project directory so dependency cache "
+                    "keys remain stable across runs."
+                ),
+                suggestions=[
+                    "Place each instance file under "
+                    "pipelines/<system>/<layer>/ or your configured "
+                    "instance_include patterns",
+                    "Adjust 'instance_include' patterns in lhp.yaml so they only "
+                    "resolve files inside the project root",
+                    "If the path involves a symlink, resolve the symlink target "
+                    "to a location under project_root",
+                ],
+                context={
+                    "instance_path": str(instance_full),
+                    "project_root": str(self.project_root),
+                    "pipeline": pipeline,
+                    "flowgroup": flowgroup_name,
+                },
+            )
+
+        try:
+            mtime = instance_full.stat().st_mtime
+        except OSError:
+            mtime = None
+
+        dependencies[rel_instance] = DependencyInfo(
+            path=rel_instance,
+            checksum=self._calculate_checksum(instance_full),
+            type="instance",
+            last_modified=self._get_file_modification_time(instance_full),
+            mtime=mtime,
+        )
 
     def _cache_dependency_paths(
         self,

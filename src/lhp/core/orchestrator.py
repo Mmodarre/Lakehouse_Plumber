@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..models.config import Action, ActionType, FlowGroup
+from ..parsers.blueprint_parser import BlueprintParser
 
 # Component imports (for service initialization)
 from ..parsers.yaml_parser import CachingYAMLParser, YAMLParser
@@ -36,6 +37,8 @@ from .layers import BusinessLayer
 from .parallel_processor import FlowgroupResult, ParallelFlowgroupProcessor
 from .project_config_loader import ProjectConfigLoader
 from .secret_validator import SecretValidator
+from .services.blueprint_discoverer import BlueprintDiscoverer
+from .services.blueprint_expander import BlueprintExpander, BlueprintProvenance
 from .services.code_generator import CodeGenerator
 
 # Service imports
@@ -148,6 +151,22 @@ class ActionOrchestrator:
             self.project_config_loader,
             yaml_parser=self._cached_yaml_parser,
         )
+        self.blueprint_parser = BlueprintParser(
+            caching_yaml_parser=self._cached_yaml_parser
+        )
+        self.blueprint_discoverer = BlueprintDiscoverer(
+            project_root,
+            project_config=self.project_config,
+            blueprint_parser=self.blueprint_parser,
+            caching_yaml_parser=self._cached_yaml_parser,
+        )
+        self.blueprint_expander = BlueprintExpander()
+        # Provenance map keyed by resolved (pipeline, flowgroup) tuple.
+        # Populated by `_expand_blueprints` and consumed by:
+        #   - StateDependencyResolver for instance-file fingerprints
+        #   - DependencyTracker for FileState.synthetic flag
+        #   - FlowgroupDiscoverer (Phase 7) for source-path index
+        self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
         self.processor = FlowgroupProcessor(
             self.template_engine,
             self.preset_manager,
@@ -171,6 +190,19 @@ class ActionOrchestrator:
 
         # Monitoring build result (set during discover_all_flowgroups if monitoring is configured)
         self._monitoring_result = None
+
+        # Pipeline-slice memoization keyed by id(all_flowgroups). Valid only
+        # while the same all_flowgroups list object is alive; rebuilt on
+        # identity mismatch. The caller (orchestrator) holds that list across
+        # the entire generate run, so id() recycling cannot occur in practice.
+        self._pipeline_slice_cache: Dict[str, List[FlowGroup]] = {}
+        self._pipeline_slice_cache_id: Optional[int] = None
+
+        # tracked_keys memoization for synthetic-novelty check. Key:
+        # (id(state_manager), env). The set is identical for every pipeline
+        # within one generate run; building it once amortizes the full
+        # env-state scan across all pipelines.
+        self._tracked_keys_cache: Dict[Tuple[int, str], Set[Tuple[str, str]]] = {}
 
         # Enforce version requirements if specified and enabled
         if self.enforce_version:
@@ -426,6 +458,11 @@ class ActionOrchestrator:
                 detailed_staleness_info={},
             )
 
+        # Synthetic flowgroups carry a blueprint path as source_yaml; without
+        # this provenance map, the staleness resolver would parse the blueprint
+        # as a flowgroup and fail the schema discriminator.
+        state_manager.set_blueprint_provenance(self._blueprint_provenance)
+
         # Env-wide generation-context gate. When include_tests flips between
         # runs, every pipeline needs regeneration because test actions may be
         # added/removed. Record the comparison once per run — no per-flowgroup
@@ -531,14 +568,39 @@ class ActionOrchestrator:
         """
         Discover all flowgroups across all directories in the project.
 
-        Includes synthetic monitoring flowgroup if configured.
-        Stores the full MonitoringBuildResult for later use during generation.
+        Combines three sources, in order:
+          1. Disk-sourced flowgroups via FlowgroupDiscoverer (existing).
+          2. Synthetic flowgroups expanded from blueprints x instances. Once
+             expanded, these are indistinguishable from disk-sourced flowgroups
+             for downstream code paths (Step 0.5 -> Step 5).
+          3. Synthetic monitoring flowgroup (existing) when monitoring is
+             configured.
+
+        Side effects:
+          - Populates `self._blueprint_provenance` with the expansion's
+            (pipeline, flowgroup) -> BlueprintProvenance mapping. Used by the
+            state dependency resolver, dependency tracker, and source-path
+            index to handle instance-file changes correctly.
+          - Stores the full MonitoringBuildResult in `self._monitoring_result`.
 
         Returns:
-            List of all discovered flowgroups
+            List of all discovered flowgroups (regular + synthetic + monitoring).
         """
         with perf_timer("discover_all_flowgroups [orchestrator]"):
             flowgroups = self.discoverer.discover_all_flowgroups()
+
+        # Expand blueprints into synthetic flowgroups
+        blueprint_fgs, provenance = self._expand_blueprints()
+        flowgroups.extend(blueprint_fgs)
+        self._blueprint_provenance = provenance
+
+        # Wire synthetic flowgroups into the FlowgroupDiscoverer source-path
+        # index so `find_source_yaml_for_flowgroup` resolves them to their
+        # blueprint path (Phase 7).
+        if provenance:
+            self.discoverer.register_synthetic_sources(
+                {key: prov.blueprint_path for key, prov in provenance.items()}
+            )
 
         # Build monitoring artifacts if configured
         self._monitoring_result = self._build_monitoring(flowgroups)
@@ -546,6 +608,28 @@ class ActionOrchestrator:
             flowgroups.append(self._monitoring_result.flowgroup)
 
         return flowgroups
+
+    def _expand_blueprints(
+        self,
+    ) -> Tuple[List[FlowGroup], Dict[Tuple[str, str], BlueprintProvenance]]:
+        """Discover and expand blueprints + instances into synthetic FlowGroups.
+
+        Returns an empty result when no blueprint or instance files are present
+        in the project (the entire feature is fully opt-in via file presence).
+        """
+        blueprints = self.blueprint_discoverer.discover_blueprints()
+        if not blueprints:
+            return [], {}
+
+        instances = self.blueprint_discoverer.discover_instances(blueprints)
+        if not instances:
+            self.logger.info(
+                f"Found {len(blueprints)} blueprint(s) but no instance files; "
+                "blueprint expansion produces no flowgroups."
+            )
+            return [], {}
+
+        return self.blueprint_expander.expand(blueprints, instances)
 
     def _build_monitoring(self, discovered_flowgroups: List[FlowGroup]):
         """Build monitoring pipeline artifacts if configured.
@@ -870,6 +954,26 @@ class ActionOrchestrator:
                 context={"Duplicates": len(errors)},
             )
 
+    def _lookup_pipeline_slice(
+        self,
+        all_flowgroups: List[FlowGroup],
+        pipeline_field: str,
+    ) -> List[FlowGroup]:
+        """Return the per-pipeline slice with a memoized by-pipeline grouping.
+
+        The by-pipeline dict is keyed by `id(all_flowgroups)`; on a fresh
+        `discover_all_flowgroups` result, the dict is rebuilt once and reused
+        for every subsequent pipeline call. At 32k-flowgroup scale this turns
+        80×32k iterations into one full scan amortized across all pipelines.
+        """
+        if self._pipeline_slice_cache_id != id(all_flowgroups):
+            grouping: Dict[str, List[FlowGroup]] = defaultdict(list)
+            for fg in all_flowgroups:
+                grouping[fg.pipeline].append(fg)
+            self._pipeline_slice_cache = dict(grouping)
+            self._pipeline_slice_cache_id = id(all_flowgroups)
+        return self._pipeline_slice_cache.get(pipeline_field, [])
+
     def generate_pipeline_by_field(
         self,
         pipeline_field: str,
@@ -908,6 +1012,17 @@ class ActionOrchestrator:
             with perf_timer("validate_duplicates"):
                 self.validate_duplicate_pipeline_flowgroup_combinations(all_flowgroups)
 
+        # See note above generate_pipeline_by_field: provenance must be set
+        # before staleness checks so the resolver knows which flowgroups are
+        # synthetic.
+        if state_manager is not None:
+            state_manager.set_blueprint_provenance(self._blueprint_provenance)
+
+        # Pre-group flowgroups by pipeline once per generate run; otherwise
+        # each pipeline call scans the full 32k-flowgroup list. Memoization
+        # key uses id() so work happens once per discovery result object.
+        slice_for_pipeline = self._lookup_pipeline_slice(all_flowgroups, pipeline_field)
+
         with perf_timer("discover_and_filter_flowgroups"):
             flowgroups = self._discover_and_filter_flowgroups(
                 env=env,
@@ -917,7 +1032,7 @@ class ActionOrchestrator:
                 specific_flowgroups=specific_flowgroups,
                 state_manager=state_manager,
                 use_directory_discovery=False,
-                pre_discovered_flowgroups=all_flowgroups,
+                pre_discovered_flowgroups=slice_for_pipeline,
             )
 
         # Early return if no flowgroups to generate
@@ -1133,7 +1248,7 @@ class ActionOrchestrator:
         else:
             # Sequential generation
             # Create Python file copier for consistent conflict detection
-            from ..generators.transform.python_file_copier import PythonFileCopier
+            from ..generators.python_file_copier import PythonFileCopier
 
             python_copier = PythonFileCopier()
 
@@ -1436,18 +1551,6 @@ class ActionOrchestrator:
         """
         return self.generator.determine_action_subtype(action)
 
-    def build_custom_source_block(self, custom_sections: List[Dict]) -> str:
-        """
-        Build the custom source code block to append to flowgroup files.
-
-        Args:
-            custom_sections: List of dictionaries with custom source code info
-
-        Returns:
-            Formatted custom source code block with headers
-        """
-        return self.generator.build_custom_source_block(custom_sections)
-
     def _discover_and_filter_flowgroups(
         self,
         env: str,
@@ -1615,7 +1718,39 @@ class ActionOrchestrator:
         # checksum recomputation is required here.
         stale_flowgroups = {fs.flowgroup for fs in generation_info["stale"]}
 
-        flowgroups_to_generate = new_flowgroups | stale_flowgroups
+        # Synthetic-flowgroup novelty check. Blueprint-expanded
+        # flowgroups whose output path doesn't exist in state are "new" even
+        # though no new YAML file appears on disk for them. This handles the
+        # "new instance added" case (e.g. instances/erp_sites/latam_br.yaml
+        # added => 400 new latam_br_* flowgroups expand from the existing
+        # blueprint, none tracked in state yet). Must be added to the union
+        # BEFORE the empty-set early return, otherwise the new-instance case
+        # becomes dead code. Skipped when no synthetic flowgroups are present
+        # (no blueprints in the project) so projects without blueprints don't
+        # need state_manager.state.environments to be a real dict.
+        new_synthetic: Set[str] = set()
+        synthetic_in_pipeline = [
+            fg
+            for fg in all_flowgroups
+            if fg._synthetic and fg.pipeline == pipeline_identifier
+        ]
+        if synthetic_in_pipeline:
+            env_state = state_manager.state.environments.get(env, {})
+            if isinstance(env_state, dict):
+                cache_key = (id(state_manager), env)
+                tracked_keys = self._tracked_keys_cache.get(cache_key)
+                if tracked_keys is None:
+                    tracked_keys = {
+                        (fs.pipeline, fs.flowgroup) for fs in env_state.values()
+                    }
+                    self._tracked_keys_cache[cache_key] = tracked_keys
+                new_synthetic = {
+                    fg.flowgroup
+                    for fg in synthetic_in_pipeline
+                    if (fg.pipeline, fg.flowgroup) not in tracked_keys
+                }
+
+        flowgroups_to_generate = new_flowgroups | stale_flowgroups | new_synthetic
 
         if flowgroups_to_generate:
             # Filter to only include flowgroups that need generation
@@ -1623,7 +1758,10 @@ class ActionOrchestrator:
                 fg for fg in all_flowgroups if fg.flowgroup in flowgroups_to_generate
             ]
             self.logger.info(
-                f"Smart generation: processing {len(filtered_flowgroups)}/{len(all_flowgroups)} flowgroups"
+                f"Smart generation: processing {len(filtered_flowgroups)}/"
+                f"{len(all_flowgroups)} flowgroups (new={len(new_flowgroups)}, "
+                f"stale={len(stale_flowgroups)}, "
+                f"new_synthetic={len(new_synthetic)})"
             )
             return filtered_flowgroups
         else:
@@ -1729,7 +1867,8 @@ class ActionOrchestrator:
         Args:
             flowgroup: The flowgroup being processed
             output_file: Path to the generated file
-            source_yaml: Path to the source YAML
+            source_yaml: Path to the generated file's source YAML (for synthetic
+                flowgroups, this is the originating blueprint path).
             env: Environment name
             pipeline_identifier: Pipeline name or field
             include_tests: Whether test actions are included (recorded env-wide
@@ -1774,7 +1913,7 @@ class ActionOrchestrator:
             List of FlowgroupResult objects
         """
         # Create thread-safe Python file copier for this pipeline
-        from ..generators.transform.python_file_copier import PythonFileCopier
+        from ..generators.python_file_copier import PythonFileCopier
 
         python_copier = PythonFileCopier()
 

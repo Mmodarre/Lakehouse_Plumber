@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.8.5"
+version = "0.8.6"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -81,6 +81,8 @@ where = ["src"]
 "lhp.templates.write.sinks" = ["*.j2"]
 "lhp.templates.test_reporting" = ["*.j2"]
 "lhp.templates.monitoring" = ["*.py", "*.j2"]
+"lhp.resources.skills.lhp" = ["*.md"]
+"lhp.resources.skills.lhp.references" = ["*.md"]
 
 
 

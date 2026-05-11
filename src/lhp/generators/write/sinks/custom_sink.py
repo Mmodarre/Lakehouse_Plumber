@@ -7,18 +7,24 @@ from typing import Any, Dict
 
 from ....models.config import Action
 from ....utils.error_formatter import ErrorFormatter
+from ....utils.external_file_loader import load_external_file_text
+from ...python_file_copier import copy_user_module_for_pipeline
 from .base_sink import BaseSinkWriteGenerator
 
 
 class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
-    """Generate custom Python sink write actions."""
+    """Generate custom Python sink write actions via copy-and-import.
+
+    Mirrors :class:`CustomDataSourceLoadGenerator`: copies the user's
+    ``DataSink`` source into ``custom_python_functions/`` next to the generated
+    pipeline, registers the package with PySpark's vendored cloudpickle, and
+    imports + registers the class on the local Spark session.
+    """
 
     def __init__(self):
         # Enable ImportManager for advanced import handling
         super().__init__()
         self.logger = logging.getLogger(__name__)
-        self.custom_sink_code = None  # Store for later appending by orchestrator
-        self.sink_file_path = None  # Track sink file
 
     def _extract_datasink_format_name(self, source_code: str, class_name: str) -> str:
         """Extract the format name from the DataSink class name() method."""
@@ -63,15 +69,7 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
             return class_name  # Fallback to class name
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate custom sink code.
-
-        Args:
-            action: Action configuration
-            context: Context dictionary with flowgroup and project info
-
-        Returns:
-            Generated Python code for custom sink
-        """
+        """Generate custom sink code via copy-and-import."""
         sink_config = action.write_target
 
         # Extract configuration
@@ -126,34 +124,46 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
         api_key: "your-api-key" """,
             )
 
-        # Read custom sink file
+        # Read the user's sink module via the shared external-file loader so
+        # that missing-file / permission / encoding errors match every other
+        # generator. The copy itself happens later via
+        # ``copy_user_module_for_pipeline``.
         project_root = context.get("spec_dir") or Path.cwd()
-        sink_path = project_root / module_path
+        raw_sink_code = load_external_file_text(
+            module_path, project_root, file_type="custom sink file"
+        )
 
-        if not sink_path.exists():
-            raise ErrorFormatter.file_not_found(
-                file_path=str(sink_path),
-                search_locations=[
-                    f"Relative to project root: {project_root / module_path}",
-                ],
-                file_type="custom sink file",
+        # Substitute so format-name extraction sees resolved tokens (e.g.
+        # ``${sink_format}`` in the user's ``name()`` return value).
+        # ``copy_user_module`` re-substitutes when copying — idempotent for
+        # resolved tokens.
+        if "substitution_manager" in context:
+            raw_sink_code = context["substitution_manager"]._process_string(
+                raw_sink_code
             )
 
-        raw_sink_code = sink_path.read_text()
-        self.sink_file_path = Path(module_path).as_posix()
-
-        # Apply substitutions to the raw sink code if substitution_manager is available
-        if context and "substitution_manager" in context:
-            substitution_mgr = context["substitution_manager"]
-            raw_sink_code = substitution_mgr._process_string(raw_sink_code)
-
-        # Extract the format name from the sink class
+        # Extract the format name against the substituted source so the
+        # generated ``format=...`` value matches the user's post-substitution
+        # ``name()`` return value.
         datasink_format_name = self._extract_datasink_format_name(
             raw_sink_code, custom_sink_class
         )
 
-        # Store the custom sink code for orchestrator to append
-        self.custom_sink_code = raw_sink_code
+        # Copy the user's module into custom_python_functions/ alongside the
+        # generated pipeline file. Skipped in dry-run (output_dir is None).
+        module_name = copy_user_module_for_pipeline(
+            module_path, context, component_label="Custom sink"
+        )
+
+        # Plumb the three imports + the cloudpickle registration statement.
+        self.add_import("import custom_python_functions")
+        self.add_import("from pyspark import cloudpickle as _lhp_cloudpickle")
+        self.add_import(
+            f"from custom_python_functions.{module_name} import {custom_sink_class}"
+        )
+        self.add_pre_pipeline_statement(
+            "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+        )
 
         # Extract source views
         source_views = self._extract_source_views(action.source)

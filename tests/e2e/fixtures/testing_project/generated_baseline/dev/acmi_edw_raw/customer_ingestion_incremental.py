@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_raw
 # FlowGroup: customer_ingestion_incremental
 
-from pyspark import pipelines as dp
 from pyspark.sql import functions as F
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_raw"

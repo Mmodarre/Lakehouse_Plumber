@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Dict, List, Set, Any, Optional, TYPE_CHECKING
 from collections import defaultdict
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
-# Import state models from separate module
-from ..state_models import FileState, ProjectState, DependencyInfo
+from ..state_models import DependencyInfo, FileState, ProjectState
 
 if TYPE_CHECKING:
     from ...parsers.yaml_parser import YAMLParser
+    from ..services.blueprint_expander import BlueprintProvenance
 
 
 class StateAnalyzer:
@@ -56,6 +56,17 @@ class StateAnalyzer:
         """
         self.tracker.set_checksum_cache(cache)
         self.dependency_resolver.set_checksum_cache(cache)
+
+    def set_blueprint_provenance(
+        self, provenance: Optional[Dict[Tuple[str, str], "BlueprintProvenance"]]
+    ) -> None:
+        """Forward the blueprint provenance map to tracker and resolver.
+
+        The resolver injects an instance dependency for synthetic flowgroups;
+        the tracker sets FileState.synthetic=True on them.
+        """
+        self.tracker.set_blueprint_provenance(provenance)
+        self.dependency_resolver.set_blueprint_provenance(provenance)
 
     def find_stale_files(
         self, state: ProjectState, environment: str, checksum_calculator
@@ -548,8 +559,8 @@ class StateAnalyzer:
                 all_flowgroups = discoverer.discover_all_flowgroups()
             else:
                 # Fallback: import and use discoverer directly
-                from ..services.flowgroup_discoverer import FlowgroupDiscoverer
                 from ..project_config_loader import ProjectConfigLoader
+                from ..services.flowgroup_discoverer import FlowgroupDiscoverer
 
                 config_loader = ProjectConfigLoader(self.project_root)
                 temp_discoverer = FlowgroupDiscoverer(self.project_root, config_loader)

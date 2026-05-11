@@ -4,9 +4,9 @@ import hashlib
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
-# Import state models from separate module
+from ..services.blueprint_expander import BlueprintProvenance
 from ..state_models import DependencyInfo, FileState, GlobalDependencies, ProjectState
 
 
@@ -28,6 +28,9 @@ class DependencyTracker:
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
         self._checksum_cache = None
+        # Used by track_generated_file to set FileState.synthetic=True so
+        # cleanup's slow path can skip blueprint-expanded flowgroups safely.
+        self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
 
         # Initialize dependency resolver
         from ..state_dependency_resolver import StateDependencyResolver
@@ -42,6 +45,17 @@ class DependencyTracker:
         """
         self._checksum_cache = cache
         self.dependency_resolver.set_checksum_cache(cache)
+
+    def set_blueprint_provenance(
+        self, provenance: Optional[Dict[Tuple[str, str], BlueprintProvenance]]
+    ) -> None:
+        """Forward the blueprint provenance map to the resolver.
+
+        Stored locally too because track_generated_file uses it to set
+        FileState.synthetic=True for blueprint-expanded flowgroups.
+        """
+        self._blueprint_provenance = provenance or {}
+        self.dependency_resolver.set_blueprint_provenance(provenance)
 
     def track_generated_file(
         self,
@@ -100,6 +114,13 @@ class DependencyTracker:
             rel_source_path, environment, pipeline, flowgroup
         )
 
+        # Mark the FileState as synthetic when its (pipeline, flowgroup)
+        # is in the blueprint provenance map. The cleanup service's slow path
+        # uses this flag to skip orphan-checks that would otherwise delete
+        # legitimate synthetic files (the slow path can't reverse-resolve
+        # blueprint expansion).
+        is_synthetic = (pipeline, flowgroup) in self._blueprint_provenance
+
         # Create file state (normalize paths for cross-platform state files)
         file_state = FileState(
             source_yaml=Path(str(rel_source)).as_posix(),
@@ -112,6 +133,7 @@ class DependencyTracker:
             flowgroup=flowgroup,
             file_dependencies=file_dependencies,
             used_substitution_keys=used_substitution_keys,
+            synthetic=is_synthetic,
         )
 
         # Ensure environment exists in state
@@ -127,7 +149,8 @@ class DependencyTracker:
         self.update_global_dependencies(state, environment)
 
         self.logger.debug(
-            f"Tracked generated file: {rel_generated} from {rel_source} with {len(file_dependencies)} dependencies"
+            f"Tracked generated file: {rel_generated} from {rel_source} with "
+            f"{len(file_dependencies)} dependencies (synthetic={is_synthetic})"
         )
 
     def track_pipeline_artifact(

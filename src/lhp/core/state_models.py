@@ -40,6 +40,11 @@ class FileState:
     file_dependencies: Optional[Dict[str, DependencyInfo]] = None
     used_substitution_keys: Optional[List[str]] = None
     artifact_type: Optional[str] = None
+    # True when produced by blueprint expansion (source_yaml is a blueprint
+    # path). Default False preserves pre-existing state entries on load and
+    # tells the cleanup slow path to skip orphan-checks it can't run without
+    # re-running expansion.
+    synthetic: bool = False
 
 
 @dataclass

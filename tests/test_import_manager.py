@@ -11,29 +11,30 @@ Tests cover:
 - Real-world scenarios
 """
 
-import pytest
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from lhp.utils.import_manager import ImportManager
+import pytest
+
 from lhp.core.base_generator import BaseActionGenerator
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
 from lhp.models.config import Action, ActionType
+from lhp.utils.import_manager import ImportManager, extract_future_imports
 
 
 class TestImportManagerBasics:
     """Test basic ImportManager functionality."""
-    
+
     def setup_method(self):
         """Setup for each test method."""
         self.manager = ImportManager()
-    
+
     def test_initialization(self):
         """Test ImportManager initialization."""
         assert self.manager is not None
         assert len(self.manager.get_consolidated_imports()) == 0
-        
+
         stats = self.manager.get_stats()
         assert stats["manual_imports"] == 0
         assert stats["expression_imports"] == 0
@@ -45,12 +46,12 @@ class TestImportManagerBasics:
         # Test basic import addition
         self.manager.add_import("import os")
         self.manager.add_import("from pathlib import Path")
-        
+
         imports = self.manager.get_consolidated_imports()
         assert "import os" in imports
         assert "from pathlib import Path" in imports
         assert len(imports) == 2
-        
+
         stats = self.manager.get_stats()
         assert stats["manual_imports"] == 2
         assert stats["total_unique"] == 2
@@ -60,7 +61,7 @@ class TestImportManagerBasics:
         self.manager.add_import("import os")
         self.manager.add_import("import os")  # Duplicate
         self.manager.add_import("from pathlib import Path")
-        
+
         imports = self.manager.get_consolidated_imports()
         assert imports.count("import os") == 1  # Should only appear once
         assert len(imports) == 2
@@ -71,7 +72,7 @@ class TestImportManagerBasics:
         self.manager.add_import("\tfrom pathlib import Path\n")
         self.manager.add_import("")  # Empty string
         self.manager.add_import("   ")  # Whitespace only
-        
+
         imports = self.manager.get_consolidated_imports()
         assert "import os" in imports
         assert "from pathlib import Path" in imports
@@ -82,12 +83,14 @@ class TestImportManagerBasics:
         # Test common PySpark expressions
         self.manager.add_imports_from_expression("F.current_timestamp()")
         self.manager.add_imports_from_expression("F.col('name').alias('column_name')")
-        self.manager.add_imports_from_expression("F.when(F.col('age') > 18, F.lit('adult'))")
-        
+        self.manager.add_imports_from_expression(
+            "F.when(F.col('age') > 18, F.lit('adult'))"
+        )
+
         imports = self.manager.get_consolidated_imports()
         # Should detect F (functions) import from expressions
         assert any("functions" in imp for imp in imports)
-        
+
         stats = self.manager.get_stats()
         assert stats["expression_imports"] > 0
 
@@ -97,7 +100,7 @@ class TestImportManagerBasics:
         self.manager.add_imports_from_expression("invalid_syntax((")
         self.manager.add_imports_from_expression("")
         self.manager.add_imports_from_expression(None)
-        
+
         # Should still work normally
         imports = self.manager.get_consolidated_imports()
         assert isinstance(imports, list)
@@ -106,23 +109,23 @@ class TestImportManagerBasics:
         """Test extraction of imports from Python files."""
         # Read our test fixture files
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        
+
         # Test basic imports file
         basic_file = fixtures_dir / "basic_imports.py"
         source_code = basic_file.read_text()
-        
+
         cleaned_source = self.manager.add_imports_from_file(source_code)
-        
+
         # Check that imports were extracted
         imports = self.manager.get_consolidated_imports()
         assert len(imports) > 0
         assert any("import os" in imp for imp in imports)
         assert any("pathlib" in imp for imp in imports)
-        
+
         # Check that source was cleaned (imports removed but structure preserved)
         assert "def sample_function" in cleaned_source
         assert "import os" not in cleaned_source
-        
+
         stats = self.manager.get_stats()
         assert stats["file_imports"] > 0
 
@@ -131,20 +134,20 @@ class TestImportManagerBasics:
         # Add from different sources
         self.manager.add_import("import custom_module")
         self.manager.add_imports_from_expression("F.lit('test')")
-        
+
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
         basic_file = fixtures_dir / "basic_imports.py"
         self.manager.add_imports_from_file(basic_file.read_text())
-        
+
         imports = self.manager.get_consolidated_imports()
         stats = self.manager.get_stats()
-        
+
         # Should have imports from all sources
         assert stats["manual_imports"] >= 1
         assert stats["expression_imports"] >= 1
         assert stats["file_imports"] >= 1
         assert stats["total_unique"] == len(imports)
-        
+
         # Check for specific imports from each source
         assert "import custom_module" in imports
         assert any("pathlib" in imp for imp in imports)
@@ -154,19 +157,19 @@ class TestImportManagerBasics:
         # Add various imports
         self.manager.add_import("import os")
         self.manager.add_imports_from_expression("F.current_timestamp()")
-        
+
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
         basic_file = fixtures_dir / "basic_imports.py"
         self.manager.add_imports_from_file(basic_file.read_text())
-        
+
         # Verify imports exist
         assert len(self.manager.get_consolidated_imports()) > 0
-        
+
         # Clear and verify
         self.manager.clear()
         imports = self.manager.get_consolidated_imports()
         stats = self.manager.get_stats()
-        
+
         assert len(imports) == 0
         assert stats["manual_imports"] == 0
         assert stats["expression_imports"] == 0
@@ -176,7 +179,7 @@ class TestImportManagerBasics:
 
 class TestConflictResolution:
     """Test import conflict resolution functionality."""
-    
+
     def setup_method(self):
         """Setup for each test method."""
         self.manager = ImportManager()
@@ -186,9 +189,9 @@ class TestConflictResolution:
         # Add conflicting imports from same module
         self.manager.add_import("from pyspark.sql.functions import col, lit")
         self.manager.add_import("from pyspark.sql.functions import *")
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Should only have wildcard import, not specific ones
         assert "from pyspark.sql.functions import *" in imports
         assert "from pyspark.sql.functions import col, lit" not in imports
@@ -199,9 +202,9 @@ class TestConflictResolution:
         # This is the key scenario we fixed: F alias vs wildcard import
         self.manager.add_import("from pyspark.sql import functions as F")
         self.manager.add_import("from pyspark.sql.functions import *")
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Wildcard from child module should win, parent alias should be removed
         assert "from pyspark.sql.functions import *" in imports
         assert "from pyspark.sql import functions as F" not in imports
@@ -213,9 +216,9 @@ class TestConflictResolution:
         self.manager.add_import("from pyspark.sql import types as T")
         self.manager.add_import("from pyspark.sql.functions import *")
         self.manager.add_import("from pyspark.sql.types import *")
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Both wildcard imports should remain, both parent aliases should be removed
         assert "from pyspark.sql.functions import *" in imports
         assert "from pyspark.sql.types import *" in imports
@@ -226,10 +229,12 @@ class TestConflictResolution:
         """Test that non-conflicting submodule imports are preserved."""
         # Parent import without wildcard child
         self.manager.add_import("from pyspark.sql import SparkSession")
-        self.manager.add_import("from pyspark.sql.functions import col, lit")  # No wildcard
-        
+        self.manager.add_import(
+            "from pyspark.sql.functions import col, lit"
+        )  # No wildcard
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Both should be preserved since no wildcard conflict
         assert "from pyspark.sql import SparkSession" in imports
         assert "from pyspark.sql.functions import col, lit" in imports
@@ -239,20 +244,20 @@ class TestConflictResolution:
         # Mix of manual, expression, and file imports with conflicts
         self.manager.add_import("from pyspark.sql import functions as F")
         self.manager.add_import("import os")
-        
+
         # Add from expression (should detect F usage)
         self.manager.add_imports_from_expression("F.current_timestamp()")
-        
+
         # Add from file (contains wildcard imports)
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
         wildcard_file = fixtures_dir / "wildcard_conflicts.py"
         self.manager.add_imports_from_file(wildcard_file.read_text())
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Non-conflicting imports should remain
         assert "import os" in imports
-        
+
         # Wildcard should win over specific imports
         assert any("from pyspark.sql.functions import *" in imp for imp in imports)
 
@@ -260,11 +265,13 @@ class TestConflictResolution:
         """Test handling of multiple wildcard imports from same module."""
         self.manager.add_import("from pyspark.sql.functions import *")
         self.manager.add_import("from pyspark.sql.functions import *")  # Duplicate
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Should only appear once
-        wildcard_imports = [imp for imp in imports if "from pyspark.sql.functions import *" in imp]
+        wildcard_imports = [
+            imp for imp in imports if "from pyspark.sql.functions import *" in imp
+        ]
         assert len(wildcard_imports) == 1
 
     def test_no_conflicts_preserved(self):
@@ -274,9 +281,9 @@ class TestConflictResolution:
         self.manager.add_import("from pathlib import Path")
         self.manager.add_import("from pyspark import pipelines as dp")
         self.manager.add_import("from typing import Dict, List")
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # All should be preserved
         assert "import os" in imports
         assert "from pathlib import Path" in imports
@@ -288,18 +295,22 @@ class TestConflictResolution:
         """Test scenarios with some conflicts and some non-conflicts."""
         # Mix of conflicting and non-conflicting imports
         self.manager.add_import("import os")  # No conflict
-        self.manager.add_import("from pyspark.sql import functions as F")  # Will conflict
+        self.manager.add_import(
+            "from pyspark.sql import functions as F"
+        )  # Will conflict
         self.manager.add_import("from pathlib import Path")  # No conflict
-        self.manager.add_import("from pyspark.sql.functions import *")  # Conflicts with F import
+        self.manager.add_import(
+            "from pyspark.sql.functions import *"
+        )  # Conflicts with F import
         self.manager.add_import("from pyspark import pipelines as dp")  # No conflict
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Non-conflicting should remain
         assert "import os" in imports
         assert "from pathlib import Path" in imports
         assert "from pyspark import pipelines as dp" in imports
-        
+
         # Wildcard should win
         assert "from pyspark.sql.functions import *" in imports
         assert "from pyspark.sql import functions as F" not in imports
@@ -308,23 +319,28 @@ class TestConflictResolution:
         """Test different import alias patterns for conflict detection."""
         # Test various alias patterns that should conflict with wildcards
         self.manager.add_import("from pyspark.sql import functions as F")
-        self.manager.add_import("from pyspark.sql import functions as pyspark_functions")
+        self.manager.add_import(
+            "from pyspark.sql import functions as pyspark_functions"
+        )
         self.manager.add_import("from pyspark.sql import functions")  # No alias
         self.manager.add_import("from pyspark.sql.functions import *")
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Only wildcard should remain
         assert "from pyspark.sql.functions import *" in imports
-        
+
         # All parent imports should be removed
-        assert not any("from pyspark.sql import functions" in imp for imp in imports 
-                      if "import *" not in imp)
+        assert not any(
+            "from pyspark.sql import functions" in imp
+            for imp in imports
+            if "import *" not in imp
+        )
 
 
 class TestImportSorting:
     """Test import sorting and categorization."""
-    
+
     def setup_method(self):
         """Setup for each test method."""
         self.manager = ImportManager()
@@ -337,16 +353,16 @@ class TestImportSorting:
             "third_party": ["import pandas", "import numpy", "import requests"],
             "pyspark": ["from pyspark.sql import SparkSession", "import pyspark"],
             "dlt": ["from pyspark import pipelines as dp"],
-            "custom": ["from mymodule import helper", "import custom_package"]
+            "custom": ["from mymodule import helper", "import custom_package"],
         }
-        
+
         for category, imports in imports_by_category.items():
             for imp in imports:
                 self.manager.add_import(imp)
-        
+
         # Test categorization through sorting
         sorted_imports = self.manager.get_consolidated_imports()
-        
+
         # Should have all imports
         total_expected = sum(len(imports) for imports in imports_by_category.values())
         assert len(sorted_imports) == total_expected
@@ -354,39 +370,51 @@ class TestImportSorting:
     def test_import_order_standard_first(self):
         """Test that standard library imports come first."""
         self.manager.add_import("import custom_module")  # custom (last)
-        self.manager.add_import("from pyspark import pipelines as dp")           # dlt (4th)
-        self.manager.add_import("import os")            # standard (1st)
-        self.manager.add_import("import pandas")        # third-party (2nd)
-        self.manager.add_import("import pyspark")       # pyspark (3rd)
-        
+        self.manager.add_import("from pyspark import pipelines as dp")  # dlt (4th)
+        self.manager.add_import("import os")  # standard (1st)
+        self.manager.add_import("import pandas")  # third-party (2nd)
+        self.manager.add_import("import pyspark")  # pyspark (3rd)
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Find positions
         os_pos = imports.index("import os")
-        pandas_pos = imports.index("import pandas") 
+        pandas_pos = imports.index("import pandas")
         pyspark_pos = imports.index("import pyspark")
         dlt_pos = imports.index("from pyspark import pipelines as dp")
         custom_pos = imports.index("import custom_module")
-        
+
         # Verify correct order: standard -> third_party -> pyspark -> dlt -> custom
         assert os_pos < pandas_pos < pyspark_pos < dlt_pos < custom_pos
 
     def test_alphabetical_within_categories(self):
         """Test alphabetical sorting within each category."""
         # Add multiple imports from same category in non-alphabetical order
-        standard_imports = ["import sys", "import os", "import json", "from pathlib import Path"]
+        standard_imports = [
+            "import sys",
+            "import os",
+            "import json",
+            "from pathlib import Path",
+        ]
         for imp in standard_imports:
             self.manager.add_import(imp)
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Extract just the standard library imports
-        standard_in_result = [imp for imp in imports if any(
-            std in imp for std in ["os", "sys", "json", "pathlib"]
-        )]
-        
+        standard_in_result = [
+            imp
+            for imp in imports
+            if any(std in imp for std in ["os", "sys", "json", "pathlib"])
+        ]
+
         # Should be alphabetically sorted
-        expected_order = ["from pathlib import Path", "import json", "import os", "import sys"]
+        expected_order = [
+            "from pathlib import Path",
+            "import json",
+            "import os",
+            "import sys",
+        ]
         assert standard_in_result == expected_order
 
     def test_mixed_import_styles_sorting(self):
@@ -395,11 +423,16 @@ class TestImportSorting:
         self.manager.add_import("from os import path")
         self.manager.add_import("from pathlib import Path")
         self.manager.add_import("import sys")
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # All should be standard library and sorted alphabetically
-        expected = ["from os import path", "from pathlib import Path", "import os", "import sys"]
+        expected = [
+            "from os import path",
+            "from pathlib import Path",
+            "import os",
+            "import sys",
+        ]
         assert imports == expected
 
     def test_pyspark_specific_categorization(self):
@@ -409,17 +442,17 @@ class TestImportSorting:
             "from pyspark.sql import SparkSession",
             "from pyspark.sql import functions as F",
             "from pyspark.sql.functions import col",
-            "from pyspark.sql.types import StructType"
+            "from pyspark.sql.types import StructType",
         ]
-        
+
         for imp in pyspark_imports:
             self.manager.add_import(imp)
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # All should be recognized as pyspark and grouped together
         assert len(imports) == len(pyspark_imports)
-        
+
         # Check they're in correct alphabetical order within pyspark category
         # (from imports come before import statements alphabetically)
         expected_order = [
@@ -428,9 +461,9 @@ class TestImportSorting:
             "from pyspark.sql import functions as F",
             "from pyspark.sql.functions import col",
             "from pyspark.sql.types import StructType",
-            "import pyspark"
+            "import pyspark",
         ]
-        
+
         # Just verify they're all there and pyspark imports are grouped
         for imp in pyspark_imports:
             assert imp in imports
@@ -440,12 +473,12 @@ class TestImportSorting:
         dlt_imports = [
             "from pyspark import pipelines as dp",
         ]
-        
+
         for imp in dlt_imports:
             self.manager.add_import(imp)
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # All should be categorized as DLT
         for imp in dlt_imports:
             assert imp in imports
@@ -454,46 +487,60 @@ class TestImportSorting:
         """Test complete sorting workflow with all categories."""
         # Add imports in random order from all categories
         all_imports = [
-            "import custom_module",      # custom
-            "import os",                 # standard
+            "import custom_module",  # custom
+            "import os",  # standard
             "from pyspark.sql import functions as F",  # pyspark
-            "import requests",           # third_party
+            "import requests",  # third_party
             "from pathlib import Path",  # standard
-            "from pyspark import pipelines as dp",               # dlt
-            "import pandas",            # third_party
+            "from pyspark import pipelines as dp",  # dlt
+            "import pandas",  # third_party
             "from pyspark.sql.functions import *",  # pyspark
-            "import json"               # standard
+            "import json",  # standard
         ]
-        
+
         for imp in all_imports:
             self.manager.add_import(imp)
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Verify we have expected number (minus conflicts)
         assert len(imports) >= 7  # Some may be removed due to conflicts
-        
+
         # Find category boundaries by checking first occurrence of each type
-        first_third_party = next((i for i, imp in enumerate(imports) 
-                                if "requests" in imp or "pandas" in imp), -1)
-        first_pyspark = next((i for i, imp in enumerate(imports) 
-                            if "pyspark" in imp and "pipelines" not in imp), -1)
-        first_dlt = next((i for i, imp in enumerate(imports) 
-                        if "pipelines" in imp), -1)
-        first_custom = next((i for i, imp in enumerate(imports) 
-                           if "custom_module" in imp), -1)
-        
+        first_third_party = next(
+            (
+                i
+                for i, imp in enumerate(imports)
+                if "requests" in imp or "pandas" in imp
+            ),
+            -1,
+        )
+        first_pyspark = next(
+            (
+                i
+                for i, imp in enumerate(imports)
+                if "pyspark" in imp and "pipelines" not in imp
+            ),
+            -1,
+        )
+        first_dlt = next((i for i, imp in enumerate(imports) if "pipelines" in imp), -1)
+        first_custom = next(
+            (i for i, imp in enumerate(imports) if "custom_module" in imp), -1
+        )
+
         # Standard should come first (os, pathlib, json at positions 0-2)
-        standard_imports = [imp for imp in imports if any(
-            std in imp for std in ["os", "pathlib", "json"]
-        )]
+        standard_imports = [
+            imp
+            for imp in imports
+            if any(std in imp for std in ["os", "pathlib", "json"])
+        ]
         assert len(standard_imports) >= 2  # At least os and pathlib
-        
+
         # Verify order progression (each category after the previous)
         if first_third_party >= 0 and first_pyspark >= 0:
             assert first_third_party < first_pyspark
         if first_pyspark >= 0 and first_dlt >= 0:
-            assert first_pyspark < first_dlt  
+            assert first_pyspark < first_dlt
         if first_dlt >= 0 and first_custom >= 0:
             assert first_dlt < first_custom
 
@@ -502,14 +549,14 @@ class TestImportSorting:
         unknown_imports = [
             "import unknown_module",
             "from mysterious import function",
-            "import project_specific"
+            "import project_specific",
         ]
-        
+
         for imp in unknown_imports:
             self.manager.add_import(imp)
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Should all be present and categorized as custom (appear last)
         for imp in unknown_imports:
             assert imp in imports
@@ -517,7 +564,7 @@ class TestImportSorting:
 
 class TestASTProcessing:
     """Test AST processing for file-based imports."""
-    
+
     def setup_method(self):
         """Setup for each test method."""
         self.manager = ImportManager()
@@ -525,17 +572,17 @@ class TestASTProcessing:
     def test_valid_python_file_processing(self):
         """Test processing of valid Python files."""
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        
+
         # Test basic imports file
         basic_file = fixtures_dir / "basic_imports.py"
         source_code = basic_file.read_text()
-        
+
         cleaned_source = self.manager.add_imports_from_file(source_code)
-        
+
         # Verify imports were extracted
         imports = self.manager.get_consolidated_imports()
         assert len(imports) > 0
-        
+
         # Verify source was cleaned but structure preserved
         assert "def sample_function" in cleaned_source
         assert "import os" not in cleaned_source
@@ -544,17 +591,17 @@ class TestASTProcessing:
     def test_invalid_syntax_file_handling(self):
         """Test graceful handling of files with syntax errors."""
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        
+
         # Test file with syntax errors
         invalid_file = fixtures_dir / "invalid_syntax.py"
         source_code = invalid_file.read_text()
-        
+
         # Should not crash, should return original source
         cleaned_source = self.manager.add_imports_from_file(source_code)
-        
+
         # Should return original source unchanged
         assert cleaned_source == source_code
-        
+
         # Should still be able to get consolidated imports
         imports = self.manager.get_consolidated_imports()
         assert isinstance(imports, list)
@@ -562,48 +609,131 @@ class TestASTProcessing:
     def test_complex_file_processing(self):
         """Test processing of complex Python files with mixed imports."""
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        
+
         # Test mixed imports file
         mixed_file = fixtures_dir / "mixed_imports.py"
         source_code = mixed_file.read_text()
-        
+
         cleaned_source = self.manager.add_imports_from_file(source_code)
-        
+
         # Verify various import types were extracted
         imports = self.manager.get_consolidated_imports()
         assert len(imports) > 5  # Should have many imports
-        
+
         # Verify function code is preserved
         assert "def complex_function" in cleaned_source
 
 
+class TestExtractFutureImports:
+    """Tests for the AST-based ``extract_future_imports`` helper.
+
+    The helper underpins the PEP 236 chokepoint in
+    ``CodeGenerator._assemble_final_code``: any source string passed through
+    assembly must surrender its ``from __future__`` lines so they can be
+    hoisted to the top of the assembled module.
+    """
+
+    def test_single_future_import_extracted(self):
+        source = "from __future__ import annotations\n\nx = 1\n"
+        future_lines, cleaned = extract_future_imports(source)
+
+        assert future_lines == ["from __future__ import annotations"]
+        # Original line is blanked but preserved (line numbering intact).
+        assert cleaned.split("\n")[0] == ""
+        assert "x = 1" in cleaned
+        assert "from __future__" not in cleaned
+
+    def test_multiple_future_imports_in_declaration_order(self):
+        source = (
+            "from __future__ import annotations\n"
+            "from __future__ import division\n"
+            "\n"
+            "y = 2\n"
+        )
+        future_lines, cleaned = extract_future_imports(source)
+
+        assert future_lines == [
+            "from __future__ import annotations",
+            "from __future__ import division",
+        ]
+        assert "from __future__" not in cleaned
+        assert "y = 2" in cleaned
+
+    def test_future_import_inside_string_not_extracted(self):
+        # AST guarantee: a literal "from __future__" inside a triple-quoted
+        # string is just data, not an import statement, and must NOT be
+        # extracted. This is the AST-vs-regex correctness check.
+        source = 'DOCS = """\n' "from __future__ import annotations\n" '"""\n' "z = 3\n"
+        future_lines, cleaned = extract_future_imports(source)
+
+        assert future_lines == []
+        # Source returned unchanged — nothing was blanked.
+        assert cleaned == source
+
+    def test_no_future_imports(self):
+        source = "import os\n\ndef f():\n    pass\n"
+        future_lines, cleaned = extract_future_imports(source)
+
+        assert future_lines == []
+        assert cleaned == source
+
+    def test_invalid_python_falls_through(self):
+        # Caller (assembly) may pass fragments that are not standalone
+        # parseable modules. Helper must degrade gracefully.
+        source = "def broken(\n"
+        future_lines, cleaned = extract_future_imports(source)
+
+        assert future_lines == []
+        assert cleaned == source
+
+    def test_multiline_future_import_extracted(self):
+        # Parenthesized future imports span multiple lines.
+        source = (
+            "from __future__ import (\n"
+            "    annotations,\n"
+            "    division,\n"
+            ")\n"
+            "\n"
+            "value = 42\n"
+        )
+        future_lines, cleaned = extract_future_imports(source)
+
+        assert len(future_lines) == 1
+        assert "from __future__" in future_lines[0]
+        assert "annotations" in future_lines[0]
+        assert "division" in future_lines[0]
+        assert "from __future__" not in cleaned
+        assert "value = 42" in cleaned
+
+
 class TestIntegration:
     """Test integration with other components."""
-    
+
     def setup_method(self):
         """Setup for each test method."""
         self.manager = ImportManager()
 
     def test_base_generator_integration(self):
         """Test integration with BaseActionGenerator."""
+
         # Create a mock generator that uses ImportManager
         class TestGenerator(BaseActionGenerator):
             def __init__(self):
                 super().__init__(use_import_manager=True)
-            
+
             def generate(self, action, context):
                 return "test_code"
-        
+
         generator = TestGenerator()
-        
+
         # Add imports through generator
         generator.add_import("import os")
         generator.add_imports_from_expression("F.current_timestamp()")
-        
+
         # Verify ImportManager is working
         import_manager = generator.get_import_manager()
         assert import_manager is not None
-        
+
         imports = generator.imports
         assert "import os" in imports
         assert len(imports) >= 1
@@ -613,17 +743,17 @@ class TestIntegration:
         # Simulate the custom datasource scenario
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
         custom_source = fixtures_dir / "custom_datasource.py"
-        
+
         # Extract imports from custom source
         source_code = custom_source.read_text()
         cleaned_source = self.manager.add_imports_from_file(source_code)
-        
+
         # Add operational metadata imports
         self.manager.add_imports_from_expression("F.current_timestamp()")
         self.manager.add_imports_from_expression("F.col('_metadata')")
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Should have resolved conflicts properly
         assert len(imports) > 0
         assert any("from pyspark.sql.functions import *" in imp for imp in imports)
@@ -631,7 +761,7 @@ class TestIntegration:
 
 class TestErrorHandling:
     """Test error handling and edge cases (90% coverage target)."""
-    
+
     def setup_method(self):
         """Setup for each test method."""
         self.manager = ImportManager()
@@ -641,7 +771,7 @@ class TestErrorHandling:
         # Should not crash with None inputs
         self.manager.add_import(None)
         self.manager.add_imports_from_expression(None)
-        
+
         imports = self.manager.get_consolidated_imports()
         assert isinstance(imports, list)
 
@@ -651,22 +781,22 @@ class TestErrorHandling:
         self.manager.add_import("   ")
         self.manager.add_imports_from_expression("")
         self.manager.add_imports_from_file("")
-        
+
         imports = self.manager.get_consolidated_imports()
         assert len(imports) == 0
 
     def test_malformed_import_statements(self):
         """Test handling of malformed import statements."""
         malformed_imports = [
-            "import",           # Incomplete
-            "from import",      # Invalid syntax
-            "import 123invalid", # Invalid module name
-            "from . import",    # Incomplete relative import
+            "import",  # Incomplete
+            "from import",  # Invalid syntax
+            "import 123invalid",  # Invalid module name
+            "from . import",  # Incomplete relative import
         ]
-        
+
         for imp in malformed_imports:
             self.manager.add_import(imp)
-        
+
         # Should not crash
         imports = self.manager.get_consolidated_imports()
         assert isinstance(imports, list)
@@ -679,10 +809,10 @@ class TestErrorHandling:
             "F.('malformed')",
             "invalid_identifier_with_$pecial_chars",
         ]
-        
+
         for expr in invalid_expressions:
             self.manager.add_imports_from_expression(expr)
-        
+
         # Should not crash
         imports = self.manager.get_consolidated_imports()
         assert isinstance(imports, list)
@@ -690,23 +820,23 @@ class TestErrorHandling:
     def test_file_processing_edge_cases(self):
         """Test file processing edge cases."""
         edge_cases = [
-            "",              # Empty file
+            "",  # Empty file
             "# Just comments\n# More comments",  # Comments only
-            "'''Triple quoted string'''",        # String only
-            "pass",          # Single statement
+            "'''Triple quoted string'''",  # String only
+            "pass",  # Single statement
         ]
-        
+
         for source in edge_cases:
             cleaned = self.manager.add_imports_from_file(source)
             assert isinstance(cleaned, str)
-        
+
         imports = self.manager.get_consolidated_imports()
         assert isinstance(imports, list)
 
 
 class TestUtilityMethods:
     """Test utility and helper methods."""
-    
+
     def setup_method(self):
         """Setup for each test method."""
         self.manager = ImportManager()
@@ -720,7 +850,7 @@ class TestUtilityMethods:
             ("from pyspark.sql.functions import *", "pyspark.sql.functions"),
             ("invalid import statement", None),
         ]
-        
+
         for import_stmt, expected in test_cases:
             result = self.manager._extract_module_name(import_stmt)
             assert result == expected
@@ -733,7 +863,7 @@ class TestUtilityMethods:
             ("from pyspark.sql.functions import col", False),
             ("import os", False),
         ]
-        
+
         for import_stmt, expected in wildcard_cases:
             result = self.manager._is_wildcard_import(import_stmt)
             assert result == expected
@@ -749,7 +879,7 @@ class TestUtilityMethods:
             ("from pyspark import pipelines as dp", "dlt"),
             ("import unknown_module", "custom"),
         ]
-        
+
         for import_stmt, expected in categorization_cases:
             result = self.manager._categorize_import(import_stmt)
             assert result == expected
@@ -759,18 +889,18 @@ class TestUtilityMethods:
         # Add various imports
         self.manager.add_import("import os")
         self.manager.add_imports_from_expression("F.current_timestamp()")
-        
+
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
         basic_file = fixtures_dir / "basic_imports.py"
         self.manager.add_imports_from_file(basic_file.read_text())
-        
+
         # Test stats
         stats = self.manager.get_stats()
         assert stats["manual_imports"] >= 1
         assert stats["expression_imports"] >= 1
         assert stats["file_imports"] >= 1
         assert stats["total_unique"] > 0
-        
+
         # Test debug info
         debug_info = self.manager.debug_info()
         assert "manual_imports" in debug_info
@@ -782,7 +912,7 @@ class TestUtilityMethods:
 
 class TestRealWorldScenarios:
     """Test real-world usage scenarios."""
-    
+
     def setup_method(self):
         """Setup for each test method."""
         self.manager = ImportManager()
@@ -791,26 +921,32 @@ class TestRealWorldScenarios:
         """Test complete custom datasource scenario like our currency_api_source.py fix."""
         # Simulate the exact scenario we fixed
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        
+
         # 1. Extract imports from custom source file
         custom_source = fixtures_dir / "custom_datasource.py"
         self.manager.add_imports_from_file(custom_source.read_text())
-        
+
         # 2. Add operational metadata imports
         self.manager.add_imports_from_expression("F.current_timestamp()")
         self.manager.add_imports_from_expression("F.col('_processing_timestamp')")
-        
+
         # 3. Add manual imports that might come from generator
         self.manager.add_import("from pyspark import pipelines as dp")
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Should have resolved the key conflict we fixed
-        wildcard_imports = [imp for imp in imports if "from pyspark.sql.functions import *" in imp]
-        f_alias_imports = [imp for imp in imports if "from pyspark.sql import functions as F" in imp]
-        
+        wildcard_imports = [
+            imp for imp in imports if "from pyspark.sql.functions import *" in imp
+        ]
+        f_alias_imports = [
+            imp for imp in imports if "from pyspark.sql import functions as F" in imp
+        ]
+
         assert len(wildcard_imports) == 1  # Should have wildcard
-        assert len(f_alias_imports) == 0   # Should NOT have F alias due to conflict resolution
+        assert (
+            len(f_alias_imports) == 0
+        )  # Should NOT have F alias due to conflict resolution
 
     def test_operational_metadata_integration(self):
         """Test operational metadata expression integration."""
@@ -821,12 +957,12 @@ class TestRealWorldScenarios:
             "F.col('_metadata.file_path')",
             "F.when(F.col('status') == 'active', F.lit('valid'))",
         ]
-        
+
         for expr in metadata_expressions:
             self.manager.add_imports_from_expression(expr)
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Should detect and consolidate PySpark function imports
         assert len(imports) > 0
         assert any("functions" in imp for imp in imports)
@@ -834,28 +970,105 @@ class TestRealWorldScenarios:
     def test_mixed_generator_scenario(self):
         """Test scenario with multiple generators contributing imports."""
         # Simulate imports from different generators
-        
+
         # CloudFiles generator imports
         self.manager.add_import("from pyspark.sql import functions as F")
-        
+
         # Custom source imports (with conflicts)
         fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
         wildcard_file = fixtures_dir / "wildcard_conflicts.py"
         self.manager.add_imports_from_file(wildcard_file.read_text())
-        
+
         # Operational metadata imports
         self.manager.add_imports_from_expression("F.input_file_name()")
-        
+
         # DLT imports
         self.manager.add_import("from pyspark import pipelines as dp")
-        
+
         imports = self.manager.get_consolidated_imports()
-        
+
         # Should handle all conflicts properly
         assert len(imports) > 0
-        
+
         # Verify key conflict resolution
         assert any("from pyspark.sql.functions import *" in imp for imp in imports)
-        
+
         # Non-conflicting imports should remain
-        assert "from pyspark import pipelines as dp" in imports 
+        assert "from pyspark import pipelines as dp" in imports
+
+
+class TestImportNameCollision:
+    """Test ImportManager.add_import collision detection.
+
+    The check fires when two ``from … import …`` statements bind the same
+    local name to different source modules — the silent-shadowing risk that
+    exists for python load/transform and (post-refactor) for custom
+    datasource/sink imports.
+    """
+
+    def test_same_name_different_modules_raises(self):
+        """``from a import X`` then ``from b import X`` → LHPValidationError."""
+        from lhp.utils.error_formatter import LHPValidationError
+
+        mgr = ImportManager()
+        mgr.add_import("from a import Conflict")
+        with pytest.raises(LHPValidationError) as excinfo:
+            mgr.add_import("from b import Conflict")
+        msg = str(excinfo.value)
+        assert "Conflict" in msg
+        assert "collision" in msg.lower()
+
+    def test_same_name_same_module_dedupes(self):
+        """Identical ``from … import …`` is silently deduped (set behavior)."""
+        mgr = ImportManager()
+        mgr.add_import("from a import Same")
+        mgr.add_import("from a import Same")
+        # No exception, set dedupe leaves a single entry.
+        assert "from a import Same" in mgr.get_consolidated_imports()
+        assert (
+            sum(
+                1
+                for imp in mgr.get_consolidated_imports()
+                if imp == "from a import Same"
+            )
+            == 1
+        )
+
+    def test_different_aliases_coexist(self):
+        """``from a import X as Y`` and ``from b import X as Z`` → no collision."""
+        mgr = ImportManager()
+        mgr.add_import("from a import X as Y")
+        mgr.add_import("from b import X as Z")
+        # Both bindings are distinct local names; no collision.
+        consolidated = mgr.get_consolidated_imports()
+        assert "from a import X as Y" in consolidated
+        assert "from b import X as Z" in consolidated
+
+    def test_alias_vs_unaliased_different_names(self):
+        """``from a import X`` and ``from b import Y as X`` collide on local name X."""
+        from lhp.utils.error_formatter import LHPValidationError
+
+        mgr = ImportManager()
+        mgr.add_import("from a import X")
+        with pytest.raises(LHPValidationError):
+            mgr.add_import("from b import Y as X")
+
+    def test_plain_import_does_not_trigger_check(self):
+        """``import x`` form has no binding-name extraction; never raises."""
+        mgr = ImportManager()
+        mgr.add_import("import a")
+        mgr.add_import("import b")
+        # Both coexist without any collision check.
+        consolidated = mgr.get_consolidated_imports()
+        assert "import a" in consolidated
+        assert "import b" in consolidated
+
+    def test_wildcard_import_skipped(self):
+        """``from a import *`` doesn't bind named symbols; never collides."""
+        mgr = ImportManager()
+        mgr.add_import("from a import *")
+        mgr.add_import("from b import X")
+        # The wildcard contributes no specific name, so X is unique.
+        # No collision should fire.
+        consolidated = mgr.get_consolidated_imports()
+        assert "from b import X" in consolidated

@@ -2,8 +2,8 @@
 # Pipeline: acme_edw_event_log_monitoring
 # FlowGroup: monitoring
 
-from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acme_edw_event_log_monitoring"

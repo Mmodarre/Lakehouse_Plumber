@@ -172,6 +172,20 @@ class StateCleanupService:
                         orphaned_files.append(file_state)
                     continue
 
+                # Synthetic FileStates can only be orphan-checked via the
+                # active_flowgroups fast path. The slow path's source-YAML
+                # reparse would either fail the schema discriminator (blueprint
+                # files aren't flowgroups) or return unresolved %{site_name}
+                # placeholders that never match the resolved FileState. Skip;
+                # the next `lhp generate` reaps genuine orphans via the fast
+                # path.
+                if file_state.synthetic:
+                    self.logger.debug(
+                        "Skipping synthetic FileState in slow-path orphan "
+                        f"check: {file_state.generated_path}"
+                    )
+                    continue
+
                 source_path = self.project_root / file_state.source_yaml
 
                 if not source_path.exists():

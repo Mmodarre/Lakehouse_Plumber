@@ -1,20 +1,21 @@
 """Tests for load action generators of LakehousePlumber."""
 
 import pytest
-from lhp.models.config import Action, ActionType
+
 from lhp.generators.load import (
     CloudFilesLoadGenerator,
     DeltaLoadGenerator,
-    SQLLoadGenerator,
     JDBCLoadGenerator,
-    PythonLoadGenerator
+    PythonLoadGenerator,
+    SQLLoadGenerator,
 )
+from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 class TestLoadGenerators:
     """Test load action generators."""
-    
+
     def test_cloudfiles_generator(self):
         """Test CloudFiles load generator."""
         generator = CloudFilesLoadGenerator()
@@ -28,22 +29,20 @@ class TestLoadGenerators:
                 "format": "json",
                 "readMode": "stream",
                 "schema_evolution_mode": "addNewColumns",
-                "reader_options": {
-                    "multiLine": "true"
-                }
+                "reader_options": {"multiLine": "true"},
             },
-            description="Load raw JSON files"
+            description="Load raw JSON files",
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_raw_files" in code
         assert "spark.readStream" in code
         assert 'cloudFiles.format", "json"' in code
         assert 'multiLine", "true"' in code
-    
+
     def test_delta_generator(self):
         """Test Delta load generator with basic options."""
         generator = DeltaLoadGenerator()
@@ -57,16 +56,14 @@ class TestLoadGenerators:
                 "schema": "bronze",
                 "table": "customers",
                 "readMode": "stream",
-                "options": {
-                    "readChangeFeed": "true"
-                },
+                "options": {"readChangeFeed": "true"},
                 "where_clause": ["active = true"],
-                "select_columns": ["id", "name", "email"]
-            }
+                "select_columns": ["id", "name", "email"],
+            },
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_customers" in code
@@ -75,7 +72,7 @@ class TestLoadGenerators:
         assert "main.bronze.customers" in code
         assert 'where("active = true")' in code
         assert "select([" in code
-    
+
     def test_sql_generator(self):
         """Test SQL load generator."""
         generator = SQLLoadGenerator()
@@ -83,23 +80,23 @@ class TestLoadGenerators:
             name="load_metrics",
             type=ActionType.LOAD,
             target="v_metrics",
-            source="SELECT * FROM metrics WHERE date > current_date() - 7"
+            source="SELECT * FROM metrics WHERE date > current_date() - 7",
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_metrics" in code
         assert "spark.sql" in code
         assert "SELECT * FROM metrics" in code
-    
+
     def test_jdbc_generator_with_secrets(self):
         """Test JDBC load generator with secret substitution generates valid Python code."""
         generator = JDBCLoadGenerator()
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.default_secret_scope = "db_secrets"
-        
+
         action = Action(
             name="load_external",
             type=ActionType.LOAD,
@@ -110,29 +107,37 @@ class TestLoadGenerators:
                 "user": "${secret:db/username}",
                 "password": "${secret:db/password}",
                 "driver": "org.postgresql.Driver",
-                "table": "external_table"
-            }
+                "table": "external_table",
+            },
         )
-        
+
         code = generator.generate(action, {"substitution_manager": substitution_mgr})
-        
+
         # The generator should produce placeholders, not f-strings (conversion happens in orchestrator)
         # Check for placeholder patterns
-        assert '__SECRET_db_host__' in code or '__SECRET_database_secrets_host__' in code
-        assert '__SECRET_db_username__' in code or '__SECRET_database_secrets_username__' in code
-        assert '__SECRET_db_password__' in code or '__SECRET_database_secrets_password__' in code
-        
+        assert (
+            "__SECRET_db_host__" in code or "__SECRET_database_secrets_host__" in code
+        )
+        assert (
+            "__SECRET_db_username__" in code
+            or "__SECRET_database_secrets_username__" in code
+        )
+        assert (
+            "__SECRET_db_password__" in code
+            or "__SECRET_database_secrets_password__" in code
+        )
+
         # Verify placeholder patterns are in the expected format
-        assert 'jdbc:postgresql://' in code
+        assert "jdbc:postgresql://" in code
         assert '"__SECRET_' in code or "'__SECRET_" in code
-        
+
         # Most importantly, verify the generated code is syntactically valid
-        compile(code, '<string>', 'exec')
-    
+        compile(code, "<string>", "exec")
+
     def test_jdbc_url_with_quotes_escaped(self):
         """Test JDBC generator with URLs containing quotes."""
         generator = JDBCLoadGenerator()
-        
+
         action = Action(
             name="load_sqlserver",
             type=ActionType.LOAD,
@@ -144,22 +149,22 @@ class TestLoadGenerators:
                 "user": "admin",
                 "password": "pass123",
                 "driver": "com.microsoft.sqlserver.jdbc.SQLServerDriver",
-                "table": "customers"
-            }
+                "table": "customers",
+            },
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Check that quotes in URL are escaped
         assert '\\"true\\"' in code or 'encrypt=\\"true\\"' in code
-        
+
         # Verify generated code is syntactically valid
-        compile(code, '<string>', 'exec')
-    
+        compile(code, "<string>", "exec")
+
     def test_jdbc_values_with_backslashes_escaped(self):
         """Test JDBC generator with values containing backslashes."""
         generator = JDBCLoadGenerator()
-        
+
         action = Action(
             name="load_windows_path",
             type=ActionType.LOAD,
@@ -170,25 +175,26 @@ class TestLoadGenerators:
                 "user": "admin",
                 "password": "pass123",
                 "driver": "org.h2.Driver",
-                "table": "customers"
-            }
+                "table": "customers",
+            },
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Check that backslashes are escaped
-        assert '\\\\data\\\\database' in code or r'C:\\data\\database' in code
-        
+        assert "\\\\data\\\\database" in code or r"C:\\data\\database" in code
+
         # Verify no SyntaxWarning
         import warnings
-        warnings.simplefilter('error', SyntaxWarning)
-        compile(code, '<string>', 'exec')
-        warnings.simplefilter('default', SyntaxWarning)
-    
+
+        warnings.simplefilter("error", SyntaxWarning)
+        compile(code, "<string>", "exec")
+        warnings.simplefilter("default", SyntaxWarning)
+
     def test_jdbc_complex_url_with_parameters(self):
         """Test JDBC generator with complex URL containing multiple parameters."""
         generator = JDBCLoadGenerator()
-        
+
         action = Action(
             name="load_complex",
             type=ActionType.LOAD,
@@ -200,19 +206,19 @@ class TestLoadGenerators:
                 "user": "admin",
                 "password": "secret",
                 "driver": "org.postgresql.Driver",
-                "table": "users"
-            }
+                "table": "users",
+            },
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify valid Python syntax
-        compile(code, '<string>', 'exec')
-    
+        compile(code, "<string>", "exec")
+
     def test_jdbc_table_name_with_special_chars(self):
         """Test JDBC generator with table name containing special characters."""
         generator = JDBCLoadGenerator()
-        
+
         action = Action(
             name="load_special_table",
             type=ActionType.LOAD,
@@ -224,20 +230,26 @@ class TestLoadGenerators:
                 "password": "pass123",
                 "driver": "org.postgresql.Driver",
                 # Table name with quotes (schema-qualified)
-                "table": '"schema"."table_name"'
-            }
+                "table": '"schema"."table_name"',
+            },
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Check that quotes in table name are escaped
         assert '\\"schema\\"' in code and '\\"table_name\\"' in code
-        
+
         # Verify valid Python
-        compile(code, '<string>', 'exec')
-    
-    def test_python_generator(self):
-        """Test Python load generator."""
+        compile(code, "<string>", "exec")
+
+    def test_python_generator(self, tmp_path):
+        """Test Python load generator (now copies user file into custom_python_functions/)."""
+        # Provide a real .py file — generator now hard-requires this.
+        loader_file = tmp_path / "custom_loaders.py"
+        loader_file.write_text(
+            "def load_custom_data(spark, parameters):\n    return None\n"
+        )
+
         generator = PythonLoadGenerator()
         action = Action(
             name="load_custom",
@@ -245,23 +257,27 @@ class TestLoadGenerators:
             target="v_custom_data",
             source={
                 "type": "python",
-                "module_path": "custom_loaders",
+                "module_path": "custom_loaders.py",
                 "function_name": "load_custom_data",
-                "parameters": {
-                    "start_date": "2024-01-01",
-                    "batch_size": 1000
-                }
-            }
+                "parameters": {"start_date": "2024-01-01", "batch_size": 1000},
+            },
         )
-        
-        code = generator.generate(action, {})
-        
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        }
+
+        code = generator.generate(action, context)
+
         # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_custom_data" in code
         assert "load_custom_data(spark, parameters)" in code
         assert '"start_date": "2024-01-01"' in code
-        assert "from custom_loaders import load_custom_data" in generator.imports
+        assert (
+            "from custom_python_functions.custom_loaders import load_custom_data"
+            in generator.imports
+        )
 
 
 class TestDeltaLoadOptions:
@@ -282,10 +298,10 @@ class TestDeltaLoadOptions:
                 "options": {
                     "readChangeFeed": "true",
                     "startingTimestamp": "2018-10-18",
-                    "ignoreDeletes": True
-                }
+                    "ignoreDeletes": True,
+                },
             },
-            readMode="stream"
+            readMode="stream",
         )
 
         code = generator.generate(action, {})
@@ -309,11 +325,9 @@ class TestDeltaLoadOptions:
                 "catalog": "main",
                 "schema": "archive",
                 "table": "snapshot",
-                "options": {
-                    "versionAsOf": "10"
-                }
+                "options": {"versionAsOf": "10"},
             },
-            readMode="batch"
+            readMode="batch",
         )
 
         code = generator.generate(action, {})
@@ -336,14 +350,14 @@ class TestDeltaLoadOptions:
                 "options": {
                     "ignoreDeletes": True,  # boolean
                     "maxFilesPerTrigger": 100,  # number
-                    "startingVersion": "0"  # string
-                }
+                    "startingVersion": "0",  # string
+                },
             },
-            readMode="stream"
+            readMode="stream",
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify proper rendering of different types
         assert '.option("ignoreDeletes", True)' in code
         assert '.option("maxFilesPerTrigger", 100)' in code
@@ -361,20 +375,18 @@ class TestDeltaLoadOptions:
                 "catalog": "main",
                 "schema": "bronze",
                 "table": "transactions",
-                "options": {
-                    "readChangeFeed": "true"
-                },
+                "options": {"readChangeFeed": "true"},
                 "where_clause": ["status = 'active'"],
-                "select_columns": ["id", "amount", "date"]
+                "select_columns": ["id", "amount", "date"],
             },
-            readMode="stream"
+            readMode="stream",
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify options work with other features
         assert '.option("readChangeFeed", "true")' in code
-        assert 'where("status = \'active\'")' in code
+        assert "where(\"status = 'active'\")" in code
         assert "select([" in code
 
     def test_delta_no_options(self):
@@ -388,13 +400,13 @@ class TestDeltaLoadOptions:
                 "type": "delta",
                 "catalog": "main",
                 "schema": "bronze",
-                "table": "simple"
+                "table": "simple",
             },
-            readMode="stream"
+            readMode="stream",
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify basic load works without options
         assert "spark.readStream" in code
         assert ".table(" in code
@@ -407,16 +419,12 @@ class TestDeltaLoadOptions:
             name="load_error",
             type=ActionType.LOAD,
             target="v_error",
-            source={
-                "type": "delta",
-                "table": "test",
-                "cdf_enabled": True
-            }
+            source={"type": "delta", "table": "test", "cdf_enabled": True},
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
-        
+
         assert "cdf_enabled" in str(exc_info.value)
         assert "readChangeFeed" in str(exc_info.value)
 
@@ -427,16 +435,12 @@ class TestDeltaLoadOptions:
             name="load_error",
             type=ActionType.LOAD,
             target="v_error",
-            source={
-                "type": "delta",
-                "table": "test",
-                "read_change_feed": True
-            }
+            source={"type": "delta", "table": "test", "read_change_feed": True},
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
-        
+
         assert "read_change_feed" in str(exc_info.value)
         assert "removed" in str(exc_info.value)
 
@@ -450,13 +454,13 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "reader_options": {"versionAsOf": "10"}
-            }
+                "reader_options": {"versionAsOf": "10"},
+            },
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
-        
+
         assert "reader_options" in str(exc_info.value)
         assert "removed" in str(exc_info.value)
 
@@ -470,13 +474,13 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "cdc_options": {"starting_version": "0"}
-            }
+                "cdc_options": {"starting_version": "0"},
+            },
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
-        
+
         assert "cdc_options" in str(exc_info.value)
         assert "removed" in str(exc_info.value)
 
@@ -490,15 +494,13 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "startingVersion": None
-                }
-            }
+                "options": {"startingVersion": None},
+            },
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
-        
+
         assert "startingVersion" in str(exc_info.value)
         assert "invalid value" in str(exc_info.value)
 
@@ -512,15 +514,13 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "startingTimestamp": ""
-                }
-            }
+                "options": {"startingTimestamp": ""},
+            },
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
-        
+
         assert "startingTimestamp" in str(exc_info.value)
         assert "invalid value" in str(exc_info.value)
 
@@ -534,14 +534,14 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": "not_a_dict"  # Invalid: should be a dict
+                "options": "not_a_dict",  # Invalid: should be a dict
             },
-            readMode="stream"
+            readMode="stream",
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
-        
+
         assert "options" in str(exc_info.value)
         assert "dictionary" in str(exc_info.value)
         assert "str" in str(exc_info.value)
@@ -556,18 +556,18 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "readChangeFeed": "true"
-                }
+                "options": {"readChangeFeed": "true"},
             },
-            readMode="batch"
+            readMode="batch",
         )
 
         with pytest.raises(ValueError) as exc_info:
             generator.generate(action, {})
 
         assert "readChangeFeed" in str(exc_info.value)
-        assert "startingVersion" in str(exc_info.value) or "startingTimestamp" in str(exc_info.value)
+        assert "startingVersion" in str(exc_info.value) or "startingTimestamp" in str(
+            exc_info.value
+        )
 
     def test_delta_readchangefeed_without_readmode_raises_error(self):
         """Test that readChangeFeed without explicit readMode raises error (defaults to batch, no bounds)."""
@@ -579,10 +579,8 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "readChangeFeed": "true"
-                }
-            }
+                "options": {"readChangeFeed": "true"},
+            },
             # No readMode specified - defaults to batch, which requires starting bound
         )
 
@@ -590,7 +588,9 @@ class TestDeltaLoadOptions:
             generator.generate(action, {})
 
         assert "readChangeFeed" in str(exc_info.value)
-        assert "startingVersion" in str(exc_info.value) or "startingTimestamp" in str(exc_info.value)
+        assert "startingVersion" in str(exc_info.value) or "startingTimestamp" in str(
+            exc_info.value
+        )
 
     def test_delta_batch_cdf_with_starting_version(self):
         """Test batch CDF with startingVersion works."""
@@ -604,12 +604,9 @@ class TestDeltaLoadOptions:
                 "catalog": "bronze_cat",
                 "schema": "bronze_sch",
                 "table": "orders",
-                "options": {
-                    "readChangeFeed": "true",
-                    "startingVersion": "5"
-                }
+                "options": {"readChangeFeed": "true", "startingVersion": "5"},
             },
-            readMode="batch"
+            readMode="batch",
         )
 
         code = generator.generate(action, {})
@@ -633,10 +630,10 @@ class TestDeltaLoadOptions:
                 "table": "orders",
                 "options": {
                     "readChangeFeed": "true",
-                    "startingTimestamp": "2024-01-01"
-                }
+                    "startingTimestamp": "2024-01-01",
+                },
             },
-            readMode="batch"
+            readMode="batch",
         )
 
         code = generator.generate(action, {})
@@ -660,10 +657,10 @@ class TestDeltaLoadOptions:
                 "options": {
                     "readChangeFeed": "true",
                     "startingVersion": "5",
-                    "endingVersion": "20"
-                }
+                    "endingVersion": "20",
+                },
             },
-            readMode="batch"
+            readMode="batch",
         )
 
         code = generator.generate(action, {})
@@ -682,12 +679,9 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "readChangeFeed": "true",
-                    "skipChangeCommits": "true"
-                }
+                "options": {"readChangeFeed": "true", "skipChangeCommits": "true"},
             },
-            readMode="stream"
+            readMode="stream",
         )
 
         with pytest.raises(ValueError) as exc_info:
@@ -706,12 +700,9 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "readChangeFeed": "true",
-                    "versionAsOf": "10"
-                }
+                "options": {"readChangeFeed": "true", "versionAsOf": "10"},
             },
-            readMode="stream"
+            readMode="stream",
         )
 
         with pytest.raises(ValueError) as exc_info:
@@ -730,12 +721,9 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "readChangeFeed": "true",
-                    "timestampAsOf": "2024-01-01"
-                }
+                "options": {"readChangeFeed": "true", "timestampAsOf": "2024-01-01"},
             },
-            readMode="stream"
+            readMode="stream",
         )
 
         with pytest.raises(ValueError) as exc_info:
@@ -754,12 +742,9 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "startingVersion": "0",
-                    "startingTimestamp": "2024-01-01"
-                }
+                "options": {"startingVersion": "0", "startingTimestamp": "2024-01-01"},
             },
-            readMode="stream"
+            readMode="stream",
         )
 
         with pytest.raises(ValueError) as exc_info:
@@ -778,12 +763,9 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "versionAsOf": "10",
-                    "timestampAsOf": "2024-01-01"
-                }
+                "options": {"versionAsOf": "10", "timestampAsOf": "2024-01-01"},
             },
-            readMode="batch"
+            readMode="batch",
         )
 
         with pytest.raises(ValueError) as exc_info:
@@ -802,12 +784,9 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "readChangeFeed": "true",
-                    "endingVersion": "20"
-                }
+                "options": {"readChangeFeed": "true", "endingVersion": "20"},
             },
-            readMode="stream"
+            readMode="stream",
         )
 
         with pytest.raises(ValueError) as exc_info:
@@ -826,12 +805,9 @@ class TestDeltaLoadOptions:
             source={
                 "type": "delta",
                 "table": "test",
-                "options": {
-                    "readChangeFeed": "true",
-                    "endingTimestamp": "2024-12-31"
-                }
+                "options": {"readChangeFeed": "true", "endingTimestamp": "2024-12-31"},
             },
-            readMode="stream"
+            readMode="stream",
         )
 
         with pytest.raises(ValueError) as exc_info:
@@ -852,18 +828,15 @@ class TestDeltaLoadOptions:
                 "catalog": "bronze_cat",
                 "schema": "bronze_sch",
                 "table": "orders",
-                "options": {
-                    "skipChangeCommits": "true"
-                }
+                "options": {"skipChangeCommits": "true"},
             },
-            readMode="stream"
+            readMode="stream",
         )
 
         code = generator.generate(action, {})
 
         assert "spark.readStream" in code
         assert '.option("skipChangeCommits", "true")' in code
-
 
     def test_delta_options_combined_features(self):
         """Test options work combined with where clause and select."""
@@ -877,22 +850,19 @@ class TestDeltaLoadOptions:
                 "catalog": "main",
                 "schema": "bronze",
                 "table": "data",
-                "options": {
-                    "readChangeFeed": "true",
-                    "ignoreDeletes": True
-                },
+                "options": {"readChangeFeed": "true", "ignoreDeletes": True},
                 "where_clause": ["date > '2024-01-01'"],
-                "select_columns": ["id", "name", "date"]
+                "select_columns": ["id", "name", "date"],
             },
-            readMode="stream"
+            readMode="stream",
         )
-        
+
         code = generator.generate(action, {})
-        
+
         # Verify options work with other features
         assert '.option("readChangeFeed", "true")' in code
         assert '.option("ignoreDeletes", True)' in code
-        assert 'where("date > \'2024-01-01\'")' in code
+        assert "where(\"date > '2024-01-01'\")" in code
         assert "select([" in code
 
 
@@ -994,7 +964,12 @@ class TestJDBCGoldenOutput:
 class TestPythonGoldenOutput:
     """Golden output test for Python load generator."""
 
-    def test_python_golden(self, golden):
+    def test_python_golden(self, golden, tmp_path):
+        # Provide a real .py file — generator now hard-requires this.
+        (tmp_path / "custom_loaders.py").write_text(
+            "def load_custom_data(spark, parameters):\n    return None\n"
+        )
+
         generator = PythonLoadGenerator()
         action = Action(
             name="load_custom",
@@ -1002,7 +977,7 @@ class TestPythonGoldenOutput:
             target="v_custom_data",
             source={
                 "type": "python",
-                "module_path": "custom_loaders",
+                "module_path": "custom_loaders.py",
                 "function_name": "load_custom_data",
                 "parameters": {
                     "start_date": "2024-01-01",
@@ -1010,9 +985,13 @@ class TestPythonGoldenOutput:
                 },
             },
         )
-        code = generator.generate(action, {})
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        }
+        code = generator.generate(action, context)
         golden(code, "load_python")
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"]) 
+    pytest.main([__file__, "-v"])

@@ -17,6 +17,9 @@ CHECKPOINT_BASE = "/Volumes/acme_edw_dev/_meta/checkpoints/event_logs"
 MAX_WORKERS = 10
 
 SOURCES = [
+    ("acme_edw_bp_bronze", "acme_edw_dev._meta.acme_edw_bp_bronze_event_log"),
+    ("acme_edw_bp_raw", "acme_edw_dev._meta.acme_edw_bp_raw_event_log"),
+    ("acme_edw_bp_silver", "acme_edw_dev._meta.acme_edw_bp_silver_event_log"),
     ("acmi_edw_bronze", "acme_edw_dev._meta.acmi_edw_bronze_event_log"),
     ("acmi_edw_modelled", "acme_edw_dev._meta.acmi_edw_modelled_event_log"),
     ("acmi_edw_raw", "acme_edw_dev._meta.acmi_edw_raw_event_log"),
