@@ -185,10 +185,12 @@ class BlueprintDiscoverer:
                 instances.append((instance, path))
 
             if skipped_load_errors:
+                shown = [p.name for p in skipped_load_errors[:10]]
+                overflow = len(skipped_load_errors) - len(shown)
+                suffix = f" (+{overflow} more)" if overflow > 0 else ""
                 self.logger.warning(
                     f"Skipped {len(skipped_load_errors)} instance candidate "
-                    f"file(s) due to load errors: "
-                    f"{[p.name for p in skipped_load_errors]}"
+                    f"file(s) due to load errors: {shown}{suffix}"
                 )
             if skipped_non_instance:
                 self.logger.debug(

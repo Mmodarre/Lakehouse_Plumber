@@ -39,10 +39,7 @@ class BlueprintParser:
         self, path: Path, error_context: str
     ) -> List[Dict[str, Any]]:
         """Load all YAML documents from ``path``, routing through the cache
-        when a ``CachingYAMLParser`` was supplied at construction time.
-
-        Falls back to the uncached loader so existing call sites that don't
-        wire a cache continue to work.
+        when one was wired at construction time.
         """
         if self.caching_yaml_parser is not None:
             return self.caching_yaml_parser.load_documents_all(

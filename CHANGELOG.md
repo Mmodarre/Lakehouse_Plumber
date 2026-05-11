@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Import name-collision detection in `ImportManager.add_import`**: two
   `from … import …` lines that bind the same local name to *different*
-  modules now raise `LHPValidationError` (LHP-VAL-020). This catches a class
+  modules now raise `LHPValidationError` (LHP-VAL-021). This catches a class
   of silent shadowing bugs that affected `python` load/transform actions and
   (post-refactor) the new copy-and-import pattern. Existing projects with
   legitimately conflicting symbol names will see this as an error on the
