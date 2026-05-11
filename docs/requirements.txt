@@ -4,6 +4,6 @@ sphinxext-opengraph
 sphinx-notfound-page
 sphinx-llms-txt
 myst-parser>=2.0
-sphinx-click>=4.4
+sphinx-click>=6.2.0
 sphinxcontrib-mermaid>=0.9
 sphinx-copybutton>=0.5
