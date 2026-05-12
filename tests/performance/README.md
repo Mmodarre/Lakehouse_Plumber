@@ -48,9 +48,14 @@ pytest tests/performance/ -m performance -v
 pytest tests/performance/test_benchmark_unit.py -v
 ```
 
-The gate test (`test_release_benchmark.py`) skips automatically if the fixture
-or baseline directory is missing. CI is unchanged: `@pytest.mark.performance`
-is excluded by default in `pyproject.toml`.
+The gate test (`test_release_benchmark.py`) is silently **skipped** on any
+invocation that does not put the word `performance` in the `-m` expression —
+including plain `pytest`, `pytest tests/`, `pytest tests/performance/`,
+`pytest -m "not slow"`, and CI. The opt-in is enforced by
+`tests/performance/conftest.py`, which is more reliable than the marker
+registration alone (the registration is documentation; the conftest is the
+runtime guard). The test also `pytest.skip()`s with a recapture hint if the
+fixture or baseline is missing.
 
 ## Capturing a new baseline
 
