@@ -21,15 +21,18 @@ inside this file — refer to other documents by plain prose (for example, "see
 4. **Explanation = understanding.** Explanation pages discuss why the system behaves
    as it does. They may speculate, contrast alternatives, and use diagrams. They
    never contain step-by-step instructions. [Diátaxis]
-5. **Do not mix modes on one page.** A page is exactly one of tutorial, how-to,
-   reference, or explanation. If you feel the urge to mix, split the page. [Diátaxis]
+5. **Do not mix modes on one page**, with one exception. A page is exactly one
+   of tutorial, how-to, reference, or explanation. Reference pages MAY begin
+   with a "Concept" section (What/When/minimum example) before the reference
+   body; this is the only sanctioned cross-mode pattern. All other mode mixing
+   requires splitting the page. [Diátaxis, User-resolved]
 6. **Tutorial litmus:** does it work end-to-end for a first-time user with no prior
    LHP knowledge? If not, it is a how-to. [Diátaxis]
 7. **How-to litmus:** does the title fit the pattern "How to <verb> <object>"? If
    the page covers more than one task, split it. [Diátaxis, User-resolved]
 8. **Reference litmus:** would a reader scan it for a specific value rather than
    read it linearly? If they would read it, move the narrative parts into
-   explanation. [Diátaxis]
+   explanation — except for the Concept intro permitted under rule #5. [Diátaxis]
 
 ## Voice and tense (rules 9–14)
 
@@ -162,6 +165,35 @@ Additional cross-link rules:
     AI-targeted skill MD in the same patch, but voice may differ — `docs/`
     targets humans and skill MDs target agents. Reviewers check fact parity,
     not wording parity. [User-resolved]
+
+## Reference Concept intro (rule 43)
+
+43. **Reference pages MAY open with a Concept section.** Under the rule #5
+    exception, a Reference page may precede its reference body with a brief
+    "Concept" section answering What / When / minimum example. The Concept
+    section is a tutorial-style on-ramp for first-time readers; the reference
+    body that follows is the page's canonical pure-reference content. Apply
+    these constraints:
+
+    - **Length cap:** the Concept section is ~150 words combined across all
+      three parts (What, When, minimum example). If it grows past that, the
+      content belongs in a separate explanation or how-to page.
+    - **What:** one paragraph defining the page's topic in plain language. No
+      option tables, no flag lists.
+    - **When:** one short paragraph or decision aid for when to use this vs.
+      adjacent topics. Pull from `decisions.rst` if a relevant matrix exists.
+    - **Minimum example:** the smallest working snippet (typically 5–20 lines
+      of YAML or Python). Every line must serve the example; no placeholders.
+    - **Required hand-off to the reference body:** end the Concept section
+      with an inline jump or open the reference body under an h2 clearly
+      labelled "Reference", a sub-type name, or an equivalent heading that
+      signals the mode switch.
+    - **Voice:** the Concept section follows the same voice rules as the
+      rest of the page (rules 9–14). It is not an excuse for marketing prose.
+
+    Pages that have no first-time-reader audience (pure catalogs like the
+    glossary, changelog, errors reference, and API reference) skip the Concept
+    section entirely. [Diátaxis, User-resolved]
 
 ## Litmus tests
 

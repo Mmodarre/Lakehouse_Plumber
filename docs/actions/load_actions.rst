@@ -2,234 +2,87 @@ Load Actions
 ============
 
 .. meta::
-   :description: Complete reference for LHP Load action types: CloudFiles, Delta, SQL, JDBC, Python, and custom datasource.
+   :description: Complete reference for LHP Load action types: cloudfiles, delta, sql, jdbc, python, kafka, and custom_datasource.
 
+Concept
+-------
 
-At this time the framework supports the following load sub-types. Coming soon: it will support more sources and target types through **plugins**.
+What
+~~~~
 
-+----------------------------+------------------------------------------------------------+
-| Sub-type                   | Purpose & Source                                           |
-+============================+============================================================+
-|| cloudfiles                || Databricks *Auto Loader* (CloudFiles) – stream files from |
-||                           || object storage (CSV, JSON, Parquet, etc.).                |
-+----------------------------+------------------------------------------------------------+
-|| delta                     || Read from an existing Delta table or Change Data Feed     |
-||                           || (CDC).                                                    |
-+----------------------------+------------------------------------------------------------+
-|| sql                       || Execute an arbitrary SQL query and load the result as a   |
-||                           || view.                                                     |
-+----------------------------+------------------------------------------------------------+
-|| jdbc                      || Ingest from an external RDBMS via JDBC with secret        |
-||                           || handling.                                                 |
-+----------------------------+------------------------------------------------------------+
-|| python                    || Call custom Python code (path or inline), returning a     |
-||                           || DataFrame.                                                |
-+----------------------------+------------------------------------------------------------+
-|| custom_datasource(PySpark)|| Configured under ``source`` block with automatic import   |
-||                           || management and registration.                              |
-+----------------------------+------------------------------------------------------------+
+A Load action reads data from a source — files, a Delta table, a SQL query,
+an RDBMS, a Python function, a Kafka topic, or a custom PySpark DataSource —
+and exposes the result as a temporary view inside a FlowGroup. Downstream
+Transform and Write actions reference the view by its ``target`` name. Each
+Load action declares one source via the ``source.type`` field; the rest of
+``source`` carries the type-specific configuration.
 
-cloudFiles
--------------------------------------------
-.. code-block:: yaml
+When
+~~~~
 
-  actions:
-    - name: load_csv_file_from_cloudfiles
-      type: load
-      readMode : "stream"
-      operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time"]
-      source:
-        type: cloudfiles
-        path: "${landing_volume}/{{ landing_folder }}/*.csv"
-        format: csv
-        options:
-          cloudFiles.format: csv
-          header: True
-          delimiter: "|"
-          cloudFiles.maxFilesPerTrigger: 11
-          cloudFiles.inferColumnTypes: False
-          cloudFiles.schemaEvolutionMode: "addNewColumns"
-          cloudFiles.rescuedDataColumn: "_rescued_data"
-          cloudFiles.schemaHints: "schemas/{{ table_name }}_schema.yaml"
-      target: v_customer_cloudfiles
-      description: "Load customer CSV files from landing volume"
+Every FlowGroup that produces data starts with a Load action. Pick the
+sub-type by how the source is delivered:
 
-**Anatomy of a cloudFiles load action**
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
 
-- **name**: Unique name for this action within the FlowGroup
-- **type**: Action type - brings data into a temporary view
-- **readMode**: must be *stream* (CloudFiles only supports streaming mode).
-  This translates to ``spark.readStream.format("cloudFiles")``
-- **operational_metadata**: Add custom metadata columns
-- **source**:
-      - **type**: Use Databricks Auto Loader (CloudFiles)
-      - **path**: File path pattern with substitution variables
-      - **format**: Specify the file format as CSV, JSON, Parquet, etc.
-      - **schema**: Path to a YAML schema file for full schema enforcement (see below)
-      - **options**:
-            - **cloudFiles.format**: Explicitly set CloudFiles format to CSV
-            - **header**: First row contains column headers
-            - **delimiter**: Use pipe character as field separator
-            - **cloudFiles.maxFilesPerTrigger**: Limit number of files processed per trigger
-            - **cloudFiles.schemaHints**: Schema definition for Auto Loader (supports multiple formats - see below)
-- **target**: Name of the temporary view created
-- **description**: Optional documentation for the action
+   * - Sub-type
+     - Use when…
+   * - ``cloudfiles``
+     - Files arrive in object storage (S3, ADLS, GCS, Unity Catalog
+       volumes); incremental ingestion with checkpoints and schema
+       evolution. Streaming only.
+   * - ``delta``
+     - Reading an existing Delta table or its Change Data Feed (CDF).
+       Batch or streaming.
+   * - ``sql``
+     - An arbitrary SQL query materialised as a temporary view.
+   * - ``jdbc``
+     - Pulling from an external RDBMS; credentials via Databricks secrets.
+   * - ``python``
+     - The format is not covered by a built-in sub-type, or you need
+       custom pre-processing in Python before the flow sees the data.
+   * - ``kafka``
+     - Streaming from Apache Kafka, AWS MSK, or Azure Event Hubs.
+   * - ``custom_datasource``
+     - You have a PySpark ``DataSource`` implementation and want LHP to
+       register and invoke it.
 
-**cloudFiles.schemaHints Format Options**
+Minimum example
+~~~~~~~~~~~~~~~
 
-The ``cloudFiles.schemaHints`` option supports three formats, automatically detected by the framework:
-
-**Option 1: Inline DDL String** (for simple schemas)
+The smallest working Load action reads a Delta table and exposes it as a
+temporary view:
 
 .. code-block:: yaml
+   :caption: pipelines/bronze/customer.yaml
 
-  cloudFiles.schemaHints: "customer_id BIGINT, name STRING, email STRING"
+   actions:
+     - name: customer_raw_load
+       type: load
+       readMode: stream
+       source:
+         type: delta
+         catalog: "${catalog}"
+         schema: "${raw_schema}"
+         table: customer
+       target: v_customer_raw
 
-**Option 2: External YAML File** (recommended for complex schemas with metadata)
+The reference body below documents every sub-type and every option.
 
-.. code-block:: yaml
+Reference
+---------
 
-  cloudFiles.schemaHints: "schemas/customer_schema.yaml"
-
-**Option 3: External DDL/SQL File** (for pre-defined DDL statements)
-
-.. code-block:: yaml
-
-  cloudFiles.schemaHints: "schemas/customer_schema.ddl"
-  # or
-  cloudFiles.schemaHints: "schemas/customer_schema.sql"
-
-**File Path Organization**: Organize schema files in subdirectories relative to your project root:
-
-- Root level: ``"customer_schema.yaml"``
-- Single directory: ``"schemas/customer_schema.yaml"``
-- Nested subdirectories: ``"schemas/bronze/dimensions/customer_schema.yaml"``
-
-The framework automatically detects whether the value is an inline DDL string or a file path based on common file indicators (``.yaml``, ``.yml``, ``.ddl``, ``.sql``, or path separators).
-
-**YAML Schema Conversion**: When using YAML schema files (Option 2), the ``nullable`` field is respected during conversion to DDL:
-
-- Columns with ``nullable: false`` are converted to include ``NOT NULL`` constraint
-- Columns with ``nullable: true`` (or omitted, default is true) are converted without constraints
-
-Example: A YAML column defined as ``{name: c_custkey, type: BIGINT, nullable: false}`` will generate ``c_custkey BIGINT NOT NULL`` in the schema hints.
-            
-**source.schema — Full Schema Enforcement**
-
-The ``source.schema`` field provides full schema enforcement by applying a ``StructType`` schema
-on the ``DataStreamReader`` before ``.load()``. This disables schema inference entirely, ensuring
-the data conforms exactly to the specified schema.
-
-**When to use ``schema`` vs ``schemaHints``:**
-
-- Use ``schema`` when you want to **enforce** a complete, exact schema and disable inference.
-- Use ``schemaHints`` when you want to **guide** Auto Loader's inference while still allowing it to discover additional columns.
-
-.. code-block:: yaml
-
-  actions:
-    - name: load_customer_with_schema
-      type: load
-      readMode: stream
-      source:
-        type: cloudfiles
-        path: "/data/customers/*.csv"
-        format: csv
-        schema: schemas/customer_schema.yaml
-        options:
-          cloudFiles.format: csv
-      target: v_customer_raw
-      description: "Load customer CSV with explicit schema enforcement"
-
-The schema file uses the same YAML format as ``schemaHints`` files:
-
-.. code-block:: yaml
-
-  name: customer
-  version: "1.0"
-  columns:
-    - name: c_custkey
-      type: BIGINT
-      nullable: false
-    - name: c_name
-      type: STRING
-      nullable: true
-
-This generates code with ``.schema()`` applied on the reader chain before ``.load()``:
-
-.. code-block:: python
-
-  customer_schema = StructType([
-      StructField("c_custkey", LongType(), False),
-      StructField("c_name", StringType(), True),
-  ])
-
-  @dp.temporary_view()
-  def v_customer_raw():
-      df = spark.readStream \
-          .format("cloudFiles") \
-          .schema(customer_schema) \
-          .option("cloudFiles.format", "csv") \
-          .load("/data/customers/*.csv")
-      return df
-
-When you provide ``source.schema``, ``cloudFiles.schemaEvolutionMode`` defaults to ``none``
-because inference is disabled. Do not combine ``source.schema`` with ``cloudFiles.schemaHints``
-— these are mutually exclusive approaches.
-
-Lakehouse Plumber uses syntax consistent with Databricks so you can transfer knowledge between
-the two. All options available here mirror those of Databricks Auto Loader.
-
-.. seealso::
-  - For full list of options see the `Databricks Auto Loader documentation <https://docs.databricks.com/aws/en/ingestion/cloud-object-storage/auto-loader/>`_.
-  - Operational metadata: :doc:`../operational_metadata`
-
-
-**The above Yaml translates to the following Pyspark code**
-
-.. code-block:: python
-  :linenos:
-
-  from pyspark import pipelines as dp
-  from pyspark.sql.functions import F
-
-  customer_cloudfiles_schema_hints = """
-      c_custkey BIGINT NOT NULL,
-      c_name STRING NOT NULL,
-      c_address STRING,
-      c_nationkey BIGINT NOT NULL,
-      c_phone STRING,
-      c_acctbal DECIMAL(18,2),
-      c_mktsegment STRING,
-      c_comment STRING
-  """.strip().replace("\n", " ")
-
-
-  @dp.temporary_view()
-  def v_customer_cloudfiles():
-      """Load customer CSV files from landing volume"""
-      df = spark.readStream \
-          .format("cloudFiles") \
-          .option("cloudFiles.format", "csv") \
-          .option("header", True) \
-          .option("delimiter", "|") \
-          .option("cloudFiles.maxFilesPerTrigger", 11) \
-          .option("cloudFiles.inferColumnTypes", False) \
-          .option("cloudFiles.schemaEvolutionMode", "addNewColumns") \
-          .option("cloudFiles.rescuedDataColumn", "_rescued_data") \
-          .option("cloudFiles.schemaHints", customer_cloudfiles_schema_hints) \
-          .load("/Volumes/acmi_edw_dev/edw_raw/landing_volume/customer/*.csv")
-
-
-      # Add operational metadata columns
-      df = df.withColumn('_source_file_size', F.col('_metadata.file_size'))
-      df = df.withColumn('_source_file_modification_time', F.col('_metadata.file_modification_time'))
-      df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
-
-      return df
+LHP supports seven Load sub-types: ``delta``, ``cloudfiles``, ``sql``,
+``jdbc``, ``python``, ``kafka``, and ``custom_datasource``. Additional
+sources arrive through the plugin mechanism.
 
 delta
--------------------------------------------
+~~~~~
+
+Use when reading an existing Delta table or its Change Data Feed (CDF).
+Batch or streaming.
 
 .. deprecated:: 0.7.8
    The ``database`` field (e.g., ``database: "${catalog}.${schema}"``) is deprecated
@@ -249,7 +102,7 @@ delta
         schema: "${raw_schema}"
         table: customer
       target: v_customer_raw
-      description: "Load customer table from raw schema" 
+      description: "Load customer table from raw schema"
 
 **Anatomy of a delta load action**
 
@@ -428,287 +281,223 @@ overwhelm downstream consumers. Mitigation strategies:
   def v_customer_raw():
       """Load customer table from raw schema"""
       df = spark.readStream.table("acmi_edw_dev.edw_raw.customer")
-      
+
       # Add operational metadata columns
       df = df.withColumn('_processing_timestamp', current_timestamp())
-      
+
       return df
 
-kafka
--------------------------------------------
+cloudfiles
+~~~~~~~~~~
+
+Use when files arrive in object storage and you want incremental ingestion with
+checkpoints and schema evolution. Streaming only. For an end-to-end walkthrough,
+see :doc:`../ingest_with_autoloader`.
+
 .. code-block:: yaml
 
   actions:
-    - name: load_kafka_events
+    - name: load_csv_file_from_cloudfiles
       type: load
-      readMode: stream
-      operational_metadata: ["_processing_timestamp"]
+      readMode : "stream"
+      operational_metadata: ["_source_file_path","_source_file_size","_source_file_modification_time"]
       source:
-        type: kafka
-        bootstrap_servers: "kafka1.example.com:9092,kafka2.example.com:9092"
-        subscribe: "events,logs,metrics"
+        type: cloudfiles
+        path: "${landing_volume}/{{ landing_folder }}/*.csv"
+        format: csv
         options:
-          startingOffsets: "latest"
-          failOnDataLoss: false
-          kafka.group.id: "lhp-consumer-group"
-          kafka.session.timeout.ms: 30000
-          kafka.ssl.truststore.location: "/path/to/truststore.jks"
-          kafka.ssl.truststore.password: "${secret:scope/truststore-password}"
-      target: v_kafka_events_raw
-      description: "Load events from Kafka topics"
+          cloudFiles.format: csv
+          header: True
+          delimiter: "|"
+          cloudFiles.maxFilesPerTrigger: 11
+          cloudFiles.inferColumnTypes: False
+          cloudFiles.schemaEvolutionMode: "addNewColumns"
+          cloudFiles.rescuedDataColumn: "_rescued_data"
+          cloudFiles.schemaHints: "schemas/{{ table_name }}_schema.yaml"
+      target: v_customer_cloudfiles
+      description: "Load customer CSV files from landing volume"
 
-**Anatomy of a Kafka load action**
+**Anatomy of a cloudFiles load action**
 
 - **name**: Unique name for this action within the FlowGroup
 - **type**: Action type - brings data into a temporary view
-- **readMode**: Must be *stream* - Kafka is always streaming
-- **operational_metadata**: Add custom metadata columns (e.g., processing timestamp)
+- **readMode**: must be *stream* (CloudFiles only supports streaming mode).
+  This translates to ``spark.readStream.format("cloudFiles")``
+- **operational_metadata**: Add custom metadata columns
 - **source**:
-      - **type**: Use Apache Kafka as source
-      - **bootstrap_servers**: Comma-separated list of Kafka broker addresses (host:port)
-      - **subscribe**: Comma-separated list of topics to subscribe to (choose ONE subscription method)
-      - **subscribePattern**: Java regex pattern for topic subscription (alternative to subscribe)
-      - **assign**: JSON string specifying specific topic partitions (alternative to subscribe)
-      - **options**: 
-            - **startingOffsets**: Starting offset position (earliest/latest/JSON)
-            - **failOnDataLoss**: Whether to fail on potential data loss (default: true)
-            - **kafka.group.id**: Consumer group ID (use with caution)
-            - **kafka.session.timeout.ms**: Session timeout in milliseconds
-            - **kafka.ssl.***: SSL/TLS configuration options for secure connections
-            - **kafka.sasl.***: SASL authentication options
-            - All other kafka.* options from Databricks Kafka connector
+      - **type**: Use Databricks Auto Loader (CloudFiles)
+      - **path**: File path pattern with substitution variables
+      - **format**: Specify the file format as CSV, JSON, Parquet, etc.
+      - **schema**: Path to a YAML schema file for full schema enforcement (see below)
+      - **options**:
+            - **cloudFiles.format**: Explicitly set CloudFiles format to CSV
+            - **header**: First row contains column headers
+            - **delimiter**: Use pipe character as field separator
+            - **cloudFiles.maxFilesPerTrigger**: Limit number of files processed per trigger
+            - **cloudFiles.schemaHints**: Schema definition for Auto Loader (supports multiple formats - see below)
 - **target**: Name of the temporary view created
 - **description**: Optional documentation for the action
 
+**cloudFiles.schemaHints Format Options**
+
+The ``cloudFiles.schemaHints`` option supports three formats, automatically detected by the framework:
+
+**Option 1: Inline DDL String** (for simple schemas)
+
+.. code-block:: yaml
+
+  cloudFiles.schemaHints: "customer_id BIGINT, name STRING, email STRING"
+
+**Option 2: External YAML File** (recommended for complex schemas with metadata)
+
+.. code-block:: yaml
+
+  cloudFiles.schemaHints: "schemas/customer_schema.yaml"
+
+**Option 3: External DDL/SQL File** (for pre-defined DDL statements)
+
+.. code-block:: yaml
+
+  cloudFiles.schemaHints: "schemas/customer_schema.ddl"
+  # or
+  cloudFiles.schemaHints: "schemas/customer_schema.sql"
+
+**File Path Organization**: Organize schema files in subdirectories relative to your project root:
+
+- Root level: ``"customer_schema.yaml"``
+- Single directory: ``"schemas/customer_schema.yaml"``
+- Nested subdirectories: ``"schemas/bronze/dimensions/customer_schema.yaml"``
+
+The framework automatically detects whether the value is an inline DDL string or a file path based on common file indicators (``.yaml``, ``.yml``, ``.ddl``, ``.sql``, or path separators).
+
+**YAML Schema Conversion**: When using YAML schema files (Option 2), the ``nullable`` field is respected during conversion to DDL:
+
+- Columns with ``nullable: false`` are converted to include ``NOT NULL`` constraint
+- Columns with ``nullable: true`` (or omitted, default is true) are converted without constraints
+
+Example: A YAML column defined as ``{name: c_custkey, type: BIGINT, nullable: false}`` will generate ``c_custkey BIGINT NOT NULL`` in the schema hints.
+
+**source.schema — Full Schema Enforcement**
+
+The ``source.schema`` field provides full schema enforcement by applying a ``StructType`` schema
+on the ``DataStreamReader`` before ``.load()``. This disables schema inference entirely, ensuring
+the data conforms exactly to the specified schema.
+
+**When to use ``schema`` vs ``schemaHints``:**
+
+- Use ``schema`` when you want to **enforce** a complete, exact schema and disable inference.
+- Use ``schemaHints`` when you want to **guide** Auto Loader's inference while still allowing it to discover additional columns.
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_customer_with_schema
+      type: load
+      readMode: stream
+      source:
+        type: cloudfiles
+        path: "/data/customers/*.csv"
+        format: csv
+        schema: schemas/customer_schema.yaml
+        options:
+          cloudFiles.format: csv
+      target: v_customer_raw
+      description: "Load customer CSV with explicit schema enforcement"
+
+The schema file uses the same YAML format as ``schemaHints`` files:
+
+.. code-block:: yaml
+
+  name: customer
+  version: "1.0"
+  columns:
+    - name: c_custkey
+      type: BIGINT
+      nullable: false
+    - name: c_name
+      type: STRING
+      nullable: true
+
+This generates code with ``.schema()`` applied on the reader chain before ``.load()``:
+
+.. code-block:: python
+
+  customer_schema = StructType([
+      StructField("c_custkey", LongType(), False),
+      StructField("c_name", StringType(), True),
+  ])
+
+  @dp.temporary_view()
+  def v_customer_raw():
+      df = spark.readStream \
+          .format("cloudFiles") \
+          .schema(customer_schema) \
+          .option("cloudFiles.format", "csv") \
+          .load("/data/customers/*.csv")
+      return df
+
+When you provide ``source.schema``, ``cloudFiles.schemaEvolutionMode`` defaults to ``none``
+because inference is disabled. Do not combine ``source.schema`` with ``cloudFiles.schemaHints``
+— these are mutually exclusive approaches.
+
+Lakehouse Plumber uses syntax consistent with Databricks so you can transfer knowledge between
+the two. All options available here mirror those of Databricks Auto Loader.
+
 .. seealso::
-  - For full list of Kafka options see the `Databricks Kafka documentation <https://docs.databricks.com/aws/en/connect/streaming/kafka.html>`_.
+  - For the end-to-end how-to see :doc:`../ingest_with_autoloader`.
+  - For full list of options see the `Databricks Auto Loader documentation <https://docs.databricks.com/aws/en/ingestion/cloud-object-storage/auto-loader/>`_.
   - Operational metadata: :doc:`../operational_metadata`
 
-Kafka always returns a fixed 7-column schema with binary key/value columns:
-``key``, ``value``, ``topic``, ``partition``, ``offset``, ``timestamp``, ``timestampType``.
-Explicitly deserialize the key and value columns using transform actions.
 
-.. warning::
-  **Subscription Methods**: Specify exactly ONE of:
-
-  - ``subscribe``: Comma-separated list of specific topics
-  - ``subscribePattern``: Java regex pattern for topic names
-  - ``assign``: JSON with specific topic partitions
-
-  Using multiple subscription methods will result in an error.
-
-**The above YAML translates to the following PySpark code**
+**The above Yaml translates to the following Pyspark code**
 
 .. code-block:: python
   :linenos:
 
   from pyspark import pipelines as dp
-  from pyspark.sql.functions import current_timestamp
+  from pyspark.sql.functions import F
+
+  customer_cloudfiles_schema_hints = """
+      c_custkey BIGINT NOT NULL,
+      c_name STRING NOT NULL,
+      c_address STRING,
+      c_nationkey BIGINT NOT NULL,
+      c_phone STRING,
+      c_acctbal DECIMAL(18,2),
+      c_mktsegment STRING,
+      c_comment STRING
+  """.strip().replace("\n", " ")
+
 
   @dp.temporary_view()
-  def v_kafka_events_raw():
-      """Load events from Kafka topics"""
+  def v_customer_cloudfiles():
+      """Load customer CSV files from landing volume"""
       df = spark.readStream \
-          .format("kafka") \
-          .option("kafka.bootstrap.servers", "kafka1.example.com:9092,kafka2.example.com:9092") \
-          .option("subscribe", "events,logs,metrics") \
-          .option("startingOffsets", "latest") \
-          .option("failOnDataLoss", False) \
-          .option("kafka.group.id", "lhp-consumer-group") \
-          .option("kafka.session.timeout.ms", 30000) \
-          .option("kafka.ssl.truststore.location", "/path/to/truststore.jks") \
-          .option("kafka.ssl.truststore.password", dbutils.secrets.get("scope", "truststore-password")) \
-          .load()
-      
+          .format("cloudFiles") \
+          .option("cloudFiles.format", "csv") \
+          .option("header", True) \
+          .option("delimiter", "|") \
+          .option("cloudFiles.maxFilesPerTrigger", 11) \
+          .option("cloudFiles.inferColumnTypes", False) \
+          .option("cloudFiles.schemaEvolutionMode", "addNewColumns") \
+          .option("cloudFiles.rescuedDataColumn", "_rescued_data") \
+          .option("cloudFiles.schemaHints", customer_cloudfiles_schema_hints) \
+          .load("/Volumes/acmi_edw_dev/edw_raw/landing_volume/customer/*.csv")
+
+
       # Add operational metadata columns
-      df = df.withColumn('_processing_timestamp', current_timestamp())
-      
+      df = df.withColumn('_source_file_size', F.col('_metadata.file_size'))
+      df = df.withColumn('_source_file_modification_time', F.col('_metadata.file_modification_time'))
+      df = df.withColumn('_source_file_path', F.col('_metadata.file_path'))
+
       return df
-
-**Example: Deserializing Kafka Data**
-
-Since Kafka returns binary data, you typically need a transform action to deserialize:
-
-.. code-block:: yaml
-
-  actions:
-    # Load from Kafka (returns binary key/value)
-    - name: load_kafka_events
-      type: load
-      readMode: stream
-      source:
-        type: kafka
-        bootstrap_servers: "localhost:9092"
-        subscribe: "events"
-      target: v_kafka_events_raw
-      
-    # Deserialize and parse JSON
-    - name: parse_kafka_events
-      type: transform
-      transform_type: sql
-      source: v_kafka_events_raw
-      target: v_kafka_events_parsed
-      sql: |
-        SELECT 
-          CAST(key AS STRING) as message_key,
-          from_json(CAST(value AS STRING), 'event_type STRING, timestamp BIGINT, data STRING') as parsed_value,
-          topic,
-          partition,
-          offset,
-          timestamp as kafka_timestamp
-        FROM $source
-
-**Advanced Authentication: AWS MSK IAM**
-
-AWS Managed Streaming for Apache Kafka (MSK) supports IAM authentication for secure, credential-free access.
-
-**Prerequisites:**
-
-1. AWS MSK cluster configured with IAM authentication enabled
-2. Databricks cluster with IAM role/instance profile with MSK permissions
-3. IAM policy granting ``kafka-cluster:Connect``, ``kafka-cluster:DescribeCluster``, and topic/group permissions
-
-**YAML Configuration:**
-
-.. code-block:: yaml
-
-  actions:
-    - name: load_msk_orders
-      type: load
-      readMode: stream
-      source:
-        type: kafka
-        bootstrap_servers: "b-1.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098"
-        subscribe: "orders"
-        options:
-          kafka.security.protocol: "SASL_SSL"
-          kafka.sasl.mechanism: "AWS_MSK_IAM"
-          kafka.sasl.jaas.config: "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;"
-          kafka.sasl.client.callback.handler.class: "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
-          startingOffsets: "earliest"
-          failOnDataLoss: "false"
-      target: v_msk_orders_raw
-      description: "Load orders from MSK using IAM authentication"
-
-**With Specific IAM Role:**
-
-.. code-block:: yaml
-
-  options:
-    kafka.security.protocol: "SASL_SSL"
-    kafka.sasl.mechanism: "AWS_MSK_IAM"
-    kafka.sasl.jaas.config: 'shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="${msk_role_arn}";'
-    kafka.sasl.client.callback.handler.class: "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
-
-**Generated PySpark Code:**
-
-.. code-block:: python
-  :linenos:
-
-  from pyspark import pipelines as dp
-
-  @dp.temporary_view()
-  def v_msk_orders_raw():
-      """Load orders from MSK using IAM authentication"""
-      df = spark.readStream \
-          .format("kafka") \
-          .option("kafka.bootstrap.servers", "b-1.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098") \
-          .option("subscribe", "orders") \
-          .option("kafka.security.protocol", "SASL_SSL") \
-          .option("kafka.sasl.mechanism", "AWS_MSK_IAM") \
-          .option("kafka.sasl.jaas.config", "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;") \
-          .option("kafka.sasl.client.callback.handler.class", "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler") \
-          .option("startingOffsets", "earliest") \
-          .option("failOnDataLoss", "false") \
-          .load()
-      
-      return df
-
-.. seealso::
-  For complete MSK IAM documentation see `AWS MSK IAM Access Control <https://docs.aws.amazon.com/msk/latest/developerguide/iam-access-control.html>`_.
-
-**MSK IAM Requirements:**
-
-- Use port 9098 for IAM authentication (not the standard 9092).
-- Provide all four required options: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, and ``kafka.sasl.client.callback.handler.class``.
-- Grant the IAM role appropriate ``kafka-cluster:*`` permissions.
-- Rely on IAM for authentication — no credentials are stored.
-- Ensure your Databricks cluster has network access to the MSK cluster.
-
-**Advanced Authentication: Azure Event Hubs OAuth**
-
-Azure Event Hubs provides Kafka protocol support with OAuth 2.0 authentication using Azure Active Directory.
-
-**Prerequisites:**
-
-1. Azure Event Hubs namespace (Premium or Standard tier)
-2. Azure AD App Registration (Service Principal) with appropriate permissions
-3. Service Principal granted "Azure Event Hubs Data Receiver" role on the namespace
-4. Databricks secrets configured for client credentials
-
-**YAML Configuration:**
-
-.. code-block:: yaml
-
-  actions:
-    - name: load_event_hubs_data
-      type: load
-      readMode: stream
-      source:
-        type: kafka
-        bootstrap_servers: "my-namespace.servicebus.windows.net:9093"
-        subscribe: "my-event-hub"
-        options:
-          kafka.security.protocol: "SASL_SSL"
-          kafka.sasl.mechanism: "OAUTHBEARER"
-          kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
-          kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
-          kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
-          startingOffsets: "earliest"
-      target: v_event_hubs_data_raw
-      description: "Load data from Azure Event Hubs using OAuth"
-
-**Generated PySpark Code:**
-
-.. code-block:: python
-  :linenos:
-
-  from pyspark import pipelines as dp
-
-  @dp.temporary_view()
-  def v_event_hubs_data_raw():
-      """Load data from Azure Event Hubs using OAuth"""
-      df = spark.readStream \
-          .format("kafka") \
-          .option("kafka.bootstrap.servers", "my-namespace.servicebus.windows.net:9093") \
-          .option("subscribe", "my-event-hub") \
-          .option("kafka.security.protocol", "SASL_SSL") \
-          .option("kafka.sasl.mechanism", "OAUTHBEARER") \
-          .option("kafka.sasl.jaas.config", 
-                  f'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="{dbutils.secrets.get(scope="azure-secrets", key="client_id")}" clientSecret="{dbutils.secrets.get(scope="azure-secrets", key="client_secret")}" scope="https://my-namespace.servicebus.windows.net/.default" ssl.protocol="SSL";') \
-          .option("kafka.sasl.oauthbearer.token.endpoint.url", "https://login.microsoft.com/12345678-1234-1234-1234-123456789012/oauth2/v2.0/token") \
-          .option("kafka.sasl.login.callback.handler.class", "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler") \
-          .option("startingOffsets", "earliest") \
-          .load()
-      
-      return df
-
-.. seealso::
-  For complete Event Hubs Kafka documentation see `Azure Event Hubs for Apache Kafka <https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-for-kafka-ecosystem-overview>`_.
-
-**Event Hubs OAuth Requirements:**
-
-- Always use port 9093 for the Kafka protocol with Event Hubs.
-- Specify the Event Hubs namespace in the format ``<namespace>.servicebus.windows.net``.
-- Match the scope in JAAS config to ``https://<namespace>.servicebus.windows.net/.default``.
-- Provide all five required options: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, ``kafka.sasl.oauthbearer.token.endpoint.url``, and ``kafka.sasl.login.callback.handler.class``.
-- Assign the Service Principal the "Azure Event Hubs Data Receiver" role.
-- Rely on the callback handler to refresh OAuth tokens automatically.
-- Always use secrets for client credentials — never hardcode them in YAML.
 
 sql
--------------------------------------------
-SQL load actions support both **inline SQL** and **external SQL files**.
+~~~
+
+Use when you need an arbitrary SQL query (often joins or windowed aggregates across
+already-loaded sources) materialised as a temporary view. SQL load actions support
+both **inline SQL** and **external SQL files**.
 
 **Option 1: Inline SQL**
 
@@ -721,14 +510,14 @@ SQL load actions support both **inline SQL** and **external SQL files**.
       source:
         type: sql
         sql: |
-          SELECT 
+          SELECT
             c_custkey,
             c_name,
             c_mktsegment,
             COUNT(*) as order_count,
             SUM(o_totalprice) as total_spent
           FROM ${catalog}.${raw_schema}.customer c
-          LEFT JOIN ${catalog}.${raw_schema}.orders o 
+          LEFT JOIN ${catalog}.${raw_schema}.orders o
             ON c.c_custkey = o.o_custkey
           GROUP BY c_custkey, c_name, c_mktsegment
       target: v_customer_summary
@@ -789,14 +578,14 @@ Common practice is to create a ``sql/`` folder alongside your pipeline YAML file
   def v_customer_summary():
       """Load customer summary with order statistics"""
       return spark.sql("""
-          SELECT 
+          SELECT
             c_custkey,
             c_name,
             c_mktsegment,
             COUNT(*) as order_count,
             SUM(o_totalprice) as total_spent
           FROM acmi_edw_dev.edw_raw.customer c
-          LEFT JOIN acmi_edw_dev.edw_raw.orders o 
+          LEFT JOIN acmi_edw_dev.edw_raw.orders o
             ON c.c_custkey = o.o_custkey
           GROUP BY c_custkey, c_name, c_mktsegment
       """)
@@ -813,7 +602,7 @@ Common practice is to create a ``sql/`` folder alongside your pipeline YAML file
       """Load customer metrics from external SQL file"""
       return spark.sql("""
           -- Content from sql/customer_metrics.sql file
-          SELECT 
+          SELECT
             customer_id,
             total_orders,
             avg_order_value,
@@ -823,8 +612,11 @@ Common practice is to create a ``sql/`` folder alongside your pipeline YAML file
       """)
 
 jdbc
--------------------------------------------
-JDBC load actions connect to external relational databases using JDBC drivers. They support both **table queries** and **custom SQL queries**.
+~~~~
+
+Use when pulling from an external RDBMS (Oracle, SQL Server, Postgres, MySQL).
+Credentials flow through Databricks secrets. JDBC load actions support both
+**table queries** and **custom SQL queries**.
 
 **Option 1: Query-based JDBC**
 
@@ -842,14 +634,14 @@ JDBC load actions connect to external relational databases using JDBC drivers. T
         user: "${secret:database/username}"
         password: "${secret:database/password}"
         query: |
-          SELECT 
+          SELECT
             customer_id,
             first_name,
             last_name,
             email,
             registration_date,
             country
-          FROM customers 
+          FROM customers
           WHERE status = 'active'
           AND registration_date >= CURRENT_DATE - INTERVAL '7 days'
       target: v_external_customers
@@ -921,22 +713,22 @@ The framework automatically handles secret substitution during code generation.
           .option("password", "{{ secret_substituted_password }}") \
           .option("driver", "org.postgresql.Driver") \
           .option("query", """
-              SELECT 
+              SELECT
                 customer_id,
                 first_name,
                 last_name,
                 email,
                 registration_date,
                 country
-              FROM customers 
+              FROM customers
               WHERE status = 'active'
               AND registration_date >= CURRENT_DATE - INTERVAL '7 days'
           """) \
           .load()
-      
+
       # Add operational metadata columns
       df = df.withColumn('_extraction_timestamp', current_timestamp())
-      
+
       return df
 
 **For table-based JDBC:**
@@ -957,12 +749,15 @@ The framework automatically handles secret substitution during code generation.
           .option("driver", "com.mysql.cj.jdbc.Driver") \
           .option("dbtable", "products") \
           .load()
-      
+
       return df
 
 python
--------------------------------------------
-Python load actions call custom Python functions that return DataFrames. This allows for complex data extraction logic, API calls, or custom data processing.
+~~~~~~
+
+Use when the source format is not covered by a built-in sub-type, or you need
+custom pre-processing in Python before the flow sees the data. Python load
+actions call custom Python functions that return DataFrames.
 
 **YAML Configuration:**
 
@@ -996,11 +791,11 @@ Python load actions call custom Python functions that return DataFrames. This al
 
   def extract_customer_data(spark, parameters: dict) -> DataFrame:
       """Extract customer data from external API.
-      
+
       Args:
           spark: SparkSession instance
           parameters: Configuration parameters from YAML
-          
+
       Returns:
           DataFrame: Customer data as PySpark DataFrame
       """
@@ -1009,7 +804,7 @@ Python load actions call custom Python functions that return DataFrames. This al
       api_key = parameters.get("api_key")
       batch_size = parameters.get("batch_size", 1000)
       start_date = parameters.get("start_date")
-      
+
       # Call external API
       headers = {"Authorization": f"Bearer {api_key}"}
       response = requests.get(
@@ -1017,10 +812,10 @@ Python load actions call custom Python functions that return DataFrames. This al
           headers=headers
       )
       response.raise_for_status()
-      
+
       # Convert API response to DataFrame
       data = response.json()["customers"]
-      
+
       # Define schema for the DataFrame
       schema = StructType([
           StructField("customer_id", IntegerType(), True),
@@ -1029,7 +824,7 @@ Python load actions call custom Python functions that return DataFrames. This al
           StructField("email", StringType(), True),
           StructField("registration_date", TimestampType(), True)
       ])
-      
+
       # Create and return DataFrame
       return spark.createDataFrame(data, schema)
 
@@ -1091,15 +886,295 @@ Secret references (``${secret:scope/key}``) are converted to ``dbutils.secrets.g
           "start_date": "2024-01-01"
       }
       df = extract_customer_data(spark, parameters)
-      
+
       # Add operational metadata columns
       df = df.withColumn('_api_call_timestamp', current_timestamp())
-      
+
       return df
 
-PySpark Custom DataSource
--------------------------------------------
-Custom data source load actions use PySpark's DataSource API to implement specialized data ingestion from APIs, custom protocols, or any external system that requires custom logic. This allows for highly flexible data ingestion patterns.
+kafka
+~~~~~
+
+Use when streaming from Apache Kafka, AWS Managed Streaming for Apache Kafka
+(MSK), or Azure Event Hubs via the Kafka protocol.
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_kafka_events
+      type: load
+      readMode: stream
+      operational_metadata: ["_processing_timestamp"]
+      source:
+        type: kafka
+        bootstrap_servers: "kafka1.example.com:9092,kafka2.example.com:9092"
+        subscribe: "events,logs,metrics"
+        options:
+          startingOffsets: "latest"
+          failOnDataLoss: false
+          kafka.group.id: "lhp-consumer-group"
+          kafka.session.timeout.ms: 30000
+          kafka.ssl.truststore.location: "/path/to/truststore.jks"
+          kafka.ssl.truststore.password: "${secret:scope/truststore-password}"
+      target: v_kafka_events_raw
+      description: "Load events from Kafka topics"
+
+**Anatomy of a Kafka load action**
+
+- **name**: Unique name for this action within the FlowGroup
+- **type**: Action type - brings data into a temporary view
+- **readMode**: Must be *stream* - Kafka is always streaming
+- **operational_metadata**: Add custom metadata columns (e.g., processing timestamp)
+- **source**:
+      - **type**: Use Apache Kafka as source
+      - **bootstrap_servers**: Comma-separated list of Kafka broker addresses (host:port)
+      - **subscribe**: Comma-separated list of topics to subscribe to (choose ONE subscription method)
+      - **subscribePattern**: Java regex pattern for topic subscription (alternative to subscribe)
+      - **assign**: JSON string specifying specific topic partitions (alternative to subscribe)
+      - **options**:
+            - **startingOffsets**: Starting offset position (earliest/latest/JSON)
+            - **failOnDataLoss**: Whether to fail on potential data loss (default: true)
+            - **kafka.group.id**: Consumer group ID (use with caution)
+            - **kafka.session.timeout.ms**: Session timeout in milliseconds
+            - **kafka.ssl.***: SSL/TLS configuration options for secure connections
+            - **kafka.sasl.***: SASL authentication options
+            - All other kafka.* options from Databricks Kafka connector
+- **target**: Name of the temporary view created
+- **description**: Optional documentation for the action
+
+.. seealso::
+  - For full list of Kafka options see the `Databricks Kafka documentation <https://docs.databricks.com/aws/en/connect/streaming/kafka.html>`_.
+  - Operational metadata: :doc:`../operational_metadata`
+
+Kafka always returns a fixed 7-column schema with binary key/value columns:
+``key``, ``value``, ``topic``, ``partition``, ``offset``, ``timestamp``, ``timestampType``.
+Explicitly deserialize the key and value columns using transform actions.
+
+.. warning::
+  **Subscription Methods**: Specify exactly ONE of:
+
+  - ``subscribe``: Comma-separated list of specific topics
+  - ``subscribePattern``: Java regex pattern for topic names
+  - ``assign``: JSON with specific topic partitions
+
+  Using multiple subscription methods will result in an error.
+
+**The above YAML translates to the following PySpark code**
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark import pipelines as dp
+  from pyspark.sql.functions import current_timestamp
+
+  @dp.temporary_view()
+  def v_kafka_events_raw():
+      """Load events from Kafka topics"""
+      df = spark.readStream \
+          .format("kafka") \
+          .option("kafka.bootstrap.servers", "kafka1.example.com:9092,kafka2.example.com:9092") \
+          .option("subscribe", "events,logs,metrics") \
+          .option("startingOffsets", "latest") \
+          .option("failOnDataLoss", False) \
+          .option("kafka.group.id", "lhp-consumer-group") \
+          .option("kafka.session.timeout.ms", 30000) \
+          .option("kafka.ssl.truststore.location", "/path/to/truststore.jks") \
+          .option("kafka.ssl.truststore.password", dbutils.secrets.get("scope", "truststore-password")) \
+          .load()
+
+      # Add operational metadata columns
+      df = df.withColumn('_processing_timestamp', current_timestamp())
+
+      return df
+
+**Example: Deserializing Kafka Data**
+
+Since Kafka returns binary data, you typically need a transform action to deserialize:
+
+.. code-block:: yaml
+
+  actions:
+    # Load from Kafka (returns binary key/value)
+    - name: load_kafka_events
+      type: load
+      readMode: stream
+      source:
+        type: kafka
+        bootstrap_servers: "localhost:9092"
+        subscribe: "events"
+      target: v_kafka_events_raw
+
+    # Deserialize and parse JSON
+    - name: parse_kafka_events
+      type: transform
+      transform_type: sql
+      source: v_kafka_events_raw
+      target: v_kafka_events_parsed
+      sql: |
+        SELECT
+          CAST(key AS STRING) as message_key,
+          from_json(CAST(value AS STRING), 'event_type STRING, timestamp BIGINT, data STRING') as parsed_value,
+          topic,
+          partition,
+          offset,
+          timestamp as kafka_timestamp
+        FROM $source
+
+**Advanced Authentication: AWS MSK IAM**
+
+AWS Managed Streaming for Apache Kafka (MSK) supports IAM authentication for secure, credential-free access.
+
+**Prerequisites:**
+
+1. AWS MSK cluster configured with IAM authentication enabled
+2. Databricks cluster with IAM role/instance profile with MSK permissions
+3. IAM policy granting ``kafka-cluster:Connect``, ``kafka-cluster:DescribeCluster``, and topic/group permissions
+
+**YAML Configuration:**
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_msk_orders
+      type: load
+      readMode: stream
+      source:
+        type: kafka
+        bootstrap_servers: "b-1.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098"
+        subscribe: "orders"
+        options:
+          kafka.security.protocol: "SASL_SSL"
+          kafka.sasl.mechanism: "AWS_MSK_IAM"
+          kafka.sasl.jaas.config: "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;"
+          kafka.sasl.client.callback.handler.class: "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+          startingOffsets: "earliest"
+          failOnDataLoss: "false"
+      target: v_msk_orders_raw
+      description: "Load orders from MSK using IAM authentication"
+
+**With Specific IAM Role:**
+
+.. code-block:: yaml
+
+  options:
+    kafka.security.protocol: "SASL_SSL"
+    kafka.sasl.mechanism: "AWS_MSK_IAM"
+    kafka.sasl.jaas.config: 'shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required awsRoleArn="${msk_role_arn}";'
+    kafka.sasl.client.callback.handler.class: "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler"
+
+**Generated PySpark Code:**
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark import pipelines as dp
+
+  @dp.temporary_view()
+  def v_msk_orders_raw():
+      """Load orders from MSK using IAM authentication"""
+      df = spark.readStream \
+          .format("kafka") \
+          .option("kafka.bootstrap.servers", "b-1.msk-cluster.abc123.kafka.us-east-1.amazonaws.com:9098") \
+          .option("subscribe", "orders") \
+          .option("kafka.security.protocol", "SASL_SSL") \
+          .option("kafka.sasl.mechanism", "AWS_MSK_IAM") \
+          .option("kafka.sasl.jaas.config", "shadedmskiam.software.amazon.msk.auth.iam.IAMLoginModule required;") \
+          .option("kafka.sasl.client.callback.handler.class", "shadedmskiam.software.amazon.msk.auth.iam.IAMClientCallbackHandler") \
+          .option("startingOffsets", "earliest") \
+          .option("failOnDataLoss", "false") \
+          .load()
+
+      return df
+
+.. seealso::
+  For complete MSK IAM documentation see `AWS MSK IAM Access Control <https://docs.aws.amazon.com/msk/latest/developerguide/iam-access-control.html>`_.
+
+**MSK IAM Requirements:**
+
+- Use port 9098 for IAM authentication (not the standard 9092).
+- Provide all four required options: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, and ``kafka.sasl.client.callback.handler.class``.
+- Grant the IAM role appropriate ``kafka-cluster:*`` permissions.
+- Rely on IAM for authentication — no credentials are stored.
+- Ensure your Databricks cluster has network access to the MSK cluster.
+
+**Advanced Authentication: Azure Event Hubs OAuth**
+
+Azure Event Hubs provides Kafka protocol support with OAuth 2.0 authentication using Azure Active Directory.
+
+**Prerequisites:**
+
+1. Azure Event Hubs namespace (Premium or Standard tier)
+2. Azure AD App Registration (Service Principal) with appropriate permissions
+3. Service Principal granted "Azure Event Hubs Data Receiver" role on the namespace
+4. Databricks secrets configured for client credentials
+
+**YAML Configuration:**
+
+.. code-block:: yaml
+
+  actions:
+    - name: load_event_hubs_data
+      type: load
+      readMode: stream
+      source:
+        type: kafka
+        bootstrap_servers: "my-namespace.servicebus.windows.net:9093"
+        subscribe: "my-event-hub"
+        options:
+          kafka.security.protocol: "SASL_SSL"
+          kafka.sasl.mechanism: "OAUTHBEARER"
+          kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="${secret:azure_secrets/client_id}" clientSecret="${secret:azure_secrets/client_secret}" scope="https://${event_hubs_namespace}/.default" ssl.protocol="SSL";'
+          kafka.sasl.oauthbearer.token.endpoint.url: "https://login.microsoft.com/${azure_tenant_id}/oauth2/v2.0/token"
+          kafka.sasl.login.callback.handler.class: "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler"
+          startingOffsets: "earliest"
+      target: v_event_hubs_data_raw
+      description: "Load data from Azure Event Hubs using OAuth"
+
+**Generated PySpark Code:**
+
+.. code-block:: python
+  :linenos:
+
+  from pyspark import pipelines as dp
+
+  @dp.temporary_view()
+  def v_event_hubs_data_raw():
+      """Load data from Azure Event Hubs using OAuth"""
+      df = spark.readStream \
+          .format("kafka") \
+          .option("kafka.bootstrap.servers", "my-namespace.servicebus.windows.net:9093") \
+          .option("subscribe", "my-event-hub") \
+          .option("kafka.security.protocol", "SASL_SSL") \
+          .option("kafka.sasl.mechanism", "OAUTHBEARER") \
+          .option("kafka.sasl.jaas.config",
+                  f'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="{dbutils.secrets.get(scope="azure-secrets", key="client_id")}" clientSecret="{dbutils.secrets.get(scope="azure-secrets", key="client_secret")}" scope="https://my-namespace.servicebus.windows.net/.default" ssl.protocol="SSL";') \
+          .option("kafka.sasl.oauthbearer.token.endpoint.url", "https://login.microsoft.com/12345678-1234-1234-1234-123456789012/oauth2/v2.0/token") \
+          .option("kafka.sasl.login.callback.handler.class", "kafkashaded.org.apache.kafka.common.security.oauthbearer.secured.OAuthBearerLoginCallbackHandler") \
+          .option("startingOffsets", "earliest") \
+          .load()
+
+      return df
+
+.. seealso::
+  For complete Event Hubs Kafka documentation see `Azure Event Hubs for Apache Kafka <https://learn.microsoft.com/en-us/azure/event-hubs/event-hubs-for-kafka-ecosystem-overview>`_.
+
+**Event Hubs OAuth Requirements:**
+
+- Always use port 9093 for the Kafka protocol with Event Hubs.
+- Specify the Event Hubs namespace in the format ``<namespace>.servicebus.windows.net``.
+- Match the scope in JAAS config to ``https://<namespace>.servicebus.windows.net/.default``.
+- Provide all five required options: ``kafka.security.protocol``, ``kafka.sasl.mechanism``, ``kafka.sasl.jaas.config``, ``kafka.sasl.oauthbearer.token.endpoint.url``, and ``kafka.sasl.login.callback.handler.class``.
+- Assign the Service Principal the "Azure Event Hubs Data Receiver" role.
+- Rely on the callback handler to refresh OAuth tokens automatically.
+- Always use secrets for client credentials — never hardcode them in YAML.
+
+custom_datasource
+~~~~~~~~~~~~~~~~~
+
+Use when you have or want a PySpark ``DataSource`` implementation and want LHP
+to register and invoke it. Custom data source load actions use PySpark's
+DataSource API to implement specialised data ingestion from APIs, custom
+protocols, or any external system that requires custom logic.
 
 **YAML Configuration:**
 
@@ -1169,7 +1244,7 @@ Custom data source load actions use PySpark's DataSource API to implement specia
 
   class CurrencyAPIStreamingReader(DataSourceStreamReader):
       """Streaming reader implementation with API calls and progress tracking"""
-      
+
       def __init__(self, schema, options):
           self.schema = schema
           self.options = options
@@ -1305,3 +1380,10 @@ survives serialization when SDP ships it to the executors. (The system
 copy — this is the one-line fix that makes the copy-and-import pattern work
 across local + executor boundaries.)
 
+See also
+--------
+
+* :doc:`../decisions` — load source decision matrix, streaming-vs-batch matrix.
+* :doc:`../ingest_with_autoloader` — end-to-end ``cloudfiles`` how-to.
+* :doc:`../operational_metadata` — audit column catalog.
+* :doc:`../substitutions` — ``${token}`` and ``${secret:scope/key}`` syntax.

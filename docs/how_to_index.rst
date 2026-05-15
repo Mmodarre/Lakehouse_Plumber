@@ -1,5 +1,5 @@
-How-to
-======
+Overview
+========
 
 .. meta::
    :description: Problem-indexed how-to pages for Lakehouse Plumber — decide between primitives, ingest data, operate pipelines, reuse patterns, and deploy.
@@ -52,18 +52,3 @@ See also
   works the way it does.
 * :doc:`actions/index` — Reference catalog of every Load, Transform, Write, and
   Test action.
-
-.. toctree::
-   :hidden:
-   :maxdepth: 1
-   :titlesonly:
-
-   decisions
-   ingest_with_autoloader
-   pipeline_patterns
-   enable_monitoring
-   quarantine_records
-   multi_flowgroup_guide
-   dynamic_templates_guide
-   configure_bundles
-   cicd

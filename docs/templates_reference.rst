@@ -2,39 +2,77 @@ Templates Reference
 ===================
 
 .. meta::
-   :description: Create reusable pipeline templates with Jinja2 parameters. Template inheritance, local variables, and best practices.
+   :description: Reference for Lakehouse Plumber templates — parameter types, field schema, error rules, and the minimum FlowGroup that uses a template.
 
-Templates are reusable action patterns that eliminate repetitive configuration and standardize common data pipeline workflows. They use parameter substitution to generate customized actions from a single template definition.
+Concept
+-------
 
+What
+~~~~
 
-Templates Overview
-------------------
+A Lakehouse Plumber (LHP) template is a YAML file under ``templates/`` that
+declares a list of Actions parametrised with Jinja2 ``{{ param }}`` expressions.
+A FlowGroup invokes the template through ``use_template:`` and supplies
+``template_parameters:``; LHP renders the template into concrete Actions before
+generation. Templates differ from Presets (which deep-merge default values into
+matching Action types) and from Blueprints (which fan out parametrised
+FlowGroups across many similar deployments). For the cross-primitive picker see
+:doc:`decisions`.
 
-Templates transform **parametrized action patterns** into **concrete pipeline actions** through variable substitution. Think of them as functions that accept parameters and return a list of actions configured for your specific use case.
+When to use this page
+~~~~~~~~~~~~~~~~~~~~~
 
-**Key Benefits:**
+Read this page for the field reference — parameter types, the template file
+schema, error rules, and the minimum working example below. Read
+:doc:`dynamic_templates_guide` for worked patterns that use Jinja2 control flow:
+``{% if %}`` conditionals, ``{% for %}`` loops, string filters, and dynamic
+Action generation.
 
-+---------------------+----------------------------------------------------------+
-| Benefit             | Description                                              |
-+=====================+==========================================================+
-|| **Code Reuse**     || Define once, use many times across different tables     |
-||                    || and data sources                                        |
-+---------------------+----------------------------------------------------------+
-|| **Standardization**|| Enforce consistent patterns and configurations across   |
-||                    || your data platform                                      |
-+---------------------+----------------------------------------------------------+
-|| **Maintainability**|| Update logic in one place, automatically propagate      |
-||                    || changes to all users of the template                    |
-+---------------------+----------------------------------------------------------+
-|| **Simplification** || Reduce complex 100+ line configurations to simple       |
-||                    || 5-line parameter definitions                            |
-+---------------------+----------------------------------------------------------+
+Minimum example
+~~~~~~~~~~~~~~~
 
-**Template vs FlowGroup:**
+The smallest working template declares two parameters and one Action in the
+template body. A FlowGroup invokes it and supplies values.
 
-- **Templates** are reusable patterns stored in ``templates/`` directory
-- **FlowGroups** are concrete pipeline definitions that may use templates
-- **Template Parameters** customize the template for each specific use case
+.. code-block:: yaml
+   :caption: templates/csv_to_bronze.yaml
+
+   name: csv_to_bronze
+   version: "1.0"
+   parameters:
+     - name: table_name
+       type: string
+       required: true
+     - name: landing_folder
+       type: string
+       required: true
+   actions:
+     - name: "load_{{ table_name }}_csv"
+       type: load
+       readMode: stream
+       source:
+         type: cloudfiles
+         path: "${landing_volume}/{{ landing_folder }}/*.csv"
+         format: csv
+       target: "v_{{ table_name }}_raw"
+
+.. code-block:: yaml
+   :caption: pipelines/bronze/customer.yaml
+
+   pipeline: bronze
+   flowgroup: customer_ingestion
+   use_template: csv_to_bronze
+   template_parameters:
+     table_name: customer
+     landing_folder: customer_data
+
+Reference
+---------
+
+A template file declares Action patterns and the parameters that customise them.
+A FlowGroup references the template by name and supplies values for every
+required parameter. The sections below catalog the template file schema,
+parameter types, and the field rules that LHP enforces during validation.
 
 Template Structure
 ------------------

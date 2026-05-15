@@ -12,6 +12,52 @@ Python output, and relevant caveats.
    :doc:`actions/test_reporting` for the data quality test result reporting pattern (publish
    to Azure DevOps, Delta tables, or a custom provider).
 
+Pattern decision table
+----------------------
+
+Pick the pattern that matches your task, then jump to its section for the YAML, the
+generated Python, and the caveats.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 50 20
+
+   * - Pattern
+     - Use this when…
+     - Jump to
+   * - Multi-Source Ingestion (Fan-In)
+     - You consolidate the same schema from multiple sources (regions, buckets,
+       accounts) into one :term:`streaming table <Streaming table>` and want each
+       source on its own checkpoint.
+     - `Multi-Source Ingestion (Fan-In)`_
+   * - CloudFiles Path Filtering
+     - You exclude specific paths, directories, or file names from a CloudFiles
+       Auto Loader load. Covers glob patterns, post-load SQL filters, and
+       ``pathGlobFilter``.
+     - `CloudFiles Path Filtering`_
+   * - ACMI Retail Demo
+     - You want a complete reference project showing Bronze, Silver, and Gold
+       layers, Change Data Capture (CDC), expectations, templates, presets, and
+       environment substitutions end-to-end.
+     - `ACMI Retail Demo`_
+   * - Multi-Flowgroup Files
+     - You repeat similar flowgroups (one per table, one per source system) and
+       want to collapse many YAML files into a single template-driven file.
+     - `Multi-Flowgroup Files`_
+   * - Local Variables
+     - You repeat the same value (entity name, table name, file path) across
+       actions inside one flowgroup and want a single source of truth.
+     - `Local Variables`_
+   * - Sink Examples
+     - You push data **out** of the lakehouse — Delta to an external catalog,
+       Kafka topics, Azure Event Hubs, or a custom REST endpoint.
+     - `Sink Examples`_
+   * - More Examples (Coming Soon)
+     - You are looking for patterns not yet documented (JDBC on-prem ingestion,
+       incremental snapshots, Pandas-UDF transforms). Track upcoming additions
+       or contribute one.
+     - `More Examples (Coming Soon)`_
+
 
 Multi-Source Ingestion (Fan-In)
 -------------------------------

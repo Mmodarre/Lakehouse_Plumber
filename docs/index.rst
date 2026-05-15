@@ -106,6 +106,7 @@ want to understand the execution model first, read :doc:`architecture`.
    :caption: How-to
 
    how_to_index
+   decisions
    ingest_with_autoloader
    pipeline_patterns
    multi_flowgroup_guide
@@ -124,7 +125,6 @@ want to understand the execution model first, read :doc:`architecture`.
    :caption: Explanation
 
    architecture
-   decisions
    skills_concept
    best_practices/index
 

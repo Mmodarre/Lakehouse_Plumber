@@ -472,6 +472,73 @@ Configuration templates
 
 Copy each to drop the ``.tmpl`` suffix before editing.
 
+Version enforcement
+-------------------
+
+The optional ``required_lhp_version`` key in ``lhp.yaml`` pins generation to a
+specific LHP release range, so the same project produces the same Python output
+across development and CI. ``lhp validate`` and ``lhp generate`` fail when the
+installed LHP version falls outside the range. Informational commands such as
+``lhp show`` skip the check so you can inspect a project even on a mismatched
+LHP version.
+
+LHP accepts any `PEP 440 <https://peps.python.org/pep-0440/>`_ version
+specifier:
+
+.. code-block:: yaml
+   :caption: lhp.yaml — version specifier examples
+
+   # Exact pin
+   required_lhp_version: "==0.4.1"
+
+   # Allow patch updates only (equivalent to >=0.4.1,<0.5.0)
+   required_lhp_version: "~=0.4.1"
+
+   # Range with exclusion
+   required_lhp_version: ">=0.4.1,<0.5.0,!=0.4.3"
+
+   # Allow minor updates
+   required_lhp_version: ">=0.4.0,<1.0.0"
+
+Projects without ``required_lhp_version`` run on any installed LHP version.
+
+Emergency bypass
+~~~~~~~~~~~~~~~~
+
+Set ``LHP_IGNORE_VERSION=1`` to skip version checking temporarily:
+
+.. code-block:: bash
+   :caption: Bypass version checking
+
+   export LHP_IGNORE_VERSION=1
+   lhp generate -e dev
+
+   # Or inline for a single command
+   LHP_IGNORE_VERSION=1 lhp validate -e prod
+
+.. warning::
+   ``LHP_IGNORE_VERSION=1`` defeats the purpose of version pinning. Reserve it
+   for incident response, not regular workflows.
+
+CI/CD integration
+~~~~~~~~~~~~~~~~~
+
+Install the LHP version matching the project requirement before running
+``lhp validate`` or ``lhp generate``:
+
+.. code-block:: bash
+   :caption: CI pipeline with version enforcement
+
+   # Install the exact range from lhp.yaml
+   pip install "lakehouse-plumber$(yq -r .required_lhp_version lhp.yaml)"
+
+   # Or pin a known-good range
+   pip install "lakehouse-plumber>=0.4.1,<0.5.0"
+
+   # Validate and generate (fail-fast on mismatch)
+   lhp validate -e prod
+   lhp generate -e prod
+
 Error codes
 -----------
 

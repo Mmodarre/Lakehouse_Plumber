@@ -1,8 +1,8 @@
 .. meta::
    :description: What Lakehouse Plumber skills are, who they are written for, and why the AI-facing skill content is allowed to drift in voice from the human-facing docs.
 
-The LHP Skill Package
-==========================
+Using Coding Agents
+===================
 
 Lakehouse Plumber (LHP) ships a Markdown "skill" alongside the Python package.
 The skill is reference content authored for AI coding agents — Claude Code,
