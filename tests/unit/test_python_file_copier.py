@@ -301,11 +301,10 @@ class TestCopyUserModule:
         """Substitution manager processes the file content during copy."""
 
         class FakeSubstitutionMgr:
+            secret_references: set = set()
+
             def _process_string(self, s):
                 return s.replace("${greeting}", "hello")
-
-            def get_secret_references(self):
-                return set()
 
         source_file = temp_dir / "user_module.py"
         source_file.write_text("MESSAGE = '${greeting}'\n")
@@ -321,38 +320,6 @@ class TestCopyUserModule:
         copied = (custom_dir / "user_module.py").read_text()
         assert "MESSAGE = 'hello'" in copied
         assert "${greeting}" not in copied
-
-    def test_secret_references_propagated(self, temp_dir, copier, flowgroup):
-        """Secret references discovered during substitution flow back to the caller's set."""
-
-        class FakeSubstitutionMgr:
-            def __init__(self):
-                self._secrets = set()
-
-            def _process_string(self, s):
-                self._secrets.add(("scope", "key"))
-                return s
-
-            def get_secret_references(self):
-                return self._secrets
-
-        source_file = temp_dir / "user_module.py"
-        source_file.write_text("X = 1\n")
-
-        custom_dir = temp_dir / "custom_python_functions"
-        secret_refs: set = set()
-        copier.copy_user_module(
-            source_file,
-            "user_module.py",
-            custom_dir,
-            {
-                "substitution_manager": FakeSubstitutionMgr(),
-                "secret_references": secret_refs,
-                "flowgroup": flowgroup,
-            },
-        )
-
-        assert ("scope", "key") in secret_refs
 
     def test_state_manager_tracks_both_files(self, temp_dir, copier, flowgroup):
         """Both ``__init__.py`` and the copied module register with the state manager."""

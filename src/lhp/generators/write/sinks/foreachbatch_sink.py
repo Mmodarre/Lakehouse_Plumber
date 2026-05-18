@@ -101,7 +101,7 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
             batch_handler_code = substitution_mgr._process_string(batch_handler_code)
 
             # Track secret references if they exist
-            secret_refs = substitution_mgr.get_secret_references()
+            secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context
                 and context["secret_references"] is not None

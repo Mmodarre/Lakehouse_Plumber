@@ -570,8 +570,13 @@ def capture_baseline(
     runs: int = 5,
     lhp_version: str | None = None,
     archive_dir: Path | None = None,
+    max_workers: int | None = None,
 ) -> Path:
     """Run the benchmark and write a baseline JSON; archive raw perf.log files.
+
+    If ``max_workers`` is given, it is forwarded to ``lhp generate`` as
+    ``--max-workers N``; otherwise the CLI default (``min(cpu_count, 8)``)
+    applies.
 
     Returns the path of the written baseline JSON.
     """
@@ -592,6 +597,10 @@ def capture_baseline(
         reset_perf_summary,
     )
 
+    cli_args = ["--perf", "generate", "--env", "dev", "--force"]
+    if max_workers is not None:
+        cli_args.extend(["--max-workers", str(max_workers)])
+
     for i in range(runs):
         _wipe_state(fixture_path)
         reset_perf_summary()
@@ -600,9 +609,7 @@ def capture_baseline(
         try:
             os.chdir(fixture_path)
             t0 = time.perf_counter()
-            result = runner.invoke(
-                cli, ["--perf", "generate", "--env", "dev", "--force"]
-            )
+            result = runner.invoke(cli, cli_args)
             wall = time.perf_counter() - t0
         finally:
             os.chdir(saved_cwd)
@@ -710,9 +717,12 @@ def _cmd_capture(args: argparse.Namespace) -> int:
     version = args.version or _default_lhp_version()
     output_dir = BASELINES_DIR / args.fixture
     archive_dir = REPO_ROOT / ".perf_runs" / version / args.fixture
+    workers_note = (
+        f" max_workers={args.max_workers}" if args.max_workers else ""
+    )
     print(
         f"Capturing baseline: fixture={args.fixture} version={version} "
-        f"runs={args.runs}"
+        f"runs={args.runs}{workers_note}"
     )
     target = capture_baseline(
         fixture_path=fixture_path,
@@ -720,6 +730,7 @@ def _cmd_capture(args: argparse.Namespace) -> int:
         runs=args.runs,
         lhp_version=version,
         archive_dir=archive_dir,
+        max_workers=args.max_workers,
     )
     print(f"Wrote: {target}")
     print(f"Archived raw perf.log -> {archive_dir}")
@@ -773,6 +784,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Baseline version label, e.g. v0.8.7. "
         "Defaults to importlib.metadata.version('lakehouse-plumber').",
+    )
+    capture.add_argument(
+        "--max-workers",
+        type=int,
+        default=None,
+        help="Forward --max-workers N to `lhp generate`. "
+        "Default: CLI default (min(cpu_count, 8)).",
     )
     capture.set_defaults(func=_cmd_capture)
 

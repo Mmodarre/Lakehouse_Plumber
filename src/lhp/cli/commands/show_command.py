@@ -418,7 +418,7 @@ class ShowCommand(BaseCommand):
 
     def _display_secret_references(self, substitution_mgr) -> None:
         """Display secret references found in configuration."""
-        secret_refs = substitution_mgr.get_secret_references()
+        secret_refs = substitution_mgr.secret_references
         if secret_refs:
             click.echo(f"\n🔐 Secret References ({len(secret_refs)} found)")
             click.echo("─" * 60)

@@ -2,13 +2,35 @@
 
 import logging
 import threading
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 from ..utils.error_formatter import ErrorCategory, LHPValidationError
 from ..utils.external_file_loader import resolve_external_file_path
 
+if TYPE_CHECKING:
+    from ..core.state_manager import StateManager
+    from ..models.config import FlowGroup
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class CopiedModuleRecord:
+    """Pure-compute description of a user Python module copy.
+
+    Produced in Phase A (worker thread) by :func:`compute_copy_record` with
+    no side effects — no filesystem writes, no state_manager mutation.
+    Replayed in Phase B (main thread) by
+    :meth:`PythonFileCopier.apply_copy_record` to actually copy and track.
+    """
+
+    source_path: str
+    dest_path: Path
+    content: str
+    module_path: str
+    custom_functions_dir: Path
 
 
 class PythonFunctionConflictError(LHPValidationError):
@@ -141,89 +163,164 @@ class PythonFileCopier:
         *,
         inline_source: Optional[str] = None,
     ) -> str:
-        """Copy a user Python module into the custom_functions directory.
+        """Backward-compat shim: compute then apply a CopiedModuleRecord.
 
-        Reads the source file (or accepts pre-loaded ``inline_source``), applies
-        YAML substitutions and propagates secret references, prepends an
-        LHP-SOURCE provenance header, ensures the package's ``__init__.py``
-        exists, copies the module thread-safely, and registers both files with
-        the state manager (when present).
+        Equivalent to calling :func:`compute_copy_record` followed by
+        :meth:`apply_copy_record`. Single-flowgroup callers (e.g. ``lhp show``)
+        that don't go through the parallel pool can keep using this entry
+        point; the parallel executor splits the two phases — Phase A workers
+        call :func:`compute_copy_record` (no I/O, no state_manager), Phase B
+        on the main thread calls :meth:`apply_copy_record` (writes + tracks).
 
-        Caller is responsible for resolving ``source_file`` (which must exist
-        when ``inline_source`` is None) and ``custom_functions_dir`` (typically
-        ``output_dir / "custom_python_functions"``). Dry-run handling
-        (skipping when ``output_dir is None``) belongs to the caller.
-
-        Args:
-            source_file: Resolved path to the user's source ``.py`` file. May
-                be ``None`` when ``inline_source`` is supplied.
-            module_path: Original user-facing relative path; used in the
-                LHP-SOURCE header so generated headers point back to the
-                original location.
-            custom_functions_dir: Destination directory for the copied module.
-            context: Generation context. Reads ``substitution_manager``,
-                ``secret_references``, ``state_manager``, ``source_yaml``,
-                ``environment``, ``flowgroup``.
-            inline_source: Optional pre-loaded source content. When provided,
-                the disk read is skipped — used for synthetic flowgroups
-                (e.g. monitoring) whose source is generated in memory.
+        See :func:`compute_copy_record` for the body of the original docstring.
 
         Returns:
             The module stem (e.g. ``"api_source"`` for ``"data/api_source.py"``).
         """
-        from ..utils.smart_file_writer import build_lhp_source_header
+        record = compute_copy_record(
+            source_file,
+            module_path,
+            custom_functions_dir,
+            context,
+            inline_source=inline_source,
+        )
+        self.apply_copy_record(
+            record,
+            state_manager=context.get("state_manager"),
+            source_yaml=context.get("source_yaml"),
+            flowgroup=context.get("flowgroup"),
+            env=context.get("environment", "unknown"),
+        )
+        return Path(module_path).stem
 
-        module_name = Path(module_path).stem
-        dest_file = custom_functions_dir / f"{module_name}.py"
+    def apply_copy_record(
+        self,
+        record: "CopiedModuleRecord",
+        *,
+        state_manager: Optional["StateManager"] = None,
+        source_yaml: Optional[Path] = None,
+        flowgroup: Optional["FlowGroup"] = None,
+        env: str = "unknown",
+    ) -> bool:
+        """Phase B replay (main thread): ensure init, copy, track.
 
-        if inline_source is not None:
-            original_content = inline_source
-        else:
-            assert (
-                source_file is not None
-            ), "copy_user_module requires either source_file or inline_source"
-            original_content = source_file.read_text()
+        Calls :meth:`ensure_init_file`, :meth:`copy_python_file` (both
+        lock-protected for dedup), then calls ``state_manager.track_generated_file``
+        for the package ``__init__.py`` and the module itself. The track calls
+        are why this method must run on the main thread, not in a worker pool
+        — :class:`StateManager` mutation is not thread-safe.
 
-        substitution_mgr = context.get("substitution_manager")
-        if substitution_mgr is not None:
-            original_content = substitution_mgr._process_string(original_content)
+        Args:
+            record: Result of :func:`compute_copy_record`.
+            state_manager: When None, file is copied but not tracked.
+            source_yaml: Path to the YAML that referenced this module.
+            flowgroup: Flowgroup that referenced this module.
+            env: Environment name (e.g. ``"dev"``); defaults to ``"unknown"``.
 
-            secret_refs = substitution_mgr.get_secret_references()
-            secret_target = context.get("secret_references")
-            if secret_target is not None:
-                secret_target.update(secret_refs)
+        Returns:
+            True if the file was newly copied; False if another flowgroup
+            already wrote the same destination (dedup hit).
+        """
+        self.ensure_init_file(record.custom_functions_dir)
+        file_copied = self.copy_python_file(
+            record.source_path, record.dest_path, record.content
+        )
 
-        full_content = build_lhp_source_header(module_path) + original_content
+        if file_copied and state_manager and source_yaml and flowgroup:
+            init_file = record.custom_functions_dir / "__init__.py"
+            state_manager.track_generated_file(
+                generated_path=init_file,
+                source_yaml=source_yaml,
+                environment=env,
+                pipeline=flowgroup.pipeline,
+                flowgroup=flowgroup.flowgroup,
+            )
+            state_manager.track_generated_file(
+                generated_path=record.dest_path,
+                source_yaml=source_yaml,
+                environment=env,
+                pipeline=flowgroup.pipeline,
+                flowgroup=flowgroup.flowgroup,
+            )
+            self._logger.debug(
+                f"Tracked custom module files for module_path={record.module_path}"
+            )
 
-        self.ensure_init_file(custom_functions_dir)
-        file_copied = self.copy_python_file(module_path, dest_file, full_content)
+        return file_copied
 
-        if file_copied:
-            state_manager = context.get("state_manager")
-            source_yaml = context.get("source_yaml")
-            flowgroup = context.get("flowgroup")
-            if state_manager and source_yaml and flowgroup:
-                env = context.get("environment", "unknown")
-                init_file = custom_functions_dir / "__init__.py"
-                state_manager.track_generated_file(
-                    generated_path=init_file,
-                    source_yaml=source_yaml,
-                    environment=env,
-                    pipeline=flowgroup.pipeline,
-                    flowgroup=flowgroup.flowgroup,
-                )
-                state_manager.track_generated_file(
-                    generated_path=dest_file,
-                    source_yaml=source_yaml,
-                    environment=env,
-                    pipeline=flowgroup.pipeline,
-                    flowgroup=flowgroup.flowgroup,
-                )
-                self._logger.debug(
-                    f"Tracked custom module files for module_path={module_path}"
-                )
 
-        return module_name
+def compute_copy_record(
+    source_file: Optional[Path],
+    module_path: str,
+    custom_functions_dir: Path,
+    context: dict,
+    *,
+    inline_source: Optional[str] = None,
+) -> CopiedModuleRecord:
+    """Phase A pure compute: read source, substitute, build header.
+
+    Returns a :class:`CopiedModuleRecord` describing the file that would be
+    written, without touching the filesystem (writes) or the state manager.
+    Safe to call from worker threads — the only filesystem touch is reading
+    the source file, which is idempotent.
+
+    The caller-supplied ``context`` may carry a ``substitution_manager`` and
+    a ``secret_references`` collection. When present, the substitution
+    manager processes the file contents and any discovered secret references
+    are merged into ``secret_references`` for downstream rendering. Both the
+    substitution manager and the secret_references dict are expected to be
+    per-flowgroup (per-worker) so this mutation is thread-safe.
+
+    Args:
+        source_file: Resolved path to the user's source ``.py`` file. May
+            be ``None`` when ``inline_source`` is supplied.
+        module_path: User-facing relative path; used in the LHP-SOURCE
+            header so generated headers point back to the original location.
+        custom_functions_dir: Destination directory for the copied module.
+        context: Generation context. Reads ``substitution_manager`` and
+            ``secret_references`` only.
+        inline_source: Optional pre-loaded source content. When provided,
+            the disk read is skipped — used for synthetic flowgroups
+            (e.g. monitoring) whose source is generated in memory.
+
+    Returns:
+        A :class:`CopiedModuleRecord` describing the planned copy. The
+        record's ``dest_path`` is ``custom_functions_dir / f"{stem}.py"``.
+    """
+    from ..utils.smart_file_writer import build_lhp_source_header
+
+    module_name = Path(module_path).stem
+    dest_file = custom_functions_dir / f"{module_name}.py"
+
+    if inline_source is not None:
+        original_content = inline_source
+    else:
+        assert (
+            source_file is not None
+        ), "compute_copy_record requires either source_file or inline_source"
+        original_content = source_file.read_text()
+
+    substitution_mgr = context.get("substitution_manager")
+    if substitution_mgr is not None:
+        original_content = substitution_mgr._process_string(original_content)
+
+        # Track secret references discovered during substitution. The
+        # substitution manager is the canonical source; the context-level
+        # accumulator mirrors them for downstream consumers (e.g. tests).
+        secret_refs = substitution_mgr.secret_references
+        secret_target = context.get("secret_references")
+        if secret_target is not None:
+            secret_target.update(secret_refs)
+
+    full_content = build_lhp_source_header(module_path) + original_content
+
+    return CopiedModuleRecord(
+        source_path=module_path,
+        dest_path=dest_file,
+        content=full_content,
+        module_path=module_path,
+        custom_functions_dir=custom_functions_dir,
+    )
 
 
 def copy_user_module_for_pipeline(
@@ -305,6 +402,24 @@ def copy_user_module_for_pipeline(
         return Path(module_path).stem
 
     custom_functions_dir = output_dir / "custom_python_functions"
+
+    # Phase A collect mode: workers in the parallel pool must not touch the
+    # state manager or write to the filesystem. When the context carries a
+    # ``phase_a_records`` list (set by ``run_generate_pool`` workers), we
+    # compute the CopiedModuleRecord and append it; the main thread replays
+    # it later via apply_copy_record (Phase B).
+    phase_a_records = context.get("phase_a_records")
+    if phase_a_records is not None:
+        record = compute_copy_record(
+            source_file,
+            module_path,
+            custom_functions_dir,
+            context,
+            inline_source=inline_source,
+        )
+        phase_a_records.append(record)
+        return Path(module_path).stem
+
     python_copier = context.get("python_file_copier") or PythonFileCopier()
     return python_copier.copy_user_module(
         source_file,

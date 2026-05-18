@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from ..services.blueprint_expander import BlueprintProvenance
-from ..state_models import DependencyInfo, FileState, GlobalDependencies, ProjectState
+from ..state_models import FileState, GlobalDependencies, ProjectState
 
 
 class DependencyTracker:
@@ -65,7 +65,6 @@ class DependencyTracker:
         environment: str,
         pipeline: str,
         flowgroup: str,
-        used_substitution_keys: Optional[List[str]] = None,
     ) -> None:
         """
         Track a generated file in the state with dependency resolution.
@@ -77,7 +76,6 @@ class DependencyTracker:
             environment: Environment name
             pipeline: Pipeline name
             flowgroup: FlowGroup name
-            used_substitution_keys: Optional list of substitution keys used during generation
         """
         # Calculate relative paths from project root
         try:
@@ -132,7 +130,6 @@ class DependencyTracker:
             pipeline=pipeline,
             flowgroup=flowgroup,
             file_dependencies=file_dependencies,
-            used_substitution_keys=used_substitution_keys,
             synthetic=is_synthetic,
         )
 

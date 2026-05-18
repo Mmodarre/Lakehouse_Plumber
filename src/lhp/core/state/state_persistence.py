@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import tempfile
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -136,6 +138,13 @@ class StatePersistence:
                     if "artifact_type" not in file_state:
                         file_state["artifact_type"] = None
 
+                    # `used_substitution_keys` was a write-only field used by an
+                    # earlier granular-tracking experiment that never drove
+                    # selective regen (state_dependency_resolver computes that
+                    # from file checksums). Drop it silently so legacy state
+                    # files load cleanly; on the next save the key is gone.
+                    file_state.pop("used_substitution_keys", None)
+
                     # Convert file_dependencies from dict to DependencyInfo objects
                     if file_state["file_dependencies"]:
                         file_deps = {}
@@ -143,9 +152,7 @@ class StatePersistence:
                             "file_dependencies"
                         ].items():
                             normalized_dep_key = dep_path.replace("\\", "/")
-                            file_deps[normalized_dep_key] = DependencyInfo(
-                                **dep_info
-                            )
+                            file_deps[normalized_dep_key] = DependencyInfo(**dep_info)
                         file_state["file_dependencies"] = file_deps
 
                     normalized_key = file_path.replace("\\", "/")
@@ -154,9 +161,7 @@ class StatePersistence:
             # Handle global dependencies
             global_dependencies = {}
             if "global_dependencies" in state_data:
-                for env_name, global_deps in state_data[
-                    "global_dependencies"
-                ].items():
+                for env_name, global_deps in state_data["global_dependencies"].items():
                     substitution_file = None
                     project_config = None
 
@@ -171,9 +176,7 @@ class StatePersistence:
                         "project_config" in global_deps
                         and global_deps["project_config"]
                     ):
-                        project_config = DependencyInfo(
-                            **global_deps["project_config"]
-                        )
+                        project_config = DependencyInfo(**global_deps["project_config"])
 
                     global_dependencies[env_name] = GlobalDependencies(
                         substitution_file=substitution_file,
@@ -185,9 +188,7 @@ class StatePersistence:
                 last_updated=state_data.get("last_updated", ""),
                 environments=environments,
                 global_dependencies=global_dependencies,
-                last_generation_context=state_data.get(
-                    "last_generation_context", {}
-                ),
+                last_generation_context=state_data.get("last_generation_context", {}),
             )
         except LHPFileError:
             raise
@@ -216,21 +217,40 @@ class StatePersistence:
 
     def save_state(self, state) -> None:
         """
-        Save current state to file.
+        Save current state to file atomically.
+
+        Writes to a temp file in the same directory as the target, then renames
+        via os.replace. Guarantees the target either reflects the previous
+        contents or the new contents — never a half-written file — even on
+        process kill mid-write. The temp file is on the same volume as the
+        target, which is required for atomic rename on Windows.
 
         Args:
             state: ProjectState to save
 
         Raises:
-            Exception: If save operation fails
+            LHPFileError: If save operation fails (target left untouched).
         """
-        try:
-            # Convert to dict for JSON serialization
-            state_dict = asdict(state)
-            state_dict["last_updated"] = datetime.now().isoformat()
+        state_dict = asdict(state)
+        state_dict["last_updated"] = datetime.now().isoformat()
 
-            with open(self.state_file, "w") as f:
+        parent = self.state_file.parent
+        tmp_path: Optional[Path] = None
+        try:
+            parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=self.state_file.name + ".",
+                suffix=".tmp",
+                dir=str(parent),
+            )
+            tmp_path = Path(tmp_name)
+            with os.fdopen(fd, "w") as f:
                 json.dump(state_dict, f, indent=2, sort_keys=True)
+                f.flush()
+                os.fsync(f.fileno())
+
+            os.replace(tmp_path, self.state_file)
+            tmp_path = None  # ownership transferred; nothing to clean up
 
             self.logger.debug(f"Saved state to {self.state_file}")
 
@@ -247,6 +267,14 @@ class StatePersistence:
                 ],
                 context={"State File": str(self.state_file)},
             ) from e
+        finally:
+            if tmp_path is not None and tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    self.logger.warning(
+                        f"Could not remove temporary state file {tmp_path}"
+                    )
 
     def backup_state_file(self) -> Optional[Path]:
         """

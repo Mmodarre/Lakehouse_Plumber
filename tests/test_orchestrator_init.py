@@ -1,13 +1,14 @@
 """Tests for ActionOrchestrator initialization and configuration."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
 import os
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from lhp.core.orchestrator import ActionOrchestrator
 from lhp.models.config import FlowGroup
-from lhp.utils.error_formatter import LHPError, ErrorCategory
+from lhp.utils.error_formatter import ErrorCategory, LHPError
 
 
 class TestActionOrchestratorInitialization:
@@ -1591,10 +1592,17 @@ class TestActionOrchestratorValidationWithoutGeneration:
                 in error_message
             )
 
-            # Should call discover_flowgroups_by_pipeline_field
-            orchestrator_validation.discover_flowgroups_by_pipeline_field.assert_called_once_with(
-                pipeline_field, pre_discovered_all_flowgroups=None
+            # Should call discover_flowgroups_by_pipeline_field. The shim
+            # now delegates through validate_pipelines_by_fields which
+            # pre-discovers all_flowgroups once and passes that list as
+            # pre_discovered_all_flowgroups; the test asserts the call
+            # happened with the right pipeline field, not the exact kwarg
+            # value (which is now a non-None list).
+            orchestrator_validation.discover_flowgroups_by_pipeline_field.assert_called_once()
+            call_args = (
+                orchestrator_validation.discover_flowgroups_by_pipeline_field.call_args
             )
+            assert call_args.args[0] == pipeline_field
 
     def test_validate_pipeline_by_field_method_delegation(
         self, orchestrator_validation
@@ -1617,10 +1625,11 @@ class TestActionOrchestratorValidationWithoutGeneration:
                 pipeline_field, env
             )
 
-            # Assert - method should delegate correctly
-            mock_discover.assert_called_once_with(
-                pipeline_field, pre_discovered_all_flowgroups=None
-            )
+            # Assert - method should delegate correctly. The plural method
+            # in the new architecture pre-discovers all_flowgroups, so the
+            # pre_discovered_all_flowgroups kwarg is no longer None.
+            mock_discover.assert_called_once()
+            assert mock_discover.call_args.args[0] == pipeline_field
 
             # Should return appropriate error for no flowgroups
             assert len(errors) == 1
@@ -1775,6 +1784,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             env,
             include_tests,
             None,
+            phase_a_records=None,
         )
 
     def test_generate_flowgroup_code_fails_propagates_exception(
@@ -1817,6 +1827,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             env,
             include_tests,
             None,
+            phase_a_records=None,
         )
 
     def test_substitution_mgr_none_still_delegates_to_services(
@@ -1850,7 +1861,15 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup, None, include_tests=True
         )
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, None, None, None, None, None, False, None
+            mock_flowgroup,
+            None,
+            None,
+            None,
+            None,
+            None,
+            False,
+            None,
+            phase_a_records=None,
         )
 
     def test_include_tests_true_passes_to_code_generator(
@@ -1893,6 +1912,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             env,
             True,
             None,
+            phase_a_records=None,
         )
 
     def test_include_tests_false_passes_to_code_generator(
@@ -1935,6 +1955,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             env,
             False,
             None,
+            phase_a_records=None,
         )
 
 
@@ -2036,7 +2057,15 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             mock_flowgroup, mock_substitution_mgr, include_tests=True
         )
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
+            mock_flowgroup,
+            mock_substitution_mgr,
+            None,
+            None,
+            None,
+            None,
+            False,
+            None,
+            phase_a_records=None,
         )
 
     def test_logging_operations_fail_does_not_break_main_functionality(
@@ -2088,6 +2117,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
                 None,
                 False,
                 None,
+                phase_a_records=None,
             )
 
     def test_invalid_parameters_passed_delegates_to_services(
@@ -2173,9 +2203,8 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Should handle empty string gracefully
             assert len(errors) == 1
             assert "No flowgroups found for pipeline field:" in errors[0]
-            mock_discover.assert_called_once_with(
-                "", pre_discovered_all_flowgroups=None
-            )
+            mock_discover.assert_called_once()
+            assert mock_discover.call_args.args[0] == ""
 
         # Test None pipeline field - should raise exception or handle gracefully
         with patch.object(
@@ -2205,9 +2234,8 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Should handle whitespace-only string
             assert len(errors) == 1
             assert "No flowgroups found for pipeline field:    " in errors[0]
-            mock_discover_whitespace.assert_called_once_with(
-                "   ", pre_discovered_all_flowgroups=None
-            )
+            mock_discover_whitespace.assert_called_once()
+            assert mock_discover_whitespace.call_args.args[0] == "   "
 
     def test_edge_case_service_returns_none_or_empty_results(
         self, orchestrator_error_handling, mock_flowgroup
@@ -2337,6 +2365,7 @@ class TestActionOrchestratorIntegrationScenarios:
             None,
             False,
             None,
+            phase_a_records=None,
         )
 
     def test_service_coordination_with_complex_data_flow(
@@ -2406,6 +2435,7 @@ class TestActionOrchestratorIntegrationScenarios:
             None,
             False,
             None,
+            phase_a_records=None,
         )
 
     def test_service_integration_error_propagation_and_recovery(
@@ -2516,4 +2546,5 @@ class TestActionOrchestratorIntegrationScenarios:
             env,
             include_tests,
             None,
+            phase_a_records=None,
         )

@@ -3,9 +3,12 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from ...models.config import Action, ActionType, FlowGroup, TransformType
+
+if TYPE_CHECKING:
+    from ...generators.python_file_copier import CopiedModuleRecord
 from ...utils.error_formatter import ErrorCategory, LHPError, LHPValidationError
 from ...utils.performance_timer import perf_timer
 from ...utils.source_extractor import extract_source_views_from_action
@@ -55,6 +58,7 @@ class CodeGenerator:
         env: Optional[str] = None,
         include_tests: bool = False,
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
     ) -> str:
         """
         Generate complete Python code for a flowgroup.
@@ -68,6 +72,10 @@ class CodeGenerator:
             env: Environment name for file tracking
             include_tests: Whether to include test actions
             python_file_copier: Thread-safe Python file copier (for parallel mode)
+            phase_a_records: Optional list passed by Phase A workers to
+                receive ``CopiedModuleRecord`` entries instead of writing
+                user Python modules to disk. ``None`` (the default) means
+                disk writes happen inline — the legacy single-threaded path.
 
         Returns:
             Complete Python code for the flowgroup
@@ -123,9 +131,15 @@ class CodeGenerator:
                 env,
                 include_tests,
                 python_file_copier,
+                phase_a_records=phase_a_records,
             )
 
-        # 5-6. Apply secret substitutions and assemble final code
+        # 5-6. Apply secret substitutions and assemble final code.
+        # Substitution emits ``__SECRET_scope_key__`` placeholders so Jinja
+        # templates can naively wrap values in Python string literals; this
+        # post-pass rewrites whole-string placeholders to bare
+        # ``dbutils.secrets.get(...)`` calls and embedded placeholders to
+        # f-strings.
         with perf_timer(f"assemble_code [{fg}]"):
             complete_code = self._apply_secret_substitutions(
                 generated_sections, substitution_mgr
@@ -149,6 +163,7 @@ class CodeGenerator:
         env: Optional[str],
         include_tests: bool,
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code sections for all actions."""
         # Group actions by type while preserving order
@@ -189,6 +204,7 @@ class CodeGenerator:
             source_yaml=source_yaml,
             env=env,
             python_file_copier=python_file_copier,
+            phase_a_records=phase_a_records,
         )
 
         for action_type in action_types:
@@ -272,6 +288,7 @@ class CodeGenerator:
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for write actions with target grouping."""
         sections = []
@@ -308,6 +325,7 @@ class CodeGenerator:
                     source_yaml,
                     env,
                     python_file_copier,
+                    phase_a_records=phase_a_records,
                 )
                 action_code = generator.generate(combined_action, context)
                 sections.append(action_code)
@@ -355,6 +373,7 @@ class CodeGenerator:
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for regular (non-write) actions."""
         sections = []
@@ -379,6 +398,7 @@ class CodeGenerator:
                     source_yaml,
                     env,
                     python_file_copier,
+                    phase_a_records=phase_a_records,
                 )
                 action_code = generator.generate(action, context)
                 sections.append(action_code)
@@ -422,6 +442,7 @@ class CodeGenerator:
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for data quality actions with sub-headers."""
         sections = []
@@ -459,6 +480,7 @@ class CodeGenerator:
                     source_yaml,
                     env,
                     python_file_copier,
+                    phase_a_records=phase_a_records,
                 )
                 action_code = generator.generate(action, context)
                 sections.append(action_code)
@@ -501,6 +523,7 @@ class CodeGenerator:
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
     ) -> Dict[str, Any]:
         """Build context dictionary for generator execution."""
         project_root = self.project_root or Path.cwd()
@@ -515,8 +538,17 @@ class CodeGenerator:
             "state_manager": state_manager,
             "source_yaml": source_yaml,
             "environment": env,
-            "secret_references": set(),  # Track secret references from file processing
-            "python_file_copier": python_file_copier,  # Thread-safe copier for parallel mode
+            # Per-flowgroup accumulator for secret references collected by
+            # generators that run their own _process_string calls. The
+            # substitution manager keeps the canonical set; this mirror is
+            # populated by generators for legacy callers that read from
+            # the context dict.
+            "secret_references": set(),
+            "python_file_copier": python_file_copier,
+            # Phase A collect carrier: when present, copy_user_module_for_pipeline
+            # appends CopiedModuleRecord entries here instead of writing to disk,
+            # so Phase B can replay the writes on the main thread.
+            "phase_a_records": phase_a_records,
         }
 
     def _collect_generator_outputs(self, generator) -> Tuple[Set[str], Set[str]]:
@@ -549,16 +581,32 @@ class CodeGenerator:
         generated_sections: List[str],
         substitution_mgr: EnhancedSubstitutionManager,
     ) -> str:
-        """Apply secret substitutions to generated code."""
+        """Apply secret substitutions to generated code.
+
+        Secrets are emitted as ``__SECRET_scope_key__`` placeholders during
+        YAML substitution so that Jinja templates can wrap values in Python
+        string literals without disturbing the secret expression. This
+        post-pass walks the assembled code and rewrites placeholders:
+
+        - When a string literal's content is exactly one placeholder, it is
+          replaced with a bare ``dbutils.secrets.get(...)`` call so that
+          fields like ``.option("user", "${secret:db/user}")`` become
+          ``.option("user", dbutils.secrets.get(...))``.
+        - When a placeholder is embedded in a larger string literal, the
+          literal is rewritten as an f-string so the dbutils call evaluates
+          at runtime.
+        """
         complete_code = "\n\n".join(generated_sections)
 
-        # Use SecretCodeGenerator to convert secret placeholders to valid f-strings
+        # Use SecretCodeGenerator to convert secret placeholders to valid
+        # Python (bare calls or f-strings). Pull references from the
+        # substitution manager — it is the canonical source.
         try:
             from ...utils.secret_code_generator import SecretCodeGenerator
 
             secret_generator = SecretCodeGenerator()
             complete_code = secret_generator.generate_python_code(
-                complete_code, substitution_mgr.get_secret_references()
+                complete_code, substitution_mgr.secret_references
             )
         except ImportError:
             self.logger.warning(

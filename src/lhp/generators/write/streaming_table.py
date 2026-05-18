@@ -471,7 +471,7 @@ snapshot_cdc_config:
                 parameters = substitution_mgr.substitute_yaml(parameters)
 
             # Single collection point after ALL substitutions
-            secret_refs = substitution_mgr.get_secret_references()
+            secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context
                 and context["secret_references"] is not None

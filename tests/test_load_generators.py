@@ -92,7 +92,19 @@ class TestLoadGenerators:
         assert "SELECT * FROM metrics" in code
 
     def test_jdbc_generator_with_secrets(self):
-        """Test JDBC load generator with secret substitution generates valid Python code."""
+        """JDBC load generator emits secret placeholders at the generator layer.
+
+        Under the post-pass design, `JDBCLoadGenerator.generate()` returns
+        code containing ``__SECRET_scope_key__`` placeholders inside Python
+        string literals. The conversion to bare ``dbutils.secrets.get(...)``
+        calls (entire-value fields) or f-strings (embedded fields) happens
+        later in `CodeGenerator._apply_secret_substitutions`. End-to-end
+        emission is verified in
+        `tests/test_orchestrator.py::test_flowgroup_with_secret_substitution`
+        and `tests/test_integration.py::test_jdbc_source_with_secrets`;
+        the post-pass itself is covered by
+        `tests/test_secret_code_generator.py`.
+        """
         generator = JDBCLoadGenerator()
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.default_secret_scope = "db_secrets"
@@ -113,26 +125,27 @@ class TestLoadGenerators:
 
         code = generator.generate(action, {"substitution_manager": substitution_mgr})
 
-        # The generator should produce placeholders, not f-strings (conversion happens in orchestrator)
-        # Check for placeholder patterns
-        assert (
-            "__SECRET_db_host__" in code or "__SECRET_database_secrets_host__" in code
-        )
-        assert (
-            "__SECRET_db_username__" in code
-            or "__SECRET_database_secrets_username__" in code
-        )
-        assert (
-            "__SECRET_db_password__" in code
-            or "__SECRET_database_secrets_password__" in code
-        )
+        # All three secret tokens become placeholders, registered on the
+        # substitution manager for the post-pass to consume.
+        assert "__SECRET_db_host__" in code
+        assert "__SECRET_db_username__" in code
+        assert "__SECRET_db_password__" in code
 
-        # Verify placeholder patterns are in the expected format
+        # No ${secret:...} tokens leak through — substitution did run.
+        assert "${secret:" not in code
+
+        # Bare dbutils calls are NOT emitted at the generator layer; the
+        # post-pass runs later, on the assembled flowgroup code.
+        assert "dbutils.secrets.get" not in code
+
+        # The static URL prefix survives substitution.
         assert "jdbc:postgresql://" in code
-        assert '"__SECRET_' in code or "'__SECRET_" in code
 
-        # Most importantly, verify the generated code is syntactically valid
-        compile(code, "<string>", "exec")
+        # References were captured on the manager (post-pass uses these).
+        scopes_keys = {(r.scope, r.key) for r in substitution_mgr.secret_references}
+        assert ("db", "host") in scopes_keys
+        assert ("db", "username") in scopes_keys
+        assert ("db", "password") in scopes_keys
 
     def test_jdbc_url_with_quotes_escaped(self):
         """Test JDBC generator with URLs containing quotes."""

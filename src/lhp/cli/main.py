@@ -351,6 +351,12 @@ def skill_uninstall(user: bool, force: bool) -> None:
     "-pc",
     help="Custom pipeline config file path (relative to project root)",
 )
+@click.option(
+    "--max-workers",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Maximum worker threads (default: min(cpu_count, 8)). Use 1 for sequential.",
+)
 @cli_error_boundary("Code generation")
 def generate(
     env,
@@ -362,6 +368,7 @@ def generate(
     no_bundle,
     include_tests,
     pipeline_config,
+    max_workers,
 ):
     """Generate DLT pipeline code"""
     from .commands.generate_command import GenerateCommand
@@ -376,6 +383,7 @@ def generate(
         no_bundle,
         include_tests,
         pipeline_config,
+        max_workers=max_workers,
     )
 
 
@@ -389,12 +397,20 @@ def generate(
     default=False,
     help="Include test actions in validation (matches generate behavior)",
 )
+@click.option(
+    "--max-workers",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Maximum worker threads (default: min(cpu_count, 8)). Use 1 for sequential.",
+)
 @cli_error_boundary("Pipeline validation")
-def validate(env, pipeline, verbose, include_tests):
+def validate(env, pipeline, verbose, include_tests, max_workers):
     """Validate pipeline configurations"""
     from .commands.validate_command import ValidateCommand
 
-    ValidateCommand().execute(env, pipeline, verbose, include_tests)
+    ValidateCommand().execute(
+        env, pipeline, verbose, include_tests, max_workers=max_workers
+    )
 
 
 @cli.command()

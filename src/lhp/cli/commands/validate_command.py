@@ -27,6 +27,8 @@ class ValidateCommand(BaseCommand):
         pipeline: Optional[str] = None,
         verbose: bool = False,
         include_tests: bool = False,
+        *,
+        max_workers: Optional[int] = None,
     ) -> None:
         """
         Execute the validate command.
@@ -36,6 +38,12 @@ class ValidateCommand(BaseCommand):
             pipeline: Specific pipeline to validate (optional)
             verbose: Enable verbose output
             include_tests: Include test reporting validation
+            max_workers: Maximum worker threads for the cross-pipeline
+                flat pool used by Phase A validation. ``None`` falls back
+                to ``min(cpu_count, 8)`` inside the orchestrator
+                constructor. The raw user value (possibly ``None``) is
+                forwarded through the application facade so the
+                resolution rule lives in one place.
         """
         self.setup_from_context()
         project_root = self.ensure_project_root()
@@ -61,20 +69,21 @@ class ValidateCommand(BaseCommand):
         self.check_substitution_file(env)
 
         # Initialize orchestrator
-        orchestrator = ActionOrchestrator(project_root)
+        orchestrator = ActionOrchestrator(project_root, max_workers=max_workers)
 
         # Determine which pipelines to validate (also returns discovered flowgroups)
         pipelines_to_validate, all_flowgroups = self._determine_pipelines_to_validate(
             pipeline, orchestrator
         )
 
-        # Validate all pipelines
+        # Validate all pipelines (raw user value passed through facade)
         total_errors, total_warnings = self._validate_all_pipelines(
             pipelines_to_validate,
             env,
             orchestrator,
             include_tests=include_tests,
             all_flowgroups=all_flowgroups,
+            max_workers=max_workers,
         )
 
         # Validate test reporting configuration (reuses already-discovered flowgroups)
@@ -211,52 +220,83 @@ class ValidateCommand(BaseCommand):
         orchestrator: ActionOrchestrator,
         include_tests: bool = True,
         all_flowgroups: Optional[list] = None,
+        *,
+        max_workers: Optional[int] = None,
     ) -> Tuple[int, int]:
         """
-        Validate all specified pipelines.
+        Validate all specified pipelines through the application facade.
+
+        Routes the validate path through
+        :meth:`LakehousePlumberApplicationFacade.validate_pipelines` so the
+        layered dependency direction matches the generate command
+        (CLI → facade → orchestrator). The per-pipeline display fires via
+        the ``on_pipeline_complete`` callback on the main thread (display
+        order is completion order, not input order — acceptable because
+        each line is self-contained).
 
         Args:
-            pipelines_to_validate: List of pipeline names to validate
-            env: Environment name
-            orchestrator: Action orchestrator instance
+            pipelines_to_validate: List of pipeline names to validate.
+            env: Environment name.
+            orchestrator: Action orchestrator instance (wrapped in a
+                facade internally; passed in to reuse the caller's
+                already-constructed instance).
             include_tests: If False, skip test actions during validation.
             all_flowgroups: Pre-discovered flowgroups to avoid redundant scans.
+            max_workers: Raw user-supplied thread-pool size. ``None``
+                lets the orchestrator's constructor default
+                (``min(cpu_count, 8)``) take over.
 
         Returns:
-            Tuple of (total_errors, total_warnings)
+            Tuple of (total_errors, total_warnings).
         """
+        from ...core.layers import (
+            LakehousePlumberApplicationFacade,
+            ValidationResponse,
+        )
+
+        # Wrap the orchestrator in a facade. Validation never touches state,
+        # so state_manager=None is correct here.
+        application_facade = LakehousePlumberApplicationFacade(orchestrator, None)
+
         total_errors = 0
         total_warnings = 0
 
-        for pipeline_name in pipelines_to_validate:
-            logger.debug(f"Starting validation for pipeline: {pipeline_name}")
-            click.echo(f"\n🔧 Validating pipeline: {pipeline_name}")
+        click.echo(
+            f"\n🔧 Validating {len(pipelines_to_validate)} pipeline(s) in parallel"
+        )
 
-            try:
-                # Validate pipeline using orchestrator by field
-                errors, warnings = orchestrator.validate_pipeline_by_field(
-                    pipeline_name,
-                    env,
-                    include_tests=include_tests,
-                    pre_discovered_all_flowgroups=all_flowgroups,
-                )
+        def _on_complete(pipeline_name: str, response: "ValidationResponse") -> None:
+            nonlocal total_errors, total_warnings
+            pipeline_errors = len(response.errors)
+            pipeline_warnings = len(response.warnings)
+            total_errors += pipeline_errors
+            total_warnings += pipeline_warnings
 
-                pipeline_errors = len(errors)
-                pipeline_warnings = len(warnings)
-                total_errors += pipeline_errors
-                total_warnings += pipeline_warnings
+            # Display per-pipeline result on the main thread, in completion
+            # order (the facade forwards callbacks one-at-a-time).
+            self._display_pipeline_validation_results(
+                pipeline_name,
+                pipeline_errors,
+                pipeline_warnings,
+                list(response.errors),
+                list(response.warnings),
+            )
 
-                # Show results for this pipeline
-                self._display_pipeline_validation_results(
-                    pipeline_name, pipeline_errors, pipeline_warnings, errors, warnings
-                )
+        batch_response = application_facade.validate_pipelines(
+            pipeline_fields=pipelines_to_validate,
+            env=env,
+            include_tests=include_tests,
+            pre_discovered_all_flowgroups=all_flowgroups,
+            max_workers=max_workers,
+            on_pipeline_complete=_on_complete,
+        )
 
-            except Exception as e:
-                logger.warning(f"Validation error for pipeline '{pipeline_name}': {e}")
-                click.echo(f"❌ Validation for pipeline '{pipeline_name}' failed: {e}")
-                if self.log_file:
-                    click.echo(f"📝 Check detailed logs: {self.log_file}")
-                total_errors += 1
+        if batch_response.original_error is not None:
+            logger.warning(f"Batch validation raised: {batch_response.original_error}")
+            click.echo(f"❌ Batch validation failed: {batch_response.original_error}")
+            if self.log_file:
+                click.echo(f"📝 Check detailed logs: {self.log_file}")
+            total_errors += 1
 
         return total_errors, total_warnings
 
@@ -281,9 +321,7 @@ class ValidateCommand(BaseCommand):
             return
 
         if pipeline_errors > 0:
-            click.echo(
-                f"❌ Pipeline '{pipeline_name}' has {pipeline_errors} error(s)"
-            )
+            click.echo(f"❌ Pipeline '{pipeline_name}' has {pipeline_errors} error(s)")
             for error in errors:
                 if self.verbose:
                     # Full formatted LHPError block (or raw string for non-LHP errors).
@@ -302,9 +340,7 @@ class ValidateCommand(BaseCommand):
                     click.echo(f"   {self._summarize_error(warning)}")
 
         if not self.verbose:
-            click.echo(
-                "   (use --verbose for full details, suggestions, and context)"
-            )
+            click.echo("   (use --verbose for full details, suggestions, and context)")
 
     @staticmethod
     def _summarize_error(message: str) -> str:

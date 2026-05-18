@@ -1,10 +1,10 @@
 """Error formatter for user-friendly error messages."""
 
-from typing import List, Optional, Dict, Any, Union
-from enum import Enum
-from pathlib import Path
 import textwrap
 from difflib import get_close_matches
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 
 class ErrorCategory(Enum):
@@ -39,6 +39,7 @@ class LHPError(Exception):
         doc_link: Optional[str] = None,
     ):
         self.category = category
+        self.code_number = code_number
         self.code = f"LHP-{category.value}-{code_number}"
         self.title = title
         self.details = details
@@ -46,7 +47,8 @@ class LHPError(Exception):
         self.example = example
         self.context = context or {}
         self.doc_link = (
-            doc_link or "https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html"
+            doc_link
+            or "https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html"
         )
 
         # Format the complete error message
@@ -92,6 +94,21 @@ class LHPError(Exception):
         lines.append("=" * 70)
 
         return "\n".join(lines)
+
+    def __reduce__(self):
+        return (
+            self.__class__,
+            (
+                self.category,
+                self.code_number,
+                self.title,
+                self.details,
+                self.suggestions,
+                self.example,
+                self.context,
+                self.doc_link,
+            ),
+        )
 
 
 class LHPValidationError(LHPError, ValueError):
@@ -143,6 +160,9 @@ class MultiDocumentError(LHPError):
         """
         # Normalize to Path for consistent handling
         file_path = Path(file_path)
+        self.file_path = file_path
+        self.num_documents = num_documents
+        self.error_context = error_context
         context_str = error_context or f"YAML file {file_path}"
 
         if num_documents == 0:
@@ -169,6 +189,12 @@ class MultiDocumentError(LHPError):
             details=details,
             suggestions=suggestions,
             context={"file_path": str(file_path), "num_documents": num_documents},
+        )
+
+    def __reduce__(self):
+        return (
+            self.__class__,
+            (self.file_path, self.num_documents, self.error_context),
         )
 
 

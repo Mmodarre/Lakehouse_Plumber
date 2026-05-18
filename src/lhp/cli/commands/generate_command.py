@@ -2,19 +2,16 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import click
 
 from ...bundle.exceptions import BundleResourceError
 from ...bundle.manager import BundleManager
-from ...utils.performance_timer import log_perf_summary, perf_timer
 from ...core.layers import (
     AnalysisResponse,
     GenerationResponse,
     LakehousePlumberApplicationFacade,
-    PipelineGenerationRequest,
-    PresentationLayer,
     StalenessAnalysisRequest,
     ValidationResponse,
 )
@@ -23,6 +20,7 @@ from ...core.state.checksum_cache import ChecksumCache
 from ...core.state_manager import StateManager
 from ...models.config import FlowGroup
 from ...utils.bundle_detection import should_enable_bundle_support
+from ...utils.performance_timer import log_perf_summary, perf_timer
 from .base_command import BaseCommand
 
 logger = logging.getLogger(__name__)
@@ -50,6 +48,8 @@ class GenerateCommand(BaseCommand):
         no_bundle: bool = False,
         include_tests: bool = False,
         pipeline_config: Optional[str] = None,
+        *,
+        max_workers: Optional[int] = None,
     ) -> None:
         """
         Execute the generate command using clean architecture.
@@ -94,7 +94,7 @@ class GenerateCommand(BaseCommand):
         # 4. Initialize application layer facade
         with perf_timer("Orchestrator init", phase=True):
             application_facade = self._create_application_facade(
-                project_root, no_cleanup, pipeline_config
+                project_root, no_cleanup, pipeline_config, max_workers=max_workers
             )
 
         # 5. Discover all flowgroups ONCE (used by cleanup, analysis, and generation)
@@ -160,45 +160,49 @@ class GenerateCommand(BaseCommand):
                 all_flowgroups=all_flowgroups,
             )
 
-        # 9. Execute generation for each pipeline (pure coordination)
-        total_files = 0
-        all_generated_files = {}
+        # 9. Execute generation for ALL pipelines via the flat-pool batch
+        #    facade method. Per-pipeline ✅ / ❌ display happens in real time
+        #    via the on_pipeline_complete callback (fired on the main thread).
+        #    Aggregate exit-code-mapping happens at the fail-fast boundary
+        #    below by re-raising original_error to cli_error_boundary.
+        def _display_per_pipeline(
+            pipeline_name: str, response: GenerationResponse
+        ) -> None:
+            self._display_generation_response(response, pipeline_name)
 
-        for pipeline_identifier in pipelines_to_generate:
-            logger.debug(f"Starting generation for pipeline: {pipeline_identifier}")
-            with perf_timer(f"Pipeline generation [{pipeline_identifier}]", phase=True):
-                response = self._execute_pipeline_generation(
-                    application_facade,
-                    pipeline_identifier,
-                    env,
-                    output_dir,
-                    dry_run,
-                    force,
-                    include_tests,
-                    no_cleanup,
-                    pipeline_config,
-                    all_flowgroups=all_flowgroups,
-                )
+        with perf_timer(
+            f"Batch pipeline generation [{len(pipelines_to_generate)}]",
+            phase=True,
+        ):
+            batch_response = application_facade.generate_pipelines(
+                pipeline_fields=pipelines_to_generate,
+                env=env,
+                output_dir=output_dir if not dry_run else None,
+                force_all=force,
+                specific_flowgroups=None,
+                include_tests=include_tests,
+                no_cleanup=no_cleanup,
+                pre_discovered_all_flowgroups=all_flowgroups,
+                max_workers=max_workers,
+                on_pipeline_complete=_display_per_pipeline,
+            )
 
-            # Display results (presentation)
-            self._display_generation_response(response, pipeline_identifier)
+        if not batch_response.is_successful():
+            # Fail-fast at the boundary: re-raise the underlying aggregate
+            # exception so cli_error_boundary formats it and maps the LHP
+            # code to a POSIX exit code. Note: with the flat-pool engine,
+            # by the time we get here all pipelines have completed Phase A
+            # AND their Phase B has run on the main thread — successful
+            # pipelines' state is already persisted by per-pipeline atomic
+            # save in _assemble_pipeline_outputs.
+            if batch_response.original_error is not None:
+                raise batch_response.original_error
+            raise RuntimeError(
+                batch_response.error_message or "Batch pipeline generation failed"
+            )
 
-            if not response.is_successful():
-                # Fail-fast: re-raise the original exception. The outer
-                # ``cli_error_boundary`` decorator on the ``generate`` command
-                # turns it into the full formatted block + POSIX exit code.
-                # ``original_error`` is always populated when ``success`` is
-                # False (see ``LakehousePlumberApplicationFacade.generate_pipeline``);
-                # fall back to a plain RuntimeError only as a defensive guard.
-                if response.original_error is not None:
-                    raise response.original_error
-                raise RuntimeError(
-                    response.error_message
-                    or f"Pipeline '{pipeline_identifier}' generation failed"
-                )
-
-            total_files += response.files_written
-            all_generated_files.update(response.generated_files)
+        total_files = batch_response.total_files_written
+        all_generated_files = dict(batch_response.aggregate_generated_files)
 
         # 9.5. Finalize monitoring artifacts (after all pipelines generated)
         if not dry_run:
@@ -247,10 +251,14 @@ class GenerateCommand(BaseCommand):
         project_root: Path,
         no_cleanup: bool,
         pipeline_config_path: Optional[str] = None,
+        *,
+        max_workers: Optional[int] = None,
     ) -> LakehousePlumberApplicationFacade:
         """Create application facade for business layer access."""
         orchestrator = ActionOrchestrator(
-            project_root, pipeline_config_path=pipeline_config_path
+            project_root,
+            pipeline_config_path=pipeline_config_path,
+            max_workers=max_workers,
         )
         state_manager = (
             StateManager(project_root, yaml_parser=orchestrator.cached_yaml_parser)
@@ -258,42 +266,6 @@ class GenerateCommand(BaseCommand):
             else None
         )
         return LakehousePlumberApplicationFacade(orchestrator, state_manager)
-
-    def _execute_pipeline_generation(
-        self,
-        application_facade: LakehousePlumberApplicationFacade,
-        pipeline_identifier: str,
-        env: str,
-        output_dir: Path,
-        dry_run: bool,
-        force: bool,
-        include_tests: bool,
-        no_cleanup: bool,
-        pipeline_config_path: Optional[str] = None,
-        all_flowgroups: Optional[List[FlowGroup]] = None,
-    ) -> GenerationResponse:
-        """Execute generation for single pipeline using application facade."""
-        logger.debug(
-            f"Building generation request for pipeline={pipeline_identifier}, "
-            f"output_dir={output_dir}"
-        )
-        # Create request DTO
-        request = PipelineGenerationRequest(
-            pipeline_identifier=pipeline_identifier,
-            environment=env,
-            include_tests=include_tests,
-            force_all=force,
-            specific_flowgroups=None,
-            output_directory=output_dir,
-            dry_run=dry_run,
-            no_cleanup=no_cleanup,
-            pipeline_config_path=pipeline_config_path,
-        )
-
-        # Delegate to application layer
-        return application_facade.generate_pipeline(
-            request, pre_discovered_all_flowgroups=all_flowgroups
-        )
 
     # ========================================================================
     # PURE PRESENTATION METHODS

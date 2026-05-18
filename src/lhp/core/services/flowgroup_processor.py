@@ -127,13 +127,19 @@ class FlowgroupProcessor:
                     template_preset_config = self.preset_manager.resolve_preset_chain(
                         template.presets
                     )
-                    flowgroup = self.apply_preset_config(flowgroup, template_preset_config)
+                    flowgroup = self.apply_preset_config(
+                        flowgroup, template_preset_config
+                    )
 
         # Step 2: Apply flowgroup-level presets (may override template presets)
         if flowgroup.presets:
             with perf_timer(f"fg_presets [{fg}]"):
-                self.logger.debug(f"Applying flowgroup-level presets: {flowgroup.presets}")
-                preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
+                self.logger.debug(
+                    f"Applying flowgroup-level presets: {flowgroup.presets}"
+                )
+                preset_config = self.preset_manager.resolve_preset_chain(
+                    flowgroup.presets
+                )
                 flowgroup = self.apply_preset_config(flowgroup, preset_config)
 
         # Step 3: Apply substitutions
@@ -220,7 +226,7 @@ class FlowgroupProcessor:
         # Step 5: Validate secret references
         with perf_timer(f"secret_validation [{fg}]"):
             secret_errors = self.secret_validator.validate_secret_references(
-                substitution_mgr.get_secret_references()
+                substitution_mgr.secret_references
             )
             if secret_errors:
                 from ...utils.error_formatter import ErrorCategory

@@ -140,7 +140,6 @@ class StateManager:
         environment: str,
         pipeline: str,
         flowgroup: str,
-        used_substitution_keys: Optional[List[str]] = None,
     ) -> None:
         """
         Track a generated file in the state with dependency resolution.
@@ -151,7 +150,6 @@ class StateManager:
             environment: Environment name
             pipeline: Pipeline name
             flowgroup: FlowGroup name
-            used_substitution_keys: Optional list of substitution keys used during generation
         """
         self.tracker.track_generated_file(
             self._state,
@@ -160,7 +158,6 @@ class StateManager:
             environment,
             pipeline,
             flowgroup,
-            used_substitution_keys,
         )
 
     def track_pipeline_artifact(

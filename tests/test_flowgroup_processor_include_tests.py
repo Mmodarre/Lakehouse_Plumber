@@ -5,20 +5,20 @@ before expensive processing (presets, substitution, validation). Integration tes
 verify the parameter threads correctly through orchestrator.validate_pipeline_by_field.
 """
 
-import pytest
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from lhp.core.secret_validator import SecretValidator
 from lhp.core.services.flowgroup_processor import FlowgroupProcessor
 from lhp.core.template_engine import TemplateEngine
-from lhp.presets.preset_manager import PresetManager
 from lhp.core.validator import ConfigValidator
-from lhp.core.secret_validator import SecretValidator
-from lhp.models.config import FlowGroup, Action, ActionType
-from lhp.utils.substitution import EnhancedSubstitutionManager
+from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.presets.preset_manager import PresetManager
 from lhp.utils.error_formatter import LHPValidationError
-
+from lhp.utils.substitution import EnhancedSubstitutionManager
 
 # ============================================================================
 # Fixtures
@@ -265,8 +265,7 @@ class TestValidatePipelineIncludeTests:
 
         # Write a flowgroup with a valid load/write plus a test action missing
         # required fields (uniqueness requires 'columns')
-        (pipelines_dir / "test_fg.yaml").write_text(
-            """pipeline: test_pipeline
+        (pipelines_dir / "test_fg.yaml").write_text("""pipeline: test_pipeline
 flowgroup: test_fg
 actions:
   - name: load_data
@@ -286,8 +285,7 @@ actions:
     type: test
     test_type: uniqueness
     source: v_data
-"""
-        )
+""")
 
     def test_validate_skips_test_actions_when_false(self, tmp_path):
         """validate_pipeline_by_field(include_tests=False) skips test action errors."""
@@ -299,9 +297,9 @@ actions:
         errors, _ = orchestrator.validate_pipeline_by_field(
             "test_pipeline", "dev", include_tests=False
         )
-        assert len(errors) == 0, (
-            f"Expected no errors with include_tests=False, got: {errors}"
-        )
+        assert (
+            len(errors) == 0
+        ), f"Expected no errors with include_tests=False, got: {errors}"
 
     def test_validate_catches_test_actions_when_true(self, tmp_path):
         """validate_pipeline_by_field(include_tests=True) catches test action errors.
@@ -317,48 +315,46 @@ actions:
         errors, _ = orchestrator.validate_pipeline_by_field(
             "test_pipeline", "dev", include_tests=True
         )
-        assert len(errors) > 0, (
-            "Expected validation errors with include_tests=True for missing columns"
-        )
+        assert (
+            len(errors) > 0
+        ), "Expected validation errors with include_tests=True for missing columns"
 
     def test_validate_passes_include_tests_through_chain(self):
-        """Verify include_tests is forwarded from orchestrator to processor."""
-        from lhp.core.orchestrator import ActionOrchestrator
+        """Worker function forwards include_tests to processor.process_flowgroup.
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp_path = Path(tmpdir)
-            (tmp_path / "lhp.yaml").write_text("project_name: test\n")
-            (tmp_path / "substitutions").mkdir()
-            (tmp_path / "substitutions" / "dev.yaml").write_text("{}")
-            pipelines_dir = tmp_path / "pipelines" / "test_pipeline"
-            pipelines_dir.mkdir(parents=True)
-            (pipelines_dir / "simple.yaml").write_text(
-                """pipeline: test_pipeline
-flowgroup: simple_fg
-actions:
-  - name: load_data
-    type: load
-    source:
-      type: sql
-      sql: "SELECT 1 as id"
-    target: v_data
-"""
-            )
+        Under ProcessPoolExecutor the orchestrator dispatches to a worker
+        process via functools.partial; a MagicMock patched on the main-process
+        processor cannot observe calls inside a spawn child. Verifying the
+        contract at the worker boundary — which is where the kwarg is actually
+        forwarded — is both correct and testable.
+        """
+        from lhp.core.pipeline_executor import _process_flowgroup_for_validate
 
-            orchestrator = ActionOrchestrator(tmp_path)
+        fg = FlowGroup(
+            pipeline="test_pipeline",
+            flowgroup="simple_fg",
+            actions=[
+                Action(
+                    name="load_data",
+                    type=ActionType.LOAD,
+                    source={"type": "sql", "sql": "SELECT 1 as id"},
+                    target="v_data",
+                ),
+            ],
+        )
+        mock_processor = MagicMock()
+        substitution_mgr = MagicMock(spec=EnhancedSubstitutionManager)
 
-            # Patch the processor to verify include_tests is passed
-            with patch.object(
-                orchestrator.processor, "process_flowgroup", wraps=orchestrator.processor.process_flowgroup
-            ) as mock_process:
-                orchestrator.validate_pipeline_by_field(
-                    "test_pipeline", "dev", include_tests=False
-                )
+        _process_flowgroup_for_validate(
+            fg,
+            processor=mock_processor,
+            substitution_mgr=substitution_mgr,
+            include_tests=False,
+        )
 
-                # Verify process_flowgroup was called with include_tests=False
-                assert mock_process.called
-                call_kwargs = mock_process.call_args
-                assert call_kwargs.kwargs.get("include_tests") is False
+        assert mock_processor.process_flowgroup.called
+        call_kwargs = mock_processor.process_flowgroup.call_args
+        assert call_kwargs.kwargs.get("include_tests") is False
 
 
 if __name__ == "__main__":

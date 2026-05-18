@@ -1,10 +1,20 @@
 """Clean Architecture layer definitions for LakehousePlumber."""
 
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Sequence, Set, Tuple, TYPE_CHECKING
-from dataclasses import dataclass, field
 import logging
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+)
 
 from ..utils.performance_timer import perf_timer
 
@@ -75,6 +85,28 @@ class GenerationResponse:
 
 
 @dataclass
+class BatchGenerationResponse:
+    """Aggregate response for a multi-pipeline generation run.
+
+    The flat-pool architecture raises aggregate errors only at the end, so
+    some pipelines may have completed successfully — their state is already
+    persisted via per-pipeline atomic save. ``original_error`` carries the
+    underlying exception for the fail-fast boundary to re-raise.
+    """
+
+    success: bool
+    pipeline_responses: Dict[str, "GenerationResponse"]
+    total_files_written: int
+    aggregate_generated_files: Dict[str, str]
+    output_location: Optional[Path]
+    error_message: Optional[str] = None
+    original_error: Optional[Exception] = None
+
+    def is_successful(self) -> bool:
+        return self.success
+
+
+@dataclass
 class ValidationResponse:
     """DTO for validation responses."""
 
@@ -91,6 +123,27 @@ class ValidationResponse:
     def has_warnings(self) -> bool:
         """Check if validation found warnings."""
         return len(self.warnings) > 0
+
+
+@dataclass
+class BatchValidationResponse:
+    """Aggregate response for a multi-pipeline validation run.
+
+    Mirrors :class:`BatchGenerationResponse`. ``original_error`` carries any
+    batch-level exception while ``pipeline_responses`` preserves the
+    per-pipeline outcomes captured before the failure.
+    """
+
+    success: bool
+    pipeline_responses: Dict[str, "ValidationResponse"]
+    total_errors: int
+    total_warnings: int
+    validated_pipelines: List[str]
+    error_message: Optional[str] = None
+    original_error: Optional[Exception] = None
+
+    def is_successful(self) -> bool:
+        return self.success
 
 
 @dataclass
@@ -259,8 +312,12 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 generated_files = self.orchestrator.generate_pipeline_by_field(
                     pipeline_field=request.pipeline_identifier,
                     env=request.environment,
-                    output_dir=request.output_directory if not request.dry_run else None,
-                    state_manager=self.state_manager if not request.no_cleanup else None,
+                    output_dir=(
+                        request.output_directory if not request.dry_run else None
+                    ),
+                    state_manager=(
+                        self.state_manager if not request.no_cleanup else None
+                    ),
                     force_all=request.force_all,
                     specific_flowgroups=request.specific_flowgroups,
                     include_tests=request.include_tests,
@@ -306,6 +363,281 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 performance_info={},
                 error_message=str(e),
                 original_error=e,
+            )
+
+    def generate_pipelines(
+        self,
+        *,
+        pipeline_fields: Sequence[str],
+        env: str,
+        output_dir: Optional[Path],
+        force_all: bool = False,
+        specific_flowgroups: Optional[List[str]] = None,
+        include_tests: bool = False,
+        no_cleanup: bool = False,
+        pre_discovered_all_flowgroups=None,
+        max_workers: Optional[int] = None,
+        on_pipeline_complete: Optional[
+            Callable[[str, "GenerationResponse"], None]
+        ] = None,
+    ) -> "BatchGenerationResponse":
+        """Coordinate batch (multi-pipeline) generation through the flat-pool engine.
+
+        Translates the orchestrator's per-pipeline
+        :class:`PipelineGenerationOutcome` into the presentation-layer
+        :class:`GenerationResponse`, forwarding each one to the optional
+        ``on_pipeline_complete`` callback in completion order. After the
+        pool returns (or raises the aggregate error), builds the
+        :class:`BatchGenerationResponse` with aggregate stats.
+
+        Failed-pipeline state has already been left UNsaved by the
+        orchestrator's per-pipeline atomic save (the save call comes at the
+        tail of ``_assemble_pipeline_outputs`` AFTER all validation /
+        track operations; a raise mid-flow short-circuits the save for
+        THAT pipeline only).
+
+        Args:
+            pipeline_fields: Pipeline names to generate.
+            env: Environment name.
+            output_dir: Output root (``None`` for dry-run).
+            force_all: Bypass smart staleness filtering.
+            specific_flowgroups: Optional whitelist.
+            include_tests: Include test actions.
+            no_cleanup: When True, state_manager is not used (no state tracking).
+            pre_discovered_all_flowgroups: Re-use caller's one-shot discovery.
+            max_workers: Override thread-pool size; ``None`` falls back to the
+                orchestrator's constructor value.
+            on_pipeline_complete: Main-thread callback fired once per pipeline
+                with ``(pipeline_name, GenerationResponse)``. Failures are
+                caught and forwarded as ``GenerationResponse(success=False,
+                original_error=...)``.
+
+        Returns:
+            :class:`BatchGenerationResponse` with per-pipeline responses,
+            aggregate totals, and (on failure) the underlying aggregate
+            exception preserved for re-raise at the CLI fail-fast boundary.
+        """
+        from .pipeline_executor import PipelineGenerationOutcome
+
+        pipeline_responses: Dict[str, "GenerationResponse"] = {}
+
+        def _on_outcome(outcome: "PipelineGenerationOutcome") -> None:
+            # Build per-pipeline GenerationResponse from the orchestrator's
+            # PipelineGenerationOutcome. We keep the orchestrator's outcome
+            # type orchestrator-internal so the presentation layer only
+            # ever sees the DTO.
+            response = GenerationResponse(
+                success=outcome.success,
+                generated_files=dict(outcome.generated_files),
+                files_written=outcome.files_written,
+                # Match the legacy `generate_pipeline` semantics: this field
+                # is displayed as "Would generate N file(s)" in dry-run, so
+                # it is the count of generated FILES (not the count of
+                # flowgroups processed). Empty flowgroups produce 0 files.
+                total_flowgroups=len(outcome.generated_files),
+                output_location=output_dir,
+                performance_info={
+                    "dry_run": output_dir is None,
+                    "force_all": force_all,
+                    "include_tests": include_tests,
+                    "flowgroups_failed": outcome.flowgroups_failed,
+                },
+                error_message=(
+                    str(outcome.error) if outcome.error is not None else None
+                ),
+                original_error=(
+                    outcome.error
+                    if (not outcome.success and outcome.error is not None)
+                    else None
+                ),
+            )
+            pipeline_responses[outcome.pipeline] = response
+            if on_pipeline_complete is not None:
+                try:
+                    on_pipeline_complete(outcome.pipeline, response)
+                except BaseException as cb_exc:
+                    # The orchestrator already logs callback exceptions; we
+                    # add a facade-level safety net so a buggy CLI display
+                    # never tears down the batch.
+                    self.logger.warning(
+                        f"on_pipeline_complete callback raised "
+                        f"for {outcome.pipeline}: {cb_exc}"
+                    )
+
+        try:
+            with perf_timer(f"facade.generate_pipelines [{len(pipeline_fields)}]"):
+                self.orchestrator.generate_pipelines_by_fields(
+                    pipeline_fields=list(pipeline_fields),
+                    env=env,
+                    output_dir=output_dir,
+                    state_manager=self.state_manager if not no_cleanup else None,
+                    force_all=force_all,
+                    specific_flowgroups=specific_flowgroups,
+                    include_tests=include_tests,
+                    pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+                    max_workers=max_workers,
+                    on_pipeline_complete=_on_outcome,
+                )
+
+            aggregate: Dict[str, str] = {}
+            total_written = 0
+            for r in pipeline_responses.values():
+                aggregate.update(r.generated_files)
+                total_written += r.files_written
+
+            return BatchGenerationResponse(
+                success=True,
+                pipeline_responses=pipeline_responses,
+                total_files_written=total_written,
+                aggregate_generated_files=aggregate,
+                output_location=output_dir,
+            )
+
+        except Exception as exc:
+            # Aggregate error path: the orchestrator raised after some
+            # pipelines may already have succeeded. Surface what completed.
+            from ..utils.error_formatter import LHPError
+
+            if isinstance(exc, LHPError):
+                self.logger.debug(
+                    f"Batch pipeline generation failed: "
+                    f"{len(pipeline_responses)} pipeline(s) had outcomes captured"
+                )
+            else:
+                self.logger.error(f"Batch pipeline generation failed: {exc}")
+
+            aggregate: Dict[str, str] = {}
+            total_written = 0
+            for r in pipeline_responses.values():
+                if r.success:
+                    aggregate.update(r.generated_files)
+                    total_written += r.files_written
+
+            return BatchGenerationResponse(
+                success=False,
+                pipeline_responses=pipeline_responses,
+                total_files_written=total_written,
+                aggregate_generated_files=aggregate,
+                output_location=None,
+                error_message=str(exc),
+                original_error=exc,
+            )
+
+    def validate_pipelines(
+        self,
+        *,
+        pipeline_fields: Sequence[str],
+        env: str,
+        max_workers: Optional[int] = None,
+        on_pipeline_complete: Optional[
+            Callable[[str, "ValidationResponse"], None]
+        ] = None,
+        include_tests: bool = True,
+        pre_discovered_all_flowgroups=None,
+    ) -> "BatchValidationResponse":
+        """Coordinate batch (multi-pipeline) validation through the flat-pool engine.
+
+        Mirrors :meth:`generate_pipelines` for the validate path: same
+        layered dependency direction (CLI → facade → orchestrator), same
+        per-pipeline callback semantics, same aggregate-error surface.
+        Validation has no Phase B file writes or state save, so the DTO
+        is simpler — only error / warning tallies.
+
+        Failed-pipeline state is irrelevant here (validation never persists
+        anything), so the aggregate-error path simply preserves whatever
+        per-pipeline outcomes were captured before the underlying call
+        raised.
+
+        Args:
+            pipeline_fields: Pipeline names to validate.
+            env: Environment name.
+            max_workers: Override thread-pool size; ``None`` falls back to
+                the orchestrator's constructor value.
+            on_pipeline_complete: Main-thread callback fired once per
+                pipeline with ``(pipeline_name, ValidationResponse)`` in
+                completion order. Failures are caught and logged; the
+                batch is not torn down by a bad callback.
+            include_tests: When False, test actions are filtered before
+                processing (matches the orchestrator's default behaviour).
+            pre_discovered_all_flowgroups: Re-use the caller's one-shot
+                discovery results to avoid scanning twice.
+
+        Returns:
+            :class:`BatchValidationResponse` with per-pipeline responses,
+            aggregate totals, and (on failure) the underlying aggregate
+            exception preserved for re-raise at the CLI fail-fast
+            boundary.
+        """
+        from .pipeline_executor import PipelineValidationOutcome
+
+        pipeline_responses: Dict[str, "ValidationResponse"] = {}
+
+        def _on_outcome(outcome: "PipelineValidationOutcome") -> None:
+            response = ValidationResponse(
+                success=outcome.success,
+                errors=list(outcome.errors),
+                warnings=list(outcome.warnings),
+                validated_pipelines=[outcome.pipeline],
+            )
+            pipeline_responses[outcome.pipeline] = response
+            if on_pipeline_complete is not None:
+                try:
+                    on_pipeline_complete(outcome.pipeline, response)
+                except BaseException as cb_exc:
+                    # The orchestrator already logs callback exceptions; we
+                    # add a facade-level safety net so a buggy CLI display
+                    # never tears down the batch.
+                    self.logger.warning(
+                        f"on_pipeline_complete callback raised "
+                        f"for {outcome.pipeline}: {cb_exc}"
+                    )
+
+        try:
+            with perf_timer(f"facade.validate_pipelines [{len(pipeline_fields)}]"):
+                self.orchestrator.validate_pipelines_by_fields(
+                    pipeline_fields=list(pipeline_fields),
+                    env=env,
+                    include_tests=include_tests,
+                    pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+                    max_workers=max_workers,
+                    on_pipeline_complete=_on_outcome,
+                )
+
+            total_errors = sum(len(r.errors) for r in pipeline_responses.values())
+            total_warnings = sum(len(r.warnings) for r in pipeline_responses.values())
+
+            return BatchValidationResponse(
+                success=total_errors == 0,
+                pipeline_responses=pipeline_responses,
+                total_errors=total_errors,
+                total_warnings=total_warnings,
+                validated_pipelines=list(pipeline_fields),
+            )
+
+        except Exception as exc:
+            # Aggregate error path: surface what completed and preserve
+            # the underlying exception for the CLI's fail-fast boundary.
+            from ..utils.error_formatter import LHPError
+
+            if isinstance(exc, LHPError):
+                self.logger.debug(
+                    f"Batch pipeline validation failed: "
+                    f"{len(pipeline_responses)} pipeline(s) had outcomes captured"
+                )
+            else:
+                self.logger.error(f"Batch pipeline validation failed: {exc}")
+
+            total_errors = sum(len(r.errors) for r in pipeline_responses.values())
+            total_warnings = sum(len(r.warnings) for r in pipeline_responses.values())
+
+            return BatchValidationResponse(
+                success=False,
+                pipeline_responses=pipeline_responses,
+                total_errors=total_errors,
+                total_warnings=total_warnings,
+                validated_pipelines=list(pipeline_fields),
+                error_message=str(exc),
+                original_error=exc,
             )
 
     def validate_pipeline(
