@@ -111,6 +111,40 @@ class LHPError(Exception):
         )
 
 
+    @classmethod
+    def from_worker_exception(
+        cls,
+        *,
+        pipeline_name: str,
+        error_type: str,
+        error_message: str,
+        error_traceback: str,
+    ) -> "LHPError":
+        """Reconstruct a worker-side exception as an LHPError on the main thread.
+
+        Used by the parallel pipeline executor to surface worker failures
+        through the project's unified error type without losing the worker's
+        original exception type or chained traceback. The full traceback is
+        preserved on ``worker_traceback`` so log handlers and CI surfaces can
+        capture it; ``worker_error_type`` carries the original exception class
+        name for structured error classification.
+        """
+        first_trace_line = error_traceback.strip().splitlines()[-1] if error_traceback else ""
+        details = error_message or "(no message)"
+        if first_trace_line and first_trace_line not in details:
+            details = f"{details}\n[{first_trace_line}]"
+        err = cls(
+            category=ErrorCategory.GENERAL,
+            code_number="901",
+            title=f"Pipeline '{pipeline_name}' failed in worker ({error_type})",
+            details=details,
+            context={"pipeline": pipeline_name, "worker_exception": error_type},
+        )
+        err.worker_error_type = error_type
+        err.worker_traceback = error_traceback
+        return err
+
+
 class LHPValidationError(LHPError, ValueError):
     """LHPError subclass that is also a ValueError.
 
@@ -139,6 +173,52 @@ class LHPFileError(LHPError, FileNotFoundError):
     """
 
     pass
+
+
+
+_WORKER_ERROR_TYPE_TO_LHP_CLASS: Dict[str, type] = {
+    # LHP errors round-trip back to their own class so existing handler
+    # specificity is preserved.
+    "LHPError": LHPError,
+    "LHPValidationError": LHPValidationError,
+    "LHPConfigError": LHPConfigError,
+    "LHPFileError": LHPFileError,
+    # Common stdlib exception names map to the LHP subclass that carries
+    # the matching dual inheritance, so legacy ``except ValueError`` /
+    # ``except FileNotFoundError`` handlers still catch worker failures
+    # surfaced across the spawn boundary.
+    "ValueError": LHPValidationError,
+    "FileNotFoundError": LHPFileError,
+    "OSError": LHPFileError,
+    "IOError": LHPFileError,
+    "PermissionError": LHPFileError,
+    "IsADirectoryError": LHPFileError,
+    "NotADirectoryError": LHPFileError,
+}
+
+
+def lhp_error_from_worker_failure(
+    *,
+    pipeline_name: str,
+    error_type: str,
+    error_message: str,
+    error_traceback: str,
+) -> LHPError:
+    """Reconstruct a worker-side exception with type fidelity preserved.
+
+    Dispatches to the right :class:`LHPError` subclass based on
+    ``error_type`` so that callers catching ``ValueError`` /
+    ``FileNotFoundError`` / etc. continue to catch worker failures the
+    same way they caught them when generation ran in the main thread.
+    Unknown types fall back to plain :class:`LHPError`.
+    """
+    target_cls = _WORKER_ERROR_TYPE_TO_LHP_CLASS.get(error_type, LHPError)
+    return target_cls.from_worker_exception(
+        pipeline_name=pipeline_name,
+        error_type=error_type,
+        error_message=error_message,
+        error_traceback=error_traceback,
+    )
 
 
 class MultiDocumentError(LHPError):

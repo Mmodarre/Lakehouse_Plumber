@@ -15,7 +15,7 @@ from lhp.core.services.blueprint_expander import BlueprintProvenance
 from lhp.core.state.dependency_tracker import DependencyTracker
 from lhp.core.state.state_cleanup_service import StateCleanupService
 from lhp.core.state_dependency_resolver import StateDependencyResolver
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 from lhp.core.state_models import FileState, ProjectState
 from lhp.models.config import FlowGroup
 from lhp.utils.error_formatter import LHPError
@@ -151,10 +151,23 @@ def test_cleanup_slow_path_skips_synthetic_files(tmp_path):
 
 
 def test_synthetic_flag_roundtrips_through_state_persistence(tmp_path):
-    """FileState.synthetic must persist through save/load via StateManager."""
-    sm = StateManager(tmp_path)
-    state = sm.state
-    state.environments["dev"] = {
+    """``FileState.synthetic`` must persist through worker shard save/load.
+
+    Worker writes the per-pipeline shard via
+    :class:`PipelineStateManager`; the aggregate manager surfaces it via
+    :meth:`load_all_pipeline_shards`. The ``synthetic`` flag is part of
+    the on-disk schema (introduced for blueprint expansion) so it round-
+    trips identically to any other ``FileState`` field.
+    """
+    from lhp.core.state.pipeline_state_manager import PipelineStateManager
+
+    pm = PipelineStateManager(
+        state_dir=tmp_path / ".lhp_state",
+        pipeline_name="site_a_raw",
+        environment="dev",
+        project_root=tmp_path,
+    )
+    pm._state.environments["dev"] = {
         "generated/dev/site_a.py": FileState(
             source_yaml="blueprints/erp.yaml",
             generated_path="generated/dev/site_a.py",
@@ -167,10 +180,12 @@ def test_synthetic_flag_roundtrips_through_state_persistence(tmp_path):
             synthetic=True,
         ),
     }
-    sm.save_state()
+    pm._dirty = True
+    pm.save()
 
-    sm2 = StateManager(tmp_path)
-    fs2 = sm2.state.environments["dev"]["generated/dev/site_a.py"]
+    sm2 = ProjectStateManager(tmp_path)
+    env_files = sm2.load_all_pipeline_shards("dev")
+    fs2 = env_files["generated/dev/site_a.py"]
     assert fs2.synthetic is True
 
 

@@ -357,6 +357,17 @@ def skill_uninstall(user: bool, force: bool) -> None:
     default=None,
     help="Maximum worker threads (default: min(cpu_count, 8)). Use 1 for sequential.",
 )
+@click.option(
+    "--no-state",
+    "no_state",
+    is_flag=True,
+    default=False,
+    help=(
+        "Skip state-file generation. Workers do not compute checksums; "
+        ".lhp_state/ is not written. Equivalent to --force on the next run "
+        "(everything regenerates)."
+    ),
+)
 @cli_error_boundary("Code generation")
 def generate(
     env,
@@ -369,6 +380,7 @@ def generate(
     include_tests,
     pipeline_config,
     max_workers,
+    no_state,
 ):
     """Generate DLT pipeline code"""
     from .commands.generate_command import GenerateCommand
@@ -384,6 +396,7 @@ def generate(
         include_tests,
         pipeline_config,
         max_workers=max_workers,
+        no_state=no_state,
     )
 
 

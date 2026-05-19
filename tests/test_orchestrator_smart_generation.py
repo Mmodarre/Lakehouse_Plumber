@@ -55,13 +55,14 @@ def test_env_wide_staleness_scan_runs_exactly_once(project, monkeypatch):
         sa_module.StateAnalyzer, "get_all_files_needing_generation", spy
     )
 
-    from lhp.core.state_manager import StateManager
+    from lhp.core.state_manager import ProjectStateManager
 
     orchestrator = ActionOrchestrator(project, enforce_version=False)
-    state_manager = StateManager(project)
-    # Bind the cache from the orchestrator's dependencies so display and
-    # filter share the same instance (matches generate_command wiring).
-    state_manager.set_staleness_cache(orchestrator.dependencies.staleness_cache)
+    # Bind the cache from the orchestrator's dependencies at construction
+    # so display and filter share the same instance.
+    state_manager = ProjectStateManager(
+        project, staleness_cache=orchestrator.dependencies.staleness_cache
+    )
 
     # Display phase: env-wide analysis
     analysis = orchestrator.analyze_generation_requirements(
@@ -98,12 +99,12 @@ def test_scan_runs_once_after_context_is_recorded(project, monkeypatch):
     """With a recorded generation context, both phases share a single scan."""
     from lhp.core.orchestrator import ActionOrchestrator
     from lhp.core.state import state_analyzer as sa_module
-    from lhp.core.state_manager import StateManager
+    from lhp.core.state_manager import ProjectStateManager
 
     # Pre-populate last_generation_context so the gate does not short-circuit.
-    state_manager = StateManager(project)
-    state_manager.record_generation_context("dev", include_tests=False)
-    state_manager.save()
+    ProjectStateManager(project).save_global(
+        last_generation_context={"dev": {"include_tests": "False"}}
+    )
 
     call_counter = {"n": 0}
     original = sa_module.StateAnalyzer.get_all_files_needing_generation
@@ -116,11 +117,12 @@ def test_scan_runs_once_after_context_is_recorded(project, monkeypatch):
         sa_module.StateAnalyzer, "get_all_files_needing_generation", spy
     )
 
-    # Rebuild state_manager so it sees the saved context
-    state_manager = StateManager(project)
-
+    # Rebuild state_manager so it sees the saved context, binding the
+    # staleness cache from the orchestrator at construction time.
     orchestrator = ActionOrchestrator(project, enforce_version=False)
-    state_manager.set_staleness_cache(orchestrator.dependencies.staleness_cache)
+    state_manager = ProjectStateManager(
+        project, staleness_cache=orchestrator.dependencies.staleness_cache
+    )
 
     orchestrator.analyze_generation_requirements(
         env="dev",
@@ -146,12 +148,13 @@ def test_save_invalidates_cache(project, monkeypatch):
     """After save() the next scan reloads (so state reflects the save)."""
     from lhp.core.orchestrator import ActionOrchestrator
     from lhp.core.state import state_analyzer as sa_module
-    from lhp.core.state_manager import StateManager
+    from lhp.core.state_manager import ProjectStateManager
 
-    state_manager = StateManager(project)
-    state_manager.record_generation_context("dev", include_tests=False)
-    state_manager.save()
-    state_manager = StateManager(project)
+    # Seed _global.json with a saved generation context so the reloaded
+    # state_manager below sees it (matches the post-generate state).
+    ProjectStateManager(project).save_global(
+        last_generation_context={"dev": {"include_tests": "False"}}
+    )
 
     call_counter = {"n": 0}
     original = sa_module.StateAnalyzer.get_all_files_needing_generation
@@ -165,7 +168,9 @@ def test_save_invalidates_cache(project, monkeypatch):
     )
 
     orchestrator = ActionOrchestrator(project, enforce_version=False)
-    state_manager.set_staleness_cache(orchestrator.dependencies.staleness_cache)
+    state_manager = ProjectStateManager(
+        project, staleness_cache=orchestrator.dependencies.staleness_cache
+    )
 
     orchestrator.analyze_generation_requirements(
         env="dev",
@@ -176,7 +181,7 @@ def test_save_invalidates_cache(project, monkeypatch):
     )
     assert call_counter["n"] == 1
 
-    state_manager.save()  # should invalidate the cache
+    state_manager.save_global()  # should invalidate the cache
 
     orchestrator.analyze_generation_requirements(
         env="dev",

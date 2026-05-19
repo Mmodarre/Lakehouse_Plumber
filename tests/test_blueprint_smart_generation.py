@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 from lhp.models.config import FlowGroup
 
 pytestmark = pytest.mark.unit
@@ -53,9 +53,9 @@ def _make_disk_fg(pipeline: str, flowgroup: str) -> FlowGroup:
     return FlowGroup(pipeline=pipeline, flowgroup=flowgroup, actions=[])
 
 
-def _seed_generation_context(sm: StateManager, env: str, include_tests: bool) -> None:
+def _seed_generation_context(sm: ProjectStateManager, env: str, include_tests: bool) -> None:
     """Make the include_tests gate a no-op so tests can isolate novelty logic."""
-    sm.state.last_generation_context[env] = {"include_tests": str(include_tests)}
+    sm._state.last_generation_context[env] = {"include_tests": str(include_tests)}
 
 
 def test_new_synthetic_flowgroup_picked_up_when_state_empty(tmp_path):
@@ -64,7 +64,7 @@ def test_new_synthetic_flowgroup_picked_up_when_state_empty(tmp_path):
     entries are stale."""
     project = _bootstrap_project(tmp_path)
     orch = ActionOrchestrator(project, enforce_version=False)
-    sm = StateManager(project)
+    sm = ProjectStateManager(project)
     _seed_generation_context(sm, "dev", False)
 
     # All synthetic — none of these tuples are tracked in state yet.
@@ -96,9 +96,9 @@ def test_synthetic_already_tracked_in_state_is_not_in_new_synthetic_set(tmp_path
 
     project = _bootstrap_project(tmp_path)
     orch = ActionOrchestrator(project, enforce_version=False)
-    sm = StateManager(project)
+    sm = ProjectStateManager(project)
     _seed_generation_context(sm, "dev", False)
-    sm.state.environments["dev"] = {
+    sm._state.environments["dev"] = {
         "generated/dev/site_a/orders.py": FileState(
             source_yaml="blueprints/erp.yaml",
             generated_path="generated/dev/site_a/orders.py",
@@ -149,7 +149,7 @@ def test_novelty_check_runs_before_empty_set_early_return(tmp_path):
     be dropped — this test guards against regression."""
     project = _bootstrap_project(tmp_path)
     orch = ActionOrchestrator(project, enforce_version=False)
-    sm = StateManager(project)
+    sm = ProjectStateManager(project)
     _seed_generation_context(sm, "dev", False)
     # State has nothing for this pipeline at all.
     all_flowgroups = [_make_synthetic_fg("new_pipeline", "new_fg")]
@@ -172,7 +172,7 @@ def test_disk_flowgroup_without_yaml_change_is_dropped_when_synthetic_pipeline(
     that the novelty path is synthetic-only."""
     project = _bootstrap_project(tmp_path)
     orch = ActionOrchestrator(project, enforce_version=False)
-    sm = StateManager(project)
+    sm = ProjectStateManager(project)
     _seed_generation_context(sm, "dev", False)
     all_flowgroups = [_make_disk_fg("p", "regular_fg")]
     filtered = orch._apply_smart_generation_filtering(

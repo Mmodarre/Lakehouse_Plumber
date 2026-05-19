@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 from ..models.config import FlowGroup
 from ..utils.error_formatter import ErrorCategory, LHPConfigError
 from .services.generation_planning_service import GenerationPlan
-from .state_manager import StateManager
+from .state_manager import ProjectStateManager
 
 
 class CommandResult:
@@ -141,7 +141,7 @@ class CommandContext:
         project_root: Path,
         env: str,
         orchestrator=None,
-        state_manager: StateManager = None,
+        state_manager: ProjectStateManager = None,
         **kwargs,
     ):
         self.project_root = project_root

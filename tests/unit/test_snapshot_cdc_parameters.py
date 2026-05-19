@@ -445,6 +445,8 @@ class TestParameterSubstitution:
             generator.generate(action, ctx)
 
             assert len(sub_mgr.secret_references) > 0
+        finally:
+            Path(fn).unlink()
 
 
 # ============================================================================

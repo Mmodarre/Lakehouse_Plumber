@@ -246,9 +246,10 @@ order. For the full reference see :doc:`bundle_config_reference`.
 When to force regeneration
 --------------------------
 
-LHP tracks per-file checksums in ``.lhp_state.json`` and regenerates only
-stale outputs. ``lhp generate`` is incremental by default; ``--force``
-wipes generated output and rebuilds every FlowGroup.
+LHP tracks per-file checksums in the per-pipeline shards under
+``.lhp_state/`` (as of 0.9.0) and regenerates only stale outputs.
+``lhp generate`` is incremental by default; ``--force`` wipes generated
+output and rebuilds every FlowGroup.
 
 .. list-table::
    :header-rows: 1

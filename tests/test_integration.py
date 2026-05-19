@@ -232,13 +232,30 @@ actions:
         # The wrapped-string form (which v0.8.8 §2 introduced and Option 1
         # reverts) would break JDBC auth at runtime — auth would receive
         # the literal call text instead of the resolved secret.
+        # Wrap-tolerant: black may break the .option(...) call across lines
+        # when the full single-line form is >88 chars (e.g. the password
+        # variant comes out at 89 chars, one over the configured limit).
+        # Normalise ALL whitespace to nothing so the wrapped form
+        # ``.option(\n    "password",\n    dbutils...)`` collapses to the
+        # same shape as the single-line form. The load-bearing distinction
+        # (bare ``dbutils.secrets.get(...)`` vs string-wrapped
+        # ``"dbutils.secrets.get..."``) is preserved by this normalisation
+        # because the quote character is a structural difference, not a
+        # whitespace one.
+        import re
+
+        compact_code = re.sub(r"\s+", "", code)
+
+        def _compact(s: str) -> str:
+            return re.sub(r"\s+", "", s)
+
         assert (
-            '.option("user", dbutils.secrets.get(scope="prod_db_secrets", key="username"))'
-            in code
+            _compact('.option("user", dbutils.secrets.get(scope="prod_db_secrets", key="username"))')
+            in compact_code
         ), "Expected bare dbutils call for 'user'; got:\n" + code
         assert (
-            '.option("password", dbutils.secrets.get(scope="prod_db_secrets", key="password"))'
-            in code
+            _compact('.option("password", dbutils.secrets.get(scope="prod_db_secrets", key="password"))')
+            in compact_code
         ), "Expected bare dbutils call for 'password'; got:\n" + code
 
         # Wrapped-string regression must not be present.

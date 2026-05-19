@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Protocol
 
 from ..models.config import FlowGroup
 from ..parsers.yaml_parser import YAMLParser
-from .state_manager import StateManager
+from .state_manager import ProjectStateManager
 
 
 class GenerationStrategy(Protocol):
@@ -38,7 +38,7 @@ class GenerationContext:
         pipeline_identifier: str,
         include_tests: bool,
         specific_flowgroups: List[str] = None,
-        state_manager: StateManager = None,
+        state_manager: ProjectStateManager = None,
         project_root: Path = None,
     ):
         self.env = env

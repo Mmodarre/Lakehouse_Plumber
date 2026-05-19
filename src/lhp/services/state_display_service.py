@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-from ..core.state_manager import StateManager
+from ..core.state_manager import ProjectStateManager
 
 
 class StateDisplayService:
@@ -19,7 +19,7 @@ class StateDisplayService:
 
     def __init__(
         self,
-        state_manager: StateManager,
+        state_manager: ProjectStateManager,
         project_root: Path,
         verbose: bool = False,
         log_file: Optional[str] = None,
@@ -27,7 +27,7 @@ class StateDisplayService:
         """Initialize the state display service.
 
         Args:
-            state_manager: StateManager instance for state operations
+            state_manager: ProjectStateManager instance for state operations
             project_root: Root path of the project
             verbose: Whether to enable verbose logging
             log_file: Path to log file for detailed logging
@@ -196,7 +196,13 @@ class StateDisplayService:
             by_pipeline[file_state.pipeline].append(file_state)
 
         for pipeline_name, files in by_pipeline.items():
-            output_dir = self.project_root / "generated" / pipeline_name
+            # ``generate_pipeline_by_field`` appends ``pipeline_field`` to
+            # ``output_dir`` (mirroring the CLI's ``generated/<env>/<pipe>``
+            # layout). Pass the env-scoped root here so the final path lands
+            # at ``generated/<env>/<pipeline>``, NOT ``generated/<pipeline>``
+            # (which would diverge from the original-run layout and create a
+            # second copy under a different shard key).
+            output_dir = self.project_root / "generated" / env
             # Use generate_pipeline_by_field for consistent Python file handling
             generated_files = orchestrator.generate_pipeline_by_field(
                 pipeline_field=pipeline_name,

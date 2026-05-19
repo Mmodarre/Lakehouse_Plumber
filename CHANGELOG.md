@@ -7,6 +7,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-05-19
+
+### Breaking changes
+
+- **State file format**: replaced the monolithic `.lhp_state.json` with
+  per-pipeline shards under a `.lhp_state/` directory
+  (`<pipeline>.json` per pipeline plus a project-wide `_global.json`).
+  Existing `.lhp_state.json` files are auto-removed by the orchestrator
+  only after the first fully-successful run on the new format
+  (`StatePersistence.maybe_remove_legacy_state`); partial-failure runs
+  preserve the legacy file untouched so re-runs can recover.
+- `StateManager` renamed to `ProjectStateManager`. A `StateManager`
+  alias is retained via the module's `__getattr__` hook with a
+  `DeprecationWarning` for one minor release; removed in 0.10.0.
+  Update imports to `from lhp.core.state_manager import
+  ProjectStateManager`.
+- Direct access to `state.environments` via
+  `ProjectStateManager.state` now raises `AttributeError`. Callers
+  must use `ProjectStateManager.load_all_pipeline_shards(env)`, which
+  returns the same `Dict[str, FileState]` shape — iteration logic is
+  unchanged. Property-style lazy deprecation was not viable because
+  the new aggregate read requires an `env` argument the attribute
+  could not pass.
+- `PythonFileCopier.apply_copy_record` no longer mutates state. It
+  returns a list of `CopiedFileEntry` records and the caller invokes
+  `track_generated_file` separately. In-tree callers route through
+  `PipelineProcessor._apply_copy_records` automatically.
+
+### Added
+
+- `--no-state` flag for `lhp generate`: skip state-file generation
+  entirely. Useful for CI runs that always use `--force` and don't
+  rely on incremental regeneration.
+- Per-pipeline state shards (`.lhp_state/<pipeline>.json`) — atomic
+  per-pipeline commits via `os.replace`. Failed pipelines do not
+  write a shard; sibling pipelines' shards are unaffected.
+- `PipelineStateManager.untrack_generated_file` — removes a previously
+  tracked file entry from this pipeline's shard. Called from the
+  worker's empty-content cleanup path so state stays in sync when a
+  flowgroup's actions collapse to no code (e.g. a test-only flowgroup
+  regenerated without `--include-tests`).
+- `LHPError.from_worker_exception` + `lhp_error_from_worker_failure`
+  factory — reconstructs worker-side exceptions on the main thread
+  while preserving the worker's original exception type via
+  dual-inheritance subclasses (`LHPValidationError(LHPError,
+  ValueError)`, `LHPFileError(LHPError, FileNotFoundError)`). Existing
+  `except ValueError` / `except FileNotFoundError` handlers continue
+  to catch worker failures.
+
+### Changed
+
+- Pipeline generation parallelises **per-pipeline** (one worker per
+  pipeline) instead of per-flowgroup. Phase A (parse, codegen,
+  format) and the intra-pipeline portion of Phase B (cross-flowgroup
+  validation, `.py` writes, copied-module application, state
+  tracking, test-reporting hook, atomic shard save) all run inside
+  the worker — eliminating the main-thread GIL-starvation hot path.
+- `_assemble_pipeline_outputs` and the associated main-thread Phase B
+  machinery removed; the orchestrator's `generate_pipelines_by_fields`
+  now dispatches pipelines, reconstructs aggregate failure errors,
+  and finalises `_global.json` at end of batch.
+- `ChecksumCache` no longer holds a `threading.Lock` (main-thread-only
+  usage post-refactor).
+- `cleanup_orphaned_files` now persists removals back to the affected
+  per-pipeline shards via `StatePersistence.save_pipeline_shard`
+  (previously a no-op TODO from Plan 1).
+- `DependencyTracker.update_global_dependencies` is now skipped in
+  pipeline-scope trackers (`for_pipeline`). The main thread's
+  `ProjectStateManager.save_global` performs the per-env
+  global-dependency refresh once at end of batch — `PipelineState`
+  has no `global_dependencies` field.
+
+### Removed
+
+- `_PipelineProgress`, `_assemble_pipeline`, `_assemble_pipeline_outputs`
+  machinery in the orchestrator (worker-internal now).
+- `set_checksum_cache` method on `DependencyTracker` (cache is
+  provided at factory-construction time via
+  `DependencyTracker.for_project(..., checksum_cache=...)`).
+
+### Internal
+
+- Workers receive a `PipelineStateManager` scoped to **one** pipeline,
+  never a `ProjectStateManager`. The worker entry
+  `_process_pipeline_for_generate` accepts only `state_dir: Path` and
+  `build_state: bool`; no cross-pipeline state object is reachable
+  from the worker. The contract is statically enforceable via
+  `__annotations__` introspection.
+- Blueprint provenance map (`Dict[Tuple[str, str], BlueprintProvenance]`)
+  now crosses the spawn boundary into workers; synthetic-flowgroup
+  detection and blueprint-aware dependency resolution work the same
+  in the worker as on the main thread.
+
 ## [0.8.7] — 2026-05-12
 
 ### Added

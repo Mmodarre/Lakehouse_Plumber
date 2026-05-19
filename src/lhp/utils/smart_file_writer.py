@@ -83,7 +83,7 @@ class SmartFileWriter:
         try:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(normalized_content, encoding="utf-8")
-            self.logger.info(f"Generated: {file_path}")
+            self.logger.debug(f"Generated: {file_path}")
             with self._lock:
                 self._files_written += 1
             return True

@@ -156,7 +156,7 @@ phase names map to services in ``src/lhp/core/services/``.
        end
        subgraph Planning
            I --> J[Build dependency DAG]
-           J --> K[Compare against .lhp_state.json]
+           J --> K[Compare against .lhp_state/ shards]
            K --> L{Changed?}
        end
        subgraph Code generation
@@ -178,9 +178,10 @@ Pydantic validation. Unresolved tokens raise ``LHP-CFG-010`` with the unresolved
 names listed.
 
 **Planning** builds the dependency DAG (``DependencyAnalyzer``) and compares each
-FlowGroup's source-YAML checksum against ``.lhp_state.json``. Only changed
-FlowGroups — and their downstream dependents — re-enter code generation.
-``lhp deps`` exposes the DAG for inspection (see :doc:`dependency_analysis`).
+FlowGroup's source-YAML checksum against the per-pipeline state shards in
+``.lhp_state/``. Only changed FlowGroups — and their downstream dependents —
+re-enter code generation. ``lhp deps`` exposes the DAG for inspection (see
+:doc:`dependency_analysis`).
 
 **Code generation** dispatches each action to a generator looked up in
 ``ActionRegistry`` (one of 7 load, 5 transform, 3 write, or 9 test generators). The
@@ -192,24 +193,46 @@ content actually changes.
 State tracking
 --------------
 
-LHP writes ``.lhp_state.json`` after every successful generation. The state maps
-each generated Python file to the source YAML, environment, checksum, and the
-auxiliary files (presets, templates, schemas) the FlowGroup depended on.
+As of 0.9.0, LHP writes state into a ``.lhp_state/`` directory containing one
+shard per pipeline (``<pipeline>.json``) plus a project-wide ``_global.json``.
+The pipeline shard is written atomically by the worker via ``os.replace``
+after Phase B completes; ``_global.json`` is written once by the main thread
+at end of batch. Each generated Python file maps to the source YAML,
+environment, checksum, and the auxiliary files (presets, templates, schemas)
+the FlowGroup depended on.
+
+.. code-block:: text
+
+   .lhp_state/
+     _global.json                # project-wide: version, last_updated, global_deps
+     bronze_layer.json           # one shard per pipeline
+     silver_layer.json
+     gold_layer.json
 
 .. code-block:: json
-   :caption: .lhp_state.json (excerpt)
+   :caption: .lhp_state/<pipeline>.json (excerpt)
 
    {
-     "version": "1.0",
-     "generated_files": {
-       "customer_ingestion.py": {
-         "source_yaml": "pipelines/bronze/customer_ingestion.yaml",
-         "checksum": "a1b2c3d4e5f6",
-         "environment": "dev",
-         "dependencies": ["presets/bronze_layer.yaml"]
+     "pipeline": "bronze_layer",
+     "schema_version": "2",
+     "environments": {
+       "dev": {
+         "generated/dev/bronze_layer/customer_ingestion.py": {
+           "source_yaml": "pipelines/bronze/customer_ingestion.yaml",
+           "checksum": "a1b2c3d4e5f6",
+           "environment": "dev",
+           "pipeline": "bronze_layer",
+           "flowgroup": "customer_ingestion",
+           "file_dependencies": {"presets/bronze_layer.yaml": "checksum"}
+         }
        }
      }
    }
+
+Pre-0.9 projects with a monolithic ``.lhp_state.json`` are auto-migrated on
+the first fully-successful run: the orchestrator removes the legacy file
+only after every pipeline in the batch has committed its shard. Partial
+failures preserve the legacy file untouched so re-runs can recover.
 
 State serves three purposes. It enables **incremental regeneration**: when only one
 FlowGroup changes, only one Python file regenerates. It enables **orphan detection**:
@@ -222,8 +245,9 @@ Multi-environment generation
 
 LHP is environment-aware. The same FlowGroup YAML generates different Python files
 per environment because ``${env_token}`` resolves against ``substitutions/<env>.yaml``.
-State is per-environment too — the ``environment`` field in ``.lhp_state.json`` keys
-the cache, so a ``dev`` and ``prod`` build maintain separate incremental state.
+State is per-environment too — each pipeline shard's ``environments`` map keys
+file entries by ``environment``, so a ``dev`` and ``prod`` build maintain
+separate incremental state inside the same shard.
 ``substitutions/lhp.yaml`` provides shared defaults that environment files override.
 
 Multi-job orchestration

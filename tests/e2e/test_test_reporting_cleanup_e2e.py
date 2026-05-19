@@ -73,12 +73,40 @@ class TestTestReportingCleanupE2E:
         }
 
     def _load_state_file(self) -> dict:
-        """Load and parse .lhp_state.json (empty dict if missing)."""
-        state_file = self.project_root / ".lhp_state.json"
-        if not state_file.exists():
+        """Rebuild the legacy-shape state dict from the new sharded format.
+
+        Merges ``.lhp_state/_global.json`` + per-pipeline shards into the
+        old monolithic dict shape so the artifact_type filtering below
+        keeps working unchanged.
+        """
+        state_dir = self.project_root / ".lhp_state"
+        if not state_dir.exists():
             return {}
-        with open(state_file, "r") as f:
-            return json.load(f)
+
+        result: dict = {"environments": {}}
+
+        global_path = state_dir / "_global.json"
+        if global_path.exists():
+            with open(global_path, "r") as f:
+                global_data = json.load(f)
+            result["version"] = global_data.get("version", "1.0")
+            result["last_updated"] = global_data.get("last_updated", "")
+            result["global_dependencies"] = global_data.get(
+                "global_dependencies", {}
+            )
+            result["last_generation_context"] = global_data.get(
+                "last_generation_context", {}
+            )
+
+        for shard_path in sorted(state_dir.glob("*.json")):
+            if shard_path.stem.startswith("_"):
+                continue
+            with open(shard_path, "r") as f:
+                shard_data = json.load(f)
+            for env_name, env_files in shard_data.get("environments", {}).items():
+                result["environments"].setdefault(env_name, {}).update(env_files)
+
+        return result
 
     def _test_reporting_entries(self, state: dict) -> list:
         """Return all state entries whose artifact_type starts with 'test_reporting'."""

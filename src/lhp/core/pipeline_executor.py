@@ -1,38 +1,19 @@
-"""Flat-pool flowgroup executor for cross-pipeline parallelism.
+"""Process-pool executor for cross-pipeline parallel generation.
 
-Phase A (per-flowgroup processing, codegen, formatting) runs for all
-pipelines in a single :class:`ProcessPoolExecutor` over a ``spawn``
-multiprocessing context. As each pipeline's last flowgroup completes,
-the main thread runs Phase B for that pipeline (validation, file
-write, state tracking, atomic save) via a caller-supplied hook.
-
-Why processes rather than threads:
-
-Code generation is pure-Python CPU work. Under a ``ThreadPoolExecutor``
-every worker serialised on one GIL, so the wall-clock was flat across
-worker counts and per-call ``process_flowgroup.avg`` climbed with the
-worker count — the classic GIL-contention fingerprint. Switching to
-processes gives each worker its own interpreter and its own GIL.
+Uses :class:`ProcessPoolExecutor` over a ``spawn`` multiprocessing
+context so each worker has its own interpreter and GIL — code
+generation is pure-Python CPU work and would otherwise serialise on
+one GIL under a thread pool.
 
 Invariants:
-  - Workers MUST NOT touch the state manager. They emit
-    :class:`CopiedModuleRecord` instances that Phase B replays on the
-    main thread.
-  - Workers MUST NOT call ``smart_writer.write_if_changed``; the disk
-    write happens in Phase B.
-  - The Phase A record collector is threaded via the ``phase_a_records``
-    kwarg on :meth:`CodeGenerator.generate_flowgroup_code` so the
-    "workers-never-touch-state-manager" invariant is checkable from
-    the call graph.
   - Workers MUST receive only picklable collaborators. The orchestrator
     graph (which transitively carries the FlowgroupDiscoverer's
     ``threading.Lock``) does NOT cross the process boundary. The
-    discoverer's source-YAML lookup is therefore done on the main
-    thread before submit, with the result stashed on the flowgroup as
-    ``_source_yaml`` for the worker to read.
-  - The ``PythonFileCopier`` (also lock-bearing) is a main-thread-only
-    object. Workers receive ``None`` in its place; ``copy_user_module_for_pipeline``
-    routes through ``phase_a_records`` instead.
+    source-YAML lookup is therefore done on the main thread before
+    submit, with the result stashed on the flowgroup as
+    ``_source_yaml``.
+  - The ``PythonFileCopier`` is constructed inside each worker; the
+    main-thread instance is never pickled.
 """
 
 from __future__ import annotations
@@ -55,15 +36,17 @@ from typing import (
     TypeAlias,
 )
 
-from ..generators.python_file_copier import CopiedModuleRecord
 from ..utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
-    from ..models.config import FlowGroup
+    from ..models.config import FlowGroup, ProjectConfig
     from ..utils.formatter import CodeFormatter
     from ..utils.substitution import EnhancedSubstitutionManager
+    from .pipeline_processor import ProcessingContext
+    from .services.blueprint_expander import BlueprintProvenance
     from .services.code_generator import CodeGenerator
     from .services.flowgroup_processor import FlowgroupProcessor
+    from .state_models import PipelineDelta
 
 
 logger = logging.getLogger(__name__)
@@ -86,40 +69,6 @@ def _init_worker_logger(level: int) -> None:
 
 
 @dataclass(frozen=True, slots=True)
-class FlowgroupResult:
-    """Result of Phase A processing for a single flowgroup.
-
-    All fields are by-value (``frozen=True``) so workers can hand them back
-    to the main thread without further synchronisation. ``error`` carries
-    the original exception object — the main thread is responsible for
-    wrapping or re-raising as appropriate when aggregating outcomes.
-    """
-
-    pipeline: str
-    flowgroup_name: str
-    processed_flowgroup: Optional["FlowGroup"]
-    code: str
-    formatted_code: str
-    source_yaml: Optional[Path]
-    success: bool
-    copied_modules: Tuple[CopiedModuleRecord, ...] = ()
-    error: Optional[BaseException] = None
-
-
-@dataclass(frozen=True, slots=True)
-class PipelineGenerationOutcome:
-    """Aggregate outcome for a single pipeline after Phase B completes."""
-
-    pipeline: str
-    generated_files: Mapping[str, str]
-    files_written: int
-    flowgroups_processed: int
-    flowgroups_failed: int
-    success: bool
-    error: Optional[BaseException] = None
-
-
-@dataclass(frozen=True, slots=True)
 class PipelineValidationOutcome:
     """Aggregate outcome for a single pipeline's validation."""
 
@@ -129,132 +78,118 @@ class PipelineValidationOutcome:
     success: bool
 
 
-OnPipelineComplete: TypeAlias = Callable[[PipelineGenerationOutcome], None]
-PipelineAssembler: TypeAlias = Callable[
-    [str, List[FlowgroupResult]], PipelineGenerationOutcome
-]
-
-
-def _process_flowgroup_for_generate(
-    fg: "FlowGroup",
+def _process_pipeline_for_generate(
+    pipeline_name: str,
+    flowgroups: Sequence["FlowGroup"],
     *,
-    processor: "FlowgroupProcessor",
-    code_generator: "CodeGenerator",
-    formatter: "CodeFormatter",
-    substitution_mgr: "EnhancedSubstitutionManager",
+    environment: str,
     output_dir: Optional[Path],
-    env: str,
-    include_tests: bool,
-) -> FlowgroupResult:
-    """Phase A worker: process + codegen + format a single flowgroup.
+    state_dir: Optional[Path],
+    project_root: Path,
+    project_config: "ProjectConfig",
+    context: "ProcessingContext",
+    build_state: bool,
+    blueprint_provenance: Optional[
+        Dict[Tuple[str, str], "BlueprintProvenance"]
+    ] = None,
+) -> "PipelineDelta":
+    """Worker entry: process one whole pipeline and return a delta.
 
-    Pure with respect to the state manager — never calls it. Any user
-    Python modules referenced by the flowgroup are captured as
-    :class:`CopiedModuleRecord` instances via the ``phase_a_records``
-    list, which is threaded explicitly through
-    :meth:`CodeGenerator.generate_flowgroup_code` into the
-    generator/context layer. Phase B (main thread) replays the records.
+    Picklable, top-level callable suitable for submission to a
+    :class:`ProcessPoolExecutor`. State is constructed inside the
+    worker via :class:`PipelineStateManager`; ``ProjectStateManager``
+    instances never cross the process boundary.
 
-    ``fg._source_yaml`` is pre-populated by the orchestrator on the
-    main thread; the worker never calls the discoverer (its index lock
-    would break pickling under ``spawn``).
+    Args:
+        pipeline_name: Pipeline being generated.
+        flowgroups: All flowgroups belonging to this pipeline. The
+            worker assumes ``fg._source_yaml`` is already populated.
+        environment: Environment name (e.g. ``"dev"``).
+        output_dir: Pipeline output directory; ``None`` for dry-run.
+        state_dir: ``<project_root>/.lhp_state`` directory. May be
+            ``None`` when ``build_state=False``.
+        project_root: Project root.
+        project_config: Project config (read for ``test_reporting``).
+        context: :class:`ProcessingContext` bundling per-pipeline
+            collaborators and the ``include_tests`` flag.
+        build_state: When False, skips state manager and shard.
+            Equivalent to ``--no-state``.
+
+    Returns:
+        :class:`PipelineDelta` reporting success/failure with file-count
+        rollups (or pre-formatted error strings on failure).
     """
-    records: List[CopiedModuleRecord] = []
-    try:
-        with perf_timer(
-            f"process_flowgroup [{fg.flowgroup}]",
-            category="process_flowgroup",
-        ):
-            processed = processor.process_flowgroup(
-                fg, substitution_mgr, include_tests=include_tests
-            )
+    from .pipeline_processor import PipelineProcessor
 
-        if fg._auxiliary_files:
-            processed._auxiliary_files = fg._auxiliary_files
-        processed._has_original_test_actions = fg._has_original_test_actions
-
-        # Pre-computed on the main thread; carries through pickling.
-        source_yaml: Optional[Path] = getattr(fg, "_source_yaml", None)
-
-        with perf_timer(
-            f"generate_code [{fg.flowgroup}]",
-            category="generate_code",
-        ):
-            code = code_generator.generate_flowgroup_code(
-                processed,
-                substitution_mgr,
-                output_dir,
-                None,  # state_manager — workers MUST NOT touch it
-                source_yaml,
-                env,
-                include_tests,
-                None,  # python_file_copier — main-thread-only (lock-bearing)
-                phase_a_records=records,
-            )
-
-        with perf_timer(
-            f"format_code [{fg.flowgroup}]",
-            category="format_code",
-        ):
-            formatted = formatter.format_code(code)
-
-        return FlowgroupResult(
-            pipeline=fg.pipeline,
-            flowgroup_name=fg.flowgroup,
-            processed_flowgroup=processed,
-            code=code,
-            formatted_code=formatted,
-            source_yaml=source_yaml,
-            success=True,
-            copied_modules=tuple(records),
-        )
-    except BaseException as exc:
-        logger.error(
-            f"Phase A worker failed for flowgroup {fg.flowgroup} "
-            f"in pipeline {fg.pipeline}: {exc}"
-        )
-        return FlowgroupResult(
-            pipeline=fg.pipeline,
-            flowgroup_name=fg.flowgroup,
-            processed_flowgroup=None,
-            code="",
-            formatted_code="",
-            source_yaml=None,
-            success=False,
-            copied_modules=tuple(records),
-            error=exc,
-        )
+    pp = PipelineProcessor(
+        pipeline_name=pipeline_name,
+        environment=environment,
+        output_dir=output_dir,
+        state_dir=state_dir,
+        project_root=project_root,
+        project_config=project_config,
+        context=context,
+        build_state=build_state,
+        blueprint_provenance=blueprint_provenance,
+    )
+    return pp.run(flowgroups)
 
 
-def _process_one_for_pipeline(
-    fg: "FlowGroup",
+
+def _dispatch_pipeline_for_generate(
+    pipeline_name: str,
+    flowgroups: Sequence["FlowGroup"],
     *,
     processor: "FlowgroupProcessor",
     code_generator: "CodeGenerator",
     formatter: "CodeFormatter",
     substitution_managers: Dict[str, "EnhancedSubstitutionManager"],
     pipeline_output_dirs: Dict[str, Optional[Path]],
-    env: str,
+    environment: str,
+    state_dir: Optional[Path],
+    project_root: Path,
+    project_config: "ProjectConfig",
     include_tests: bool,
-) -> FlowgroupResult:
-    """Top-level dispatch entry submitted to the process pool.
+    build_state: bool,
+    blueprint_provenance: Optional[
+        Dict[Tuple[str, str], "BlueprintProvenance"]
+    ] = None,
+) -> "PipelineDelta":
+    """Top-level per-pipeline dispatch entry submitted to the process pool.
 
-    Picklable callable bound by :class:`functools.partial` from the
-    orchestrator. The per-pipeline maps are bound once on the main
-    thread; the worker selects its slice by ``fg.pipeline``. Kept as
-    its own name (rather than collapsing into ``_process_flowgroup_for_generate``)
-    so the dispatch boundary is a small, inspectable function whose
-    argument set is exactly the picklable surface area workers see.
+    Picklable callable bound by :class:`functools.partial`. The
+    per-pipeline maps (substitution_managers, pipeline_output_dirs)
+    are bound once on the main thread; the worker selects its slice
+    by ``pipeline_name`` and builds the :class:`ProcessingContext`
+    here because ``substitution_mgr`` is per-pipeline.
+
+    Pipelines absent from ``substitution_managers`` (empty flowgroup
+    sets) short-circuit to a no-op success delta.
     """
-    return _process_flowgroup_for_generate(
-        fg,
+    from .pipeline_processor import ProcessingContext
+    from .state_models import PipelineDelta
+
+    if pipeline_name not in substitution_managers:
+        return PipelineDelta.success_(pipeline_name)
+
+    context = ProcessingContext(
         processor=processor,
         code_generator=code_generator,
         formatter=formatter,
-        substitution_mgr=substitution_managers[fg.pipeline],
-        output_dir=pipeline_output_dirs[fg.pipeline],
-        env=env,
+        substitution_mgr=substitution_managers[pipeline_name],
         include_tests=include_tests,
+    )
+    return _process_pipeline_for_generate(
+        pipeline_name=pipeline_name,
+        flowgroups=flowgroups,
+        environment=environment,
+        output_dir=pipeline_output_dirs.get(pipeline_name),
+        state_dir=state_dir,
+        project_root=project_root,
+        project_config=project_config,
+        context=context,
+        build_state=build_state,
+        blueprint_provenance=blueprint_provenance,
     )
 
 
@@ -276,85 +211,77 @@ class _PipelineProgress:
         return len(self.results) >= self.expected
 
 
+def group_by_pipeline(
+    flowgroups: Sequence["FlowGroup"],
+) -> Dict[str, List["FlowGroup"]]:
+    """Group flowgroups by their pipeline field, preserving insertion order.
+
+    Two flowgroups carrying the same ``pipeline`` value are merged
+    into one logical pipeline regardless of source directory.
+    Returned dict iteration order matches first-occurrence order for
+    deterministic reporting.
+    """
+    result: Dict[str, List["FlowGroup"]] = {}
+    for fg in flowgroups:
+        result.setdefault(fg.pipeline, []).append(fg)
+    return result
+
+
 def run_generate_pool(
     *,
-    pipelines: Sequence[str],
     flowgroups_by_pipeline: Mapping[str, Sequence["FlowGroup"]],
-    process_one: Callable[["FlowGroup"], FlowgroupResult],
-    assemble_pipeline: PipelineAssembler,
+    process_one: Callable[[str, Sequence["FlowGroup"]], "PipelineDelta"],
     max_workers: int,
-    on_pipeline_complete: Optional[OnPipelineComplete] = None,
-) -> Tuple[List[PipelineGenerationOutcome], List[PipelineGenerationOutcome]]:
-    """Run Phase A as one flat pool; Phase B per pipeline on the main thread.
+    on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
+) -> Tuple[List["PipelineDelta"], List["PipelineDelta"]]:
+    """Pipeline-batched dispatch. One future per non-empty pipeline.
 
-    Submits every flowgroup across every pipeline to a single
-    :class:`ProcessPoolExecutor` running under a ``spawn`` multiprocessing
-    context (uniform across macOS/Linux/Windows so behaviour matches CI).
-    As workers complete via :func:`as_completed`, results are bucketed by
-    pipeline; when a pipeline's bucket is full, the main thread invokes
-    ``assemble_pipeline`` for it and then optionally fires
-    ``on_pipeline_complete``.
+    Submits one task per non-empty pipeline to a :class:`ProcessPoolExecutor`
+    running under a ``spawn`` multiprocessing context. Each worker
+    returns a :class:`PipelineDelta`; the main thread aggregates.
 
     Invariants:
-      - Pipelines with zero flowgroups are emitted BEFORE any worker is
-        submitted, so their callbacks always fire first regardless of pool
-        size.
-      - Within a pipeline, results are sorted by ``flowgroup_name`` before
-        Phase B sees them, so Phase B observes deterministic order even
-        though worker completion order is not.
-      - ``process_one`` MUST be a top-level (importable) picklable callable
-        — typically ``functools.partial(_process_one_for_pipeline, ...)``.
-        It MUST NOT raise — workers wrap exceptions into
-        ``FlowgroupResult(success=False, error=...)``.
+      - Pipelines with zero flowgroups are emitted as no-op success
+        deltas before any worker is submitted, so ``process_one`` is
+        never invoked for them (test mocks of the partial's captured
+        services are not picklable across spawn).
+      - ``process_one`` MUST be a top-level picklable callable and MUST
+        NOT raise: workers wrap every exception into
+        ``PipelineDelta.failure(name, exc)``.
+      - If ``executor.submit`` or unpickling fails, the consumer
+        synthesizes a ``PipelineDelta.failure`` from the raised
+        exception so the aggregate-raise path stays consistent.
+      - ``on_pipeline_complete`` exceptions are caught and logged.
 
-    Returns ``(successful_outcomes, failed_outcomes)``. The combined order
-    matches pipeline completion order, not the input ``pipelines`` order;
-    callers needing input order should re-sort by ``outcome.pipeline``.
+    Returns ``(successful_deltas, failed_deltas)``. Order matches
+    pipeline completion order (empty-pipeline deltas first).
     """
-    # Materialize the worklist and per-pipeline expected counts.
-    progress: Dict[str, _PipelineProgress] = {
-        p: _PipelineProgress(pipeline=p, expected=0) for p in pipelines
-    }
-    worklist: List[Tuple[str, "FlowGroup"]] = []
-    for p in pipelines:
-        fgs = list(flowgroups_by_pipeline.get(p, []))
-        progress[p].expected = len(fgs)
-        for fg in fgs:
-            worklist.append((p, fg))
+    from .state_models import PipelineDelta
 
-    successful: List[PipelineGenerationOutcome] = []
-    failed: List[PipelineGenerationOutcome] = []
+    worklist: List[Tuple[str, List["FlowGroup"]]] = []
+    empty_pipelines: List[str] = []
+    for pipeline_name, fgs in flowgroups_by_pipeline.items():
+        fg_list = list(fgs)
+        if fg_list:
+            worklist.append((pipeline_name, fg_list))
+        else:
+            empty_pipelines.append(pipeline_name)
 
-    def _emit_outcome(pipeline: str, results: List[FlowgroupResult]) -> None:
-        try:
-            outcome = assemble_pipeline(pipeline, results)
-        except BaseException as exc:
-            logger.error(f"Phase B assembly raised for pipeline {pipeline}: {exc}")
-            outcome = PipelineGenerationOutcome(
-                pipeline=pipeline,
-                generated_files={},
-                files_written=0,
-                flowgroups_processed=len(results),
-                flowgroups_failed=sum(1 for r in results if not r.success),
-                success=False,
-                error=exc,
-            )
-        bucket = successful if outcome.success else failed
-        bucket.append(outcome)
+    successful: List["PipelineDelta"] = []
+    failed: List["PipelineDelta"] = []
+
+    # Empty pipelines: callbacks fire on the main thread before any worker.
+    for pipeline_name in empty_pipelines:
+        delta = PipelineDelta.success_(pipeline_name)
+        successful.append(delta)
         if on_pipeline_complete is not None:
             try:
-                on_pipeline_complete(outcome)
-            except BaseException as cb_exc:
+                on_pipeline_complete(delta)
+            except Exception as cb_exc:
                 logger.warning(
                     f"on_pipeline_complete callback raised "
-                    f"for pipeline {pipeline}: {cb_exc}"
+                    f"for pipeline {pipeline_name}: {cb_exc}"
                 )
-
-    # Pipelines with zero flowgroups still get an empty assembly call so
-    # callers see a consistent outcome list.
-    for p in pipelines:
-        if progress[p].expected == 0:
-            _emit_outcome(p, [])
 
     if not worklist:
         return successful, failed
@@ -363,7 +290,7 @@ def run_generate_pool(
     ctx = multiprocessing.get_context("spawn")
     parent_level = logging.getLogger().level
     with (
-        perf_timer(f"flat_pool [{len(worklist)} flowgroups, {workers} workers]"),
+        perf_timer(f"pipeline_pool [{len(worklist)} pipelines, {workers} workers]"),
         ProcessPoolExecutor(
             max_workers=workers,
             mp_context=ctx,
@@ -371,44 +298,35 @@ def run_generate_pool(
             initargs=(parent_level,),
         ) as executor,
     ):
-        future_to_key: Dict[Future, Tuple[str, "FlowGroup"]] = {}
-        for pipeline, fg in worklist:
-            fut: Future = executor.submit(process_one, fg)
-            future_to_key[fut] = (pipeline, fg)
+        future_to_pipeline: Dict[Future, str] = {
+            executor.submit(process_one, pipeline_name, fgs): pipeline_name
+            for pipeline_name, fgs in worklist
+        }
 
-        for fut in as_completed(future_to_key):
-            pipeline, fg = future_to_key[fut]
+        for fut in as_completed(future_to_pipeline):
+            pipeline_name = future_to_pipeline[fut]
             try:
-                result = fut.result()
+                delta = fut.result()
             except BaseException as exc:
-                # process_one should not raise (workers wrap into
-                # FlowgroupResult), but be defensive.
-                result = FlowgroupResult(
-                    pipeline=pipeline,
-                    flowgroup_name=fg.flowgroup,
-                    processed_flowgroup=None,
-                    code="",
-                    formatted_code="",
-                    source_yaml=None,
-                    success=False,
-                    error=exc,
-                )
+                delta = PipelineDelta.failure(pipeline_name, exc)
 
-            bucket = progress[pipeline]
-            bucket.results.append(result)
-            if bucket.is_complete():
-                # Sort by flowgroup_name so Phase B (and downstream
-                # state-manager writes) observes a deterministic order
-                # regardless of which worker finished first.
-                results = sorted(bucket.results, key=lambda r: r.flowgroup_name)
-                # Free memory once consumed.
-                del progress[pipeline]
-                _emit_outcome(pipeline, results)
+            bucket = successful if delta.success else failed
+            bucket.append(delta)
 
-    # Any pipelines still in progress (shouldn't happen) get emitted now.
-    for pipeline, bucket in list(progress.items()):
-        if bucket.is_complete():
-            _emit_outcome(pipeline, bucket.results)
+            logger.info(
+                "Pipeline complete: %s (%s)",
+                delta.pipeline_name,
+                "success" if delta.success else "FAILED",
+            )
+
+            if on_pipeline_complete is not None:
+                try:
+                    on_pipeline_complete(delta)
+                except Exception as cb_exc:
+                    logger.warning(
+                        f"on_pipeline_complete callback raised "
+                        f"for pipeline {pipeline_name}: {cb_exc}"
+                    )
 
     return successful, failed
 
@@ -525,7 +443,7 @@ def run_validate_pool(
     def _emit_outcome(pipeline: str, results: List[FlowgroupValidationResult]) -> None:
         try:
             outcome = assemble_pipeline(pipeline, results)
-        except BaseException as exc:
+        except Exception as exc:
             logger.error(
                 f"Phase B validate assembly raised for pipeline {pipeline}: {exc}"
             )
@@ -539,7 +457,7 @@ def run_validate_pool(
         if on_pipeline_complete is not None:
             try:
                 on_pipeline_complete(outcome)
-            except BaseException as cb_exc:
+            except Exception as cb_exc:
                 logger.warning(
                     f"on_pipeline_complete callback raised for {pipeline}: {cb_exc}"
                 )

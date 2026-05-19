@@ -44,7 +44,12 @@ class TestStateCliE2E:
 
         self.generated_dir = self.project_root / "generated" / "dev"
         self.resources_dir = self.project_root / "resources" / "lhp"
-        self.state_file = self.project_root / ".lhp_state.json"
+        # Sharded state lives under .lhp_state/ — _global.json plus one
+        # <pipeline>.json shard per pipeline. ``state_file`` is the legacy
+        # monolith path kept here only as the "presence" proxy callers
+        # still expect; assertions go through ``self.state_dir``.
+        self.state_dir = self.project_root / ".lhp_state"
+        self.state_file = self.state_dir / "_global.json"
 
         self._init_bundle_project()
 
@@ -78,11 +83,42 @@ class TestStateCliE2E:
         return result.exit_code, result.output
 
     def _load_state_file(self) -> dict:
-        """Load and parse .lhp_state.json. Returns empty dict if missing."""
-        if not self.state_file.exists():
+        """Rebuild the legacy-shape state dict from the new sharded format.
+
+        Reads ``.lhp_state/_global.json`` for project-wide fields and
+        merges every per-pipeline shard's ``environments`` slice into a
+        single dict so assertions written against the old monolithic
+        ``.lhp_state.json`` shape keep working unchanged.
+
+        Returns an empty dict when ``.lhp_state/`` does not exist.
+        """
+        if not self.state_dir.exists():
             return {}
-        with open(self.state_file, "r") as f:
-            return json.load(f)
+
+        result: dict = {"environments": {}}
+
+        global_path = self.state_dir / "_global.json"
+        if global_path.exists():
+            with open(global_path, "r") as f:
+                global_data = json.load(f)
+            result["version"] = global_data.get("version", "1.0")
+            result["last_updated"] = global_data.get("last_updated", "")
+            result["global_dependencies"] = global_data.get(
+                "global_dependencies", {}
+            )
+            result["last_generation_context"] = global_data.get(
+                "last_generation_context", {}
+            )
+
+        for shard_path in sorted(self.state_dir.glob("*.json")):
+            if shard_path.stem.startswith("_"):
+                continue
+            with open(shard_path, "r") as f:
+                shard_data = json.load(f)
+            for env_name, env_files in shard_data.get("environments", {}).items():
+                result["environments"].setdefault(env_name, {}).update(env_files)
+
+        return result
 
     def _extract_py_function_checksum(self, state: dict, py_function_path: str) -> str:
         """Extract the recorded checksum for a Python function dependency.
@@ -105,7 +141,7 @@ class TestStateCliE2E:
         generated/ and .lhp_state.json. Asserts success."""
         exit_code, output = self.run_generate("--env", "dev", "--force")
         assert exit_code == 0, f"Initial generate must succeed:\n{output[-2000:]}"
-        assert self.state_file.exists(), ".lhp_state.json must be created"
+        assert self.state_file.exists(), "_global.json must be created under .lhp_state/"
 
     # ------------------------------------------------------------------
     # Tests

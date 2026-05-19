@@ -662,6 +662,12 @@ class TestActionOrchestratorFlowgroupDiscovery:
         mock_state_manager = Mock()
         # Stored context matches current run so the context gate does NOT fire —
         # this test is exercising YAML parse-error recovery, not context handling.
+        # ``orchestrator._apply_smart_generation_filtering`` reads
+        # ``state_manager.last_generation_context`` directly (not via ``.state``),
+        # so the mock must expose it at the same path.
+        mock_state_manager.last_generation_context = {
+            "dev": {"include_tests": "False"}
+        }
         mock_state_manager.state.last_generation_context = {
             "dev": {"include_tests": "False"}
         }
@@ -690,7 +696,16 @@ class TestActionOrchestratorFlowgroupDiscovery:
             parse_side_effect
         )
 
-        with patch.object(orchestrator_basic, "logger") as mock_logger:
+        # Stub run_generate_pool at the orchestrator module to avoid the
+        # spawn worker pool. The orchestrator's collaborators are all Mock
+        # instances here, which can't be pickled across the spawn boundary,
+        # and this test's invariant (warn-and-continue on parse error)
+        # fires before dispatch — the pool call itself is incidental.
+        from lhp.core import orchestrator as _orch_mod
+
+        with patch.object(orchestrator_basic, "logger") as mock_logger, patch.object(
+            _orch_mod, "run_generate_pool", return_value=([], [])
+        ):
             # Act
             result = orchestrator_basic.generate_pipeline_by_field(
                 pipeline_field=pipeline_field,

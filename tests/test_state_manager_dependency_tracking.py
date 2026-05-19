@@ -1,4 +1,4 @@
-"""Tests for StateManager enhanced dependency tracking functionality."""
+"""Tests for ProjectStateManager enhanced dependency tracking functionality."""
 
 import pytest
 import tempfile
@@ -9,7 +9,8 @@ from unittest.mock import patch, MagicMock
 from datetime import datetime
 import logging
 
-from lhp.core.state_manager import StateManager, FileState, ProjectState
+from lhp.core.state_manager import ProjectStateManager, FileState, ProjectState
+from lhp.core.state_models import DependencyInfo
 from lhp.core.state_dependency_resolver import StateDependencyResolver
 
 
@@ -18,8 +19,6 @@ class TestDependencyTrackingDataStructures:
 
     def test_dependency_info_creation(self):
         """Test DependencyInfo dataclass creation."""
-        from lhp.core.state_manager import DependencyInfo
-        
         dep_info = DependencyInfo(
             path="presets/bronze_layer.yaml",
             checksum="abc123",
@@ -34,8 +33,7 @@ class TestDependencyTrackingDataStructures:
 
     def test_global_dependencies_creation(self):
         """Test GlobalDependencies dataclass creation."""
-        from lhp.core.state_manager import GlobalDependencies, DependencyInfo
-        
+        from lhp.core.state_manager import GlobalDependencies
         substitution_dep = DependencyInfo(
             path="substitutions/dev.yaml",
             checksum="sub123",
@@ -60,8 +58,6 @@ class TestDependencyTrackingDataStructures:
 
     def test_enhanced_file_state_creation(self):
         """Test FileState with new dependency fields."""
-        from lhp.core.state_manager import DependencyInfo
-        
         preset_dep = DependencyInfo(
             path="presets/bronze_layer.yaml",
             checksum="preset123",
@@ -97,8 +93,7 @@ class TestDependencyTrackingDataStructures:
 
     def test_enhanced_project_state_creation(self):
         """Test ProjectState with global dependencies."""
-        from lhp.core.state_manager import GlobalDependencies, DependencyInfo
-        
+        from lhp.core.state_manager import GlobalDependencies
         global_deps = GlobalDependencies(
             substitution_file=DependencyInfo(
                 path="substitutions/dev.yaml",
@@ -176,10 +171,10 @@ class TestBasicStateManagementWithDependencies:
                 json.dump(state_data, f)
             
             # Load state - should handle new dependency fields
-            # NOTE: This will fail until we implement the enhanced StateManager
+            # NOTE: This will fail until we implement the enhanced ProjectStateManager
             # For now, we're just testing that the test structure is correct
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Verify global dependencies loaded
             # assert state_manager._state.global_dependencies is not None
@@ -201,14 +196,14 @@ class TestBasicStateManagementWithDependencies:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             
-            # NOTE: This test will be implemented once we enhance StateManager
+            # NOTE: This test will be implemented once we enhance ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # Create StateManager and add dependency data
-            # state_manager = StateManager(project_root)
+            # Create ProjectStateManager and add dependency data
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Add global dependencies
-            # from lhp.core.state_manager import GlobalDependencies, DependencyInfo
+            # from lhp.core.state_manager import GlobalDependencies
             # global_deps = GlobalDependencies(
             #     substitution_file=DependencyInfo(
             #         path="substitutions/dev.yaml",
@@ -295,7 +290,7 @@ class TestBasicStateManagementWithDependencies:
             # Load state - should handle missing dependency fields gracefully
             # NOTE: This will be implemented with backward compatibility handling
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Should load successfully with defaults for missing fields
             # assert state_manager._state.version == "1.0"
@@ -341,7 +336,7 @@ class TestBasicStateManagementWithDependencies:
             # Load and save - should migrate to new format
             # NOTE: This will be implemented with migration logic
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # state_manager.save()
             # 
             # # Verify migrated state file includes new fields
@@ -371,16 +366,16 @@ class TestGlobalDependencyTracking:
             substitution_file.write_text("catalog: dev_catalog\nschema: dev_schema")
             
             # Create tracked files
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Track some files with current substitution checksum
             original_checksum = state_manager.calculate_checksum(substitution_file)
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
             # # Add global dependencies to state
-            # from lhp.core.state_manager import GlobalDependencies, DependencyInfo
+            # from lhp.core.state_manager import GlobalDependencies
             # global_deps = GlobalDependencies(
             #     substitution_file=DependencyInfo(
             #         path="substitutions/dev.yaml",
@@ -451,13 +446,13 @@ class TestGlobalDependencyTracking:
             dev_sub.write_text("catalog: dev_catalog")
             prod_sub.write_text("catalog: prod_catalog")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track files in both environments
-            # from lhp.core.state_manager import GlobalDependencies, DependencyInfo
+            # from lhp.core.state_manager import GlobalDependencies
             # 
             # # Add global dependencies for both environments
             # project_checksum = state_manager._calculate_checksum(project_config_file)
@@ -557,13 +552,13 @@ class TestGlobalDependencyTracking:
             dev_sub.write_text("catalog: dev_catalog")
             prod_sub.write_text("catalog: prod_catalog")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track files in both environments
-            # from lhp.core.state_manager import GlobalDependencies, DependencyInfo
+            # from lhp.core.state_manager import GlobalDependencies
             # 
             # dev_sub_checksum = state_manager._calculate_checksum(dev_sub)
             # prod_sub_checksum = state_manager._calculate_checksum(prod_sub)
@@ -641,10 +636,10 @@ class TestGlobalDependencyTracking:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track a file but don't create substitution file
             # state_manager._state.environments["dev"] = {
@@ -677,10 +672,10 @@ class TestGlobalDependencyTracking:
             substitution_file.parent.mkdir(parents=True)
             substitution_file.write_text("catalog: dev_catalog")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track a file
             # state_manager._state.environments["dev"] = {
@@ -715,10 +710,10 @@ class TestGlobalDependencyTracking:
             substitution_file.write_text("catalog: dev_catalog\nschema: dev_schema")
             project_config_file.write_text("name: test_project\nversion: 1.0")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Calculate checksums
             # sub_checksum = state_manager._calculate_checksum(substitution_file)
@@ -759,13 +754,12 @@ class TestFileSpecificDependencyTracking:
             other_preset_file = project_root / "presets" / "silver_layer.yaml"
             other_preset_file.write_text("name: silver_layer\ndefaults:\n  quality: silver")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track files with different dependencies
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # preset_checksum = state_manager._calculate_checksum(preset_file)
             # other_preset_checksum = state_manager._calculate_checksum(other_preset_file)
@@ -859,13 +853,12 @@ class TestFileSpecificDependencyTracking:
             other_template_file = project_root / "templates" / "cdc_ingestion.yaml"
             other_template_file.write_text("name: cdc_ingestion\nactions:\n  - name: load_cdc\n    type: load")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track files with different dependencies
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # template_checksum = state_manager._calculate_checksum(template_file)
             # other_template_checksum = state_manager._calculate_checksum(other_template_file)
@@ -957,13 +950,12 @@ class TestFileSpecificDependencyTracking:
             preset1_file.write_text("name: bronze_layer\ndefaults:\n  quality: bronze")
             preset2_file.write_text("name: data_quality\ndefaults:\n  validation: strict")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track file with multiple preset dependencies
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # preset1_checksum = state_manager._calculate_checksum(preset1_file)
             # preset2_checksum = state_manager._calculate_checksum(preset2_file)
@@ -1032,10 +1024,10 @@ class TestFileSpecificDependencyTracking:
             preset_file.parent.mkdir(parents=True)
             preset_file.write_text("name: bronze_layer\ndefaults:\n  quality: bronze")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track file with no dependencies
             # file_no_deps = FileState(
@@ -1070,13 +1062,12 @@ class TestFileSpecificDependencyTracking:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track file with reference to nonexistent preset
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # nonexistent_preset_dep = DependencyInfo(
             #     path="presets/nonexistent.yaml",
@@ -1113,13 +1104,12 @@ class TestFileSpecificDependencyTracking:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track file with reference to nonexistent template
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # nonexistent_template_dep = DependencyInfo(
             #     path="templates/nonexistent.yaml",
@@ -1169,13 +1159,12 @@ class TestTransitiveDependencyTracking:
             child_preset_file = project_root / "presets" / "bronze_layer.yaml"
             child_preset_file.write_text("name: bronze_layer\nextends: base_layer\ndefaults:\n  quality: bronze")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track file that uses child preset (should transitively depend on both)
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # base_checksum = state_manager._calculate_checksum(base_preset_file)
             # child_checksum = state_manager._calculate_checksum(child_preset_file)
@@ -1250,13 +1239,12 @@ class TestTransitiveDependencyTracking:
             template_file.parent.mkdir(parents=True)
             template_file.write_text("name: bronze_ingestion\npresets:\n  - bronze_layer\nactions:\n  - name: load_data\n    type: load")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track file that uses template (should transitively depend on both template and preset)
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # preset_checksum = state_manager._calculate_checksum(preset_file)
             # template_checksum = state_manager._calculate_checksum(template_file)
@@ -1334,13 +1322,12 @@ class TestTransitiveDependencyTracking:
             child_preset_file = project_root / "presets" / "bronze_layer.yaml"
             child_preset_file.write_text("name: bronze_layer\nextends: ingestion_layer\ndefaults:\n  quality: bronze")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track file that uses child preset (should transitively depend on all three)
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # base_checksum = state_manager._calculate_checksum(base_preset_file)
             # middle_checksum = state_manager._calculate_checksum(middle_preset_file)
@@ -1432,13 +1419,12 @@ class TestTransitiveDependencyTracking:
             preset_b_file = project_root / "presets" / "preset_b.yaml"
             preset_b_file.write_text("name: preset_b\nextends: preset_a\ndefaults:\n  setting_b: true")
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track file that uses preset A (should detect circular dependency)
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # # Dependency resolution should detect circular reference and handle gracefully
             # # This might involve:
@@ -1483,13 +1469,12 @@ actions:
     type: load
 """)
             
-            # NOTE: This test will be implemented with enhanced StateManager
+            # NOTE: This test will be implemented with enhanced ProjectStateManager
             # For now, we're defining the expected behavior
             
-            # state_manager = StateManager(project_root)
+            # state_manager = ProjectStateManager(project_root)
             # 
             # # Track file that uses template (should transitively depend on template and both presets)
-            # from lhp.core.state_manager import DependencyInfo
             # 
             # preset1_checksum = state_manager._calculate_checksum(preset1_file)
             # preset2_checksum = state_manager._calculate_checksum(preset2_file)

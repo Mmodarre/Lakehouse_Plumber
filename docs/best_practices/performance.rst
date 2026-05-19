@@ -29,13 +29,16 @@ significantly.
 Smart state and incremental regeneration
 ----------------------------------------
 
-LHP writes a :term:`state file <State file>` ``.lhp_state.json`` after every successful
-generate run. The file maps generated Python files to their source
+LHP writes a :term:`state file <State file>` directory ``.lhp_state/``
+after every successful generate run. The directory contains one JSON
+shard per pipeline (``<pipeline>.json``) plus a project-wide
+``_global.json``. Each shard maps generated Python files to their source
 YAML, records checksums for each source, and tracks the dependencies
 LHP encountered during generation. The next ``lhp generate`` reads
-this file, computes which sources have changed (by checksum, not
+this state, computes which sources have changed (by checksum, not
 mtime), and regenerates only the FlowGroups whose source or
-transitive dependencies changed.
+transitive dependencies changed. Pre-0.9 monolithic ``.lhp_state.json``
+files auto-remove on the first successful 0.9 run.
 
 In practice this means a typical iteration — editing one FlowGroup
 file and regenerating — touches a handful of Python files, not the
@@ -49,7 +52,7 @@ written by Alice does not apply to Bob's clone; the state file changes
 on every generate run, producing constant diff noise; and committing
 it would defeat the cache invalidation, because Git would deliver a
 state file that matches the YAML at commit time but not the YAML now.
-Treat ``.lhp_state.json`` as a build artefact — gitignored, local
+Treat ``.lhp_state/`` as a build artefact — gitignored, local
 only.
 
 Use ``lhp state --env <env>`` to audit what state tracks. The flags
@@ -209,7 +212,7 @@ pipeline only runs after its upstream completes.
 Anti-patterns
 -------------
 
-**Committing ``.lhp_state.json``.** The state file is per-developer,
+**Committing ``.lhp_state/``.** The state directory is per-developer,
 checksum-based, and changes constantly. Committing it defeats the
 caching and creates merge conflicts on every PR.
 

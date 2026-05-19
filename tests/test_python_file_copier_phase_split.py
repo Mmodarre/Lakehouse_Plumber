@@ -15,7 +15,8 @@ the lock-bearing, main-thread-only state manager or PythonFileCopier:
     case where Phase B itself ever becomes multi-threaded) and tracks
     the resulting files with the state manager.
 
-The legacy copy_user_module shim must be equivalent to compute + apply.
+The legacy ``copy_user_module`` shim was removed; the only production path
+is ``compute_copy_record`` + ``apply_copy_record``.
 """
 
 import shutil
@@ -175,14 +176,22 @@ class TestApplyCopyRecord:
         )
 
         copier = PythonFileCopier()
-        result = copier.apply_copy_record(record)
+        entries = copier.apply_copy_record(record)
 
-        assert result is True
+        # Two entries (init + module) means the file was newly copied.
+        assert len(entries) == 2
         assert (custom_dir / "user_module.py").exists()
         assert (custom_dir / "__init__.py").exists()
         assert (custom_dir / "user_module.py").read_text() == "# header\nX = 1\n"
 
-    def test_state_manager_receives_two_track_calls(self, temp_dir, flowgroup):
+    def test_apply_emits_entries_for_init_and_module(self, temp_dir, flowgroup):
+        """``apply_copy_record`` reports the two files it wrote via entries.
+
+        After Plan 2 the file copier is state-manager-agnostic: it returns
+        a list of :class:`CopiedFileEntry` records describing what was
+        actually written. The caller (PipelineProcessor or legacy main-
+        thread Phase B) walks those entries to drive its own state tracking.
+        """
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
             source_path="user_module.py",
@@ -192,31 +201,31 @@ class TestApplyCopyRecord:
             custom_functions_dir=custom_dir,
         )
 
-        class FakeStateMgr:
-            def __init__(self):
-                self.tracked: list = []
-
-            def track_generated_file(
-                self, generated_path, source_yaml, environment, pipeline, flowgroup
-            ):
-                self.tracked.append(generated_path.name)
-
-        state_mgr = FakeStateMgr()
         source_yaml = temp_dir / "fg.yaml"
         source_yaml.write_text("# yaml")
 
-        PythonFileCopier().apply_copy_record(
+        entries = PythonFileCopier().apply_copy_record(
             record,
-            state_manager=state_mgr,
             source_yaml=source_yaml,
             flowgroup=flowgroup,
-            env="dev",
         )
 
-        assert sorted(state_mgr.tracked) == ["__init__.py", "user_module.py"]
+        assert sorted(e.dest_path.name for e in entries) == [
+            "__init__.py",
+            "user_module.py",
+        ]
+        # Every entry carries the caller-supplied context unchanged.
+        for entry in entries:
+            assert entry.source_yaml == source_yaml
+            assert entry.flowgroup == flowgroup.flowgroup
 
-    def test_dedup_returns_false_on_second_apply(self, temp_dir, flowgroup):
-        """Same record applied twice: second call dedupes, returns False."""
+    def test_dedup_returns_empty_on_second_apply(self, temp_dir, flowgroup):
+        """Same record applied twice: second call dedupes, returns ``[]``.
+
+        An empty entry list is the new signal for ``"already copied,
+        nothing to track"`` — replacing the boolean ``False`` returned by
+        the pre-Plan-2 signature.
+        """
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
             source_path="user_module.py",
@@ -230,11 +239,17 @@ class TestApplyCopyRecord:
         first = copier.apply_copy_record(record)
         second = copier.apply_copy_record(record)
 
-        assert first is True
-        assert second is False
+        assert len(first) == 2
+        assert second == []
 
-    def test_no_state_tracking_when_state_mgr_is_none(self, temp_dir, flowgroup):
-        """File is still copied; just no state_manager calls."""
+    def test_apply_writes_file_even_without_caller_context(self, temp_dir, flowgroup):
+        """File is still copied even when caller supplies no source/flowgroup.
+
+        The entries returned have ``None`` for source_yaml/flowgroup in
+        that case — callers that don't need state tracking (e.g.
+        single-flowgroup CLI tools that pre-Plan-2 passed
+        ``state_manager=None``) can simply ignore the entries.
+        """
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
             source_path="user_module.py",
@@ -245,85 +260,10 @@ class TestApplyCopyRecord:
         )
 
         copier = PythonFileCopier()
-        assert copier.apply_copy_record(record, state_manager=None) is True
+        entries = copier.apply_copy_record(record)
+        assert len(entries) == 2
+        for entry in entries:
+            assert entry.source_yaml is None
+            assert entry.flowgroup is None
         assert (custom_dir / "user_module.py").exists()
 
-
-@pytest.mark.unit
-class TestShimEquivalence:
-    """copy_user_module shim must produce the exact same disk + state
-    outcomes as compute_copy_record + apply_copy_record called separately."""
-
-    def test_shim_disk_output_matches_split(self, temp_dir, flowgroup):
-        """Same disk state when going through shim vs split."""
-        src_a = temp_dir / "a.py"
-        src_a.write_text("A = 1\n")
-        src_b = temp_dir / "b.py"
-        src_b.write_text("A = 1\n")
-        dir_shim = temp_dir / "shim_out"
-        dir_split = temp_dir / "split_out"
-
-        # Shim path
-        PythonFileCopier().copy_user_module(
-            src_a, "a.py", dir_shim, {"flowgroup": flowgroup}
-        )
-
-        # Split path: compute, then apply
-        copier_split = PythonFileCopier()
-        record = compute_copy_record(src_b, "b.py", dir_split, {})
-        copier_split.apply_copy_record(record, flowgroup=flowgroup)
-
-        # Module contents identical except filename
-        assert (dir_shim / "a.py").read_text().replace("a.py", "MODULE") == (
-            dir_split / "b.py"
-        ).read_text().replace("b.py", "MODULE")
-        # Both have __init__.py
-        assert (dir_shim / "__init__.py").exists()
-        assert (dir_split / "__init__.py").exists()
-
-    def test_shim_state_tracking_matches_split(self, temp_dir, flowgroup):
-        """State manager receives the same track calls via both paths."""
-
-        class FakeStateMgr:
-            def __init__(self):
-                self.tracked: list = []
-
-            def track_generated_file(
-                self, generated_path, source_yaml, environment, pipeline, flowgroup
-            ):
-                self.tracked.append((generated_path.name, environment, pipeline))
-
-        source_file = temp_dir / "user_module.py"
-        source_file.write_text("X = 1\n")
-        custom_dir = temp_dir / "custom_python_functions"
-        source_yaml = temp_dir / "fg.yaml"
-        source_yaml.write_text("# yaml")
-
-        # Shim path
-        state_shim = FakeStateMgr()
-        PythonFileCopier().copy_user_module(
-            source_file,
-            "user_module.py",
-            custom_dir / "shim",
-            {
-                "flowgroup": flowgroup,
-                "state_manager": state_shim,
-                "source_yaml": source_yaml,
-                "environment": "dev",
-            },
-        )
-
-        # Split path
-        state_split = FakeStateMgr()
-        record = compute_copy_record(
-            source_file, "user_module.py", custom_dir / "split", {}
-        )
-        PythonFileCopier().apply_copy_record(
-            record,
-            state_manager=state_split,
-            source_yaml=source_yaml,
-            flowgroup=flowgroup,
-            env="dev",
-        )
-
-        assert sorted(state_shim.tracked) == sorted(state_split.tracked)

@@ -1,12 +1,11 @@
 """Per-run file checksum cache for LakehousePlumber.
 
-Each file is read and hashed at most once per generation run.
-Thread-safe for use during parallel flowgroup generation.
+Each file is read and hashed at most once per generation run. Main-thread only
+after the state-subsystem split — workers do not have access to this cache.
 """
 
 import hashlib
 import logging
-import threading
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -15,13 +14,13 @@ logger = logging.getLogger(__name__)
 class ChecksumCache:
     """Per-run file checksum cache.
 
-    Each file is read and hashed at most once. Thread-safe via threading.Lock
-    for use during parallel flowgroup generation.
+    Each file is read and hashed at most once. Main-thread only after the
+    state-subsystem split — workers do not have access to this cache. The
+    previous ``threading.Lock`` is gone because no concurrent access remains.
     """
 
     def __init__(self):
         self._cache: dict[str, str] = {}  # resolved_path_str -> hex_digest
-        self._lock = threading.Lock()
 
     def get(self, file_path: Path) -> str:
         """Get or compute the SHA256 checksum for a file.
@@ -33,16 +32,11 @@ class ChecksumCache:
             SHA256 hexdigest string, or empty string if computation fails.
         """
         key = str(file_path.resolve())
-        with self._lock:
-            if key in self._cache:
-                return self._cache[key]
-        # Compute outside lock to avoid holding it during I/O
-        digest = self._compute(file_path)
-        with self._lock:
-            # Another thread may have computed it; use first result
-            if key not in self._cache:
-                self._cache[key] = digest
+        if key in self._cache:
             return self._cache[key]
+        digest = self._compute(file_path)
+        self._cache[key] = digest
+        return digest
 
     def _compute(self, file_path: Path) -> str:
         """Compute SHA256 checksum for a file.
@@ -66,5 +60,4 @@ class ChecksumCache:
     @property
     def size(self) -> int:
         """Number of cached entries."""
-        with self._lock:
-            return len(self._cache)
+        return len(self._cache)

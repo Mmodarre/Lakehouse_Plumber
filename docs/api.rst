@@ -89,9 +89,11 @@ These symbols are the recommended entry points for programmatic use.
        parsing the same files repeatedly within one process.
    * - ``lhp.presets.preset_manager.PresetManager``
      - Loads presets from a directory and resolves inheritance chains.
-   * - ``lhp.core.state_manager.StateManager``
-     - Reads and writes the ``.lhp_state.json`` file that tracks generated
-       Python output and source dependencies.
+   * - ``lhp.core.state_manager.ProjectStateManager``
+     - Reads and writes the ``.lhp_state/`` state directory (per-pipeline
+       JSON shards plus ``_global.json``) tracking generated Python output
+       and source dependencies. ``StateManager`` is retained as a
+       :class:`DeprecationWarning`-emitting alias for one release.
    * - ``lhp.bundle.manager.BundleManager``
      - Synchronizes Databricks Asset Bundle (DAB) resource files with
        generated pipeline code.

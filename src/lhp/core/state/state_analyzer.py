@@ -22,13 +22,22 @@ class StateAnalyzer:
     file staleness analysis, statistics generation, and smart generation planning.
     """
 
-    def __init__(self, project_root: Path, yaml_parser: Optional[YAMLParser] = None):
+    def __init__(
+        self,
+        project_root: Path,
+        yaml_parser: Optional[YAMLParser] = None,
+        checksum_cache=None,
+    ):
         """
         Initialize state analyzer.
 
         Args:
             project_root: Root directory of the LakehousePlumber project
             yaml_parser: Optional YAML parser for shared caching
+            checksum_cache: Optional shared :class:`ChecksumCache` for
+                deduplicated file-checksum reads. Construction-time-only —
+                forwarded into the internal tracker and resolver so both
+                see the same cache without a runtime setter.
         """
         from ...parsers.yaml_parser import YAMLParser as YAMLParserClass
 
@@ -36,26 +45,19 @@ class StateAnalyzer:
         self.yaml_parser = yaml_parser or YAMLParserClass()
         self.logger = logging.getLogger(__name__)
 
-        # Initialize dependency resolver (reused across all operations)
+        # Initialize dependency resolver (reused across all operations).
         from ..state_dependency_resolver import StateDependencyResolver
 
         self.dependency_resolver = StateDependencyResolver(
-            project_root, self.yaml_parser
+            project_root, self.yaml_parser, checksum_cache=checksum_cache
         )
 
-        # Initialize dependency tracker (reused across all operations)
+        # Initialize dependency tracker (reused across all operations).
         from .dependency_tracker import DependencyTracker
 
-        self.tracker = DependencyTracker(project_root)
-
-    def set_checksum_cache(self, cache) -> None:
-        """Inject shared ChecksumCache into analyzer's tracker and resolver.
-
-        Args:
-            cache: ChecksumCache instance
-        """
-        self.tracker.set_checksum_cache(cache)
-        self.dependency_resolver.set_checksum_cache(cache)
+        self.tracker = DependencyTracker(
+            project_root, checksum_cache=checksum_cache
+        )
 
     def set_blueprint_provenance(
         self, provenance: Optional[Dict[Tuple[str, str], "BlueprintProvenance"]]

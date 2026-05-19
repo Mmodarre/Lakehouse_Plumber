@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from lhp.core.state_models import FileState
 from lhp.services.state_display_service import StateDisplayService
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 
 
 class TestStateDisplayService:
@@ -15,8 +15,8 @@ class TestStateDisplayService:
     
     @pytest.fixture
     def mock_state_manager(self):
-        """Create a mock StateManager for testing."""
-        manager = Mock(spec=StateManager)
+        """Create a mock ProjectStateManager for testing."""
+        manager = Mock(spec=ProjectStateManager)
         manager.calculate_checksum = Mock(return_value="mock_checksum")
         return manager
     
@@ -295,7 +295,7 @@ class TestStateDisplayServiceEdgeCases:
     @pytest.fixture
     def service(self):
         """Create a StateDisplayService with mocked dependencies."""
-        mock_state_manager = Mock(spec=StateManager)
+        mock_state_manager = Mock(spec=ProjectStateManager)
         project_root = Path("/mock/project")
         return StateDisplayService(mock_state_manager, project_root, verbose=True)
     

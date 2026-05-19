@@ -214,7 +214,7 @@ next `lhp generate`. If state is out of sync:
 
 ```bash
 lhp generate --env <env> --force      # Force regen, keep state
-rm .lhp_state.json                    # Nuclear: drop state, regen all
+rm -rf .lhp_state                     # Nuclear: drop state, regen all (0.9+; pre-0.9 use `rm .lhp_state.json`)
 lhp generate --env <env>
 ```
 

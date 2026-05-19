@@ -5,7 +5,7 @@ from typing import Optional
 
 import click
 
-from ...core.state_manager import StateManager
+from ...core.state_manager import ProjectStateManager
 from ...services.state_display_service import StateDisplayService
 from ...services.state_display_utils import StateDisplayUtils
 from .base_command import BaseCommand
@@ -56,7 +56,7 @@ class StateCommand(BaseCommand):
         self.echo_verbose_info(f"Detailed logs: {self.log_file}")
 
         # Initialize state management
-        state_manager = StateManager(project_root)
+        state_manager = ProjectStateManager(project_root)
         service = StateDisplayService(
             state_manager, project_root, self.verbose, self.log_file
         )

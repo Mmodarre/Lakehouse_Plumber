@@ -302,7 +302,7 @@ actions:
     
     def test_empty_content_cleanup_removes_existing_file(self):
         """Test that empty content cleanup removes existing files."""
-        from lhp.core.state_manager import StateManager
+        from lhp.core.state_manager import ProjectStateManager
 
         # Set up output directory matching the real CLI path structure: generated/{env}/{pipeline}
         env_output_dir = self.test_dir / "generated" / "test"
@@ -330,15 +330,22 @@ actions:
 """
         source_yaml.write_text(test_yaml_content)
 
-        # Initialize state manager and track the existing file
-        state_manager = StateManager(self.test_dir)
-        state_manager.track_generated_file(
+        # Track the existing file via PipelineStateManager (worker path).
+        from lhp.core.state.pipeline_state_manager import PipelineStateManager
+
+        pm = PipelineStateManager(
+            state_dir=self.test_dir / ".lhp_state",
+            pipeline_name="test_pipeline",
+            environment="test",
+            project_root=self.test_dir,
+        )
+        pm.track_generated_file(
             generated_path=test_file,
             source_yaml=source_yaml,
-            environment="test",
-            pipeline="test_pipeline",
             flowgroup="test_only_flowgroup",
         )
+        pm.save()
+        state_manager = ProjectStateManager(self.test_dir)
 
         # Verify file is tracked
         tracked_files = state_manager.get_generated_files("test")
@@ -363,14 +370,14 @@ actions:
     
     def test_empty_content_cleanup_no_file_to_delete(self):
         """Test that empty content cleanup handles case when no file exists."""
-        from lhp.core.state_manager import StateManager
+        from lhp.core.state_manager import ProjectStateManager
 
         # Set up output directory matching real CLI path: generated/{env}
         env_output_dir = self.test_dir / "generated" / "test"
         env_output_dir.mkdir(parents=True)
 
         # Don't create any existing files
-        state_manager = StateManager(self.test_dir)
+        state_manager = ProjectStateManager(self.test_dir)
 
         # Generate without include_tests (no files should be created or deleted)
         result = self.orchestrator.generate_pipeline_by_field(

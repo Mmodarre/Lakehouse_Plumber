@@ -17,7 +17,7 @@ from ...core.layers import (
 )
 from ...core.orchestrator import ActionOrchestrator
 from ...core.state.checksum_cache import ChecksumCache
-from ...core.state_manager import StateManager
+from ...core.state_manager import ProjectStateManager
 from ...models.config import FlowGroup
 from ...utils.bundle_detection import should_enable_bundle_support
 from ...utils.performance_timer import log_perf_summary, perf_timer
@@ -50,6 +50,7 @@ class GenerateCommand(BaseCommand):
         pipeline_config: Optional[str] = None,
         *,
         max_workers: Optional[int] = None,
+        no_state: bool = False,
     ) -> None:
         """
         Execute the generate command using clean architecture.
@@ -91,10 +92,19 @@ class GenerateCommand(BaseCommand):
         # 3. Validate environment setup (critical validation)
         self.check_substitution_file(env)
 
-        # 4. Initialize application layer facade
+        # 4. Initialize application layer facade. Build the per-run
+        #    checksum cache UP-FRONT so it can be threaded through to the
+        #    state manager at construction time (the legacy runtime setters
+        #    were removed in favour of constructor injection).
+        checksum_cache = ChecksumCache()
         with perf_timer("Orchestrator init", phase=True):
             application_facade = self._create_application_facade(
-                project_root, no_cleanup, pipeline_config, max_workers=max_workers
+                project_root,
+                no_cleanup,
+                pipeline_config,
+                max_workers=max_workers,
+                build_state=not no_state,
+                checksum_cache=checksum_cache,
             )
 
         # 5. Discover all flowgroups ONCE (used by cleanup, analysis, and generation)
@@ -121,14 +131,6 @@ class GenerateCommand(BaseCommand):
             )
 
         logger.debug(f"Pipelines discovered for generation: {pipelines_to_generate}")
-
-        # 6. Bind per-run caches (shared across analysis + generation)
-        checksum_cache = ChecksumCache()
-        if application_facade.state_manager:
-            application_facade.state_manager.set_checksum_cache(checksum_cache)
-            application_facade.state_manager.set_staleness_cache(
-                application_facade.orchestrator.dependencies.staleness_cache
-            )
 
         # 7. Handle cleanup operations (coordinate)
         if force and not no_cleanup:
@@ -190,11 +192,11 @@ class GenerateCommand(BaseCommand):
         if not batch_response.is_successful():
             # Fail-fast at the boundary: re-raise the underlying aggregate
             # exception so cli_error_boundary formats it and maps the LHP
-            # code to a POSIX exit code. Note: with the flat-pool engine,
-            # by the time we get here all pipelines have completed Phase A
-            # AND their Phase B has run on the main thread — successful
-            # pipelines' state is already persisted by per-pipeline atomic
-            # save in _assemble_pipeline_outputs.
+            # code to a POSIX exit code. Note: with the pipeline-batched
+            # pool, every pipeline runs both Phase A and the in-pipeline
+            # Phase B inside its own worker via PipelineProcessor;
+            # successful pipelines' shards are already persisted atomically
+            # by PipelineStateManager.save before we observe the delta.
             if batch_response.original_error is not None:
                 raise batch_response.original_error
             raise RuntimeError(
@@ -211,16 +213,12 @@ class GenerateCommand(BaseCommand):
                     env, output_dir
                 )
 
-        # 9.6. Record the generation context (e.g. include_tests) we just
-        # generated with. This is env-scoped and is only persisted on full
-        # success — a mid-loop failure would have already raised above, so
-        # reaching this point means all pipelines completed. The next run's
-        # context-change gate compares against this record.
-        if not dry_run and application_facade.state_manager and pipelines_to_generate:
-            application_facade.state_manager.record_generation_context(
-                env, include_tests
-            )
-            application_facade.state_manager.save()
+        # Generation context (include_tests / force) is now persisted by the
+        # orchestrator's end-of-batch ``save_global`` call inside
+        # :meth:`ActionOrchestrator.generate_pipelines_by_fields`. The CLI
+        # no longer needs an explicit follow-up save; per-pipeline shards
+        # were written atomically by the workers, and the project-wide
+        # ``_global.json`` shard is written before bundle sync.
 
         # 10. Handle bundle operations (coordinate)
         if not no_bundle:
@@ -253,15 +251,28 @@ class GenerateCommand(BaseCommand):
         pipeline_config_path: Optional[str] = None,
         *,
         max_workers: Optional[int] = None,
+        build_state: bool = True,
+        checksum_cache: Optional[ChecksumCache] = None,
     ) -> LakehousePlumberApplicationFacade:
-        """Create application facade for business layer access."""
+        """Create application facade for business layer access.
+
+        ``checksum_cache`` (and the orchestrator's staleness cache) are
+        threaded into :class:`ProjectStateManager` at construction time, so
+        no post-construction setter is required.
+        """
         orchestrator = ActionOrchestrator(
             project_root,
             pipeline_config_path=pipeline_config_path,
             max_workers=max_workers,
+            build_state=build_state,
         )
         state_manager = (
-            StateManager(project_root, yaml_parser=orchestrator.cached_yaml_parser)
+            ProjectStateManager(
+                project_root,
+                yaml_parser=orchestrator.cached_yaml_parser,
+                checksum_cache=checksum_cache,
+                staleness_cache=orchestrator.dependencies.staleness_cache,
+            )
             if not no_cleanup
             else None
         )

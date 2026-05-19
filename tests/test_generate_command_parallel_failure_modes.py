@@ -184,16 +184,17 @@ class TestParallelGenerateFailureModes:
             f"Found: {gamma_files}"
         )
 
-        # State file contains the successful pipelines' entries.
-        state_file = project_root / ".lhp_state.json"
-        assert state_file.exists(), (
-            "State file must exist after partial failure (successful "
-            "pipelines should have persisted state)."
+        # Per-pipeline shard directory must exist after a partial failure
+        # — successful pipelines write their shards atomically.
+        state_dir = project_root / ".lhp_state"
+        assert state_dir.exists() and state_dir.is_dir(), (
+            "State directory must exist after partial failure (successful "
+            "pipelines should have persisted their shards)."
         )
-        # Read via StateManager to decouple from raw JSON schema details.
-        from lhp.core.state_manager import StateManager
+        # Read via ProjectStateManager to decouple from raw JSON schema details.
+        from lhp.core.state_manager import ProjectStateManager
 
-        sm = StateManager(project_root=project_root)
+        sm = ProjectStateManager(project_root=project_root)
         env_files = sm.get_generated_files("dev")
         persisted_pipelines = {fs.pipeline for fs in env_files.values()}
         assert "pipeline_alpha" in persisted_pipelines, (
@@ -214,30 +215,29 @@ class TestParallelGenerateFailureModes:
     def test_state_persists_through_simulated_kill(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Monkeypatch ``_assemble_pipeline_outputs`` to raise on 2nd call.
+        """Inject a raise on the post-batch ``save_global`` to fail the run.
 
-        Simulates a kill mid-batch after pipeline 1 has fully persisted
-        its state. Asserts the first pipeline's entries survive.
+        Post-refactor, Phase B happens INSIDE the worker (no main-thread
+        ``_assemble_pipeline_outputs`` to monkeypatch) and the worker
+        pool's ``on_pipeline_complete`` callback exceptions are caught
+        for safety. ``save_global`` runs after ALL worker shards have
+        landed via atomic ``os.replace`` — raising there models a
+        post-batch crash that does NOT corrupt the already-persisted
+        per-pipeline shards (the atomicity invariant under test).
         """
         project_root = tmp_path / "lhp_proj_sim_kill"
         _build_lhp_project(project_root)
         _write_3x4_fixture(project_root)  # All valid
 
-        from lhp.core.orchestrator import ActionOrchestrator
+        from lhp.core.state_manager import ProjectStateManager
 
-        original = ActionOrchestrator._assemble_pipeline_outputs
-        call_count = {"n": 0}
-
-        def kill_on_second_call(self, *args, **kwargs):
-            call_count["n"] += 1
-            if call_count["n"] == 2:
-                raise RuntimeError("simulated kill mid-batch (2nd assemble call)")
-            return original(self, *args, **kwargs)
+        def raise_simulated_kill(self, *args, **kwargs):
+            raise RuntimeError(
+                "simulated kill mid-batch (post-batch save_global)"
+            )
 
         monkeypatch.setattr(
-            ActionOrchestrator,
-            "_assemble_pipeline_outputs",
-            kill_on_second_call,
+            ProjectStateManager, "save_global", raise_simulated_kill
         )
 
         result = self._invoke_cli(project_root)
@@ -247,16 +247,18 @@ class TestParallelGenerateFailureModes:
             f"exit_code={result.exit_code}\nOutput:\n{result.output}"
         )
 
-        # Pipeline 1's state must persist regardless of pipeline 2's kill.
-        state_file = project_root / ".lhp_state.json"
-        assert state_file.exists(), (
-            "State file must exist; pipeline 1's atomic save should have "
-            "completed before pipeline 2's simulated kill."
+        # All per-pipeline shards must exist on disk — workers write
+        # their shards atomically before save_global runs, so the
+        # simulated post-batch crash does not roll them back.
+        state_dir = project_root / ".lhp_state"
+        assert state_dir.exists() and state_dir.is_dir(), (
+            "State directory must exist; the workers' atomic saves "
+            "completed before the simulated post-batch crash."
         )
 
-        from lhp.core.state_manager import StateManager
+        from lhp.core.state_manager import ProjectStateManager
 
-        sm = StateManager(project_root=project_root)
+        sm = ProjectStateManager(project_root=project_root)
         env_files = sm.get_generated_files("dev")
         persisted_pipelines = {fs.pipeline for fs in env_files.values()}
 

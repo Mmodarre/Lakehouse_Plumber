@@ -11,7 +11,7 @@ from lhp.core.layers import (
     LakehousePlumberApplicationFacade, ApplicationLayer, BusinessLayer, DataLayer, PresentationLayer
 )
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 from lhp.cli.commands.generate_command import GenerateCommand
 
 
@@ -99,7 +99,7 @@ class TestApplicationFacade:
     def test_application_facade_initialization(self):
         """Test application facade initialization."""
         mock_orchestrator = Mock()
-        mock_state_manager = Mock(spec=StateManager)
+        mock_state_manager = Mock(spec=ProjectStateManager)
         
         facade = LakehousePlumberApplicationFacade(mock_orchestrator, mock_state_manager)
         
@@ -205,21 +205,19 @@ class TestLayerInterfaces:
         assert callable(getattr(orchestrator, 'validate_configuration'))
     
     def test_state_manager_implements_data_layer(self):
-        """Test that StateManager implements DataLayer interface.""" 
+        """Test that ProjectStateManager implements DataLayer interface.""" 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
         # Verify it implements DataLayer interface (via method existence)
         # Note: Interface inheritance removed to avoid circular imports, but methods preserved
         assert hasattr(state_manager, 'get_generation_state')
-        assert hasattr(state_manager, 'track_generated_file_metadata')
         assert hasattr(state_manager, 'cleanup_orphaned_files')
-        
+
         # Verify methods are callable
         assert callable(getattr(state_manager, 'get_generation_state'))
-        assert callable(getattr(state_manager, 'track_generated_file_metadata'))
         assert callable(getattr(state_manager, 'cleanup_orphaned_files'))
     
     def test_application_facade_implements_application_layer(self):

@@ -1058,39 +1058,29 @@ dev:
         bronze_file.write_text("# Generated bronze customers code")
         silver_file.write_text("# Generated silver orders code")
         
-        # Create state file tracking both files
-        state_file = project_root / ".lhp_state.json"
-        state_content = {
-            "version": "1.0",
-            "last_updated": "2023-01-01T00:00:00",
-            "environments": {
-                "dev": {
-                    "generated/bronze_layer/customers.py": {
-                        "source_yaml": "pipelines/bronze_customers.yaml",
-                        "generated_path": "generated/bronze_layer/customers.py",
-                        "checksum": "bronze_checksum",
-                        "source_yaml_checksum": "bronze_yaml_checksum",
-                        "timestamp": "2023-01-01T00:00:00",
-                        "environment": "dev",
-                        "pipeline": "bronze_layer",
-                        "flowgroup": "customers"
-                    },
-                    "generated/silver_layer/orders.py": {
-                        "source_yaml": "pipelines/silver_orders.yaml",
-                        "generated_path": "generated/silver_layer/orders.py",
-                        "checksum": "silver_checksum",
-                        "source_yaml_checksum": "silver_yaml_checksum",
-                        "timestamp": "2023-01-01T00:00:00",
-                        "environment": "dev",
-                        "pipeline": "silver_layer",
-                        "flowgroup": "orders"
-                    }
-                }
-            }
-        }
-        
-        import json
-        state_file.write_text(json.dumps(state_content, indent=2))
+        # Seed per-pipeline shards in the new ``.lhp_state/`` directory via
+        # PipelineStateManager (mirrors the canonical seed helper in
+        # ``tests/test_cli_state_command.py``).
+        from lhp.core.state.pipeline_state_manager import PipelineStateManager
+
+        for pipeline, flowgroup, source_yaml, generated in (
+            ("bronze_layer", "customers", "pipelines/bronze_customers.yaml",
+             "generated/bronze_layer/customers.py"),
+            ("silver_layer", "orders", "pipelines/silver_orders.yaml",
+             "generated/silver_layer/orders.py"),
+        ):
+            pm = PipelineStateManager(
+                state_dir=project_root / ".lhp_state",
+                pipeline_name=pipeline,
+                environment="dev",
+                project_root=project_root,
+            )
+            pm.track_generated_file(
+                generated_path=Path(generated),
+                source_yaml=Path(source_yaml),
+                flowgroup=flowgroup,
+            )
+            pm.save()
         
         # Verify both files exist initially
         assert bronze_file.exists()
@@ -1127,9 +1117,9 @@ include:
         #     assert not (Path("generated") / "silver_layer" / "orders.py").exists()
         #     assert (Path("generated") / "bronze_layer" / "customers.py").exists()
         
-        # For now, test the StateManager logic directly
-        from lhp.core.state_manager import StateManager
-        state_manager = StateManager(project_root)
+        # For now, test the ProjectStateManager logic directly
+        from lhp.core.state_manager import ProjectStateManager
+        state_manager = ProjectStateManager(project_root)
         
         # Find orphaned files (should include silver file due to include pattern change)
         orphaned_files = state_manager.find_orphaned_files("dev")

@@ -1,4 +1,4 @@
-"""Tests for StateManager.get_current_yaml_files() with include filtering."""
+"""Tests for ProjectStateManager.get_current_yaml_files() with include filtering."""
 
 import pytest
 import tempfile
@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 
 class TestStateManagerIncludeFiltering:
-    """Test cases for StateManager file discovery with include patterns."""
+    """Test cases for ProjectStateManager file discovery with include patterns."""
 
     def test_get_current_yaml_files_with_include_patterns(self, tmp_path):
         """Test file discovery with include patterns."""
@@ -32,8 +32,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: Only files matching include patterns should be returned
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # # Mock the project config to return include patterns
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
@@ -62,8 +62,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: All YAML files should be returned (backwards compatibility)
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # # Mock the project config to return no include patterns
         # with patch.object(state_manager, '_get_include_patterns', return_value=[]):
@@ -90,8 +90,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: All YAML files should be returned (empty list = no filtering)
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=[]):
         #     yaml_files = state_manager.get_current_yaml_files()
@@ -130,8 +130,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: Only files in bronze directory tree should be returned
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     yaml_files = state_manager.get_current_yaml_files()
@@ -166,8 +166,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: Only files matching both pipeline filter and include patterns
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     yaml_files = state_manager.get_current_yaml_files(pipeline="bronze_pipeline")
@@ -198,8 +198,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: Files matching any of the patterns should be returned
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     yaml_files = state_manager.get_current_yaml_files()
@@ -229,8 +229,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: Files with both extensions should be returned
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     yaml_files = state_manager.get_current_yaml_files()
@@ -260,8 +260,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: Empty set should be returned
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     yaml_files = state_manager.get_current_yaml_files()
@@ -280,8 +280,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: Empty set should be returned
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     yaml_files = state_manager.get_current_yaml_files()
@@ -322,8 +322,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: Files matching either pattern should be returned
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     yaml_files = state_manager.get_current_yaml_files()
@@ -355,8 +355,8 @@ class TestStateManagerIncludeFiltering:
         # Expected: Only exact case matches should be returned
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     yaml_files = state_manager.get_current_yaml_files()
@@ -397,8 +397,8 @@ include:
         # Expected: Files matching project config include patterns should be returned
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # # Should automatically use include patterns from project config
         # yaml_files = state_manager.get_current_yaml_files()
@@ -412,7 +412,7 @@ include:
 
 
 class TestStateManagerIncludeIntegration:
-    """Integration tests for StateManager with include functionality."""
+    """Integration tests for ProjectStateManager with include functionality."""
 
     def test_find_new_yaml_files_with_include_patterns(self, tmp_path):
         """Test finding new YAML files with include patterns."""
@@ -455,8 +455,8 @@ class TestStateManagerIncludeIntegration:
         # Expected: Only new files matching include patterns should be found
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     new_files = state_manager.find_new_yaml_files("dev")
@@ -512,8 +512,8 @@ class TestStateManagerIncludeIntegration:
         # Expected: Only stale files matching include patterns should be found
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     stale_files = state_manager.find_stale_files("dev")
@@ -580,8 +580,8 @@ class TestStateManagerIncludeIntegration:
         # Expected: Only files matching include patterns should be considered
         
         # This will be implemented later
-        # from lhp.core.state_manager import StateManager
-        # state_manager = StateManager(project_root)
+        # from lhp.core.state_manager import ProjectStateManager
+        # state_manager = ProjectStateManager(project_root)
         # 
         # with patch.object(state_manager, '_get_include_patterns', return_value=include_patterns):
         #     generation_info = state_manager.get_files_needing_generation("dev")
@@ -637,8 +637,8 @@ actions:
 """)
         
         # Create state manager and track some files
-        from lhp.core.state_manager import StateManager, FileState
-        state_manager = StateManager(project_root)
+        from lhp.core.state_manager import ProjectStateManager, FileState
+        state_manager = ProjectStateManager(project_root)
         
         # Simulate files being generated and tracked
         bronze_file_state = FileState(

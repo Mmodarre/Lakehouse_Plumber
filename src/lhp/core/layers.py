@@ -20,7 +20,7 @@ from ..utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
     from .services.generation_planning_service import GenerationPlan
-    from .state_manager import StateManager
+    from .state_manager import ProjectStateManager
 
 
 # ============================================================================
@@ -281,7 +281,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
     a clean, testable interface for the CLI layer.
     """
 
-    def __init__(self, orchestrator, state_manager: Optional["StateManager"] = None):
+    def __init__(self, orchestrator, state_manager: Optional["ProjectStateManager"] = None):
         """
         Initialize application facade.
 
@@ -381,20 +381,19 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             Callable[[str, "GenerationResponse"], None]
         ] = None,
     ) -> "BatchGenerationResponse":
-        """Coordinate batch (multi-pipeline) generation through the flat-pool engine.
+        """Coordinate batch (multi-pipeline) generation through the per-pipeline pool.
 
-        Translates the orchestrator's per-pipeline
-        :class:`PipelineGenerationOutcome` into the presentation-layer
-        :class:`GenerationResponse`, forwarding each one to the optional
-        ``on_pipeline_complete`` callback in completion order. After the
-        pool returns (or raises the aggregate error), builds the
-        :class:`BatchGenerationResponse` with aggregate stats.
+        Translates the orchestrator's per-pipeline :class:`PipelineDelta`
+        into the presentation-layer :class:`GenerationResponse`, forwarding
+        each one to the optional ``on_pipeline_complete`` callback in
+        completion order. After the pool returns (or raises the aggregate
+        error), builds the :class:`BatchGenerationResponse` with aggregate
+        stats.
 
-        Failed-pipeline state has already been left UNsaved by the
-        orchestrator's per-pipeline atomic save (the save call comes at the
-        tail of ``_assemble_pipeline_outputs`` AFTER all validation /
-        track operations; a raise mid-flow short-circuits the save for
-        THAT pipeline only).
+        Failed-pipeline shards are NOT written by the worker on failure
+        (atomicity invariant of :class:`PipelineProcessor`); the main
+        thread's aggregate raise short-circuits global state writes for
+        failed batches but successful pipelines keep their shards.
 
         Args:
             pipeline_fields: Pipeline names to generate.
@@ -405,7 +404,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             include_tests: Include test actions.
             no_cleanup: When True, state_manager is not used (no state tracking).
             pre_discovered_all_flowgroups: Re-use caller's one-shot discovery.
-            max_workers: Override thread-pool size; ``None`` falls back to the
+            max_workers: Override pool size; ``None`` falls back to the
                 orchestrator's constructor value.
             on_pipeline_complete: Main-thread callback fired once per pipeline
                 with ``(pipeline_name, GenerationResponse)``. Failures are
@@ -417,51 +416,65 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             aggregate totals, and (on failure) the underlying aggregate
             exception preserved for re-raise at the CLI fail-fast boundary.
         """
-        from .pipeline_executor import PipelineGenerationOutcome
+        from .state_models import PipelineDelta
 
         pipeline_responses: Dict[str, "GenerationResponse"] = {}
 
-        def _on_outcome(outcome: "PipelineGenerationOutcome") -> None:
-            # Build per-pipeline GenerationResponse from the orchestrator's
-            # PipelineGenerationOutcome. We keep the orchestrator's outcome
-            # type orchestrator-internal so the presentation layer only
-            # ever sees the DTO.
+        def _on_delta(delta: "PipelineDelta") -> None:
+            # Build per-pipeline GenerationResponse from the worker's
+            # PipelineDelta. Worker exceptions are surfaced as strings
+            # (error_type/message/traceback) because live BaseExceptions
+            # can't safely cross the spawn boundary; we reconstruct an
+            # LHPError on the response so display code has a real
+            # exception object to format.
+            from ..utils.error_formatter import LHPError
+
+            original_error: Optional[BaseException] = None
+            error_message: Optional[str] = None
+            if not delta.success:
+                error_message = (
+                    f"{delta.error_type}: {delta.error_message}"
+                    if delta.error_type
+                    else delta.error_message
+                )
+                original_error = LHPError.from_worker_exception(
+                    pipeline_name=delta.pipeline_name,
+                    error_type=delta.error_type or "UnknownError",
+                    error_message=delta.error_message or "(no message)",
+                    error_traceback=delta.error_traceback or "",
+                )
+
             response = GenerationResponse(
-                success=outcome.success,
-                generated_files=dict(outcome.generated_files),
-                files_written=outcome.files_written,
+                success=delta.success,
+                generated_files=dict(delta.generated_files),
+                files_written=delta.files_written,
                 # Match the legacy `generate_pipeline` semantics: this field
                 # is displayed as "Would generate N file(s)" in dry-run, so
                 # it is the count of generated FILES (not the count of
                 # flowgroups processed). Empty flowgroups produce 0 files.
-                total_flowgroups=len(outcome.generated_files),
+                total_flowgroups=len(delta.generated_files),
                 output_location=output_dir,
                 performance_info={
                     "dry_run": output_dir is None,
                     "force_all": force_all,
                     "include_tests": include_tests,
-                    "flowgroups_failed": outcome.flowgroups_failed,
+                    "files_skipped": delta.files_skipped,
+                    "artifacts_count": delta.artifacts_count,
                 },
-                error_message=(
-                    str(outcome.error) if outcome.error is not None else None
-                ),
-                original_error=(
-                    outcome.error
-                    if (not outcome.success and outcome.error is not None)
-                    else None
-                ),
+                error_message=error_message,
+                original_error=original_error,
             )
-            pipeline_responses[outcome.pipeline] = response
+            pipeline_responses[delta.pipeline_name] = response
             if on_pipeline_complete is not None:
                 try:
-                    on_pipeline_complete(outcome.pipeline, response)
+                    on_pipeline_complete(delta.pipeline_name, response)
                 except BaseException as cb_exc:
                     # The orchestrator already logs callback exceptions; we
                     # add a facade-level safety net so a buggy CLI display
                     # never tears down the batch.
                     self.logger.warning(
                         f"on_pipeline_complete callback raised "
-                        f"for {outcome.pipeline}: {cb_exc}"
+                        f"for {delta.pipeline_name}: {cb_exc}"
                     )
 
         try:
@@ -476,7 +489,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                     include_tests=include_tests,
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                     max_workers=max_workers,
-                    on_pipeline_complete=_on_outcome,
+                    on_pipeline_complete=_on_delta,
                 )
 
             aggregate: Dict[str, str] = {}

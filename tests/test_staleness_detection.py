@@ -5,7 +5,8 @@ import pytest
 from pathlib import Path
 from datetime import datetime
 
-from lhp.core.state_manager import StateManager, FileState, DependencyInfo, GlobalDependencies
+from lhp.core.state_manager import ProjectStateManager, FileState, GlobalDependencies
+from lhp.core.state_models import DependencyInfo
 
 
 class TestEnhancedStalenessDetection:
@@ -15,7 +16,7 @@ class TestEnhancedStalenessDetection:
         """Test finding stale files when source YAML has changed."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create a source YAML file
             yaml_file = project_root / "test.yaml"
@@ -46,7 +47,7 @@ class TestEnhancedStalenessDetection:
         """Test finding stale files when source YAML is unchanged."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create a source YAML file
             yaml_file = project_root / "test.yaml"
@@ -79,7 +80,7 @@ class TestEnhancedStalenessDetection:
         """Test finding stale files when global dependencies have changed."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create substitution file
             substitution_dir = project_root / "substitutions"
@@ -134,7 +135,7 @@ class TestEnhancedStalenessDetection:
         """Test finding stale files when file-specific dependencies have changed."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create preset file
             preset_dir = project_root / "presets"
@@ -188,7 +189,7 @@ actions: []
         """Test finding stale files when nothing has changed."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create preset file
             preset_dir = project_root / "presets"
@@ -242,7 +243,7 @@ actions: []
         """Test getting detailed staleness information for global changes."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create substitution file
             substitution_dir = project_root / "substitutions"
@@ -301,7 +302,7 @@ actions: []
         """Test getting detailed staleness information for file-specific changes."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create preset file
             preset_dir = project_root / "presets"
@@ -358,7 +359,7 @@ actions: []
         """Test getting detailed staleness information for source YAML changes."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create source YAML file
             yaml_file = project_root / "test.yaml"
@@ -392,7 +393,7 @@ actions: []
         """Test getting detailed staleness information when nothing has changed."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create source YAML file
             yaml_file = project_root / "test.yaml"
@@ -432,7 +433,7 @@ actions: []
         """Test staleness detection with multiple files having different statuses."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Create preset file
             preset_dir = project_root / "presets"

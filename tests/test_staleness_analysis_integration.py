@@ -31,10 +31,10 @@ actions:
     
     # Initialize services
     from lhp.core.orchestrator import ActionOrchestrator
-    from lhp.core.state_manager import StateManager
+    from lhp.core.state_manager import ProjectStateManager
     
     orchestrator = ActionOrchestrator(tmp_path)
-    state_manager = StateManager(tmp_path)
+    state_manager = ProjectStateManager(tmp_path)
     
     # Run staleness analysis (should not raise errors or warnings)
     analysis = orchestrator.analyze_generation_requirements(
@@ -67,10 +67,10 @@ actions: []
 """)
     
     from lhp.core.orchestrator import ActionOrchestrator
-    from lhp.core.state_manager import StateManager
+    from lhp.core.state_manager import ProjectStateManager
     
     orchestrator = ActionOrchestrator(tmp_path)
-    state_manager = StateManager(tmp_path)
+    state_manager = ProjectStateManager(tmp_path)
     
     with caplog.at_level(logging.WARNING):
         orchestrator.analyze_generation_requirements(

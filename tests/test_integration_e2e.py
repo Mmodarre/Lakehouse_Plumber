@@ -16,7 +16,7 @@ from unittest.mock import patch, Mock
 
 from lhp.cli.main import cli
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 from lhp.bundle.manager import BundleManager
 from lhp.utils.bundle_detection import should_enable_bundle_support
 
@@ -297,7 +297,7 @@ resources:
         self._setup_bundle_project()
         
         orchestrator = ActionOrchestrator(self.project_root)
-        state_manager = StateManager(self.project_root)
+        state_manager = ProjectStateManager(self.project_root)
         
         # First generation
         output_dir = self.project_root / "generated"
@@ -306,11 +306,12 @@ resources:
         )
         
         assert len(generated_files) > 0
-        
-        # Verify state was saved
-        state_file = self.project_root / ".lhp_state.json"
-        assert state_file.exists()
-        
+
+        # Verify per-pipeline shard directory was created (replaces the
+        # legacy monolithic ``.lhp_state.json`` from pre-0.9 layout).
+        state_dir = self.project_root / ".lhp_state"
+        assert state_dir.exists() and state_dir.is_dir()
+
         # Second generation (should use smart generation)
         generated_files_2 = orchestrator.generate_pipeline_by_field(
             "test_pipeline", "dev", output_dir, state_manager=state_manager

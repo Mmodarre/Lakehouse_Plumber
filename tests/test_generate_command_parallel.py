@@ -222,3 +222,51 @@ class TestGenerateCommandParallel:
                     )
             finally:
                 os.chdir(cwd)
+
+    def test_no_state_flag_skips_state_dir_creation(self, runner):
+        """``--no-state`` skips the per-pipeline shard writes entirely.
+
+        Plan 3 added the flag to support CI runs that always use ``--force``
+        and don't rely on incremental regeneration. The flag must:
+          - generate ``.py`` files as usual,
+          - leave ``.lhp_state/`` absent (no shards, no _global.json),
+          - allow a subsequent normal run to regenerate cleanly (state-empty
+            path treats the project as never-generated).
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            _build_multipipeline_project(project_root, self.PIPELINES)
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(project_root)
+                result = runner.invoke(
+                    cli,
+                    [
+                        "generate",
+                        "--env",
+                        "dev",
+                        "--max-workers",
+                        "4",
+                        "--no-state",
+                        "--no-bundle",
+                    ],
+                )
+                assert (
+                    result.exit_code == 0
+                ), f"CLI exited {result.exit_code}: {result.output}"
+
+                # Every pipeline got its .py file …
+                for name in self.PIPELINES:
+                    assert (
+                        project_root / "generated" / "dev" / name / f"{name}_fg.py"
+                    ).exists(), f"Expected file missing for {name}"
+
+                # … but no state shard directory was created.
+                state_dir = project_root / ".lhp_state"
+                assert not state_dir.exists(), (
+                    "--no-state must skip creating .lhp_state/. "
+                    f"Found directory at {state_dir}."
+                )
+            finally:
+                os.chdir(cwd)

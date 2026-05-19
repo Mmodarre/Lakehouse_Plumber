@@ -177,18 +177,25 @@ environment name set in each job's ``environment:`` field.
 State management in CI
 ----------------------
 
-LHP tracks generated files in ``.lhp_state.json`` to enable incremental
-regeneration locally. In CI, you have two choices:
+LHP tracks generated files inside the ``.lhp_state/`` directory (per-pipeline
+JSON shards plus ``_global.json``, as of 0.9.0) to enable incremental
+regeneration locally. The 0.9.0 release also added ``lhp generate
+--no-state``, which skips writing the state entirely — useful for CI runs
+that always force-regenerate. In CI, you have three choices:
 
-- **Stateless (recommended).** Each runner starts with a clean checkout and no
-  state file. ``lhp generate`` regenerates every file deterministically. This
-  is the safest default and matches the "build artifacts are ephemeral"
-  principle.
-- **Cached state.** Cache ``.lhp_state.json`` between runs to skip regeneration
-  for unchanged FlowGroups. This shortens builds on large projects but
-  introduces a cache-invalidation surface — a stale or partial state file can
-  cause deploys to omit files. Only cache state if generation time is a
-  measurable bottleneck.
+- **``--no-state`` (recommended for force-regen CI).** Pass
+  ``--no-state`` so the runner writes no shards at all. Combined with
+  ``--force`` it's the cleanest fit for runners that don't reuse state
+  between runs.
+- **Stateless (clean checkout).** Each runner starts with a clean checkout
+  and no state directory. ``lhp generate`` regenerates every file
+  deterministically. Same end behaviour as ``--no-state`` but writes
+  shards locally as a side-effect.
+- **Cached state.** Cache the ``.lhp_state/`` directory between runs to
+  skip regeneration for unchanged FlowGroups. This shortens builds on
+  large projects but introduces a cache-invalidation surface — a stale or
+  partial state directory can cause deploys to omit files. Only cache
+  state if generation time is a measurable bottleneck.
 
 If a deploy aborts mid-bundle, run with ``--force`` on the next attempt to
 regenerate every file regardless of state:
@@ -216,10 +223,10 @@ handling:
    (for example ``v1.2.2-prod-hotfix``); the deploy job regenerates from that
    commit's YAML and replaces the bad deployment.
 
-Do not delete ``.lhp_state.json`` from a long-running runner without also
-clearing ``generated/`` and ``resources/lhp/`` — a missing state file with
-existing artifacts leaves LHP unable to detect which Python files are still
-current.
+Do not delete ``.lhp_state/`` from a long-running runner without also
+clearing ``generated/`` and ``resources/lhp/`` — a missing state directory
+with existing artifacts leaves LHP unable to detect which Python files are
+still current.
 
 Other CI platforms
 ------------------

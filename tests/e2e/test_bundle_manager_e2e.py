@@ -1412,9 +1412,9 @@ resources:
         self._modify_python_function(py_function_path, "BM10 staleness diagnostic")
 
         # Phase 3: Analyze what the state manager thinks needs generation
-        from lhp.core.state_manager import StateManager
+        from lhp.core.state_manager import ProjectStateManager
 
-        state_manager = StateManager(self.project_root)
+        state_manager = ProjectStateManager(self.project_root)
 
         # Check generation requirements for sample_python_func_pipeline specifically
         generation_info = state_manager.get_files_needing_generation(
@@ -1478,9 +1478,9 @@ resources:
         self._modify_python_function(py_function_path, "BM11 embedded diagnostic")
 
         # Phase 3: Analyze staleness for acmi_edw_silver pipeline
-        from lhp.core.state_manager import StateManager
+        from lhp.core.state_manager import ProjectStateManager
 
-        state_manager = StateManager(self.project_root)
+        state_manager = ProjectStateManager(self.project_root)
 
         generation_info = state_manager.get_files_needing_generation(
             "dev", "acmi_edw_silver"
@@ -1546,10 +1546,10 @@ resources:
 
         # Phase 3: Use orchestrator's analysis (same logic as CLI)
         from lhp.core.orchestrator import ActionOrchestrator
-        from lhp.core.state_manager import StateManager
+        from lhp.core.state_manager import ProjectStateManager
 
         orchestrator = ActionOrchestrator(self.project_root)
-        state_manager = StateManager(self.project_root)
+        state_manager = ProjectStateManager(self.project_root)
 
         # Analyze generation requirements like the CLI does
         pipelines = ["acmi_edw_silver", "sample_python_func_pipeline"]
@@ -1617,10 +1617,10 @@ resources:
 
         # Phase 3: Direct orchestrator analysis
         from lhp.core.orchestrator import ActionOrchestrator
-        from lhp.core.state_manager import StateManager
+        from lhp.core.state_manager import ProjectStateManager
 
         orchestrator = ActionOrchestrator(self.project_root)
-        state_manager = StateManager(self.project_root)
+        state_manager = ProjectStateManager(self.project_root)
 
         analysis = orchestrator.analyze_generation_requirements(
             env="dev",
@@ -1847,20 +1847,47 @@ resources:
     # ========================================================================
 
     def _load_state_file(self) -> dict:
-        """
-        Load and parse .lhp_state.json file.
+        """Rebuild the legacy-shape state dict from the new sharded format.
+
+        Reads ``.lhp_state/_global.json`` for project-wide fields and
+        merges every per-pipeline shard's ``environments`` slice. The
+        return shape matches the old monolithic ``.lhp_state.json`` so
+        assertions written against that shape keep working unchanged.
 
         Returns:
-            dict: Parsed state file content, or empty dict if file doesn't exist
+            dict: Aggregated state dict, or empty dict when ``.lhp_state/``
+            does not exist.
         """
-        state_file = self.project_root / ".lhp_state.json"
-        if not state_file.exists():
-            return {}
-
         import json
 
-        with open(state_file, "r") as f:
-            return json.load(f)
+        state_dir = self.project_root / ".lhp_state"
+        if not state_dir.exists():
+            return {}
+
+        result: dict = {"environments": {}}
+
+        global_path = state_dir / "_global.json"
+        if global_path.exists():
+            with open(global_path, "r") as f:
+                global_data = json.load(f)
+            result["version"] = global_data.get("version", "1.0")
+            result["last_updated"] = global_data.get("last_updated", "")
+            result["global_dependencies"] = global_data.get(
+                "global_dependencies", {}
+            )
+            result["last_generation_context"] = global_data.get(
+                "last_generation_context", {}
+            )
+
+        for shard_path in sorted(state_dir.glob("*.json")):
+            if shard_path.stem.startswith("_"):
+                continue
+            with open(shard_path, "r") as f:
+                shard_data = json.load(f)
+            for env_name, env_files in shard_data.get("environments", {}).items():
+                result["environments"].setdefault(env_name, {}).update(env_files)
+
+        return result
 
     def _modify_python_function(self, function_path: str, comment: str):
         """
@@ -2056,81 +2083,80 @@ resources:
         return regenerated_count
 
     def test_cross_platform_state_file_compatibility(self):
-        """Test that state files generated on one OS can be loaded on another."""
-        # Phase 1: Generate state file
+        """Per-pipeline shards round-trip Windows-style paths through normalization.
+
+        The new sharded format applies the same backslash → forward-slash
+        normalization on load that the legacy monolith did. Test surface:
+        write a shard with Windows separators in BOTH the env-files key
+        and the ``file_dependencies`` keys, reload via
+        :meth:`StatePersistence.load_pipeline_shard`, and verify all keys
+        come back POSIX-style.
+        """
+        # Phase 1: Generate state shards
         exit_code, output = self.run_bundle_sync()
         assert exit_code == 0, f"Initial generation should succeed: {output}"
 
         print("✅ Phase 1: Initial generation completed")
 
-        # Phase 2: Load state
-        state_file = self.project_root / ".lhp_state.json"
-        assert state_file.exists(), "State file should exist after generation"
-
         import json
-        from dataclasses import asdict
 
-        with open(state_file, "r") as f:
-            state_data = json.load(f)
+        state_dir = self.project_root / ".lhp_state"
+        assert state_dir.exists(), "State directory should exist after generation"
 
-        original_env_files = state_data.get("environments", {}).get("dev", {})
-        assert (
-            len(original_env_files) > 0
-        ), "Should have generated files in dev environment"
+        # Pick the first per-pipeline shard to round-trip.
+        pipeline_shards = [
+            p for p in sorted(state_dir.glob("*.json"))
+            if not p.stem.startswith("_")
+        ]
+        assert pipeline_shards, "Expected at least one pipeline shard"
+        shard_path = pipeline_shards[0]
+        pipeline_name = shard_path.stem
 
-        print(f"✅ Phase 2: Loaded state file with {len(original_env_files)} files")
+        with open(shard_path, "r") as f:
+            shard_data = json.load(f)
 
-        # Phase 3: Manually modify state to simulate Windows separators
-        modified_state_data = {
-            "version": state_data["version"],
-            "last_updated": state_data["last_updated"],
+        original_env_files = shard_data.get("environments", {}).get("dev", {})
+        assert original_env_files, "Should have files for dev in the shard"
+
+        print(f"✅ Phase 2: Loaded shard {shard_path.name} with {len(original_env_files)} files")
+
+        # Phase 3: Rewrite the shard with Windows-style separators
+        # everywhere a path appears as a dict key.
+        modified_shard = {
+            "pipeline": shard_data.get("pipeline", pipeline_name),
+            "schema_version": shard_data.get("schema_version", "2"),
             "environments": {},
-            "global_dependencies": state_data.get("global_dependencies", {}),
         }
-
-        # Convert all file paths to Windows-style backslashes
-        for env_name, env_files in state_data.get("environments", {}).items():
-            modified_state_data["environments"][env_name] = {}
+        for env_name, env_files in shard_data.get("environments", {}).items():
+            modified_shard["environments"][env_name] = {}
             for file_path, file_state in env_files.items():
-                # Convert dictionary key to Windows-style
                 windows_key = file_path.replace("/", "\\")
+                if file_state.get("file_dependencies"):
+                    file_state["file_dependencies"] = {
+                        dep.replace("/", "\\"): info
+                        for dep, info in file_state["file_dependencies"].items()
+                    }
+                modified_shard["environments"][env_name][windows_key] = file_state
 
-                # Convert file_dependencies keys to Windows-style
-                if (
-                    "file_dependencies" in file_state
-                    and file_state["file_dependencies"]
-                ):
-                    windows_deps = {}
-                    for dep_path, dep_info in file_state["file_dependencies"].items():
-                        windows_dep_key = dep_path.replace("/", "\\")
-                        windows_deps[windows_dep_key] = dep_info
-                    file_state["file_dependencies"] = windows_deps
+        with open(shard_path, "w") as f:
+            json.dump(modified_shard, f, indent=2)
 
-                modified_state_data["environments"][env_name][windows_key] = file_state
+        print("✅ Phase 3: Rewrote shard with Windows-style paths")
 
-        # Save modified state to simulate Windows generation
-        with open(state_file, "w") as f:
-            json.dump(modified_state_data, f, indent=2)
+        # Verify on-disk Windows separators (JSON escapes \ as \\).
+        with open(shard_path, "r") as f:
+            assert "\\\\" in f.read(), "Shard should contain Windows separators"
 
-        print("✅ Phase 3: Modified state file with Windows-style paths")
-
-        # Verify state file has Windows separators
-        with open(state_file, "r") as f:
-            windows_state_content = f.read()
-            assert (
-                "\\\\" in windows_state_content
-            ), "State file should contain Windows separators"
-
-        # Phase 4: Reload state (should normalize keys)
+        # Phase 4: Reload via the per-pipeline shard loader (normalization
+        # happens inside ``_file_state_from_dict``).
         from lhp.core.state.state_persistence import StatePersistence
 
-        persistence = StatePersistence(self.project_root)
-        reloaded_state = persistence.load_state()
+        payload = StatePersistence.load_pipeline_shard(state_dir, pipeline_name)
+        assert payload is not None
 
-        print("✅ Phase 4: Reloaded state file")
+        print("✅ Phase 4: Reloaded shard via load_pipeline_shard")
 
-        # Phase 5: Verify all keys are normalized to forward slashes
-        reloaded_env_files = reloaded_state.environments.get("dev", {})
+        reloaded_env_files = payload.environments.get("dev", {})
         assert len(reloaded_env_files) == len(
             original_env_files
         ), f"Should have same number of files: expected {len(original_env_files)}, got {len(reloaded_env_files)}"
@@ -2167,7 +2193,7 @@ resources:
         print("✅ Phase 7: Operations on normalized state work correctly")
 
         # Phase 8: Verify state file is saved with forward slashes
-        with open(state_file, "r") as f:
+        with open(shard_path, "r") as f:
             final_state_content = f.read()
             # Count forward vs backslash occurrences in path contexts
             # Note: JSON escapes backslashes as \\, so Windows paths would appear as \\\\

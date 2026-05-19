@@ -4,10 +4,48 @@ import hashlib
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 from ..services.blueprint_expander import BlueprintProvenance
 from ..state_models import FileState, GlobalDependencies, ProjectState
+
+if TYPE_CHECKING:
+    from .checksum_cache import ChecksumCache
+
+
+@runtime_checkable
+class _StateLike(Protocol):
+    """Structural type for state objects accepted by :class:`DependencyTracker`.
+
+    Both :class:`ProjectState` and :class:`PipelineState` expose an
+    ``environments`` mapping of the same shape, which is the only attribute
+    the tracker's internal methods touch. Using a Protocol avoids a circular
+    import on :class:`PipelineState` (defined in ``pipeline_state_manager``).
+    """
+
+    environments: Dict[str, Dict[str, FileState]]
+
+
+def state_key(project_root: Path, p: Path) -> str:
+    """Normalised POSIX-form key for storing ``p`` in the state.
+
+    Path is made relative to ``project_root`` when possible; absolute or
+    unrelated paths fall back to their string form. The ``as_posix``
+    conversion keeps state files stable across platforms.
+    """
+    try:
+        rel = p.relative_to(project_root)
+    except ValueError:
+        rel = p
+    return Path(str(rel)).as_posix()
 
 
 class DependencyTracker:
@@ -18,33 +56,114 @@ class DependencyTracker:
     and provides file lookup functionality for the state management system.
     """
 
-    def __init__(self, project_root: Path):
+    def __init__(
+        self,
+        project_root: Path,
+        state: Optional[_StateLike] = None,
+        checksum_cache: Optional["ChecksumCache"] = None,
+        pipeline_scope: bool = False,
+    ):
         """
         Initialize dependency tracker.
 
+        New callers should construct via :meth:`for_pipeline` or
+        :meth:`for_project` — those factories make the scope explicit. The
+        constructor itself remains usable directly for existing
+        non-scope-specific call sites (the legacy ``StateManager``/``StateAnalyzer``
+        constructions, which pass neither a state nor a cache).
+
         Args:
-            project_root: Root directory of the LakehousePlumber project
+            project_root: Root directory of the LakehousePlumber project.
+            state: Optional state object the tracker is bound to. Stored as
+                ``self._state`` for callers that prefer the state-on-self
+                pattern (used by :class:`PipelineStateManager`). The existing
+                instance methods still accept ``state`` as an explicit
+                parameter; this attribute is informational, not required.
+            checksum_cache: Optional :class:`ChecksumCache` instance. When
+                provided, :meth:`calculate_checksum` deduplicates reads via
+                the cache. Construction-time-only — there is no setter
+                (workers do not have access to the cache, so
+                :meth:`for_pipeline` does not accept one).
+            pipeline_scope: When True, :meth:`track_generated_file` skips the
+                project-wide ``update_global_dependencies`` refresh — that
+                field lives on :class:`ProjectState` only and the main
+                thread's ``ProjectStateManager.save_global`` performs the
+                refresh once per batch. :meth:`for_pipeline` sets this True;
+                :meth:`for_project` and direct construction leave it False.
         """
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
-        self._checksum_cache = None
+        self._state: Optional[_StateLike] = state
+        self._checksum_cache = checksum_cache
+        self._pipeline_scope = pipeline_scope
         # Used by track_generated_file to set FileState.synthetic=True so
         # cleanup's slow path can skip blueprint-expanded flowgroups safely.
         self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
 
-        # Initialize dependency resolver
+        # Initialize dependency resolver with the same cache.
         from ..state_dependency_resolver import StateDependencyResolver
 
-        self.dependency_resolver = StateDependencyResolver(project_root)
+        self.dependency_resolver = StateDependencyResolver(
+            project_root, checksum_cache=checksum_cache
+        )
 
-    def set_checksum_cache(self, cache) -> None:
-        """Inject shared ChecksumCache.
+
+    @classmethod
+    def for_pipeline(
+        cls,
+        state: _StateLike,
+        project_root: Path,
+    ) -> "DependencyTracker":
+        """Construct a tracker scoped to one pipeline's :class:`PipelineState`.
+
+        Used inside workers via :class:`PipelineStateManager`. The worker
+        gets a fresh :class:`ChecksumCache` so a multi-doc source YAML
+        referenced by N flowgroups is hashed once, not N times. The cache
+        is process-local — it is never pickled across the spawn boundary.
 
         Args:
-            cache: ChecksumCache instance
+            state: A :class:`PipelineState` (or any object exposing the
+                :class:`_StateLike` ``environments`` mapping).
+            project_root: Project root directory.
+
+        Returns:
+            A :class:`DependencyTracker` bound to ``state``.
         """
-        self._checksum_cache = cache
-        self.dependency_resolver.set_checksum_cache(cache)
+        from .checksum_cache import ChecksumCache
+
+        return cls(
+            project_root=project_root,
+            state=state,
+            checksum_cache=ChecksumCache(),
+            pipeline_scope=True,
+        )
+
+    @classmethod
+    def for_project(
+        cls,
+        state: _StateLike,
+        project_root: Path,
+        checksum_cache: Optional["ChecksumCache"] = None,
+    ) -> "DependencyTracker":
+        """Construct a tracker scoped to the project-wide :class:`ProjectState`.
+
+        Used on the main thread by :class:`ProjectStateManager` for aggregate
+        consumers (statistics, staleness, orphan scan). May share a
+        :class:`ChecksumCache` across calls to deduplicate source-side
+        checksum reads.
+
+        Args:
+            state: A :class:`ProjectState` (or any object exposing the
+                :class:`_StateLike` ``environments`` mapping).
+            project_root: Project root directory.
+            checksum_cache: Optional shared :class:`ChecksumCache`.
+
+        Returns:
+            A :class:`DependencyTracker` bound to ``state`` and ``cache``.
+        """
+        return cls(
+            project_root=project_root, state=state, checksum_cache=checksum_cache
+        )
 
     def set_blueprint_provenance(
         self, provenance: Optional[Dict[Tuple[str, str], BlueprintProvenance]]
@@ -77,18 +196,10 @@ class DependencyTracker:
             pipeline: Pipeline name
             flowgroup: FlowGroup name
         """
-        # Calculate relative paths from project root
-        try:
-            rel_generated = generated_path.relative_to(self.project_root)
-            rel_source = source_yaml.relative_to(self.project_root)
-        except ValueError as e:
-            # Handle absolute paths
-            self.logger.debug(f"Path not relative to project root, using absolute: {e}")
-            rel_generated = str(generated_path)
-            rel_source = str(source_yaml)
+        key_generated = state_key(self.project_root, generated_path)
+        key_source = state_key(self.project_root, source_yaml)
 
-        # Calculate checksums for both generated and source files
-        # Resolve paths relative to project_root if they're not absolute
+        # Resolve absolute paths for checksum calculation.
         resolved_generated_path = (
             self.project_root / generated_path
             if not generated_path.is_absolute()
@@ -103,13 +214,8 @@ class DependencyTracker:
         generated_checksum = self.calculate_checksum(resolved_generated_path)
         source_checksum = self.calculate_checksum(resolved_source_yaml)
 
-        # Resolve file-specific dependencies
-        # Ensure rel_source is a Path object
-        rel_source_path = (
-            Path(rel_source) if isinstance(rel_source, str) else rel_source
-        )
         file_dependencies = self.dependency_resolver.resolve_file_dependencies(
-            rel_source_path, environment, pipeline, flowgroup
+            Path(key_source), environment, pipeline, flowgroup
         )
 
         # Mark the FileState as synthetic when its (pipeline, flowgroup)
@@ -119,10 +225,9 @@ class DependencyTracker:
         # blueprint expansion).
         is_synthetic = (pipeline, flowgroup) in self._blueprint_provenance
 
-        # Create file state (normalize paths for cross-platform state files)
         file_state = FileState(
-            source_yaml=Path(str(rel_source)).as_posix(),
-            generated_path=Path(str(rel_generated)).as_posix(),
+            source_yaml=key_source,
+            generated_path=key_generated,
             checksum=generated_checksum,
             source_yaml_checksum=source_checksum,
             timestamp=datetime.now().isoformat(),
@@ -133,20 +238,20 @@ class DependencyTracker:
             synthetic=is_synthetic,
         )
 
-        # Ensure environment exists in state
         if environment not in state.environments:
             state.environments[environment] = {}
 
-        # Track the file (normalize dictionary key for cross-platform lookups)
-        state.environments[environment][
-            Path(str(rel_generated)).as_posix()
-        ] = file_state
+        state.environments[environment][key_generated] = file_state
 
-        # Update global dependencies for this environment
-        self.update_global_dependencies(state, environment)
+        # Update global dependencies for this environment. Skip in worker
+        # (pipeline-scope) trackers — PipelineState has no global_dependencies
+        # field, and ProjectStateManager.save_global() performs the per-env
+        # refresh once at end of batch on the main thread.
+        if not self._pipeline_scope:
+            self.update_global_dependencies(state, environment)
 
         self.logger.debug(
-            f"Tracked generated file: {rel_generated} from {rel_source} with "
+            f"Tracked generated file: {key_generated} from {key_source} with "
             f"{len(file_dependencies)} dependencies (synthetic={is_synthetic})"
         )
 
@@ -171,10 +276,7 @@ class DependencyTracker:
             pipeline: Pipeline name
             artifact_type: Identifier for the artifact kind (e.g. "test_reporting_hook")
         """
-        try:
-            rel_generated = generated_path.relative_to(self.project_root)
-        except ValueError:
-            rel_generated = str(generated_path)
+        key_generated = state_key(self.project_root, generated_path)
 
         resolved_path = (
             self.project_root / generated_path
@@ -188,7 +290,7 @@ class DependencyTracker:
 
         file_state = FileState(
             source_yaml="lhp.yaml",
-            generated_path=Path(str(rel_generated)).as_posix(),
+            generated_path=key_generated,
             checksum=checksum,
             source_yaml_checksum=source_checksum,
             timestamp=datetime.now().isoformat(),
@@ -201,12 +303,10 @@ class DependencyTracker:
         if environment not in state.environments:
             state.environments[environment] = {}
 
-        state.environments[environment][
-            Path(str(rel_generated)).as_posix()
-        ] = file_state
+        state.environments[environment][key_generated] = file_state
 
         self.logger.debug(
-            f"Tracked pipeline artifact: {rel_generated} (type={artifact_type})"
+            f"Tracked pipeline artifact: {key_generated} (type={artifact_type})"
         )
 
     def update_global_dependencies(self, state: ProjectState, environment: str) -> None:

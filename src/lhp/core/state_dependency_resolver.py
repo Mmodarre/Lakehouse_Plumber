@@ -21,19 +21,28 @@ class StateDependencyResolver:
     while always recalculating checksums (cheap validation) to preserve change detection.
     """
 
-    def __init__(self, project_root: Path, yaml_parser: Optional[YAMLParser] = None):
+    def __init__(
+        self,
+        project_root: Path,
+        yaml_parser: Optional[YAMLParser] = None,
+        checksum_cache=None,
+    ):
         """Initialize dependency resolver.
 
         Args:
             project_root: Root directory of the LakehousePlumber project
             yaml_parser: Optional YAML parser for shared caching
+            checksum_cache: Optional :class:`ChecksumCache` for shared
+                file-checksum deduplication. Construction-time-only — once
+                set, it cannot be replaced (was previously injectable via
+                ``set_checksum_cache``).
         """
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
         self.yaml_parser = yaml_parser or YAMLParser()
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
-        self._checksum_cache = None
+        self._checksum_cache = checksum_cache
 
         # Cache for dependency paths (not checksums!)
         # Key: (yaml_file, source_checksum, environment, pipeline, flowgroup)
@@ -46,14 +55,6 @@ class StateDependencyResolver:
         # fingerprints the corresponding instance file as a separate dependency
         # so changes to one instance only regenerate that one site.
         self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
-
-    def set_checksum_cache(self, cache) -> None:
-        """Inject shared ChecksumCache.
-
-        Args:
-            cache: ChecksumCache instance
-        """
-        self._checksum_cache = cache
 
     def set_blueprint_provenance(
         self, provenance: Optional[Dict[Tuple[str, str], BlueprintProvenance]]

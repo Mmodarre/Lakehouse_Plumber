@@ -919,16 +919,16 @@ class TestGeneratePipelinesByFields:
 
     def test_on_pipeline_complete_callback_fires_per_pipeline(self):
         """Callback fires once per pipeline, on the main thread, with the
-        :class:`PipelineGenerationOutcome` instance."""
-        from lhp.core.pipeline_executor import PipelineGenerationOutcome
+        :class:`PipelineDelta` instance produced by the worker."""
+        from lhp.core.state_models import PipelineDelta
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = self._build_project(tmpdir, ["c1", "c2", "c3"])
 
             seen: list = []
 
-            def cb(outcome: PipelineGenerationOutcome) -> None:
-                seen.append(outcome.pipeline)
+            def cb(delta: PipelineDelta) -> None:
+                seen.append(delta.pipeline_name)
 
             orch = ActionOrchestrator(project_root, max_workers=3)
             orch.generate_pipelines_by_fields(

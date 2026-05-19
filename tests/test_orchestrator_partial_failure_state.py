@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 from lhp.utils.error_formatter import LHPError
 
 
@@ -132,7 +132,7 @@ class TestGeneratePipelinesByFieldsPartialFailure:
             enforce_version=False,
             max_workers=1,  # determinism; matters for clarity only
         )
-        state_manager = StateManager(project_root=project_root)
+        state_manager = ProjectStateManager(project_root=project_root)
 
         # (a) Aggregate LHPValidationError raised.
         with pytest.raises(LHPError):
@@ -143,24 +143,21 @@ class TestGeneratePipelinesByFieldsPartialFailure:
                 state_manager=state_manager,
             )
 
-        # The orchestrator's per-pipeline atomic save in
-        # _assemble_pipeline_outputs should have already flushed
-        # successful pipelines' state entries to .lhp_state.json. Reload
-        # the state file from disk to verify.
-        state_file = project_root / ".lhp_state.json"
-        assert state_file.exists(), (
-            "State file must exist after partial-failure batch run "
-            "(successful pipelines should have persisted their state)."
+        # Each successful pipeline writes its own per-pipeline shard
+        # atomically inside the worker (PipelineStateManager.save). The
+        # state directory must exist with at least one shard for the
+        # successful pipelines.
+        state_dir = project_root / ".lhp_state"
+        assert state_dir.exists(), (
+            "State directory must exist after partial-failure batch run "
+            "(successful pipelines should have persisted their shards)."
         )
-
-        with state_file.open() as fh:
-            state_data = json.load(fh)
 
         # The state schema places generated files under environments → env →
         # pipeline keying via FileState records. We inspect the persisted
-        # state by reading it via a fresh StateManager (decoupling from
+        # state by reading it via a fresh ProjectStateManager (decoupling from
         # raw JSON schema details).
-        reloaded = StateManager(project_root=project_root)
+        reloaded = ProjectStateManager(project_root=project_root)
         env_files = reloaded.get_generated_files("dev")
 
         # Collect pipeline names from the persisted file states.

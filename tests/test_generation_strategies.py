@@ -10,7 +10,7 @@ from lhp.core.strategies import (
     SelectiveGenerationStrategy, FallbackGenerationStrategy,
     GenerationContext, GenerationFilterResult, GenerationStrategyFactory
 )
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 from lhp.models.config import FlowGroup, Action, ActionType
 
 
@@ -124,7 +124,7 @@ class TestGenerationStrategies:
         flowgroups = [self.test_flowgroup, self.test_only_flowgroup]
         
         # Mock state manager
-        mock_state_manager = Mock(spec=StateManager)
+        mock_state_manager = Mock(spec=ProjectStateManager)
         mock_state_manager.get_files_needing_generation.return_value = {
             "new": [],
             "stale": [],

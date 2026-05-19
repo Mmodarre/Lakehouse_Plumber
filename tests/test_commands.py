@@ -10,7 +10,7 @@ from lhp.core.commands import (
     CommandFactory, CommandRegistry, CommandContext, CommandResult,
     GenerationCommandResult, ValidationCommandResult, AnalysisCommandResult
 )
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 
 
 class TestCommandResults:
@@ -70,7 +70,7 @@ class TestCommandContext:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             mock_orchestrator = Mock()
-            mock_state_manager = Mock(spec=StateManager)
+            mock_state_manager = Mock(spec=ProjectStateManager)
             
             context = CommandContext(
                 project_root=project_root,

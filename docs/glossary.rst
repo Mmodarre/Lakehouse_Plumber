@@ -167,16 +167,22 @@ Each entry is the canonical wording; other pages link here with ``:term:`` roles
        reading that table. A Databricks job chains the two.
 
    Smart state
-       LHP's incremental regeneration system, backed by ``.lhp_state.json``.
-       Each generated Python file is tracked with its source YAML checksum,
-       environment, and dependency files (presets, templates, schemas). Only
-       FlowGroups whose source or dependencies have changed regenerate.
+       LHP's incremental regeneration system, backed by the per-pipeline
+       JSON shards under ``.lhp_state/`` (as of 0.9.0; pre-0.9 projects
+       used a monolithic ``.lhp_state.json`` that auto-migrates). Each
+       generated Python file is tracked with its source YAML checksum,
+       environment, and dependency files (presets, templates, schemas).
+       Only FlowGroups whose source or dependencies have changed regenerate.
 
    State file
-       The on-disk JSON file ``.lhp_state.json`` written after every successful
-       ``lhp generate``. It maps generated files to source YAML, checksums,
-       environment, pipeline, FlowGroup, and dependency descriptors used by
-       smart state.
+       The on-disk JSON state written after every successful ``lhp
+       generate``. As of 0.9.0, this is a directory ``.lhp_state/``
+       containing one shard per pipeline (``<pipeline>.json``) plus a
+       project-wide ``_global.json``. Each shard maps generated files to
+       source YAML, checksums, environment, pipeline, FlowGroup, and
+       dependency descriptors used by smart state. Pre-0.9 projects used
+       a single ``.lhp_state.json`` file that is auto-removed after the
+       first successful 0.9 run.
 
    Skill
        The LHP Claude Code skill installed by ``lhp skill install``. The skill

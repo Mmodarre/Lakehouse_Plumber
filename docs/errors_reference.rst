@@ -1131,8 +1131,8 @@ State Management
    # Force regeneration of all files
    lhp generate --force-all --env dev
 
-   # Clear state and regenerate everything
-   rm .lhp_state.json
+   # Clear state and regenerate everything (0.9+; pre-0.9 use `rm .lhp_state.json`)
+   rm -rf .lhp_state
    lhp generate --env dev
 
    # Check what files would be regenerated

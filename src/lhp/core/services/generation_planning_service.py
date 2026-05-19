@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ...models.config import FlowGroup
-from ..state_manager import StateManager
+from ..state_manager import ProjectStateManager
 from ..strategies import (
     GenerationContext,
     GenerationFilterResult,
@@ -81,7 +81,7 @@ class GenerationPlanningService:
         include_tests: bool,
         force: bool = False,
         specific_flowgroups: List[str] = None,
-        state_manager: Optional[StateManager] = None,
+        state_manager: Optional[ProjectStateManager] = None,
     ) -> GenerationPlan:
         """
         Create comprehensive generation plan using strategy pattern.
@@ -164,7 +164,7 @@ class GenerationPlanningService:
     def _convert_filter_result_to_plan(
         self,
         filter_result: GenerationFilterResult,
-        state_manager: Optional[StateManager],
+        state_manager: Optional[ProjectStateManager],
         env: str,
     ) -> GenerationPlan:
         """Convert strategy filter result to GenerationPlan."""

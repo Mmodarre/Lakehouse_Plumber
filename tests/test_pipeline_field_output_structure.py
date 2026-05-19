@@ -16,7 +16,7 @@ from click.testing import CliRunner
 
 from lhp.cli.main import cli
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 
 
 class TestPipelineFieldOutputStructure:
@@ -432,7 +432,7 @@ dev:
 
         # Generate files with state tracking
         orchestrator = ActionOrchestrator(project_root)
-        state_manager = StateManager(project_root)
+        state_manager = ProjectStateManager(project_root)
 
         # Generate pipeline by field
         output_dir = project_root / "generated"
@@ -467,7 +467,7 @@ dev:
 
         # Generate both pipelines with state tracking
         orchestrator = ActionOrchestrator(project_root)
-        state_manager = StateManager(project_root)
+        state_manager = ProjectStateManager(project_root)
 
         output_dir = project_root / "generated"
         orchestrator.generate_pipeline_by_field(

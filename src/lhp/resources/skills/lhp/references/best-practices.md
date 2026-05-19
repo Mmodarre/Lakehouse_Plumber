@@ -177,7 +177,7 @@ Load this file when:
 
 ## 16. State Management
 
-- **BP-16.1** **Do not commit `.lhp_state.json`** — local only. It enables smart regeneration.
+- **BP-16.1** **Do not commit `.lhp_state/`** — local only. As of 0.9.0 state lives as per-pipeline JSON shards (`<pipeline>.json`) plus `_global.json` inside `.lhp_state/`. Pre-0.9 monolithic `.lhp_state.json` is auto-removed on the first 0.9 successful run.
 - **BP-16.2** Audit with `lhp state`: `--orphaned`, `--stale`, `--new`. Combine with `--cleanup` or `--regen`.
 - **BP-16.3** `--force` only after framework upgrades or global preset changes requiring full regeneration.
 

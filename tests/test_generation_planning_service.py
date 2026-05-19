@@ -7,7 +7,7 @@ from unittest.mock import Mock, MagicMock, patch
 
 from lhp.core.services.generation_planning_service import GenerationPlanningService, GenerationPlan
 from lhp.core.services.flowgroup_discoverer import FlowgroupDiscoverer
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 from lhp.core.state_models import FileState
 from lhp.models.config import FlowGroup, Action, ActionType
 

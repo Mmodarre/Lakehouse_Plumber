@@ -5,15 +5,49 @@ import pytest
 from pathlib import Path
 from datetime import datetime
 
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
+from lhp.core.state.pipeline_state_manager import PipelineStateManager
 from lhp.core.state_dependency_resolver import StateDependencyResolver
+
+
+def _seed_file(project_root, *, source_yaml, generated_path, environment, pipeline, flowgroup):
+    """Track a generated file via :class:`PipelineStateManager` and persist its shard.
+
+    Used in place of the removed ``ProjectStateManager.track_generated_file``
+    shim. Constructs a worker-style state manager scoped to
+    ``(pipeline, environment)``, records the file, then atomically saves
+    the shard so the project-wide manager can pick it up via
+    ``load_all_pipeline_shards``.
+
+    Also calls :meth:`ProjectStateManager.save_global` for the env so that
+    global_dependencies (substitution_file + project_config checksums) are
+    populated on ``_global.json``. Without this the staleness analyzer
+    sees a fresh-vs-tracked mismatch on global deps and flags every file
+    as stale.
+    """
+    pm = PipelineStateManager(
+        state_dir=project_root / ".lhp_state",
+        pipeline_name=pipeline,
+        environment=environment,
+        project_root=project_root,
+    )
+    pm.track_generated_file(
+        generated_path=generated_path,
+        source_yaml=source_yaml,
+        flowgroup=flowgroup,
+    )
+    pm.save()
+
+    psm = ProjectStateManager(project_root)
+    psm.save_global(last_generation_context={environment: {}})
+    return pm
 
 
 class TestDependencyTrackingIntegration:
     """Integration tests for dependency tracking workflow."""
     
     def test_state_manager_dependency_integration(self):
-        """Test StateManager integration with dependency tracking."""
+        """Test ProjectStateManager integration with dependency tracking."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             
@@ -43,16 +77,17 @@ actions:
             substitution_file = substitution_dir / "dev.yaml"
             substitution_file.write_text("catalog: dev_catalog\nschema: dev_schema")
             
-            # Initialize state manager and track a file
-            state_manager = StateManager(project_root)
-            state_manager.track_generated_file(
+            # Track a file via PipelineStateManager (workers' write path).
+            _seed_file(
+                project_root,
                 source_yaml=yaml_file.relative_to(project_root),
                 generated_path=Path("test_flowgroup.py"),
                 environment="dev",
                 pipeline="test_pipeline",
-                flowgroup="test_flowgroup"
+                flowgroup="test_flowgroup",
             )
-            
+            state_manager = ProjectStateManager(project_root)
+
             # Verify file was tracked with dependencies
             tracked_files = state_manager.get_generated_files("dev")
             assert len(tracked_files) == 1
@@ -60,11 +95,14 @@ actions:
             file_state = list(tracked_files.values())[0]
             assert file_state.file_dependencies is not None
             assert "presets/bronze_layer.yaml" in file_state.file_dependencies
-            
-            # Verify global dependencies
-            assert state_manager._state.global_dependencies is not None
-            assert "dev" in state_manager._state.global_dependencies
-            
+
+            # Global dependencies are no longer populated by per-file
+            # tracking — workers operate on PipelineState which is scoped
+            # to one pipeline and doesn't carry the project-wide
+            # global_dependencies map. The project-wide ``_global.json``
+            # shard records them via ``ProjectStateManager.save_global``
+            # at end-of-batch, not during track_generated_file.
+
             # Test staleness detection
             stale_files = state_manager.find_stale_files("dev")
             assert len(stale_files) == 0  # Should be up-to-date
@@ -192,26 +230,24 @@ actions:
             prod_substitution = substitution_dir / "prod.yaml"
             prod_substitution.write_text("catalog: prod_catalog\nschema: prod_schema")
             
-            # Initialize state manager and track files in both environments
-            state_manager = StateManager(project_root)
-            
-            # Track file in dev environment
-            state_manager.track_generated_file(
+            # Track files in both environments via PipelineStateManager.
+            _seed_file(
+                project_root,
                 source_yaml=yaml_file.relative_to(project_root),
                 generated_path=Path("dev/test_flowgroup.py"),
                 environment="dev",
                 pipeline="test_pipeline",
-                flowgroup="test_flowgroup"
+                flowgroup="test_flowgroup",
             )
-            
-            # Track file in prod environment
-            state_manager.track_generated_file(
+            _seed_file(
+                project_root,
                 source_yaml=yaml_file.relative_to(project_root),
                 generated_path=Path("prod/test_flowgroup.py"),
                 environment="prod",
                 pipeline="test_pipeline",
-                flowgroup="test_flowgroup"
+                flowgroup="test_flowgroup",
             )
+            state_manager = ProjectStateManager(project_root)
             
             # Verify both environments are tracked
             dev_files = state_manager.get_generated_files("dev")
@@ -219,15 +255,15 @@ actions:
             assert len(dev_files) == 1
             assert len(prod_files) == 1
             
-            # Verify global dependencies are environment-specific
-            dev_global = state_manager._state.global_dependencies["dev"]
-            prod_global = state_manager._state.global_dependencies["prod"]
-            assert dev_global.substitution_file.path == "substitutions/dev.yaml"
-            assert prod_global.substitution_file.path == "substitutions/prod.yaml"
-            
+            # Per-env global_dependencies are recorded on the project-wide
+            # ``_global.json`` shard (written by ``save_global`` at end of
+            # batch in the new architecture), not as a side effect of
+            # per-file tracking. The cross-env staleness behaviour below
+            # exercises the same wiring through the analyzer's resolver.
+
             # Change dev substitution and verify only dev is affected
             dev_substitution.write_text("catalog: updated_dev_catalog\nschema: updated_dev_schema")
-            
+
             dev_stale = state_manager.find_stale_files("dev")
             prod_stale = state_manager.find_stale_files("prod")
             assert len(dev_stale) == 1
@@ -271,22 +307,19 @@ actions:
             substitution_file = substitution_dir / "dev.yaml"
             substitution_file.write_text("catalog: dev_catalog\nschema: dev_schema")
             
-            # Initialize state manager and track file
-            state_manager = StateManager(project_root)
-            state_manager.track_generated_file(
+            # Track and persist via PipelineStateManager — the shard is
+            # written atomically inside _seed_file.
+            _seed_file(
+                project_root,
                 source_yaml=yaml_file.relative_to(project_root),
                 generated_path=Path("test_flowgroup.py"),
                 environment="dev",
                 pipeline="test_pipeline",
-                flowgroup="test_flowgroup"
+                flowgroup="test_flowgroup",
             )
-            
-            # Save state
-            state_manager.save_state()
-            
-            # Create new state manager and load state
-            new_state_manager = StateManager(project_root)
-            new_state_manager.load_state()
+
+            # Fresh manager reloads shards on demand via load_all_pipeline_shards.
+            new_state_manager = ProjectStateManager(project_root)
             
             # Verify state was loaded correctly
             loaded_files = new_state_manager.get_generated_files("dev")
@@ -295,11 +328,12 @@ actions:
             file_state = list(loaded_files.values())[0]
             assert file_state.file_dependencies is not None
             assert "presets/bronze_layer.yaml" in file_state.file_dependencies
-            
-            # Verify global dependencies were loaded
-            assert new_state_manager._state.global_dependencies is not None
-            assert "dev" in new_state_manager._state.global_dependencies
-            
+
+            # Project-wide global_dependencies live on ``_global.json`` and
+            # are populated by ``save_global`` (end of batch in the new
+            # architecture). Per-pipeline shard load is the path under test
+            # here; checking shard-level file_dependencies above suffices.
+
             # Test staleness detection after loading
             stale_files = new_state_manager.find_stale_files("dev")
             assert len(stale_files) == 0  # Should be up-to-date
@@ -332,15 +366,16 @@ actions:
             generated_file = generated_dir / "test_flowgroup.py" 
             generated_file.write_text("# Generated file content")
             
-            # Initialize state manager and track file
-            state_manager = StateManager(project_root)
-            state_manager.track_generated_file(
+            # Track via PipelineStateManager and load a fresh project manager.
+            _seed_file(
+                project_root,
                 source_yaml=yaml_file.relative_to(project_root),
                 generated_path=Path("old_pipeline/test_flowgroup.py"),
                 environment="dev",
                 pipeline="old_pipeline",
-                flowgroup="test_flowgroup"
+                flowgroup="test_flowgroup",
             )
+            state_manager = ProjectStateManager(project_root)
             
             # Change pipeline name in YAML
             yaml_file.write_text("""

@@ -11,7 +11,7 @@ from unittest.mock import patch, Mock
 
 from lhp.cli.main import cli
 from lhp.bundle.manager import BundleManager
-from lhp.core.state_manager import StateManager
+from lhp.core.state_manager import ProjectStateManager
 
 
 class TestEnvironmentDirectories:
@@ -161,58 +161,49 @@ dp.create_streaming_table(name="prod_catalog.prod_schema.table3")
     
     # Test 8: State Management with New Paths
     def test_state_manager_tracks_environment_specific_paths(self):
-        """Verify state file contains environment-specific paths."""
+        """Verify shard files contain environment-specific paths.
+
+        Workers persist per-pipeline shards under ``.lhp_state/<pipeline>.json``
+        (multi-env co-located inside one shard). The aggregate manager surfaces
+        them via :meth:`ProjectStateManager.load_all_pipeline_shards`.
+        """
+        from lhp.core.state.pipeline_state_manager import PipelineStateManager
+
         project_root = self.temp_dir / "state_test"
         project_root.mkdir()
-        
-        # Create state manager
-        state_manager = StateManager(project_root)
-        
-        # Track files for different environments
+
         dev_file = project_root / "generated" / "dev" / "pipeline1" / "flow1.py"
         dev_file.parent.mkdir(parents=True)
         dev_file.write_text("# dev content")
-        
+
         staging_file = project_root / "generated" / "staging" / "pipeline1" / "flow1.py"
         staging_file.parent.mkdir(parents=True)
         staging_file.write_text("# staging content")
-        
-        # Track the files
-        state_manager.track_generated_file(
-            generated_path=dev_file,
-            source_yaml=project_root / "pipelines" / "flow1.yaml",
-            environment="dev",
-            pipeline="pipeline1",
-            flowgroup="flow1"
-        )
-        
-        state_manager.track_generated_file(
-            generated_path=staging_file,
-            source_yaml=project_root / "pipelines" / "flow1.yaml",
-            environment="staging",
-            pipeline="pipeline1",
-            flowgroup="flow1"
-        )
-        
-        # Save and reload state
-        state_manager.save()
-        
-        # Load state file and verify paths
-        import json
-        state_file = project_root / ".lhp_state.json"
-        assert state_file.exists()
-        
-        with open(state_file, 'r') as f:
-            state_data = json.load(f)
-        
-        # Check dev environment
-        assert "dev" in state_data["environments"]
-        dev_files = state_data["environments"]["dev"]
+
+        state_dir = project_root / ".lhp_state"
+        # Two worker writes (one shard per env, same pipeline name) — they
+        # rebuild the multi-env slice in the shard.
+        for env, gen_path in (("dev", dev_file), ("staging", staging_file)):
+            pm = PipelineStateManager(
+                state_dir=state_dir,
+                pipeline_name="pipeline1",
+                environment=env,
+                project_root=project_root,
+            )
+            pm.track_generated_file(
+                generated_path=gen_path,
+                source_yaml=project_root / "pipelines" / "flow1.yaml",
+                flowgroup="flow1",
+            )
+            pm.save()
+
+        state_manager = ProjectStateManager(project_root)
+
+        # Check dev environment via the new aggregate API.
+        dev_files = state_manager.load_all_pipeline_shards("dev")
         assert "generated/dev/pipeline1/flow1.py" in dev_files
-        
-        # Check staging environment
-        assert "staging" in state_data["environments"]
-        staging_files = state_data["environments"]["staging"]
+
+        staging_files = state_manager.load_all_pipeline_shards("staging")
         assert "generated/staging/pipeline1/flow1.py" in staging_files
     
     # Test 9: Template Requires Env Parameter

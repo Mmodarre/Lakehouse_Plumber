@@ -210,7 +210,7 @@ Each unique `job_name` generates a separate job file + a master orchestration jo
 1. YAML is single source of truth; generated Python is ephemeral
 2. Same commit SHA deployed to all environments
 3. Environment isolation via separate substitution files
-4. `.lhp_state.json` not in git (regenerates in CI)
+4. `.lhp_state/` not in git (regenerates in CI). Pre-0.9 single-file `.lhp_state.json` auto-removes on first 0.9 run.
 
 **Version pinning (lhp.yaml):**
 ```yaml
@@ -238,7 +238,7 @@ databricks bundle deploy --target $ENV
 
 ## State Management
 
-`.lhp_state.json` tracks generated files, checksums, and dependencies.
+`.lhp_state/` tracks generated files, checksums, and dependencies. One JSON shard per pipeline (`<pipeline>.json`) plus a project-wide `_global.json`. Workers write their own shards atomically (`os.replace`); the main thread writes `_global.json` once at end of batch.
 
 - Only changed files regenerated on subsequent runs
 - Upstream changes trigger downstream regeneration

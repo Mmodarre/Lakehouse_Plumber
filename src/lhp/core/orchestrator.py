@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
     List,
     Optional,
@@ -32,6 +33,7 @@ from ..utils.error_formatter import (
     LHPError,
     LHPFileError,
     LHPValidationError,
+    lhp_error_from_worker_failure,
 )
 from ..utils.formatter import CodeFormatter
 from ..utils.performance_timer import perf_timer
@@ -47,17 +49,16 @@ from .commands import CommandContext, CommandRegistry, CommandResult
 from .dependency_resolver import DependencyResolver
 from .factories import OrchestrationDependencies
 from .pipeline_executor import (
-    FlowgroupResult,
     FlowgroupValidationResult,
-    OnPipelineComplete,
     OnValidationComplete,
-    PipelineGenerationOutcome,
     PipelineValidationOutcome,
-    _process_one_for_pipeline,
+    _dispatch_pipeline_for_generate,
     _process_one_for_validate,
     run_generate_pool,
     run_validate_pool,
 )
+from .state.state_persistence import StatePersistence
+from .state_models import PipelineDelta
 from .project_config_loader import ProjectConfigLoader
 from .secret_validator import SecretValidator
 from .services.blueprint_discoverer import BlueprintDiscoverer
@@ -69,7 +70,7 @@ from .services.flowgroup_discoverer import FlowgroupDiscoverer
 from .services.flowgroup_processor import FlowgroupProcessor
 from .services.generation_planning_service import GenerationPlanningService
 from .services.pipeline_validator import PipelineValidator
-from .state_manager import StateManager
+from .state_manager import ProjectStateManager
 from .template_engine import TemplateEngine
 from .validator import ConfigValidator
 
@@ -137,6 +138,7 @@ class ActionOrchestrator:
         dependencies: OrchestrationDependencies = None,
         pipeline_config_path: Optional[str] = None,
         max_workers: Optional[int] = None,
+        build_state: bool = True,
     ):
         """
         Initialize orchestrator with service composition and dependency injection.
@@ -148,11 +150,17 @@ class ActionOrchestrator:
             pipeline_config_path: Optional path to custom pipeline config file (relative to project_root)
             max_workers: Maximum worker threads for parallel flowgroup processing.
                 If None, uses ``min(cpu_count, 8)``. ``1`` is sequential.
+            build_state: When False, workers skip checksum computation and
+                shard writes (``.lhp_state/`` is not created/updated).
+                Surfaced as the CLI ``--no-state`` flag; equivalent to
+                ``--force`` on the next run because everything will
+                regenerate. ``True`` preserves the legacy behavior.
         """
         self.project_root = project_root
         self.enforce_version = enforce_version
         self.dependencies = dependencies or OrchestrationDependencies()
         self.pipeline_config_path = pipeline_config_path
+        self.build_state = build_state
         self.logger = logging.getLogger(__name__)
 
         # Initialize core components (still needed for services)
@@ -445,7 +453,7 @@ class ActionOrchestrator:
         pipeline_names: List[str],
         include_tests: bool,
         force: bool = False,
-        state_manager: Optional[StateManager] = None,
+        state_manager: Optional[ProjectStateManager] = None,
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> GenerationAnalysis:
         """
@@ -501,7 +509,7 @@ class ActionOrchestrator:
         # runs, every pipeline needs regeneration because test actions may be
         # added/removed. Record the comparison once per run — no per-flowgroup
         # composite checksums required.
-        stored_ctx = state_manager.state.last_generation_context.get(env, {})
+        stored_ctx = state_manager.last_generation_context.get(env, {})
         current_ctx = {"include_tests": str(include_tests)}
         if stored_ctx != current_ctx:
             context_changes = [
@@ -1063,64 +1071,60 @@ class ActionOrchestrator:
         pipeline_fields: Sequence[str],
         env: str,
         output_dir: Optional[Path],
-        state_manager: Optional[StateManager],
+        state_manager: Optional[ProjectStateManager],
         force_all: bool = False,
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
         max_workers: Optional[int] = None,
-        on_pipeline_complete: Optional[OnPipelineComplete] = None,
+        on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
     ) -> Dict[str, Dict[str, str]]:
-        """Run Phase A as one flat pool across all pipelines; Phase B per pipeline on main thread.
+        """Run one worker per pipeline; aggregate results on the main thread.
 
-        Phase A: every flowgroup across every pipeline is submitted to a single
-        :class:`ProcessPoolExecutor` running under a ``spawn`` multiprocessing
-        context. Workers never touch the state manager (``CopiedModuleRecord``
-        instances flow back through the :class:`FlowgroupResult` for
-        main-thread replay).
+        Each worker owns the full pipeline pass (Phase A discovery + Phase B
+        validation/file writes + shard save). The main thread is a pure
+        aggregator — Phase B no longer runs here, which removes the GIL
+        contention that throttled the legacy ``as_completed`` consumer.
 
-        Phase B (main thread, per pipeline): once a pipeline's bucket is full,
-        the closure replays module copies, runs cross-flowgroup validation,
-        writes files via the per-pipeline ``SmartFileWriter``, tracks state,
-        and calls ``state_manager.save()`` atomically (tempfile + os.replace
-        via :class:`StatePersistence`). Per-pipeline save preserves incremental
-        ROI on mid-run kill.
+        Sequencing invariant (M9):
+            workers write per-pipeline shards → main thread writes
+            ``_global.json`` → legacy ``.lhp_state.json`` auto-delete
+            (success-only) → bundle sync → monitoring.
 
         Args:
-            pipeline_fields: Pipeline names to generate. Order is preserved in
-                the returned mapping; on_pipeline_complete fires in completion
-                order (not input order).
+            pipeline_fields: Pipeline names to generate. Order is preserved
+                in the returned mapping; ``on_pipeline_complete`` fires in
+                completion order (not input order).
             env: Environment name (e.g. ``"dev"``).
             output_dir: Root output directory (``output_dir / <pipeline>``)
                 or ``None`` for dry-run.
-            state_manager: State manager for tracking generated files. ``None``
-                disables state tracking (used by ``--no-cleanup`` callers).
-            force_all: Bypass smart staleness filtering — regenerate everything.
+            state_manager: State manager for tracking generated files.
+                ``None`` disables state tracking (used by ``--no-cleanup``
+                callers).
+            force_all: Bypass smart staleness filtering — regenerate
+                everything.
             specific_flowgroups: Optional whitelist of flowgroup names.
             include_tests: Include test actions in the generated code.
             pre_discovered_all_flowgroups: Re-use the caller's one-shot
-                discovery instead of re-discovering. When ``None``, runs
-                ``discover_all_flowgroups()`` + duplicate validation here.
-            max_workers: Thread-pool size. ``None`` falls back to
-                ``self.max_workers``, then to ``min(cpu_count, 8)``. ``1``
-                forces sequential.
+                discovery instead of re-discovering.
+            max_workers: Pool size override. ``None`` falls back to
+                ``self.max_workers``.
             on_pipeline_complete: Optional main-thread callback fired once
-                per pipeline after its Phase B completes (success or failure).
-                Callback exceptions are logged but do not abort the batch.
+                per pipeline with the :class:`PipelineDelta`. Callback
+                exceptions are logged but do not abort the batch.
 
         Returns:
-            Mapping of ``{pipeline_name: {filename: code}}`` for **successful**
-            pipelines. Failed pipelines are absent from the dict — the
-            aggregate :class:`LHPValidationError` raised at the end captures
-            their errors.
+            Mapping of ``{pipeline_name: {generated_path: code}}`` for
+            **successful** pipelines. Failed pipelines are absent from the
+            dict — the aggregate :class:`LHPError` raised at the end
+            captures their errors.
 
         Raises:
-            LHPValidationError: When one or more pipelines failed. For a
-                single failure, the original exception is re-raised
-                unchanged (preserves fail-fast semantics for single-pipeline
-                shim callers). For multiple failures, a single
-                aggregate :class:`LHPValidationError` is raised listing all
-                failed pipelines.
+            LHPError: When a single pipeline failed; reconstructed via
+                :meth:`LHPError.from_worker_exception` so the worker's
+                error type and full traceback survive.
+            LHPValidationError: When multiple pipelines failed; one
+                aggregate error listing every failure.
         """
         # Invalidate the id()-keyed pipeline-slice cache from any prior run.
         self._invalidate_pipeline_slice_cache()
@@ -1148,15 +1152,11 @@ class ActionOrchestrator:
         if state_manager is not None:
             state_manager.set_blueprint_provenance(self._blueprint_provenance)
 
-        # Each pipeline gets its own substitution_mgr / python_copier /
-        # smart_writer so Phase B replay can attribute state-tracking and
-        # file-write stats to the right pipeline.
-        from ..generators.python_file_copier import PythonFileCopier
-
+        # Each pipeline gets its own substitution_mgr / output_dir so the
+        # worker can attribute state-tracking and file-write stats to the
+        # right pipeline without cross-talk between workers.
         flowgroups_by_pipeline: Dict[str, List[FlowGroup]] = {}
         substitution_managers: Dict[str, EnhancedSubstitutionManager] = {}
-        python_copiers: Dict[str, PythonFileCopier] = {}
-        smart_writers: Dict[str, SmartFileWriter] = {}
         pipeline_output_dirs: Dict[str, Optional[Path]] = {}
 
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
@@ -1182,10 +1182,9 @@ class ActionOrchestrator:
             flowgroups_by_pipeline[pipeline_field] = flowgroups
             pipeline_output_dirs[pipeline_field] = None
 
-            # Skip output dir / substitution_mgr / writer setup for pipelines
-            # with no flowgroups (empty due to smart filtering or no matches).
-            # Mirrors the old single-pipeline early-return behavior — avoids
-            # touching substitutions/<env>.yaml in tests that don't have one.
+            # Empty pipelines (smart filtering left no work): skip output-dir
+            # and substitution_mgr setup so we don't touch substitutions/<env>.yaml
+            # unnecessarily.
             if not flowgroups:
                 continue
 
@@ -1204,87 +1203,33 @@ class ActionOrchestrator:
                     )
                 )
 
-            python_copiers[pipeline_field] = PythonFileCopier()
-            smart_writers[pipeline_field] = self.dependencies.create_file_writer()
-
             # Pre-compute source_yamls on the main thread. The discoverer
             # holds a threading.Lock for its index, so the lookup cannot
             # cross the process boundary; the worker reads fg._source_yaml.
             for fg in flowgroups_by_pipeline[pipeline_field]:
                 fg._source_yaml = self._find_source_yaml_for_flowgroup(fg)
 
+        # Effective build_state: needs both a real state_manager AND --no-state not set.
+        effective_build_state = bool(state_manager) and self.build_state
+        state_dir = state_manager.state_dir if state_manager is not None else None
+
         # Top-level callable bound by functools.partial. The pool needs an
         # importable target; closures can't be pickled under spawn.
         process_one = functools.partial(
-            _process_one_for_pipeline,
+            _dispatch_pipeline_for_generate,
             processor=self.processor,
             code_generator=self.generator,
             formatter=self._formatter,
             substitution_managers=substitution_managers,
             pipeline_output_dirs=pipeline_output_dirs,
-            env=env,
+            environment=env,
+            state_dir=state_dir,
+            project_root=self.project_root,
+            project_config=self.project_config,
             include_tests=include_tests,
+            build_state=effective_build_state,
+            blueprint_provenance=self._blueprint_provenance,
         )
-
-        def _assemble_pipeline(
-            pipeline_name: str,
-            results: List[FlowgroupResult],
-        ) -> PipelineGenerationOutcome:
-            # Empty bucket (e.g. smart filtering left no work) — short-circuit
-            # so we don't run validation/save on an empty set.
-            if not results:
-                return PipelineGenerationOutcome(
-                    pipeline=pipeline_name,
-                    generated_files={},
-                    files_written=0,
-                    flowgroups_processed=0,
-                    flowgroups_failed=0,
-                    success=True,
-                )
-
-            substitution_mgr = substitution_managers[pipeline_name]
-            python_copier = python_copiers[pipeline_name]
-            smart_writer = smart_writers[pipeline_name]
-            pipeline_out_dir = pipeline_output_dirs[pipeline_name]
-
-            # Replay Phase-A-captured module copies on the main thread. This
-            # is the only place state_manager.track_generated_file is called
-            # for user Python modules (workers MUST NOT touch state_manager).
-            for result in results:
-                if result.processed_flowgroup is None or not result.copied_modules:
-                    continue
-                for record in result.copied_modules:
-                    python_copier.apply_copy_record(
-                        record,
-                        state_manager=state_manager,
-                        source_yaml=result.source_yaml,
-                        flowgroup=result.processed_flowgroup,
-                        env=env,
-                    )
-
-            # Phase B body — validation, file writes, state track + atomic save.
-            generated_files = self._assemble_pipeline_outputs(
-                pipeline_field=pipeline_name,
-                env=env,
-                include_tests=include_tests,
-                results=results,
-                output_dir=pipeline_out_dir,
-                state_manager=state_manager,
-                substitution_mgr=substitution_mgr,
-                smart_writer=smart_writer,
-            )
-
-            files_written = (
-                smart_writer.get_stats()[0] if pipeline_out_dir is not None else 0
-            )
-            return PipelineGenerationOutcome(
-                pipeline=pipeline_name,
-                generated_files=generated_files,
-                files_written=files_written,
-                flowgroups_processed=len(results),
-                flowgroups_failed=sum(1 for r in results if not r.success),
-                success=True,
-            )
 
         # The constructor already resolved self.max_workers. A method-level
         # override (max_workers kwarg) takes precedence.
@@ -1293,41 +1238,63 @@ class ActionOrchestrator:
         )
 
         successful, failed = run_generate_pool(
-            pipelines=list(pipeline_fields),
             flowgroups_by_pipeline=flowgroups_by_pipeline,
             process_one=process_one,
-            assemble_pipeline=_assemble_pipeline,
             max_workers=resolved_workers,
             on_pipeline_complete=on_pipeline_complete,
         )
 
-        # State for successful pipelines is already saved by per-pipeline
-        # save inside _assemble_pipeline_outputs.
+        # Workers have already written their per-pipeline shards atomically;
+        # the main thread now persists only _global.json plus legacy cleanup.
+        if state_manager is not None and effective_build_state:
+            last_gen_ctx = {
+                env: {
+                    "include_tests": str(include_tests),
+                    "force_all": str(force_all),
+                }
+            }
+            with perf_timer("save_global"):
+                state_manager.save_global(last_generation_context=last_gen_ctx)
+
+            # Legacy auto-delete ONLY on full success. Retain on partial
+            # failure as a safety net so the user has a fallback to inspect.
+            if not failed:
+                StatePersistence.maybe_remove_legacy_state(
+                    project_root=self.project_root,
+                    batch_succeeded=True,
+                    logger=self.logger,
+                )
+            else:
+                self.logger.warning(
+                    "Legacy .lhp_state.json retained due to partial-batch "
+                    "failure; delete manually after a clean run."
+                )
+
+        # Aggregate-raise on failure. Successful pipelines keep their
+        # per-pipeline shards on disk regardless.
         if failed:
             if len(failed) == 1:
-                err = failed[0].error
-                if err is not None:
-                    raise err
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="011",
-                    title=(f"Pipeline '{failed[0].pipeline}' generation failed"),
-                    details=(
-                        "Pipeline generation reported failure with no "
-                        "captured exception."
-                    ),
-                    context={"Pipeline": failed[0].pipeline},
+                d = failed[0]
+                raise lhp_error_from_worker_failure(
+                    pipeline_name=d.pipeline_name,
+                    error_type=d.error_type or "UnknownError",
+                    error_message=d.error_message or "(no message)",
+                    error_traceback=d.error_traceback or "",
                 )
             failure_lines = [
-                f"  - {outcome.pipeline}: {outcome.error}" for outcome in failed
+                f"  - {d.pipeline_name}: {d.error_type}: {d.error_message}"
+                for d in failed
             ]
             raise LHPValidationError(
                 category=ErrorCategory.VALIDATION,
                 code_number="011",
-                title=(f"{len(failed)} pipeline(s) failed during batch generation"),
+                title=(
+                    f"{len(failed)} pipeline(s) failed during batch generation"
+                ),
                 details=(
                     "Multiple pipelines failed; state for successful "
-                    "pipelines has already been persisted:\n" + "\n".join(failure_lines)
+                    "pipelines has already been persisted:\n"
+                    + "\n".join(failure_lines)
                 ),
                 suggestions=[
                     "Inspect each failing pipeline's error individually",
@@ -1335,14 +1302,15 @@ class ActionOrchestrator:
                     "Run 'lhp validate' for upfront diagnostics",
                 ],
                 context={
-                    "Failed Pipelines": ", ".join(o.pipeline for o in failed),
+                    "Failed Pipelines": ", ".join(d.pipeline_name for d in failed),
                     "Successful Pipelines": str(len(successful)),
                     "Failure Count": str(len(failed)),
                 },
             )
 
         return {
-            outcome.pipeline: dict(outcome.generated_files) for outcome in successful
+            delta.pipeline_name: dict(delta.generated_files)
+            for delta in successful
         }
 
     def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
@@ -1359,83 +1327,6 @@ class ActionOrchestrator:
             Path to the source YAML file, or None if not found
         """
         return self.discoverer.find_source_yaml_for_flowgroup(flowgroup)
-
-    def _generate_test_reporting_hook(
-        self,
-        processed_flowgroups: List[FlowGroup],
-        pipeline_field: str,
-        env: str,
-        pipeline_output_dir: Path,
-        smart_writer: SmartFileWriter,
-        generated_files: Dict[str, str],
-        state_manager: Optional[Any],
-        include_tests: bool,
-        substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
-    ) -> None:
-        """Generate test reporting event hook if configured.
-
-        Guards:
-        - include_tests must be True (hook references test tables)
-        - project_config.test_reporting must be present
-
-        Args:
-            processed_flowgroups: Already-processed flowgroups for this pipeline
-            pipeline_field: Pipeline name
-            env: Environment name
-            pipeline_output_dir: Output directory for this pipeline
-            smart_writer: SmartFileWriter instance
-            generated_files: Dict to update with generated content
-            state_manager: Optional state manager
-            include_tests: Whether test generation is enabled
-        """
-        if not include_tests:
-            return
-
-        if not self.project_config or not self.project_config.test_reporting:
-            return
-
-        from .services.tst_reporting_hook_generator import (
-            HOOK_FILENAME,
-            TestReportingHookGenerator,
-        )
-
-        generator = TestReportingHookGenerator(self.project_config, self.project_root)
-
-        content = generator.generate(
-            processed_flowgroups=processed_flowgroups,
-            pipeline_name=pipeline_field,
-            output_dir=pipeline_output_dir,
-            smart_writer=smart_writer,
-            substitution_mgr=substitution_mgr,
-        )
-
-        if content:
-            generated_files[HOOK_FILENAME] = content
-
-            if state_manager:
-                config = self.project_config.test_reporting
-                provider_stem = Path(config.module_path).stem
-
-                state_manager.track_pipeline_artifact(
-                    pipeline_output_dir / HOOK_FILENAME,
-                    env,
-                    pipeline_field,
-                    "test_reporting_hook",
-                )
-                state_manager.track_pipeline_artifact(
-                    pipeline_output_dir
-                    / "test_reporting_providers"
-                    / f"{provider_stem}.py",
-                    env,
-                    pipeline_field,
-                    "test_reporting_provider",
-                )
-                state_manager.track_pipeline_artifact(
-                    pipeline_output_dir / "test_reporting_providers" / "__init__.py",
-                    env,
-                    pipeline_field,
-                    "test_reporting_init",
-                )
 
     def process_flowgroup(
         self,
@@ -1648,7 +1539,7 @@ class ActionOrchestrator:
         # the last successful save, every flowgroup in this pipeline must
         # regenerate. The display phase already reports this; this check
         # guarantees the filter agrees during generation.
-        stored_ctx = state_manager.state.last_generation_context.get(env, {})
+        stored_ctx = state_manager.last_generation_context.get(env, {})
         current_ctx = {"include_tests": str(include_tests)}
         if stored_ctx != current_ctx:
             self.logger.info(
@@ -1701,7 +1592,7 @@ class ActionOrchestrator:
             if fg._synthetic and fg.pipeline == pipeline_identifier
         ]
         if synthetic_in_pipeline:
-            env_state = state_manager.state.environments.get(env, {})
+            env_state = state_manager.load_all_pipeline_shards(env)
             if isinstance(env_state, dict):
                 cache_key = (id(state_manager), env)
                 tracked_keys = self._tracked_keys_cache.get(cache_key)
@@ -1781,264 +1672,6 @@ class ActionOrchestrator:
                 )
                 raise
         return processed
-
-    def _handle_empty_flowgroup(
-        self,
-        flowgroup: FlowGroup,
-        output_dir: Optional[Path],
-        filename: str,
-        state_manager,
-        env: str,
-    ) -> None:
-        """Handle empty flowgroup - cleanup existing files if needed.
-
-        Args:
-            flowgroup: The flowgroup being processed
-            output_dir: Output directory (None for dry-run)
-            filename: Generated filename
-            state_manager: State manager instance
-            env: Environment name
-        """
-        if output_dir:
-            output_file = output_dir / filename
-            if output_file.exists():
-                try:
-                    output_file.unlink()
-                    self.logger.info(f"Deleted empty flowgroup file: {output_file}")
-
-                    if state_manager:
-                        state_manager.remove_generated_file(output_file, env)
-                        state_manager.cleanup_empty_directories(env, [str(output_file)])
-                except Exception as e:
-                    self.logger.error(f"Failed to delete empty flowgroup file: {e}")
-                    raise
-
-        self.logger.info(
-            f"Skipping empty flowgroup: {flowgroup.flowgroup} (no content to generate)"
-        )
-
-    def _track_generated_file(
-        self,
-        flowgroup: FlowGroup,
-        output_file: Path,
-        source_yaml: Path,
-        env: str,
-        pipeline_identifier: str,
-        include_tests: bool,
-        state_manager,
-    ) -> None:
-        """Track generated file in state manager.
-
-        Args:
-            flowgroup: The flowgroup being processed
-            output_file: Path to the generated file
-            source_yaml: Path to the generated file's source YAML (for synthetic
-                flowgroups, this is the originating blueprint path).
-            env: Environment name
-            pipeline_identifier: Pipeline name or field
-            include_tests: Whether test actions are included (recorded env-wide
-                by the CLI via ``record_generation_context``; unused here)
-            state_manager: State manager instance
-        """
-        state_manager.track_generated_file(
-            generated_path=output_file,
-            source_yaml=source_yaml,
-            environment=env,
-            pipeline=pipeline_identifier,
-            flowgroup=flowgroup.flowgroup,
-        )
-
-    def _assemble_pipeline_outputs(
-        self,
-        *,
-        pipeline_field: str,
-        env: str,
-        include_tests: bool,
-        results: List[FlowgroupResult],
-        output_dir: Optional[Path],
-        state_manager: Optional[StateManager],
-        substitution_mgr: EnhancedSubstitutionManager,
-        smart_writer: SmartFileWriter,
-    ) -> Dict[str, str]:
-        """Phase B body — validation, file writing, state tracking, save.
-
-        Pure refactor extracted from :meth:`generate_pipeline_by_field`.
-        Accepts the per-flowgroup processing results (Phase A output) and
-        performs:
-
-        1. Eager-fail on any flowgroup processing error (current behaviour;
-           aggregate-error semantics arrive in the new plural method).
-        2. Cross-flowgroup validation (table creation, CDC fan-in).
-        3. Per-flowgroup file writing, state tracking, auxiliary files.
-        4. Test-reporting hook.
-        5. Atomic per-pipeline state save.
-
-        Returns the ``{filename: code}`` mapping that ``generate_pipeline_by_field``
-        returns to its caller.
-        """
-        processed_flowgroups: List[FlowGroup] = []
-        for result in results:
-            if not result.success:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
-                    title=f"Failed to generate flowgroup '{result.flowgroup_name}'",
-                    details=(
-                        f"Failed to generate {result.flowgroup_name}: {result.error}"
-                    ),
-                    suggestions=[
-                        "Check the flowgroup configuration for errors",
-                        "Run 'lhp validate' for detailed diagnostics",
-                    ],
-                    context={"Flowgroup": result.flowgroup_name},
-                )
-            if result.processed_flowgroup is not None:
-                processed_flowgroups.append(result.processed_flowgroup)
-            else:
-                self.logger.warning(
-                    f"Missing processed flowgroup for {result.flowgroup_name}"
-                )
-
-        try:
-            with perf_timer("validate_table_creation_rules"):
-                errors = self.config_validator.validate_table_creation_rules(
-                    processed_flowgroups
-                )
-            if errors:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
-                    title="Table creation validation failed",
-                    details="Table creation validation failed:\n"
-                    + "\n".join(f"  - {e}" for e in errors),
-                    suggestions=[
-                        "Ensure each target table has exactly one action with create_table: true",
-                        "Check for conflicting table creation settings across flowgroups",
-                        "Run 'lhp validate' for detailed diagnostics",
-                    ],
-                    context={"Pipeline": pipeline_field, "Error Count": len(errors)},
-                )
-        except LHPError:
-            raise
-        except Exception as e:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="009",
-                title="Table creation validation failed",
-                details=f"Table creation validation failed:\n  - {str(e)}",
-                suggestions=[
-                    "Ensure each target table has exactly one action with create_table: true",
-                    "Check for conflicting table creation settings across flowgroups",
-                ],
-                context={"Pipeline": pipeline_field},
-            )
-
-        try:
-            with perf_timer("validate_cdc_fanin_compatibility"):
-                cdc_errors = self.config_validator.validate_cdc_fanin_compatibility(
-                    processed_flowgroups
-                )
-            if cdc_errors:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="010",
-                    title="CDC fan-in compatibility validation failed",
-                    details="CDC fan-in compatibility validation failed:\n"
-                    + "\n".join(f"  - {e}" for e in cdc_errors),
-                    suggestions=[
-                        "All CDC actions sharing a target must agree on "
-                        "table-level and CDC-key fields (keys, sequence_by, "
-                        "stored_as_scd_type, track_history_*, "
-                        "partition_columns, table_properties, etc.)",
-                        "Fields allowed to differ per flow: source, once, "
-                        "ignore_null_updates, apply_as_deletes, "
-                        "apply_as_truncates, column_list, except_column_list",
-                        "Run 'lhp validate' for detailed diagnostics",
-                    ],
-                    context={
-                        "Pipeline": pipeline_field,
-                        "Error Count": len(cdc_errors),
-                    },
-                )
-        except LHPError:
-            raise
-        except Exception as e:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="010",
-                title="CDC fan-in compatibility validation failed",
-                details=f"CDC fan-in validation failed:\n  - {str(e)}",
-                context={"Pipeline": pipeline_field},
-            )
-
-        generated_files: Dict[str, str] = {}
-        for result in results:
-            filename = f"{result.flowgroup_name}.py"
-            fg = result.processed_flowgroup
-
-            if not result.formatted_code.strip():
-                if fg is not None:
-                    self._handle_empty_flowgroup(
-                        fg, output_dir, filename, state_manager, env
-                    )
-                continue
-
-            generated_files[filename] = result.formatted_code
-
-            if output_dir is None:
-                self.logger.info(f"Would generate: {filename}")
-                continue
-
-            output_file = output_dir / filename
-            with perf_timer(
-                f"write_file [{result.flowgroup_name}]", category="write_file"
-            ):
-                smart_writer.write_if_changed(output_file, result.formatted_code)
-
-            if state_manager and result.source_yaml and fg is not None:
-                self._track_generated_file(
-                    fg,
-                    output_file,
-                    result.source_yaml,
-                    env,
-                    pipeline_field,
-                    include_tests,
-                    state_manager,
-                )
-
-            self.logger.info(f"Generated: {output_file}")
-
-            if fg is not None and fg._auxiliary_files:
-                for aux_name, aux_content in fg._auxiliary_files.items():
-                    aux_file = output_dir / aux_name
-                    smart_writer.write_if_changed(aux_file, aux_content)
-                    self.logger.info(f"Generated auxiliary: {aux_file}")
-
-        if output_dir:
-            self._generate_test_reporting_hook(
-                processed_flowgroups,
-                pipeline_field,
-                env,
-                output_dir,
-                smart_writer,
-                generated_files,
-                state_manager,
-                include_tests,
-                substitution_mgr=substitution_mgr,
-            )
-
-        if state_manager:
-            with perf_timer("state_save"):
-                state_manager.save()
-        if output_dir:
-            files_written, files_skipped = smart_writer.get_stats()
-            self.logger.info(
-                f"Generation complete: {files_written} files written, "
-                f"{files_skipped} files skipped (no changes)"
-            )
-
-        self.logger.info(f"Pipeline generation complete: {pipeline_field}")
-        return generated_files
 
     def group_write_actions_by_target(
         self, write_actions: List[Action]
@@ -2219,8 +1852,7 @@ class ActionOrchestrator:
                     pre_discovered_all_flowgroups=all_flowgroups,
                 )
             except Exception as e:
-                # Discovery itself failed — mirror the legacy shim's
-                # outer try/except which surfaced this as a single
+                # Discovery itself failed — surface as a single
                 # "Pipeline validation failed: ..." error.
                 self.logger.debug(
                     f"Pipeline '{pipeline_field}' discovery failed",
@@ -2260,8 +1892,7 @@ class ActionOrchestrator:
                     success=False,
                 )
 
-            # Empty discovery — mirror the legacy shim's behavior of
-            # reporting it as an error.
+            # Empty discovery — surface as a validation error.
             if not flowgroups:
                 return PipelineValidationOutcome(
                     pipeline=pipeline_name,

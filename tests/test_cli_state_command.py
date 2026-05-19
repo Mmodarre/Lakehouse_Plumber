@@ -18,7 +18,33 @@ from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
 
 from lhp.cli.main import cli
-from lhp.core.state_manager import StateManager, FileState
+from lhp.core.state.pipeline_state_manager import PipelineStateManager
+from lhp.core.state_manager import ProjectStateManager, FileState
+
+
+def _seed_file(project_root, *, source_yaml, generated_path, environment, pipeline, flowgroup):
+    """Track a generated file via PipelineStateManager and persist the shard.
+
+    Also writes ``_global.json`` so the substitution-file + project-config
+    global dependencies are captured under ``environment``. Without it,
+    ``StateAnalyzer.check_global_dependencies_changed`` sees a missing
+    record on disk and reports every file as stale — defeating tests
+    that want a clean "in sync" baseline.
+    """
+    pm = PipelineStateManager(
+        state_dir=project_root / ".lhp_state",
+        pipeline_name=pipeline,
+        environment=environment,
+        project_root=project_root,
+    )
+    pm.track_generated_file(
+        generated_path=generated_path,
+        source_yaml=source_yaml,
+        flowgroup=flowgroup,
+    )
+    pm.save()
+    psm = ProjectStateManager(project_root)
+    psm.save_global(last_generation_context={environment: {}})
 
 
 # Test fixtures available to all test classes
@@ -107,61 +133,93 @@ actions:
 
 @pytest.fixture
 def project_with_state(sample_project):
-    """Create a project with existing state file and generated files."""
+    """Create a project with existing per-pipeline shards and generated files.
+
+    Writes one shard per pipeline name under ``.lhp_state/``; each shard
+    co-locates the pipeline's entries across every env (here only ``dev``).
+    The legacy monolithic ``.lhp_state.json`` is no longer written — the
+    CLI loads exclusively from the sharded format.
+    """
     project_root = sample_project
-    
-    # Create some generated files
+
     generated_files = [
         ("generated/bronze_layer/customers.py", "pipelines/bronze_layer/customers.yaml", "bronze_layer", "customers"),
         ("generated/bronze_layer/orders.py", "pipelines/bronze_layer/orders.yaml", "bronze_layer", "orders"),
         ("generated/silver_layer/customer_dim.py", "pipelines/silver_layer/customer_dim.yaml", "silver_layer", "customer_dim"),
         ("generated/silver_layer/order_facts.py", "pipelines/silver_layer/order_facts.yaml", "silver_layer", "order_facts"),
         # Orphaned file (source YAML doesn't exist)
-        ("generated/bronze_layer/old_table.py", "pipelines/bronze_layer/old_table.yaml", "bronze_layer", "old_table")
+        ("generated/bronze_layer/old_table.py", "pipelines/bronze_layer/old_table.yaml", "bronze_layer", "old_table"),
     ]
-    
+
     for gen_path, source_path, pipeline, flowgroup in generated_files:
         file_path = project_root / gen_path
-        file_path.write_text(f"# Generated code for {flowgroup}\nfrom pyspark import pipelines as dp\n@dp.temporary_view()\ndef {flowgroup}():\n    pass")
-    
-    # Create state file
+        file_path.write_text(
+            f"# Generated code for {flowgroup}\nfrom pyspark import pipelines as dp\n"
+            f"@dp.temporary_view()\ndef {flowgroup}():\n    pass"
+        )
+
     now = datetime.now().isoformat()
     old_time = (datetime.now() - timedelta(days=1)).isoformat()
-    
-    state_data = {
-        "version": "1.0",
-        "last_updated": now,
-        "environments": {
-            "dev": {},
-            "prod": {}
-        }
-    }
-    
-    # Add file states for dev environment
-    for gen_path, source_path, pipeline, flowgroup in generated_files:
-        # Create checksum for existing files
-        if (project_root / source_path).exists():
-            checksum = "current_checksum"
-            source_checksum = "current_source_checksum"
-        else:
-            # Orphaned file
-            checksum = "old_checksum"  
-            source_checksum = "old_source_checksum"
-        
-        state_data["environments"]["dev"][gen_path] = {
-            "source_yaml": source_path,
-            "generated_path": gen_path,
-            "checksum": checksum,
-            "source_yaml_checksum": source_checksum,
-            "timestamp": old_time if flowgroup == "orders" else now,  # Make orders stale
-            "environment": "dev",
-            "pipeline": pipeline,
-            "flowgroup": flowgroup
-        }
-    
-    # Save state file
-    (project_root / ".lhp_state.json").write_text(json.dumps(state_data, indent=2))
-    
+
+    # Group entries by pipeline so each shard contains only that pipeline's files.
+    by_pipeline: dict[str, list[tuple[str, str, str, str]]] = {}
+    for entry in generated_files:
+        by_pipeline.setdefault(entry[2], []).append(entry)
+
+    state_dir = project_root / ".lhp_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+
+    # Project-wide shard. ``global_dependencies`` keys enumerate known
+    # envs (used by ``list_environments`` to surface "dev" in summaries).
+    (state_dir / "_global.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "2",
+                "version": "1.0",
+                "last_updated": now,
+                "global_dependencies": {
+                    "dev": {"substitution_file": None, "project_config": None},
+                },
+                "last_generation_context": {},
+            },
+            indent=2,
+        )
+    )
+
+    # Per-pipeline shards.
+    for pipeline, entries in by_pipeline.items():
+        env_files: dict = {}
+        for gen_path, source_path, _, flowgroup in entries:
+            if (project_root / source_path).exists():
+                checksum = "current_checksum"
+                source_checksum = "current_source_checksum"
+            else:
+                checksum = "old_checksum"
+                source_checksum = "old_source_checksum"
+            env_files[gen_path] = {
+                "source_yaml": source_path,
+                "generated_path": gen_path,
+                "checksum": checksum,
+                "source_yaml_checksum": source_checksum,
+                "timestamp": old_time if flowgroup == "orders" else now,
+                "environment": "dev",
+                "pipeline": pipeline,
+                "flowgroup": flowgroup,
+                "file_dependencies": None,
+                "artifact_type": None,
+                "synthetic": False,
+            }
+        (state_dir / f"{pipeline}.json").write_text(
+            json.dumps(
+                {
+                    "pipeline": pipeline,
+                    "schema_version": "2",
+                    "environments": {"dev": env_files},
+                },
+                indent=2,
+            )
+        )
+
     return project_root
 
 @pytest.fixture  
@@ -204,7 +262,7 @@ class TestStateCommandInfrastructure:
     
     def test_project_with_state_structure(self, project_with_state):
         """Verify project with state has correct structure."""
-        assert (project_with_state / ".lhp_state.json").exists()
+        assert (project_with_state / ".lhp_state" / "_global.json").exists()
         assert (project_with_state / "generated/bronze_layer/customers.py").exists()
         assert (project_with_state / "generated/bronze_layer/old_table.py").exists()  # orphaned
     
@@ -317,25 +375,21 @@ class TestStateCommandFileOperations:
             import os
             os.chdir(str(sample_project))
             
-            # Create state manager and add a valid file with the actual generated file
-            state_manager = StateManager(sample_project)
-            
             # Create the generated file first
             gen_file = sample_project / "generated/bronze_layer/customers.py"
             gen_file.parent.mkdir(parents=True, exist_ok=True)
             gen_file.write_text("# Generated code")
-            
-            state_manager.track_generated_file(
+
+            # Persist via the worker-side path (shard format).
+            _seed_file(
+                sample_project,
                 source_yaml=Path("pipelines/bronze_layer/customers.yaml"),
                 generated_path=Path("generated/bronze_layer/customers.py"),
                 environment="dev",
                 pipeline="bronze_layer",
-                flowgroup="customers"
+                flowgroup="customers",
             )
-            
-            # Save the state so the CLI command can see it
-            state_manager.save_state()
-            
+
             result = runner.invoke(cli, ['state', '--env', 'dev', '--orphaned'])
             
             assert result.exit_code == 0
@@ -365,7 +419,7 @@ class TestStateCommandFileOperations:
             os.chdir(str(project_with_state))
             
             # Mock the state manager to return no stale files
-            with patch('lhp.core.state_manager.StateManager.find_stale_files') as mock_stale:
+            with patch('lhp.core.state_manager.ProjectStateManager.find_stale_files') as mock_stale:
                 mock_stale.return_value = []
                 
                 result = runner.invoke(cli, ['state', '--env', 'dev', '--stale'])
@@ -487,8 +541,10 @@ class TestStateCommandEdgeCases:
             assert "Not in a LakehousePlumber project directory" in result.output
     
     def test_corrupted_state_file(self, runner, sample_project):
-        """Corrupted state should surface a user-facing error, not be silently discarded."""
-        (sample_project / ".lhp_state.json").write_text("invalid json {")
+        """Corrupted ``_global.json`` surfaces a user-facing error rather than being silently discarded."""
+        state_dir = sample_project / ".lhp_state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (state_dir / "_global.json").write_text("invalid json {")
 
         with runner.isolated_filesystem():
             import os
@@ -499,7 +555,10 @@ class TestStateCommandEdgeCases:
             # Prior behaviour silently reset to an empty state; post-migration
             # we refuse to clobber a user's file and instead point them at it.
             assert result.exit_code != 0
-            assert "Malformed state file" in result.output or "Incompatible state file" in result.output
+            assert (
+                "Malformed global state shard" in result.output
+                or "Malformed state file" in result.output
+            )
     
     def test_permission_error_cleanup(self, runner, project_with_state):
         """Test cleanup when file deletion fails due to permissions."""
@@ -587,19 +646,16 @@ class TestStateCommandOutputFormatting:
             gen_file.parent.mkdir(parents=True, exist_ok=True)
             gen_file.write_text("# Generated code")
             
-            # Create state with no issues
-            state_manager = StateManager(sample_project)
-            state_manager.track_generated_file(
+            # Create state with no issues (worker-side path).
+            _seed_file(
+                sample_project,
                 source_yaml=Path("pipelines/bronze_layer/customers.yaml"),
                 generated_path=Path("generated/bronze_layer/customers.py"),
                 environment="dev",
-                pipeline="bronze_layer", 
-                flowgroup="customers"
+                pipeline="bronze_layer",
+                flowgroup="customers",
             )
-            
-            # Save the state so the CLI command can see it
-            state_manager.save_state()
-            
+
             result = runner.invoke(cli, ['state', '--env', 'dev'])
             
             assert result.exit_code == 0

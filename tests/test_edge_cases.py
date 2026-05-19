@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-from lhp.core.state_manager import StateManager, FileState, DependencyInfo
+from lhp.core.state_manager import ProjectStateManager, FileState
+from lhp.core.state_models import DependencyInfo
 from lhp.core.state_dependency_resolver import StateDependencyResolver
 
 
@@ -155,46 +156,48 @@ template_parameters:
             assert len(dependencies) == 0
     
     def test_corrupted_state_file_handling(self):
-        """Corrupted JSON should surface as an LHPFileError, not be silently reset."""
+        """Corrupted ``_global.json`` surfaces as :class:`LHPFileError` at load time."""
         from lhp.utils.error_formatter import LHPFileError
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
-
-            state_file = project_root / ".lhp_state.json"
-            state_file.write_text("invalid json content")
+            state_dir = project_root / ".lhp_state"
+            state_dir.mkdir()
+            (state_dir / "_global.json").write_text("invalid json content")
 
             with pytest.raises(LHPFileError) as exc_info:
-                state_manager.load_state()
-            assert "Malformed state file" in str(exc_info.value)
+                ProjectStateManager(project_root)
+            assert "Malformed global state shard" in str(exc_info.value)
 
-    def test_state_file_with_missing_fields(self):
-        """Schema-invalid state should surface as an LHPFileError."""
+    def test_state_file_with_incompatible_schema(self):
+        """A shard with an unknown ``schema_version`` surfaces as :class:`LHPFileError`.
+
+        Replaces the legacy "missing-fields" malformed-monolith test — the new
+        sharded format guards version compatibility at load time rather than
+        re-deriving missing fields, so the failure mode users hit is the
+        version mismatch.
+        """
         from lhp.utils.error_formatter import LHPFileError
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
-
-            state_file = project_root / ".lhp_state.json"
-            state_data = {
-                "environments": {
-                    "dev": {
-                        "test.py": {
-                            "source_yaml": "test.yaml",
-                            "generated_path": "test.py",
-                            "checksum": "abc123"
-                            # Missing required fields
-                        }
+            state_dir = project_root / ".lhp_state"
+            state_dir.mkdir()
+            (state_dir / "_global.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "99",
+                        "version": "1.0",
+                        "last_updated": "",
+                        "global_dependencies": {},
+                        "last_generation_context": {},
                     }
-                }
-            }
-            state_file.write_text(json.dumps(state_data))
+                )
+            )
 
             with pytest.raises(LHPFileError) as exc_info:
-                state_manager.load_state()
-            assert "Malformed state file" in str(exc_info.value)
+                ProjectStateManager(project_root)
+            assert "Incompatible state shard format" in str(exc_info.value)
     
     def test_permission_denied_file_access(self):
         """Test handling of permission denied when accessing files."""
@@ -338,7 +341,7 @@ actions:
         """Test edge cases in state manager operations."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Test with empty environment
             stale_files = state_manager.find_stale_files("nonexistent_env")
@@ -382,14 +385,22 @@ actions:
             assert "presets/malformed_preset.yaml" in dependencies
     
     def test_concurrent_state_access(self):
-        """Test potential concurrent access to state files."""
+        """Two managers pointed at the same project read each other's writes.
+
+        Post-refactor: writes go through ``PipelineStateManager`` (worker
+        path) and persistence is per-pipeline shards under ``.lhp_state/``.
+        A second ``ProjectStateManager`` constructed afterwards picks up the
+        shard via :meth:`load_all_pipeline_shards` on demand — verifying that
+        concurrent CLI invocations don't corrupt or hide each other's state.
+        """
+        from lhp.core.state.pipeline_state_manager import PipelineStateManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            
-            # Create multiple state managers
-            state_manager1 = StateManager(project_root)
-            state_manager2 = StateManager(project_root)
-            
+
+            # First reader (pre-write) — should see an empty state.
+            state_manager1 = ProjectStateManager(project_root)
+
             # Create YAML file
             yaml_file = project_root / "test.yaml"
             yaml_file.write_text("""
@@ -401,31 +412,36 @@ actions:
     source: "SELECT * FROM table"
     target: data
 """)
-            
-            # Track file with first state manager
-            state_manager1.track_generated_file(
-                source_yaml=yaml_file.relative_to(project_root),
-                generated_path=Path("test.py"),
+
+            # Worker-side seed via PipelineStateManager.
+            pm = PipelineStateManager(
+                state_dir=project_root / ".lhp_state",
+                pipeline_name="test_pipeline",
                 environment="dev",
-                pipeline="test_pipeline",
-                flowgroup="test_flowgroup"
+                project_root=project_root,
             )
-            
-            # Load state with second state manager
-            state_manager2.load_state()
-            
-            # Both should work without crashing
+            pm.track_generated_file(
+                generated_path=Path("test.py"),
+                source_yaml=yaml_file.relative_to(project_root),
+                flowgroup="test_flowgroup",
+            )
+            pm.save()
+
+            # Second reader (post-write) — picks up the shard on demand.
+            state_manager2 = ProjectStateManager(project_root)
+
             files1 = state_manager1.get_generated_files("dev")
             files2 = state_manager2.get_generated_files("dev")
-            
+
             assert len(files1) == 1
             assert isinstance(files2, dict)
+            assert len(files2) == 1
     
     def test_invalid_environment_names(self):
         """Test handling of invalid environment names."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
+            state_manager = ProjectStateManager(project_root)
             
             # Test with various invalid environment names
             invalid_envs = ["", "env with spaces", "env/with/slashes", r"env\with\backslashes"]
@@ -459,11 +475,18 @@ actions:
     
     def test_memory_intensive_operations(self):
         """Test operations that might consume significant memory."""
+        from lhp.core.state.pipeline_state_manager import PipelineStateManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            state_manager = StateManager(project_root)
-            
-            # Track many files
+
+            # Track many files via a single worker-scope shard.
+            pm = PipelineStateManager(
+                state_dir=project_root / ".lhp_state",
+                pipeline_name="test_pipeline",
+                environment="dev",
+                project_root=project_root,
+            )
             for i in range(100):
                 yaml_file = project_root / f"test_{i}.yaml"
                 yaml_file.write_text(f"""
@@ -475,15 +498,16 @@ actions:
     source: "SELECT * FROM table_{i}"
     target: data_{i}
 """)
-                
-                state_manager.track_generated_file(
+
+                pm.track_generated_file(
                     source_yaml=yaml_file.relative_to(project_root),
                     generated_path=Path(f"test_{i}.py"),
-                    environment="dev",
-                    pipeline="test_pipeline",
-                    flowgroup=f"test_flowgroup_{i}"
+                    flowgroup=f"test_flowgroup_{i}",
                 )
-            
+            pm.save()
+
+            state_manager = ProjectStateManager(project_root)
+
             # Should handle many files gracefully
             files = state_manager.get_generated_files("dev")
             assert len(files) == 100

@@ -163,10 +163,38 @@ class TestBlueprintE2E:
         return differences
 
     def _load_state_file(self) -> dict:
-        state_file = self.project_root / ".lhp_state.json"
-        if not state_file.exists():
+        """Rebuild the legacy-shape state dict from the new sharded format.
+
+        Merges ``.lhp_state/_global.json`` plus every per-pipeline shard's
+        ``environments`` slice so callers can keep asserting against the
+        old monolithic dict shape.
+        """
+        state_dir = self.project_root / ".lhp_state"
+        if not state_dir.exists():
             return {}
-        return json.loads(state_file.read_text())
+
+        result: dict = {"environments": {}}
+
+        global_path = state_dir / "_global.json"
+        if global_path.exists():
+            global_data = json.loads(global_path.read_text())
+            result["version"] = global_data.get("version", "1.0")
+            result["last_updated"] = global_data.get("last_updated", "")
+            result["global_dependencies"] = global_data.get(
+                "global_dependencies", {}
+            )
+            result["last_generation_context"] = global_data.get(
+                "last_generation_context", {}
+            )
+
+        for shard_path in sorted(state_dir.glob("*.json")):
+            if shard_path.stem.startswith("_"):
+                continue
+            shard_data = json.loads(shard_path.read_text())
+            for env_name, env_files in shard_data.get("environments", {}).items():
+                result["environments"].setdefault(env_name, {}).update(env_files)
+
+        return result
 
     def _bp_state_paths(self, state: dict) -> set:
         """Return state-tracked generated paths for the BP pipelines."""

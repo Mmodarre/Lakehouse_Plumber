@@ -164,7 +164,9 @@ not include the change in the generated Python.
 
 Do this:
 
-1. LHP tracks generated files in ``.lhp_state.json`` and only regenerates
+1. LHP tracks generated files in ``.lhp_state/`` (per-pipeline JSON shards
+   as of 0.9.0; pre-0.9 projects had a monolithic ``.lhp_state.json`` that
+   auto-removes after the first 0.9 successful run). LHP only regenerates
    FlowGroups whose **content checksum** has changed. Edits to presets or
    templates referenced by a FlowGroup do trigger regeneration of dependent
    FlowGroups — but only on the next ``lhp generate`` run.
@@ -175,11 +177,11 @@ Do this:
 
       lhp generate --env dev --force
 
-3. To rebuild from a clean slate, delete the state file:
+3. To rebuild from a clean slate, delete the state directory:
 
    .. code-block:: bash
 
-      rm .lhp_state.json
+      rm -rf .lhp_state    # (0.9+; pre-0.9 use `rm .lhp_state.json`)
       lhp generate --env dev
 
    This regenerates every FlowGroup. Use it when state file corruption is

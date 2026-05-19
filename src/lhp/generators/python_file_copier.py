@@ -4,13 +4,12 @@ import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from ..utils.error_formatter import ErrorCategory, LHPValidationError
 from ..utils.external_file_loader import resolve_external_file_path
 
 if TYPE_CHECKING:
-    from ..core.state_manager import StateManager
     from ..models.config import FlowGroup
 
 logger = logging.getLogger(__name__)
@@ -20,10 +19,10 @@ logger = logging.getLogger(__name__)
 class CopiedModuleRecord:
     """Pure-compute description of a user Python module copy.
 
-    Produced in Phase A (worker thread) by :func:`compute_copy_record` with
-    no side effects — no filesystem writes, no state_manager mutation.
-    Replayed in Phase B (main thread) by
-    :meth:`PythonFileCopier.apply_copy_record` to actually copy and track.
+    Produced in Phase A by :func:`compute_copy_record` with no side
+    effects — no filesystem writes, no state mutation. Replayed in
+    Phase B by :meth:`PythonFileCopier.apply_copy_record`, which
+    reports what was written via :class:`CopiedFileEntry` records.
     """
 
     source_path: str
@@ -31,6 +30,25 @@ class CopiedModuleRecord:
     content: str
     module_path: str
     custom_functions_dir: Path
+
+
+
+@dataclass(frozen=True, slots=True)
+class CopiedFileEntry:
+    """A single file that :meth:`PythonFileCopier.apply_copy_record` actually wrote.
+
+    Zero or more entries are emitted per call. Bundles ``dest_path``,
+    ``source_yaml``, and ``flowgroup`` together because all three are
+    needed to call :meth:`PipelineStateManager.track_generated_file`.
+
+    A dedup hit (the same destination already written by another
+    flowgroup in this worker) returns an empty list, signalling
+    callers not to track the file twice.
+    """
+
+    dest_path: Path
+    source_yaml: Optional[Path]
+    flowgroup: Optional[str]
 
 
 class PythonFunctionConflictError(LHPValidationError):
@@ -64,11 +82,17 @@ class PythonFunctionConflictError(LHPValidationError):
 
 
 class PythonFileCopier:
-    """
-    Thread-safe coordinator for Python file copying during parallel generation.
+    """Per-worker file-copy coordinator with intra-pipeline dedup.
 
-    Ensures that when multiple flowgroups reference the same Python file,
-    only one thread performs the copy while others wait and reuse the result.
+    Lives inside a worker process. Each worker constructs its own
+    copier; the ``threading.Lock`` serialises copies within one
+    worker process (e.g. when multiple flowgroups in the same
+    pipeline reference the same module). The lock is NEVER pickled
+    across the spawn boundary.
+
+    When multiple flowgroups reference the same Python file, only one
+    call performs the copy; subsequent calls return an empty entry
+    list so callers do not double-track state.
     """
 
     def __init__(self):
@@ -154,99 +178,62 @@ class PythonFileCopier:
         with self._lock:
             return dict(self._copied_files)
 
-    def copy_user_module(
-        self,
-        source_file: Optional[Path],
-        module_path: str,
-        custom_functions_dir: Path,
-        context: dict,
-        *,
-        inline_source: Optional[str] = None,
-    ) -> str:
-        """Backward-compat shim: compute then apply a CopiedModuleRecord.
-
-        Equivalent to calling :func:`compute_copy_record` followed by
-        :meth:`apply_copy_record`. Single-flowgroup callers (e.g. ``lhp show``)
-        that don't go through the parallel pool can keep using this entry
-        point; the parallel executor splits the two phases — Phase A workers
-        call :func:`compute_copy_record` (no I/O, no state_manager), Phase B
-        on the main thread calls :meth:`apply_copy_record` (writes + tracks).
-
-        See :func:`compute_copy_record` for the body of the original docstring.
-
-        Returns:
-            The module stem (e.g. ``"api_source"`` for ``"data/api_source.py"``).
-        """
-        record = compute_copy_record(
-            source_file,
-            module_path,
-            custom_functions_dir,
-            context,
-            inline_source=inline_source,
-        )
-        self.apply_copy_record(
-            record,
-            state_manager=context.get("state_manager"),
-            source_yaml=context.get("source_yaml"),
-            flowgroup=context.get("flowgroup"),
-            env=context.get("environment", "unknown"),
-        )
-        return Path(module_path).stem
-
     def apply_copy_record(
         self,
         record: "CopiedModuleRecord",
         *,
-        state_manager: Optional["StateManager"] = None,
         source_yaml: Optional[Path] = None,
         flowgroup: Optional["FlowGroup"] = None,
-        env: str = "unknown",
-    ) -> bool:
-        """Phase B replay (main thread): ensure init, copy, track.
+    ) -> List[CopiedFileEntry]:
+        """Replay a Phase-A-captured copy: ensure init, copy, return entries.
 
-        Calls :meth:`ensure_init_file`, :meth:`copy_python_file` (both
-        lock-protected for dedup), then calls ``state_manager.track_generated_file``
-        for the package ``__init__.py`` and the module itself. The track calls
-        are why this method must run on the main thread, not in a worker pool
-        — :class:`StateManager` mutation is not thread-safe.
+        Calls :meth:`ensure_init_file`, then :meth:`copy_python_file` (both
+        lock-protected for intra-pipeline dedup within this worker process).
+        Returns a list of :class:`CopiedFileEntry` records describing the
+        files that were actually written this call — empty when dedup
+        suppressed the write.
+
+        State tracking is the caller's responsibility: walk the returned
+        entries and call ``track_generated_file`` on the appropriate
+        state manager. The file copier itself stays state-manager-agnostic.
 
         Args:
             record: Result of :func:`compute_copy_record`.
-            state_manager: When None, file is copied but not tracked.
             source_yaml: Path to the YAML that referenced this module.
-            flowgroup: Flowgroup that referenced this module.
-            env: Environment name (e.g. ``"dev"``); defaults to ``"unknown"``.
+                Forwarded into each emitted :class:`CopiedFileEntry`.
+            flowgroup: Flowgroup that referenced this module. Only the
+                ``flowgroup.flowgroup`` name is forwarded into the entries.
 
         Returns:
-            True if the file was newly copied; False if another flowgroup
-            already wrote the same destination (dedup hit).
+            ``[]`` when dedup suppressed the write. Otherwise a list with
+            two entries (the package ``__init__.py`` and the module file
+            itself), suitable for driving state tracking. The same record
+            re-applied returns ``[]`` on the second call.
         """
         self.ensure_init_file(record.custom_functions_dir)
         file_copied = self.copy_python_file(
             record.source_path, record.dest_path, record.content
         )
 
-        if file_copied and state_manager and source_yaml and flowgroup:
-            init_file = record.custom_functions_dir / "__init__.py"
-            state_manager.track_generated_file(
-                generated_path=init_file,
-                source_yaml=source_yaml,
-                environment=env,
-                pipeline=flowgroup.pipeline,
-                flowgroup=flowgroup.flowgroup,
-            )
-            state_manager.track_generated_file(
-                generated_path=record.dest_path,
-                source_yaml=source_yaml,
-                environment=env,
-                pipeline=flowgroup.pipeline,
-                flowgroup=flowgroup.flowgroup,
-            )
-            self._logger.debug(
-                f"Tracked custom module files for module_path={record.module_path}"
-            )
+        if not file_copied:
+            return []
 
-        return file_copied
+        fg_name: Optional[str] = (
+            flowgroup.flowgroup if flowgroup is not None else None
+        )
+        init_file = record.custom_functions_dir / "__init__.py"
+        return [
+            CopiedFileEntry(
+                dest_path=init_file,
+                source_yaml=source_yaml,
+                flowgroup=fg_name,
+            ),
+            CopiedFileEntry(
+                dest_path=record.dest_path,
+                source_yaml=source_yaml,
+                flowgroup=fg_name,
+            ),
+        ]
 
 
 def compute_copy_record(
@@ -403,28 +390,29 @@ def copy_user_module_for_pipeline(
 
     custom_functions_dir = output_dir / "custom_python_functions"
 
-    # Phase A collect mode: workers in the parallel pool must not touch the
-    # state manager or write to the filesystem. When the context carries a
-    # ``phase_a_records`` list (set by ``run_generate_pool`` workers), we
-    # compute the CopiedModuleRecord and append it; the main thread replays
-    # it later via apply_copy_record (Phase B).
-    phase_a_records = context.get("phase_a_records")
-    if phase_a_records is not None:
-        record = compute_copy_record(
-            source_file,
-            module_path,
-            custom_functions_dir,
-            context,
-            inline_source=inline_source,
-        )
-        phase_a_records.append(record)
-        return Path(module_path).stem
-
-    python_copier = context.get("python_file_copier") or PythonFileCopier()
-    return python_copier.copy_user_module(
+    # Phase A collect mode: when the caller supplies a phase_a_records
+    # list on the context, append a CopiedModuleRecord and let Phase B
+    # replay it later — no disk write, no state mutation here.
+    # When the carrier is absent (test-only direct generator drives),
+    # compute and apply immediately: file is written but state is not
+    # tracked from this path.
+    record = compute_copy_record(
         source_file,
         module_path,
         custom_functions_dir,
         context,
         inline_source=inline_source,
     )
+
+    phase_a_records = context.get("phase_a_records")
+    if phase_a_records is not None:
+        phase_a_records.append(record)
+        return Path(module_path).stem
+
+    python_copier = context.get("python_file_copier") or PythonFileCopier()
+    python_copier.apply_copy_record(
+        record,
+        source_yaml=context.get("source_yaml"),
+        flowgroup=context.get("flowgroup"),
+    )
+    return Path(module_path).stem
