@@ -61,7 +61,7 @@ class TestGenerateCommandDisplayMethods:
         """Test displaying successful generation with files written."""
         response = GenerationResponse(
             success=True,
-            generated_files={"test.py": "# Generated"},
+            generated_filenames=("test.py",),
             files_written=1,
             total_flowgroups=1,
             output_location=Path("/output"),
@@ -80,7 +80,7 @@ class TestGenerateCommandDisplayMethods:
         """Test displaying successful generation in dry-run mode."""
         response = GenerationResponse(
             success=True,
-            generated_files={},
+            generated_filenames=(),
             files_written=0,
             total_flowgroups=1,
             output_location=None,
@@ -98,7 +98,7 @@ class TestGenerateCommandDisplayMethods:
         """Test displaying successful generation with no files written."""
         response = GenerationResponse(
             success=True,
-            generated_files={},
+            generated_filenames=(),
             files_written=0,
             total_flowgroups=1,
             output_location=None,
@@ -116,7 +116,7 @@ class TestGenerateCommandDisplayMethods:
         """Test displaying failed generation."""
         response = GenerationResponse(
             success=False,
-            generated_files={},
+            generated_filenames=(),
             files_written=0,
             total_flowgroups=0,
             output_location=None,
@@ -281,7 +281,7 @@ class TestGenerateCommandDisplayMethods:
         """Test displaying generation response with files written."""
         response = GenerationResponse(
             success=True,
-            generated_files={"test.py": "# Generated"},
+            generated_filenames=("test.py",),
             files_written=1,
             total_flowgroups=1,
             output_location=Path("/output"),
@@ -300,7 +300,7 @@ class TestGenerateCommandDisplayMethods:
         """Test displaying generation response in dry-run mode."""
         response = GenerationResponse(
             success=True,
-            generated_files={"test.py": "# Generated"},
+            generated_filenames=("test.py",),
             files_written=0,
             total_flowgroups=1,
             output_location=None,
@@ -319,7 +319,7 @@ class TestGenerateCommandDisplayMethods:
         """Test displaying generation response when up-to-date."""
         response = GenerationResponse(
             success=True,
-            generated_files={},
+            generated_filenames=(),
             files_written=0,
             total_flowgroups=1,
             output_location=None,
@@ -337,7 +337,7 @@ class TestGenerateCommandDisplayMethods:
         """Test displaying failed generation response."""
         response = GenerationResponse(
             success=False,
-            generated_files={},
+            generated_filenames=(),
             files_written=0,
             total_flowgroups=0,
             output_location=None,
@@ -753,7 +753,7 @@ class TestGenerateCommandExecute:
 
         mock_response = GenerationResponse(
             success=True,
-            generated_files={"test.py": "# Generated"},
+            generated_filenames=("test.py",),
             files_written=1,
             total_flowgroups=1,
             output_location=output_dir,
@@ -772,7 +772,7 @@ class TestGenerateCommandExecute:
             success=True,
             pipeline_responses={"test_pipeline": mock_response},
             total_files_written=1,
-            aggregate_generated_files={"test.py": "# Generated"},
+            aggregate_generated_filenames=("test.py",),
             output_location=output_dir,
         )
 
@@ -813,7 +813,7 @@ class TestGenerateCommandExecute:
 
         mock_response = GenerationResponse(
             success=True,
-            generated_files={"test.py": "# Generated"},
+            generated_filenames=("test.py",),
             files_written=0,
             total_flowgroups=1,
             output_location=None,
@@ -829,7 +829,7 @@ class TestGenerateCommandExecute:
             success=True,
             pipeline_responses={"test_pipeline": mock_response},
             total_files_written=0,
-            aggregate_generated_files={"test.py": "# Generated"},
+            aggregate_generated_filenames=("test.py",),
             output_location=None,
         )
 
@@ -878,7 +878,7 @@ class TestGenerateCommandExecute:
             success=True,
             pipeline_responses={},
             total_files_written=0,
-            aggregate_generated_files={},
+            aggregate_generated_filenames=(),
             output_location=temp_project / "generated" / "dev",
         )
 
@@ -941,7 +941,7 @@ class TestGenerateCommandExecute:
             success=True,
             pipeline_responses={},
             total_files_written=0,
-            aggregate_generated_files={},
+            aggregate_generated_filenames=(),
             output_location=temp_project / "generated" / "dev",
         )
 
@@ -997,7 +997,7 @@ class TestGenerateCommandExecute:
             success=True,
             pipeline_responses={},
             total_files_written=0,
-            aggregate_generated_files={},
+            aggregate_generated_filenames=(),
             output_location=temp_project / "generated" / "dev",
         )
 
@@ -1046,7 +1046,7 @@ class TestGenerateCommandExecute:
             success=True,
             pipeline_responses={},
             total_files_written=0,
-            aggregate_generated_files={},
+            aggregate_generated_filenames=(),
             output_location=custom_output,
         )
 

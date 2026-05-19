@@ -7,8 +7,20 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.models.config import FlowGroup
+from lhp.models.config import FlowGroup, FlowGroupContext
 from lhp.utils.error_formatter import ErrorCategory, LHPError
+
+
+def _wrap_in_ctx(fg) -> FlowGroupContext:
+    """Wrap a (possibly mocked) FlowGroup in a default FlowGroupContext.
+
+    The orchestrator's ``process_flowgroup`` shim now delegates to
+    ``FlowgroupProcessor.process_flowgroup`` which takes/returns
+    :class:`FlowGroupContext`. Tests that mock the processor's return
+    value as a raw (mocked) FlowGroup need to wrap it in a context so
+    the shim can unwrap ``.flowgroup`` for the legacy return shape.
+    """
+    return FlowGroupContext(flowgroup=fg, source_yaml=None)
 
 
 class TestActionOrchestratorInitialization:
@@ -559,12 +571,12 @@ class TestActionOrchestratorFlowgroupDiscovery:
                 pipeline_field=nonexistent_pipeline, env="dev"
             )
 
-            # Assert - should return empty dict, not raise exception
-            assert result == {}
-            assert isinstance(result, dict)
+            # Assert - should return empty tuple, not raise exception
+            assert result == ()
+            assert isinstance(result, tuple)
 
     def test_no_flowgroups_found_returns_empty_dict(self, orchestrator_basic):
-        """Test no flowgroups found returns empty dict and logs warning."""
+        """Test no flowgroups found returns empty tuple and logs warning."""
         # Arrange
         pipeline_name = "empty_pipeline"
 
@@ -577,9 +589,9 @@ class TestActionOrchestratorFlowgroupDiscovery:
                 pipeline_field=pipeline_name, env="dev"
             )
 
-            # Assert - should return empty dict, not raise exception
-            assert result == {}
-            assert isinstance(result, dict)
+            # Assert - should return empty tuple, not raise exception
+            assert result == ()
+            assert isinstance(result, tuple)
 
     def test_include_patterns_filtering_applied_correctly(self, orchestrator_basic):
         """Test include patterns are applied correctly in filtering."""
@@ -648,7 +660,9 @@ class TestActionOrchestratorFlowgroupDiscovery:
             spec=FlowGroup, pipeline=pipeline_field, flowgroup="test_flowgroup"
         )
         mock_flowgroup.actions = []  # Strategy code expects actions attribute
-        mock_flowgroup._synthetic = False
+        # Synthetic-ness now lives on FlowGroupContext via the orchestrator's
+        # `_synthetic_contexts` sidecar map. Disk-sourced mocks like this
+        # one are absent from the map and treated as non-synthetic by default.
         orchestrator_basic.mock_discoverer.discover_all_flowgroups.return_value = [
             mock_flowgroup
         ]
@@ -716,7 +730,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
             )
 
             # Assert - should complete successfully despite parsing error
-            assert isinstance(result, dict)
+            assert isinstance(result, tuple)
             # Should log warning about parsing failure
             warning_calls = [
                 call
@@ -1716,9 +1730,16 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     ):
         """Test FlowgroupProcessor succeeds returns processed flowgroup."""
         # Arrange
+        from lhp.models.config import FlowGroupContext
+
         processed_flowgroup = Mock(spec=FlowGroup)
+        # The processor now returns a FlowGroupContext envelope; the shim
+        # unwraps `.flowgroup` for backward-compatible single-fg callers.
+        processed_ctx = FlowGroupContext(
+            flowgroup=processed_flowgroup, source_yaml=None
+        )
         orchestrator_processing.mock_processor.process_flowgroup.return_value = (
-            processed_flowgroup
+            processed_ctx
         )
 
         # Act
@@ -1729,15 +1750,23 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         # Assert
         assert result == processed_flowgroup  # Should return processed flowgroup
 
-        # Should delegate to processor service with correct arguments
-        orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
+        # Should delegate to processor service. The shim wraps the FlowGroup
+        # in a FlowGroupContext envelope at the call site.
+        call_args = (
+            orchestrator_processing.mock_processor.process_flowgroup.call_args
         )
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
 
     def test_process_flowgroup_fails_propagates_exception(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
     ):
         """Test FlowgroupProcessor fails propagates exception."""
+        from lhp.models.config import FlowGroupContext
+
         # Arrange
         processor_error = Exception(
             "Flowgroup processing failed: missing required template"
@@ -1754,10 +1783,13 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
                 mock_flowgroup, mock_substitution_mgr
             )
 
-        # Should still call processor service
-        orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
+        # Should still call processor service with a FlowGroupContext envelope.
+        call_args = (
+            orchestrator_processing.mock_processor.process_flowgroup.call_args
         )
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
 
     def test_generate_flowgroup_code_succeeds_returns_generated_code(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
@@ -1849,13 +1881,18 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         self, orchestrator_processing, mock_flowgroup
     ):
         """Test substitution_mgr is None still delegates to services."""
+        from lhp.models.config import FlowGroupContext
+
         # Arrange
         processed_flowgroup = Mock(spec=FlowGroup)
+        processed_ctx = FlowGroupContext(
+            flowgroup=processed_flowgroup, source_yaml=None
+        )
         generated_code = "# Generated code without substitution\n"
 
         # Test both methods with None substitution manager
         orchestrator_processing.mock_processor.process_flowgroup.return_value = (
-            processed_flowgroup
+            processed_ctx
         )
         orchestrator_processing.mock_generator.generate_flowgroup_code.return_value = (
             generated_code
@@ -1871,10 +1908,15 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         assert result1 == processed_flowgroup
         assert result2 == generated_code
 
-        # Should still delegate to services with None as parameter
-        orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, None, include_tests=True
+        # Should still delegate to services. The shim wraps in FlowGroupContext.
+        call_args = (
+            orchestrator_processing.mock_processor.process_flowgroup.call_args
         )
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is None
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup,
             None,
@@ -2067,10 +2109,16 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
                 mock_flowgroup, mock_substitution_mgr
             )
 
-        # Should have attempted to call both services despite failures
-        orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
+        # Should have attempted to call both services despite failures.
+        # The shim wraps the FlowGroup in a FlowGroupContext envelope.
+        call_args = (
+            orchestrator_error_handling.mock_processor.process_flowgroup.call_args
         )
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup,
             mock_substitution_mgr,
@@ -2095,7 +2143,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
         generated_code = "# Generated code\n"
 
         orchestrator_error_handling.mock_processor.process_flowgroup.return_value = (
-            processed_flowgroup
+            _wrap_in_ctx(processed_flowgroup)
         )
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = (
             generated_code
@@ -2119,10 +2167,15 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             assert result1 == processed_flowgroup
             assert result2 == generated_code
 
-            # Services should still be called successfully
-            orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(
-                mock_flowgroup, mock_substitution_mgr, include_tests=True
+            # Services should still be called successfully. The shim wraps
+            # the FlowGroup in a FlowGroupContext envelope.
+            call_args = (
+                orchestrator_error_handling.mock_processor.process_flowgroup.call_args
             )
+            passed_ctx = call_args.args[0]
+            assert isinstance(passed_ctx, FlowGroupContext)
+            assert passed_ctx.flowgroup is mock_flowgroup
+            assert call_args.args[1] is mock_substitution_mgr
             orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
                 mock_flowgroup,
                 mock_substitution_mgr,
@@ -2261,12 +2314,17 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
 
         mock_substitution_mgr = Mock(spec=EnhancedSubstitutionManager)
 
-        # Test processor returning None
-        orchestrator_error_handling.mock_processor.process_flowgroup.return_value = None
+        # Test processor returning a context with None flowgroup. The
+        # processor's new contract is FlowGroupContext-in / -out; the
+        # legacy `process_flowgroup` shim unwraps `.flowgroup` so a
+        # None inner flowgroup surfaces as a None result.
+        orchestrator_error_handling.mock_processor.process_flowgroup.return_value = (
+            _wrap_in_ctx(None)
+        )
         result = orchestrator_error_handling.process_flowgroup(
             mock_flowgroup, mock_substitution_mgr
         )
-        assert result is None  # Should handle None return gracefully
+        assert result is None  # Should handle None inner flowgroup gracefully
 
         # Test generator returning empty string
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = (
@@ -2346,7 +2404,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Configure services to show dependency conflict
         orchestrator_integration.mock_processor.process_flowgroup.return_value = (
-            processed_flowgroup
+            _wrap_in_ctx(processed_flowgroup)
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.side_effect = ValueError(
             "Generator conflict: Processed flowgroup format incompatible with generator expectations"
@@ -2367,10 +2425,16 @@ class TestActionOrchestratorIntegrationScenarios:
         )
         assert result == processed_flowgroup
 
-        # But generator fails due to dependency conflict
-        orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
+        # But generator fails due to dependency conflict.
+        # The shim wraps the FlowGroup in a FlowGroupContext envelope.
+        call_args = (
+            orchestrator_integration.mock_processor.process_flowgroup.call_args
         )
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             processed_flowgroup,
             mock_substitution_mgr,
@@ -2417,9 +2481,11 @@ class TestActionOrchestratorIntegrationScenarios:
 
         mock_substitution_mgr = Mock(spec=EnhancedSubstitutionManager)
 
-        # Configure services to transform data through the chain
+        # Configure services to transform data through the chain.
+        # Processor returns a FlowGroupContext envelope; the shim unwraps
+        # `.flowgroup` for the legacy single-fg caller signature.
         orchestrator_integration.mock_processor.process_flowgroup.return_value = (
-            transformed_flowgroup
+            _wrap_in_ctx(transformed_flowgroup)
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.return_value = (
             "# Generated from transformed data\n"
@@ -2437,10 +2503,16 @@ class TestActionOrchestratorIntegrationScenarios:
         assert step1_result == transformed_flowgroup
         assert step2_result == "# Generated from transformed data\n"
 
-        # Verify proper data flow: original -> processor -> generator
-        orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            original_flowgroup, mock_substitution_mgr, include_tests=True
+        # Verify proper data flow: original -> processor -> generator.
+        # The shim wraps the FlowGroup in a FlowGroupContext envelope.
+        call_args = (
+            orchestrator_integration.mock_processor.process_flowgroup.call_args
         )
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is original_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             transformed_flowgroup,
             mock_substitution_mgr,
@@ -2464,13 +2536,15 @@ class TestActionOrchestratorIntegrationScenarios:
         mock_flowgroup = Mock(spec=FlowGroup)
         mock_substitution_mgr = Mock(spec=EnhancedSubstitutionManager)
 
-        # Configure processor to initially fail, then succeed on retry
+        # Configure processor to initially fail, then succeed on retry.
+        # The processor now returns a FlowGroupContext envelope; the shim
+        # unwraps `.flowgroup` for the legacy single-fg caller signature.
         processor_failure = Exception("Temporary processor failure")
         processed_flowgroup = Mock(spec=FlowGroup)
         processed_flowgroup.flowgroup = "test_flowgroup"
         orchestrator_integration.mock_processor.process_flowgroup.side_effect = [
             processor_failure,
-            processed_flowgroup,
+            _wrap_in_ctx(processed_flowgroup),
         ]
 
         # Configure generator to succeed
@@ -2517,7 +2591,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Test various parameter combinations through service chain
         orchestrator_integration.mock_processor.process_flowgroup.return_value = (
-            mock_flowgroup
+            _wrap_in_ctx(mock_flowgroup)
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.return_value = (
             "generated_code"
@@ -2548,10 +2622,16 @@ class TestActionOrchestratorIntegrationScenarios:
         assert result1 == mock_flowgroup
         assert result2 == "generated_code"
 
-        # Verify parameter passing
-        orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
+        # Verify parameter passing. The shim wraps the FlowGroup in a
+        # FlowGroupContext envelope.
+        call_args = (
+            orchestrator_integration.mock_processor.process_flowgroup.call_args
         )
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup,
             mock_substitution_mgr,

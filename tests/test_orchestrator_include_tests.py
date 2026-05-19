@@ -389,4 +389,4 @@ actions:
         )
 
         # Should complete without errors
-        assert result == {}, "Should return empty result for empty content"
+        assert result == (), "Should return empty result for empty content"

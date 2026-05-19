@@ -29,7 +29,6 @@ def test_register_synthetic_sources_populates_index(tmp_path):
     disco = FlowgroupDiscoverer(tmp_path)
     disco.register_synthetic_sources({("apac_sg_raw", "apac_sg_orders"): bp_path})
     fg = FlowGroup(pipeline="apac_sg_raw", flowgroup="apac_sg_orders", actions=[])
-    fg._synthetic = True
     found = disco.find_source_yaml_for_flowgroup(fg)
     assert found == bp_path
 

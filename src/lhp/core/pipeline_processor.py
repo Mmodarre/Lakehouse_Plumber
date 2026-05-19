@@ -37,7 +37,7 @@ from .validators.cdc_fanin_compatibility_validator import (
 from .validators.table_creation_validator import TableCreationValidator
 
 if TYPE_CHECKING:
-    from ..models.config import FlowGroup, ProjectConfig
+    from ..models.config import FlowGroup, FlowGroupContext, ProjectConfig
     from ..utils.formatter import CodeFormatter
     from ..utils.substitution import EnhancedSubstitutionManager
     from .services.blueprint_expander import BlueprintProvenance
@@ -60,6 +60,7 @@ class FlowgroupResult:
     source_yaml: Optional[Path]
     success: bool
     copied_modules: Tuple[CopiedModuleRecord, ...] = ()
+    auxiliary_files: Tuple[Tuple[str, str], ...] = ()
     error: Optional[BaseException] = None
 
 
@@ -171,7 +172,7 @@ class PipelineProcessor:
 
     # ------------------------------------------------------------------ public
 
-    def run(self, flowgroups: Sequence["FlowGroup"]) -> PipelineDelta:
+    def run(self, contexts: Sequence["FlowGroupContext"]) -> PipelineDelta:
         """Run Phase A + intra-pipeline Phase B for the given flowgroups.
 
         Any exception — validation error, file write failure, state save
@@ -179,22 +180,22 @@ class PipelineProcessor:
         :class:`PipelineDelta` so the worker can never crash the pool.
 
         Args:
-            flowgroups: Flowgroups belonging to this pipeline. Empty
-                sequences short-circuit to a success delta with zero
+            contexts: FlowGroupContext envelopes belonging to this pipeline.
+                Empty sequences short-circuit to a success delta with zero
                 counts.
 
         Returns:
             :class:`PipelineDelta` describing success/failure plus
-            file-count rollups, plus the ``{relative_path: formatted_code}``
-            map the facade surfaces as ``aggregate_generated_files``.
+            file-count rollups, plus the ordered tuple of filenames the
+            facade surfaces as ``aggregate_generated_filenames``.
             Tracebacks are pre-formatted strings.
         """
-        if not flowgroups:
+        if not contexts:
             return PipelineDelta.success_(self.pipeline_name)
 
         try:
             with perf_timer(f"pipeline_processor [{self.pipeline_name}]"):
-                phase_a_results = [self._phase_a(fg) for fg in flowgroups]
+                phase_a_results = [self._phase_a(ctx) for ctx in contexts]
                 self._raise_for_phase_a_failures(phase_a_results)
 
                 processed_flowgroups = [
@@ -213,13 +214,13 @@ class PipelineProcessor:
                         self.state_manager.save()
 
             files_written, files_skipped = self.smart_writer.get_stats()
-            generated_files = self._collect_generated_files(phase_a_results)
+            generated_filenames = self._collect_generated_filenames(phase_a_results)
             return PipelineDelta.success_(
                 self.pipeline_name,
                 files_written=files_written,
                 files_skipped=files_skipped,
                 artifacts_count=self._artifacts_count,
-                generated_files=generated_files,
+                generated_filenames=generated_filenames,
             )
         except BaseException as exc:
             logger.error(
@@ -227,27 +228,29 @@ class PipelineProcessor:
             )
             return PipelineDelta.failure(self.pipeline_name, exc)
 
-    def _collect_generated_files(
+    def _collect_generated_filenames(
         self, results: List[FlowgroupResult]
-    ) -> Dict[str, str]:
-        """Build the ``{filename: formatted_code}`` map surfaced as
-        ``aggregate_generated_files``.
+    ) -> tuple[str, ...]:
+        """Build the ordered tuple of filenames surfaced as
+        ``aggregate_generated_filenames``.
 
-        Keyed by the bare flowgroup filename. Empty flowgroups are
-        skipped. Dry-run (``output_dir is None``) still populates the
-        map for "would generate" listings.
+        Filenames are bare flowgroup-derived (``{flowgroup_name}.py``).
+        Empty flowgroups are skipped. Dry-run (``output_dir is None``)
+        still populates the tuple for "would generate" listings.
+
+        Insertion order is preserved (matches the ``contexts`` argument
+        order to :meth:`run`) so dry-run output is deterministic.
         """
-        out: Dict[str, str] = {}
+        out: List[str] = []
         for r in results:
             if not r.formatted_code.strip():
                 continue
-            filename = f"{r.flowgroup_name}.py"
-            out[filename] = r.formatted_code
-        return out
+            out.append(f"{r.flowgroup_name}.py")
+        return tuple(out)
 
     # ------------------------------------------------------------------ Phase A
 
-    def _phase_a(self, fg: "FlowGroup") -> FlowgroupResult:
+    def _phase_a(self, ctx_in: "FlowGroupContext") -> FlowgroupResult:
         """Process + codegen + format one flowgroup.
 
         Captures user-module ``CopiedModuleRecord`` instances for
@@ -255,21 +258,19 @@ class PipelineProcessor:
         in Phase B after files are on disk, so the code generator is
         invoked with ``state_manager=None`` here.
         """
+        fg = ctx_in.flowgroup
         records: List[CopiedModuleRecord] = []
         try:
             with perf_timer(
                 f"process_flowgroup [{fg.flowgroup}]",
                 category="process_flowgroup",
             ):
-                processed = self.processor.process_flowgroup(
-                    fg, self.substitution_mgr, include_tests=self.include_tests
+                ctx_out = self.processor.process_flowgroup(
+                    ctx_in, self.substitution_mgr, include_tests=self.include_tests
                 )
 
-            if fg._auxiliary_files:
-                processed._auxiliary_files = fg._auxiliary_files
-            processed._has_original_test_actions = fg._has_original_test_actions
-
-            source_yaml: Optional[Path] = getattr(fg, "_source_yaml", None)
+            processed = ctx_out.flowgroup
+            source_yaml: Optional[Path] = ctx_in.source_yaml
 
             with perf_timer(
                 f"generate_code [{fg.flowgroup}]",
@@ -285,6 +286,7 @@ class PipelineProcessor:
                     self.include_tests,
                     None,
                     phase_a_records=records,
+                    auxiliary_files=ctx_out.auxiliary_files,
                 )
 
             with perf_timer(
@@ -302,6 +304,7 @@ class PipelineProcessor:
                 source_yaml=source_yaml,
                 success=True,
                 copied_modules=tuple(records),
+                auxiliary_files=tuple(ctx_out.auxiliary_files.items()),
             )
         except BaseException as exc:
             logger.error(
@@ -469,8 +472,8 @@ class PipelineProcessor:
                     flowgroup=fg.flowgroup,
                 )
 
-            if fg is not None and fg._auxiliary_files:
-                for aux_name, aux_content in fg._auxiliary_files.items():
+            if result.auxiliary_files:
+                for aux_name, aux_content in result.auxiliary_files:
                     aux_file = self.output_dir / aux_name
                     self.smart_writer.write_if_changed(aux_file, aux_content)
                     logger.info(f"Generated auxiliary: {aux_file}")

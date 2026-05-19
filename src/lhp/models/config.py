@@ -1,7 +1,9 @@
 import logging
 import warnings
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, ClassVar, Dict, List, Optional, Set, Union
+from pathlib import Path
+from typing import Any, ClassVar, Dict, List, Mapping, Optional, Set, Union
 
 # Suppress Pydantic warning about 'schema' field shadowing BaseModel.schema() class method.
 # This is deliberate: 'schema' is a UC namespace field, not related to Pydantic's schema().
@@ -13,7 +15,6 @@ from pydantic import (  # noqa: E402
     BaseModel,
     ConfigDict,
     Field,
-    PrivateAttr,
     model_validator,
 )
 
@@ -381,9 +382,18 @@ class FlowGroup(BaseModel):
     operational_metadata: Optional[Union[bool, List[str]]] = (
         None  # Simplified: bool or list of column names
     )
-    _synthetic: bool = PrivateAttr(default=False)
-    _auxiliary_files: Dict[str, str] = PrivateAttr(default_factory=dict)
-    _has_original_test_actions: bool = PrivateAttr(default=False)
+
+
+
+@dataclass(frozen=True, slots=True)
+class FlowGroupContext:
+    """Envelope carrying per-flowgroup provenance across the worker boundary."""
+
+    flowgroup: FlowGroup
+    source_yaml: Path | None
+    synthetic: bool = False
+    auxiliary_files: Mapping[str, str] = field(default_factory=dict)
+    had_test_actions: bool = False
 
 
 class Template(BaseModel):

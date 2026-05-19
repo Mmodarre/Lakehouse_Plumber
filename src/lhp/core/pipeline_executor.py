@@ -10,8 +10,7 @@ Invariants:
     graph (which transitively carries the FlowgroupDiscoverer's
     ``threading.Lock``) does NOT cross the process boundary. The
     source-YAML lookup is therefore done on the main thread before
-    submit, with the result stashed on the flowgroup as
-    ``_source_yaml``.
+    submit, with the result carried in :class:`FlowGroupContext`.
   - The ``PythonFileCopier`` is constructed inside each worker; the
     main-thread instance is never pickled.
 """
@@ -39,7 +38,7 @@ from typing import (
 from ..utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
-    from ..models.config import FlowGroup, ProjectConfig
+    from ..models.config import FlowGroupContext, ProjectConfig
     from ..utils.formatter import CodeFormatter
     from ..utils.substitution import EnhancedSubstitutionManager
     from .pipeline_processor import ProcessingContext
@@ -69,6 +68,113 @@ def _init_worker_logger(level: int) -> None:
 
 
 @dataclass(frozen=True, slots=True)
+class _ValidateWorkerState:
+    """Captured collaborators for the validate worker pool.
+
+    Pickled once and shipped to each worker via the pool's ``initializer=``
+    seam. Workers read this through the module-level :data:`_validate_state`
+    populated by :func:`_init_validate_worker`.
+    """
+
+    processor: "FlowgroupProcessor"
+    substitution_managers: Mapping[str, "EnhancedSubstitutionManager"]
+    include_tests: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _GenerateWorkerState:
+    """Captured collaborators for the generate worker pool.
+
+    Pickled once and shipped to each worker via the pool's ``initializer=``
+    seam — replaces the per-task :class:`functools.partial` capture that
+    re-pickled ``FlowgroupProcessor`` + ``CodeGenerator`` + ``CodeFormatter``
+    on every submit.
+    """
+
+    processor: "FlowgroupProcessor"
+    code_generator: "CodeGenerator"
+    formatter: "CodeFormatter"
+    substitution_managers: Mapping[str, "EnhancedSubstitutionManager"]
+    pipeline_output_dirs: Mapping[str, Optional[Path]]
+    project_config: "ProjectConfig"
+    blueprint_provenance: Optional[
+        Mapping[Tuple[str, str], "BlueprintProvenance"]
+    ]
+    environment: str
+    state_dir: Optional[Path]
+    project_root: Path
+    include_tests: bool
+    build_state: bool
+
+
+# Module-level worker state. Populated by the pool initializer; read by the
+# worker entry functions. Lifetime is one pool only — workers spawn fresh and
+# the pool's ``with`` block tears them down.
+_validate_state: Optional[_ValidateWorkerState] = None
+_generate_state: Optional[_GenerateWorkerState] = None
+
+
+def _init_validate_worker(level: int, state: _ValidateWorkerState) -> None:
+    """Pool initializer: configure logger and stash validate worker state.
+
+    Called once per spawned worker by :class:`ProcessPoolExecutor` via
+    ``initializer=`` / ``initargs=(level, state)``. The captured state
+    pickles once at pool startup instead of once per submitted task.
+    """
+    _init_worker_logger(level)
+    global _validate_state
+    _validate_state = state
+
+
+def _init_generate_worker(level: int, state: _GenerateWorkerState) -> None:
+    """Pool initializer: configure logger and stash generate worker state."""
+    _init_worker_logger(level)
+    global _generate_state
+    _generate_state = state
+
+
+def _validate_one_fg(ctx: "FlowGroupContext") -> "FlowgroupValidationResult":
+    """Pool worker: validate one flowgroup using state from initializer.
+
+    AssertionError (or AttributeError under ``python -O``) if the
+    initializer did not run — that signals a pool wiring bug; we do not
+    mask it with a defensive fallback.
+    """
+    state = _validate_state
+    assert state is not None, "_init_validate_worker did not populate _validate_state"
+    return _process_flowgroup_for_validate(
+        ctx,
+        processor=state.processor,
+        substitution_mgr=state.substitution_managers[ctx.flowgroup.pipeline],
+        include_tests=state.include_tests,
+    )
+
+
+def _generate_one_pipeline(
+    pipeline_name: str, contexts: Sequence["FlowGroupContext"]
+) -> "PipelineDelta":
+    """Pool worker: process one pipeline using state from initializer."""
+    state = _generate_state
+    assert state is not None, "_init_generate_worker did not populate _generate_state"
+    return _dispatch_pipeline_for_generate(
+        pipeline_name,
+        contexts,
+        processor=state.processor,
+        code_generator=state.code_generator,
+        formatter=state.formatter,
+        substitution_managers=state.substitution_managers,
+        pipeline_output_dirs=state.pipeline_output_dirs,
+        environment=state.environment,
+        state_dir=state.state_dir,
+        project_root=state.project_root,
+        project_config=state.project_config,
+        include_tests=state.include_tests,
+        build_state=state.build_state,
+        blueprint_provenance=state.blueprint_provenance,
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class PipelineValidationOutcome:
     """Aggregate outcome for a single pipeline's validation."""
 
@@ -80,7 +186,7 @@ class PipelineValidationOutcome:
 
 def _process_pipeline_for_generate(
     pipeline_name: str,
-    flowgroups: Sequence["FlowGroup"],
+    contexts: Sequence["FlowGroupContext"],
     *,
     environment: str,
     output_dir: Optional[Path],
@@ -90,7 +196,7 @@ def _process_pipeline_for_generate(
     context: "ProcessingContext",
     build_state: bool,
     blueprint_provenance: Optional[
-        Dict[Tuple[str, str], "BlueprintProvenance"]
+        Mapping[Tuple[str, str], "BlueprintProvenance"]
     ] = None,
 ) -> "PipelineDelta":
     """Worker entry: process one whole pipeline and return a delta.
@@ -102,8 +208,9 @@ def _process_pipeline_for_generate(
 
     Args:
         pipeline_name: Pipeline being generated.
-        flowgroups: All flowgroups belonging to this pipeline. The
-            worker assumes ``fg._source_yaml`` is already populated.
+        contexts: All FlowGroupContext envelopes belonging to this
+            pipeline. The envelope carries the FlowGroup plus its
+            source_yaml, synthetic flag, and auxiliary_files.
         environment: Environment name (e.g. ``"dev"``).
         output_dir: Pipeline output directory; ``None`` for dry-run.
         state_dir: ``<project_root>/.lhp_state`` directory. May be
@@ -114,6 +221,10 @@ def _process_pipeline_for_generate(
             collaborators and the ``include_tests`` flag.
         build_state: When False, skips state manager and shard.
             Equivalent to ``--no-state``.
+        blueprint_provenance: Read-only ``Mapping`` of synthetic
+            flowgroup keys to provenance. Copied to a ``dict`` at the
+            :class:`PipelineProcessor` boundary if the downstream
+            consumer requires it.
 
     Returns:
         :class:`PipelineDelta` reporting success/failure with file-count
@@ -130,21 +241,23 @@ def _process_pipeline_for_generate(
         project_config=project_config,
         context=context,
         build_state=build_state,
-        blueprint_provenance=blueprint_provenance,
+        blueprint_provenance=(
+            dict(blueprint_provenance) if blueprint_provenance is not None else None
+        ),
     )
-    return pp.run(flowgroups)
+    return pp.run(contexts)
 
 
 
 def _dispatch_pipeline_for_generate(
     pipeline_name: str,
-    flowgroups: Sequence["FlowGroup"],
+    contexts: Sequence["FlowGroupContext"],
     *,
     processor: "FlowgroupProcessor",
     code_generator: "CodeGenerator",
     formatter: "CodeFormatter",
-    substitution_managers: Dict[str, "EnhancedSubstitutionManager"],
-    pipeline_output_dirs: Dict[str, Optional[Path]],
+    substitution_managers: Mapping[str, "EnhancedSubstitutionManager"],
+    pipeline_output_dirs: Mapping[str, Optional[Path]],
     environment: str,
     state_dir: Optional[Path],
     project_root: Path,
@@ -152,16 +265,17 @@ def _dispatch_pipeline_for_generate(
     include_tests: bool,
     build_state: bool,
     blueprint_provenance: Optional[
-        Dict[Tuple[str, str], "BlueprintProvenance"]
+        Mapping[Tuple[str, str], "BlueprintProvenance"]
     ] = None,
 ) -> "PipelineDelta":
-    """Top-level per-pipeline dispatch entry submitted to the process pool.
+    """Top-level per-pipeline dispatch entry called from the worker.
 
-    Picklable callable bound by :class:`functools.partial`. The
-    per-pipeline maps (substitution_managers, pipeline_output_dirs)
-    are bound once on the main thread; the worker selects its slice
-    by ``pipeline_name`` and builds the :class:`ProcessingContext`
-    here because ``substitution_mgr`` is per-pipeline.
+    Reachable from :func:`_generate_one_pipeline` (production, via the
+    pool initializer) or directly with explicit kwargs (testing). The
+    per-pipeline maps (``substitution_managers``, ``pipeline_output_dirs``)
+    are read-only here — typed ``Mapping`` to permit the
+    :class:`_GenerateWorkerState`'s frozen-dataclass shape on the
+    production path.
 
     Pipelines absent from ``substitution_managers`` (empty flowgroup
     sets) short-circuit to a no-op success delta.
@@ -181,7 +295,7 @@ def _dispatch_pipeline_for_generate(
     )
     return _process_pipeline_for_generate(
         pipeline_name=pipeline_name,
-        flowgroups=flowgroups,
+        contexts=contexts,
         environment=environment,
         output_dir=pipeline_output_dirs.get(pipeline_name),
         state_dir=state_dir,
@@ -212,27 +326,31 @@ class _PipelineProgress:
 
 
 def group_by_pipeline(
-    flowgroups: Sequence["FlowGroup"],
-) -> Dict[str, List["FlowGroup"]]:
-    """Group flowgroups by their pipeline field, preserving insertion order.
+    contexts: Sequence["FlowGroupContext"],
+) -> Dict[str, List["FlowGroupContext"]]:
+    """Group FlowGroupContext envelopes by their pipeline field, preserving
+    insertion order.
 
     Two flowgroups carrying the same ``pipeline`` value are merged
     into one logical pipeline regardless of source directory.
     Returned dict iteration order matches first-occurrence order for
     deterministic reporting.
     """
-    result: Dict[str, List["FlowGroup"]] = {}
-    for fg in flowgroups:
-        result.setdefault(fg.pipeline, []).append(fg)
+    result: Dict[str, List["FlowGroupContext"]] = {}
+    for ctx in contexts:
+        result.setdefault(ctx.flowgroup.pipeline, []).append(ctx)
     return result
 
 
 def run_generate_pool(
     *,
-    flowgroups_by_pipeline: Mapping[str, Sequence["FlowGroup"]],
-    process_one: Callable[[str, Sequence["FlowGroup"]], "PipelineDelta"],
+    flowgroups_by_pipeline: Mapping[str, Sequence["FlowGroupContext"]],
+    worker_state: Optional[_GenerateWorkerState] = None,
     max_workers: int,
     on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
+    process_one: Optional[
+        Callable[[str, Sequence["FlowGroupContext"]], "PipelineDelta"]
+    ] = None,
 ) -> Tuple[List["PipelineDelta"], List["PipelineDelta"]]:
     """Pipeline-batched dispatch. One future per non-empty pipeline.
 
@@ -240,14 +358,28 @@ def run_generate_pool(
     running under a ``spawn`` multiprocessing context. Each worker
     returns a :class:`PipelineDelta`; the main thread aggregates.
 
+    ``worker_state`` is pickled once at pool startup (via the
+    ``initializer=`` seam) so per-task submit only ships the pipeline
+    name and the flowgroup-context list — eliminating the
+    :class:`functools.partial` re-pickle of ``FlowgroupProcessor`` +
+    ``CodeGenerator`` + ``CodeFormatter`` that used to fire on every
+    submit.
+
+    ``process_one`` is a test seam — when ``None`` (production),
+    submissions use :func:`_generate_one_pipeline`, which reads
+    :data:`_generate_state`. Tests pass a top-level picklable callable
+    so the pool's aggregation logic can be exercised without
+    constructing real collaborators.
+
     Invariants:
-      - Pipelines with zero flowgroups are emitted as no-op success
-        deltas before any worker is submitted, so ``process_one`` is
-        never invoked for them (test mocks of the partial's captured
-        services are not picklable across spawn).
-      - ``process_one`` MUST be a top-level picklable callable and MUST
-        NOT raise: workers wrap every exception into
-        ``PipelineDelta.failure(name, exc)``.
+      - ``worker_state`` is required in production. Either
+        ``worker_state`` or ``process_one`` must be supplied; otherwise
+        the worker has no captured state and the initializer call
+        would fail.
+      - Pipelines with zero flowgroup contexts are emitted as no-op
+        success deltas before any worker is submitted.
+      - The worker functions MUST NOT raise: workers wrap every exception
+        into ``PipelineDelta.failure(name, exc)``.
       - If ``executor.submit`` or unpickling fails, the consumer
         synthesizes a ``PipelineDelta.failure`` from the raised
         exception so the aggregate-raise path stays consistent.
@@ -258,12 +390,20 @@ def run_generate_pool(
     """
     from .state_models import PipelineDelta
 
-    worklist: List[Tuple[str, List["FlowGroup"]]] = []
+    if worker_state is None and process_one is None:
+        raise ValueError(
+            "run_generate_pool requires either worker_state (production) "
+            "or process_one (test seam)."
+        )
+
+    worker_fn = process_one if process_one is not None else _generate_one_pipeline
+
+    worklist: List[Tuple[str, List["FlowGroupContext"]]] = []
     empty_pipelines: List[str] = []
-    for pipeline_name, fgs in flowgroups_by_pipeline.items():
-        fg_list = list(fgs)
-        if fg_list:
-            worklist.append((pipeline_name, fg_list))
+    for pipeline_name, ctxs in flowgroups_by_pipeline.items():
+        ctx_list = list(ctxs)
+        if ctx_list:
+            worklist.append((pipeline_name, ctx_list))
         else:
             empty_pipelines.append(pipeline_name)
 
@@ -292,18 +432,32 @@ def run_generate_pool(
     workers = min(max(1, max_workers), len(worklist))
     ctx = multiprocessing.get_context("spawn")
     parent_level = logging.getLogger().level
+
+    # Pool-construction kwargs branch on whether we have worker_state.
+    # Test seams pass process_one without worker_state — fall back to the
+    # logger-only initializer used before this commit.
+    if worker_state is not None:
+        pool_kwargs: Dict[str, Any] = {
+            "initializer": _init_generate_worker,
+            "initargs": (parent_level, worker_state),
+        }
+    else:
+        pool_kwargs = {
+            "initializer": _init_worker_logger,
+            "initargs": (parent_level,),
+        }
+
     with (
         perf_timer(f"pipeline_pool [{len(worklist)} pipelines, {workers} workers]"),
         ProcessPoolExecutor(
             max_workers=workers,
             mp_context=ctx,
-            initializer=_init_worker_logger,
-            initargs=(parent_level,),
+            **pool_kwargs,
         ) as executor,
     ):
         future_to_pipeline: Dict[Future, str] = {
-            executor.submit(process_one, pipeline_name, fgs): pipeline_name
-            for pipeline_name, fgs in worklist
+            executor.submit(worker_fn, pipeline_name, ctxs): pipeline_name
+            for pipeline_name, ctxs in worklist
         }
 
         for fut in as_completed(future_to_pipeline):
@@ -349,7 +503,7 @@ class FlowgroupValidationResult:
 
 
 def _process_flowgroup_for_validate(
-    fg: "FlowGroup",
+    ctx: "FlowGroupContext",
     *,
     processor: "FlowgroupProcessor",
     substitution_mgr: "EnhancedSubstitutionManager",
@@ -363,8 +517,9 @@ def _process_flowgroup_for_validate(
     error string keyed by the flowgroup name; the worker never raises so
     the pool can aggregate failures.
     """
+    fg = ctx.flowgroup
     try:
-        processor.process_flowgroup(fg, substitution_mgr, include_tests=include_tests)
+        processor.process_flowgroup(ctx, substitution_mgr, include_tests=include_tests)
         return FlowgroupValidationResult(
             pipeline=fg.pipeline,
             flowgroup_name=fg.flowgroup,
@@ -383,26 +538,7 @@ def _process_flowgroup_for_validate(
         )
 
 
-def _process_one_for_validate(
-    fg: "FlowGroup",
-    *,
-    processor: "FlowgroupProcessor",
-    substitution_managers: Dict[str, "EnhancedSubstitutionManager"],
-    include_tests: bool,
-) -> FlowgroupValidationResult:
-    """Top-level validate dispatch entry submitted to the process pool.
 
-    Picklable callable bound by :class:`functools.partial` from the
-    orchestrator. The per-pipeline substitution-manager map is bound
-    once on the main thread; the worker selects its slice by
-    ``fg.pipeline``.
-    """
-    return _process_flowgroup_for_validate(
-        fg,
-        processor=processor,
-        substitution_mgr=substitution_managers[fg.pipeline],
-        include_tests=include_tests,
-    )
 
 
 OnValidationComplete: TypeAlias = Callable[[PipelineValidationOutcome], None]
@@ -414,8 +550,8 @@ ValidationAssembler: TypeAlias = Callable[
 def run_validate_pool(
     *,
     pipelines: Sequence[str],
-    flowgroups_by_pipeline: Mapping[str, Sequence["FlowGroup"]],
-    process_one: Callable[["FlowGroup"], FlowgroupValidationResult],
+    flowgroups_by_pipeline: Mapping[str, Sequence["FlowGroupContext"]],
+    worker_state: _ValidateWorkerState,
     assemble_pipeline: ValidationAssembler,
     max_workers: int,
     on_pipeline_complete: Optional[OnValidationComplete] = None,
@@ -427,6 +563,10 @@ def run_validate_pool(
     post-barrier hook implemented inside ``assemble_pipeline`` (typically
     ``validate_cdc_fanin_compatibility``).
 
+    The captured ``worker_state`` is pickled once at pool startup and
+    delivered to each worker via the ``initializer=`` seam, so the per-task
+    submit shrinks to a single :class:`FlowGroupContext` argument.
+
     Returns outcomes **ordered by the input pipeline order** (not
     completion order) for stable display. Callers that want completion
     order should consume ``on_pipeline_complete`` instead.
@@ -434,12 +574,12 @@ def run_validate_pool(
     progress: Dict[str, _PipelineProgress] = {
         p: _PipelineProgress(pipeline=p, expected=0) for p in pipelines
     }
-    worklist: List[Tuple[str, "FlowGroup"]] = []
+    worklist: List[Tuple[str, "FlowGroupContext"]] = []
     for p in pipelines:
-        fgs = list(flowgroups_by_pipeline.get(p, []))
-        progress[p].expected = len(fgs)
-        for fg in fgs:
-            worklist.append((p, fg))
+        ctxs = list(flowgroups_by_pipeline.get(p, []))
+        progress[p].expected = len(ctxs)
+        for ctx in ctxs:
+            worklist.append((p, ctx))
 
     outcomes_by_pipeline: Dict[str, PipelineValidationOutcome] = {}
 
@@ -474,7 +614,7 @@ def run_validate_pool(
     if worklist:
         # Workload cap: don't spawn more workers than flowgroups to validate.
         workers = min(max(1, max_workers), len(worklist))
-        ctx = multiprocessing.get_context("spawn")
+        ctx_mp = multiprocessing.get_context("spawn")
         parent_level = logging.getLogger().level
         with (
             perf_timer(
@@ -482,25 +622,25 @@ def run_validate_pool(
             ),
             ProcessPoolExecutor(
                 max_workers=workers,
-                mp_context=ctx,
-                initializer=_init_worker_logger,
-                initargs=(parent_level,),
+                mp_context=ctx_mp,
+                initializer=_init_validate_worker,
+                initargs=(parent_level, worker_state),
             ) as executor,
         ):
-            future_to_key: Dict[Future, Tuple[str, "FlowGroup"]] = {}
-            for pipeline, fg in worklist:
-                fut: Future = executor.submit(process_one, fg)
-                future_to_key[fut] = (pipeline, fg)
+            future_to_key: Dict[Future, Tuple[str, "FlowGroupContext"]] = {}
+            for pipeline, fg_ctx in worklist:
+                fut: Future = executor.submit(_validate_one_fg, fg_ctx)
+                future_to_key[fut] = (pipeline, fg_ctx)
 
             for fut in as_completed(future_to_key):
-                pipeline, fg = future_to_key[fut]
+                pipeline, fg_ctx = future_to_key[fut]
                 try:
                     result = fut.result()
                 except BaseException as exc:
                     result = FlowgroupValidationResult(
                         pipeline=pipeline,
-                        flowgroup_name=fg.flowgroup,
-                        errors=(f"Flowgroup '{fg.flowgroup}': {exc}",),
+                        flowgroup_name=fg_ctx.flowgroup.flowgroup,
+                        errors=(f"Flowgroup '{fg_ctx.flowgroup.flowgroup}': {exc}",),
                     )
 
                 bucket = progress[pipeline]

@@ -80,17 +80,17 @@ def test_cartesian_product_two_specs_three_instances(tmp_path):
         ip.parent.mkdir(parents=True, exist_ok=True)
         ip.touch()
         instances.append((_make_instance(site_name=site), ip))
-    flowgroups, provenance = BlueprintExpander().expand(blueprints, instances)
-    # 2 specs × 3 instances = 6 expanded flowgroups.
-    assert len(flowgroups) == 6
+    contexts, provenance = BlueprintExpander().expand(blueprints, instances)
+    # 2 specs × 3 instances = 6 expanded flowgroup contexts.
+    assert len(contexts) == 6
     # All synthetic and have correct resolved tuples.
-    pipelines = {fg.pipeline for fg in flowgroups}
-    flow_names = {fg.flowgroup for fg in flowgroups}
+    pipelines = {ctx.flowgroup.pipeline for ctx in contexts}
+    flow_names = {ctx.flowgroup.flowgroup for ctx in contexts}
     assert pipelines == {"apac_sg_raw", "emea_uk_raw", "latam_br_raw"}
     assert "apac_sg_orders" in flow_names
     assert "latam_br_customers" in flow_names
-    for fg in flowgroups:
-        assert fg._synthetic is True
+    for ctx in contexts:
+        assert ctx.synthetic is True
     # Provenance map keyed by resolved tuples.
     assert ("apac_sg_raw", "apac_sg_orders") in provenance
     assert ("latam_br_raw", "latam_br_customers") in provenance
@@ -128,11 +128,11 @@ def test_default_parameter_used_when_instance_omits(tmp_path):
     inst_path = tmp_path / "instances" / "sg.yaml"
     inst_path.parent.mkdir(parents=True, exist_ok=True)
     inst_path.touch()
-    flowgroups, _ = BlueprintExpander().expand(
+    contexts, _ = BlueprintExpander().expand(
         {"erp": (bp, bp_path)},
         [(_make_instance(site_name="apac_sg"), inst_path)],
     )
-    fg = flowgroups[0]
+    fg = contexts[0].flowgroup
     # The merged variables should carry the default through to the FlowGroup.
     assert fg.variables is not None
     # Either the raw `pk` template uses the default, or the merged dict carries
@@ -227,11 +227,11 @@ def test_spec_variables_shadow_instance_params(tmp_path):
     inst_path.parent.mkdir(parents=True, exist_ok=True)
     inst_path.touch()
     # Instance attempts to shadow the spec-defined variable.
-    flowgroups, _ = BlueprintExpander().expand(
+    contexts, _ = BlueprintExpander().expand(
         {"erp": (bp, bp_path)},
         [(_make_instance(site_name="apac_sg", raw_table="from_instance"), inst_path)],
     )
-    fg = flowgroups[0]
+    fg = contexts[0].flowgroup
     # Spec value must win — instance 'raw_table=from_instance' must NOT appear.
     assert fg.variables["raw_table"] != "from_instance"
     assert "spec_wins" in fg.variables["raw_table"]
@@ -351,6 +351,6 @@ def test_provenance_records_paths(tmp_path):
 
 
 def test_empty_inputs_return_empty_outputs():
-    flowgroups, provenance = BlueprintExpander().expand({}, [])
-    assert flowgroups == []
+    contexts, provenance = BlueprintExpander().expand({}, [])
+    assert contexts == []
     assert provenance == {}

@@ -204,17 +204,17 @@ class StateDisplayService:
             # second copy under a different shard key).
             output_dir = self.project_root / "generated" / env
             # Use generate_pipeline_by_field for consistent Python file handling
-            generated_files = orchestrator.generate_pipeline_by_field(
+            generated_filenames = orchestrator.generate_pipeline_by_field(
                 pipeline_field=pipeline_name,
                 env=env,
                 output_dir=output_dir,
                 state_manager=self.state_manager,
             )
-            regenerated_count += len(generated_files)
+            regenerated_count += len(generated_filenames)
 
             if self.verbose:
                 logger.info(
-                    f"Regenerated {len(generated_files)} file(s) for {pipeline_name}"
+                    f"Regenerated {len(generated_filenames)} file(s) for {pipeline_name}"
                 )
 
         return regenerated_count

@@ -1,9 +1,10 @@
 """Flowgroup processing service for LakehousePlumber."""
 
+import dataclasses
 import logging
 from typing import Any, Dict
 
-from ...models.config import ActionType, FlowGroup
+from ...models.config import ActionType, FlowGroup, FlowGroupContext
 from ...utils.error_formatter import LHPError, LHPValidationError
 from ...utils.local_variables import LocalVariableResolver
 from ...utils.performance_timer import perf_timer
@@ -42,10 +43,10 @@ class FlowgroupProcessor:
 
     def process_flowgroup(
         self,
-        flowgroup: FlowGroup,
+        ctx: FlowGroupContext,
         substitution_mgr: EnhancedSubstitutionManager,
         include_tests: bool = True,
-    ) -> FlowGroup:
+    ) -> FlowGroupContext:
         """
         Process flowgroup: expand templates, apply presets, apply substitutions.
 
@@ -54,14 +55,15 @@ class FlowgroupProcessor:
         customize as needed.
 
         Args:
-            flowgroup: FlowGroup to process
+            ctx: FlowGroupContext envelope to process
             substitution_mgr: Substitution manager for the environment
             include_tests: If False, filter out test actions before processing.
                 Defaults to True for backward compatibility.
 
         Returns:
-            Processed flowgroup
+            New FlowGroupContext with processed FlowGroup and had_test_actions populated.
         """
+        flowgroup = ctx.flowgroup
         self.logger.debug(
             f"Processing flowgroup '{flowgroup.flowgroup}' in pipeline '{flowgroup.pipeline}' ({len(flowgroup.actions)} actions)"
         )
@@ -99,7 +101,7 @@ class FlowgroupProcessor:
                 flowgroup.actions.extend(template_actions)
 
         # Record whether this flowgroup originally had test actions (before filtering)
-        flowgroup._has_original_test_actions = any(
+        had_test_actions = any(
             a.type == ActionType.TEST for a in flowgroup.actions
         )
 
@@ -251,7 +253,11 @@ class FlowgroupProcessor:
         self.logger.debug(
             f"Flowgroup '{processed_flowgroup.flowgroup}' processing complete ({len(processed_flowgroup.actions)} actions)"
         )
-        return processed_flowgroup
+        return dataclasses.replace(
+            ctx,
+            flowgroup=processed_flowgroup,
+            had_test_actions=had_test_actions,
+        )
 
     def apply_preset_config(
         self, flowgroup: FlowGroup, preset_config: Dict[str, Any]

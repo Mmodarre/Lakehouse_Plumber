@@ -41,7 +41,7 @@ class TestDataTransferObjects:
         """Test GenerationResponse DTO."""
         response = GenerationResponse(
             success=True,
-            generated_files={"test.py": "# Generated"},
+            generated_filenames=("test.py",),
             files_written=1,
             total_flowgroups=1,
             output_location=Path("/output"),
@@ -49,7 +49,7 @@ class TestDataTransferObjects:
         )
         
         assert response.is_successful() == True
-        assert len(response.generated_files) == 1
+        assert len(response.generated_filenames) == 1
         assert response.files_written == 1
         assert response.total_flowgroups == 1
         assert response.output_location == Path("/output")
@@ -127,7 +127,7 @@ class TestApplicationFacade:
         
         # Verify response
         assert response.is_successful() == True
-        assert len(response.generated_files) == 1
+        assert len(response.generated_filenames) == 1
         assert response.files_written == 1
         assert response.error_message is None
         
@@ -283,7 +283,7 @@ class TestLayerSeparation:
         # DTOs should be pure data structures
         request = PipelineGenerationRequest("test", "dev")
         response = GenerationResponse(
-            success=True, generated_files={}, files_written=0,
+            success=True, generated_filenames=(), files_written=0,
             total_flowgroups=0, output_location=None, performance_info={}
         )
         

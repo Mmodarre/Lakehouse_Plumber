@@ -17,6 +17,13 @@ from pathlib import Path
 from lhp.core.pipeline_executor import _process_pipeline_for_generate
 from lhp.core.pipeline_processor import PipelineProcessor
 from lhp.core.state.pipeline_state_manager import PipelineStateManager
+from tests.fakes import (
+    FakeCodeFormatter,
+    FakeCodeGenerator,
+    FakeFlowgroupProcessor,
+    FakeProjectConfig,
+    FakeSubstitutionManager,
+)
 
 
 FORBIDDEN_TYPES = {"ProjectStateManager", "StateManager"}
@@ -84,13 +91,12 @@ class TestProcessorUsesPipelineStateManager:
         (or ``None`` when ``build_state=False`` — see the negative case below).
         """
         from lhp.core.pipeline_processor import ProcessingContext
-        from unittest.mock import Mock
 
         ctx = ProcessingContext(
-            processor=Mock(),
-            code_generator=Mock(),
-            formatter=Mock(),
-            substitution_mgr=Mock(),
+            processor=FakeFlowgroupProcessor(),
+            code_generator=FakeCodeGenerator(),
+            formatter=FakeCodeFormatter(),
+            substitution_mgr=FakeSubstitutionManager(),
             include_tests=False,
         )
         pp = PipelineProcessor(
@@ -99,7 +105,7 @@ class TestProcessorUsesPipelineStateManager:
             output_dir=tmp_path / "out",
             state_dir=tmp_path / ".lhp_state",
             project_root=tmp_path,
-            project_config=Mock(),
+            project_config=FakeProjectConfig(),
             context=ctx,
             build_state=True,
         )
@@ -108,13 +114,12 @@ class TestProcessorUsesPipelineStateManager:
     def test_processor_state_manager_none_when_no_state(self, tmp_path):
         """``build_state=False`` leaves ``processor.state_manager`` as None."""
         from lhp.core.pipeline_processor import ProcessingContext
-        from unittest.mock import Mock
 
         ctx = ProcessingContext(
-            processor=Mock(),
-            code_generator=Mock(),
-            formatter=Mock(),
-            substitution_mgr=Mock(),
+            processor=FakeFlowgroupProcessor(),
+            code_generator=FakeCodeGenerator(),
+            formatter=FakeCodeFormatter(),
+            substitution_mgr=FakeSubstitutionManager(),
             include_tests=False,
         )
         pp = PipelineProcessor(
@@ -123,7 +128,7 @@ class TestProcessorUsesPipelineStateManager:
             output_dir=tmp_path / "out",
             state_dir=None,
             project_root=tmp_path,
-            project_config=Mock(),
+            project_config=FakeProjectConfig(),
             context=ctx,
             build_state=False,
         )

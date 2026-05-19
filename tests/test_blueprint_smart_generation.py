@@ -11,7 +11,7 @@ import pytest
 
 from lhp.core.orchestrator import ActionOrchestrator
 from lhp.core.state_manager import ProjectStateManager
-from lhp.models.config import FlowGroup
+from lhp.models.config import FlowGroup, FlowGroupContext
 
 pytestmark = pytest.mark.unit
 
@@ -44,9 +44,17 @@ catalog: dev_cat
 
 
 def _make_synthetic_fg(pipeline: str, flowgroup: str) -> FlowGroup:
-    fg = FlowGroup(pipeline=pipeline, flowgroup=flowgroup, actions=[])
-    fg._synthetic = True
-    return fg
+    return FlowGroup(pipeline=pipeline, flowgroup=flowgroup, actions=[])
+
+
+def _register_synthetic(orch: ActionOrchestrator, *fgs: FlowGroup) -> None:
+    """Mark FlowGroups as synthetic in the orchestrator's sidecar context map."""
+    for fg in fgs:
+        orch._synthetic_contexts[(fg.pipeline, fg.flowgroup)] = FlowGroupContext(
+            flowgroup=fg,
+            source_yaml=None,
+            synthetic=True,
+        )
 
 
 def _make_disk_fg(pipeline: str, flowgroup: str) -> FlowGroup:
@@ -72,6 +80,7 @@ def test_new_synthetic_flowgroup_picked_up_when_state_empty(tmp_path):
         _make_synthetic_fg("site_a_raw", "site_a_orders"),
         _make_synthetic_fg("site_a_raw", "site_a_customers"),
     ]
+    _register_synthetic(orch, *all_flowgroups)
     filtered = orch._apply_smart_generation_filtering(
         all_flowgroups,
         env="dev",
@@ -130,6 +139,7 @@ def test_synthetic_already_tracked_in_state_is_not_in_new_synthetic_set(tmp_path
         _make_synthetic_fg("site_a_raw", "site_a_orders"),
         _make_synthetic_fg("site_a_raw", "new_addition"),
     ]
+    _register_synthetic(orch, *all_flowgroups)
     filtered = orch._apply_smart_generation_filtering(
         all_flowgroups,
         env="dev",
@@ -153,6 +163,7 @@ def test_novelty_check_runs_before_empty_set_early_return(tmp_path):
     _seed_generation_context(sm, "dev", False)
     # State has nothing for this pipeline at all.
     all_flowgroups = [_make_synthetic_fg("new_pipeline", "new_fg")]
+    _register_synthetic(orch, *all_flowgroups)
     filtered = orch._apply_smart_generation_filtering(
         all_flowgroups,
         env="dev",

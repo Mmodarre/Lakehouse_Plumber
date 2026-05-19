@@ -34,6 +34,7 @@ from ...models.config import (
     BlueprintFlowgroupSpec,
     BlueprintInstance,
     FlowGroup,
+    FlowGroupContext,
 )
 from ...utils.error_formatter import (
     ErrorCategory,
@@ -91,7 +92,7 @@ class BlueprintExpander:
         self,
         blueprints: Dict[str, Tuple[Blueprint, Path]],
         instances: List[Tuple[BlueprintInstance, Path]],
-    ) -> Tuple[List[FlowGroup], Dict[Tuple[str, str], BlueprintProvenance]]:
+    ) -> Tuple[List[FlowGroupContext], Dict[Tuple[str, str], BlueprintProvenance]]:
         """Expand all instances against their referenced blueprints.
 
         Args:
@@ -99,12 +100,12 @@ class BlueprintExpander:
             instances: Output of `BlueprintDiscoverer.discover_instances`.
 
         Returns:
-            (synthetic_flowgroups, provenance_map):
-              - List of FlowGroup objects with `_synthetic = True`
+            (synthetic_contexts, provenance_map):
+              - List of FlowGroupContext envelopes with `synthetic = True`
               - Map keyed by resolved `(pipeline, flowgroup)` tuple
         """
         with perf_timer("expand_blueprints", category="blueprint_expansion"):
-            flowgroups: List[FlowGroup] = []
+            contexts: List[FlowGroupContext] = []
             provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
             # Track first-emitter file path per resolved tuple, to produce
             # rich duplicate-detection errors.
@@ -167,7 +168,12 @@ class BlueprintExpander:
                         resolved_flowgroup=resolved_flowgroup,
                         merged_vars=merged_vars,
                     )
-                    flowgroups.append(fg)
+                    ctx = FlowGroupContext(
+                        flowgroup=fg,
+                        source_yaml=blueprint_path,
+                        synthetic=True,
+                    )
+                    contexts.append(ctx)
                     seen[key] = instance_path
                     provenance[key] = BlueprintProvenance(
                         blueprint_name=blueprint.name,
@@ -179,17 +185,17 @@ class BlueprintExpander:
 
             self.logger.info(
                 f"Expanded {len(instances)} instance(s) into "
-                f"{len(flowgroups)} synthetic flowgroup(s)"
+                f"{len(contexts)} synthetic flowgroup(s)"
             )
-            record_count("synthetic_flowgroups", len(flowgroups))
-            return flowgroups, provenance
+            record_count("synthetic_flowgroups", len(contexts))
+            return contexts, provenance
 
     def expand_single_instance(
         self,
         instance: BlueprintInstance,
         instance_path: Path,
         blueprints: Dict[str, Tuple[Blueprint, Path]],
-    ) -> Tuple[List[FlowGroup], Dict[Tuple[str, str], BlueprintProvenance]]:
+    ) -> Tuple[List[FlowGroupContext], Dict[Tuple[str, str], BlueprintProvenance]]:
         """Expand exactly one instance — used by `lhp show --instance` (M4 fix)."""
         return self.expand(blueprints, [(instance, instance_path)])
 
@@ -326,8 +332,9 @@ class BlueprintExpander:
         - Other spec fields are passed through; they may still contain `%{var}`
           patterns to be resolved at Step 0.5 alongside other flowgroup-scoped
           local variables
-        - `_synthetic = True` marks the flowgroup as expanded (used by smart
-          generation novelty check, source-path index, dependency tracker)
+        - Synthetic status is recorded on the enclosing FlowGroupContext
+          (used by smart generation novelty check, source-path index, dependency
+          tracker)
         """
         # Build a dict so we can use FlowGroup(**dict) — symmetric with the
         # disk-sourced parser path. dict spread preserves Pydantic validation.
@@ -350,6 +357,4 @@ class BlueprintExpander:
         if spec.operational_metadata is not None:
             flowgroup_dict["operational_metadata"] = spec.operational_metadata
 
-        fg = FlowGroup(**flowgroup_dict)
-        fg._synthetic = True
-        return fg
+        return FlowGroup(**flowgroup_dict)

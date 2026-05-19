@@ -49,13 +49,13 @@ class GenerationCommandResult(CommandResult):
         data: Any = None,
         error: str = None,
         metadata: Dict[str, Any] = None,
-        generated_files: Dict[str, str] = None,
+        generated_filenames: tuple[str, ...] = (),
         files_written: int = 0,
         total_flowgroups: int = 0,
         performance_stats: Dict[str, Any] = None,
     ):
         super().__init__(success, data, error, metadata)
-        self.generated_files = generated_files or {}
+        self.generated_filenames = generated_filenames
         self.files_written = files_written
         self.total_flowgroups = total_flowgroups
         self.performance_stats = performance_stats or {}
@@ -183,14 +183,14 @@ class GeneratePipelineCommand(Command):
                 return GenerationCommandResult(
                     success=False,
                     error="pipeline_identifier is required",
-                    generated_files={},
+                    generated_filenames=(),
                     files_written=0,
                     total_flowgroups=0,
                 )
 
             # Delegate to orchestrator for actual generation
             # Always use generate_pipeline_by_field for consistent Python file handling
-            generated_files = context.orchestrator.generate_pipeline_by_field(
+            generated_filenames = context.orchestrator.generate_pipeline_by_field(
                 pipeline_field=pipeline_identifier,
                 env=context.env,
                 output_dir=output_dir if not dry_run else None,
@@ -202,10 +202,10 @@ class GeneratePipelineCommand(Command):
 
             return GenerationCommandResult(
                 success=True,
-                data=generated_files,
-                generated_files=generated_files,
-                files_written=len(generated_files) if not dry_run else 0,
-                total_flowgroups=len(generated_files),
+                data=generated_filenames,
+                generated_filenames=generated_filenames,
+                files_written=len(generated_filenames) if not dry_run else 0,
+                total_flowgroups=len(generated_filenames),
                 performance_stats={"dry_run": dry_run},
             )
 
@@ -214,7 +214,7 @@ class GeneratePipelineCommand(Command):
             return GenerationCommandResult(
                 success=False,
                 error=str(e),
-                generated_files={},
+                generated_filenames=(),
                 files_written=0,
                 total_flowgroups=0,
             )

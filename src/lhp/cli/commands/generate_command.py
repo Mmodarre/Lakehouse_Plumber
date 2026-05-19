@@ -204,7 +204,7 @@ class GenerateCommand(BaseCommand):
             )
 
         total_files = batch_response.total_files_written
-        all_generated_files = dict(batch_response.aggregate_generated_files)
+        all_generated_filenames = batch_response.aggregate_generated_filenames
 
         # 9.5. Finalize monitoring artifacts (after all pipelines generated)
         if not dry_run:
@@ -240,7 +240,7 @@ class GenerateCommand(BaseCommand):
         # 12. Display completion message (presentation)
         logger.info(
             f"Generation complete: {total_files} file(s) generated, "
-            f"{len(all_generated_files)} total output file(s)"
+            f"{len(all_generated_filenames)} total output file(s)"
         )
         self._display_completion_message(total_files, output_dir, dry_run)
 
@@ -368,7 +368,7 @@ class GenerateCommand(BaseCommand):
                         f"📝 {pipeline_id}: Would generate {response.total_flowgroups} file(s)"
                     )
                     # Show specific filenames in dry-run mode
-                    for filename in response.generated_files.keys():
+                    for filename in response.generated_filenames:
                         click.echo(f"   • {filename}")
                 else:
                     click.echo(f"✅ {pipeline_id}: Up-to-date")

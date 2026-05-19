@@ -101,7 +101,7 @@ class TestEndToEndBundleWorkflow:
             # Verify environment-specific content
             pipeline_dir = output_dir / "test_pipeline"
             if pipeline_dir.exists():
-                generated_file = pipeline_dir / f"{list(generated_files.keys())[0]}"
+                generated_file = pipeline_dir / generated_files[0]
                 if generated_file.exists():
                     content = generated_file.read_text()
                     # Should contain environment-specific substitutions
@@ -318,7 +318,7 @@ resources:
         )
         
         # Should work with state management
-        assert isinstance(generated_files_2, dict)
+        assert isinstance(generated_files_2, tuple)
 
     def _setup_bundle_project(self):
         """Set up a basic bundle project for testing."""
@@ -501,13 +501,13 @@ class TestEndToEndACMIIntegration:
             try:
                 generated_files = orchestrator.generate_pipeline_by_field(pipeline_field, "dev", None)
                 
-                # Each pipeline should generate some files
+                # Each pipeline should generate some files. Content is on
+                # disk after Commit 3; the dry-run call here (output_dir=None)
+                # means no files were written, so quality checks are skipped
+                # in that path. Length-only check stays.
                 if len(generated_files) > 0:
-                    # Verify content quality
-                    for filename, content in generated_files.items():
-                        assert len(content) > 100  # Should have substantial content
-                        assert "from pyspark import pipelines as dp" in content
-                        assert not content.count("ERROR") > 0  # No error markers
+                    for filename in generated_files:
+                        assert filename.endswith(".py")
                         
             except Exception as e:
                 # Log but don't fail - some pipelines might have dependencies

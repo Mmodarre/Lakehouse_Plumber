@@ -68,7 +68,7 @@ class GenerationResponse:
     """DTO for generation responses from application to presentation layer."""
 
     success: bool
-    generated_files: Dict[str, str]  # filename -> content
+    generated_filenames: tuple[str, ...]  # ordered filenames, no content
     files_written: int
     total_flowgroups: int
     output_location: Optional[Path]
@@ -97,7 +97,7 @@ class BatchGenerationResponse:
     success: bool
     pipeline_responses: Dict[str, "GenerationResponse"]
     total_files_written: int
-    aggregate_generated_files: Dict[str, str]
+    aggregate_generated_filenames: tuple[str, ...]
     output_location: Optional[Path]
     error_message: Optional[str] = None
     original_error: Optional[Exception] = None
@@ -309,7 +309,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             with perf_timer(
                 f"facade.generate_pipeline [{request.pipeline_identifier}]"
             ):
-                generated_files = self.orchestrator.generate_pipeline_by_field(
+                generated_filenames = self.orchestrator.generate_pipeline_by_field(
                     pipeline_field=request.pipeline_identifier,
                     env=request.environment,
                     output_dir=(
@@ -326,9 +326,9 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
 
             return GenerationResponse(
                 success=True,
-                generated_files=generated_files,
-                files_written=len(generated_files) if not request.dry_run else 0,
-                total_flowgroups=len(generated_files),
+                generated_filenames=generated_filenames,
+                files_written=len(generated_filenames) if not request.dry_run else 0,
+                total_flowgroups=len(generated_filenames),
                 output_location=request.output_directory,
                 performance_info={
                     "dry_run": request.dry_run,
@@ -356,7 +356,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             # over formatting and exit-code mapping).
             return GenerationResponse(
                 success=False,
-                generated_files={},
+                generated_filenames=(),
                 files_written=0,
                 total_flowgroups=0,
                 output_location=None,
@@ -446,13 +446,13 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
 
             response = GenerationResponse(
                 success=delta.success,
-                generated_files=dict(delta.generated_files),
+                generated_filenames=delta.generated_filenames,
                 files_written=delta.files_written,
                 # Match the legacy `generate_pipeline` semantics: this field
                 # is displayed as "Would generate N file(s)" in dry-run, so
                 # it is the count of generated FILES (not the count of
                 # flowgroups processed). Empty flowgroups produce 0 files.
-                total_flowgroups=len(delta.generated_files),
+                total_flowgroups=len(delta.generated_filenames),
                 output_location=output_dir,
                 performance_info={
                     "dry_run": output_dir is None,
@@ -492,17 +492,17 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                     on_pipeline_complete=_on_delta,
                 )
 
-            aggregate: Dict[str, str] = {}
+            aggregate: tuple[str, ...] = ()
             total_written = 0
             for r in pipeline_responses.values():
-                aggregate.update(r.generated_files)
+                aggregate = aggregate + r.generated_filenames
                 total_written += r.files_written
 
             return BatchGenerationResponse(
                 success=True,
                 pipeline_responses=pipeline_responses,
                 total_files_written=total_written,
-                aggregate_generated_files=aggregate,
+                aggregate_generated_filenames=aggregate,
                 output_location=output_dir,
             )
 
@@ -519,18 +519,18 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             else:
                 self.logger.error(f"Batch pipeline generation failed: {exc}")
 
-            aggregate: Dict[str, str] = {}
+            aggregate = ()
             total_written = 0
             for r in pipeline_responses.values():
                 if r.success:
-                    aggregate.update(r.generated_files)
+                    aggregate = aggregate + r.generated_filenames
                     total_written += r.files_written
 
             return BatchGenerationResponse(
                 success=False,
                 pipeline_responses=pipeline_responses,
                 total_files_written=total_written,
-                aggregate_generated_files=aggregate,
+                aggregate_generated_filenames=aggregate,
                 output_location=None,
                 error_message=str(exc),
                 original_error=exc,

@@ -9,6 +9,7 @@ import yaml
 
 from lhp.core.orchestrator import ActionOrchestrator
 from lhp.models.config import Action, ActionType, FlowGroup
+from tests.helpers import read_generated_pipeline
 
 
 class TestAdvancedFeatures:
@@ -107,8 +108,11 @@ def get_df(spark, parameters):
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="python_pipeline", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="python_pipeline",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         code = generated_files["python_processing.py"]
@@ -180,8 +184,11 @@ actions:
 """)
 
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="temp_tables", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="temp_tables",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         code = generated_files["temp_processing.py"]
@@ -247,8 +254,11 @@ actions:
 """)
 
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="schema_pipeline", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="schema_pipeline",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         code = generated_files["schema_application.py"]
@@ -345,8 +355,11 @@ actions:
 """)
 
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="complex_flows", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="complex_flows",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         code = generated_files["many_to_many.py"]
@@ -442,8 +455,11 @@ actions:
         orchestrator = ActionOrchestrator(project_root)
 
         # Test preset metadata
-        files1 = orchestrator.generate_pipeline_by_field(
-            pipeline_field="metadata_test", env="dev"
+        files1 = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="metadata_test",
+            env="dev",
+            output_dir=project_root / "generated1",
         )
         code1 = files1["with_preset_metadata.py"]
 
@@ -453,8 +469,11 @@ actions:
         assert "_pipeline_name" in code1
 
         # Test override metadata
-        files2 = orchestrator.generate_pipeline_by_field(
-            pipeline_field="metadata_test", env="dev"
+        files2 = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="metadata_test",
+            env="dev",
+            output_dir=project_root / "generated2",
         )
         code2 = files2["override_metadata.py"]
 

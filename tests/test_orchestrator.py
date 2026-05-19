@@ -8,6 +8,7 @@ import yaml
 
 from lhp.core.orchestrator import ActionOrchestrator
 from lhp.models.config import Action, ActionType, FlowGroup, TransformType
+from tests.helpers import read_generated_pipeline
 
 
 class TestActionOrchestrator:
@@ -132,8 +133,11 @@ class TestActionOrchestrator:
 
             # Generate pipeline
             output_dir = project_root / "generated"
-            generated_files = orchestrator.generate_pipeline_by_field(
-                pipeline_field="test_pipeline", env="dev", output_dir=output_dir
+            generated_files = read_generated_pipeline(
+                orchestrator,
+                pipeline_field="test_pipeline",
+                env="dev",
+                output_dir=output_dir,
             )
 
             # Verify files were generated
@@ -227,8 +231,11 @@ class TestActionOrchestrator:
                 yaml.dump(flowgroup, f)
 
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline_by_field(
-                pipeline_field="test_pipeline", env="dev"
+            generated_files = read_generated_pipeline(
+                orchestrator,
+                pipeline_field="test_pipeline",
+                env="dev",
+                output_dir=project_root / "generated",
             )
 
             code = generated_files["secret_flowgroup.py"]
@@ -342,8 +349,11 @@ class TestActionOrchestrator:
                 yaml.dump(flowgroup, f)
 
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline_by_field(
-                pipeline_field="test_pipeline", env="dev"
+            generated_files = read_generated_pipeline(
+                orchestrator,
+                pipeline_field="test_pipeline",
+                env="dev",
+                output_dir=project_root / "generated",
             )
 
             # Verify template was expanded
@@ -451,8 +461,11 @@ class TestActionOrchestrator:
                 yaml.dump(flowgroup, f)
 
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline_by_field(
-                pipeline_field="test_pipeline", env="dev"
+            generated_files = read_generated_pipeline(
+                orchestrator,
+                pipeline_field="test_pipeline",
+                env="dev",
+                output_dir=project_root / "generated",
             )
 
             code = generated_files["dependency_flowgroup.py"]
@@ -837,13 +850,17 @@ class TestGeneratePipelinesByFields:
                 state_manager=None,
             )
 
-            # Same set of pipelines, same files, same contents
+            # Same set of pipelines, same files, same contents.
+            # Filenames travel back via the return; content is read from disk
+            # (Commit 3 stripped formatted code from the worker return path).
             assert set(plural.keys()) == set(single.keys())
             for name in single:
-                assert set(plural[name].keys()) == set(single[name].keys())
+                assert set(plural[name]) == set(single[name])
                 for filename in single[name]:
+                    single_code = (ref_out_dir / name / filename).read_text()
+                    plural_code = (plural_out_dir / name / filename).read_text()
                     assert (
-                        plural[name][filename] == single[name][filename]
+                        plural_code == single_code
                     ), f"Content mismatch for {name}/{filename}"
 
     def test_max_workers_1_matches_max_workers_8(self):
@@ -914,7 +931,7 @@ class TestGeneratePipelinesByFields:
             # return of ``{}``).
             assert "e_real" in out
             assert "e_empty" in out
-            assert out["e_empty"] == {}
+            assert out["e_empty"] == ()
             assert "e_real_fg.py" in out["e_real"]
 
     def test_on_pipeline_complete_callback_fires_per_pipeline(self):

@@ -8,9 +8,14 @@ from lhp.core.template_engine import TemplateEngine
 from lhp.presets.preset_manager import PresetManager
 from lhp.core.validator import ConfigValidator
 from lhp.core.secret_validator import SecretValidator
-from lhp.models.config import FlowGroup, Action, ActionType
+from lhp.models.config import FlowGroup, FlowGroupContext, Action, ActionType
 from lhp.utils.substitution import EnhancedSubstitutionManager
 from lhp.utils.error_formatter import LHPError
+
+
+def _ctx_of(fg: FlowGroup) -> FlowGroupContext:
+    """Wrap a FlowGroup in a default FlowGroupContext for the processor API."""
+    return FlowGroupContext(flowgroup=fg, source_yaml=None)
 
 
 def test_flowgroup_processor_fails_on_unresolved_tokens():
@@ -49,7 +54,7 @@ def test_flowgroup_processor_fails_on_unresolved_tokens():
         
         # Should raise LHPError with CONFIG category and code 010
         with pytest.raises(LHPError) as exc_info:
-            processor.process_flowgroup(flowgroup, substitution_mgr)
+            processor.process_flowgroup(_ctx_of(flowgroup), substitution_mgr)
         
         error = exc_info.value
         assert error.code == "LHP-CFG-010"
@@ -94,7 +99,9 @@ def test_flowgroup_processor_passes_with_resolved_tokens():
         
         # Should raise a validation/config error, but NOT LHPError for unresolved tokens
         try:
-            processed = processor.process_flowgroup(flowgroup, substitution_mgr)
+            processed = processor.process_flowgroup(
+                _ctx_of(flowgroup), substitution_mgr
+            ).flowgroup
         except LHPError as e:
             # If LHPError is raised, it should NOT be about unresolved tokens
             assert e.code != "LHP-CFG-010", "Should not raise unresolved token error when tokens are resolved"
@@ -147,7 +154,7 @@ def test_flowgroup_processor_detects_multiple_unresolved_tokens():
         
         # Should raise LHPError mentioning both tokens
         with pytest.raises(LHPError) as exc_info:
-            processor.process_flowgroup(flowgroup, substitution_mgr)
+            processor.process_flowgroup(_ctx_of(flowgroup), substitution_mgr)
         
         error_str = str(exc_info.value)
         assert "bucket1" in error_str
@@ -190,7 +197,9 @@ def test_flowgroup_processor_resolves_local_variables():
         
         # Process flowgroup
         try:
-            processed = processor.process_flowgroup(flowgroup, substitution_mgr)
+            processed = processor.process_flowgroup(
+                _ctx_of(flowgroup), substitution_mgr
+            ).flowgroup
             
             # Verify local variables were resolved
             assert processed.actions[0].name == "load_customers"
@@ -237,7 +246,7 @@ def test_flowgroup_processor_fails_on_undefined_local_variable():
         
         # Should raise LHPError with CFG-011
         with pytest.raises(LHPError) as exc_info:
-            processor.process_flowgroup(flowgroup, substitution_mgr)
+            processor.process_flowgroup(_ctx_of(flowgroup), substitution_mgr)
         
         error = exc_info.value
         assert error.code == "LHP-CFG-011"
@@ -286,7 +295,9 @@ def test_flowgroup_processor_local_vars_before_env_substitution():
         
         # Process flowgroup
         try:
-            processed = processor.process_flowgroup(flowgroup, substitution_mgr)
+            processed = processor.process_flowgroup(
+                _ctx_of(flowgroup), substitution_mgr
+            ).flowgroup
             
             # Verify local vars resolved and env tokens resolved
             assert processed.actions[0].name == "load_customer"

@@ -328,9 +328,10 @@ def copy_user_module_for_pipeline(
     dry-run (``context["output_dir"] is None``) the copy is skipped and the
     leaf module name is returned anyway so import lines can still be rendered.
 
-    Synthetic flowgroups (e.g. the monitoring pipeline) may pre-populate
-    ``flowgroup._auxiliary_files``: a ``{module_path: source_str}`` mapping.
-    When ``module_path`` is found there, the on-disk lookup is skipped and the
+    Synthetic flowgroups (e.g. the monitoring pipeline) may pre-populate the
+    ``context["auxiliary_files"]`` mapping (sourced from
+    :class:`FlowGroupContext`): ``{module_path: source_str}``. When
+    ``module_path`` is found there, the on-disk lookup is skipped and the
     source content is copied directly into ``custom_python_functions/<leaf>.py``.
 
     Args:
@@ -339,8 +340,8 @@ def copy_user_module_for_pipeline(
             responsible for that check; here we treat it as an opaque path
             and use ``Path(module_path).stem`` as the import-time module name.
         context: Generation context. Reads ``spec_dir``, ``flowgroup``,
-            ``output_dir``, ``python_file_copier``, plus the keys
-            :meth:`PythonFileCopier.copy_user_module` consumes.
+            ``output_dir``, ``python_file_copier``, ``auxiliary_files`` plus
+            the keys :meth:`PythonFileCopier.copy_user_module` consumes.
         component_label: Human-readable label inserted into error messages,
             e.g. ``"Python load action"``, ``"Custom data source"``.
 
@@ -351,11 +352,11 @@ def copy_user_module_for_pipeline(
 
     Raises:
         LHPError: when the resolved source file does not exist (and no inline
-            source is registered on the flowgroup).
+            source is registered on the context).
         LHPValidationError: code ``015`` when flowgroup context is missing.
     """
     flowgroup = context.get("flowgroup")
-    inline_sources = getattr(flowgroup, "_auxiliary_files", None) or {}
+    inline_sources = context.get("auxiliary_files") or {}
     inline_source = inline_sources.get(module_path)
 
     if inline_source is None:

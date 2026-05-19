@@ -12,6 +12,7 @@ from lhp.cli.main import cli
 from lhp.core.orchestrator import ActionOrchestrator
 from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.parsers.yaml_parser import YAMLParser
+from tests.helpers import read_generated_pipeline
 
 
 class TestIntegrationCore:
@@ -130,8 +131,11 @@ actions:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="sales_bronze", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="sales_bronze",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code
@@ -216,8 +220,11 @@ actions:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="customer_ingestion", env="prod"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="customer_ingestion",
+            env="prod",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code
@@ -366,8 +373,11 @@ actions:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="sales_silver", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="sales_silver",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code
@@ -467,8 +477,11 @@ template_parameters:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="orders_bronze", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="orders_bronze",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code
@@ -550,8 +563,11 @@ actions:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="customer_quality", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="customer_quality",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code

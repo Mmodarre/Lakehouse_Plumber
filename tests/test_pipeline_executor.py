@@ -50,6 +50,27 @@ class _FakeFlowGroup:
         self.mode = mode
 
 
+class _FakeFlowGroupContext:
+    """Picklable FlowGroupContext stand-in matching the dataclass surface.
+
+    The worker boundary now takes :class:`FlowGroupContext` envelopes
+    (``ctx.flowgroup.pipeline``, etc.); this helper wraps a
+    :class:`_FakeFlowGroup` to expose the same attribute path.
+    """
+
+    def __init__(self, fg: "_FakeFlowGroup"):
+        self.flowgroup = fg
+        self.source_yaml = None
+        self.synthetic = False
+        self.auxiliary_files: dict = {}
+        self.had_test_actions = False
+
+
+def _ctx(fg: "_FakeFlowGroup") -> "_FakeFlowGroupContext":
+    """Wrap a fake FlowGroup in a fake FlowGroupContext envelope."""
+    return _FakeFlowGroupContext(fg)
+
+
 def _format_content(fg: "_FakeFlowGroup") -> str:
     """Render the formatted-code payload a worker would compute for ``fg``."""
     if fg.mode == "default":
@@ -72,7 +93,7 @@ def _format_content(fg: "_FakeFlowGroup") -> str:
 
 
 def _fake_process_one_pipeline(
-    pipeline_name: str, flowgroups: Sequence["_FakeFlowGroup"]
+    pipeline_name: str, contexts: Sequence["_FakeFlowGroupContext"]
 ) -> PipelineDelta:
     """Top-level picklable per-pipeline worker.
 
@@ -82,18 +103,19 @@ def _fake_process_one_pipeline(
     that's the worker-atomicity contract that motivated the dispatch
     refactor in the first place.
     """
-    generated_files: Dict[str, str] = {}
+    generated_filenames: list[str] = []
     try:
-        for fg in flowgroups:
+        for ctx in contexts:
+            fg = ctx.flowgroup
             content = _format_content(fg)
             if content:
-                generated_files[f"{fg.flowgroup}.py"] = content
+                generated_filenames.append(f"{fg.flowgroup}.py")
     except BaseException as exc:
         return PipelineDelta.failure(pipeline_name, exc)
     return PipelineDelta.success_(
         pipeline_name,
-        files_written=len(generated_files),
-        generated_files=generated_files,
+        files_written=len(generated_filenames),
+        generated_filenames=tuple(generated_filenames),
     )
 
 
@@ -119,10 +141,10 @@ class TestRunGeneratePoolBasics:
         )
         assert len(succ) == 1
         assert succ[0].pipeline_name == "p_empty"
-        assert succ[0].generated_files == {}
+        assert succ[0].generated_filenames == ()
 
     def test_single_pipeline_single_flowgroup(self):
-        fgs = [_FakeFlowGroup("p1", "fg_a", mode="format_name")]
+        fgs = [_ctx(_FakeFlowGroup("p1", "fg_a", mode="format_name"))]
         succ, fail = run_generate_pool(
             flowgroups_by_pipeline={"p1": fgs},
             process_one=_fake_process_one_pipeline,
@@ -130,10 +152,13 @@ class TestRunGeneratePoolBasics:
         )
         assert fail == []
         assert len(succ) == 1
-        assert dict(succ[0].generated_files) == {"fg_a.py": "code_fg_a"}
+        assert succ[0].generated_filenames == ("fg_a.py",)
 
     def test_single_pipeline_multiple_flowgroups(self):
-        fgs = [_FakeFlowGroup("p1", f"fg_{i}", mode="format_name") for i in range(5)]
+        fgs = [
+            _ctx(_FakeFlowGroup("p1", f"fg_{i}", mode="format_name"))
+            for i in range(5)
+        ]
         succ, fail = run_generate_pool(
             flowgroups_by_pipeline={"p1": fgs},
             process_one=_fake_process_one_pipeline,
@@ -141,22 +166,22 @@ class TestRunGeneratePoolBasics:
         )
         assert fail == []
         assert len(succ) == 1
-        assert set(succ[0].generated_files) == {f"fg_{i}.py" for i in range(5)}
+        assert set(succ[0].generated_filenames) == {f"fg_{i}.py" for i in range(5)}
 
 
 @pytest.mark.unit
 @pytest.mark.slow
 class TestRunGeneratePoolMultiPipeline:
     def test_multi_pipeline_deltas_present(self):
-        flowgroups: Dict[str, Sequence[_FakeFlowGroup]] = {
+        flowgroups: Dict[str, Sequence[_FakeFlowGroupContext]] = {
             "p1": [
-                _FakeFlowGroup("p1", "a", mode="format_pipe_colon_name"),
-                _FakeFlowGroup("p1", "b", mode="format_pipe_colon_name"),
+                _ctx(_FakeFlowGroup("p1", "a", mode="format_pipe_colon_name")),
+                _ctx(_FakeFlowGroup("p1", "b", mode="format_pipe_colon_name")),
             ],
-            "p2": [_FakeFlowGroup("p2", "c", mode="format_pipe_colon_name")],
+            "p2": [_ctx(_FakeFlowGroup("p2", "c", mode="format_pipe_colon_name"))],
             "p3": [
-                _FakeFlowGroup("p3", "d", mode="format_pipe_colon_name"),
-                _FakeFlowGroup("p3", "e", mode="format_pipe_colon_name"),
+                _ctx(_FakeFlowGroup("p3", "d", mode="format_pipe_colon_name")),
+                _ctx(_FakeFlowGroup("p3", "e", mode="format_pipe_colon_name")),
             ],
         }
         succ, fail = run_generate_pool(
@@ -180,10 +205,10 @@ class TestRunGeneratePoolMultiPipeline:
         of :class:`PipelineProcessor`.
         """
         fgs = {
-            "p_ok": [_FakeFlowGroup("p_ok", "a", mode="fail_if_bad")],
+            "p_ok": [_ctx(_FakeFlowGroup("p_ok", "a", mode="fail_if_bad"))],
             "p_partial": [
-                _FakeFlowGroup("p_partial", "a", mode="fail_if_bad"),
-                _FakeFlowGroup("p_partial", "bad", mode="fail_if_bad"),
+                _ctx(_FakeFlowGroup("p_partial", "a", mode="fail_if_bad")),
+                _ctx(_FakeFlowGroup("p_partial", "bad", mode="fail_if_bad")),
             ],
         }
         succ, fail = run_generate_pool(
@@ -210,7 +235,10 @@ class TestRunGeneratePoolCallback:
             with lock:
                 seen.append(delta.pipeline_name)
 
-        fgs = {f"p{i}": [_FakeFlowGroup(f"p{i}", "only", mode="ok")] for i in range(5)}
+        fgs = {
+            f"p{i}": [_ctx(_FakeFlowGroup(f"p{i}", "only", mode="ok"))]
+            for i in range(5)
+        }
         succ, fail = run_generate_pool(
             flowgroups_by_pipeline=fgs,
             process_one=_fake_process_one_pipeline,
@@ -224,7 +252,7 @@ class TestRunGeneratePoolCallback:
         def bad_cb(_delta: PipelineDelta) -> None:
             raise RuntimeError("callback boom")
 
-        fgs = {"p1": [_FakeFlowGroup("p1", "a", mode="ok")]}
+        fgs = {"p1": [_ctx(_FakeFlowGroup("p1", "a", mode="ok"))]}
         # Should NOT raise — the callback's exception is swallowed and logged.
         succ, fail = run_generate_pool(
             flowgroups_by_pipeline=fgs,
@@ -239,10 +267,10 @@ class TestRunGeneratePoolCallback:
 @pytest.mark.slow
 class TestRunGeneratePoolDeterminism:
     def test_max_workers_1_vs_8_produce_identical_deltas(self):
-        """Sequential and parallel runs must produce identical generated_files."""
+        """Sequential and parallel runs must produce identical generated_filenames."""
         flowgroups = {
             p: [
-                _FakeFlowGroup(p, f"fg_{i}", mode="format_pipe_slash_name")
+                _ctx(_FakeFlowGroup(p, f"fg_{i}", mode="format_pipe_slash_name"))
                 for i in range(6)
             ]
             for p in ("p1", "p2", "p3")
@@ -258,8 +286,8 @@ class TestRunGeneratePoolDeterminism:
             process_one=_fake_process_one_pipeline,
             max_workers=8,
         )
-        by1 = {d.pipeline_name: dict(d.generated_files) for d in succ1}
-        by8 = {d.pipeline_name: dict(d.generated_files) for d in succ8}
+        by1 = {d.pipeline_name: d.generated_filenames for d in succ1}
+        by8 = {d.pipeline_name: d.generated_filenames for d in succ8}
         assert by1 == by8
 
     def test_repeat_runs_produce_byte_identical_deltas(self):
@@ -272,7 +300,7 @@ class TestRunGeneratePoolDeterminism:
         """
         flowgroups = {
             p: [
-                _FakeFlowGroup(p, f"fg_{i}", mode="format_pipe_double_colon_name")
+                _ctx(_FakeFlowGroup(p, f"fg_{i}", mode="format_pipe_double_colon_name"))
                 for i in range(4)
             ]
             for p in ("p1", "p2", "p3", "p4")
@@ -286,7 +314,7 @@ class TestRunGeneratePoolDeterminism:
                 max_workers=4,
             )
             run_content = {
-                d.pipeline_name: dict(d.generated_files) for d in succ
+                d.pipeline_name: d.generated_filenames for d in succ
             }
             if baseline is None:
                 baseline = run_content
@@ -301,25 +329,25 @@ class TestGroupByPipeline:
     """:func:`group_by_pipeline` is a pure helper — no pool involved."""
 
     def test_groups_by_pipeline_field(self):
-        flowgroups = [
-            _FakeFlowGroup("p1", "a"),
-            _FakeFlowGroup("p2", "b"),
-            _FakeFlowGroup("p1", "c"),
+        contexts = [
+            _ctx(_FakeFlowGroup("p1", "a")),
+            _ctx(_FakeFlowGroup("p2", "b")),
+            _ctx(_FakeFlowGroup("p1", "c")),
         ]
-        result = group_by_pipeline(flowgroups)
+        result = group_by_pipeline(contexts)
         assert set(result) == {"p1", "p2"}
-        assert [fg.flowgroup for fg in result["p1"]] == ["a", "c"]
-        assert [fg.flowgroup for fg in result["p2"]] == ["b"]
+        assert [ctx.flowgroup.flowgroup for ctx in result["p1"]] == ["a", "c"]
+        assert [ctx.flowgroup.flowgroup for ctx in result["p2"]] == ["b"]
 
     def test_preserves_first_occurrence_order(self):
         # Insertion order: pipelines first appear in this order: p2, p1, p3
-        flowgroups = [
-            _FakeFlowGroup("p2", "x"),
-            _FakeFlowGroup("p1", "y"),
-            _FakeFlowGroup("p2", "z"),
-            _FakeFlowGroup("p3", "w"),
+        contexts = [
+            _ctx(_FakeFlowGroup("p2", "x")),
+            _ctx(_FakeFlowGroup("p1", "y")),
+            _ctx(_FakeFlowGroup("p2", "z")),
+            _ctx(_FakeFlowGroup("p3", "w")),
         ]
-        result = group_by_pipeline(flowgroups)
+        result = group_by_pipeline(contexts)
         assert list(result.keys()) == ["p2", "p1", "p3"]
 
     def test_empty_input_returns_empty_dict(self):

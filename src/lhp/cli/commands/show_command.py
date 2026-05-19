@@ -157,15 +157,16 @@ class ShowCommand(BaseCommand):
         instance = parser.parse_instance_file(instance_path, blueprint_models)
 
         expander = BlueprintExpander()
-        flowgroups, _ = expander.expand_single_instance(
+        contexts, _ = expander.expand_single_instance(
             instance, instance_path, blueprints
         )
 
         substitution_mgr = self._load_substitution_manager(project_root, env)
         click.echo(f"\n📐 Blueprint: {instance.blueprint_name}")
-        click.echo(f"📊 Flowgroups produced: {len(flowgroups)}")
+        click.echo(f"📊 Flowgroups produced: {len(contexts)}")
 
-        for fg in flowgroups:
+        for ctx in contexts:
+            fg = ctx.flowgroup
             click.echo("")
             click.echo("=" * 70)
             click.echo(f"Pipeline: {fg.pipeline}    Flowgroup: {fg.flowgroup}")

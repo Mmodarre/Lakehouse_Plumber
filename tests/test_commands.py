@@ -35,14 +35,14 @@ class TestCommandResults:
         """Test GenerationCommandResult specialization."""
         result = GenerationCommandResult(
             success=True,
-            generated_files={"test.py": "# Generated code"},
+            generated_filenames=("test.py",),
             files_written=1,
             total_flowgroups=1,
             performance_stats={"time": 1.5}
         )
         
         assert result.is_successful() == True
-        assert len(result.generated_files) == 1
+        assert len(result.generated_filenames) == 1
         assert result.files_written == 1
         assert result.total_flowgroups == 1
         assert result.performance_stats["time"] == 1.5
@@ -123,7 +123,7 @@ class TestIndividualCommands:
         assert isinstance(result, GenerationCommandResult)
         assert result.is_successful() == True
         assert result.files_written == 1  # Output dir provided and dry_run is False
-        assert len(result.generated_files) == 1
+        assert len(result.generated_filenames) == 1
     
     def test_generate_pipeline_command_validation_failure(self):
         """Test GeneratePipelineCommand validation failure."""

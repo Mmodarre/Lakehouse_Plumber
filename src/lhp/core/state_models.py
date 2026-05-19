@@ -2,7 +2,7 @@
 
 import traceback
 from dataclasses import dataclass, field
-from typing import Dict, Mapping, Optional
+from typing import Dict, Optional, Sequence
 
 
 @dataclass
@@ -122,8 +122,8 @@ class PipelineDelta:
 
     Carries the small bit of state the main thread needs after a worker
     finishes a whole pipeline: a success flag, file-count rollups for the
-    summary line, the ``{relative_path: formatted_code}`` map the facade
-    surfaces as ``aggregate_generated_files``, and — on failure — the
+    summary line, the ordered tuple of generated filenames the facade
+    surfaces as ``aggregate_generated_filenames``, and — on failure — the
     exception serialized as plain strings. No live ``BaseException`` is
     shipped across the process boundary; tracebacks come through
     pre-formatted via :func:`traceback.format_exception` so the main thread
@@ -131,15 +131,16 @@ class PipelineDelta:
 
     The shard itself does NOT travel through this delta — workers write
     their per-pipeline shard via :meth:`PipelineStateManager.save` before
-    returning, so the state lives on disk and only the in-memory
-    presentation-layer payload (generated_files) travels back.
+    returning, so the state lives on disk. Only filenames travel back
+    (no file *contents*); on the performance project this shrinks the
+    worker→main pickle from ~2.3 MB to ~50 KB. Consumers that need the
+    formatted code (none currently do) must read it from disk.
 
     Why ``frozen=True, slots=True``:
       - Immutability across the spawn boundary: workers can't accidentally
         mutate a delta after it's been queued for the main thread.
       - Small per-instance overhead: ``slots=True`` drops the per-instance
-        ``__dict__`` so the dataclass machinery itself stays tight even
-        though ``generated_files`` (which is the bulk) is a plain dict.
+        ``__dict__``.
     """
 
     pipeline_name: str
@@ -147,7 +148,7 @@ class PipelineDelta:
     files_written: int = 0
     files_skipped: int = 0
     artifacts_count: int = 0
-    generated_files: Mapping[str, str] = field(default_factory=dict)
+    generated_filenames: tuple[str, ...] = ()
     error_type: Optional[str] = None
     error_message: Optional[str] = None
     error_traceback: Optional[str] = None
@@ -160,7 +161,7 @@ class PipelineDelta:
         files_written: int = 0,
         files_skipped: int = 0,
         artifacts_count: int = 0,
-        generated_files: Optional[Mapping[str, str]] = None,
+        generated_filenames: Sequence[str] = (),
     ) -> "PipelineDelta":
         """Build a success delta. The trailing underscore on the name avoids
         shadowing the ``success`` field while still reading naturally at
@@ -172,7 +173,7 @@ class PipelineDelta:
             files_written=files_written,
             files_skipped=files_skipped,
             artifacts_count=artifacts_count,
-            generated_files=dict(generated_files) if generated_files else {},
+            generated_filenames=tuple(generated_filenames),
         )
 
     @classmethod

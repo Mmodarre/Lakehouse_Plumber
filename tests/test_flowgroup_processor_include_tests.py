@@ -7,7 +7,6 @@ verify the parameter threads correctly through orchestrator.validate_pipeline_by
 
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -15,10 +14,28 @@ from lhp.core.secret_validator import SecretValidator
 from lhp.core.services.flowgroup_processor import FlowgroupProcessor
 from lhp.core.template_engine import TemplateEngine
 from lhp.core.validator import ConfigValidator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models.config import Action, ActionType, FlowGroup, FlowGroupContext
 from lhp.presets.preset_manager import PresetManager
 from lhp.utils.error_formatter import LHPValidationError
 from lhp.utils.substitution import EnhancedSubstitutionManager
+
+
+def _ctx_of(fg: FlowGroup) -> FlowGroupContext:
+    """Wrap a FlowGroup in a default FlowGroupContext for the processor API."""
+    return FlowGroupContext(flowgroup=fg, source_yaml=None)
+
+
+def _process(processor, fg: FlowGroup, sub_mgr, **kwargs) -> FlowGroup:
+    """Call the FlowGroupContext-typed processor and unwrap the FlowGroup."""
+    return processor.process_flowgroup(_ctx_of(fg), sub_mgr, **kwargs).flowgroup
+
+
+from tests.fakes import (
+    FakeFlowgroupProcessor,
+    FakeSubstitutionManager,
+    FakeTemplate,
+    FakeTemplateEngine,
+)
 
 # ============================================================================
 # Fixtures
@@ -118,8 +135,8 @@ class TestProcessFlowgroupIncludeTests:
         self, processor, substitution_mgr, mixed_flowgroup
     ):
         """include_tests=False removes TEST actions, keeps LOAD/WRITE."""
-        result = processor.process_flowgroup(
-            mixed_flowgroup, substitution_mgr, include_tests=False
+        result = _process(
+            processor, mixed_flowgroup, substitution_mgr, include_tests=False
         )
 
         action_types = [a.type for a in result.actions]
@@ -132,8 +149,8 @@ class TestProcessFlowgroupIncludeTests:
         self, processor, substitution_mgr, mixed_flowgroup
     ):
         """include_tests=True preserves all actions including TEST."""
-        result = processor.process_flowgroup(
-            mixed_flowgroup, substitution_mgr, include_tests=True
+        result = _process(
+            processor, mixed_flowgroup, substitution_mgr, include_tests=True
         )
 
         action_types = [a.type for a in result.actions]
@@ -144,7 +161,7 @@ class TestProcessFlowgroupIncludeTests:
         self, processor, substitution_mgr, mixed_flowgroup
     ):
         """Default (no include_tests arg) preserves TEST actions for backward compat."""
-        result = processor.process_flowgroup(mixed_flowgroup, substitution_mgr)
+        result = _process(processor, mixed_flowgroup, substitution_mgr)
 
         action_types = [a.type for a in result.actions]
         assert ActionType.TEST in action_types
@@ -159,8 +176,8 @@ class TestProcessFlowgroupIncludeTests:
         state comes from include_tests=False filtering, validation is skipped.
         """
         # This should NOT raise — zero actions is expected when filtering
-        result = processor.process_flowgroup(
-            test_only_flowgroup, substitution_mgr, include_tests=False
+        result = _process(
+            processor, test_only_flowgroup, substitution_mgr, include_tests=False
         )
 
         assert len(result.actions) == 0
@@ -170,8 +187,8 @@ class TestProcessFlowgroupIncludeTests:
     ):
         """Test-only flowgroup with include_tests=True is validated normally."""
         # Should succeed since the test actions are valid
-        result = processor.process_flowgroup(
-            test_only_flowgroup, substitution_mgr, include_tests=True
+        result = _process(
+            processor, test_only_flowgroup, substitution_mgr, include_tests=True
         )
 
         assert len(result.actions) == 2
@@ -183,31 +200,32 @@ class TestProcessFlowgroupIncludeTests:
         Validates the filter placement rationale: filter is after template
         expansion so template-generated test actions are also caught.
         """
-        # Create a mock template engine that generates test actions
-        mock_template_engine = MagicMock()
-        mock_template = MagicMock()
-        mock_template.presets = None
-        mock_template_engine.get_template.return_value = mock_template
-        mock_template_engine.render_template.return_value = [
-            Action(
-                name="template_test",
-                type=ActionType.TEST,
-                test_type="row_count",
-                source=["table_a", "table_b"],
-                tolerance=0,
-                on_violation="fail",
-            ),
-            Action(
-                name="template_load",
-                type=ActionType.LOAD,
-                source={"type": "sql", "sql": "SELECT 1"},
-                target="v_template",
-            ),
-        ]
+        # Fake template engine returns one TEST and one LOAD action; the
+        # filter under test must drop the TEST action regardless of where it
+        # originated (template expansion vs. inline declaration).
+        fake_template_engine = FakeTemplateEngine(
+            template=FakeTemplate(presets=None),
+            rendered_actions=[
+                Action(
+                    name="template_test",
+                    type=ActionType.TEST,
+                    test_type="row_count",
+                    source=["table_a", "table_b"],
+                    tolerance=0,
+                    on_violation="fail",
+                ),
+                Action(
+                    name="template_load",
+                    type=ActionType.LOAD,
+                    source={"type": "sql", "sql": "SELECT 1"},
+                    target="v_template",
+                ),
+            ],
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             processor = FlowgroupProcessor(
-                template_engine=mock_template_engine,
+                template_engine=fake_template_engine,
                 preset_manager=PresetManager(presets_dir=Path(tmpdir)),
                 config_validator=ConfigValidator(),
                 secret_validator=SecretValidator(),
@@ -231,8 +249,8 @@ class TestProcessFlowgroupIncludeTests:
                 ],
             )
 
-            result = processor.process_flowgroup(
-                flowgroup, substitution_mgr, include_tests=False
+            result = _process(
+                processor, flowgroup, substitution_mgr, include_tests=False
             )
 
             # Template-generated test action should be filtered out
@@ -323,10 +341,9 @@ actions:
         """Worker function forwards include_tests to processor.process_flowgroup.
 
         Under ProcessPoolExecutor the orchestrator dispatches to a worker
-        process via functools.partial; a MagicMock patched on the main-process
-        processor cannot observe calls inside a spawn child. Verifying the
-        contract at the worker boundary — which is where the kwarg is actually
-        forwarded — is both correct and testable.
+        process. Picklable fakes (not MagicMock) are required so the same
+        collaborators can be passed across the spawn boundary in upcoming
+        ``initializer=`` plumbing.
         """
         from lhp.core.pipeline_executor import _process_flowgroup_for_validate
 
@@ -342,19 +359,18 @@ actions:
                 ),
             ],
         )
-        mock_processor = MagicMock()
-        substitution_mgr = MagicMock(spec=EnhancedSubstitutionManager)
+        fake_processor = FakeFlowgroupProcessor()
+        substitution_mgr = FakeSubstitutionManager()
 
         _process_flowgroup_for_validate(
-            fg,
-            processor=mock_processor,
+            _ctx_of(fg),
+            processor=fake_processor,
             substitution_mgr=substitution_mgr,
             include_tests=False,
         )
 
-        assert mock_processor.process_flowgroup.called
-        call_kwargs = mock_processor.process_flowgroup.call_args
-        assert call_kwargs.kwargs.get("include_tests") is False
+        assert len(fake_processor.calls) == 1
+        assert fake_processor.calls[0].kwargs.get("include_tests") is False
 
 
 if __name__ == "__main__":

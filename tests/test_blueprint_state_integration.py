@@ -30,9 +30,11 @@ def _write(path: Path, content: str) -> Path:
 
 
 def _make_synthetic_flowgroup(pipeline="apac_sg_raw", flowgroup="apac_sg_orders"):
-    fg = FlowGroup(pipeline=pipeline, flowgroup=flowgroup, actions=[])
-    fg._synthetic = True
-    return fg
+    # Synthetic-ness lives on FlowGroupContext, not FlowGroup. The state
+    # integration code under test reads provenance from the maps below,
+    # not from a flag on the FlowGroup, so the returned plain FlowGroup
+    # suffices.
+    return FlowGroup(pipeline=pipeline, flowgroup=flowgroup, actions=[])
 
 
 # ---------------------------------------------------------------------------

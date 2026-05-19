@@ -26,7 +26,7 @@ class TestPipelineDeltaSerialization:
             files_written=5,
             files_skipped=2,
             artifacts_count=1,
-            generated_files={"a.py": "print('hi')"},
+            generated_filenames=("a.py",),
         )
         restored = pickle.loads(pickle.dumps(original))
         assert restored.pipeline_name == "bronze_ingest"
@@ -34,7 +34,7 @@ class TestPipelineDeltaSerialization:
         assert restored.files_written == 5
         assert restored.files_skipped == 2
         assert restored.artifacts_count == 1
-        assert restored.generated_files == {"a.py": "print('hi')"}
+        assert restored.generated_filenames == ("a.py",)
         assert restored.error_type is None
         assert restored.error_message is None
         assert restored.error_traceback is None
@@ -84,4 +84,4 @@ class TestPipelineDeltaSerialization:
         assert delta.files_written == twice.files_written
         assert delta.files_skipped == twice.files_skipped
         assert delta.artifacts_count == twice.artifacts_count
-        assert delta.generated_files == twice.generated_files
+        assert delta.generated_filenames == twice.generated_filenames

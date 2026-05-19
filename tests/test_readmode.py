@@ -328,15 +328,19 @@ environment:
   schema: dev_schema
 """)
             
-            # Generate code
+            # Generate code (output_dir required to read back content for
+            # assertions; payload diet stripped content from the return).
+            output_dir = project_root / "generated"
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline_by_field(
+            orchestrator.generate_pipeline_by_field(
                 pipeline_field="test_pipeline",
-                env="dev"
+                env="dev",
+                output_dir=output_dir,
             )
-            
+
             # Get the generated code for test_flow
-            generated_code = generated_files.get("test_flow.py", "")
+            test_flow = output_dir / "test_pipeline" / "test_flow.py"
+            generated_code = test_flow.read_text() if test_flow.exists() else ""
             
             # Find the sections
             lines = generated_code.split('\n')

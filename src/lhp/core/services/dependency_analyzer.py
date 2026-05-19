@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
 
 import networkx as nx
 
-from ...models.config import Action, ActionType, FlowGroup
+from ...models.config import Action, ActionType, FlowGroup, FlowGroupContext
 from ...models.dependencies import (
     ActionDependencyInfo,
     DependencyAnalysisResult,
@@ -649,11 +649,12 @@ class DependencyAnalyzer:
             instances = self.blueprint_discoverer.discover_instances(blueprints)
             if not instances:
                 return processed
-            synthetic_fgs, provenance = self.blueprint_expander.expand(
+            synthetic_ctxs, provenance = self.blueprint_expander.expand(
                 blueprints, instances
             )
             self._blueprint_provenance = provenance
-            for fg in synthetic_fgs:
+            for ctx in synthetic_ctxs:
+                fg = ctx.flowgroup
                 bp_path = provenance[(fg.pipeline, fg.flowgroup)].blueprint_path
                 processed.append(self._process_one(fg, bp_path, substitution_mgr))
         except Exception as e:
@@ -670,9 +671,11 @@ class DependencyAnalyzer:
     ) -> FlowGroup:
         """Process one flowgroup; fall back to raw fg on template/preset error."""
         try:
-            processed_fg = self.flowgroup_processor.process_flowgroup(
-                fg, substitution_mgr
+            ctx_in = FlowGroupContext(flowgroup=fg, source_yaml=file_path)
+            ctx_out = self.flowgroup_processor.process_flowgroup(
+                ctx_in, substitution_mgr
             )
+            processed_fg = ctx_out.flowgroup
             self._flowgroup_file_paths[processed_fg.flowgroup] = file_path
             return processed_fg
         except Exception as e:

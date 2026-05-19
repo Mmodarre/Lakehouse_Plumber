@@ -3,7 +3,7 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from ...models.config import Action, ActionType, FlowGroup, TransformType
 
@@ -59,6 +59,7 @@ class CodeGenerator:
         include_tests: bool = False,
         python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> str:
         """
         Generate complete Python code for a flowgroup.
@@ -76,6 +77,10 @@ class CodeGenerator:
                 receive ``CopiedModuleRecord`` entries instead of writing
                 user Python modules to disk. ``None`` (the default) means
                 disk writes happen inline — the legacy single-threaded path.
+            auxiliary_files: Optional ``{module_path: source_str}`` mapping
+                of inline Python modules (carried on
+                :class:`FlowGroupContext`). Used by ``custom_python_functions``
+                generators in lieu of an on-disk file.
 
         Returns:
             Complete Python code for the flowgroup
@@ -132,6 +137,7 @@ class CodeGenerator:
                 include_tests,
                 python_file_copier,
                 phase_a_records=phase_a_records,
+                auxiliary_files=auxiliary_files,
             )
 
         # 5-6. Apply secret substitutions and assemble final code.
@@ -164,6 +170,7 @@ class CodeGenerator:
         include_tests: bool,
         python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code sections for all actions."""
         # Group actions by type while preserving order
@@ -205,6 +212,7 @@ class CodeGenerator:
             env=env,
             python_file_copier=python_file_copier,
             phase_a_records=phase_a_records,
+            auxiliary_files=auxiliary_files,
         )
 
         for action_type in action_types:
@@ -289,6 +297,7 @@ class CodeGenerator:
         env: Optional[str],
         python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for write actions with target grouping."""
         sections = []
@@ -326,6 +335,7 @@ class CodeGenerator:
                     env,
                     python_file_copier,
                     phase_a_records=phase_a_records,
+                    auxiliary_files=auxiliary_files,
                 )
                 action_code = generator.generate(combined_action, context)
                 sections.append(action_code)
@@ -374,6 +384,7 @@ class CodeGenerator:
         env: Optional[str],
         python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for regular (non-write) actions."""
         sections = []
@@ -399,6 +410,7 @@ class CodeGenerator:
                     env,
                     python_file_copier,
                     phase_a_records=phase_a_records,
+                    auxiliary_files=auxiliary_files,
                 )
                 action_code = generator.generate(action, context)
                 sections.append(action_code)
@@ -443,6 +455,7 @@ class CodeGenerator:
         env: Optional[str],
         python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for data quality actions with sub-headers."""
         sections = []
@@ -481,6 +494,7 @@ class CodeGenerator:
                     env,
                     python_file_copier,
                     phase_a_records=phase_a_records,
+                    auxiliary_files=auxiliary_files,
                 )
                 action_code = generator.generate(action, context)
                 sections.append(action_code)
@@ -524,6 +538,7 @@ class CodeGenerator:
         env: Optional[str],
         python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Dict[str, Any]:
         """Build context dictionary for generator execution."""
         project_root = self.project_root or Path.cwd()
@@ -549,6 +564,10 @@ class CodeGenerator:
             # appends CopiedModuleRecord entries here instead of writing to disk,
             # so Phase B can replay the writes on the main thread.
             "phase_a_records": phase_a_records,
+            # Inline auxiliary Python modules carried on the FlowGroupContext
+            # (e.g. monitoring's jobs_stats_loader.py). Read by
+            # ``copy_user_module_for_pipeline`` to skip on-disk lookup.
+            "auxiliary_files": auxiliary_files or {},
         }
 
     def _collect_generator_outputs(self, generator) -> Tuple[Set[str], Set[str]]:

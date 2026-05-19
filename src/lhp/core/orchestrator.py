@@ -1,6 +1,5 @@
 """Main orchestration for LakehousePlumber pipeline generation."""
 
-import functools
 import logging
 import os
 from collections import defaultdict
@@ -18,7 +17,7 @@ from typing import (
     Tuple,
 )
 
-from ..models.config import Action, FlowGroup
+from ..models.config import Action, FlowGroup, FlowGroupContext
 
 if TYPE_CHECKING:
     from ..generators.python_file_copier import CopiedModuleRecord
@@ -52,8 +51,8 @@ from .pipeline_executor import (
     FlowgroupValidationResult,
     OnValidationComplete,
     PipelineValidationOutcome,
-    _dispatch_pipeline_for_generate,
-    _process_one_for_validate,
+    _GenerateWorkerState,
+    _ValidateWorkerState,
     run_generate_pool,
     run_validate_pool,
 )
@@ -229,6 +228,13 @@ class ActionOrchestrator:
         #   - DependencyTracker for FileState.synthetic flag
         #   - FlowgroupDiscoverer (Phase 7) for source-path index
         self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
+        # Sidecar map of FlowGroupContext envelopes for synthetic flowgroups
+        # (blueprint-expanded + monitoring). Disk-discovered flowgroups are
+        # absent from this map and treated as default (synthetic=False,
+        # auxiliary_files={}). Populated alongside `_blueprint_provenance`
+        # in `discover_all_flowgroups`; consumed by submission paths to
+        # wrap each FlowGroup in its FlowGroupContext for the worker boundary.
+        self._synthetic_contexts: Dict[Tuple[str, str], FlowGroupContext] = {}
         self.processor = FlowgroupProcessor(
             self.template_engine,
             self.preset_manager,
@@ -663,6 +669,8 @@ class ActionOrchestrator:
             (pipeline, flowgroup) -> BlueprintProvenance mapping. Used by the
             state dependency resolver, dependency tracker, and source-path
             index to handle instance-file changes correctly.
+          - Populates `self._synthetic_contexts` with FlowGroupContext envelopes
+            for synthetic flowgroups (blueprint-expanded + monitoring).
           - Stores the full MonitoringBuildResult in `self._monitoring_result`.
 
         Returns:
@@ -677,9 +685,13 @@ class ActionOrchestrator:
             phase=True,
             parent_phase="Pipeline discovery",
         ):
-            blueprint_fgs, provenance = self._expand_blueprints()
-        flowgroups.extend(blueprint_fgs)
+            blueprint_ctxs, provenance = self._expand_blueprints()
+        flowgroups.extend(ctx.flowgroup for ctx in blueprint_ctxs)
         self._blueprint_provenance = provenance
+        self._synthetic_contexts = {
+            (ctx.flowgroup.pipeline, ctx.flowgroup.flowgroup): ctx
+            for ctx in blueprint_ctxs
+        }
 
         # Wire synthetic flowgroups into the FlowgroupDiscoverer source-path
         # index so `find_source_yaml_for_flowgroup` resolves them to their
@@ -691,15 +703,18 @@ class ActionOrchestrator:
 
         # Build monitoring artifacts if configured
         self._monitoring_result = self._build_monitoring(flowgroups)
-        if self._monitoring_result and self._monitoring_result.flowgroup is not None:
-            flowgroups.append(self._monitoring_result.flowgroup)
+        if self._monitoring_result and self._monitoring_result.context is not None:
+            monitoring_ctx = self._monitoring_result.context
+            flowgroups.append(monitoring_ctx.flowgroup)
+            key = (monitoring_ctx.flowgroup.pipeline, monitoring_ctx.flowgroup.flowgroup)
+            self._synthetic_contexts[key] = monitoring_ctx
 
         return flowgroups
 
     def _expand_blueprints(
         self,
-    ) -> Tuple[List[FlowGroup], Dict[Tuple[str, str], BlueprintProvenance]]:
-        """Discover and expand blueprints + instances into synthetic FlowGroups.
+    ) -> Tuple[List[FlowGroupContext], Dict[Tuple[str, str], BlueprintProvenance]]:
+        """Discover and expand blueprints + instances into synthetic FlowGroupContexts.
 
         Returns an empty result when no blueprint or instance files are present
         in the project (the entire feature is fully opt-in via file presence).
@@ -1081,7 +1096,7 @@ class ActionOrchestrator:
         specific_flowgroups: List[str] = None,
         include_tests: bool = False,
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
-    ) -> Dict[str, str]:
+    ) -> tuple[str, ...]:
         """Thin shim — delegate to the plural :meth:`generate_pipelines_by_fields`.
 
         Preserves the existing signature (including the
@@ -1103,7 +1118,7 @@ class ActionOrchestrator:
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             max_workers=self.max_workers,
         )
-        return results.get(pipeline_field, {})
+        return results.get(pipeline_field, ())
 
     def generate_pipelines_by_fields(
         self,
@@ -1118,7 +1133,7 @@ class ActionOrchestrator:
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
-    ) -> Dict[str, Dict[str, str]]:
+    ) -> Dict[str, tuple[str, ...]]:
         """Run one worker per pipeline; aggregate results on the main thread.
 
         Each worker owns the full pipeline pass (Phase A discovery + Phase B
@@ -1195,7 +1210,7 @@ class ActionOrchestrator:
         # Each pipeline gets its own substitution_mgr / output_dir so the
         # worker can attribute state-tracking and file-write stats to the
         # right pipeline without cross-talk between workers.
-        flowgroups_by_pipeline: Dict[str, List[FlowGroup]] = {}
+        contexts_by_pipeline: Dict[str, List[FlowGroupContext]] = {}
         substitution_managers: Dict[str, EnhancedSubstitutionManager] = {}
         pipeline_output_dirs: Dict[str, Optional[Path]] = {}
 
@@ -1219,7 +1234,14 @@ class ActionOrchestrator:
                     use_directory_discovery=False,
                     pre_discovered_flowgroups=slice_for_pipeline,
                 )
-            flowgroups_by_pipeline[pipeline_field] = flowgroups
+            # Pre-build FlowGroupContext envelopes on the main thread. The
+            # FlowgroupDiscoverer's source-path index holds a threading.Lock,
+            # so the lookup cannot cross the process boundary. Synthetic
+            # provenance (auxiliary_files, synthetic flag) is pulled from
+            # `self._synthetic_contexts`, populated during discovery.
+            contexts_by_pipeline[pipeline_field] = [
+                self._make_context(fg) for fg in flowgroups
+            ]
             pipeline_output_dirs[pipeline_field] = None
 
             # Empty pipelines (smart filtering left no work): skip output-dir
@@ -1243,20 +1265,17 @@ class ActionOrchestrator:
                     )
                 )
 
-            # Pre-compute source_yamls on the main thread. The discoverer
-            # holds a threading.Lock for its index, so the lookup cannot
-            # cross the process boundary; the worker reads fg._source_yaml.
-            for fg in flowgroups_by_pipeline[pipeline_field]:
-                fg._source_yaml = self._find_source_yaml_for_flowgroup(fg)
-
         # Effective build_state: needs both a real state_manager AND --no-state not set.
         effective_build_state = bool(state_manager) and self.build_state
         state_dir = state_manager.state_dir if state_manager is not None else None
 
-        # Top-level callable bound by functools.partial. The pool needs an
-        # importable target; closures can't be pickled under spawn.
-        process_one = functools.partial(
-            _dispatch_pipeline_for_generate,
+        # Captured once and shipped to each worker via the pool's initializer=
+        # seam. Replaces the per-task functools.partial capture that re-pickled
+        # FlowgroupProcessor + CodeGenerator + CodeFormatter on every submit.
+        # self.project_config is Optional but the downstream PipelineProcessor
+        # tolerates None (test paths exercise this); the type-lie is the same
+        # one functools.partial hid in the previous shape.
+        worker_state = _GenerateWorkerState(
             processor=self.processor,
             code_generator=self.generator,
             formatter=self._formatter,
@@ -1265,7 +1284,7 @@ class ActionOrchestrator:
             environment=env,
             state_dir=state_dir,
             project_root=self.project_root,
-            project_config=self.project_config,
+            project_config=self.project_config,  # type: ignore[arg-type]
             include_tests=include_tests,
             build_state=effective_build_state,
             blueprint_provenance=self._blueprint_provenance,
@@ -1278,8 +1297,8 @@ class ActionOrchestrator:
         )
 
         successful, failed = run_generate_pool(
-            flowgroups_by_pipeline=flowgroups_by_pipeline,
-            process_one=process_one,
+            flowgroups_by_pipeline=contexts_by_pipeline,
+            worker_state=worker_state,
             max_workers=resolved_workers,
             on_pipeline_complete=on_pipeline_complete,
         )
@@ -1349,7 +1368,7 @@ class ActionOrchestrator:
             )
 
         return {
-            delta.pipeline_name: dict(delta.generated_files)
+            delta.pipeline_name: delta.generated_filenames
             for delta in successful
         }
 
@@ -1368,6 +1387,40 @@ class ActionOrchestrator:
         """
         return self.discoverer.find_source_yaml_for_flowgroup(flowgroup)
 
+
+    def _make_context(self, fg: FlowGroup) -> FlowGroupContext:
+        """Wrap a FlowGroup in its FlowGroupContext for the worker boundary.
+
+        Looks up synthetic provenance (synthetic flag, auxiliary_files) from
+        `self._synthetic_contexts`; disk-sourced flowgroups get default values.
+        Source YAML is resolved via the FlowgroupDiscoverer (threading.Lock'd
+        index — must run on the main process before spawn).
+
+        Skips the sidecar/source-yaml lookups when the sidecar is empty
+        (e.g. unit tests that mock the orchestrator without a real
+        discoverer). This avoids reading `fg.pipeline`/`fg.flowgroup`
+        when there is no provenance to look up anyway.
+        """
+        if not self._synthetic_contexts:
+            source_yaml = (
+                self._find_source_yaml_for_flowgroup(fg)
+                if self.discoverer is not None
+                else None
+            )
+            return FlowGroupContext(flowgroup=fg, source_yaml=source_yaml)
+        key = (fg.pipeline, fg.flowgroup)
+        existing = self._synthetic_contexts.get(key)
+        source_yaml = self._find_source_yaml_for_flowgroup(fg)
+        if existing is not None:
+            return FlowGroupContext(
+                flowgroup=fg,
+                source_yaml=source_yaml,
+                synthetic=existing.synthetic,
+                auxiliary_files=existing.auxiliary_files,
+                had_test_actions=existing.had_test_actions,
+            )
+        return FlowGroupContext(flowgroup=fg, source_yaml=source_yaml)
+
     def process_flowgroup(
         self,
         flowgroup: FlowGroup,
@@ -1376,6 +1429,11 @@ class ActionOrchestrator:
     ) -> FlowGroup:
         """
         Process flowgroup: expand templates, apply presets, apply substitutions.
+
+        Backward-compatible shim around :meth:`FlowgroupProcessor.process_flowgroup`,
+        which now takes/returns :class:`FlowGroupContext`. This shim wraps the
+        FlowGroup in a default-empty context and returns just the processed
+        FlowGroup for callers that don't care about provenance.
 
         Args:
             flowgroup: FlowGroup to process
@@ -1386,9 +1444,11 @@ class ActionOrchestrator:
         Returns:
             Processed flowgroup
         """
-        return self.processor.process_flowgroup(
-            flowgroup, substitution_mgr, include_tests=include_tests
+        ctx_in = self._make_context(flowgroup)
+        ctx_out = self.processor.process_flowgroup(
+            ctx_in, substitution_mgr, include_tests=include_tests
         )
+        return ctx_out.flowgroup
 
     # _apply_preset_config and _deep_merge methods moved to FlowgroupProcessor service
 
@@ -1629,7 +1689,10 @@ class ActionOrchestrator:
         synthetic_in_pipeline = [
             fg
             for fg in all_flowgroups
-            if fg._synthetic and fg.pipeline == pipeline_identifier
+            if fg.pipeline == pipeline_identifier
+            and (ctx := self._synthetic_contexts.get((fg.pipeline, fg.flowgroup)))
+            is not None
+            and ctx.synthetic
         ]
         if synthetic_in_pipeline:
             env_state = state_manager.load_all_pipeline_shards(env)
@@ -1675,7 +1738,9 @@ class ActionOrchestrator:
         """Process all flowgroups in a batch.
 
         Handles template expansion, preset application, and substitution
-        for a list of flowgroups.
+        for a list of flowgroups. Returns the processed FlowGroups (callers
+        of this method don't need provenance — `FlowGroupContext` envelopes
+        are constructed at the worker boundary).
 
         Args:
             flowgroups: List of flowgroups to process
@@ -1696,16 +1761,11 @@ class ActionOrchestrator:
                     f"process_flowgroup [{flowgroup.flowgroup}]",
                     category="process_flowgroup",
                 ):
-                    processed_fg = self.process_flowgroup(
-                        flowgroup, substitution_mgr, include_tests=include_tests
+                    ctx_in = self._make_context(flowgroup)
+                    ctx_out = self.processor.process_flowgroup(
+                        ctx_in, substitution_mgr, include_tests=include_tests
                     )
-                # Propagate private attributes that don't survive model_dump/reconstruct
-                if flowgroup._auxiliary_files:
-                    processed_fg._auxiliary_files = flowgroup._auxiliary_files
-                processed_fg._has_original_test_actions = (
-                    flowgroup._has_original_test_actions
-                )
-                processed.append(processed_fg)
+                processed.append(ctx_out.flowgroup)
             except Exception as e:
                 self.logger.debug(
                     f"Error processing flowgroup {flowgroup.flowgroup}: {e}"
@@ -1882,6 +1942,7 @@ class ActionOrchestrator:
                 all_flowgroups = self.discover_all_flowgroups()
 
         flowgroups_by_pipeline: Dict[str, List[FlowGroup]] = {}
+        contexts_by_pipeline: Dict[str, List[FlowGroupContext]] = {}
         substitution_managers: Dict[str, EnhancedSubstitutionManager] = {}
         discovery_errors: Dict[str, str] = {}
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
@@ -1900,19 +1961,28 @@ class ActionOrchestrator:
                     exc_info=True,
                 )
                 flowgroups_by_pipeline[pipeline_field] = []
+                contexts_by_pipeline[pipeline_field] = []
                 discovery_errors[pipeline_field] = f"Pipeline validation failed: {e}"
                 continue
 
             flowgroups_by_pipeline[pipeline_field] = flowgroups
+            # Wrap each FlowGroup in its FlowGroupContext envelope for the
+            # worker boundary. Source-path resolution holds a threading.Lock
+            # so it must happen on the main process before spawn.
+            contexts_by_pipeline[pipeline_field] = [
+                self._make_context(fg) for fg in flowgroups
+            ]
             if not flowgroups:
                 continue
             substitution_managers[pipeline_field] = (
                 self.dependencies.create_substitution_manager(substitution_file, env)
             )
 
-        # Top-level callable bound by functools.partial (picklable under spawn).
-        process_one = functools.partial(
-            _process_one_for_validate,
+        # Captured once and shipped to each worker via the pool's initializer=
+        # seam. Replaces the per-task functools.partial capture that re-pickled
+        # FlowgroupProcessor on every submit (the big win on the validate path:
+        # one capture per pool vs. one per flowgroup).
+        worker_state = _ValidateWorkerState(
             processor=self.processor,
             substitution_managers=substitution_managers,
             include_tests=include_tests,
@@ -1980,8 +2050,8 @@ class ActionOrchestrator:
 
         return run_validate_pool(
             pipelines=list(pipeline_fields),
-            flowgroups_by_pipeline=flowgroups_by_pipeline,
-            process_one=process_one,
+            flowgroups_by_pipeline=contexts_by_pipeline,
+            worker_state=worker_state,
             assemble_pipeline=_assemble,
             max_workers=resolved_workers,
             on_pipeline_complete=on_pipeline_complete,

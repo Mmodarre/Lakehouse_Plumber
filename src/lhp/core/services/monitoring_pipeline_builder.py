@@ -17,6 +17,7 @@ from ...models.config import (
     Action,
     ActionType,
     FlowGroup,
+    FlowGroupContext,
     MonitoringConfig,
     ProjectConfig,
 )
@@ -125,17 +126,23 @@ class MonitoringBuildResult:
     """Result of building the monitoring pipeline artifacts.
 
     Attributes:
-        flowgroup: MVs-only DLT pipeline FlowGroup, or None when no MVs.
+        context: FlowGroupContext envelope wrapping the MVs-only DLT pipeline
+            FlowGroup, or None when no MVs.
         template_context: Raw context dict for the notebook template
             (rendered after substitution tokens are resolved).
         eligible_pipelines: Pipeline names included in the monitoring notebook.
-        pipeline_name: Monitoring pipeline name (needed even when flowgroup is None).
+        pipeline_name: Monitoring pipeline name (needed even when context is None).
     """
 
-    flowgroup: Optional[FlowGroup]
+    context: Optional[FlowGroupContext]
     template_context: Dict[str, Any]
     eligible_pipelines: List[str] = field(default_factory=list)
     pipeline_name: str = ""
+
+    @property
+    def flowgroup(self) -> Optional[FlowGroup]:
+        """Backward-compatible accessor for the wrapped FlowGroup."""
+        return self.context.flowgroup if self.context is not None else None
 
 
 class MonitoringPipelineBuilder:
@@ -448,18 +455,23 @@ class MonitoringPipelineBuilder:
                 self._build_mv_action("events_summary", default_sql, catalog, schema)
             )
 
-        # Build FlowGroup (None when no actions — e.g. materialized_views: [])
-        fg: Optional[FlowGroup] = None
+        # Build FlowGroup + envelope (None when no actions — e.g. materialized_views: [])
+        ctx: Optional[FlowGroupContext] = None
         if actions:
             fg = FlowGroup(
                 pipeline=self.pipeline_name,
                 flowgroup="monitoring",
                 actions=actions,
             )
-            fg._synthetic = True
-
+            auxiliary_files: Dict[str, str] = {}
             if self.monitoring_config.enable_job_monitoring:
-                fg._auxiliary_files[JOBS_STATS_MODULE_PATH] = _load_jobs_stats_source()
+                auxiliary_files[JOBS_STATS_MODULE_PATH] = _load_jobs_stats_source()
+            ctx = FlowGroupContext(
+                flowgroup=fg,
+                source_yaml=None,
+                synthetic=True,
+                auxiliary_files=auxiliary_files,
+            )
 
         # Build template context (rendering deferred until substitutions resolved)
         # Use lists (not tuples) so SubstitutionManager._substitute_recursive handles them
@@ -474,7 +486,7 @@ class MonitoringPipelineBuilder:
         }
 
         return MonitoringBuildResult(
-            flowgroup=fg,
+            context=ctx,
             template_context=template_context,
             eligible_pipelines=eligible_pipelines,
             pipeline_name=self.pipeline_name,
