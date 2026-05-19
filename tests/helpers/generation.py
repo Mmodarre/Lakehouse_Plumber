@@ -1,10 +1,7 @@
 """Generation-output read helpers.
 
-Since the Commit-3 payload diet stripped formatted code from the worker
-return path, content-based assertions read from disk. This module provides
-the small read-back helper that test files use to recover the previous
-``{filename: content}`` shape — written to disk by the worker, read by
-the helper, returned to the test.
+The worker pool writes formatted Python to disk and returns only filenames,
+so tests that need to assert on generated content read it back from disk.
 """
 
 from __future__ import annotations
@@ -23,10 +20,9 @@ def read_generated_pipeline(
 ) -> Dict[str, str]:
     """Generate via ``generate_pipeline_by_field`` and return ``{filename: content}``.
 
-    Used by tests that need to assert on generated-Python content. Files
-    land at ``output_dir / pipeline_field / <filename>`` and are read back
-    with ``Path.read_text()`` so the helper returns the same dict shape
-    the orchestrator used to return in-memory before Commit 3.
+    Files land at ``output_dir / pipeline_field / <filename>``; the helper
+    reads each back with ``Path.read_text()`` so callers can assert on
+    generated-Python content.
     """
     filenames = orchestrator.generate_pipeline_by_field(
         pipeline_field=pipeline_field,

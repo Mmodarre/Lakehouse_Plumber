@@ -14,20 +14,11 @@ from lhp.core.secret_validator import SecretValidator
 from lhp.core.services.flowgroup_processor import FlowgroupProcessor
 from lhp.core.template_engine import TemplateEngine
 from lhp.core.validator import ConfigValidator
-from lhp.models.config import Action, ActionType, FlowGroup, FlowGroupContext
+from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.presets.preset_manager import PresetManager
 from lhp.utils.error_formatter import LHPValidationError
 from lhp.utils.substitution import EnhancedSubstitutionManager
-
-
-def _ctx_of(fg: FlowGroup) -> FlowGroupContext:
-    """Wrap a FlowGroup in a default FlowGroupContext for the processor API."""
-    return FlowGroupContext(flowgroup=fg, source_yaml=None)
-
-
-def _process(processor, fg: FlowGroup, sub_mgr, **kwargs) -> FlowGroup:
-    """Call the FlowGroupContext-typed processor and unwrap the FlowGroup."""
-    return processor.process_flowgroup(_ctx_of(fg), sub_mgr, **kwargs).flowgroup
+from tests.helpers import process_unwrap as _process, wrap_in_ctx as _ctx_of
 
 
 from tests.fakes import (

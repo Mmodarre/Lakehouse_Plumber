@@ -33,6 +33,7 @@ import pytest
 
 from lhp.core.pipeline_executor import group_by_pipeline, run_generate_pool
 from lhp.core.state_models import PipelineDelta
+from lhp.models.config import FlowGroupContext
 
 
 class _FakeFlowGroup:
@@ -50,25 +51,13 @@ class _FakeFlowGroup:
         self.mode = mode
 
 
-class _FakeFlowGroupContext:
-    """Picklable FlowGroupContext stand-in matching the dataclass surface.
+def _ctx(fg: "_FakeFlowGroup") -> FlowGroupContext:
+    """Wrap a fake FlowGroup in a real FlowGroupContext envelope.
 
-    The worker boundary now takes :class:`FlowGroupContext` envelopes
-    (``ctx.flowgroup.pipeline``, etc.); this helper wraps a
-    :class:`_FakeFlowGroup` to expose the same attribute path.
+    ``FlowGroupContext`` is a frozen dataclass with no runtime validation
+    on its ``flowgroup`` field, so the picklable fake passes through.
     """
-
-    def __init__(self, fg: "_FakeFlowGroup"):
-        self.flowgroup = fg
-        self.source_yaml = None
-        self.synthetic = False
-        self.auxiliary_files: dict = {}
-        self.had_test_actions = False
-
-
-def _ctx(fg: "_FakeFlowGroup") -> "_FakeFlowGroupContext":
-    """Wrap a fake FlowGroup in a fake FlowGroupContext envelope."""
-    return _FakeFlowGroupContext(fg)
+    return FlowGroupContext(flowgroup=fg, source_yaml=None)
 
 
 def _format_content(fg: "_FakeFlowGroup") -> str:
@@ -93,7 +82,7 @@ def _format_content(fg: "_FakeFlowGroup") -> str:
 
 
 def _fake_process_one_pipeline(
-    pipeline_name: str, contexts: Sequence["_FakeFlowGroupContext"]
+    pipeline_name: str, contexts: Sequence[FlowGroupContext]
 ) -> PipelineDelta:
     """Top-level picklable per-pipeline worker.
 
@@ -173,7 +162,7 @@ class TestRunGeneratePoolBasics:
 @pytest.mark.slow
 class TestRunGeneratePoolMultiPipeline:
     def test_multi_pipeline_deltas_present(self):
-        flowgroups: Dict[str, Sequence[_FakeFlowGroupContext]] = {
+        flowgroups: Dict[str, Sequence[FlowGroupContext]] = {
             "p1": [
                 _ctx(_FakeFlowGroup("p1", "a", mode="format_pipe_colon_name")),
                 _ctx(_FakeFlowGroup("p1", "b", mode="format_pipe_colon_name")),

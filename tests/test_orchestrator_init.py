@@ -9,18 +9,7 @@ import pytest
 from lhp.core.orchestrator import ActionOrchestrator
 from lhp.models.config import FlowGroup, FlowGroupContext
 from lhp.utils.error_formatter import ErrorCategory, LHPError
-
-
-def _wrap_in_ctx(fg) -> FlowGroupContext:
-    """Wrap a (possibly mocked) FlowGroup in a default FlowGroupContext.
-
-    The orchestrator's ``process_flowgroup`` shim now delegates to
-    ``FlowgroupProcessor.process_flowgroup`` which takes/returns
-    :class:`FlowGroupContext`. Tests that mock the processor's return
-    value as a raw (mocked) FlowGroup need to wrap it in a context so
-    the shim can unwrap ``.flowgroup`` for the legacy return shape.
-    """
-    return FlowGroupContext(flowgroup=fg, source_yaml=None)
+from tests.helpers import wrap_in_ctx as _wrap_in_ctx
 
 
 class TestActionOrchestratorInitialization:

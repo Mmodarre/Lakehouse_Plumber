@@ -501,10 +501,8 @@ class TestEndToEndACMIIntegration:
             try:
                 generated_files = orchestrator.generate_pipeline_by_field(pipeline_field, "dev", None)
                 
-                # Each pipeline should generate some files. Content is on
-                # disk after Commit 3; the dry-run call here (output_dir=None)
-                # means no files were written, so quality checks are skipped
-                # in that path. Length-only check stays.
+                # Dry-run (output_dir=None) writes nothing; only verify
+                # that filenames were returned and end with .py.
                 if len(generated_files) > 0:
                     for filename in generated_files:
                         assert filename.endswith(".py")

@@ -63,7 +63,6 @@ class TestFlowGroupContextSerialization:
         )
         assert restored.synthetic is False
         assert dict(restored.auxiliary_files) == {}
-        assert restored.had_test_actions is False
 
     def test_synthetic_context_round_trips(self):
         original = FlowGroupContext(
@@ -71,7 +70,6 @@ class TestFlowGroupContextSerialization:
             source_yaml=None,
             synthetic=True,
             auxiliary_files={"jobs_stats_loader.py": "def get_jobs_stats(): ..."},
-            had_test_actions=True,
         )
         restored = pickle.loads(pickle.dumps(original))
         assert restored.flowgroup.pipeline == "monitoring"
@@ -80,7 +78,6 @@ class TestFlowGroupContextSerialization:
         assert dict(restored.auxiliary_files) == {
             "jobs_stats_loader.py": "def get_jobs_stats(): ..."
         }
-        assert restored.had_test_actions is True
 
     @pytest.mark.parametrize(
         "source_yaml",
@@ -106,7 +103,6 @@ class TestFlowGroupContextSerialization:
             source_yaml=Path("pipelines/x.yaml"),
             synthetic=True,
             auxiliary_files={"a.py": "x = 1"},
-            had_test_actions=True,
         )
         once = pickle.loads(pickle.dumps(original))
         twice = pickle.loads(pickle.dumps(once))
@@ -115,7 +111,6 @@ class TestFlowGroupContextSerialization:
         assert original.source_yaml == twice.source_yaml
         assert original.synthetic == twice.synthetic
         assert dict(original.auxiliary_files) == dict(twice.auxiliary_files)
-        assert original.had_test_actions == twice.had_test_actions
 
     def test_frozen_dataclass_rejects_mutation(self):
         """``@dataclass(frozen=True, slots=True)`` is the contract; verify."""
@@ -127,15 +122,15 @@ class TestFlowGroupContextSerialization:
             ctx.synthetic = True  # type: ignore[misc]
 
     def test_dataclasses_replace_creates_new_context(self):
-        """``dataclasses.replace`` is how the processor sets ``had_test_actions``."""
+        """``dataclasses.replace`` is how the processor swaps the FlowGroup."""
         import dataclasses
 
         ctx_in = FlowGroupContext(
             flowgroup=_make_flowgroup(),
             source_yaml=None,
         )
-        ctx_out = dataclasses.replace(ctx_in, had_test_actions=True)
-        assert ctx_in.had_test_actions is False
-        assert ctx_out.had_test_actions is True
-        # Same FlowGroup identity carried through.
-        assert ctx_out.flowgroup is ctx_in.flowgroup
+        new_fg = _make_flowgroup(flowgroup="customers_processed")
+        ctx_out = dataclasses.replace(ctx_in, flowgroup=new_fg)
+        assert ctx_in.flowgroup.flowgroup == "customers"
+        assert ctx_out.flowgroup.flowgroup == "customers_processed"
+        assert ctx_out.source_yaml == ctx_in.source_yaml

@@ -96,9 +96,9 @@ class _GenerateWorkerState:
     formatter: "CodeFormatter"
     substitution_managers: Mapping[str, "EnhancedSubstitutionManager"]
     pipeline_output_dirs: Mapping[str, Optional[Path]]
-    project_config: "ProjectConfig"
+    project_config: Optional["ProjectConfig"]
     blueprint_provenance: Optional[
-        Mapping[Tuple[str, str], "BlueprintProvenance"]
+        Dict[Tuple[str, str], "BlueprintProvenance"]
     ]
     environment: str
     state_dir: Optional[Path]
@@ -192,11 +192,11 @@ def _process_pipeline_for_generate(
     output_dir: Optional[Path],
     state_dir: Optional[Path],
     project_root: Path,
-    project_config: "ProjectConfig",
+    project_config: Optional["ProjectConfig"],
     context: "ProcessingContext",
     build_state: bool,
     blueprint_provenance: Optional[
-        Mapping[Tuple[str, str], "BlueprintProvenance"]
+        Dict[Tuple[str, str], "BlueprintProvenance"]
     ] = None,
 ) -> "PipelineDelta":
     """Worker entry: process one whole pipeline and return a delta.
@@ -221,10 +221,8 @@ def _process_pipeline_for_generate(
             collaborators and the ``include_tests`` flag.
         build_state: When False, skips state manager and shard.
             Equivalent to ``--no-state``.
-        blueprint_provenance: Read-only ``Mapping`` of synthetic
-            flowgroup keys to provenance. Copied to a ``dict`` at the
-            :class:`PipelineProcessor` boundary if the downstream
-            consumer requires it.
+        blueprint_provenance: ``Dict`` of synthetic flowgroup keys to
+            provenance, forwarded as-is to :class:`PipelineProcessor`.
 
     Returns:
         :class:`PipelineDelta` reporting success/failure with file-count
@@ -241,9 +239,7 @@ def _process_pipeline_for_generate(
         project_config=project_config,
         context=context,
         build_state=build_state,
-        blueprint_provenance=(
-            dict(blueprint_provenance) if blueprint_provenance is not None else None
-        ),
+        blueprint_provenance=blueprint_provenance,
     )
     return pp.run(contexts)
 
@@ -261,11 +257,11 @@ def _dispatch_pipeline_for_generate(
     environment: str,
     state_dir: Optional[Path],
     project_root: Path,
-    project_config: "ProjectConfig",
+    project_config: Optional["ProjectConfig"],
     include_tests: bool,
     build_state: bool,
     blueprint_provenance: Optional[
-        Mapping[Tuple[str, str], "BlueprintProvenance"]
+        Dict[Tuple[str, str], "BlueprintProvenance"]
     ] = None,
 ) -> "PipelineDelta":
     """Top-level per-pipeline dispatch entry called from the worker.

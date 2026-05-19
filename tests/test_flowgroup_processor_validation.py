@@ -8,14 +8,10 @@ from lhp.core.template_engine import TemplateEngine
 from lhp.presets.preset_manager import PresetManager
 from lhp.core.validator import ConfigValidator
 from lhp.core.secret_validator import SecretValidator
-from lhp.models.config import FlowGroup, FlowGroupContext, Action, ActionType
+from lhp.models.config import FlowGroup, Action, ActionType
 from lhp.utils.substitution import EnhancedSubstitutionManager
 from lhp.utils.error_formatter import LHPError
-
-
-def _ctx_of(fg: FlowGroup) -> FlowGroupContext:
-    """Wrap a FlowGroup in a default FlowGroupContext for the processor API."""
-    return FlowGroupContext(flowgroup=fg, source_yaml=None)
+from tests.helpers import wrap_in_ctx as _ctx_of
 
 
 def test_flowgroup_processor_fails_on_unresolved_tokens():

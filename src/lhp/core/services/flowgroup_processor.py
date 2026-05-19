@@ -61,7 +61,7 @@ class FlowgroupProcessor:
                 Defaults to True for backward compatibility.
 
         Returns:
-            New FlowGroupContext with processed FlowGroup and had_test_actions populated.
+            New FlowGroupContext wrapping the processed FlowGroup.
         """
         flowgroup = ctx.flowgroup
         self.logger.debug(
@@ -99,11 +99,6 @@ class FlowgroupProcessor:
                 )
                 # Add template actions to existing actions
                 flowgroup.actions.extend(template_actions)
-
-        # Record whether this flowgroup originally had test actions (before filtering)
-        had_test_actions = any(
-            a.type == ActionType.TEST for a in flowgroup.actions
-        )
 
         # Filter test actions when include_tests=False
         # Placed after template expansion so template-generated test actions are also caught
@@ -256,7 +251,6 @@ class FlowgroupProcessor:
         return dataclasses.replace(
             ctx,
             flowgroup=processed_flowgroup,
-            had_test_actions=had_test_actions,
         )
 
     def apply_preset_config(

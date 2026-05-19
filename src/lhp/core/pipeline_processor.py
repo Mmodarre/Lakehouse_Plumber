@@ -103,7 +103,7 @@ class PipelineProcessor:
         output_dir: Optional[Path],
         state_dir: Optional[Path],
         project_root: Path,
-        project_config: "ProjectConfig",
+        project_config: Optional["ProjectConfig"],
         context: ProcessingContext,
         build_state: bool,
         blueprint_provenance: Optional[

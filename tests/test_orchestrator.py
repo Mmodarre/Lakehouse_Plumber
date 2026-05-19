@@ -851,8 +851,7 @@ class TestGeneratePipelinesByFields:
             )
 
             # Same set of pipelines, same files, same contents.
-            # Filenames travel back via the return; content is read from disk
-            # (Commit 3 stripped formatted code from the worker return path).
+            # Filenames travel back via the return; content is read from disk.
             assert set(plural.keys()) == set(single.keys())
             for name in single:
                 assert set(plural[name]) == set(single[name])

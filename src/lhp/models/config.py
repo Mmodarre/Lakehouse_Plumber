@@ -393,7 +393,6 @@ class FlowGroupContext:
     source_yaml: Path | None
     synthetic: bool = False
     auxiliary_files: Mapping[str, str] = field(default_factory=dict)
-    had_test_actions: bool = False
 
 
 class Template(BaseModel):

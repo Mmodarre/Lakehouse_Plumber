@@ -3,7 +3,7 @@
 import logging
 import os
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -1269,12 +1269,6 @@ class ActionOrchestrator:
         effective_build_state = bool(state_manager) and self.build_state
         state_dir = state_manager.state_dir if state_manager is not None else None
 
-        # Captured once and shipped to each worker via the pool's initializer=
-        # seam. Replaces the per-task functools.partial capture that re-pickled
-        # FlowgroupProcessor + CodeGenerator + CodeFormatter on every submit.
-        # self.project_config is Optional but the downstream PipelineProcessor
-        # tolerates None (test paths exercise this); the type-lie is the same
-        # one functools.partial hid in the previous shape.
         worker_state = _GenerateWorkerState(
             processor=self.processor,
             code_generator=self.generator,
@@ -1284,7 +1278,7 @@ class ActionOrchestrator:
             environment=env,
             state_dir=state_dir,
             project_root=self.project_root,
-            project_config=self.project_config,  # type: ignore[arg-type]
+            project_config=self.project_config,
             include_tests=include_tests,
             build_state=effective_build_state,
             blueprint_provenance=self._blueprint_provenance,
@@ -1394,31 +1388,19 @@ class ActionOrchestrator:
         Looks up synthetic provenance (synthetic flag, auxiliary_files) from
         `self._synthetic_contexts`; disk-sourced flowgroups get default values.
         Source YAML is resolved via the FlowgroupDiscoverer (threading.Lock'd
-        index — must run on the main process before spawn).
-
-        Skips the sidecar/source-yaml lookups when the sidecar is empty
-        (e.g. unit tests that mock the orchestrator without a real
-        discoverer). This avoids reading `fg.pipeline`/`fg.flowgroup`
-        when there is no provenance to look up anyway.
+        index — must run on the main process before spawn). Tests may construct
+        the orchestrator without a discoverer, in which case source_yaml is
+        left None.
         """
-        if not self._synthetic_contexts:
-            source_yaml = (
-                self._find_source_yaml_for_flowgroup(fg)
-                if self.discoverer is not None
-                else None
-            )
-            return FlowGroupContext(flowgroup=fg, source_yaml=source_yaml)
-        key = (fg.pipeline, fg.flowgroup)
-        existing = self._synthetic_contexts.get(key)
-        source_yaml = self._find_source_yaml_for_flowgroup(fg)
-        if existing is not None:
-            return FlowGroupContext(
-                flowgroup=fg,
-                source_yaml=source_yaml,
-                synthetic=existing.synthetic,
-                auxiliary_files=existing.auxiliary_files,
-                had_test_actions=existing.had_test_actions,
-            )
+        source_yaml = (
+            self._find_source_yaml_for_flowgroup(fg)
+            if self.discoverer is not None
+            else None
+        )
+        if self._synthetic_contexts:
+            existing = self._synthetic_contexts.get((fg.pipeline, fg.flowgroup))
+            if existing is not None:
+                return replace(existing, flowgroup=fg, source_yaml=source_yaml)
         return FlowGroupContext(flowgroup=fg, source_yaml=source_yaml)
 
     def process_flowgroup(
@@ -1695,15 +1677,16 @@ class ActionOrchestrator:
             and ctx.synthetic
         ]
         if synthetic_in_pipeline:
-            env_state = state_manager.load_all_pipeline_shards(env)
-            if isinstance(env_state, dict):
-                cache_key = (id(state_manager), env)
-                tracked_keys = self._tracked_keys_cache.get(cache_key)
-                if tracked_keys is None:
+            cache_key = (id(state_manager), env)
+            tracked_keys = self._tracked_keys_cache.get(cache_key)
+            if tracked_keys is None:
+                env_state = state_manager.load_all_pipeline_shards(env)
+                if isinstance(env_state, dict):
                     tracked_keys = {
                         (fs.pipeline, fs.flowgroup) for fs in env_state.values()
                     }
                     self._tracked_keys_cache[cache_key] = tracked_keys
+            if tracked_keys is not None:
                 new_synthetic = {
                     fg.flowgroup
                     for fg in synthetic_in_pipeline
