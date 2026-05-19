@@ -286,7 +286,10 @@ def run_generate_pool(
     if not worklist:
         return successful, failed
 
-    workers = max(1, max_workers)
+    # Workload cap: don't spawn more workers than pipelines to dispatch.
+    # Spawn'd Python interpreters have non-trivial startup cost; idle
+    # workers are pure overhead.
+    workers = min(max(1, max_workers), len(worklist))
     ctx = multiprocessing.get_context("spawn")
     parent_level = logging.getLogger().level
     with (
@@ -469,7 +472,8 @@ def run_validate_pool(
             _emit_outcome(p, [])
 
     if worklist:
-        workers = max(1, max_workers)
+        # Workload cap: don't spawn more workers than flowgroups to validate.
+        workers = min(max(1, max_workers), len(worklist))
         ctx = multiprocessing.get_context("spawn")
         parent_level = logging.getLogger().level
         with (

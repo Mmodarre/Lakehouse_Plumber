@@ -38,12 +38,13 @@ class ValidateCommand(BaseCommand):
             pipeline: Specific pipeline to validate (optional)
             verbose: Enable verbose output
             include_tests: Include test reporting validation
-            max_workers: Maximum worker threads for the cross-pipeline
-                flat pool used by Phase A validation. ``None`` falls back
-                to ``min(cpu_count, 8)`` inside the orchestrator
-                constructor. The raw user value (possibly ``None``) is
-                forwarded through the application facade so the
-                resolution rule lives in one place.
+            max_workers: Maximum worker processes for the cross-pipeline
+                flat pool used by Phase A validation. ``None`` defers to
+                the orchestrator constructor's resolution order
+                (``LHP_MAX_WORKERS`` env var → :func:`_auto_max_workers`).
+                The raw user value (possibly ``None``) is forwarded
+                through the application facade so the resolution rule
+                lives in one place.
         """
         self.setup_from_context()
         project_root = self.ensure_project_root()
@@ -242,9 +243,10 @@ class ValidateCommand(BaseCommand):
                 already-constructed instance).
             include_tests: If False, skip test actions during validation.
             all_flowgroups: Pre-discovered flowgroups to avoid redundant scans.
-            max_workers: Raw user-supplied thread-pool size. ``None``
+            max_workers: Raw user-supplied process-pool size. ``None``
                 lets the orchestrator's constructor default
-                (``min(cpu_count, 8)``) take over.
+                (``LHP_MAX_WORKERS`` env var → :func:`_auto_max_workers`)
+                take over.
 
         Returns:
             Tuple of (total_errors, total_warnings).

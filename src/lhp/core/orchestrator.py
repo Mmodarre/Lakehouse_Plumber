@@ -122,6 +122,30 @@ class GenerationAnalysis:
         return "up-to-date"
 
 
+def _auto_max_workers() -> int:
+    """Resolve a worker count when no explicit override is supplied.
+
+    Detection chain (3.11+ compatible):
+      1. ``os.process_cpu_count()`` — Python 3.13+, respects CPU affinity natively.
+      2. ``os.sched_getaffinity(0)`` — Linux, reflects cgroup CPU quotas
+         (e.g. Docker ``--cpus=2`` on a large host returns 2).
+      3. ``os.cpu_count()`` — macOS / Windows fallback.
+
+    Applies a 20% headroom (``floor(detected * 0.8)``) so the main thread
+    and OS have room to schedule alongside the spawn'd worker pool. The
+    workload cap (don't spawn more workers than independent submissions)
+    is intentionally NOT applied here — callers know their own workload
+    shape and apply it at the submission site.
+    """
+    if hasattr(os, "process_cpu_count"):
+        detected = os.process_cpu_count() or 1  # type: ignore[attr-defined]
+    elif hasattr(os, "sched_getaffinity"):
+        detected = len(os.sched_getaffinity(0))
+    else:
+        detected = os.cpu_count() or 1
+    return max(1, int(detected * 0.8))
+
+
 class ActionOrchestrator:
     """
     Main orchestration for pipeline generation (Service-based architecture).
@@ -148,8 +172,12 @@ class ActionOrchestrator:
             enforce_version: Whether to enforce version requirements (default: True)
             dependencies: Optional dependency container for injection (uses defaults if None)
             pipeline_config_path: Optional path to custom pipeline config file (relative to project_root)
-            max_workers: Maximum worker threads for parallel flowgroup processing.
-                If None, uses ``min(cpu_count, 8)``. ``1`` is sequential.
+            max_workers: Maximum worker processes for the parallel pool
+                (generate parallelizes per pipeline, validate per flowgroup).
+                If None, resolves in priority order: ``LHP_MAX_WORKERS`` env
+                var, else :func:`_auto_max_workers` (~80% of OS-visible CPU
+                count, honoring cgroup CPU limits on Linux). ``1`` is
+                sequential.
             build_state: When False, workers skip checksum computation and
                 shard writes (``.lhp_state/`` is not created/updated).
                 Surfaced as the CLI ``--no-state`` flag; equivalent to
@@ -219,14 +247,26 @@ class ActionOrchestrator:
         )
         self.planning_service = GenerationPlanningService(project_root, self.discoverer)
         self.command_registry = CommandRegistry()
-        # Resolve max_workers at construction time. None → min(cpu_count, 8);
-        # explicit values pass through (1 = sequential).
-        if max_workers is None:
-            import multiprocessing
-
-            self.max_workers: int = min(multiprocessing.cpu_count(), 8)
+        # Resolve max_workers at construction time.
+        # Priority: explicit arg > LHP_MAX_WORKERS env var > auto-detect.
+        # Auto-detect uses ~80% of the OS-visible CPU count (honors cgroup
+        # CPU limits on Linux via affinity); workload caps are applied
+        # per-call at the submission site in pipeline_executor.
+        if max_workers is not None:
+            self.max_workers: int = max(1, max_workers)
         else:
-            self.max_workers = max(1, max_workers)
+            env_override = os.environ.get("LHP_MAX_WORKERS")
+            if env_override:
+                try:
+                    self.max_workers = max(1, int(env_override))
+                except ValueError:
+                    self.logger.warning(
+                        f"LHP_MAX_WORKERS={env_override!r} is not an integer; "
+                        f"falling back to auto-detect."
+                    )
+                    self.max_workers = _auto_max_workers()
+            else:
+                self.max_workers = _auto_max_workers()
         self._formatter = CodeFormatter()
 
         # Monitoring build result (set during discover_all_flowgroups if monitoring is configured)
@@ -1823,8 +1863,9 @@ class ActionOrchestrator:
                 processing (matches single-pipeline shim default of True).
             pre_discovered_all_flowgroups: Re-use caller's one-shot
                 discovery; if None, runs ``discover_all_flowgroups()``.
-            max_workers: Thread-pool size; falls back through
-                ``self.max_workers`` → ``min(cpu_count, 8)``.
+            max_workers: Process-pool size; falls back through
+                ``self.max_workers`` → :func:`_auto_max_workers`
+                (~80% of detected CPU count, honoring cgroup limits on Linux).
             on_pipeline_complete: Optional callback fired once per
                 pipeline (main thread, completion order).
 
@@ -1932,7 +1973,7 @@ class ActionOrchestrator:
             )
 
         # Resolve worker count — constructor already turned None into
-        # min(cpu_count, 8); method-level override takes precedence.
+        # _auto_max_workers(); method-level override takes precedence.
         resolved_workers = max(
             1, max_workers if max_workers is not None else self.max_workers
         )

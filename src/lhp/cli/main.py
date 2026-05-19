@@ -355,7 +355,11 @@ def skill_uninstall(user: bool, force: bool) -> None:
     "--max-workers",
     type=click.IntRange(min=1),
     default=None,
-    help="Maximum worker threads (default: min(cpu_count, 8)). Use 1 for sequential.",
+    help=(
+        "Maximum worker processes. Default: ~80 percent of detected CPU count "
+        "(honors cgroup limits on Linux), capped at the workload size. "
+        "Override with the LHP_MAX_WORKERS env var. Use 1 for sequential."
+    ),
 )
 @click.option(
     "--no-state",
@@ -414,7 +418,11 @@ def generate(
     "--max-workers",
     type=click.IntRange(min=1),
     default=None,
-    help="Maximum worker threads (default: min(cpu_count, 8)). Use 1 for sequential.",
+    help=(
+        "Maximum worker processes. Default: ~80 percent of detected CPU count "
+        "(honors cgroup limits on Linux), capped at the workload size. "
+        "Override with the LHP_MAX_WORKERS env var. Use 1 for sequential."
+    ),
 )
 @cli_error_boundary("Pipeline validation")
 def validate(env, pipeline, verbose, include_tests, max_workers):
