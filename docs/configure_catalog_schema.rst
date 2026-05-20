@@ -233,7 +233,7 @@ result. Both carry a ``doc_link`` pointing to this page so that programmatic
 catchers (CI tooling, editor integrations) can route users back to it.
 
 LHP-CFG-023 — ``--pipeline-config`` is required
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Message:** ``--pipeline-config is required when bundle support is enabled``
 
@@ -248,7 +248,7 @@ project's equivalent path). To skip bundle resource generation entirely
 without supplying the flag, pass ``--no-bundle``.
 
 LHP-CFG-026 — aggregated catalog/schema validation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Message:** ``Catalog/schema validation failed for N pipeline(s)``
 
