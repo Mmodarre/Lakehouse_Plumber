@@ -384,53 +384,21 @@ class CodeGenerator:
         pre_pipeline_statements: Set[str] = set()
 
         for action in actions:
-            try:
-                # Determine action sub-type
-                sub_type = self.determine_action_subtype(action)
-
-                # Get generator
-                generator = self.action_registry.get_generator(action.type, sub_type)
-
-                # Generate code
-                context = self._build_generation_context(
-                    flowgroup,
-                    substitution_mgr,
-                    preset_config,
-                    output_dir,
-                    source_yaml,
-                    env,
-                    python_file_copier,
-                    phase_a_records=phase_a_records,
-                    auxiliary_files=auxiliary_files,
-                )
-                action_code = generator.generate(action, context)
-                sections.append(action_code)
-
-                # Collect imports and pre-pipeline statements
-                section_imports, section_pre = self._collect_generator_outputs(
-                    generator
-                )
-                imports.update(section_imports)
-                pre_pipeline_statements.update(section_pre)
-
-            except LHPError:
-                raise  # Re-raise LHPError as-is
-            except Exception as e:
-                raise LHPError(
-                    category=ErrorCategory.ACTION,
-                    code_number="002",
-                    title=f"Action code generation failed for '{action.name}'",
-                    details=f"Error generating code for action '{action.name}': {e}",
-                    suggestions=[
-                        "Check the action configuration for errors",
-                        "Verify source and target references are correct",
-                        "Run 'lhp validate' for detailed diagnostics",
-                    ],
-                    context={
-                        "Action": action.name,
-                        "Action Type": str(action.type),
-                    },
-                ) from e
+            code, section_imports, section_pre = self._generate_one_action_code(
+                action,
+                flowgroup,
+                substitution_mgr,
+                preset_config,
+                output_dir,
+                source_yaml,
+                env,
+                python_file_copier,
+                phase_a_records=phase_a_records,
+                auxiliary_files=auxiliary_files,
+            )
+            sections.append(code)
+            imports.update(section_imports)
+            pre_pipeline_statements.update(section_pre)
 
         return sections, imports, pre_pipeline_statements
 
@@ -453,68 +421,86 @@ class CodeGenerator:
         pre_pipeline_statements: Set[str] = set()
 
         for action in actions:
-            try:
-                # Build sub-header based on DQ mode
-                source = action.source if isinstance(action.source, str) else "source"
-                target = action.target or "target"
-                mode = getattr(action, "mode", None) or "dqe"
+            source = action.source if isinstance(action.source, str) else "source"
+            target = action.target or "target"
+            mode = getattr(action, "mode", None) or "dqe"
 
-                if mode == "quarantine":
-                    sub_header_text = f"Quarantine: {source} → {target}"
-                else:
-                    sub_header_text = f"Expectations: {source} → {target}"
+            if mode == "quarantine":
+                sub_header_text = f"Quarantine: {source} → {target}"
+            else:
+                sub_header_text = f"Expectations: {source} → {target}"
 
-                sub_header = f"\n# {'-' * 76}\n# {sub_header_text}\n# {'-' * 76}"
-                sections.append(sub_header)
+            sub_header = f"\n# {'-' * 76}\n# {sub_header_text}\n# {'-' * 76}"
+            sections.append(sub_header)
 
-                # Determine action sub-type
-                sub_type = self.determine_action_subtype(action)
-
-                # Get generator
-                generator = self.action_registry.get_generator(action.type, sub_type)
-
-                # Generate code
-                context = self._build_generation_context(
-                    flowgroup,
-                    substitution_mgr,
-                    preset_config,
-                    output_dir,
-                    source_yaml,
-                    env,
-                    python_file_copier,
-                    phase_a_records=phase_a_records,
-                    auxiliary_files=auxiliary_files,
-                )
-                action_code = generator.generate(action, context)
-                sections.append(action_code)
-
-                # Collect imports and pre-pipeline statements
-                section_imports, section_pre = self._collect_generator_outputs(
-                    generator
-                )
-                imports.update(section_imports)
-                pre_pipeline_statements.update(section_pre)
-
-            except LHPError:
-                raise  # Re-raise LHPError as-is
-            except Exception as e:
-                raise LHPError(
-                    category=ErrorCategory.ACTION,
-                    code_number="002",
-                    title=f"Action code generation failed for '{action.name}'",
-                    details=f"Error generating code for action '{action.name}': {e}",
-                    suggestions=[
-                        "Check the action configuration for errors",
-                        "Verify source and target references are correct",
-                        "Run 'lhp validate' for detailed diagnostics",
-                    ],
-                    context={
-                        "Action": action.name,
-                        "Action Type": str(action.type),
-                    },
-                ) from e
+            code, section_imports, section_pre = self._generate_one_action_code(
+                action,
+                flowgroup,
+                substitution_mgr,
+                preset_config,
+                output_dir,
+                source_yaml,
+                env,
+                python_file_copier,
+                phase_a_records=phase_a_records,
+                auxiliary_files=auxiliary_files,
+            )
+            sections.append(code)
+            imports.update(section_imports)
+            pre_pipeline_statements.update(section_pre)
 
         return sections, imports, pre_pipeline_statements
+
+    def _generate_one_action_code(
+        self,
+        action: Action,
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+        preset_config: Dict[str, Any],
+        output_dir: Optional[Path],
+        source_yaml: Optional[Path],
+        env: Optional[str],
+        python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
+    ) -> Tuple[str, Set[str], Set[str]]:
+        """Resolve generator, build context, produce code + outputs, and wrap action-level errors as LHPError."""
+        try:
+            sub_type = self.determine_action_subtype(action)
+            generator = self.action_registry.get_generator(action.type, sub_type)
+            context = self._build_generation_context(
+                flowgroup,
+                substitution_mgr,
+                preset_config,
+                output_dir,
+                source_yaml,
+                env,
+                python_file_copier,
+                phase_a_records=phase_a_records,
+                auxiliary_files=auxiliary_files,
+            )
+            code = generator.generate(action, context)
+            imports, pre_stmts = self._collect_generator_outputs(generator)
+            return code, imports, pre_stmts
+
+        except LHPError:
+            raise
+        except Exception as e:
+            raise LHPError(
+                category=ErrorCategory.ACTION,
+                code_number="002",
+                title=f"Action code generation failed for '{action.name}'",
+                details=f"Error generating code for action '{action.name}': {e}",
+                suggestions=[
+                    "Check the action configuration for errors",
+                    "Verify source and target references are correct",
+                    "Run 'lhp validate' for detailed diagnostics",
+                ],
+                context={
+                    "Action": action.name,
+                    "Action Type": str(action.type),
+                },
+            ) from e
 
     def _build_generation_context(
         self,
