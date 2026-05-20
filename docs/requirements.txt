@@ -3,7 +3,7 @@ furo
 sphinxext-opengraph
 sphinx-notfound-page
 sphinx-llms-txt
-myst-parser>=5.0.0
+myst-parser>=5.1.0
 sphinx-click>=6.2.0
 sphinxcontrib-mermaid>=2.0.2
 sphinx-copybutton>=0.5.2
