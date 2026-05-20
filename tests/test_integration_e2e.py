@@ -66,6 +66,16 @@ class TestEndToEndBundleWorkflow:
         # Step 4: Generate files using CLI and test bundle sync
         os.chdir(self.project_root)
 
+        # v0.8.7: preflight requires --pipeline-config for bundle-enabled
+        # projects. Write a minimal config so the test can reach bundle sync.
+        (self.project_root / "config").mkdir(parents=True, exist_ok=True)
+        (self.project_root / "config" / "pipeline_config.yaml").write_text(
+            "project_defaults:\n"
+            "  catalog: test_catalog_dev\n"
+            "  schema: bronze\n"
+            "  serverless: true\n"
+        )
+
         # Mock bundle sync to verify it's called at CLI level
         with patch(
             "lhp.bundle.manager.BundleManager.sync_resources_with_generated_files"
@@ -75,7 +85,16 @@ class TestEndToEndBundleWorkflow:
 
             runner = CliRunner()
 
-            result = runner.invoke(cli, ["generate", "-e", "dev"])
+            result = runner.invoke(
+                cli,
+                [
+                    "generate",
+                    "-e",
+                    "dev",
+                    "--pipeline-config",
+                    "config/pipeline_config.yaml",
+                ],
+            )
 
             # Verify generation succeeded
             assert result.exit_code == 0
@@ -277,7 +296,9 @@ resources:
         except Exception as e:
             # If it raises an exception, it should be a controlled LHP exception:
             # BundleResourceError for bundle-internal failures, or LHPConfigError
-            # for catalog/schema misconfiguration (LHP-CFG-026).
+            # if preflight is bypassed (LHP-GEN-001 internal-error guard).
+            # User-facing catalog/schema validation is in
+            # ``bundle.preflight.validate_catalog_schema`` (LHP-CFG-026).
             from lhp.bundle.exceptions import BundleResourceError
             from lhp.utils.error_formatter import LHPConfigError
 
@@ -310,6 +331,15 @@ resources:
         """Test CLI integration with verbose bundle output."""
         self._setup_bundle_project()
 
+        # v0.8.7: bundle-enabled generate requires --pipeline-config.
+        (self.project_root / "config").mkdir(parents=True, exist_ok=True)
+        (self.project_root / "config" / "pipeline_config.yaml").write_text(
+            "project_defaults:\n"
+            "  catalog: test_catalog_dev\n"
+            "  schema: bronze\n"
+            "  serverless: true\n"
+        )
+
         os.chdir(self.project_root)
 
         from click.testing import CliRunner
@@ -318,7 +348,16 @@ resources:
 
         # Test verbose generation with bundle
         result = runner.invoke(
-            cli, ["--verbose", "generate", "--env", "dev", "--dry-run"]
+            cli,
+            [
+                "--verbose",
+                "generate",
+                "--env",
+                "dev",
+                "--dry-run",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
         )
 
         # Should complete successfully

@@ -303,9 +303,15 @@ continuous: true
         assert config["continuous"] == True
     
     def test_partial_catalog_schema_definition_raises_error(self, temp_project):
-        """Test that defining only catalog OR schema raises an error"""
-        from lhp.bundle.exceptions import BundleResourceError
+        """Direct call to ``generate_resource_file_content`` bypassing preflight.
 
+        After the preflight refactor, the user-facing catalog/schema validation
+        moved to ``bundle.preflight.validate_catalog_schema`` (raises
+        ``LHP-CFG-026``). The three raises that used to live inside
+        ``generate_resource_file_content`` were collapsed into a single
+        internal-error guard (``LHP-GEN-001``) — this test asserts on that
+        guard fires when preflight is bypassed.
+        """
         # Create config with only catalog
         config_content = """
 ---
@@ -329,12 +335,16 @@ serverless: true
         with pytest.raises(LHPConfigError) as exc_info:
             manager.generate_resource_file_content("invalid_pipeline", output_dir, "dev")
 
-        assert exc_info.value.code == "LHP-CFG-026"
-        assert "Incomplete catalog/schema" in str(exc_info.value)
-        assert "configure_catalog_schema" in exc_info.value.doc_link
+        assert exc_info.value.code == "LHP-GEN-001"
+        assert "preflight" in str(exc_info.value).lower()
     
     def test_empty_catalog_after_substitution_raises_error(self, temp_project):
-        """Test that empty catalog after substitution raises an error"""
+        """Direct call to ``generate_resource_file_content`` bypassing preflight.
+
+        See note on ``test_partial_catalog_schema_definition_raises_error``:
+        the user-facing validation is now in preflight; this test verifies
+        the internal-error guard catches preflight bypass.
+        """
         # Create substitution with empty value
         sub_content = {
             "dev": {
@@ -364,16 +374,15 @@ serverless: true
         output_dir = temp_project / "generated"
         
         # Empty strings are treated as missing due to falsy evaluation in
-        # Python, triggering the "Incomplete catalog/schema" check (one
-        # missing, one defined).
+        # Python, so the internal-error guard fires for "missing/empty
+        # resolved catalog/schema".
         from lhp.utils.error_formatter import LHPConfigError
 
         with pytest.raises(LHPConfigError) as exc_info:
             manager.generate_resource_file_content("empty_catalog_pipeline", output_dir, "dev")
 
-        assert exc_info.value.code == "LHP-CFG-026"
-        assert "Incomplete catalog/schema" in str(exc_info.value)
-        assert "configure_catalog_schema" in exc_info.value.doc_link
+        assert exc_info.value.code == "LHP-GEN-001"
+        assert "preflight" in str(exc_info.value).lower()
     
     def test_unresolved_tokens_pass_through(self, temp_project):
         """Test that unresolved tokens pass through (EnhancedSubstitutionManager behavior)"""

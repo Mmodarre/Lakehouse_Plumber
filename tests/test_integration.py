@@ -163,7 +163,7 @@ actions:
         calls for entire-value fields (user, password) and an f-string for
         the URL where the secret is embedded mid-literal. Explicitly checks
         that the wrapped-string regression form is absent — a string literal
-        containing the call text is what broke JDBC auth in v0.8.8 §2.
+        containing the call text is what broke JDBC auth in v0.8.7 §2.
         """
         project_root = self.create_project_structure(temp_project)
 
@@ -236,7 +236,7 @@ actions:
         assert '.format("jdbc")' in code
 
         # Entire-value secrets must be emitted as bare dbutils calls.
-        # The wrapped-string form (which v0.8.8 §2 introduced and Option 1
+        # The wrapped-string form (which v0.8.7 §2 introduced and Option 1
         # reverts) would break JDBC auth at runtime — auth would receive
         # the literal call text instead of the resolved secret.
         # Wrap-tolerant: black may break the .option(...) call across lines

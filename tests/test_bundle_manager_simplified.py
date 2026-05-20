@@ -8,8 +8,10 @@ Refactor summary the tests encode:
 
 * ``resources/lhp/`` is wiped and re-rendered on every ``lhp generate``.
 * Catalog/schema MUST come from ``pipeline_config.yaml`` -- either per pipeline
-  or via a top-level ``project_defaults`` block. Missing config raises a
-  structured ``LHPConfigError`` with code ``LHP-CFG-026``.
+  or via a top-level ``project_defaults`` block. User-facing validation is in
+  ``bundle.preflight.validate_catalog_schema`` (raises ``LHP-CFG-026``). The
+  bundle-write phase keeps an internal-error guard that raises ``LHP-GEN-001``
+  if preflight was bypassed.
 * ``DatabricksYAMLManager`` is deleted; ``databricks.yml`` is never mutated.
 * ``sync_resources_with_generated_files`` no longer accepts ``force`` or
   ``has_pipeline_config``.
@@ -139,7 +141,13 @@ def test_sync_signature_drops_force_and_has_pipeline_config():
 
 @pytest.mark.unit
 def test_missing_catalog_and_schema_raises_config_error(tmp_path):
-    """Pipeline with neither per-pipeline nor project_defaults catalog/schema errors."""
+    """Direct call bypasses preflight → internal-error guard fires (``LHP-GEN-001``).
+
+    User-facing catalog/schema validation now lives in
+    ``bundle.preflight.validate_catalog_schema`` and surfaces as
+    ``LHP-CFG-026``. ``BundleManager.generate_resource_file_content`` keeps
+    a single guard for non-CLI callers that skip preflight.
+    """
     project_root = tmp_path
     generated_root = project_root / "generated" / "dev"
     _make_pipeline_dirs(generated_root, ["pipeline_a"])
@@ -156,8 +164,8 @@ def test_missing_catalog_and_schema_raises_config_error(tmp_path):
     with pytest.raises(LHPConfigError) as exc_info:
         manager.generate_resource_file_content("pipeline_a", generated_root, "dev")
 
-    assert exc_info.value.code == "LHP-CFG-026"
-    assert "configure_catalog_schema" in exc_info.value.doc_link
+    assert exc_info.value.code == "LHP-GEN-001"
+    assert "preflight" in str(exc_info.value).lower()
 
 
 @pytest.mark.unit
@@ -295,7 +303,10 @@ def test_per_pipeline_overrides_project_defaults(tmp_path):
 
 @pytest.mark.unit
 def test_incomplete_catalog_pairing_raises_config_error(tmp_path):
-    """catalog without schema raises LHPConfigError LHP-CFG-026."""
+    """catalog without schema → internal-error guard ``LHP-GEN-001``.
+
+    See note on ``test_missing_catalog_and_schema_raises_config_error``.
+    """
     project_root = tmp_path
     generated_root = project_root / "generated" / "dev"
     _make_pipeline_dirs(generated_root, ["pipeline_a"])
@@ -310,8 +321,8 @@ def test_incomplete_catalog_pairing_raises_config_error(tmp_path):
     with pytest.raises(LHPConfigError) as exc_info:
         manager.generate_resource_file_content("pipeline_a", generated_root, "dev")
 
-    assert exc_info.value.code == "LHP-CFG-026"
-    assert "configure_catalog_schema" in exc_info.value.doc_link
+    assert exc_info.value.code == "LHP-GEN-001"
+    assert "preflight" in str(exc_info.value).lower()
 
 
 @pytest.mark.unit

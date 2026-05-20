@@ -18,8 +18,10 @@
 # Usage:
 #   1. Copy or rename this file to remove the .tmpl extension
 #   2. Customize the settings below for your project
-#   3. LHP auto-loads: templates/bundle/pipeline_config.yaml (if exists)
-#   4. Or pass explicitly: lhp generate --pipeline-config config/pipeline_config.yaml
+#   3. Pass explicitly via --pipeline-config / -pc:
+#        lhp generate --pipeline-config config/pipeline_config.yaml -e dev
+#      This flag is REQUIRED when databricks.yml is present (bundle support
+#      enabled). See docs/configure_catalog_schema.rst for examples.
 #
 # Documentation: See docs/databricks_bundles.rst for detailed information
 # ==============================================================================

@@ -605,6 +605,161 @@ resources:
             f"  stdout: {stdout_text!r}"
         )
 
+    # ========================================================================
+    # PREFLIGHT VALIDATION TESTS
+    # ========================================================================
+
+    def _snapshot_tree(self, *roots: Path) -> dict:
+        """SHA-256 every file under the given roots; map relative path to hex.
+
+        Used to prove preflight runs BEFORE any side effects: the generated
+        and resources trees must be byte-identical before and after a failed
+        invocation. Same idiom as ``test_databricks_yml_not_mutated`` above.
+        """
+        snapshot = {}
+        for root in roots:
+            if not root.exists():
+                continue
+            for file_path in root.rglob("*"):
+                if file_path.is_file():
+                    rel = str(file_path.relative_to(self.project_root))
+                    snapshot[rel] = hashlib.sha256(
+                        file_path.read_bytes()
+                    ).hexdigest()
+        return snapshot
+
+    def test_preflight_blocks_when_pc_missing_and_bundle_enabled(self):
+        """B-gate: bundle enabled + no -pc -> LHP-CFG-023 with zero side effects.
+
+        Seed both ``resources/lhp/`` and ``generated/dev/`` with sentinel files
+        before invocation and verify their SHA-256 is unchanged afterwards.
+        Proves the wipe in ``generate_command.py`` is reached only AFTER
+        ``require_pipeline_config_flag`` succeeds.
+        """
+        sentinel_resources = self.resources_dir / "sentinel.yml"
+        sentinel_generated = self.generated_dir / "sentinel.txt"
+        sentinel_resources.write_text("# sentinel -- must survive preflight failure\n")
+        sentinel_generated.write_text("sentinel\n")
+
+        before = self._snapshot_tree(self.resources_dir, self.generated_dir)
+
+        # Invoke WITHOUT --pipeline-config (B-gate target).
+        runner = CliRunner()
+        result = runner.invoke(cli, ["generate", "--env", "dev"])
+
+        assert result.exit_code != 0, (
+            f"Generate must fail when bundle is enabled and -pc is omitted. "
+            f"exit_code={result.exit_code}, output={result.output!r}"
+        )
+        assert "LHP-CFG-023" in result.output, (
+            f"Expected LHP-CFG-023 in CLI output; got:\n{result.output}"
+        )
+
+        after = self._snapshot_tree(self.resources_dir, self.generated_dir)
+        assert before == after, (
+            "Preflight failure must not touch resources/lhp/ or generated/<env>/.\n"
+            f"  before: {before}\n"
+            f"  after:  {after}"
+        )
+        assert sentinel_resources.exists(), "Sentinel under resources/ was wiped"
+        assert sentinel_generated.exists(), "Sentinel under generated/ was wiped"
+
+    def test_preflight_blocks_when_catalog_missing_in_pc(self):
+        """A+: catalog/schema missing -> LHP-CFG-026 aggregated; zero side effects.
+
+        Uses the dedicated ``testing_project_no_catalog_schema`` fixture variant
+        (which already ships a pipeline_config.yaml with no catalog/schema).
+        """
+        # Swap to the no-catalog/schema fixture (same approach as
+        # test_missing_catalog_schema_fails_fast).
+        variant_fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "testing_project_no_catalog_schema"
+        )
+        os.chdir(self.original_cwd)
+        shutil.rmtree(self.project_root)
+        shutil.copytree(variant_fixture, self.project_root)
+        os.chdir(self.project_root)
+        self.generated_dir = self.project_root / "generated" / "dev"
+        self.resources_dir = self.project_root / "resources" / "lhp"
+        self.generated_dir.mkdir(parents=True, exist_ok=True)
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+
+        sentinel_resources = self.resources_dir / "sentinel.yml"
+        sentinel_generated = self.generated_dir / "sentinel.txt"
+        sentinel_resources.write_text("# sentinel\n")
+        sentinel_generated.write_text("sentinel\n")
+
+        before = self._snapshot_tree(self.resources_dir, self.generated_dir)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
+
+        assert result.exit_code != 0, (
+            f"Generate must fail when catalog/schema are missing. "
+            f"exit_code={result.exit_code}, output={result.output!r}"
+        )
+        assert "LHP-CFG-026" in result.output, (
+            f"Expected LHP-CFG-026 in CLI output; got:\n{result.output}"
+        )
+        # Aggregated message lists the offending pipeline name.
+        assert "simple_pipeline" in result.output, (
+            f"Aggregated error must name the failing pipeline; got:\n{result.output}"
+        )
+
+        after = self._snapshot_tree(self.resources_dir, self.generated_dir)
+        assert before == after, (
+            "Preflight failure must not touch resources/lhp/ or generated/<env>/."
+        )
+
+    def test_preflight_passes_with_project_defaults_only(self):
+        """Happy path: project_defaults sets catalog/schema -> exit 0.
+
+        Uses the standard testing_project fixture (which has project_defaults
+        with catalog/schema set). Verifies generation completes and resource
+        files are produced under ``resources/lhp/``.
+        """
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, (
+            f"Generate should succeed with valid project_defaults; output:\n{output}"
+        )
+        # At least one pipeline resource file must be produced.
+        pipeline_files = list(self.resources_dir.glob("*.pipeline.yml"))
+        assert pipeline_files, (
+            f"Expected *.pipeline.yml files under {self.resources_dir}; "
+            f"found: {list(self.resources_dir.iterdir())}"
+        )
+
+    def test_preflight_runs_in_dry_run(self):
+        """Preflight executes under ``--dry-run`` -- proves it is not gated by side effects.
+
+        Invokes with ``--dry-run`` AND without ``-pc``; expects ``LHP-CFG-023``
+        specifically (B-gate raised before any work). This is the inverse
+        guarantee of ``check_substitution_file``: dry-run does NOT skip
+        preflight.
+        """
+        runner = CliRunner()
+        result = runner.invoke(cli, ["generate", "--env", "dev", "--dry-run"])
+
+        assert result.exit_code != 0, (
+            f"Dry-run must still fail B-gate. "
+            f"exit_code={result.exit_code}, output={result.output!r}"
+        )
+        assert "LHP-CFG-023" in result.output, (
+            f"Expected LHP-CFG-023 specifically (not a generic error); "
+            f"got:\n{result.output}"
+        )
+
     def test_bundle_yaml_regenerated_every_run(self):
         """Every `*.pipeline.yml` in `resources/lhp/` is regenerated on every run.
 

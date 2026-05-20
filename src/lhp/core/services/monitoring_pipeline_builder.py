@@ -27,6 +27,28 @@ from ...utils.template_renderer import TemplateRenderer
 
 logger = logging.getLogger(__name__)
 
+
+def resolve_monitoring_pipeline_name(
+    project_config: Optional[ProjectConfig],
+) -> Optional[str]:
+    """Return the synthetic monitoring pipeline name if monitoring is enabled.
+
+    Returns ``None`` when ``project_config`` is missing, when monitoring is
+    absent or disabled, or when monitoring is enabled without an explicit
+    ``pipeline_name`` and ``project_config.name`` is unavailable. Otherwise
+    returns the configured ``monitoring.pipeline_name`` or the default
+    ``{project_config.name}_event_log_monitoring``.
+    """
+    if not project_config:
+        return None
+    monitoring = getattr(project_config, "monitoring", None)
+    if not monitoring or not monitoring.enabled:
+        return None
+    if monitoring.pipeline_name:
+        return str(monitoring.pipeline_name)
+    return f"{project_config.name}_event_log_monitoring"
+
+
 # Default MV SQL: pipeline run summary with status, duration, and row metrics
 DEFAULT_MV_SQL = """\
 WITH run_info AS (

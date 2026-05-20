@@ -69,9 +69,26 @@ class TestGenerateFlagsE2E:
     # ------------------------------------------------------------------
 
     def run_generate(self, *args) -> tuple:
-        """Run 'lhp generate' with the given args. Returns (exit_code, output)."""
+        """Run 'lhp generate' with the given args. Returns (exit_code, output).
+
+        v0.8.7: bundle-enabled projects (databricks.yml present) require
+        ``--pipeline-config`` or preflight blocks generation with
+        ``LHP-CFG-023``. If the caller did not supply ``--pipeline-config``
+        / ``-pc`` / ``--no-bundle`` and the fixture has a default
+        ``config/pipeline_config.yaml``, inject ``-pc`` automatically so
+        tests stay focused on their actual assertions.
+        """
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", *args])
+        argv = list(args)
+        needs_pc = (
+            "--pipeline-config" not in argv
+            and "-pc" not in argv
+            and "--no-bundle" not in argv
+            and (self.project_root / "config" / "pipeline_config.yaml").exists()
+        )
+        if needs_pc:
+            argv.extend(["--pipeline-config", "config/pipeline_config.yaml"])
+        result = runner.invoke(cli, ["generate", *argv])
         return result.exit_code, result.output
 
     # ------------------------------------------------------------------

@@ -9,17 +9,15 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from ..core.services.monitoring_pipeline_builder import (
+    resolve_monitoring_pipeline_name,
+)
 from ..utils.error_formatter import ErrorCategory, LHPConfigError, LHPError
 from ..utils.performance_timer import perf_timer, record_count
 from ..utils.template_renderer import TemplateRenderer
 from .exceptions import BundleResourceError
 
 logger = logging.getLogger(__name__)
-
-
-CATALOG_SCHEMA_DOC_LINK = (
-    "https://lakehouse-plumber.readthedocs.io/en/latest/configure_catalog_schema.html"
-)
 
 
 # Top-level pipeline_config keys that pipeline_resource.yml.j2 renders explicitly.
@@ -300,19 +298,7 @@ class BundleManager:
         return pipeline_config
 
     def _get_monitoring_pipeline_name(self) -> Optional[str]:
-        """Get the monitoring pipeline name from project config.
-
-        Returns:
-            Monitoring pipeline name, or None if monitoring not configured
-        """
-        if not self.project_config:
-            return None
-        monitoring = getattr(self.project_config, "monitoring", None)
-        if not monitoring or not monitoring.enabled:
-            return None
-        if monitoring.pipeline_name:
-            return monitoring.pipeline_name
-        return f"{self.project_config.name}_event_log_monitoring"
+        return resolve_monitoring_pipeline_name(self.project_config)
 
     def generate_resource_file_content(
         self, pipeline_name: str, output_dir: Path, env: str
@@ -326,6 +312,11 @@ class BundleManager:
         (either per-pipeline or via the top-level ``project_defaults`` block); they are
         never read from ``databricks.yml``.
 
+        Catalog/schema validation is performed upstream by
+        ``bundle.preflight.validate_catalog_schema`` before any wipes occur.
+        The guard here is a defense-in-depth assertion that fires only if a
+        non-CLI caller invokes this method without running preflight first.
+
         Args:
             pipeline_name: Name of the pipeline
             output_dir: Output directory
@@ -335,7 +326,8 @@ class BundleManager:
             YAML content for the resource file with fully substituted pipeline config
 
         Raises:
-            LHPConfigError: If catalog/schema configuration is missing or invalid
+            LHPConfigError: ``LHP-GEN-001`` if preflight was bypassed and
+                catalog/schema is still missing/empty at the bundle-write phase.
         """
         pipeline_config_raw = self.config_loader.get_pipeline_config(pipeline_name)
 
@@ -354,66 +346,28 @@ class BundleManager:
 
         catalog = pipeline_config_resolved.get("catalog")
         schema = pipeline_config_resolved.get("schema")
-
-        if not catalog and not schema:
+        if (
+            not catalog
+            or not schema
+            or not str(catalog).strip()
+            or not str(schema).strip()
+        ):
             raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="026",
-                title="Missing catalog and schema in pipeline_config.yaml",
+                category=ErrorCategory.GENERAL,
+                code_number="001",
+                title="Internal error: preflight bypassed for bundle resource generation",
                 details=(
-                    f"Pipeline '{pipeline_name}' has neither per-pipeline nor "
-                    f"project_defaults catalog/schema defined. Bundle resource "
-                    f"generation requires both."
+                    f"Pipeline '{pipeline_name}' reached the bundle-write phase "
+                    f"with missing/empty resolved catalog/schema "
+                    f"(catalog={catalog!r}, schema={schema!r}). "
+                    f"This indicates preflight validation did not run."
                 ),
                 suggestions=[
-                    "Define `catalog` and `schema` under the pipeline's block in pipeline_config.yaml",
-                    "Or add them to the top-level `project_defaults` block to apply to all pipelines",
+                    "This is a programming bug; preflight should have caught this. "
+                    "Verify generate_command.py calls validate_catalog_schema "
+                    "before BundleManager.",
                 ],
                 context={"pipeline": pipeline_name, "env": env},
-                doc_link=CATALOG_SCHEMA_DOC_LINK,
-            )
-
-        if not (catalog and schema):
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="026",
-                title="Incomplete catalog/schema pairing in pipeline_config.yaml",
-                details=(
-                    f"Pipeline '{pipeline_name}' defines only one of catalog/schema. "
-                    f"Define BOTH or neither."
-                ),
-                suggestions=[
-                    "Add the missing field alongside the one that is set",
-                    "Or remove both and rely on `project_defaults`",
-                ],
-                context={
-                    "pipeline": pipeline_name,
-                    "catalog": "defined" if catalog else "missing",
-                    "schema": "defined" if schema else "missing",
-                },
-                doc_link=CATALOG_SCHEMA_DOC_LINK,
-            )
-
-        if not catalog.strip() or not schema.strip():
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="026",
-                title="Empty catalog/schema after substitution",
-                details=(
-                    f"Pipeline '{pipeline_name}' has empty catalog or schema after "
-                    f"substitution token resolution."
-                ),
-                suggestions=[
-                    "Check that substitution tokens used by catalog/schema are defined in substitutions/<env>.yaml",
-                    "Verify the env name passed to `lhp generate` matches a substitutions file",
-                ],
-                context={
-                    "pipeline": pipeline_name,
-                    "env": env,
-                    "catalog": repr(catalog),
-                    "schema": repr(schema),
-                },
-                doc_link=CATALOG_SCHEMA_DOC_LINK,
             )
 
         self.logger.info(

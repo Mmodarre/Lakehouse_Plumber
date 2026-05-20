@@ -71,6 +71,17 @@ actions:
 bundle:
   name: test_bundle
 """)
+            # v0.8.7: bundle-enabled projects must ship a pipeline_config that
+            # supplies catalog/schema, or preflight (LHP-CFG-023/026) blocks
+            # generation. Project defaults apply to every discovered pipeline.
+            config_dir = self.project_root / "config"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "pipeline_config.yaml").write_text(
+                "project_defaults:\n"
+                "  catalog: dev_catalog\n"
+                "  schema: bronze\n"
+                "  serverless: true\n"
+            )
 
     def test_generate_with_no_bundle_flag_overrides_detection(self):
         """Should respect --no-bundle flag even when bundle files exist."""
@@ -99,7 +110,8 @@ bundle:
             os.chdir(str(self.project_root))
             
             result = self.runner.invoke(cli, [
-                '--verbose', 'generate', '--env', 'dev', '--dry-run'
+                '--verbose', 'generate', '--env', 'dev', '--dry-run',
+                '--pipeline-config', 'config/pipeline_config.yaml',
             ])
             
             # Should succeed with bundle output
@@ -427,6 +439,17 @@ actions:
         resources_lhp_dir = self.project_root / "resources" / "lhp"
         resources_lhp_dir.mkdir(parents=True)
 
+        # v0.8.7: bundle-enabled projects must supply catalog/schema via
+        # pipeline_config.yaml or preflight blocks generation.
+        config_dir = self.project_root / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "pipeline_config.yaml").write_text(
+            "project_defaults:\n"
+            "  catalog: dev_catalog\n"
+            "  schema: bronze\n"
+            "  serverless: true\n"
+        )
+
     @patch('lhp.bundle.manager.BundleManager')
     @patch('lhp.utils.bundle_detection.should_enable_bundle_support')
     def test_generate_calls_bundle_sync_when_enabled(self, mock_bundle_detection, mock_bundle_manager_class):
@@ -443,7 +466,8 @@ actions:
             os.chdir(str(self.project_root))
             
             result = self.runner.invoke(cli, [
-                '--verbose', 'generate', '--env', 'dev', '--dry-run'
+                '--verbose', 'generate', '--env', 'dev', '--dry-run',
+                '--pipeline-config', 'config/pipeline_config.yaml',
             ])
             
             # Should complete successfully with bundle sync
@@ -490,7 +514,8 @@ actions:
             os.chdir(str(self.project_root))
             
             result = self.runner.invoke(cli, [
-                '--verbose', 'generate', '--env', 'dev', '--output', 'custom_output', '--dry-run'
+                '--verbose', 'generate', '--env', 'dev', '--output', 'custom_output', '--dry-run',
+                '--pipeline-config', 'config/pipeline_config.yaml',
             ])
             
             # Should complete successfully with bundle support
@@ -505,7 +530,8 @@ actions:
             
             # Test with dry-run
             result = self.runner.invoke(cli, [
-                '--verbose', 'generate', '--env', 'dev', '--dry-run'
+                '--verbose', 'generate', '--env', 'dev', '--dry-run',
+                '--pipeline-config', 'config/pipeline_config.yaml',
             ])
             
             # Should complete successfully with bundle sync
@@ -520,7 +546,8 @@ actions:
             os.chdir(str(self.project_root))
             
             result = self.runner.invoke(cli, [
-                '--verbose', 'generate', '--env', 'dev', '--dry-run'
+                '--verbose', 'generate', '--env', 'dev', '--dry-run',
+                '--pipeline-config', 'config/pipeline_config.yaml',
             ])
             
             # Should include bundle-related verbose output
@@ -648,9 +675,20 @@ actions:
       table: test_table
 """)
 
+            # v0.8.7: bundle-enabled projects require an explicit
+            # pipeline_config.yaml. ``lhp init`` ships a .tmpl, not the
+            # rendered file, so create a minimal valid config here.
+            Path("config/pipeline_config.yaml").write_text(
+                "project_defaults:\n"
+                "  catalog: dev_catalog\n"
+                "  schema: bronze\n"
+                "  serverless: true\n"
+            )
+
             # Step 3: Generate with bundle sync (dry run)
             result = self.runner.invoke(cli, [
-                'generate', '--env', 'dev', '--dry-run'
+                'generate', '--env', 'dev', '--dry-run',
+                '--pipeline-config', 'config/pipeline_config.yaml',
             ])
 
             # Should complete successfully
@@ -704,9 +742,19 @@ actions:
       table: customer
 """)
 
+            # v0.8.7: pipeline_config.yaml is required for bundle-enabled
+            # projects. project_defaults apply to every pipeline.
+            Path("config/pipeline_config.yaml").write_text(
+                "project_defaults:\n"
+                "  catalog: dev_catalog\n"
+                "  schema: bronze\n"
+                "  serverless: true\n"
+            )
+
             # Generate with bundle sync
             result = self.runner.invoke(cli, [
-                '--verbose', 'generate', '--env', 'dev', '--dry-run'
+                '--verbose', 'generate', '--env', 'dev', '--dry-run',
+                '--pipeline-config', 'config/pipeline_config.yaml',
             ])
 
             # Should complete successfully with bundle sync

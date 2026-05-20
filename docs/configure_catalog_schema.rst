@@ -107,9 +107,37 @@ Pass the config path with ``--pipeline-config`` (short form ``-pc``) on every
 
    lhp generate --env dev --pipeline-config config/pipeline_config.yaml
 
-The flag accepts paths relative to the project root or absolute paths. Without
-``--pipeline-config``, LHP cannot read ``catalog`` and ``schema`` and every
-pipeline fails with the error described in `Error reference`_.
+The flag accepts paths relative to the project root or absolute paths.
+
+.. versionchanged:: 0.8.7
+   ``--pipeline-config`` is **required** when bundle support is enabled
+   (``databricks.yml`` is present in the project root and ``--no-bundle`` is
+   not passed). Invocations that omit the flag now fail with
+   ``LHP-CFG-023`` *before* any files are written or deleted. To skip bundle
+   resource generation entirely, pass ``--no-bundle``.
+
+Pre-flight validation
+---------------------
+
+``lhp generate`` runs catalog/schema validation **before** any side effects:
+no directory is wiped, no code is generated, no bundle YAML is written until
+preflight passes. Two checks fire in order:
+
+1. **CLI flag check** (``LHP-CFG-023``) — when bundle support is enabled,
+   ``--pipeline-config`` must be supplied. Fails in <1 second on a missing
+   flag.
+2. **Catalog/schema resolution** (``LHP-CFG-026``) — every pipeline (plus
+   the synthetic monitoring pipeline if monitoring is enabled in
+   ``lhp.yaml``) is checked for resolved ``catalog`` and ``schema``. All
+   failures are aggregated into one error, grouped by failure type — see
+   `Error reference`_ below.
+
+Preflight runs identically under ``--dry-run``: a dry-run invocation with
+missing config still surfaces the same errors, just without ever touching
+the filesystem.
+
+Without ``--pipeline-config`` and with bundle support enabled, every pipeline
+fails with the error described in `Error reference`_.
 
 For multi-environment workflows, pair one config file with each environment:
 
@@ -199,50 +227,87 @@ environment, add per-pipeline entries that override the defaults. See
 Error reference
 ---------------
 
-When catalog or schema cannot be resolved, LHP raises ``LHPConfigError`` with
-code ``LHP-CFG-026`` and ``lhp generate`` exits non-zero. Every error in this
-section carries a ``doc_link`` pointing to this page so that programmatic
+Preflight surfaces two distinct error codes. ``LHP-CFG-023`` covers the CLI
+flag check; ``LHP-CFG-026`` is the aggregated catalog/schema validation
+result. Both carry a ``doc_link`` pointing to this page so that programmatic
 catchers (CI tooling, editor integrations) can route users back to it.
 
+LHP-CFG-023 — ``--pipeline-config`` is required
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Message:** ``--pipeline-config is required when bundle support is enabled``
+
+Triggered when ``databricks.yml`` exists in the project root (bundle support
+is enabled), ``--no-bundle`` was not passed, and ``--pipeline-config`` /
+``-pc`` was omitted. Without that flag, ``PipelineConfigLoader`` loads empty
+defaults and every pipeline would fail catalog/schema validation later — so
+preflight surfaces the actionable error up front.
+
+**Fix:** Pass ``--pipeline-config config/pipeline_config.yaml`` (or your
+project's equivalent path). To skip bundle resource generation entirely
+without supplying the flag, pass ``--no-bundle``.
+
+LHP-CFG-026 — aggregated catalog/schema validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Message:** ``Catalog/schema validation failed for N pipeline(s)``
+
+Triggered when any pipeline (including the synthetic monitoring pipeline if
+monitoring is enabled) has missing or empty ``catalog`` / ``schema`` after
+config merge and substitution. Failures are aggregated across **all**
+pipelines and grouped by failure type. The error's ``context["failures"]``
+exposes the structured payload to programmatic consumers::
+
+   {
+     "both_missing": ["pipeline_a", "pipeline_b"],
+     "incomplete": [{"pipeline_name": "...", "catalog": "...", "schema": null}],
+     "empty_after_substitution": [{"pipeline_name": "...", ...}]
+   }
+
+The three failure categories below explain each bucket.
+
 Both missing
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
-**Message:** ``catalog and schema must be defined in pipeline_config.yaml for pipeline '<name>'…``
-
-Triggered when neither the per-pipeline entry nor ``project_defaults`` sets
-``catalog`` and ``schema``. The most common cause is forgetting ``--pipeline-config``
-on the ``lhp generate`` command or pointing it at a file with no
-``project_defaults`` block.
+Pipelines listed under ``both_missing`` have neither ``catalog`` nor
+``schema`` set after the deep merge (``DEFAULT_PIPELINE_CONFIG`` →
+``project_defaults`` → per-pipeline). The most common cause is a
+``pipeline_config.yaml`` without a ``project_defaults`` block and no
+per-pipeline overrides.
 
 **Fix:** Add ``catalog`` and ``schema`` to ``project_defaults`` (for
-project-wide values) or to the pipeline's own entry (for per-pipeline values),
-then re-run ``lhp generate`` with ``--pipeline-config``.
+project-wide values) or to each pipeline's own entry (for per-pipeline values).
 
 Incomplete pairing
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^
 
-**Message:** ``Incomplete catalog/schema for pipeline '<name>': catalog=…, schema=…``
-
-Triggered when one of ``catalog`` or ``schema`` is defined but the other is
-missing. LHP requires both or neither — partial configuration is treated as a
-typo, not as a fallback request.
+Pipelines listed under ``incomplete`` have one of ``catalog`` or ``schema``
+defined but the other missing. LHP requires both or neither — partial
+configuration is treated as a typo, not as a fallback request.
 
 **Fix:** Add the missing key. If the intent was to inherit from
-``project_defaults`` for one half, remove the other half from the per-pipeline
-entry so both resolve from the same layer.
+``project_defaults`` for one half, remove the other half from the
+per-pipeline entry so both resolve from the same layer.
 
 Empty after substitution
-~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Message:** ``Empty catalog/schema after substitution in pipeline '<name>'. catalog=…, schema=…``
-
-Triggered when ``catalog`` or ``schema`` references a substitution token whose
-value is the empty string after ``substitutions/<env>.yaml`` resolves. The
-keys exist in the config but evaluate to nothing.
+Pipelines listed under ``empty_after_substitution`` have ``catalog`` or
+``schema`` that resolved to whitespace-only strings after
+``substitutions/<env>.yaml`` was applied. The keys exist in the config but
+evaluate to nothing meaningful.
 
 **Fix:** Inspect the substitution file for the failing environment. Run
 ``lhp substitutions --env <env>`` to print the resolved values for every
 token. Add or correct the entries that resolve to empty strings.
+
+.. note::
+
+   Pre-0.8.7 versions raised three separate ``LHP-CFG-026`` errors — one per
+   failure category, on the first failing pipeline. The current preflight
+   walks every pipeline once and aggregates into a single error. Users who
+   parsed the previous title strings should switch to
+   ``LHPConfigError.context["failures"]``, which is the stable contract.
 
 See also
 --------

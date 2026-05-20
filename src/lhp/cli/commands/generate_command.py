@@ -9,13 +9,20 @@ import click
 
 from ...bundle.exceptions import BundleResourceError
 from ...bundle.manager import BundleManager
+from ...bundle.preflight import (
+    require_pipeline_config_flag,
+    validate_catalog_schema,
+)
 from ...core.layers import (
     GenerationResponse,
     LakehousePlumberApplicationFacade,
     ValidationResponse,
 )
 from ...core.orchestrator import ActionOrchestrator
-from ...models.config import FlowGroup
+from ...core.services.monitoring_pipeline_builder import (
+    resolve_monitoring_pipeline_name,
+)
+from ...models.config import FlowGroup, ProjectConfig
 from ...utils.bundle_detection import should_enable_bundle_support
 from ...utils.performance_timer import log_perf_summary, perf_timer
 from .base_command import BaseCommand
@@ -75,6 +82,15 @@ class GenerateCommand(BaseCommand):
         self._display_startup_message(env)
         self.check_substitution_file(env)
 
+        # Refuse to proceed if bundle support is on and no pipeline_config
+        # was supplied. Done BEFORE any side effects so a bad invocation
+        # cannot wipe resources/lhp/ or generated/<env>/.
+        bundle_enabled = should_enable_bundle_support(project_root, no_bundle)
+        require_pipeline_config_flag(
+            bundle_enabled=bundle_enabled,
+            pipeline_config_path=pipeline_config,
+        )
+
         with perf_timer("Orchestrator init", phase=True):
             application_facade = self._create_application_facade(
                 project_root,
@@ -108,7 +124,17 @@ class GenerateCommand(BaseCommand):
 
         logger.debug(f"Pipelines discovered for generation: {pipelines_to_generate}")
 
-        bundle_enabled = should_enable_bundle_support(project_root, no_bundle)
+        # Validate catalog/schema for every pipeline (incl. the monitoring
+        # synthetic pipeline if enabled) before any wipes. Runs in
+        # --dry-run too — same fail-fast contract as the flag check above.
+        self._run_catalog_schema_preflight(
+            bundle_enabled=bundle_enabled,
+            project_root=project_root,
+            pipeline_config=pipeline_config,
+            pipelines_to_generate=pipelines_to_generate,
+            env=env,
+            project_config=application_facade.orchestrator.project_config,
+        )
 
         # Always wipe the env-specific generated directory: every run is a
         # full regenerate after the V0.8.7 state-tracking removal. The
@@ -183,6 +209,39 @@ class GenerateCommand(BaseCommand):
             f"{len(all_generated_filenames)} total output file(s)"
         )
         self._display_completion_message(total_files, output_dir, dry_run)
+
+    def _run_catalog_schema_preflight(
+        self,
+        *,
+        bundle_enabled: bool,
+        project_root: Path,
+        pipeline_config: Optional[str],
+        pipelines_to_generate: List[str],
+        env: str,
+        project_config: Optional[ProjectConfig],
+    ) -> None:
+        """Run catalog/schema preflight validation when bundle support is enabled.
+
+        ``require_pipeline_config_flag`` (called earlier in ``execute``)
+        guarantees ``pipeline_config`` is non-None whenever
+        ``bundle_enabled`` is True; the assertion documents that invariant
+        for mypy.
+        """
+        if not bundle_enabled:
+            return
+        assert pipeline_config is not None, (
+            "pipeline_config must be non-None when bundle_enabled is True; "
+            "require_pipeline_config_flag enforces this invariant."
+        )
+        with perf_timer("Preflight catalog/schema validation", phase=True):
+            monitoring_name = resolve_monitoring_pipeline_name(project_config)
+            validate_catalog_schema(
+                project_root=project_root,
+                pipeline_config_path=pipeline_config,
+                pipeline_names=pipelines_to_generate,
+                env=env,
+                monitoring_pipeline_name=monitoring_name,
+            )
 
     def _create_application_facade(
         self,
@@ -358,3 +417,5 @@ def _wipe_resources_lhp_directory(project_root: Path) -> None:
     if resources_lhp.exists():
         shutil.rmtree(resources_lhp)
     resources_lhp.mkdir(parents=True, exist_ok=True)
+
+

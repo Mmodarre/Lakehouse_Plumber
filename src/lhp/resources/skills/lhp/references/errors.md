@@ -32,8 +32,10 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-010** | Deprecated field name | Replace with the field name shown in error message |
 | **CFG-012** | Missing required template parameters | Add `template_parameters:` with all required params |
 | **CFG-021** | Bundle YAML processing error | Validate `databricks.yml` syntax; check UTF-8 encoding |
+| **CFG-023** | `--pipeline-config` not passed and bundle support enabled (preflight) | Pass `--pipeline-config config/pipeline_config.yaml`, or `--no-bundle` to skip bundle resource generation |
 | **CFG-024** | Bundle template fetch error | Check network; verify template path/URL |
 | **CFG-025** | Bundle configuration structural error | Review `databricks.yml` against DAB docs |
+| **CFG-026** | Aggregated catalog/schema preflight failure (see below) | Add `catalog`/`schema` to `project_defaults` or per-pipeline; for empty-after-substitution failures, check `substitutions/<env>.yaml` |
 | **CFG-027** | Template not found | Check spelling; run `lhp list_templates` |
 
 ## Validation Errors (LHP-VAL)
@@ -69,49 +71,95 @@ Terminal output includes: error code, description, context, fix suggestions, and
 |------|---------|-----|
 | **DEP-001** | Circular dependency (A → B → C → A) | Break the cycle; error shows full path. Use `lhp deps --format dot` to visualize |
 
-## LHP-CFG-026 — catalog/schema (fail-fast at bundle resource generation)
+## Pre-flight validation: LHP-CFG-023 and LHP-CFG-026
 
-All three errors below are raised by `generate_resource_file_content` as
-`LHPConfigError` with code `LHP-CFG-026`. The structured `doc_link` points to
-the Configure catalog/schema docs page so programmatic catchers (CI tooling,
-editor integrations) can route users back to it.
+`lhp generate` runs two preflight checks **before** any side effects
+(directory wipes, code generation, bundle YAML writes). Both surface as
+`LHPConfigError` with `doc_link` pointing to the Configure catalog/schema
+docs page.
 
-### Both `catalog` and `schema` missing
+### LHP-CFG-023 — `--pipeline-config` is required
 
-**Message:** `catalog and schema must be defined in pipeline_config.yaml for pipeline '<name>'…`
+**Message:** `--pipeline-config is required when bundle support is enabled`
 
-**Cause:** Neither the per-pipeline entry nor the top-level `project_defaults` block
-in `pipeline_config.yaml` sets `catalog` and `schema`. Common root cause:
-`--pipeline-config` was not passed to `lhp generate`, or the file has no
-`project_defaults` block.
+**Cause:** `databricks.yml` exists in the project root (bundle support is
+enabled), `--no-bundle` was not passed, and `--pipeline-config` / `-pc` was
+omitted. Without that flag, `PipelineConfigLoader` loads empty defaults and
+every pipeline would fail catalog/schema validation later — so preflight
+raises this up-front, before any work.
 
-**Fix:** Add `catalog` and `schema` to `project_defaults` (project-wide) or to the
-pipeline's own entry (per-pipeline), then re-run with
-`lhp generate --env <env> --pipeline-config config/pipeline_config.yaml`.
+**Fix:** Pass `--pipeline-config config/pipeline_config.yaml` (or your
+project's equivalent path). To skip bundle resource generation entirely
+without supplying the flag, pass `--no-bundle`.
 
-### Incomplete pairing (one of catalog/schema set, the other missing)
+### LHP-CFG-026 — aggregated catalog/schema validation
 
-**Message:** `Incomplete catalog/schema for pipeline '<name>': catalog=…, schema=…`
+**Message:** `Catalog/schema validation failed for N pipeline(s)`
 
-**Cause:** Exactly one of `catalog` or `schema` is defined; the other is missing.
-LHP requires both or neither — partial configuration is treated as a typo, not as
-a fallback request to fill in the missing half from somewhere else.
+**Cause:** One or more pipelines (including the synthetic monitoring
+pipeline when monitoring is enabled in `lhp.yaml`) had missing or empty
+`catalog` / `schema` after deep-merging `DEFAULT_PIPELINE_CONFIG` →
+`project_defaults` → per-pipeline, then applying substitutions from
+`substitutions/<env>.yaml`.
+
+Failures are aggregated across **all** pipelines and grouped into three
+categories. The structured payload lives on `LHPConfigError.context["failures"]`:
+
+```python
+{
+    "both_missing": ["pipeline_a", "pipeline_b"],
+    "incomplete": [{"pipeline_name": "...", "catalog": "...", "schema": None}],
+    "empty_after_substitution": [{"pipeline_name": "...", ...}],
+}
+```
+
+#### Both `catalog` and `schema` missing
+
+Pipelines listed under `both_missing` have neither key set after deep merge.
+Most common cause: `pipeline_config.yaml` has no `project_defaults` block
+and no per-pipeline overrides.
+
+**Fix:** Add `catalog` and `schema` to `project_defaults` (project-wide) or
+to each pipeline's own entry (per-pipeline).
+
+#### Incomplete pairing (one of catalog/schema set, the other missing)
+
+Pipelines listed under `incomplete` have exactly one of `catalog` or
+`schema` defined. LHP requires both or neither — partial configuration is
+treated as a typo, not as a fallback request.
 
 **Fix:** Add the missing key. If the intent was to inherit one half from
-`project_defaults`, remove the other half from the per-pipeline entry so both
-values resolve from the same layer.
+`project_defaults`, remove the other half from the per-pipeline entry so
+both values resolve from the same layer.
 
-### Empty after substitution
+#### Empty after substitution
 
-**Message:** `Empty catalog/schema after substitution in pipeline '<name>'. catalog=…, schema=…`
-
-**Cause:** `catalog` or `schema` references a substitution token whose value is the
-empty string after `substitutions/<env>.yaml` resolves. The keys exist, but
-evaluate to nothing.
+Pipelines listed under `empty_after_substitution` have a `catalog` or
+`schema` that resolved to whitespace-only strings after
+`substitutions/<env>.yaml` was applied. The keys exist, but evaluate to
+nothing meaningful.
 
 **Fix:** Inspect the substitution file for the failing environment. Run
-`lhp substitutions --env <env>` to print resolved values. Add or correct entries
-that resolve to empty strings.
+`lhp substitutions --env <env>` to print resolved values. Add or correct
+entries that resolve to empty strings.
+
+> **Note:** Pre-0.8.7 versions raised three separate `LHP-CFG-026` errors —
+> one per category, on the first failing pipeline. Current preflight walks
+> every pipeline once and aggregates into a single error. Parse
+> `LHPConfigError.context["failures"]` for the stable contract.
+
+## LHP-GEN-001 — internal-error guard (preflight bypassed)
+
+**Message:** `Internal error: preflight bypassed for bundle resource generation`
+
+**Cause:** A non-CLI caller invoked `BundleManager.generate_resource_file_content`
+directly without running preflight first. Users should never see this — if
+they do, it indicates a programming bug.
+
+**Fix:** Verify the CLI invocation path runs through
+`generate_command.execute()` which calls `validate_catalog_schema` before
+`BundleManager`. For programmatic callers, invoke
+`bundle.preflight.validate_catalog_schema` first.
 
 ---
 

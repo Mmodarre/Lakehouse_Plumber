@@ -141,7 +141,13 @@ class TestCLI:
             assert "❌ Pipeline 'UNKNOWN_PIPELINE' not found" in result.output
 
     def test_generate_bundle_sync_dry_run(self, runner, temp_project):
-        """Test bundle sync detection in dry-run mode."""
+        """Test bundle sync detection in dry-run mode.
+
+        Under the v0.8.7 preflight contract, bundle-enabled projects must
+        pass ``--pipeline-config`` (or ``--no-bundle``). This test supplies
+        a minimal config so it can reach the bundle-sync dry-run code path
+        being exercised.
+        """
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
 
@@ -184,12 +190,33 @@ class TestCLI:
             with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
                 yaml.dump(flowgroup_content, f)
 
-            # Run generate with verbose and dry-run to see bundle sync message
-            result = runner.invoke(
-                cli, ["--verbose", "generate", "--env", "dev", "--dry-run"]
+            # Minimal pipeline_config that satisfies preflight (project_defaults
+            # apply to every discovered pipeline).
+            Path("config/pipeline_config.yaml").write_text(
+                "project_defaults:\n"
+                "  catalog: test_cat\n"
+                "  schema: bronze\n"
+                "  serverless: true\n",
+                encoding="utf-8",
             )
 
-            assert result.exit_code == 0
+            # Run generate with verbose and dry-run to see bundle sync message
+            result = runner.invoke(
+                cli,
+                [
+                    "--verbose",
+                    "generate",
+                    "--env",
+                    "dev",
+                    "--dry-run",
+                    "--pipeline-config",
+                    "config/pipeline_config.yaml",
+                ],
+            )
+
+            assert result.exit_code == 0, (
+                f"Unexpected failure; output:\n{result.output}"
+            )
             assert "Bundle sync would be performed" in result.output
 
     def test_load_project_config_malformed(self, runner, temp_project):
@@ -333,8 +360,13 @@ class TestCLI:
             with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
                 yaml.dump(flowgroup_content, f)
 
-            # Run generate with dry-run
-            result = runner.invoke(cli, ["generate", "--env", "dev", "--dry-run"])
+            # Run generate with dry-run. ``--no-bundle`` avoids the v0.8.7
+            # preflight requirement for ``--pipeline-config`` since this test
+            # exercises the dry-run flow, not bundle integration.
+            result = runner.invoke(
+                cli,
+                ["generate", "--env", "dev", "--dry-run", "--no-bundle"],
+            )
 
             assert result.exit_code == 0
             assert "✨ Dry run completed" in result.output
@@ -581,8 +613,12 @@ description = "Test package"
             pipeline_dir = Path("pipelines/empty_pipeline")
             pipeline_dir.mkdir(parents=True)
 
-            # Run generate - should exit with error when no flowgroups found
-            result = runner.invoke(cli, ["generate", "--env", "dev"])
+            # Run generate with ``--no-bundle`` so the v0.8.7 preflight
+            # ``LHP-CFG-023`` check doesn't fire before flowgroup discovery —
+            # this test specifically verifies the "no flowgroups" error.
+            result = runner.invoke(
+                cli, ["generate", "--env", "dev", "--no-bundle"]
+            )
 
             assert result.exit_code != 0
             assert "No flowgroups found in project" in result.output
